@@ -112,3 +112,36 @@ suite("Single bare-variable body (FP-STY-14)", () => {
     }
   });
 });
+
+// FP-STY-15 — `$` before a closing `"` is a literal regex end-anchor.
+//
+// Line 7 (`regexp -- "^foo$bar" $text`) has a genuine live `$bar` substitution
+// and MUST fire W306 (the marker that analysis ran).  The end-anchor cases on
+// lines 3–5 (`"\n$"`, `"abc$"`, `"^foo$"`) must stay silent for W306 — and the
+// lexer must not merge the quoted word with the next (no E002/E205).
+suite("Dollar-before-close-quote (FP-STY-15)", () => {
+  const docUri = getDocUri("dollarCloseQuote.tcl");
+
+  test("live $bar in quoted pattern fires W306 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W306"),
+    });
+    const w306Lines = linesWithCode(diags, "W306");
+    assert.ok(w306Lines.includes(7), `expected W306 on live $bar (line 7); got [${w306Lines}]`);
+  });
+
+  test("regex end-anchor stays silent, no E002/E205/W306 (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W306"),
+    });
+    // No W306 on the end-anchor lines 3–5.
+    for (const ln of linesWithCode(diags, "W306")) {
+      assert.ok(![3, 4, 5].includes(ln), `unexpected W306 on end-anchor line ${ln}`);
+    }
+    // The lexer-merge symptoms (arity / extra-chars) must be absent entirely.
+    assert.strictEqual(linesWithCode(diags, "E002").length, 0, "no spurious E002 arity errors");
+    assert.strictEqual(linesWithCode(diags, "E205").length, 0, "no spurious E205 close-quote errors");
+  });
+});

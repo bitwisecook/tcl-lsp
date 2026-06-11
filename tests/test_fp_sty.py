@@ -539,3 +539,54 @@ def test_FP_STY_14_composite_body_still_fires():
     not a single bare reference."""
     assert _codes("eval $cmd$args", "W105"), "composite body must fire W105"
     assert _codes("fileevent $s readable ${t}--Coro", "W105"), "composite body must fire W105"
+
+
+# FP-STY-15 — lexer: $ before a closing " merged the quoted word with the next
+
+
+def _all(source: str):
+    from server.features.diagnostics import get_diagnostics
+
+    return {d.code for d in get_diagnostics(source)}
+
+
+def test_FP_STY_15_regsub_dollar_anchor_no_errors():
+    """FP: ``regsub "\\n$" $msg "" out`` — ``"\\n$"`` is a literal regex
+    end-of-line anchor (``$`` before ``"`` is not a substitution).  Pre-fix the
+    lexer merged the closing quote with ``$msg``, raising E002/E205/W306 on
+    valid Tcl."""
+    codes = _all(r'regsub "\n$" $msg "" out')
+    assert "E002" not in codes
+    assert "E205" not in codes
+    assert "W306" not in codes
+
+
+def test_FP_STY_15_string_match_dollar_anchor_no_arity():
+    """FP: ``string match "abc$" $x`` is two args after ``match``; the tail
+    ``$`` must not merge ``"abc$"`` with ``$x`` into one word (E002)."""
+    assert "E002" not in _all('string match "abc$" $x')
+
+
+def test_FP_STY_15_dollar_quote_word_boundary_lexes():
+    """FP (token level): ``"abc$" $x`` is two words — the closing ``"`` must
+    terminate the quoted word so ``$x`` is a separate token."""
+    from compiler.parsing.lexer import TclLexer
+
+    toks = [t for t in TclLexer('"abc$" $x').tokenise_all() if t.type.name not in ("EOF", "EOL")]
+    # Must contain a SEP (the word boundary) and a standalone VAR 'x'.
+    assert any(t.type.name == "SEP" for t in toks), [t.type.name for t in toks]
+    assert any(t.type.name == "VAR" and t.text == "x" for t in toks), [
+        (t.type.name, t.text) for t in toks
+    ]
+
+
+def test_FP_STY_15_regex_end_anchor_no_w306():
+    """FP: ``regexp -- "^foo$" $text`` — the ``$`` is the literal end-anchor,
+    not a substitution, so W306 must not fire."""
+    assert "W306" not in _all('regexp -- "^foo$" $text')
+
+
+def test_FP_STY_15_live_var_in_quoted_pattern_still_w306():
+    """TP control: a genuine live ``$bar`` (b is a name char) in a quoted regex
+    pattern is the foot-gun and still fires W306."""
+    assert "W306" in _all('regexp -- "^foo$bar" $text')

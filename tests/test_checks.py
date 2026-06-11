@@ -2192,10 +2192,19 @@ class TestLiteralExpected:
         assert len(diags) == 1
         assert "quotes" in diags[0].message.lower()
 
-    def test_regexp_quoted_pattern_with_dollar_anchor(self):
-        # The classic foot-gun: ``$"`` is unintended substitution where
-        # the user likely meant the regex end-of-line anchor.
-        diags = _diag_with_code('regexp -- "^foo$" $text', "W306")
+    def test_regexp_quoted_dollar_anchor_clean(self):
+        # FP-STY-15: ``$`` immediately before the closing ``"`` (``"^foo$"``)
+        # is a *literal* ``$`` — the regex end-of-line anchor — not a Tcl
+        # substitution (``"`` is not a variable-name character), so W306 must
+        # NOT fire.  tclsh: ``regexp -- "^foo$" "foo"`` → 1.  (Pre-fix a lexer
+        # bug merged the closing quote with the following word, making the
+        # ``$`` look like a live substitution.)
+        assert _diag_with_code('regexp -- "^foo$" $text', "W306") == []
+
+    def test_regexp_quoted_live_dollar_var_still_fires(self):
+        # TP control: ``$bar`` (a real substitution — ``b`` is a name char)
+        # in a quoted regex pattern IS the foot-gun and still fires W306.
+        diags = _diag_with_code('regexp -- "^foo$bar" $text', "W306")
         assert len(diags) == 1
 
     def test_class_match_literal_name_clean(self):

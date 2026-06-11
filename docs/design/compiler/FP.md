@@ -7692,6 +7692,81 @@ quoted bodies keep their existing `Error`-severity W105.
 
 ---
 
+### FP-STY-15 — lexer: `$` before a closing `"` merged the quoted word with the next (E002 / E205 / W306)
+
+- **Verdict:** FALSE POSITIVE (lexer correctness bug; now fixed)
+- **Status:** locked in by `tests/test_fp_sty.py::test_FP_STY_15_*`
+- **Codes:** E002 (too few arguments), E205 (extra characters after
+  close-quote), W306 (substitution-in-literal regex pattern) — E002/E205 fired
+  at **Error** severity on valid Tcl
+- **Corpus:** Tcl 9.0 stdlib `tcltest.tcl` (`regsub "\n$" [string tolower
+  $msg] "" msg`), tcllib `csv.tcl` (`regsub "\0$" $line {} line`,
+  `regsub -- "^${delRE}${delRE}$sepRE" $line \0${delChar}$ ...`) — anywhere a
+  quoted word ends with the regex end-of-line anchor `$"`.
+
+#### Reproducer
+
+```tcl
+# `"\n$"` is a literal regexp end-of-line anchor — the `$` sits immediately
+# before the closing `"`, which is NOT a variable-name character, so the `$`
+# is literal (tclsh substitutes nothing).
+regsub "\n$" $msg "" out
+string match "abc$" $x
+```
+
+#### Per-line reasoning
+
+1. In Tcl a `$` is a substitution only when followed by a valid variable-name
+   character.  `$"` is not — so `"abc$"` is the literal four-char string
+   `abc$`, and `"^foo$"` is the regex `^foo$` (end-anchor).  tclsh executes
+   `regsub "\n$" $msg "" out` and `regexp -- "^foo$" "foo"` without error.
+2. The lexer parsed the trailing bare `$` as a `STR` token *inside* the quoted
+   word, then re-entered the string scanner with the cursor on the **closing**
+   `"`.  Because the preceding token was `STR`, the "start of a new word" path
+   misread that closing `"` as a *new opening* quote and kept scanning —
+   swallowing the following words into one token.
+3. The downstream damage: the merged word reduced the visible argument count
+   (`string match "abc$" $x` looked like one argument → **E002** "too few
+   arguments"), the eventual real closing quote tripped **E205** "extra
+   characters after close-quote", and the smeared pattern made the literal
+   `$` look like a live substitution → spurious **W306**.
+4. Fix: the new-word `"`-opens-a-quote branch is guarded by
+   `not self.insidequote`.  When the scanner is already inside a quote, a `"`
+   is the **closing** delimiter, handled by the existing close-quote branch.
+5. The genuine cases still fire: a live `$bar` / `$pat` / `${b}` inside a
+   quoted regex pattern is a real substitution and still raises W306.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% set msg "Hello\n"
+% regsub "\n$" $msg "" out      ;# end-anchor strips the trailing newline
+1
+% string length $out
+5
+% regexp -- "^foo$" "foo"        ;# `$` is the end-anchor, not a variable
+1
+% set s "^foo$"                  ;# literal value — no substitution
+^foo$
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/parsing/lexer.py::_parse_string` — the `newword` branch that opens a
+new quoted string now requires `not self.insidequote`, so the closing `"` after
+a tail `$` is no longer misread as an opening quote.
+
+#### Tests
+
+- `tests/test_fp_sty.py::test_FP_STY_15_regsub_dollar_anchor_no_errors` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_15_string_match_dollar_anchor_no_arity` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_15_dollar_quote_word_boundary_lexes` (FP, token-level)
+- `tests/test_fp_sty.py::test_FP_STY_15_regex_end_anchor_no_w306` (FP)
+- `tests/test_fp_sty.py::test_FP_STY_15_live_var_in_quoted_pattern_still_w306` (TP)
+- `tests/test_tcl_corner_cases.py::TestDollarBeforeCloseQuote` (token-level FP/variants)
+
+---
+
 
 ## Precision gaps (PR #498 deep-review) — ALL CLOSED
 

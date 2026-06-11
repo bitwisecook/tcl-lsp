@@ -278,6 +278,32 @@ class TestSingleVarBodyW105:
         assert "W105" in _codes(lsp_server.open_ready(uri, "eval $cmd$args\n"))
 
 
+class TestDollarBeforeCloseQuoteW306:
+    """FP-STY-15: a ``$`` immediately before a closing ``"`` (the regex
+    end-anchor ``"^foo$"`` / ``"\\n$"``) is literal — the lexer must not merge
+    the quoted word with the next, so no E002/E205 and no spurious W306.  A
+    live ``$bar`` in a quoted pattern still fires W306."""
+
+    def test_regsub_end_anchor_no_errors(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        codes = _codes(lsp_server.open_ready(uri, 'regsub "\\n$" $msg "" out\n'))
+        assert "E002" not in codes, codes
+        assert "E205" not in codes, codes
+        assert "W306" not in codes, codes
+
+    def test_string_match_end_anchor_no_arity(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "E002" not in _codes(lsp_server.open_ready(uri, 'string match "abc$" $x\n'))
+
+    def test_regex_end_anchor_no_w306(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W306" not in _codes(lsp_server.open_ready(uri, 'regexp -- "^foo$" $text\n'))
+
+    def test_live_var_in_quoted_pattern_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W306" in _codes(lsp_server.open_ready(uri, 'regexp -- "^foo$bar" $text\n'))
+
+
 class TestDiagnosticsTrackEdits:
     def test_fixing_the_source_clears_the_diagnostic(self, lsp_server, uri_factory):
         uri = uri_factory()

@@ -414,9 +414,15 @@ can simplify this" suggestion. None swept yet.
 
 ## NOT YET INSPECTED — errors (Exxx) + hints
 
-- [ ] **E001** missing subcommand / **E002** too few args / **E003** too many
+- [~] **E001** missing subcommand / **E002** too few args / **E003** too many
   args — arity. Sweep for custom-arity commands (ensembles, varargs) that may
-  miscount. (E002/E003 fire in corpus.)
+  miscount. (E002/E003 fire in corpus.)  **One lexer-root-cause FP class fixed
+  (FP-STY-15):** every corpus E002/E205 firing (tcltest.tcl, csv.tcl) was a
+  quoted word ending in the regex end-anchor `$"` (`regsub "\n$" …`,
+  `string match "abc$" …`) — the lexer misread the closing quote as a new
+  opening quote and merged the word with the next, dropping an argument.  Also
+  cleared the paired W306 FP on `"^foo$"` end-anchors (the `$` is literal, not
+  a substitution).  Genuine `$bar` foot-guns in quoted patterns still fire W306.
 - [ ] **E004** malformed control flow (0) — synthetic.
 - [ ] **E200** shimmer parse error (0) — synthetic.
 - [ ] **H300** possible paste error (0 corpus) — synthetic.

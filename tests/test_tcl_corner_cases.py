@@ -254,6 +254,43 @@ class TestArrayElementForms:
         assert toks[1].text == "(idx)"
 
 
+class TestDollarBeforeCloseQuote:
+    """FP-STY-15: a bare ``$`` immediately before a closing ``"`` (the regex
+    end-of-line anchor ``"^foo$"``) is literal — the closing quote must still
+    terminate the word and not swallow the following words."""
+
+    def _names(self, src):
+        # Use tokenise_all (keeps SEP) so the word boundary is observable.
+        return [
+            (t.type.name, t.text)
+            for t in TclLexer(src).tokenise_all()
+            if t.type not in (TokenType.EOF, TokenType.EOL)
+        ]
+
+    def test_dollar_quote_terminates_word(self):
+        # ``"abc$" $x`` is two words: the closing ``"`` must end the first.
+        toks = self._names('"abc$" $x')
+        assert ("SEP", " ") in toks, toks
+        assert ("VAR", "x") in toks, toks
+
+    def test_dollar_quote_standalone(self):
+        # ``"abc$"`` alone is the literal word ``abc$``.
+        toks = self._names('"abc$"')
+        assert ("STR", "$") in toks, toks
+        # No VAR token — the ``$`` is literal.
+        assert not any(ty == "VAR" for ty, _ in toks), toks
+
+    def test_live_var_in_quote_still_var_token(self):
+        # ``"a$b"`` — ``$b`` is a real substitution (b is a name char).
+        toks = self._names('"a$b"')
+        assert ("VAR", "b") in toks, toks
+
+    def test_regsub_end_anchor_no_arity_error(self):
+        # The end-to-end smell: the merged word used to drop an argument.
+        a = analyse('regsub "\\n$" $msg "" out')
+        assert not any(d.code in ("E002", "E205") for d in a.diagnostics)
+
+
 # =============================================================
 # §F. Globals & namespaces (analyser-level)
 # =============================================================
