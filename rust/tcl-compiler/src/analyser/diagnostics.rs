@@ -704,6 +704,23 @@ fn block_dominated_by(ssa: &crate::ssa::SsaFunction, block: &str, dom: &str) -> 
     }
 }
 
+/// True when a read of `var` at this use-site statement is in fact a safe
+/// self-initialisation, not a read-before-set: a `safe_on_uninit` call (e.g.
+/// `lappend`/`dict set`/`append`) that defines `var`, or an `incr` of its own
+/// target (which initialises an unset var to 0 in Tcl 8.5+).
+fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> bool {
+    use crate::ir::Statement;
+    match stmt {
+        Some(Statement::Call {
+            safe_on_uninit,
+            defs,
+            ..
+        }) => *safe_on_uninit && defs.iter().any(|d| d == var),
+        Some(Statement::Incr { name, .. }) => crate::naming::normalise_var_name(name) == var,
+        _ => false,
+    }
+}
+
 /// The namespace of a fully-qualified name: everything up to the last `::`,
 /// or `::` for a top-level name.  Mirrors `qname.rsplit("::", 1)[0] or "::"`.
 fn namespace_of(qualified_name: &str) -> String {
@@ -5098,18 +5115,11 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     }
                 }
-                // ``safe_on_uninit`` calls that initialise the
-                // variable themselves are not RBS — they handle
-                // the uninitialised case.
-                if let Some(Statement::Call {
-                    safe_on_uninit,
-                    defs,
-                    ..
-                }) = stmt_opt
-                {
-                    if *safe_on_uninit && defs.contains(var) {
-                        continue;
-                    }
+                // A use site that itself safely initialises the variable
+                // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
+                // `incr` of its own target) is not read-before-set.
+                if use_site_safe_initialises(stmt_opt, var) {
+                    continue;
                 }
                 let mut message = format!("Variable '{var}' is read before it is set");
                 if let Some(similar) = find_case_mismatch(var, defined_vars) {
@@ -9223,6 +9233,16 @@ foo
             got.iter().any(|m| m.contains("'v'")),
             "switch-no-default + return must fire W210; got {got:?}"
         );
+    }
+
+    #[test]
+    fn w210_incr_on_uninit_is_silent() {
+        // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.
+        assert!(w210_codes("proc f {} { incr z\n return $z }").is_empty());
+        // A genuine bare read of an unset local still fires.
+        assert!(w210_codes("proc f {} { puts $z }")
+            .iter()
+            .any(|m| m.contains("'z'")));
     }
 
     #[test]
