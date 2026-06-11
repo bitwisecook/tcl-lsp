@@ -4816,6 +4816,72 @@ Remaining 24, by cluster (worst-first, all pre-existing):
 - **irules taint** (1, IRULE3102) and **inlay-hint optional-positional labels**
   (1).
 
+#### SYNC-JUN11-precision — analyser FP-suppression increments (battery 284→290)
+
+Six targeted false-positive / true-positive precision fixes ported from the
+Python reference into the native Rust analyser, each verified against the
+fp/ground-truth battery in **rust mode** with no regression and gated on the
+full workspace (`cargo test --workspace --all-features`, `clippy
+--all-targets`, `fmt`).  All are name-/CFG-local registry-driven suppressions,
+**not** the path-sensitive dataflow core (that remains the dominant open
+cluster — see below).
+
+- **W124 OID-chain skip** (FP-STY-06) — an IPv4-shaped dotted quad that is a
+  slice of a longer dotted-digit chain (LDAP/SNMP OIDs like
+  `1.3.6.1.4.1.4203.1.11.3`) no longer fires; detect a preceding or following
+  `.<digit>`.  `DottedQuad` now carries its end offset.
+- **W302 catch fire-and-forget** (FP-STY-05) — suppress "catch without result
+  variable" on a single-statement catch body whose head is a destructive
+  builtin (`close`/`unset`/`rename`) or a documented destructive ensemble
+  subcommand (`after cancel`, `chan close`, `array`/`dict unset`,
+  `interp`/`namespace`/`file delete`).  Constructive subcommands still fire.
+- **W214 empty-body stub + quoted-keyword marker** (FP-STY-08) — an empty-body
+  proc (`proc stub {a b} {}`) is a signature placeholder (early-return on a
+  zero-statement body); a param whose name is itself a quoted literal
+  (snit `{"as" ""}`) is a positional keyword marker, not a variable read.
+- **W304 two-arg braced switch** (FP-NAB-05 / `_style.py` G12) — the
+  unambiguous `switch $x { pat body … }` form (exactly two args, trailing
+  brace-enclosed `Str`) is exempt; the split (3+ arg) form still fires.  The
+  existing `analyse_w304_constant_propagation_emits_info_with_origin` unit
+  test (which used the now-exempt braced switch as its vehicle) was re-pointed
+  at `exec $var` so it still exercises the INFO-downgrade + origin path.
+
+**Battery (rust mode):** `tests/test_fp_*.py + test_ground_truth_tn_fn.py` =
+**290 passed / 87 failed** (from 284/93), byte-identical families otherwise —
+fp_sty 11→6, fp_nab 5→4, no other family moved, no regression.  `make
+test-lsp-e2e-rust` held at **463 passed / 24 failed / 1 skipped** (unchanged
+baseline).  +14 analyser unit tests.
+
+**Attempted and reverted — phi-from-undef W210 (Stage A1/A2).** A def-use-chain
+extension that fired W210 when a use's SSA version traces (transitively, over
+the phi DAG restricted to SCCP-executable predecessors) to an undefined /
+`unset`-killed origin.  The mechanism worked but is **not** safely landable as
+a chain-based increment: the dominant target reads (`return $v` after a
+partial-def merge) are **`Terminator::Return` reads**, not statement/def-use
+uses, so they were missed; and firing on the phi/killed versions surfaced FPs
+(`incr` on an unset var = `safe_on_uninit`; `dict with` known-key unpacking;
+`unset`-then-return option propagation) that require the **full**
+`_read_before_set` suppression suite. Reverted to hold the no-regression gate.
+The faithful port (walk SSA statement uses **and** `Terminator::Return`/branch
+conditions via `exit_versions`, with the complete dict-with-key / safe-uninit /
+existence-narrowing suppression set — ~core_analyses.py:2788-3450) is the
+correct next Stage-A increment and should land worst-first as its own verified
+series.
+
+#### SYNC-JUN11-precision scoreboard
+
+| increment | family delta | battery total |
+|---|---|---|
+| W124 OID + W302 fire-and-forget | fp_sty 11→8 | 284→287 |
+| W214 empty-body + quoted-keyword | fp_sty 8→6 | 287→289 |
+| W304 braced switch | fp_nab 5→4 | 289→290 |
+
+Remaining 87, by family: ground_truth 31, fp_rbs 14, fp_ds 10, fp_bnd 9,
+fp_sty 6, fp_rch 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1.  The dominant theme
+is still **path-sensitive dataflow precision** (phi-from-undef W210, `unset`
+kill, W220 dead-store flow, `while 1`+`break` reachability) — each a CFG/SSA
+fix, not a switch.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
