@@ -22,6 +22,45 @@ class TestFoldingRange:
         assert (lsp_server.folding_range(uri) or []) == []
 
 
+class TestLineContinuationFolding:
+    """Backslash line-continuation folding — issue #541, end-to-end.
+
+    A command stretched across physical lines by trailing ``\\`` joins is a
+    single logical command; the provider folds the run down to its opening
+    line.  The look-alikes that are *not* continuations (an escaped ``\\\\`` is
+    a literal backslash) must stay unfolded.  The feature was dropped by the
+    folding rewrite and restored in #541 — this pins the editor-visible result.
+    """
+
+    @staticmethod
+    def _spans(lsp_server, uri) -> set[tuple[int, int]]:
+        return {(r["startLine"], r["endLine"]) for r in (lsp_server.folding_range(uri) or [])}
+
+    def test_backslash_continued_command_folds(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "MyProcCall $var1 \\\n           $var2 \\\n           $var3\n")
+        # The three physical lines are one logical command; they fold (0..2).
+        assert (0, 2) in self._spans(lsp_server, uri), self._spans(lsp_server, uri)
+
+    def test_two_line_continuation_folds(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set x $a \\\n    $b\n")
+        assert (0, 1) in self._spans(lsp_server, uri), self._spans(lsp_server, uri)
+
+    def test_separate_runs_fold_independently(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "foo $a \\\n   $b\nputs sep\nbar $c \\\n   $d\n")
+        spans = self._spans(lsp_server, uri)
+        assert {(0, 1), (3, 4)} <= spans, spans
+
+    def test_escaped_backslash_is_not_a_continuation(self, lsp_server, uri_factory):
+        # ``puts foo\\`` ends in a *literal* backslash (escaped), so the two
+        # lines are separate commands and must not fold.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "puts foo\\\\\nputs bar\n")
+        assert (0, 1) not in self._spans(lsp_server, uri), self._spans(lsp_server, uri)
+
+
 class TestSelectionRange:
     def test_widens_from_inner_to_outer(self, lsp_server, uri_factory):
         uri = uri_factory()

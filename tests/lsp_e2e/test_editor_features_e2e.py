@@ -87,3 +87,86 @@ class TestInlayHints:
         lsp_server.open_ready(uri, "proc add {a b} { expr {$a + $b} }\nadd 1 2\n")
         for hint in lsp_server.inlay_hints(uri, (0, 0), (2, 0)) or []:
             assert hint.get("kind") in (1, 2)  # Type, Parameter
+
+
+def _label_text(hint: dict) -> str:
+    """An inlay hint's ``label`` is a string or a list of ``{value}`` parts."""
+    label = hint.get("label")
+    if isinstance(label, list):
+        return "".join(str(part.get("value", "")) for part in label)
+    return str(label or "")
+
+
+def _param_labels_on_line(hints, line: int) -> list[tuple[int, str]]:
+    """``(character, label)`` of every parameter-kind hint on ``line``."""
+    out: list[tuple[int, str]] = []
+    for h in hints or []:
+        if h.get("kind") != 2:  # InlayHintKind.Parameter
+            continue
+        pos = h.get("position") or {}
+        char = pos.get("character")
+        if pos.get("line") == line and char is not None:
+            out.append((char, _label_text(h)))
+    return sorted(out)
+
+
+class TestInlayHintOptionalPositionals:
+    """Optional-positional parameter labelling — issue #510, end-to-end.
+
+    The synopsis ``puts ?-nonewline? ?channelId? string`` has an *optional*
+    positional (``channelId``) before a *required* trailing one (``string``).
+    A one-positional call binds that argument to the required ``string`` slot,
+    not the leftmost optional name, and the documentation placeholders
+    ``?options?`` / ``?switches?`` are never emitted as parameter labels.
+
+    These run against ``lsp_server_inlay`` (inlay hints on) so the provider
+    actually produces hints — the default server keeps them off.
+    """
+
+    def test_single_positional_binds_required_string_slot(self, lsp_server_inlay, uri_factory):
+        uri = uri_factory()
+        lsp_server_inlay.open_ready(uri, "puts hello\n")
+        labels = _param_labels_on_line(lsp_server_inlay.inlay_hints(uri, (0, 0), (1, 0)), 0)
+        names = [name for _char, name in labels]
+        # The single argument is the required ``string`` — never the optional
+        # ``channelId`` (the pre-fix regression).
+        assert "string:" in names, labels
+        assert "channelId:" not in names, labels
+
+    def test_two_positionals_label_channel_then_string(self, lsp_server_inlay, uri_factory):
+        uri = uri_factory()
+        lsp_server_inlay.open_ready(uri, "puts $chan hello\n")
+        labels = _param_labels_on_line(lsp_server_inlay.inlay_hints(uri, (0, 0), (1, 0)), 0)
+        names = [name for _char, name in labels]
+        # Both slots are filled now, left to right.
+        assert names == ["channelId:", "string:"], labels
+
+    def test_leading_flag_does_not_shift_required_slot(self, lsp_server_inlay, uri_factory):
+        # ``-nonewline`` is an option flag, not a positional; the one real
+        # positional still binds to ``string``.
+        uri = uri_factory()
+        lsp_server_inlay.open_ready(uri, "puts -nonewline hello\n")
+        names = [
+            name
+            for _char, name in _param_labels_on_line(
+                lsp_server_inlay.inlay_hints(uri, (0, 0), (1, 0)), 0
+            )
+        ]
+        assert "string:" in names, names
+        assert "channelId:" not in names, names
+
+    def test_no_documentation_placeholder_labels(self, lsp_server_inlay, uri_factory):
+        # ``lsearch ?options? list pattern`` — the ``?options?`` placeholder is
+        # the flag group, not a positional, so the real positionals label
+        # ``list`` / ``pattern`` and no ``options``/``switches`` hint appears.
+        uri = uri_factory()
+        lsp_server_inlay.open_ready(uri, "lsearch $mylist needle\n")
+        names = [
+            name
+            for _char, name in _param_labels_on_line(
+                lsp_server_inlay.inlay_hints(uri, (0, 0), (1, 0)), 0
+            )
+        ]
+        assert "list:" in names, names
+        assert "pattern:" in names, names
+        assert not any(n in ("options:", "switches:") for n in names), names
