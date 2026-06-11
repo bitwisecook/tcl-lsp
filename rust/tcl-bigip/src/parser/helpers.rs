@@ -1,0 +1,458 @@
+//! Low-level block / property / header extraction helpers — a faithful
+//! port of `dialects/f5/bigip/parser/_helpers.py`.
+//!
+//! Only ASCII structural bytes (`{`, `}`, `"`, `\`, whitespace, `#`) are
+//! inspected, so every recorded offset lands on a UTF-8 char boundary.
+
+/// A parsed top-level config stanza. Mirrors Python `_Block`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Block {
+    /// Header text, e.g. `"ltm virtual /Common/my_vs"`.
+    pub header: String,
+    /// Body text between the outermost `{ }` (braces excluded).
+    pub body: String,
+    /// Byte offset of the opening `{` (matches Python `start_offset`).
+    pub start_offset: usize,
+    /// Byte offset one past the closing `}` (matches Python `end_offset`).
+    pub end_offset: usize,
+}
+
+/// A top-level key/value property parsed from a block body. Mirrors
+/// Python `_Property`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Property {
+    /// Property key.
+    pub key: String,
+    /// Property value (stripped).
+    pub value: String,
+    /// Value start offset within the body, when captured.
+    pub value_start: Option<usize>,
+    /// Value end offset (exclusive) within the body, when captured.
+    pub value_end: Option<usize>,
+}
+
+/// Extract all top-level `keyword ... { ... }` blocks from `source`.
+/// Handles nested braces and respects quoted strings. Mirrors
+/// `_extract_blocks`.
+#[must_use]
+pub fn extract_blocks(source: &str) -> Vec<Block> {
+    let bytes = source.as_bytes();
+    let length = bytes.len();
+    let mut blocks = Vec::new();
+    let mut pos = 0;
+
+    while pos < length {
+        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
+            pos += 1;
+        }
+        if pos >= length {
+            break;
+        }
+        if bytes[pos] == b'#' {
+            while pos < length && bytes[pos] != b'\n' {
+                pos += 1;
+            }
+            continue;
+        }
+
+        let header_start = pos;
+        let mut hit_newline = false;
+        while pos < length && bytes[pos] != b'{' {
+            if bytes[pos] == b'\n' {
+                pos += 1;
+                hit_newline = true;
+                break;
+            }
+            pos += 1;
+        }
+        if hit_newline {
+            continue;
+        }
+        if pos >= length || bytes[pos] != b'{' {
+            break;
+        }
+
+        let header = source[header_start..pos].trim().to_owned();
+        let brace_start = pos;
+        pos += 1; // skip opening brace
+        let mut depth = 1;
+        let body_start = pos;
+        while pos < length && depth > 0 {
+            match bytes[pos] {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                b'\\' if pos + 1 < length => pos += 1,
+                b'"' => {
+                    pos += 1;
+                    while pos < length && bytes[pos] != b'"' {
+                        if bytes[pos] == b'\\' && pos + 1 < length {
+                            pos += 1;
+                        }
+                        pos += 1;
+                    }
+                }
+                _ => {}
+            }
+            pos += 1;
+        }
+        let body = source[body_start..pos.saturating_sub(1)].to_owned();
+        blocks.push(Block {
+            header,
+            body,
+            start_offset: brace_start,
+            end_offset: pos,
+        });
+    }
+
+    blocks
+}
+
+/// Parse top-level `key value` properties from a block body, capturing
+/// each value's span relative to the body. Mirrors
+/// `_parse_properties_with_spans`.
+#[must_use]
+pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
+    let bytes = body.as_bytes();
+    let length = bytes.len();
+    // Preserve insertion order and last-wins semantics like a Python dict.
+    let mut props: Vec<(String, Property)> = Vec::new();
+    let mut pos = 0;
+
+    while pos < length {
+        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
+            pos += 1;
+        }
+        if pos >= length {
+            break;
+        }
+
+        let key_start = pos;
+        while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{') {
+            pos += 1;
+        }
+        let key = body[key_start..pos].trim().to_owned();
+        if key.is_empty() {
+            pos += 1;
+            continue;
+        }
+
+        while pos < length && matches!(bytes[pos], b' ' | b'\t') {
+            pos += 1;
+        }
+
+        if pos >= length || bytes[pos] == b'\n' {
+            insert_prop(
+                &mut props,
+                Property {
+                    key,
+                    value: String::new(),
+                    value_start: None,
+                    value_end: None,
+                },
+            );
+            continue;
+        }
+
+        if bytes[pos] == b'{' {
+            let val_start = pos;
+            pos += 1;
+            let mut depth = 1;
+            while pos < length && depth > 0 {
+                match bytes[pos] {
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    b'\\' if pos + 1 < length => pos += 1,
+                    b'"' => {
+                        pos += 1;
+                        while pos < length && bytes[pos] != b'"' {
+                            if bytes[pos] == b'\\' && pos + 1 < length {
+                                pos += 1;
+                            }
+                            pos += 1;
+                        }
+                    }
+                    _ => {}
+                }
+                pos += 1;
+            }
+            let val_end = pos;
+            insert_prop(
+                &mut props,
+                Property {
+                    key,
+                    value: body[val_start..val_end].trim().to_owned(),
+                    value_start: Some(val_start),
+                    value_end: Some(val_end),
+                },
+            );
+        } else {
+            let val_start = pos;
+            while pos < length && bytes[pos] != b'\n' {
+                pos += 1;
+            }
+            let val_end = pos;
+            insert_prop(
+                &mut props,
+                Property {
+                    key,
+                    value: body[val_start..val_end].trim().to_owned(),
+                    value_start: Some(val_start),
+                    value_end: Some(val_end),
+                },
+            );
+        }
+    }
+
+    props
+}
+
+/// Insert a property with Python-dict last-wins-on-key semantics while
+/// preserving first-seen order.
+fn insert_prop(props: &mut Vec<(String, Property)>, prop: Property) {
+    if let Some(slot) = props.iter_mut().find(|(k, _)| *k == prop.key) {
+        slot.1 = prop;
+    } else {
+        props.push((prop.key.clone(), prop));
+    }
+}
+
+/// Parse simple `key value` properties from a block body, dropping
+/// spans. Mirrors `_parse_properties`.
+#[must_use]
+pub fn parse_properties(body: &str) -> Vec<(String, String)> {
+    parse_properties_with_spans(body)
+        .into_iter()
+        .map(|(k, p)| (k, p.value))
+        .collect()
+}
+
+/// Strip a single layer of surrounding double quotes, when present.
+/// Mirrors `_unquote`.
+#[must_use]
+pub fn unquote(value: &str) -> &str {
+    let bytes = value.as_bytes();
+    if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    }
+}
+
+/// Extract top-level item names from a braced block, skipping nested
+/// sub-blocks. Mirrors `_parse_list_block`.
+#[must_use]
+pub fn parse_list_block(braced: &str) -> Vec<String> {
+    let mut inner = braced.trim();
+    inner = inner.strip_prefix('{').unwrap_or(inner);
+    inner = inner.strip_suffix('}').unwrap_or(inner);
+    let bytes = inner.as_bytes();
+    let length = bytes.len();
+    let mut items = Vec::new();
+    let mut pos = 0;
+
+    while pos < length {
+        let loop_start = pos;
+        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
+            pos += 1;
+        }
+        if pos >= length {
+            break;
+        }
+
+        let name_start = pos;
+        while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}') {
+            if bytes[pos] == b'\\' && pos + 1 < length {
+                pos += 2;
+                continue;
+            }
+            pos += 1;
+        }
+        let name = inner[name_start..pos].trim().to_owned();
+
+        while pos < length && matches!(bytes[pos], b' ' | b'\t') {
+            pos += 1;
+        }
+
+        if pos < length && bytes[pos] == b'{' {
+            pos += 1;
+            let mut depth = 1;
+            while pos < length && depth > 0 {
+                match bytes[pos] {
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    b'\\' if pos + 1 < length => pos += 1,
+                    _ => {}
+                }
+                pos += 1;
+            }
+        }
+
+        if !name.is_empty() && name != "{" && name != "}" {
+            items.push(name);
+        }
+
+        if pos == loop_start {
+            break;
+        }
+    }
+
+    items
+}
+
+/// Extract `(name, body)` pairs from a keyed-block list. Mirrors
+/// `_parse_keyed_block_entries`.
+#[must_use]
+pub fn parse_keyed_block_entries(braced: &str) -> Vec<(String, String)> {
+    let mut inner = braced.trim();
+    inner = inner.strip_prefix('{').unwrap_or(inner);
+    inner = inner.strip_suffix('}').unwrap_or(inner);
+    let bytes = inner.as_bytes();
+    let length = bytes.len();
+    let mut entries = Vec::new();
+    let mut pos = 0;
+
+    while pos < length {
+        let loop_start = pos;
+        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
+            pos += 1;
+        }
+        if pos >= length {
+            break;
+        }
+
+        let name_start = pos;
+        while pos < length && !matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r' | b'{' | b'}') {
+            if bytes[pos] == b'\\' && pos + 1 < length {
+                pos += 2;
+                continue;
+            }
+            pos += 1;
+        }
+        let name = inner[name_start..pos].trim().to_owned();
+
+        while pos < length && matches!(bytes[pos], b' ' | b'\t') {
+            pos += 1;
+        }
+
+        let mut body = String::new();
+        if pos < length && bytes[pos] == b'{' {
+            let body_start = pos + 1;
+            pos += 1;
+            let mut depth = 1;
+            while pos < length && depth > 0 {
+                match bytes[pos] {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    b'\\' if pos + 1 < length => pos += 1,
+                    _ => {}
+                }
+                pos += 1;
+            }
+            body.push_str(&inner[body_start..pos]);
+            if pos < length {
+                pos += 1; // consume closing brace
+            }
+        }
+
+        if !name.is_empty() && name != "{" && name != "}" {
+            entries.push((name, body));
+        }
+
+        if pos == loop_start {
+            break;
+        }
+    }
+
+    entries
+}
+
+/// Split `header` on whitespace, honouring `"..."` quoted spans and
+/// backslash escapes. Mirrors `_tokenise_header`.
+#[must_use]
+pub fn tokenise_header(header: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut buf = String::new();
+    let mut in_quote = false;
+    let mut escape = false;
+    for ch in header.chars() {
+        if escape {
+            buf.push(ch);
+            escape = false;
+            continue;
+        }
+        match ch {
+            '\\' => escape = true,
+            '"' => in_quote = !in_quote,
+            c if c.is_whitespace() && !in_quote => {
+                if !buf.is_empty() {
+                    tokens.push(std::mem::take(&mut buf));
+                }
+            }
+            c => buf.push(c),
+        }
+    }
+    if !buf.is_empty() {
+        tokens.push(buf);
+    }
+    tokens
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_nested_blocks() {
+        let src = "ltm pool /Common/p {\n    members {\n        1.2.3.4:80 { }\n    }\n}\n";
+        let blocks = extract_blocks(src);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].header, "ltm pool /Common/p");
+        assert!(blocks[0].body.contains("members"));
+        // start_offset points at the opening brace.
+        assert_eq!(&src[blocks[0].start_offset..=blocks[0].start_offset], "{");
+    }
+
+    #[test]
+    fn parses_properties_with_subblocks() {
+        let body = "\n    monitor /Common/http\n    members {\n        a { }\n    }\n";
+        let props = parse_properties_with_spans(body);
+        let map: std::collections::HashMap<_, _> = props
+            .iter()
+            .map(|(k, p)| (k.as_str(), p.value.as_str()))
+            .collect();
+        assert_eq!(map.get("monitor"), Some(&"/Common/http"));
+        assert!(map.get("members").unwrap().starts_with('{'));
+    }
+
+    #[test]
+    fn list_and_keyed_blocks() {
+        assert_eq!(
+            parse_list_block("{ /Common/a /Common/b }"),
+            vec!["/Common/a".to_owned(), "/Common/b".to_owned()]
+        );
+        let entries = parse_keyed_block_entries(
+            "{ /Common/clientssl { context clientside } /Common/http { } }",
+        );
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].0, "/Common/clientssl");
+        assert!(entries[0].1.contains("context clientside"));
+    }
+
+    #[test]
+    fn tokenise_quoted_header() {
+        assert_eq!(
+            tokenise_header("security bot-defense signature \"/Common/Microsoft Access\""),
+            vec![
+                "security".to_owned(),
+                "bot-defense".to_owned(),
+                "signature".to_owned(),
+                "/Common/Microsoft Access".to_owned(),
+            ]
+        );
+    }
+}

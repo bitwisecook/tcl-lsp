@@ -39,6 +39,7 @@ members = [
     "rust/tcl-syntax",
     "rust/tcl-registry",
     "rust/tcl-compiler",
+    "rust/tcl-bigip",
     "rust/tcl-lsp-core",
     "rust/tcl-lsp-server",
     "rust/tcl-lsp-py",
