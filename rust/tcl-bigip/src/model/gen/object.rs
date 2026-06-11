@@ -71,7 +71,7 @@ pub enum ModelObject {
     /// `BigipLtmAuthObject`.
     LtmAuthObject(BigipLtmAuthObject),
     /// `BigipMinimalObject`.
-    MinimalObject(BigipMinimalObject),
+    Minimal(BigipMinimalObject),
     /// `BigipNode`.
     Node(BigipNode),
     /// `BigipProfile`.
@@ -297,5 +297,5 @@ pub enum ModelObject {
     /// `BigipCmHaGroup`.
     CmHaGroup(BigipCmHaGroup),
     /// `BigipGenericObject`.
-    GenericObject(BigipGenericObject),
+    Generic(BigipGenericObject),
 }

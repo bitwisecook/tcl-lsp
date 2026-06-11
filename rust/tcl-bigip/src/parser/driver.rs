@@ -102,16 +102,218 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
         config.generic_objects.push((
             key,
             BigipGenericObject {
-                module,
-                object_type,
-                identifier,
+                module: module.clone(),
+                object_type: object_type.clone(),
+                identifier: identifier.clone(),
                 header: block.header.clone(),
                 range: Some(range),
             },
         ));
+
+        // Typed dispatch — mirrors the strict `_parse_header` path.
+        if let Some(placed) = dispatch_block(
+            &block.header,
+            &module,
+            &object_type,
+            &identifier,
+            &block.body,
+            range,
+            &partition_prefix,
+        ) {
+            config.objects.push(placed);
+        }
     }
 
     config
+}
+
+/// Route one stanza to its typed object, mirroring the strict-header
+/// dispatch in `_driver.py`. `generic_*` come from the generic header
+/// (already partition-prefixed) for the bare-singleton fallback.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::wildcard_imports
+)]
+fn dispatch_block(
+    header: &str,
+    generic_module: &str,
+    generic_type: &str,
+    generic_identifier: &str,
+    body: &str,
+    range: Range,
+    partition_prefix: &str,
+) -> Option<Placed> {
+    use crate::model::gen::dispatch::{
+        dispatch_ltm_tables, dispatch_minimal, dispatch_named, dispatch_singleton,
+        parse_header_strict,
+    };
+    use crate::model::gen::parsers::*;
+    use crate::model::ModelObject;
+
+    let parsed = parse_header_strict(header).map(|(m, o, fp)| {
+        let fp = if !fp.is_empty()
+            && !fp.starts_with('/')
+            && !NO_PARTITION_PREFIX.contains(&(m.as_str(), o.as_str()))
+        {
+            format!("{partition_prefix}{fp}")
+        } else {
+            fp
+        };
+        (m, o, fp)
+    });
+
+    let Some((module, object_type, full_path)) = parsed else {
+        // Bare singleton: route the empty-identifier generic via the
+        // singleton / minimal tables.
+        if !generic_identifier.is_empty() {
+            return None;
+        }
+        if let Some((table, object)) =
+            dispatch_singleton(generic_module, generic_type, "", body, range)
+        {
+            return placed(table, "", object);
+        }
+        if let Some((table, object)) =
+            dispatch_minimal(generic_module, generic_type, "", body, range)
+        {
+            return placed(table, "", object);
+        }
+        return None;
+    };
+
+    let fp = full_path.as_str();
+
+    // Minimal pre-pass + named + singleton + rich ltm tables (generated).
+    if let Some((table, object)) = dispatch_minimal(&module, &object_type, fp, body, range) {
+        return placed(table, fp, object);
+    }
+    if let Some((table, object)) = dispatch_named(&module, &object_type, fp, body, range) {
+        return placed(table, fp, object);
+    }
+    if full_path.is_empty() {
+        if let Some((table, object)) = dispatch_singleton(&module, &object_type, fp, body, range) {
+            return placed(table, fp, object);
+        }
+    }
+    if let Some((table, object)) = dispatch_ltm_tables(&module, &object_type, fp, body, range) {
+        return placed(table, fp, object);
+    }
+
+    // Family parsers with a sub-type argument + the ltm/gtm match block.
+    if module == "apm" && object_type.starts_with("policy agent ") {
+        return placed(
+            "apm_policy_agents",
+            fp,
+            ModelObject::ApmPolicyAgent(parse_bigip_apm_policy_agent(fp, body, range)),
+        );
+    }
+    if module == "gtm" && object_type.starts_with("pool ") {
+        return placed(
+            "gtm_pools",
+            fp,
+            ModelObject::GtmPool(parse_bigip_gtm_pool(fp, body, range)),
+        );
+    }
+    if module == "gtm" && object_type.starts_with("wideip ") {
+        return placed(
+            "gtm_wideips",
+            fp,
+            ModelObject::GtmWideip(parse_bigip_gtm_wideip(fp, body, range)),
+        );
+    }
+    if module == "pem"
+        && matches!(
+            object_type.as_str(),
+            "profile diameter-endpoint"
+                | "profile radius-aaa"
+                | "profile spm"
+                | "profile subscriber-mgmt"
+        )
+    {
+        return placed(
+            "pem_profiles",
+            fp,
+            ModelObject::PemProfile(parse_bigip_pem_profile(fp, body, range)),
+        );
+    }
+    if module != "ltm" && module != "gtm" {
+        return None;
+    }
+
+    let object = match object_type.as_str() {
+        "data-group internal" | "data-group external" => {
+            return placed(
+                "data_groups",
+                fp,
+                ModelObject::DataGroup(parse_bigip_data_group(fp, body, range)),
+            )
+        }
+        "pool" if module == "ltm" => ModelObject::Pool(parse_bigip_pool(fp, body, range)),
+        "virtual" => ModelObject::VirtualServer(parse_bigip_virtual_server(fp, body, range)),
+        "virtual-address" if module == "ltm" => {
+            ModelObject::VirtualAddress(parse_bigip_virtual_address(fp, body, range))
+        }
+        "node" => ModelObject::Node(parse_bigip_node(fp, body, range)),
+        "snatpool" => ModelObject::SnatPool(parse_bigip_snat_pool(fp, body, range)),
+        "rule" => ModelObject::Rule(parse_bigip_rule(fp, body, range)),
+        "policy" if module == "ltm" => ModelObject::Policy(parse_bigip_policy(fp, body, range)),
+        ot if ot.starts_with("dns cache records ") && module == "ltm" => {
+            return placed(
+                "ltm_dns_cache_records",
+                fp,
+                ModelObject::LtmDnsCacheRecord(parse_bigip_ltm_dns_cache_record(fp, body, range)),
+            )
+        }
+        ot if ot.starts_with("profile ") => {
+            return placed(
+                "profiles",
+                fp,
+                ModelObject::Profile(parse_bigip_profile(fp, body, range)),
+            )
+        }
+        ot if ot.starts_with("persistence ") => {
+            return placed(
+                "persistence",
+                fp,
+                ModelObject::Persistence(parse_bigip_persistence(fp, body, range)),
+            )
+        }
+        ot if ot.starts_with("monitor ") => {
+            let table = if module == "gtm" {
+                "gtm_monitors"
+            } else {
+                "monitors"
+            };
+            return placed(
+                table,
+                fp,
+                ModelObject::Monitor(parse_bigip_monitor(fp, body, range)),
+            );
+        }
+        _ => return None,
+    };
+    let table = match object_type.as_str() {
+        "pool" => "pools",
+        "virtual" => "virtual_servers",
+        "virtual-address" => "virtual_addresses",
+        "node" => "nodes",
+        "snatpool" => "snat_pools",
+        "rule" => "rules",
+        "policy" => "policies",
+        _ => return None,
+    };
+    placed(table, fp, object)
+}
+
+/// Build a [`Placed`] from a table name + object.
+#[allow(clippy::unnecessary_wraps)]
+fn placed(table: &'static str, full_path: &str, object: ModelObject) -> Option<Placed> {
+    Some(Placed {
+        table_name: table,
+        full_path: full_path.to_owned(),
+        object,
+    })
 }
 
 #[cfg(test)]
@@ -138,5 +340,31 @@ mod tests {
             (3, 46, 162)
         );
         assert_eq!((r.end.line, r.end.character, r.end.offset), (10, 1, 287));
+    }
+
+    #[test]
+    fn typed_object_inventory_matches_python_on_corpus() {
+        let src = include_str!("../../../../samples/bigip/bigip.conf");
+        let config = parse_bigip_conf(src, "Common");
+        // Per-table counts captured from the live Python parser.
+        let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for p in &config.objects {
+            *counts.entry(p.table_name).or_default() += 1;
+        }
+        let expected = [
+            ("data_groups", 4),
+            ("pools", 3),
+            ("virtual_servers", 4),
+            ("nodes", 3),
+            ("profiles", 5),
+            ("monitors", 1),
+            ("snat_pools", 1),
+            ("persistence", 2),
+            ("rules", 5),
+        ];
+        for (table, n) in expected {
+            assert_eq!(counts.get(table).copied().unwrap_or(0), n, "table {table}");
+        }
+        assert_eq!(config.objects.len(), 28, "total typed objects");
     }
 }
