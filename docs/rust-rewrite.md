@@ -4763,11 +4763,18 @@ list:
 
 Closes the `test_commands_e2e::TestCommandSurface` cluster (6 tests:
 core-advertised, listSubcommands shape + unknown-empty, listKnownPackages shape,
-suggestPackagesForSymbol shape, exportConfig writes a file). **lsp_e2e
-31→25 failing.** +3 server unit tests; `cargo test`/`clippy`/`fmt` clean. The
-lone remaining `test_commands_e2e` failure is the minifier switch-pattern
-off-by-one (issue #540 — `iter_switch_case_list` drops a quoted pattern's
-closing delimiter), tracked separately.
+suggestPackagesForSymbol shape, exportConfig writes a file). +3 server unit
+tests; `cargo test`/`clippy`/`fmt` clean.
+
+Also fixed the minifier switch-pattern bug (#540) that was the last
+`test_commands_e2e` failure: `minify_switch_case_list` reconstructed each
+pattern word per-token via `reconstruct_raw`, which re-wraps a braced `{a b}`
+`Str` token but strips the delimiters off a quoted `"c d"` word (the lexer lexes
+quoted content as bare `Esc`/`Var`/`Cmd` tokens) — so `"c d"` collapsed to two
+bare words and unbalanced the case list. The word builder now records whether a
+word opened on a `"` and re-quotes it (and any quoted body) on re-emission. +1
+minify unit test. **lsp_e2e 31→24 failing; the whole `test_commands_e2e` file
+(17 tests) is green.**
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 

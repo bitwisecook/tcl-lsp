@@ -2458,7 +2458,12 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
         return source.to_owned();
     };
     // Segment into words (pattern / body), grouping multi-token words.
-    let mut words: Vec<(String, bool, Token)> = Vec::new(); // (raw, is_braced, first_tok)
+    // `is_braced` marks a `{…}` word (re-wrapped via `reconstruct_raw`);
+    // `is_quoted` marks a `"…"` word — its delimiters are stripped by the
+    // lexer (the inner content lexes as `Esc`/`Var`/`Cmd` tokens), so the
+    // reconstructed raw must be re-quoted or a multi-word pattern like
+    // `"c d"` collapses to two bare words and breaks the case list (#540).
+    let mut words: Vec<(String, bool, bool, Token)> = Vec::new(); // (raw, is_braced, is_quoted, first_tok)
     let mut prev_type = TokenType::Eol;
     for tok in tokens {
         match tok.kind {
@@ -2475,24 +2480,44 @@ fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegist
             TokenType::Sep | TokenType::Eol | TokenType::Comment
         ) || words.is_empty()
         {
-            words.push((raw, tok.kind == TokenType::Str, tok));
+            // A word is quoted when its first token opens on a `"` in the
+            // source (the lexer stores the opener via `content_offset`).
+            let is_quoted = source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
+            words.push((raw, tok.kind == TokenType::Str, is_quoted, tok));
         } else {
             words.last_mut().expect("non-empty").0.push_str(&raw);
         }
         prev_type = tok.kind;
     }
 
+    // Render a pattern/body word, preserving its original delimiters so it
+    // stays a single Tcl word when re-emitted.
+    let render_word = |raw: &str, is_braced: bool, is_quoted: bool| -> String {
+        if is_braced {
+            format!("{{{raw}}}")
+        } else if is_quoted {
+            format!("\"{raw}\"")
+        } else {
+            raw.to_owned()
+        }
+    };
+
     let mut parts: Vec<String> = Vec::new();
     let mut idx = 0;
     while idx + 1 < words.len() {
-        let pattern = &words[idx].0;
-        let (body_raw, body_braced, body_tok) = &words[idx + 1];
+        let (pat_raw, pat_braced, pat_quoted, _) = &words[idx];
+        // `reconstruct_raw` already re-wraps a braced `Str` pattern, so only
+        // re-quote here (avoid double-bracing).
+        let pattern = render_word(pat_raw, false, *pat_quoted && !*pat_braced);
+        let (body_raw, body_braced, body_quoted, body_tok) = &words[idx + 1];
         let body_inner = sm.token_text(*body_tok);
         if body_inner == "-" && *body_raw == "-" {
             parts.push(format!("{pattern} -"));
         } else if *body_braced {
             let minified = minify_body(body_inner, dialect, registry);
             parts.push(format!("{pattern} {{{minified}}}"));
+        } else if *body_quoted {
+            parts.push(format!("{pattern} \"{body_raw}\""));
         } else {
             parts.push(format!("{pattern} {body_raw}"));
         }
@@ -3221,6 +3246,17 @@ mod tests {
         check(
             "switch $x {\n    a -\n    b {\n        puts 2\n    }\n}\n",
             "switch $x {a - b {puts 2}}",
+        );
+    }
+
+    #[test]
+    fn switch_braced_and_quoted_multiword_patterns_keep_delimiters() {
+        // Issue #540: a braced `{a b}` / quoted `"c d"` pattern must keep its
+        // delimiters so the case list stays balanced and re-parses as one word
+        // per pattern.  Dropping the quotes turned `"c d"` into two bare words.
+        check(
+            "switch $x {\n  {a b} { puts one }\n  \"c d\" { puts two }\n  default { puts def }\n}\n",
+            "switch $x {{a b} {puts one} \"c d\" {puts two} default {puts def}}",
         );
     }
 
