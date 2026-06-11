@@ -4952,6 +4952,74 @@ Updated remaining 75, by family: ground_truth 24, fp_rbs 11, fp_bnd 9, fp_ds 9,
 fp_rch 5, fp_sty 5, fp_nab 4, fp_sh 4, fp_opt 3, fp_inj 1 (the W210 merge family
 is the bulk of the ground_truth/fp_rbs drop).
 
+#### SYNC-JUN11-precision-2 — continued precision increments (battery 290→316)
+
+A further worst-first sweep, each a faithful Python port verified against the
+fp/ground-truth battery with **no regression** and the full workspace gate
+(`cargo test --workspace`, `clippy --all-targets`, `fmt`; `make
+test-lsp-e2e-rust` held at 22 failing throughout).  Eleven landed increments:
+
+- **W124 OID-chain / W302 fire-and-forget / W214 empty-body+quoted-keyword /
+  W304 braced-switch** (`294d1986`, `0392e5b0`, `2d48079a`) — registry-/CFG-
+  local FP suppressions (fp_sty 11→6, fp_nab 5→4).
+- **phi-from-undef W210 on return reads + D4-F2 scan/lassign/binary-scan
+  resolver** (`c54764be`, `755d0f9c`) — see SYNC-JUN11-phi-undef.
+- **shared dict-with/alias RBS suppression** (`2487d04d`) — thread the
+  `UndefSuppression` (dict-with keys, qualified-`variable` alias tails) through
+  the version-0 statement emitter too; a `dict with` value is resolved via SCCP
+  (interproc-empty literal) then a same-block `set`.  The statement path uses a
+  strict **known-keys-only** variant (an unknown-shape dict still fires so a
+  genuine missing-key read isn't hidden); the return path keeps the blanket
+  variant for the unknown-dict return TN.
+- **W301 single pure-var uplevel body** (`01ed4871`) — `uplevel 1 $body` (one
+  Var token) is the safe single-substitution idiom.
+- **W233 divide/modulo by a provably-zero divisor** (`8a644493`) — new pass
+  over every `[expr …]` AST (AssignExpr / branch condition / `return [expr …]`)
+  on SCCP-executable blocks; literal-`0` or SCCP-const-`0` divisor fires.
+  Reachability-aware: short-circuit `&&`/`||` and ternary arms are only walked
+  when the guard provably selects them (`0 && 1/0` silent, `1.0 && 1/0` fires).
+- **case-insensitive expr boolean lexer** (`d0036739`) — `True`/`YES`/`Off`
+  are booleans per `Tcl_GetBoolean` (was lowercase-only, so `True` lexed as a
+  function name).
+- **dispatch-protocol W214 suppression** (`88fc229b`) — port
+  `_dispatch_protocol_signatures`: ≥3 namespace peers sharing a leading-param
+  signature + an arity-compatible `$cmd` dispatcher (added `argc` to
+  `VarCommandSite`) make those params an external contract, not unused.
+- **`incr` on an uninit var** (`390124d0`) — the version-0 read `incr z`
+  records is a safe self-initialisation (8.5+), not RBS; the `safe_on_uninit`
+  skip now also covers `Statement::Incr`.
+- **CFG post-terminator dead code** (`717ff8ac`) — `lower_script` routes
+  statements after a `return` (and the `error`/`throw`/`exit`
+  `TERMINATES_BLOCK` set, promoted to a `Return` terminator) into an orphan
+  unreachable block instead of dropping them, so SCCP marks them unreachable
+  and **O107** fires; a `main_terminated` flag preserves the no-fall-through
+  contract for nested branch bodies.
+
+**Battery 290→316 passing / 87→61 failing** across the JUN11 sweep (session
+total from the 284 baseline: **284→316**, +32, zero regressions).  +~30
+analyser/lexer unit tests.  Remaining 61, by family: ground_truth 17, fp_rbs
+11, fp_ds 9, fp_rch 5, fp_nab 4, fp_sh 4, fp_bnd 3, fp_opt 3, fp_sty 4, fp_inj 1.
+
+**Open clusters (each a feature, not a switch), with the porting path:**
+- **regexp/scan `provably_unset`** (~8: fp_rbs RBS-02/12, fp_sty STY-10,
+  scan_genuine) — needs the `_read_before_set:3251+` post-pass that runs a real
+  regex match / `scan_provably_no_match` on literal pattern+input and marks the
+  output vars undef.  The `regexp` VarWrite resolver is coupled to this: alone
+  it fixes the nocase/with-options TNs but regresses the no-match TPs (output
+  becomes an unconditional def), so the two must land together.
+- **interproc dict const propagation** (~5: fp_ds DS-09, ground_truth interproc)
+  — needs `_collect_call_site_constants` + the SCCP barrier v0-preserve so a
+  callee `dict with $param` sees the caller's literal.
+- **W307 var-as-command** (4) — nested-`[…]`-command diagnostic dispatch +
+  array-element/return-literal command resolution.
+- **bounds W231/W232** — SCCP list-value resolution + nested-command dispatch
+  (`return [string index …]`).
+- **fp_rch break-edge reachability** (5) — model `break`/`continue` as CFG
+  edges so a `while 1 { … break }` post-loop block stays reachable.
+- **fp_ds W220 array-element place-model** (~3), **fp_sh shimmer S10x** (4),
+  **fp_opt O106/O109/O116** (3), and the residual misc (namespace-ensemble
+  resolution, `eval [list set …]` def recognition, S101 intrep-thrash).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
