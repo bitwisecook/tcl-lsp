@@ -1,10 +1,10 @@
 #!/usr/bin/env tclsh
-# reference_disasm_84.tcl — Generate reference bytecode disassembly from Tcl 8.4.
+# disasm_84.tcl — Generate reference bytecode disassembly from Tcl 8.4.
 #
 # Tcl 8.4 lacks tcl::unsupported::disassemble, so we use tcl_traceCompile
 # to capture bytecode as it compiles.  The trace output goes to stderr.
 #
-# Usage: tclsh reference_disasm_84.tcl <snippets_dir>
+# Usage: tclsh disasm_84.tcl <snippets_dir>
 #
 # For each .tcl file in <snippets_dir>, outputs:
 #
@@ -15,7 +15,7 @@
 set tcl_traceCompile 2
 
 if {$argc != 1} {
-    puts stderr "Usage: tclsh reference_disasm_84.tcl <snippets_dir>"
+    puts stderr "Usage: tclsh disasm_84.tcl <snippets_dir>"
     exit 1
 }
 

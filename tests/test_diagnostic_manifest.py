@@ -264,19 +264,38 @@ def test_generator_is_idempotent():
 
 _EXT_DIR = ROOT / "editors" / "vscode"
 _PROJECT_TSC = _EXT_DIR / "node_modules" / ".bin" / "tsc"
-_HAS_PROJECT_TSC = _PROJECT_TSC.exists()
 
 
-@pytest.mark.skipif(not _HAS_PROJECT_TSC, reason="project tsc not found (run npm install)")
+def _resolve_tsc() -> str | None:
+    """Locate a usable ``tsc`` so these tests RUN whenever a TypeScript
+    toolchain is present, rather than only when the VS Code workspace has
+    been ``npm install``-ed.
+
+    Order: the project-local binary (``editors/vscode/node_modules/.bin/tsc``)
+    first — it pins the version the extension actually builds with — then any
+    ``tsc`` on ``PATH`` (a global install).  Returns ``None`` only when no
+    compiler can be found, which is the one case that legitimately skips.
+    """
+    if _PROJECT_TSC.exists():
+        return str(_PROJECT_TSC)
+    return shutil.which("tsc")
+
+
+_TSC = _resolve_tsc()
+_HAS_PROJECT_TSC = _TSC is not None
+
+
+@pytest.mark.skipif(not _HAS_PROJECT_TSC, reason="no tsc found (project npm install or global tsc)")
 def test_typescript_catalog_compiles():
     """Generated diagnosticCatalog.ts compiles with tsc (if available)."""
+    assert _TSC is not None  # guaranteed by the skipif above
     ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
     assert ts_path.exists(), f"Missing {ts_path}"
 
     with tempfile.TemporaryDirectory() as tmp:
         result = subprocess.run(
             [
-                str(_PROJECT_TSC),
+                _TSC,
                 "--noEmit",
                 "--strict",
                 "--target",
@@ -301,6 +320,7 @@ def test_typescript_catalog_compiles():
 )
 def test_typescript_catalog_importable_by_node():
     """Generated diagnosticCatalog.ts can be transpiled and loaded by Node."""
+    assert _TSC is not None  # guaranteed by the skipif above
     ts_path = ROOT / "editors" / "vscode" / "src" / "generated" / "diagnosticCatalog.ts"
     assert ts_path.exists(), f"Missing {ts_path}"
 
@@ -313,7 +333,7 @@ def test_typescript_catalog_importable_by_node():
         # (which is still supported, just not the default).
         result = subprocess.run(
             [
-                str(_PROJECT_TSC),
+                _TSC,
                 "--outDir",
                 tmp,
                 "--target",

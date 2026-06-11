@@ -218,6 +218,67 @@ class TestC4NoDuplicateDiagnostics:
 
 
 # --------------------------------------------------------------------------- #
+# Inert close-bracket veto (issue #560) — recovery must not fabricate a fix
+# that leaves the command incomplete.
+# --------------------------------------------------------------------------- #
+
+
+class TestInertBracketVeto:
+    """The ``]`` command/comment-break heuristics must veto an inert offset.
+
+    For ::
+
+        set x [foo {bar
+        puts baz}
+
+    the ``puts`` word sits *inside* the balanced brace word ``{bar … baz}``, so
+    inserting ``]`` after ``bar`` yields ``set x [foo {bar]…}`` which C Tcl
+    reports as incomplete — an objectively wrong fix.  Before #560 the bracket
+    path lacked the inert-offset veto the brace path already had.  Observably,
+    the unterminated ``[`` is still flagged, the tail is still analysed as code,
+    nothing is published twice, and the analysis doesn't hang.  The mid-word
+    look-alike (a literal ``"`` mid-word) still recovers normally.
+    """
+
+    def test_brace_word_break_still_flags_and_recovers(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(
+            uri, "set x [foo {bar\nproc recovered_after_brace_word {} {}\n"
+        )
+        assert _has_recovery_error(diags), f"unterminated [ should flag; got {_codes(diags)}"
+        names = _symbol_names(lsp_server.document_symbols(uri))
+        assert "recovered_after_brace_word" in names, f"tail not recovered; symbols={names}"
+
+    def test_brace_word_break_no_duplicate_diagnostics(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "set x [foo {bar\nputs baz}\nset\n")
+        seen: set[tuple] = set()
+        for d in diags:
+            ident = _diag_identity(d)
+            assert ident not in seen, f"duplicate diagnostic published: {ident}"
+            seen.add(ident)
+        # The trailing bare ``set`` is still parsed as a command → arity errors,
+        # proving the tail is analysed as code rather than swallowed.
+        assert "E002" in _codes(diags), f"tail `set` should arity-error; got {_codes(diags)}"
+
+    def test_midword_delimiter_still_recovers(self, lsp_server, uri_factory):
+        # ``foo abc"`` — the ``"`` is mid-word, an ordinary literal, so the
+        # following line is a genuine command-break that must still recover
+        # (the veto must not over-fire and strand an unfixable error).
+        uri = uri_factory()
+        lsp_server.open_ready(uri, 'set x [foo abc"\nproc recovered_after_midword {} {}\n')
+        names = _symbol_names(lsp_server.document_symbols(uri))
+        assert "recovered_after_midword" in names, f"tail not recovered; symbols={names}"
+
+    def test_brace_word_break_tokens_well_formed(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "set x [foo {bar\nputs baz}\nputs end\n")
+        raw = lsp_server.semantic_tokens(uri)
+        data = raw.get("data") if isinstance(raw, dict) else None
+        assert data is not None and len(data) % 5 == 0, "token data must be 5-int groups"
+
+
+# --------------------------------------------------------------------------- #
 # C5 — edits toggle recovery
 # --------------------------------------------------------------------------- #
 

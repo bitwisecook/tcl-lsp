@@ -23,12 +23,15 @@ To write a test, take the ``lsp_server`` fixture and call ``request`` /
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +50,8 @@ BUILD_INFO = ROOT / "shared" / "_build_info.py"
 # In ``rust`` mode the binary is located via ``TCL_LSP_SERVER_BIN`` (explicit
 # path) or discovered at ``target/{release,debug}/tcl-lsp-server`` under the
 # repo root (build it with ``make rust-server`` / ``cargo build -p
-# tcl-lsp-server``).
+# tcl-lsp-server``).  Keeping the selector here — rather than in conftest —
+# lets every fixture and any out-of-band script share one resolution rule.
 
 
 def server_kind() -> str:
@@ -73,10 +77,11 @@ def native_server_bin() -> Path | None:
 
 
 def server_launch_argv(server: Path) -> list[str]:
-    """Build the subprocess argv for *server*: a native binary runs directly;
-    a ``.pyz`` runs under the current interpreter."""
-    import sys
+    """Build the subprocess argv for *server*.
 
+    A native binary runs directly; a ``.pyz`` runs under the current
+    interpreter.
+    """
     return [str(server)] if server_kind() == "rust" else [sys.executable, str(server)]
 
 
@@ -122,9 +127,24 @@ class LspError(AssertionError):
 class LspServerClient:
     """Manage a language-server subprocess and talk LSP JSON-RPC to it."""
 
-    def __init__(self, argv: list[str], cwd: Path) -> None:
+    def __init__(
+        self,
+        argv: list[str],
+        cwd: Path,
+        *,
+        tcllsp_config: dict | None = None,
+    ) -> None:
         self._argv = argv
         self._cwd = cwd
+        #: Reply returned for the ``tclLsp`` section of ``workspace/configuration``.
+        #: Defaults to an editor that has opted into linked editing only (see
+        #: ``_auto_reply``); pass a richer dict to enable default-off features
+        #: such as inlay hints for a dedicated server fixture.
+        self._tcllsp_config: dict = (
+            tcllsp_config
+            if tcllsp_config is not None
+            else {"features": {"linkedEditingRange": True}}
+        )
         self._proc: subprocess.Popen[bytes] | None = None
         self._next_id = 0
         self._lock = threading.Lock()
@@ -526,10 +546,17 @@ class LspServerClient:
         }
         return self.request("textDocument/selectionRange", params, timeout=timeout)
 
-    def formatting(self, uri: str, *, timeout: float = 30.0) -> Any:
+    def formatting(
+        self,
+        uri: str,
+        *,
+        tab_size: int = 4,
+        insert_spaces: bool = True,
+        timeout: float = 30.0,
+    ) -> Any:
         params = {
             "textDocument": {"uri": uri},
-            "options": {"tabSize": 4, "insertSpaces": True},
+            "options": {"tabSize": tab_size, "insertSpaces": insert_spaces},
         }
         return self.request("textDocument/formatting", params, timeout=timeout)
 
@@ -539,6 +566,117 @@ class LspServerClient:
             {"command": command, "arguments": arguments},
             timeout=timeout,
         )
+
+    # -- configuration injection ------------------------------------------
+
+    def effective_config(self, uri: str = "", *, timeout: float = 30.0) -> dict:
+        """Return the server's *resolved* config for ``uri`` (``getEffectiveConfig``).
+
+        This is the view the analyser/formatter actually applies — folder
+        override → workspace fallback → process default — so a test can assert
+        the server honoured a config change rather than sleeping on the
+        ``workspace/configuration`` round-trip.
+        """
+        result = self.execute_command("tcl-lsp.getEffectiveConfig", [uri], timeout=timeout)
+        return result if isinstance(result, dict) else {}
+
+    def apply_configuration(
+        self,
+        config: dict,
+        *,
+        settle: Callable[[dict], bool] | None = None,
+        settle_uri: str = "",
+        timeout: float = 30.0,
+    ) -> dict:
+        """Make the server adopt *config* as the ``tclLsp`` section, then settle.
+
+        Updates the reply this client returns for the ``tclLsp`` section of
+        ``workspace/configuration`` and notifies ``didChangeConfiguration`` so
+        the server re-pulls and re-applies.  The pull/apply is async, so this
+        blocks until ``getEffectiveConfig`` for ``settle_uri`` satisfies
+        *settle* (a predicate over the resolved config) — turning a config
+        change into a deterministic barrier with no wall-clock sleeps.
+
+        Returns the resolved config the server settled on.  Tests must
+        restore the prior config (or use a dedicated server fixture) to avoid
+        leaking state across the shared session — see ``config_session``.
+        """
+        self._tcllsp_config = config
+        # An empty/None ``settings`` payload makes the server fall through to a
+        # full ``workspace/configuration`` re-pull (see settings.register).
+        self.notify("workspace/didChangeConfiguration", {"settings": {}})
+        if settle is None:
+            return self.effective_config(settle_uri, timeout=timeout)
+        import time as _time
+
+        deadline = _time.monotonic() + timeout
+        last: dict = {}
+        while _time.monotonic() < deadline:
+            last = self.effective_config(settle_uri, timeout=timeout)
+            if settle(last):
+                return last
+            _time.sleep(0.05)
+        raise AssertionError(
+            f"config did not settle within {timeout}s; last effective config: {last!r}"
+        )
+
+    @contextlib.contextmanager
+    def config_session(
+        self,
+        config: dict,
+        *,
+        settle: Callable[[dict], bool] | None = None,
+        settle_uri: str = "",
+        timeout: float = 30.0,
+    ):
+        """Apply *config* for the duration of the ``with`` block, then restore.
+
+        Snapshots the prior ``tclLsp`` reply *and* the resolved feature/scalar
+        state, applies *config* (settling as :meth:`apply_configuration` does),
+        and on exit restores the prior reply and re-pulls — blocking until the
+        resolved config matches the pre-block snapshot again.  The settled
+        restore is what makes this safe on the *shared* server: a feature
+        toggled off here is provably back on before the next test queries it.
+        The restore runs even if the body raises.
+        """
+        before = self.effective_config(settle_uri, timeout=timeout)
+        before_features = before.get("features")
+        before_optimiser = before.get("optimiser_enabled")
+        self.apply_configuration(config, settle=settle, settle_uri=settle_uri, timeout=timeout)
+        try:
+            yield self
+        finally:
+            # A pulled config only *sets* the keys it carries — omitted keys keep
+            # their last-applied value (the server treats absent as "unchanged").
+            # So restoring the prior *reply* would leave a disabled toggle stuck
+            # off.  Re-assert the full prior resolved feature map (and optimiser
+            # switch) explicitly, then block until the resolved state matches the
+            # pre-block snapshot — the settled restore is what keeps the shared
+            # server clean for the next test.
+            undo: dict[str, Any] = {}
+            if isinstance(before_features, dict):
+                undo["features"] = dict(before_features)
+            if "optimiser" in config and isinstance(before_optimiser, bool):
+                undo["optimiser"] = {"enabled": before_optimiser}
+
+            def _restored(c: dict) -> bool:
+                if isinstance(before_features, dict) and c.get("features") != before_features:
+                    return False
+                if "optimiser" in config and c.get("optimiser_enabled") != before_optimiser:
+                    return False
+                return True
+
+            restored = self.apply_configuration(
+                undo, settle=_restored, settle_uri=settle_uri, timeout=timeout
+            )
+            # Surface a botched restore loudly rather than leaking into the
+            # next test on the shared server.
+            assert _restored(restored), (
+                "config_session failed to restore prior config: "
+                f"features={restored.get('features')!r} (want {before_features!r}), "
+                f"optimiser_enabled={restored.get('optimiser_enabled')!r} "
+                f"(want {before_optimiser!r})"
+            )
 
     # -- push diagnostics --------------------------------------------------
 
@@ -688,15 +826,15 @@ class LspServerClient:
         method = msg.get("method", "")
         if method == "workspace/configuration":
             items = (msg.get("params") or {}).get("items") or []
-            # Reply per requested section.  For the ``tclLsp`` section, model an
-            # editor that has opted into the features the schema leaves off by
-            # default (linked editing inherits ``editor.linkedEditing``, which is
-            # off in VS Code) so those providers are exercised in e2e.  Every
-            # other section falls back to ``null`` (server defaults).
+            # Reply per requested section.  For the ``tclLsp`` section, return
+            # this client's configured payload — by default an editor that has
+            # opted into the features the schema leaves off (linked editing
+            # inherits ``editor.linkedEditing``, off in VS Code) so those
+            # providers are exercised in e2e; a dedicated fixture can pass a
+            # richer dict (e.g. ``features.inlayHints``).  Every other section
+            # falls back to ``null`` (server defaults).
             result: Any = [
-                {"features": {"linkedEditingRange": True}}
-                if (item or {}).get("section") == "tclLsp"
-                else None
+                self._tcllsp_config if (item or {}).get("section") == "tclLsp" else None
                 for item in items
             ]
         else:

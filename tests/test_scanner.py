@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.workspace.scanner import (
     BackgroundScanner,
     _dialect_from_ext,
+    is_editor_lock_symlink,
     path_to_uri,
     uri_to_path,
 )
@@ -196,3 +197,83 @@ class TestBackgroundScanner:
         scanner.configure(workspace_roots=["/nonexistent/path/xyz"])
         results = scanner.scan_all()
         assert results == {}
+
+    def test_scan_ignores_emacs_lock_symlink(self):
+        """A dangling Emacs lock symlink (``.#name.tcl``) is not analysed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            Path(os.path.join(tmpdir, "lib.tcl")).write_text("proc foo {} {}")
+            # Emacs lock file: a symlink to a target that does not exist.
+            lock = os.path.join(tmpdir, ".#lib.tcl")
+            os.symlink("user@host.12345:1700000000", lock)
+
+            scanner = BackgroundScanner()
+            scanner.configure(workspace_roots=[tmpdir])
+            results = scanner.scan_all()
+
+            # Only the real file is indexed; the lock symlink is skipped
+            # without raising on the unreadable target.
+            assert len(results) == 1
+            assert path_to_uri(os.path.join(tmpdir, "lib.tcl")) in results
+            assert path_to_uri(lock) not in results
+
+    def test_rescan_skips_emacs_lock_symlink_without_reading(self, monkeypatch):
+        """``rescan_file`` short-circuits a lock symlink before any read.
+
+        The fix's value is avoiding the read entirely (and the log churn it
+        produced); the old code would attempt the read, raise
+        ``FileNotFoundError`` on the dangling target, and swallow it.  Guard
+        against regressing back to "read then swallow" by failing if the file
+        is read at all.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock = os.path.join(tmpdir, ".#rename-only.tcl")
+            os.symlink("user@host.12345:1700000000", lock)
+
+            def _no_read(self, *args, **kwargs):
+                raise AssertionError(f"lock symlink should not be read: {self}")
+
+            monkeypatch.setattr(Path, "read_text", _no_read)
+
+            scanner = BackgroundScanner()
+            scanner.configure(workspace_roots=[tmpdir])
+            assert scanner.rescan_file(lock) is None
+
+    def test_run_analysis_swallows_missing_file_quietly(self, caplog):
+        """A genuinely missing file logs at debug with no traceback."""
+        import logging
+
+        scanner = BackgroundScanner()
+        with caplog.at_level(logging.DEBUG, logger="server.workspace.scanner"):
+            assert scanner.rescan_file("/nonexistent/path/gone.tcl") is None
+        # No exception escaped, and nothing was logged with traceback info.
+        assert all(rec.exc_info is None for rec in caplog.records)
+
+
+class TestEditorLockSymlink:
+    def test_dangling_lock_symlink_detected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            lock = os.path.join(tmpdir, ".#doc.tcl")
+            os.symlink("user@host.999:1", lock)
+            assert is_editor_lock_symlink(lock) is True
+
+    def test_regular_file_starting_with_hash_not_skipped(self):
+        """A real (non-symlink) file named ``.#...`` is still analysed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real = os.path.join(tmpdir, ".#real.tcl")
+            Path(real).write_text("proc foo {} {}")
+            assert is_editor_lock_symlink(real) is False
+
+    def test_ordinary_source_not_skipped(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ordinary = os.path.join(tmpdir, "lib.tcl")
+            Path(ordinary).write_text("proc foo {} {}")
+            assert is_editor_lock_symlink(ordinary) is False
+
+    def test_symlink_without_lock_prefix_not_skipped(self):
+        """A symlink that is not a ``.#`` lock file is not treated as one."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = os.path.join(tmpdir, "lib.tcl")
+            Path(target).write_text("proc foo {} {}")
+            link = os.path.join(tmpdir, "alias.tcl")
+            os.symlink(target, link)
+            assert is_editor_lock_symlink(link) is False

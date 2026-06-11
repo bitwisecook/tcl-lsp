@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
-# reference_test_runner.tcl — Run a single .test file, capture structured results.
+# test_runner.tcl — Run a single .test file, capture structured results.
 #
-# Usage: tclsh reference_test_runner.tcl <tests_dir> <test_file>
+# Usage: tclsh test_runner.tcl <tests_dir> <test_file>
 #
 # Output (to stdout):
 #
@@ -23,7 +23,7 @@
 # tcltest's verbose output via a reflected channel on outputChannel.
 
 if {$argc < 2} {
-    puts stderr "Usage: tclsh reference_test_runner.tcl <tests_dir> <test_file>"
+    puts stderr "Usage: tclsh test_runner.tcl <tests_dir> <test_file>"
     exit 1
 }
 

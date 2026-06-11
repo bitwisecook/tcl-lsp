@@ -34,6 +34,16 @@ def test_initialize_reports_packaged_build_version(lsp_server, lsp_full_version)
     info = lsp_server.server_info
     assert info is not None, "initialize result had no serverInfo — cannot read the version banner"
     reported = info.get("version")
+    if server_kind() == "rust":
+        # The native binary reports its own (Cargo) version, not the Python
+        # zipapp build string, so the exact ``v{FULL_VERSION}`` match is
+        # pyz-specific.  Still guard the regression class the test exists for:
+        # a real, non-empty, non-fallback version banner.
+        assert reported, "native server reported no version banner"
+        assert reported not in ("vdev", "dev"), (
+            f"native server fell back to a dev version banner: {reported!r}"
+        )
+        return
     # The banner is f"v{FULL_VERSION}"; a broken build-info import yields "vdev".
     assert reported == f"v{lsp_full_version}", (
         f"running server reported version {reported!r}, expected "

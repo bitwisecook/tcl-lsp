@@ -25,8 +25,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUNNER="$SCRIPT_DIR/reference_test_runner_84.tcl"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+RUNNER="$SCRIPT_DIR/test_runner_84.tcl"
 OUTPUT_BASE="$REPO_ROOT/tests/test_reference"
 
 # Test files from the VM conformance plan
