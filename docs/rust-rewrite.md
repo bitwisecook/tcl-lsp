@@ -4744,6 +4744,31 @@ regression**. The ground_truth W307 residue is the snit/TclOO
 instance-variable/component resolution, a distinct path from proc-parameter
 dispatch. `cargo test -p tcl-compiler`/`clippy`/`fmt` clean.
 
+#### SYNC-JUN11-commands — command-surface parity (lsp_e2e 31→25 failing)
+
+Wired four missing `executeCommand` handlers in `tcl-lsp-server`, mirroring
+`server/commands.py`, and added them to the advertised `executeCommandProvider`
+list:
+- `tcl-lsp.listSubcommands` — registry-driven subcommand metadata
+  (`{name, detail, synopsis, pure, mutator, deprecated}`, sorted; empty list for
+  an unknown command). This was the only missing **core** command, so it also
+  closes `test_core_commands_are_advertised`.
+- `tcl-lsp.listKnownPackages` / `tcl-lsp.suggestPackagesForSymbol` — shape-correct
+  (`{packages: []}` / `{symbol, suggestions: []}`); the native server has no
+  on-disk `package require` resolver yet (a documented follow-up), so they report
+  the empty set rather than fabricating data.
+- `tcl-lsp.exportConfig` — writes the resolved feature / optimiser / style /
+  disabled-diagnostic state to `$XDG_CONFIG_HOME/tcl-lsp/config.ini`
+  (INI, the format the server reads) and returns `{success, path}`.
+
+Closes the `test_commands_e2e::TestCommandSurface` cluster (6 tests:
+core-advertised, listSubcommands shape + unknown-empty, listKnownPackages shape,
+suggestPackagesForSymbol shape, exportConfig writes a file). **lsp_e2e
+31→25 failing.** +3 server unit tests; `cargo test`/`clippy`/`fmt` clean. The
+lone remaining `test_commands_e2e` failure is the minifier switch-pattern
+off-by-one (issue #540 — `iter_switch_case_list` drops a quoted pattern's
+closing delimiter), tracked separately.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

@@ -1564,6 +1564,130 @@ impl Backend {
         self.feature_toggles.lock().await.is_enabled(feature)
     }
 
+    /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
+    /// from the registry.  Mirrors `server/commands.py::on_list_subcommands`.
+    /// An unknown command (or one with no subcommands) yields an empty list.
+    async fn list_subcommands_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> Option<serde_json::Value> {
+        let name = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
+        let dialect = self.default_dialect.lock().await.clone();
+        let registry = self.registry_for_dialect(&dialect).await;
+        let parsed = DialectSet::parse(&dialect).unwrap_or(DialectSet::ALL_TCL);
+        let mut subs: Vec<serde_json::Value> = registry
+            .get_for_dialect(&name, parsed)
+            .map(|spec| {
+                spec.subcommands
+                    .iter()
+                    .map(|sub| {
+                        serde_json::json!({
+                            "name": sub.name,
+                            "detail": sub.detail,
+                            "synopsis": sub.synopsis,
+                            "pure": sub.pure,
+                            "mutator": sub.mutator,
+                            // The registry tracks deprecation at command level,
+                            // not per subcommand — report the shape with a
+                            // conservative default.
+                            "deprecated": false,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        subs.sort_by(|a, b| {
+            a.get("name")
+                .and_then(serde_json::Value::as_str)
+                .cmp(&b.get("name").and_then(serde_json::Value::as_str))
+        });
+        Some(serde_json::json!({ "command": name, "subcommands": subs }))
+    }
+
+    /// Handle `tcl-lsp.listKnownPackages`.  The native server has no on-disk
+    /// `package require` resolver yet (a follow-up), so it reports the empty
+    /// set — the contract is a `packages` list, which downstream callers can
+    /// rely on regardless of population.
+    fn list_known_packages_command() -> serde_json::Value {
+        serde_json::json!({ "packages": serde_json::Value::Array(vec![]) })
+    }
+
+    /// Handle `tcl-lsp.suggestPackagesForSymbol`.  Echoes the symbol and an
+    /// (empty, pending the package resolver) suggestion list.
+    fn suggest_packages_for_symbol_command(args: &[serde_json::Value]) -> serde_json::Value {
+        let symbol = args
+            .first()
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
+        serde_json::json!({ "symbol": symbol, "suggestions": serde_json::Value::Array(vec![]) })
+    }
+
+    /// Handle `tcl-lsp.exportConfig`: write the resolved settings to the
+    /// user config file (`$XDG_CONFIG_HOME/tcl-lsp/config.ini`, else
+    /// `~/.config/tcl-lsp/config.ini`) and return its path.  Mirrors
+    /// `server/commands.py::on_export_config`; only the resolved
+    /// feature / optimiser / style / disabled-diagnostic state is written.
+    async fn export_config_command(&self) -> serde_json::Value {
+        let path = config_ini_path();
+        let contents = self.render_config_ini().await;
+        let result = path.parent().map_or_else(
+            || Err(std::io::Error::other("no config directory")),
+            std::fs::create_dir_all,
+        );
+        match result.and_then(|()| std::fs::write(&path, contents)) {
+            Ok(()) => serde_json::json!({
+                "success": true,
+                "path": path.to_string_lossy(),
+            }),
+            Err(err) => serde_json::json!({
+                "success": false,
+                "error": err.to_string(),
+            }),
+        }
+    }
+
+    /// Render the resolved config as an INI document (the format the server
+    /// reads from `config.ini`): `[features]`, `[optimiser]`, `[style]`, and
+    /// the disabled `[diagnostics]` codes.
+    async fn render_config_ini(&self) -> String {
+        use std::fmt::Write as _;
+        let features = self.feature_toggles.lock().await.resolved_map();
+        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        let line_length = *self.line_length.lock().await;
+        let mut disabled: Vec<String> = self
+            .disabled_diagnostics
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect();
+        disabled.sort();
+
+        let mut out = String::from("# tcl-lsp configuration (exported)\n\n[features]\n");
+        let mut feature_keys: Vec<&String> = features.keys().collect();
+        feature_keys.sort();
+        for key in feature_keys {
+            let enabled = features.get(key).and_then(serde_json::Value::as_bool) == Some(true);
+            let _ = writeln!(out, "{key} = {enabled}");
+        }
+        let _ = write!(out, "\n[optimiser]\nenabled = {optimiser_enabled}\n");
+        let _ = write!(out, "\n[style]\nlineLength = {line_length}\n");
+        if !disabled.is_empty() {
+            out.push_str("\n[diagnostics]\n");
+            for code in disabled {
+                let _ = writeln!(out, "{code} = false");
+            }
+        }
+        out
+    }
+
     /// Snapshot the user-configured analyser settings (disabled
     /// diagnostic codes + W108 non-ASCII mode) so a blocking analysis
     /// worker can build its `Analyser` without holding any async mutex.
@@ -3111,6 +3235,12 @@ impl LanguageServer for Backend {
                 self.get_effective_config_command(&params.arguments).await
             }
             "tcl-lsp.fixAllSafeIssues" => self.fix_all_safe_issues_command(&params.arguments).await,
+            "tcl-lsp.listSubcommands" => Ok(self.list_subcommands_command(&params.arguments).await),
+            "tcl-lsp.listKnownPackages" => Ok(Some(Self::list_known_packages_command())),
+            "tcl-lsp.suggestPackagesForSymbol" => Ok(Some(
+                Self::suggest_packages_for_symbol_command(&params.arguments),
+            )),
+            "tcl-lsp.exportConfig" => Ok(Some(self.export_config_command().await)),
             _ => Ok(None),
         }
     }
@@ -3686,6 +3816,19 @@ fn formatter_config_from_options(
     }
 }
 
+/// Resolve the user config-file path for `tcl-lsp.exportConfig`:
+/// `$XDG_CONFIG_HOME/tcl-lsp/config.ini`, falling back to
+/// `$HOME/.config/tcl-lsp/config.ini`.  Both env vars are honoured on every
+/// platform so tests can isolate the server's config via `XDG_CONFIG_HOME`.
+fn config_ini_path() -> std::path::PathBuf {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|p| !p.as_os_str().is_empty())
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))
+        .unwrap_or_else(|| std::path::PathBuf::from(".config"));
+    base.join("tcl-lsp").join("config.ini")
+}
+
 /// Render a [`NonAsciiMode`] for `getEffectiveConfig`.  The unset
 /// [`NonAsciiMode::Default`] reports as JSON `null` (the per-dialect
 /// auto behaviour, mirroring the Python server's `None`); every explicit
@@ -4181,6 +4324,10 @@ fn build_server_capabilities() -> ServerCapabilities {
                 "tcl-lsp.diagramData".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
+                "tcl-lsp.listSubcommands".to_owned(),
+                "tcl-lsp.listKnownPackages".to_owned(),
+                "tcl-lsp.suggestPackagesForSymbol".to_owned(),
+                "tcl-lsp.exportConfig".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -4540,6 +4687,46 @@ mod tests {
         assert_eq!(non_ascii_mode_str(NonAsciiMode::Strict), "strict");
         assert_eq!(non_ascii_mode_str(NonAsciiMode::Common), "common");
         assert_eq!(non_ascii_mode_str(NonAsciiMode::Confusables), "confusables");
+    }
+
+    #[test]
+    fn suggest_packages_echoes_symbol_with_list() {
+        let args = vec![serde_json::json!("json::write")];
+        let out = Backend::suggest_packages_for_symbol_command(&args);
+        assert_eq!(
+            out.get("symbol").and_then(|v| v.as_str()),
+            Some("json::write")
+        );
+        assert!(out
+            .get("suggestions")
+            .is_some_and(serde_json::Value::is_array));
+    }
+
+    #[test]
+    fn list_known_packages_reports_a_list() {
+        let out = Backend::list_known_packages_command();
+        assert!(out.get("packages").is_some_and(serde_json::Value::is_array));
+    }
+
+    #[test]
+    fn config_ini_path_honours_xdg() {
+        // `config_ini_path` reads process env; guard the global with a mutex so
+        // concurrent env-mutating tests don't race.
+        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let prev = std::env::var_os("XDG_CONFIG_HOME");
+        std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdg-probe");
+        let path = config_ini_path();
+        assert_eq!(
+            path,
+            std::path::PathBuf::from("/tmp/xdg-probe/tcl-lsp/config.ini")
+        );
+        match prev {
+            Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
     }
 
     #[test]
