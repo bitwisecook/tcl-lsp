@@ -580,6 +580,14 @@ class _CFGBuilder:
         # the pre-``try`` block.  Always read immediately after the relevant
         # ``_lower_script`` call, before any nested lowering overwrites it.
         self._last_terminal_block: str | None = None
+        # When non-None, ``_lower_script`` appends each block that raises an
+        # explicit ``error`` / ``throw`` to this list.  ``_lower_try`` installs
+        # a fresh list around its body so the on-error edge can be sourced from
+        # *every* throw point (each at its throw-time SSA versions), catching a
+        # var that is unset on an earlier conditional throw even when a later
+        # throw has it set.  Nested ``try`` bodies install their own list so an
+        # inner-caught throw is not attributed to the outer handler.
+        self._throw_blocks: list[str] | None = None
         self._inline_loops = inline_loops
         self._upvar_procs = upvar_procs or {}
         self._proc_params = proc_params or {}
@@ -1045,6 +1053,14 @@ class _CFGBuilder:
                         block.terminator = CFGReturn(
                             value=None, range=stmt.range, expr=None, braced=False
                         )
+                        # ``error`` / ``throw`` are catchable throw points; an
+                        # enclosing ``try`` sources its on-error edge from here
+                        # so the handler sees the var state *at the throw*.
+                        # ``exit`` is not catchable, so it is not a throw point.
+                        if self._throw_blocks is not None and stmt.canonical_command.lstrip(
+                            ":"
+                        ) in ("error", "throw"):
+                            self._throw_blocks.append(current)
 
         # The script has no normal fall-through if the block control finally
         # rests in is terminated (a straight-line ``return``/``error`` as the
@@ -1335,7 +1351,15 @@ class _CFGBuilder:
 
         # Where does control go after the body succeeds?
         post_body = self._new_block("try_ok") if stmt.handlers else end_block
+        # Collect this body's explicit throw points in a fresh list (a nested
+        # ``try`` installs its own, so its caught throws are not attributed
+        # here).  Restore the parent's list before the handler bodies, whose
+        # throws belong to any enclosing ``try``.
+        outer_throw_blocks = self._throw_blocks
+        self._throw_blocks = []
         body_tail = self._lower_script(stmt.body, body_block)
+        body_throws = self._throw_blocks
+        self._throw_blocks = outer_throw_blocks
         # ``_lower_script`` surfaces the block where the body's straight-line
         # control terminated (the throwing block) when the body has no normal
         # fall-through.  Capture it before any nested lowering (the handler
@@ -1370,18 +1394,24 @@ class _CFGBuilder:
             # genuine read-before-set still fires.
             #
             # When the body has *no* normal fall-through (it unconditionally
-            # throws), the handler is only reachable from the throw point, where
-            # the body-set vars up to that point are defined.  Source the edge
-            # from that throwing block alone — adding the pre-``try`` block would
-            # re-introduce a version-0 predecessor and false-fire W210 on a var
-            # that is provably set at the throw.
+            # throws), the handler is reachable only from the body's explicit
+            # throw points.  Source the edge from each of them, at its own
+            # throw-time versions: a var set before a *late* throw but unset on
+            # an *earlier* conditional throw is then correctly *maybe*-defined,
+            # so a genuine read-before-set still fires — while a var provably
+            # set before the only throw is not false-flagged (no pre-``try``
+            # version-0 predecessor is added).  Fall back to the terminal block
+            # when the body terminated without an explicit ``error``/``throw``
+            # (e.g. a bare ``return``), preserving the prior edge.
             if self._faithful_exceptions:
                 is_on_ok = handler.kind == "on" and handler.match_arg == "ok"
                 if is_on_ok:
                     if body_tail is not None:
                         self._exception_edges.append((body_tail, handler_block))
                 elif body_terminal is not None:
-                    self._exception_edges.append((body_terminal, handler_block))
+                    throw_sources = list(dict.fromkeys(body_throws)) or [body_terminal]
+                    for src in throw_sources:
+                        self._exception_edges.append((src, handler_block))
                 else:
                     self._exception_edges.append((block_name, handler_block))
                     if body_tail is not None and body_tail != block_name:

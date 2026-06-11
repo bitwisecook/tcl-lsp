@@ -796,6 +796,49 @@ class TestSoundnessRegressionsFromRustReview:
         )
         assert len(_diag_with_code(src, "W210")) == 1
 
+    def test_try_body_earlier_conditional_throw_still_warns(self):
+        """The handler is reachable from *every* throw point, so a var set
+        before a late throw but unset on an earlier conditional throw is
+        maybe-unset and must still fire W210.
+
+        tclsh 9.0.3: ``f 1`` enters the handler with ``x`` UNSET (the
+        ``if {$c} {error a}`` fires before ``set x 1``); ``f 0`` enters with
+        ``x == 1``.  Sourcing the on-error edge only from the *last* throw
+        (``error b``, where ``x`` is set) would miss the unset path."""
+        src = (
+            "proc f {c} {\n"
+            "    try {\n"
+            "        if {$c} { error a }\n"
+            "        set x 1\n"
+            "        error b\n"
+            "    } on error {} {\n"
+            "        puts $x\n"
+            "    }\n"
+            "}"
+        )
+        diags = _diag_with_code(src, "W210")
+        assert [d.message for d in diags] == ["Variable 'x' is read before it is set"]
+
+    def test_try_nested_caught_throw_not_attributed_to_outer(self):
+        """A throw raised and caught by a nested ``try`` is not an outer throw
+        point.  The outer handler is reachable only from the outer body's own
+        throws, where ``x`` is provably set, so no W210 fires.
+
+        tclsh 9.0.3: the inner ``error inner`` is swallowed, so the outer
+        handler always sees ``x == 1``."""
+        src = (
+            "proc f {} {\n"
+            "    try {\n"
+            "        set x 1\n"
+            "        try { error inner } on error {} { }\n"
+            "        error outer\n"
+            "    } on error {} {\n"
+            "        puts $x\n"
+            "    }\n"
+            "}"
+        )
+        assert len(_diag_with_code(src, "W210")) == 0
+
 
 class TestInfoExistsNotReadBeforeSet:
     """`info exists`/`array exists` is the canonical test-before-use idiom —
