@@ -887,7 +887,7 @@ fn build_phi_undef_index(
 /// declarations.  Mirrors the corresponding `skip` / key-set construction in
 /// `compiler/core_analyses.py::_read_before_set`.
 #[derive(Default)]
-struct ReturnUndefSuppression {
+struct UndefSuppression {
     /// A `dict with` / `dict update` is present (enables the key-aware gate).
     has_dict_with: bool,
     /// At least one dict-with target's value shape is statically unknown.
@@ -902,27 +902,42 @@ struct ReturnUndefSuppression {
     alias_tails: HashSet<String>,
 }
 
-impl ReturnUndefSuppression {
-    /// True when a `return`-value read of `name` is suppressed by an alias
-    /// declaration or a `dict with` / `dict update` unpack (key-aware; a
-    /// concretely-defined name is never suppressed).
+impl UndefSuppression {
+    /// True when a read of `name` is suppressed by an alias declaration or a
+    /// `dict with` / `dict update` unpack.  Blanket variant: an unknown-shape
+    /// dict suppresses every non-concrete name (the conservative
+    /// "might-have-the-key" stance, used where no truth source can confirm
+    /// the dict is empty — e.g. a `return` after a `dict with` on a param).
     fn suppresses(&self, name: &str) -> bool {
+        self.suppresses_strict(name)
+            || (self.has_dict_with
+                && self.dict_with_any_unknown
+                && !self.explicitly_defined.contains(name))
+    }
+
+    /// Like [`Self::suppresses`] but **without** the unknown-shape blanket —
+    /// only alias tails, dict vars, and *provably-unpacked* keys suppress.
+    /// Used on statement reads inside a `dict with` body, where an
+    /// unknown-shape dict (e.g. an interprocedurally-empty literal Rust's
+    /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
+    /// is not hidden.
+    fn suppresses_strict(&self, name: &str) -> bool {
         if self.alias_tails.contains(name) || self.dict_vars.contains(name) {
             return true;
         }
         self.has_dict_with
             && !self.explicitly_defined.contains(name)
-            && (self.dict_with_any_unknown || self.dict_with_known_keys.contains(name))
+            && self.dict_with_known_keys.contains(name)
     }
 }
 
-/// Build the [`ReturnUndefSuppression`] context over `considered` blocks.
-fn build_return_undef_suppression(
+/// Build the [`UndefSuppression`] context over `considered` blocks.
+fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
-) -> ReturnUndefSuppression {
+) -> UndefSuppression {
     use crate::ir::Statement;
-    let mut s = ReturnUndefSuppression::default();
+    let mut s = UndefSuppression::default();
 
     // `dict with` / `dict update`: harvest the dict-var names and, when the
     // dict value is a same-block literal, its keys (key-aware suppression).
@@ -956,31 +971,54 @@ fn build_return_undef_suppression(
                 continue;
             }
             s.dict_vars.insert(dvar.clone());
-            // Backward-scan the same block for the dict's literal value.
-            let mut found = false;
-            for prev in (0..idx).rev() {
-                match &block.statements[prev] {
-                    Statement::AssignConst { name, value, .. }
-                        if crate::naming::normalise_var_name(name) == dvar =>
+            // Resolve the dict's value to harvest its keys.  Prefer the
+            // SCCP CONST of the SPECIFIC version read by this dict-with (so
+            // interprocedurally-propagated literals — a caller passing `{}`
+            // — are honoured), falling back to a same-block literal `set`.
+            // A known value (even empty) harvests its keys; only a value
+            // that resolves to neither marks the dict shape unknown.
+            let mut literal: Option<String> = None;
+            if let Some(sb) = fu.ssa.blocks.get(bn) {
+                if let Some(ver) = sb
+                    .statements
+                    .get(idx)
+                    .and_then(|s| s.uses.get(&dvar).copied())
+                {
+                    if let Some(crate::analyses::LatticeValue::Const(
+                        crate::analyses::ConstValue::String(v),
+                    )) = fu.sccp.values.get(&(dvar.clone(), ver))
                     {
-                        for (i, key) in crate::tcl_expr_eval::split_tcl_list(value)
-                            .into_iter()
-                            .enumerate()
-                        {
-                            if i % 2 == 0 {
-                                s.dict_with_known_keys.insert(key);
-                            }
-                        }
-                        found = true;
-                        break;
+                        literal = Some(v.clone());
                     }
-                    // A barrier between us and the literal invalidates the trace.
-                    Statement::Barrier { .. } => break,
-                    _ => {}
                 }
             }
-            if !found {
-                s.dict_with_any_unknown = true;
+            if literal.is_none() {
+                for prev in (0..idx).rev() {
+                    match &block.statements[prev] {
+                        Statement::AssignConst { name, value, .. }
+                            if crate::naming::normalise_var_name(name) == dvar =>
+                        {
+                            literal = Some(value.clone());
+                            break;
+                        }
+                        // A barrier between us and the literal invalidates it.
+                        Statement::Barrier { .. } => break,
+                        _ => {}
+                    }
+                }
+            }
+            match literal {
+                Some(v) => {
+                    for (i, key) in crate::tcl_expr_eval::split_tcl_list(&v)
+                        .into_iter()
+                        .enumerate()
+                    {
+                        if i % 2 == 0 {
+                            s.dict_with_known_keys.insert(key);
+                        }
+                    }
+                }
+                None => s.dict_with_any_unknown = true,
             }
         }
     }
@@ -4221,20 +4259,31 @@ file; this call falls through to the 'unknown' handler."
             &textually_referenced,
         );
         self.emit_possible_paste_error_diagnostics(function_unit);
+        // Shared read-before-set context: the SCCP-executable block set and
+        // the name-level suppression (`dict with` keys, qualified-`variable`
+        // alias tails, dict vars), threaded through both the version-0
+        // statement/branch emitter and the `Terminator::Return` pass.
+        let considered: HashSet<String> = if function_unit.sccp.executable_blocks.is_empty() {
+            function_unit.ssa.blocks.keys().cloned().collect()
+        } else {
+            function_unit.sccp.executable_blocks.clone()
+        };
+        let supp = build_undef_suppression(function_unit, &considered);
+        let exists_guards = collect_existence_guards(function_unit);
+        let rbs_params: HashSet<&str> = ir_proc
+            .map(|p| p.params.iter().map(String::as_str).collect())
+            .unwrap_or_default();
         self.emit_read_before_set_diagnostics(
             function_unit,
             ir_proc,
             &defined,
             &scope_aliases,
             extra_known_defined,
+            &supp,
         );
         // Phi-from-undef on `return $v` reads (the def-use builder records
         // statement + branch-condition uses but NOT `Terminator::Return`
         // values).  Mirrors the `CFGReturn` arm of `_read_before_set`.
-        let rbs_params: HashSet<&str> = ir_proc
-            .map(|p| p.params.iter().map(String::as_str).collect())
-            .unwrap_or_default();
-        let exists_guards = collect_existence_guards(function_unit);
         self.emit_return_phi_undef_w210(
             function_unit,
             &rbs_params,
@@ -4242,6 +4291,8 @@ file; this call falls through to the 'unknown' handler."
             &scope_aliases,
             extra_known_defined,
             &defined,
+            &considered,
+            &supp,
         );
         self.emit_constant_branch_diagnostics(function_unit);
         self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
@@ -4709,6 +4760,7 @@ file; this call falls through to the 'unknown' handler."
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
         extra_known_defined: &HashSet<String>,
+        supp: &UndefSuppression,
     ) {
         use crate::def_use::{DefKind, UseKind};
         use crate::ir::Statement;
@@ -4744,6 +4796,14 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             if extra_known_defined.contains(var) {
+                continue;
+            }
+            // `dict with`/`dict update` unpacking + qualified-`variable`
+            // alias tails suppress version-0 reads of the unpacked / aliased
+            // names (the `puts $a` inside `dict with d {…}` is not RBS).
+            // Strict (known-keys-only): an unknown-shape dict still fires so a
+            // genuine missing-key read inside the body is not hidden.
+            if supp.suppresses_strict(var) {
                 continue;
             }
             for use_site in &chain.uses {
@@ -4830,6 +4890,7 @@ file; this call falls through to the 'unknown' handler."
     /// Companion to [`Self::emit_read_before_set_diagnostics`]; see its
     /// trailing call site for why the def-use-chain pass cannot catch
     /// these (return values are terminator reads, not recorded uses).
+    #[allow(clippy::too_many_arguments)]
     fn emit_return_phi_undef_w210(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -4838,6 +4899,8 @@ file; this call falls through to the 'unknown' handler."
         scope_aliases: &HashSet<String>,
         extra_known_defined: &HashSet<String>,
         defined_vars: &HashSet<String>,
+        considered: &HashSet<String>,
+        supp: &UndefSuppression,
     ) {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
         use std::fmt::Write as _;
@@ -4846,13 +4909,7 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let considered: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
-            fu.ssa.blocks.keys().cloned().collect()
-        } else {
-            fu.sccp.executable_blocks.clone()
-        };
-        let (phi_def, killed) = build_phi_undef_index(&fu.ssa, &considered);
-        let supp = build_return_undef_suppression(fu, &considered);
+        let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
 
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
@@ -4907,7 +4964,7 @@ file; this call falls through to the 'unknown' handler."
                     ver,
                     &phi_def,
                     &killed,
-                    &considered,
+                    considered,
                     exists_guards,
                     &fu.ssa,
                     &mut seen,
