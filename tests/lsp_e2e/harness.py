@@ -77,9 +77,24 @@ class LspError(AssertionError):
 class LspServerClient:
     """Manage a language-server subprocess and talk LSP JSON-RPC to it."""
 
-    def __init__(self, argv: list[str], cwd: Path) -> None:
+    def __init__(
+        self,
+        argv: list[str],
+        cwd: Path,
+        *,
+        tcllsp_config: dict | None = None,
+    ) -> None:
         self._argv = argv
         self._cwd = cwd
+        #: Reply returned for the ``tclLsp`` section of ``workspace/configuration``.
+        #: Defaults to an editor that has opted into linked editing only (see
+        #: ``_auto_reply``); pass a richer dict to enable default-off features
+        #: such as inlay hints for a dedicated server fixture.
+        self._tcllsp_config: dict = (
+            tcllsp_config
+            if tcllsp_config is not None
+            else {"features": {"linkedEditingRange": True}}
+        )
         self._proc: subprocess.Popen[bytes] | None = None
         self._next_id = 0
         self._lock = threading.Lock()
@@ -643,15 +658,15 @@ class LspServerClient:
         method = msg.get("method", "")
         if method == "workspace/configuration":
             items = (msg.get("params") or {}).get("items") or []
-            # Reply per requested section.  For the ``tclLsp`` section, model an
-            # editor that has opted into the features the schema leaves off by
-            # default (linked editing inherits ``editor.linkedEditing``, which is
-            # off in VS Code) so those providers are exercised in e2e.  Every
-            # other section falls back to ``null`` (server defaults).
+            # Reply per requested section.  For the ``tclLsp`` section, return
+            # this client's configured payload — by default an editor that has
+            # opted into the features the schema leaves off (linked editing
+            # inherits ``editor.linkedEditing``, off in VS Code) so those
+            # providers are exercised in e2e; a dedicated fixture can pass a
+            # richer dict (e.g. ``features.inlayHints``).  Every other section
+            # falls back to ``null`` (server defaults).
             result: Any = [
-                {"features": {"linkedEditingRange": True}}
-                if (item or {}).get("section") == "tclLsp"
-                else None
+                self._tcllsp_config if (item or {}).get("section") == "tclLsp" else None
                 for item in items
             ]
         else:

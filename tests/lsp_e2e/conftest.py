@@ -121,6 +121,74 @@ def lsp_server_irules(
         client.shutdown()
 
 
+@pytest.fixture(scope="session")
+def lsp_server_inlay(
+    lsp_pyz: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[LspServerClient]:
+    """A server with inlay hints enabled via ``workspace/configuration``.
+
+    Inlay hints are gated off by default (``inlay_hints_enabled``), and the
+    main ``lsp_server`` deliberately pins that default-off contract.  The inlay
+    *content* regressions (optional-positional labelling, issue #510) need the
+    provider switched on, so they run against this dedicated server whose
+    ``tclLsp`` config reply opts into ``features.inlayHints`` (keeping linked
+    editing on too, matching the default fixture).
+    """
+    workspace = tmp_path_factory.mktemp("lsp-inlay-workspace")
+    client = LspServerClient(
+        [sys.executable, str(lsp_pyz)],
+        cwd=workspace,
+        tcllsp_config={"features": {"linkedEditingRange": True, "inlayHints": True}},
+    )
+    client.start()
+    client.initialize(root_uri=workspace.as_uri())
+    try:
+        yield client
+    finally:
+        client.shutdown()
+
+
+@pytest.fixture(scope="session")
+def lsp_server_bigip(
+    lsp_pyz: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[LspServerClient]:
+    """A server dedicated to F5 BIG-IP ``*.conf`` documents.
+
+    Opening a ``bigip.conf`` as a server's first document auto-switches the
+    whole process into the ``f5-bigip`` signature pack (and the BIG-IP
+    diagnostics/outline paths are URI-keyed on the canonical basename), so —
+    exactly like ``lsp_server_irules`` — these dialect-sensitive tests run on
+    their own server rather than contaminating the plain-Tcl ``lsp_server``.
+    """
+    workspace = tmp_path_factory.mktemp("lsp-bigip-workspace")
+    client = LspServerClient([sys.executable, str(lsp_pyz)], cwd=workspace)
+    client.start()
+    client.initialize(root_uri=workspace.as_uri())
+    try:
+        yield client
+    finally:
+        client.shutdown()
+
+
+@pytest.fixture
+def bigip_uri_factory(request: pytest.FixtureRequest):
+    """Fresh unique ``file://`` URIs whose basename is a canonical BIG-IP name.
+
+    The server routes BIG-IP handling on the basename (``bigip.conf``,
+    ``bigip_base.conf``, …), so the basename is fixed while the *directory* is
+    made unique per call — keeping the long-lived shared server from serving
+    one test a buffer another test left open.
+    """
+    safe = "".join(ch if ch.isalnum() else "_" for ch in request.node.nodeid)
+    counter = {"n": 0}
+
+    def make(basename: str = "bigip.conf") -> str:
+        counter["n"] += 1
+        return f"file:///bigip/{safe}_{counter['n']}/{basename}"
+
+    return make
+
+
 @pytest.fixture
 def uri_factory(request: pytest.FixtureRequest):
     """Return a callable producing a fresh, unique ``file://`` URI per call.

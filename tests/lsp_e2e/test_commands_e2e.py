@@ -35,6 +35,22 @@ class TestDocumentTransforms:
         assert result is not None
         assert "puts 3" in result["source"]
 
+    def test_minify_preserves_switch_braced_quoted_pattern_closers(self, lsp_server, uri_factory):
+        # Issue #540: ``iter_switch_case_list`` derived a braced ``{a b}`` /
+        # quoted ``"c d"`` pattern's end one char short, so the minifier dropped
+        # the closing ``}`` / ``"`` and re-emitted a truncated, unbalanced
+        # pattern (tclsh rejected the result with "missing close-brace").  The
+        # minified document must keep both patterns intact and stay balanced.
+        uri = uri_factory()
+        src = 'switch $x {\n  {a b} { puts one }\n  "c d" { puts two }\n  default { puts def }\n}\n'
+        lsp_server.open_ready(uri, src)
+        result = lsp_server.execute_command("tcl-lsp.minifyDocument", [uri, False, False, False])
+        assert result is not None
+        out = result["source"]
+        assert "{a b}" in out, out
+        assert '"c d"' in out, out
+        assert out.count("{") == out.count("}"), out
+
 
 class TestRegistryLookups:
     def test_describe_event_known(self, lsp_server):
