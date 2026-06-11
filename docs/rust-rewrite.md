@@ -4715,6 +4715,35 @@ remaining 32 are the diagnostic-precision clusters (W210/W220/W307/taint —
 shared with the Phase-2 battery), command-surface shapes (`test_commands_e2e`),
 BigIP outline/suppression, bracket-recovery veto, and token/range invariants.
 
+#### SYNC-JUN11-w307 — proc-parameter / multi-dispatch W307 suppression (lsp_e2e 32→31 failing)
+
+Ported the proc-parameter object-dispatch W307 suppression from
+`analyser/_analyser/_diag_var_command.py:807-859`, which the Rust
+`emit_var_command_diagnostics` had not yet implemented (the analyser fired W307
+on *every* non-literal command head, including opaque dispatch idioms). The rule
+suppresses W307 when the dispatched variable is **a parameter of the enclosing
+proc** (any dispatch count — `proc walk {tree} { $tree visit }` documents the
+contract) or **a non-parameter local dispatched ≥2 times** in the same scope —
+with a **taint carve-out** (a tainted command name is an injection risk and
+still fires regardless of count). `::top` is the sentinel scope for top-level
+statements.
+
+Closes `test_w307_silent_for_opaque_dispatch_target` (`$self configure` in a
+vanilla proc). The previously-passing `test_w307_known_literal_non_command_fires`
+(`set cmd foo; $cmd bar` — a non-param local, single dispatch, value not a
+command) still fires. The old `analyse_w307_var_as_command` unit test asserted
+the un-ported behaviour (W307 on a *param* dispatch) and was corrected to a
+non-param case; +3 new unit tests (param suppression, multi-dispatch
+suppression, taint-still-fires).
+
+**Precision-battery gate:** `tests/test_fp_*.py + test_ground_truth_tn_fn.py` in
+rust mode = **284 passed / 93 failed**, the 93 failures byte-identical to the
+documented `SYNC-JUN10-phase2` backlog (ground_truth 31, fp_rbs 14, fp_sty 11,
+fp_ds 10, fp_bnd 9, fp_nab 5, fp_rch 5, fp_sh 4, fp_opt 3, fp_inj 1) — **no
+regression**. The ground_truth W307 residue is the snit/TclOO
+instance-variable/component resolution, a distinct path from proc-parameter
+dispatch. `cargo test -p tcl-compiler`/`clippy`/`fmt` clean.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
