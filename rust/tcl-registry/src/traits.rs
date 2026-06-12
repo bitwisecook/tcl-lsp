@@ -163,5 +163,18 @@ bitflags! {
         /// stamping a command that secretly eval-falls-back would
         /// break eval-inside-proc semantics in escape-free procs.
         const FRAMELESS_RUNTIME         = 1 << 44;
+
+        /// First argument is a variable *name* (read / write / modify),
+        /// not a value — `set` / `incr` / `append` / `lappend` / `unset`.
+        /// The var-escape analysis uses this to detect dynamic-name forms
+        /// (`set $n value`). Single source of truth for the former
+        /// `NAME_FIRST_COMMANDS` allow-list.
+        const FIRST_ARG_VARNAME         = 1 << 45;
+
+        /// A `VarRead`-role argument names the *whole* array, not a single
+        /// element (`array` / `parray`), so a write to any element is
+        /// observed by the read. Single source of truth for the former
+        /// `WHOLE_ARRAY_COMMANDS` allow-list.
+        const WHOLE_ARRAY_ARG           = 1 << 46;
     }
 }

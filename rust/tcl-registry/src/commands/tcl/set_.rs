@@ -32,7 +32,10 @@ fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
-        traits: Traits::FRAMELESS_RUNTIME | Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::FIRST_ARG_VARNAME,
         arity: Arity::new(1, 2),
         arg_role_resolver: Some(set_arg_roles),
         assigns_variable_at: Some(0),

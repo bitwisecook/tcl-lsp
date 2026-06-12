@@ -12,7 +12,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
-        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::DESTROYS_VARIABLE,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::BYTE_COMPILED
+            | Traits::DESTROYS_VARIABLE
+            | Traits::FIRST_ARG_VARNAME,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

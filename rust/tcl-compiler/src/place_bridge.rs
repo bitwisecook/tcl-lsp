@@ -12,7 +12,7 @@
 //! Faithful port of `compiler/place_bridge.py` on `main`.  No consumer is wired
 //! yet (that is stage 4) — this stage is output-equivalent.
 
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
@@ -27,11 +27,15 @@ use crate::var_scoping::{
 };
 use tcl_lexer::TokenType;
 
-// Commands whose VAR_READ-role argument names the *whole* array, not a scalar
-// (so a write to any element is observed).  Conservative — extra members only
-// widen overlap (sound).
-const WHOLE_ARRAY_COMMANDS: &[&str] = &["::array", "::parray"];
-const WHOLE_ARRAY_BARE: &[&str] = &["array", "parray"];
+/// True when `name`'s `VarRead`-role argument names the *whole* array,
+/// not a scalar (so a write to any element is observed) — the registry's
+/// [`Traits::WHOLE_ARRAY_ARG`] (`array` / `parray`). `registry.get`
+/// resolves the bare and `::`-qualified forms alike.
+fn is_whole_array_command(registry: &CommandRegistry, name: &str) -> bool {
+    registry
+        .get(name)
+        .is_some_and(|s| s.traits.contains(Traits::WHOLE_ARRAY_ARG))
+}
 
 /// Scan *cfg* for the in-scope variable declarations and build the
 /// [`ResolveContext`] used to resolve places within the function.
@@ -232,8 +236,7 @@ fn command_reads(
             continue;
         }
         let args = cmd.args();
-        let whole = WHOLE_ARRAY_BARE.contains(&name)
-            || WHOLE_ARRAY_COMMANDS.contains(&normalise_qualified_name(name).as_str());
+        let whole = is_whole_array_command(registry, name);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         for i in registry.arg_indices_for_role(name, &arg_strs, ArgRole::VarRead) {
             if let Some(a) = args.get(i) {
@@ -327,7 +330,7 @@ pub fn read_places(
         } => {
             let whole = canonical_command
                 .as_deref()
-                .is_some_and(|c| WHOLE_ARRAY_COMMANDS.contains(&c));
+                .is_some_and(|c| is_whole_array_command(registry, c));
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
             let read_idx: std::collections::HashSet<usize> = registry
                 .arg_indices_for_role(command, &arg_strs, ArgRole::VarRead)

@@ -8,6 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "parray",
+        traits: Traits::WHOLE_ARRAY_ARG,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::VarRead)],
         return_type: Some(TclType::String),
