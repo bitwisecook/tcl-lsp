@@ -5314,14 +5314,40 @@ earlier note that `namespace eval` procs aren't registered was a buggy probe —
 `::mypkg::dowork` *is* in `all_procs`.)  One ported unit test with both the TN
 and the composed-unknown TP control.
 
-The remaining **two** W307 cases need broader infrastructure, out of scope for a
-focused fix and carrying regression risk:
-- **`format_in_method` / `my_method`** (`[format …] run`, `[my plain] run`):
-  Rust does not yet recurse into TclOO method bodies to record dispatch sites
-  (the deferred "C41e Method scope" work), and `[my <m>] …` needs
-  method-return-type inference (`my plain`→String fires; `my obj`→Object
-  suppresses).  Walking method bodies for the first time would also surface
-  previously-unanalysed in-method diagnostics across the suite — needs care.
+### SYNC-JUN12-w307d — TclOO method-scope foundation (W307 cluster complete; battery 15→13)
+
+Built the deferred **C41e method scope** so the analyser walks TclOO method
+bodies, closing the final two W307 cases (`format_in_method`, `my_method`) with
+no battery/e2e regressions.
+
+- **`ScopeKind::Method`** added (`types.rs`); `command_resolution_namespace`
+  treats it like a proc (class-namespace prefix), `scope_path_in_proc_body`
+  counts it (call-time arity resolution), and a new `scope_path_in_method_body`
+  derives the `in_method` flag for recorded dispatch sites (`scope.rs`).
+- **Two-phase `parse_oo_definition_body`** (`oo.rs`): phase 1 populates the
+  `ClassDef` and collects each method body (`collect_method_body` for
+  `method` / `classmethod` / `constructor` / `destructor`); phase 2 walks each
+  body via a new `walk_method_body` in a fresh `Method` scope with the formal
+  parameters *and* the class's instance `variable`s pre-bound as
+  defined-not-warned locals — so reads of them don't false-fire W210/W214.
+  Mirrors Python's `_extract_method_def` `method_scope` + `_analyse_body`.
+- **`record_var_or_cmd_command_site`** derives `in_method` from the scope path
+  instead of hardcoding `false`.
+- **W307 cmd-site path** (`diagnostics.rs`): dropped the blanket `in_method`
+  suppression (Python's F4 closure) — an in-method `[cmd] method` dispatch
+  earns silence only from a known OBJECT return type or `my`/`self`
+  self-dispatch.  `my <method>` / `self <method>` is refined by
+  `oo_self_method_returns_literal`: it resolves the method in the enclosing
+  class (dispatch offset within the class `body_span`) and fires W307 when the
+  method body is a simple `return <literal>` (string), while a `return [D new]`
+  (object) stays suppressed.  Mirrors `_diag_var_command.py`'s D3-P4 closure.
+- The W307 const harvest closures were extracted into
+  `harvest_array_set_constants` / `harvest_dict_with_constants` /
+  `harvest_constructor_object_types` for readability.
+
+Three ported unit tests; `cargo test --workspace` / `clippy --all-targets` /
+`fmt` clean; battery **15→13**, e2e steady at 6 — **W307 cluster fully closed
+(6/6)**.
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
