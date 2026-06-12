@@ -171,7 +171,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Coverage
 .PHONY: coverage coverage-py coverage-ext
 # Compile + codegen + generated assets
-.PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings copy-canonical npm-env logo
+.PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings gen-registry-baselines check-registry-baselines copy-canonical npm-env logo
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
 # Zipapps + smoke tests
@@ -1130,6 +1130,17 @@ check-editor-settings: $(UV_STAMP) ## Verify editor settings match code registry
 	@echo "==> Checking editor settings are up to date"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/editor_settings.py --check
 
+# Registry contract fixtures — the language-agnostic command/event/profile/
+# object shape snapshots under tests/baselines/registry/, regenerated from
+# the registries via the same builders the registry-dump front-end verbs use.
+gen-registry-baselines: $(UV_STAMP) ## Regenerate tests/baselines/registry/ from the registries
+	@echo "==> Regenerating registry contract fixtures"
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/registry_baselines.py
+
+check-registry-baselines: $(UV_STAMP) ## Verify registry contract fixtures are up to date
+	@echo "==> Checking registry contract fixtures are up to date"
+	cd $(ROOT) && $(UV) run --extra dev python scripts/codegen/registry_baselines.py --check
+
 # Logo assets — rasterise the canonical SVG logos to the shipped PNGs
 
 logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
@@ -1138,7 +1149,7 @@ logo: ## Render docs/*.svg logos to the committed 8-bit PNGs (light + dark)
 
 # Unified codegen — regenerate ALL generated files from registries
 
-codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalogs + editor settings + AI prompts)
+codegen: generate gen-editor-settings gen-registry-baselines ## Regenerate ALL generated files (catalogs + editor settings + registry fixtures + AI prompts)
 
 # Compiler Explorer (WASM GUI)
 
