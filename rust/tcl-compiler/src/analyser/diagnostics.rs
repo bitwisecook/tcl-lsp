@@ -7134,6 +7134,57 @@ file; this call falls through to the 'unknown' handler."
             harvest_array_set(fu, &mut all_constsets);
         }
 
+        // Harvest `dict with d { … }` unpacked variable values: when `d` is a
+        // known literal dict (via SCCP CONST at param entry — usually from
+        // call-site constant propagation), the body sees each dict key as a
+        // local variable bound to its value.  Register those bindings so a
+        // `$cmd hi` dispatch inside the body checks `cmd`'s value against the
+        // known-command set.  Mirrors `_diag_var_command.py:380-420`.
+        let harvest_dict_with =
+            |fu: &crate::compilation_unit::FunctionUnit,
+             out: &mut HashMap<String, HashSet<String>>| {
+                use crate::ir::Statement;
+                for block in fu.cfg.blocks.values() {
+                    for stmt in &block.statements {
+                        let (Statement::Barrier { command, args, .. }
+                        | Statement::Call { command, args, .. }) = stmt
+                        else {
+                            continue;
+                        };
+                        let is_dict =
+                            command == "dict" || stmt.canonical_command_or_source() == "::dict";
+                        if !is_dict || args.first().map(String::as_str) != Some("with") {
+                            continue;
+                        }
+                        let Some(dict_var) = args.get(1) else {
+                            continue;
+                        };
+                        let dvar = crate::naming::normalise_var_name(dict_var);
+                        // Look up the dict var's value at param entry (v0) — the
+                        // call-site-propagated literal lands here.
+                        let Some(crate::analyses::LatticeValue::Const(
+                            crate::analyses::ConstValue::String(dict_text),
+                        )) = fu.sccp.values.get(&(dvar.to_string(), 0))
+                        else {
+                            continue;
+                        };
+                        let items = crate::tcl_expr_eval::split_tcl_list(dict_text);
+                        if items.len() % 2 != 0 {
+                            continue;
+                        }
+                        for pair in items.chunks_exact(2) {
+                            out.entry(pair[0].clone())
+                                .or_default()
+                                .insert(pair[1].clone());
+                        }
+                    }
+                }
+            };
+        harvest_dict_with(&cu.top_level, &mut all_constsets);
+        for fu in cu.procedures.values() {
+            harvest_dict_with(fu, &mut all_constsets);
+        }
+
         // Build the "known commands" universe — registry +
         // user-defined procs + class tail names.
         let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();

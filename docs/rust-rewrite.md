@@ -5291,11 +5291,31 @@ evidence into `emit_var_command_diagnostics` (`diagnostics.rs`), mirroring
   `x`'s Object class so a later `$x method` dispatch resolves through the W308
   method check instead of firing W307.
 
-Two ported unit tests; `cargo test`/`clippy`/`fmt` clean. The remaining four
-W307 cases need deeper infrastructure: composed-name `${ns}::proc` resolution,
-interproc dict-with literal propagation, and OO **method-body analysis** (the
-two `[format …] run` / `[my plain] run` in-method TP cases — Rust does not yet
-recurse into method bodies to record dispatch sites).
+Two ported unit tests; `cargo test`/`clippy`/`fmt` clean.
+
+### SYNC-JUN12-w307b — interproc dict-with const harvest (battery 17→16)
+
+Closed a third W307 case: `dict with d { $cmd hi }` where the caller passes
+`{cmd puts}`.  `d`'s call-site literal is already propagated to its v0 SCCP
+const by the Rust interproc pass, so a `harvest_dict_with` (mirroring
+`_diag_var_command.py:380-420`) splits that literal and binds each key→value
+into the constset map — `$cmd`→`puts` (known) suppresses, `notACommand` fires.
+One ported unit test.
+
+The remaining **three** W307 cases need broader infrastructure, out of scope for
+a focused fix and carrying regression risk:
+
+- **`namespaced_ensemble`** (`${ns}::dowork`): blocked on namespace-eval-body
+  proc registration — a `proc` defined inside `namespace eval ::mypkg { … }` is
+  not registered in `all_procs` (verified empty), so the composed-name
+  `::mypkg::dowork` can't resolve to a known proc.  The dispatch-site source
+  slice *does* expose the full `${ns}::dowork` head for ensemble-shape detection.
+- **`format_in_method` / `my_method`** (`[format …] run`, `[my plain] run`):
+  Rust does not yet recurse into TclOO method bodies to record dispatch sites
+  (the deferred "C41e Method scope" work), and `[my <m>] …` needs
+  method-return-type inference (`my plain`→String fires; `my obj`→Object
+  suppresses).  Walking method bodies for the first time would also surface
+  previously-unanalysed in-method diagnostics across the suite — needs care.
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 

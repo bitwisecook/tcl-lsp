@@ -1346,6 +1346,41 @@ mod tests {
     }
 
     #[test]
+    fn w307_interproc_dict_with_const_element_suppression() {
+        // TN: `dict with d { $cmd hi }` where the caller passes `{cmd puts}` —
+        // the dict-with unpacks `cmd` to the known command `puts`, so the
+        // body's `$cmd hi` dispatch must not fire W307.  The literal is
+        // harvested from `d`'s call-site-propagated v0 SCCP const.
+        let mut a = Analyser::new();
+        let has_w307 = a
+            .analyse(
+                "proc f {d} { dict with d { $cmd hi } }\nf {cmd puts}\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            !has_w307,
+            "dict-with-unpacked known command must not fire W307"
+        );
+        // TP control: a non-command unpacked value still fires.
+        let mut b = Analyser::new();
+        let has_w307 = b
+            .analyse(
+                "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            has_w307,
+            "dict-with-unpacked non-command must still fire W307"
+        );
+    }
+
+    #[test]
     fn w307_known_class_new_var_suppression() {
         // TN: `set x [C new]; $x run` where C is a known oo::class — `x` holds
         // an Object of class C, so the `$x run` dispatch resolves through the
