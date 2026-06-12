@@ -1155,6 +1155,20 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Re-audited: 2026-06-12 against `origin/main`@`bfc636d2` (prior anchor
+`a287d4a6`, #586). First ordinary `git merge origin/main` since the
+`SYNC-JUN11-rebase` re-parenting — see the **SYNC-JUN12 family** below.
++2 `main` commits, both analyser-scoped: #592 (three read-before-set
+soundness bugs) is **already in parity** — the fixes were rust-first
+(landed in #591), so #592 is Python catching up to us; verified green
+in rust mode, no row. #587 (style-check FP suppressions) opens five
+in-scope rows — W105 single-bare-var body, W113 overridable
+library-procs, W201 prose/request-line path-concat, W212 braced
+indirect array-element, all single-predicate carve-outs in ported
+passes; plus **W216** (`${name}(idx)`), the only structural one — the
+brace-then-paren diagnostic has no rust home yet. W306 (also in #587)
+is already at parity. Tracked as `SYNC-JUN12-2`.
+
 Re-audited: 2026-06-01 (refresh) against `origin/main`@`59c770f6`
 (prior anchor `52726510`).  +4 `main` commits in a same-day flurry:
 #510 (inlay hints + new `infer_return_type` joining `CFGReturn`
@@ -5132,6 +5146,82 @@ fp_inj 1.
    this needs the command-sub quote handling aligned to the word-start rule
    `scan_top` already uses — a core-lexer change deferred to its own strip to
    keep this batch's regression surface small.
+
+## SYNC-JUN12 family — main audit (2026-06-12, PRs #587 / #592)
+
+**Catch-up.** First ordinary `git merge origin/main` since the
+`SYNC-JUN11-rebase` re-parenting made `origin/main` a real ancestor of `rust`
+— no content 3-way gymnastics needed any more. `rust@1450bd65` (#593) merged
+`origin/main@bfc636d2` (#592); the merge is a single commit whose parents are
+the real `rust` tip and the real `origin/main`. Two `main` commits were behind:
+
+| commit | title | classification |
+|---|---|---|
+| #587 `3ebefb2a` | Fix false positives in style checks (W105, W113, W212, W216 — and, undocumented in the title, **W201 + W306**) | **in scope** — analyser FP suppressions; mirror required |
+| #592 `bfc636d2` | Fix three latent soundness bugs in the Python analyser | **in scope, already-rust** — the fixes were *rust-first*; Python was catching up to us |
+
+One conflict: `.test-slow.stamp` (modify/delete) — `rust` deleted it in #591
+when the test-slow CI gate was dropped from this branch; kept deleted (the
+stamp's fingerprint can't be honoured on the rust branch). No rust source
+conflicted. **Gate green post-merge:** `cargo build --workspace`, `cargo test
+--workspace --all-features` (32 result groups, 0 fail), `cargo clippy
+--workspace --all-targets`, `cargo fmt --check`.
+
+**Toolchain currency.** The session bumped rustc 1.94.1 → 1.96.0, whose
+`clippy::pedantic` newly flags one pre-existing `format_push_string` in
+`rust/tcl-registry/examples/dump_bigip_registry.rs` (untouched by the merge).
+Fixed in place (`writeln!(out, …)` via `std::fmt::Write`) so the clippy gate
+stays clean under the new toolchain.
+
+### SYNC-JUN12-1 — #592 soundness fixes: **already in parity** (rust-first)
+
+#592's own message says it best: *"Three read-before-set/reachability
+soundness bugs surfaced while reviewing the Rust port were fixed on the Rust
+side; this ports the fixes to the Python analyser."* All three landed on `rust`
+in #591 (`ebd44863`); #592 is `main` catching up to us, not the other way
+round. Verified by re-running #592's own regression battery against the **native
+Rust** analyser (`TCL_LSP_DIAG_BACKEND=rust`):
+
+| #592 fix | rust home | rust-mode tests |
+|---|---|---|
+| 1. omitted call-site arg → poison the slot (interproc const) | `compilation_unit.rs::collect_call_site_constants` (the `for i in args.len()..nparams { …unknown = true }` tail) | green |
+| 2. `-expanded` not unconditionally no-match-safe | `analyser/diagnostics.rs:880-895` (`expanded && pat.has(ws|'#')` ⇒ bail) | green |
+| 3. try-body throw keeps its on-error edge — incl. the second-commit tightening (every throw point at its own SSA versions; nested-caught not attributed outward) | `cfg_builder/cfg_lower.rs` exception-edge sourcing | green |
+
+`tests/test_checks.py` soundness set in rust mode = **8 passed / 0 failed**,
+including `test_try_body_unconditional_throw_keeps_handler_defs` (single throw
+after a set stays silent), `test_try_body_earlier_conditional_throw_still_warns`
+(the conditional-early-throw TP), and
+`test_try_nested_caught_throw_not_attributed_to_outer`. **No port needed; no
+new gap.** (The six `lsp_e2e` mirrors of these tests came in with the merge and
+exercise the same paths — they fold into the existing diagnostics-precision
+e2e cluster, not a new one.)
+
+### SYNC-JUN12-2 — #587 style FP suppressions: five new rust gaps (W306 already parity)
+
+#587's title lists four codes but the diff also touches `compiler/parsing/lexer.py`
+(W306 dollar-anchor) and `compiler/{rendered_properties,taint/_path_concat}.py`
+(W201) — **six** FP families, each with a verbatim `FP-STY-NN` reproducer.
+Measured against the native Rust analyser (`TCL_LSP_DIAG_BACKEND=rust`,
+`tests/test_fp_sty.py` = **12 failed / 49 passed**; was ~4 failing at
+`SYNC-JUN11`). Outcome per family:
+
+| family | reproducer | rust status | gap |
+|---|---|---|---|
+| **W306** (STY-15) | `regsub … {…\$} …` / `"…\\\$"` dollar-anchor in a quoted word | **already parity** — STY-15 all green | none |
+| **W105** (STY-14) | `eval $cmd`, `after 0 $coro`, `proc $n $a $body` — a body that is a *single bare var* is a script-valued reference, not an inline block | gap | `analyser/commands.rs` W105 (unbraced body) lacks the `_word_is_single_var` exemption (`analyser/checks/_style.py::_word_is_single_var`) |
+| **W113** (STY-13) | redefining `unknown` / `auto_*` / `history` / `parray` / `pkg_mkIndex` / `tcl_*` word-break helpers — Tcl *library* procs are user-replaceable overlays, not C built-ins | gap (C-builtin TPs still fire correctly) | `analyser/handlers.rs:291-321` shadow check lacks the `_OVERRIDABLE_LIBRARY_PROCS` set (`analyser/_analyser/_proc.py`) |
+| **W212** (STY-12) | `set ${token}(status) …` — braced indirect *array-element* idiom, not a name-vs-value typo | gap | `analyser/diagnostics.rs:2614+` (W212) lacks the `is_braced_indirect_array_ref` exemption (new `shared/naming.py` helper) |
+| **W216** (STY-12) | `${name}(idx)` in a *variable-name* position (`set`/`unset`/`incr`/`info exists`) is the indirect idiom | gap — **diagnostic entirely unimplemented in rust** (both the FP-suppression *and* the TP cases fail; no `W216` string exists in the rust crate) | port the whole brace-then-paren emitter (`analyser/_analyser/_diag_brace_then_paren.py`) incl. the `_varname_word_indices` name-position table |
+| **W201** (STY-16) | `"CONNECT $host:$port HTTP/1.1"`, `"see $dir/readme for help"` — HTTP request lines / prose that merely mentions a path are not `[file join]` candidates | gap (genuine path-concat + command-sub TPs still fire) | `rust/tcl-compiler/src/{path_concat,rendered_properties}.rs` lack the prose / request-line / cmd-sub exemptions (`compiler/taint/_path_concat.py` + `compiler/rendered_properties.py`) |
+
+Five of six are clean, self-contained FP suppressions — each a faithful port of
+the same-named Python predicate, gated on the new `FP-STY-12…16` reproducers
+that arrived with the merge. **W216 is the only structural item** (a whole
+diagnostic with no rust home yet); the other four are single-predicate carve-outs
+in passes already ported. None affects a TP — every "still fires" case in
+`test_fp_sty.py` is green in rust mode, so closing these is strictly
+FP-reduction. Captured as `SYNC-JUN12` rows in **Outstanding** below.
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 

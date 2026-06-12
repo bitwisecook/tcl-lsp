@@ -5,6 +5,8 @@
 //!
 //! Usage: `cargo run -p tcl-registry --example dump_bigip_registry`
 
+use std::fmt::Write as _;
+
 fn main() {
     let reg = tcl_registry::bigip::BigipRegistry::build();
     let mut out = String::new();
@@ -26,7 +28,7 @@ fn main() {
             .map(|s| format!("{s:?}"))
             .collect::<Vec<_>>()
             .join(",");
-        out.push_str(&format!("{{\"headers\":[{h}],\"props\":[{p}]}}\n"));
+        let _ = writeln!(out, "{{\"headers\":[{h}],\"props\":[{p}]}}");
     }
     print!("{out}");
 }
