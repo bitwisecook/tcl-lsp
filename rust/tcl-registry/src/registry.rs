@@ -101,16 +101,33 @@ impl CommandRegistry {
     }
 
     /// Look up a command spec by name (dialect-agnostic).
+    ///
+    /// A leading `::` (global qualifier) falls back to the bare name, so an
+    /// explicitly-global call to a built-in (`::foreach`, `::for`, …)
+    /// resolves to the same spec as its unqualified form.  Mirrors
+    /// `core/commands/registry/command_registry.py::get`.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&CommandSpec> {
-        self.by_name.get(name).and_then(|v| v.last())
+        self.by_name
+            .get(name)
+            .or_else(|| {
+                name.strip_prefix("::")
+                    .and_then(|bare| self.by_name.get(bare))
+            })
+            .and_then(|v| v.last())
     }
 
     /// Look up a command spec filtered by dialect.
+    ///
+    /// As with [`Self::get`], a leading `::` falls back to the bare name.
     #[must_use]
     pub fn get_for_dialect(&self, name: &str, dialect: DialectSet) -> Option<&CommandSpec> {
         self.by_name
             .get(name)
+            .or_else(|| {
+                name.strip_prefix("::")
+                    .and_then(|bare| self.by_name.get(bare))
+            })
             .and_then(|specs| specs.iter().rev().find(|s| s.supports_dialect(dialect)))
     }
 
@@ -528,6 +545,17 @@ mod tests {
         assert!(reg.get("for").is_some());
         assert!(reg.get("set").is_some());
         assert!(reg.get("nonexistent_command").is_none());
+    }
+
+    #[test]
+    fn get_resolves_global_qualifier_to_builtin() {
+        let reg = CommandRegistry::build_default();
+        assert!(reg.get("::foreach").is_some());
+        assert_eq!(
+            reg.get("::for").map(|s| s.name),
+            reg.get("for").map(|s| s.name)
+        );
+        assert!(reg.get("::nonexistent_command").is_none());
     }
 
     #[test]
