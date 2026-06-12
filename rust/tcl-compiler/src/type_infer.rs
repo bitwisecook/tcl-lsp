@@ -47,9 +47,28 @@ const BOOL_LITERALS: &[&str] = &["true", "false", "yes", "no", "on", "off"];
 
 /// Classify a literal string as its Tcl intrep type.
 #[must_use]
+/// True when `s` is a Tcl integer literal: decimal, or a `0x`/`0X` hex or
+/// `0b`/`0B` binary form (each optionally signed).  Mirrors
+/// `core_analyses._literal_type`'s INT cases — hex/binary store an INT intrep
+/// (`set n 0x80; incr n` is one clean parse, not per-iteration shimmer), while
+/// `0o` octal stays STRING (Python's set-statement classifier excludes it).
+fn is_tcl_int_literal(s: &str) -> bool {
+    if s.parse::<i64>().is_ok() {
+        return true;
+    }
+    let body = s.strip_prefix(['+', '-']).unwrap_or(s);
+    if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
+        return !h.is_empty() && h.bytes().all(|c| c.is_ascii_hexdigit());
+    }
+    if let Some(b) = body.strip_prefix("0b").or_else(|| body.strip_prefix("0B")) {
+        return !b.is_empty() && b.bytes().all(|c| matches!(c, b'0' | b'1'));
+    }
+    false
+}
+
 fn literal_type(text: &str) -> TypeLattice {
     let s = text.trim();
-    if s.parse::<i64>().is_ok() {
+    if is_tcl_int_literal(s) {
         return TypeLattice::of(TclType::Int);
     }
     if looks_like_float(s) {
@@ -654,6 +673,22 @@ mod tests {
     fn string_literal_infers_string() {
         let t = literal_type("hello");
         assert_eq!(t, TypeLattice::of(TclType::String));
+    }
+
+    #[test]
+    fn hex_and_binary_literals_infer_int() {
+        // Hex / binary literals store an INT intrep (`set n 0x80; incr n` is
+        // one clean parse, not per-iteration shimmer).
+        for lit in ["0x80", "0X1f", "-0xFF", "0b1010", "0B1", "+0x0"] {
+            assert_eq!(
+                literal_type(lit),
+                TypeLattice::of(TclType::Int),
+                "{lit} should be INT"
+            );
+        }
+        // Octal `0o…` and non-integer hex stay STRING (set-statement classifier).
+        assert_eq!(literal_type("0o17"), TypeLattice::of(TclType::String));
+        assert_eq!(literal_type("0xZZ"), TypeLattice::of(TclType::String));
     }
 
     #[test]

@@ -112,13 +112,24 @@ fn detect_e201(
         return d;
     }
     if let Some(reg) = registry {
-        if let Some(d) =
-            e201_at_command(content, content_start, bracket_off, reg, &index).and_then(&accept)
-        {
+        let (cmd_diag, swallowed_known_command) =
+            e201_at_command(content, content_start, bracket_off, reg, &index);
+        if let Some(d) = cmd_diag.and_then(&accept) {
             return d;
         }
-    }
-    if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
+        // A known command was swallowed into a brace word inside the bracket
+        // (e.g. `proc …` inside `[foo {bar\nproc …}`). The `e201_at_brace`
+        // fallback would insert `]` before the `{`, folding the swallowed
+        // command into a brace-word argument and hiding it from analysis.
+        // Bail to the fix-less fallback instead: with no ghost `]`, the
+        // scan-to-next recovery's partial command stands, the unterminated
+        // `[` is still flagged, and the tail is analysed as real code.
+        if !swallowed_known_command {
+            if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
+                return d;
+            }
+        }
+    } else if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
         return d;
     }
     // Fallback: highlight just the opening `[`, no fix.
@@ -185,17 +196,26 @@ fn e201_at_comment(content: &str, content_start: u32, bracket_off: u32) -> Optio
 
 /// E201 heuristic: a known-command line follows — insert `]` at the end
 /// of the previous line.  Mirrors `_detect_missing_bracket_at_command`.
+///
+/// Returns `(diagnostic, swallowed_known_command)`. The second field is
+/// `true` when a *known-command* line was found but its `]`-insertion
+/// boundary sits inside an inert span (a brace word / quoted run swallowed
+/// it) and no later non-inert command line was reached — i.e. the bracket's
+/// content captured real commands inside a brace word. `detect_e201` uses
+/// that to suppress the `e201_at_brace` fallback, which would otherwise
+/// insert `]` before the `{` and hide the swallowed command from analysis.
 fn e201_at_command(
     content: &str,
     content_start: u32,
     bracket_off: u32,
     registry: &CommandRegistry,
     index: &tcl_lexer::BracketIndex,
-) -> Option<Diagnostic> {
+) -> (Option<Diagnostic>, bool) {
     let lines: Vec<&str> = content.split('\n').collect();
     if lines.len() < 2 {
-        return None;
+        return (None, false);
     }
+    let mut swallowed_known_command = false;
     for (i, line) in lines.iter().enumerate() {
         if i == 0 {
             continue;
@@ -205,26 +225,35 @@ fn e201_at_command(
             continue;
         }
         let insert_idx = prev_line_content_end(&lines, i);
+        let first_word = extract_first_word(stripped);
+        let is_known = registry.get(first_word).is_some();
         // recovery-rust-port "syntactic validates": if this boundary
         // sits inside an inert span (a brace word / quoted run that
         // swallowed the line, e.g. `puts baz` inside `{bar\nputs baz}`),
         // the candidate `]` would be a literal — keep scanning for the
         // next real command past the inert span rather than giving up.
+        // Remember that a *known* command was swallowed so the caller can
+        // skip the brace-break fallback rather than paper over it.
         if index.is_inert(u32::try_from(insert_idx).unwrap_or(0)) {
+            if is_known {
+                swallowed_known_command = true;
+            }
             continue;
         }
-        let first_word = extract_first_word(stripped);
-        if registry.get(first_word).is_some() {
-            return Some(e201_with_insert(
-                content_start,
-                bracket_off,
-                insert_idx,
-                "Insert missing ']' before command",
-            ));
+        if is_known {
+            return (
+                Some(e201_with_insert(
+                    content_start,
+                    bracket_off,
+                    insert_idx,
+                    "Insert missing ']' before command",
+                )),
+                swallowed_known_command,
+            );
         }
         break;
     }
-    None
+    (None, swallowed_known_command)
 }
 
 /// E201 heuristic: a `{` swallowed the rest — insert `]` before it
@@ -828,23 +857,28 @@ mod tests {
     }
 
     #[test]
-    fn e201_fix_vetoed_inside_brace_word() {
-        // `[foo {bar\nputs baz}` — the `[` is unterminated, but `puts baz`
-        // is *inside* a balanced brace word, not a real command. The
-        // command heuristic would propose inserting `]` after `bar`
-        // (inside the brace); the structural-index veto rejects that
-        // (the `]` would be a literal there), so no wrong fix is offered.
-        //
-        // Intentional divergence from the Python analyser, which emits
-        // the after-`bar` fix — C Tcl 9.0.3 confirms it is wrong
-        // (`info complete {set x [foo {bar]}` == 0, incomplete), whereas
-        // the end-insert is complete. The veto does the correct
-        // full-fidelity thing.
+    fn e201_brace_swallowed_command_falls_back_to_e200() {
+        // `[foo {bar\nputs baz}` — the `[` is unterminated and `puts baz` is
+        // *inside* a balanced brace word, not a real command. The command
+        // heuristic's after-`bar` boundary is inert (the `]` would be a
+        // literal), and the brace-break fallback (insert `]` before the `{`)
+        // would fold the whole brace word — including the swallowed command —
+        // into an argument, hiding it from analysis. So the bracket recovery
+        // bails: no ghost `]` is inserted, the scan-to-next partial command
+        // stands, and the unterminated `[` is flagged with the generic E200
+        // (matching the Python analyser and C Tcl 9.0.3, for which
+        // `info complete {set x [foo {bar]}` == 0 — the after-`bar` insert is
+        // incomplete, so no fix is the honest answer).
         let src = "set x [foo {bar\nputs baz}\n";
-        // E201 still fires — there genuinely is an unterminated `[`.
-        assert_eq!(e201(src).len(), 1, "expected one E201: {:?}", e201(src));
-        // ...but no fix lands inside the brace word `{bar\nputs baz}`
-        // (bytes 11..=24).
+        // The unterminated `[` is still flagged — as E200, not a wrong-fix
+        // E201.
+        assert!(
+            codes(src).contains(&"E200".to_string()),
+            "expected E200 for the unterminated bracket: {:?}",
+            codes(src)
+        );
+        // No E201 fix is offered, and certainly none inside the brace word
+        // `{bar\nputs baz}` (bytes 11..=24).
         for o in e201_fix_offsets(src) {
             assert!(
                 !(11..25).contains(&o),

@@ -19,11 +19,29 @@ import pytest
 from .harness import (
     ROOT,
     LspServerClient,
+    close_all_documents_on_live_servers,
     ensure_build_info,
     native_server_bin,
     server_kind,
     server_launch_argv,
 )
+
+
+@pytest.fixture(autouse=True)
+def _close_documents_after_test() -> Iterator[None]:
+    """Close every document opened during a test on all live servers.
+
+    The ``lsp_server`` fixtures are session-scoped, so a document a test opens
+    (via a unique ``uri_factory`` URI) stays open for the rest of the session
+    unless closed.  Workspace-wide providers — cross-document references,
+    workspace symbols — then surface one test's buffer in a later, unrelated
+    test (e.g. a leftover ``proc greet`` polluting another document's
+    references and tripping its range invariants).  Closing each test's
+    documents on teardown keeps the shared servers isolated between tests
+    without paying for a fresh server per test.
+    """
+    yield
+    close_all_documents_on_live_servers()
 
 
 class _Build(NamedTuple):

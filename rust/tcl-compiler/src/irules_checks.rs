@@ -124,14 +124,47 @@ pub fn find_unnormalised_getter_warnings(
                         command,
                         args,
                         span,
+                        tokens,
                         ..
-                    } if is_unnormalised_getter(registry, command, args) => {
-                        out.push(IrulesCheckWarning {
-                            span: *span,
-                            code: "IRULE3102".to_owned(),
-                            message: format_message(command),
-                            replacement: None,
-                        });
+                    } => {
+                        // Direct getter call — e.g. `if {[HTTP::uri] eq …}`
+                        // lowers to a `Call` whose command *is* the getter.
+                        if is_unnormalised_getter(registry, command, args) {
+                            out.push(IrulesCheckWarning {
+                                span: *span,
+                                code: "IRULE3102".to_owned(),
+                                message: format_message(command),
+                                replacement: None,
+                            });
+                        }
+                        // Getter nested as a command-substitution argument —
+                        // e.g. the `[HTTP::uri]` fed into an HTTP sink in
+                        // `HTTP::respond 200 content [HTTP::uri]`.  The
+                        // substitution stays a literal `Cmd` arg on the outer
+                        // call rather than a separate statement, so flag it
+                        // here.  Prefer the argument token's own span so the
+                        // squiggle lands on the getter, not the whole call.
+                        for (i, arg) in args.iter().enumerate() {
+                            let trimmed = arg.trim();
+                            if !trimmed.starts_with('[') {
+                                continue;
+                            }
+                            let Some((cmd, sub_args)) = parse_command_substitution(trimmed) else {
+                                continue;
+                            };
+                            if is_unnormalised_getter(registry, &cmd, &sub_args) {
+                                let arg_span = tokens
+                                    .as_ref()
+                                    .and_then(|t| t.argv.get(i + 1).copied())
+                                    .unwrap_or(*span);
+                                out.push(IrulesCheckWarning {
+                                    span: arg_span,
+                                    code: "IRULE3102".to_owned(),
+                                    message: format_message(&cmd),
+                                    replacement: None,
+                                });
+                            }
+                        }
                     }
                     Statement::AssignValue { value, span, .. } => {
                         let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) else {
@@ -824,6 +857,37 @@ mod tests {
         // `HTTP::path /x` — first arg `/x` is non-flag → setter form → no warning.
         let w = warnings_for_irules("HTTP::path /x");
         assert!(w.is_empty(), "expected no IRULE3102 on setter, got {w:?}");
+    }
+
+    #[test]
+    fn irule3102_warns_on_getter_nested_in_sink_argument() {
+        // `HTTP::respond 200 content [HTTP::uri]` — the unnormalised
+        // `[HTTP::uri]` getter is a command-substitution *argument* of the
+        // HTTP sink, not a top-level call/assignment, but must still fire.
+        let w = warnings_for_irules(
+            "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri]\n}\n",
+        );
+        assert_eq!(w.len(), 1, "expected one IRULE3102, got {w:?}");
+        assert_eq!(w[0].code, "IRULE3102");
+        assert!(w[0].message.contains("HTTP::uri -normalized"));
+    }
+
+    #[test]
+    fn irule3102_silent_for_constant_sink_argument() {
+        // A constant fed into the same sink stays silent.
+        let w = warnings_for_irules(
+            "when HTTP_REQUEST {\n    HTTP::respond 200 content \"static body\"\n}\n",
+        );
+        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+    }
+
+    #[test]
+    fn irule3102_silent_for_normalized_getter_in_sink_argument() {
+        // The nested getter with `-normalized` is canonicalised → silent.
+        let w = warnings_for_irules(
+            "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri -normalized]\n}\n",
+        );
+        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
     }
 
     #[test]

@@ -265,11 +265,11 @@ fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<(String, 
     let groups = synopsis_groups(synopsis);
     let mut names = Vec::new();
     for group in groups.into_iter().skip(skip_words) {
-        // Varargs anywhere → stop.
-        if group.contains("...") {
-            break;
-        }
-        // Optional group `?...?`.
+        // Optional group `?...?` — handled *before* the bare-varargs stop
+        // so an optional flag/repeat placeholder that happens to carry
+        // `...` (e.g. `?option ...?` in `lsearch ?option ...? list pattern`)
+        // is skipped, not mistaken for a hard varargs terminator that would
+        // drop the real trailing positionals (`list` / `pattern`) after it.
         if let Some(inner) = group.strip_prefix('?').and_then(|g| g.strip_suffix('?')) {
             let inner = inner.trim();
             if inner.starts_with('-') {
@@ -277,8 +277,10 @@ fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<(String, 
                 continue;
             }
             if inner.is_empty() || inner.contains(char::is_whitespace) {
-                // Multi-word optional that isn't a plain name —
-                // skip conservatively.
+                // Multi-word optional that isn't a plain name — a flag-group
+                // or repeat placeholder (`option ...`, `arg ...`, `-length
+                // length`).  Skip conservatively; the real flags are handled
+                // per-call by the registry option table.
                 continue;
             }
             // Flag-group documentation placeholders — not real
@@ -289,6 +291,11 @@ fn param_names_from_synopsis(synopsis: &str, skip_words: usize) -> Vec<(String, 
             }
             names.push((inner.to_string(), true));
             continue;
+        }
+        // Non-optional varargs marker (`...` or `name ...`) → stop; a plain
+        // positional preceding it is already labelled.
+        if group.contains("...") {
+            break;
         }
         // Bare flag.
         if group.starts_with('-') {
@@ -576,6 +583,23 @@ mod tests {
         assert_eq!(names, vec![("path".to_string(), false)]);
         let names = param_names_from_synopsis("cmd ?switches? path", 1);
         assert_eq!(names, vec![("path".to_string(), false)]);
+    }
+
+    #[test]
+    fn param_names_skips_optional_varargs_flag_group_then_labels_positionals() {
+        // `lsearch ?option ...? list pattern` (the actual registry hover
+        // synopsis) — the `?option ...?` flag-group placeholder must be
+        // skipped, NOT treated as a hard varargs stop that drops the real
+        // `list` / `pattern` positionals after it (issue #510 follow-up).
+        let names = param_names_from_synopsis("lsearch ?option ...? list pattern", 1);
+        assert_eq!(
+            names,
+            vec![("list".to_string(), false), ("pattern".to_string(), false)],
+        );
+        // A *non-optional* `...` repeat marker still stops the parse, after
+        // the preceding plain positional is labelled.
+        let names = param_names_from_synopsis("cmd first ...", 1);
+        assert_eq!(names, vec![("first".to_string(), false)]);
     }
 
     #[test]

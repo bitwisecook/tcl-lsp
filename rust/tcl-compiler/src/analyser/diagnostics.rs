@@ -448,6 +448,61 @@ fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
         )
 }
 
+/// First positional (pattern) argument index of `regexp` / `regsub`,
+/// after skipping option switches (`-start` consumes a value, `--`
+/// terminates).  Mirrors `regexp_pattern_index` (and the regexp arg-role
+/// resolver's option skip).  `args` excludes the command name.
+fn regexp_pattern_index(args: &[String]) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    (i < args.len()).then_some(i)
+}
+
+/// True when the **source** slice `raw` (backslashes intact) carries a
+/// *live* substitution: an unescaped `[`, or a `$` that actually
+/// introduces a variable name (`[A-Za-z0-9_]`, `{`, or `:`).  A `\[` /
+/// `\$` is a literal regex character, and a `$` before a quote / end /
+/// punctuation (the `(.*)$` end-anchor) is a literal dollar — neither
+/// counts.  Mirrors `_raw_has_live_substitution`.
+fn raw_has_live_substitution(raw: &str) -> bool {
+    let b = raw.as_bytes();
+    let n = b.len();
+    let mut i = 0;
+    while i < n {
+        match b[i] {
+            b'\\' => {
+                i += 2; // the next char is escaped (literal) — skip both
+                continue;
+            }
+            b'[' => return true,
+            b'$' => {
+                if let Some(&c) = b.get(i + 1) {
+                    if c.is_ascii_alphanumeric() || matches!(c, b'_' | b'{' | b':') {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
 /// True when `text` is a simple numeric or boolean literal that needs
 /// no bracing.  Mirrors `_is_safe_literal`.
 fn is_safe_literal(text: &str) -> bool {
@@ -1869,6 +1924,29 @@ fn last_literal_set_value_for_var(
     let segments = crate::segmenter::segment_commands_with_offset_and_config(prefix, 0, config);
 
     for cmd in segments.iter().rev() {
+        // Cross-scope guard: stop the backward scan at a `proc NAME
+        // {PARAMS} BODY` whose body *contains* the use offset and whose
+        // params include `var_name` — the parameter shadows any outer
+        // scope, so an outer `set` must not be attributed to the inner
+        // use.  The use is inside the proc body iff that proc is the one
+        // left unclosed by the truncation at `before_offset`: its span
+        // then reaches the last truncated byte (`end + 1 >= head`).  A
+        // *complete* proc before the use ends well before that and does
+        // not shadow.  Mirrors `_last_literal_set_value_for_var`.
+        let use_inside_proc = cmd.span.end() as usize + 1 >= head;
+        if use_inside_proc
+            && cmd.texts.first().map(String::as_str) == Some("proc")
+            && cmd.texts.len() >= 4
+            && cmd.texts[2].contains(var_name)
+        {
+            let shadows = crate::tcl_expr_eval::split_tcl_list(&cmd.texts[2])
+                .iter()
+                .any(|el| el.split_whitespace().next() == Some(var_name));
+            if shadows {
+                return None;
+            }
+        }
+
         if cmd.texts.first().map(String::as_str) != Some("set") {
             continue;
         }
@@ -1931,6 +2009,17 @@ impl Analyser {
         // started with ``{``.  Mirrors ``_first_token_is_braced``
         // in Python.
         if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
+            return;
+        }
+        // A whole-word command-substitution body — `eval [list set y $x]`
+        // (the recommended *safe* form), `uplevel [buildScript]` — is
+        // produced dynamically and parsed once by the consumer: there is
+        // no double-substitution risk and it cannot be braced
+        // (`eval {[list …]}` changes the meaning).  Mirrors
+        // `check_unbraced_body`'s `tok.type is TokenType.CMD` skip.  (A
+        // `Var` body such as `while {$cond} $body` is *not* exempt — only
+        // a `Cmd` word is.)
+        if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
             return;
         }
         let trimmed = body_text.trim();
@@ -2886,14 +2975,81 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         };
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
-        let Some(CommandSignature::Simple(sig)) =
-            signature_for_command(registry, cmd_name, dialect)
-        else {
-            // Unknown command (no signature) or a subcommand-dispatch
-            // command — neither is arity-checked here.
-            return;
-        };
+        match signature_for_command(registry, cmd_name, dialect) {
+            Some(CommandSignature::Simple(sig)) => {
+                self.check_simple_arity(
+                    cmd_name, cmd_name, &sig, args, arg_tokens, arg_expand, cmd_tok, scope_path,
+                );
+            }
+            Some(CommandSignature::WithSubcommands(sig)) => {
+                // Per-subcommand arity, mirroring the Python
+                // `_check_arity` → `_check_simple_arity` path on
+                // `args[1:]` (compiler_checks.py:783-797).  The W001
+                // unknown-subcommand path is handled separately by
+                // [`Self::emit_w001_unknown_subcommand`].
+                let Some(sub_name) = args.first() else {
+                    // Missing subcommand — Python's E001 path; not here.
+                    return;
+                };
+                // A `{*}`-expanded subcommand word resolves to an unknown
+                // name at runtime; skip resolution and arity entirely.
+                if arg_expand.first().copied().unwrap_or(false) {
+                    return;
+                }
+                // Dynamic subcommand value — can't resolve statically.
+                if sub_name.contains('$') || sub_name.contains('[') {
+                    return;
+                }
+                let Some(sub_sig) = sig.subcommands.get(sub_name) else {
+                    // Unknown subcommand — W001's job, not arity.
+                    return;
+                };
+                let display_name = format!("{cmd_name} {sub_name}");
+                self.check_simple_arity(
+                    cmd_name,
+                    &display_name,
+                    sub_sig,
+                    &args[1..],
+                    arg_tokens.get(1..).unwrap_or(&[]),
+                    arg_expand.get(1..).unwrap_or(&[]),
+                    cmd_tok,
+                    scope_path,
+                );
+            }
+            None => {}
+        }
+    }
 
+    /// Compare a positional-argument count against a single
+    /// [`CommandSig`]'s arity bounds and queue an E002 / E003
+    /// candidate.  Shared by the simple-command and per-subcommand
+    /// arity paths in [`Self::emit_arity_diagnostics`]; mirrors
+    /// `_check_simple_arity` in `core/compiler/compiler_checks.py`.
+    ///
+    /// `resolution_name` is the base command name used by the
+    /// post-walk [`Self::flush_arity_diagnostics`] to honour a
+    /// shadowing user proc / class / alias (e.g. `file` for the
+    /// `file link` subcommand check), while `display_name` is the
+    /// human-facing name shown in the message (`file link`).
+    ///
+    /// `args` / `arg_tokens` / `arg_expand` are the slices *after*
+    /// whatever prefix the caller has already consumed (the command
+    /// name for the simple path; the command name and subcommand word
+    /// for the subcommand path), so the leading-option scan and
+    /// positional count operate on the same coordinate system as
+    /// `sig`.
+    #[allow(clippy::too_many_arguments)]
+    fn check_simple_arity(
+        &mut self,
+        resolution_name: &str,
+        display_name: &str,
+        sig: &super::dispatch::CommandSig,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        cmd_tok: tcl_lexer::Token,
+        scope_path: &[usize],
+    ) {
         let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
 
         // Skip leading declared option flags.  Stop at the first
@@ -2966,14 +3122,14 @@ Consider capturing the result: catch {\u{2026}} result"
         if !positional_any_expand && (args.len() - positional_start) < min {
             let got = args.len() - positional_start;
             self.pending_arity.push((
-                cmd_name.to_string(),
+                resolution_name.to_string(),
                 ns,
                 enforce_order,
                 super::types::Diagnostic {
                     code: "E002".to_string(),
                     span: full_span,
                     message: format!(
-                        "Too few arguments for '{cmd_name}': expected at least {min}, got {got}"
+                        "Too few arguments for '{display_name}': expected at least {min}, got {got}"
                     ),
                     severity: Severity::Error,
                     fixes: Vec::new(),
@@ -2981,14 +3137,14 @@ Consider capturing the result: catch {\u{2026}} result"
             ));
         } else if !sig.arity.is_unlimited() && nargs_min > max {
             self.pending_arity.push((
-                cmd_name.to_string(),
+                resolution_name.to_string(),
                 ns,
                 enforce_order,
                 super::types::Diagnostic {
                     code: "E003".to_string(),
                     span: full_span,
                     message: format!(
-                        "Too many arguments for '{cmd_name}': expected at most {max}, got {nargs_min}"
+                        "Too many arguments for '{display_name}': expected at most {max}, got {nargs_min}"
                     ),
                     severity: Severity::Error,
                     fixes: Vec::new(),
@@ -3988,6 +4144,69 @@ matching time on crafted input."
         }
     }
 
+    /// **W306.** Warn when a `regexp` / `regsub` *pattern* — a
+    /// literal-expected position — contains a *live* substitution Tcl
+    /// expands before the regex engine sees it.  A bare `$var` pattern is
+    /// the canonical parameterised-pattern idiom and is exempt (there is
+    /// no braced equivalent); a quoted `"$var"` / `"[cmd]"` or an unbraced
+    /// `[cmd]` is the foot-gun.  `\[` / `\$` in a quoted pattern are
+    /// literal regex characters, not substitutions.  Mirrors the
+    /// `regexp` / `regsub` arm of `_domain.py::check_literal_expected`.
+    pub(super) fn emit_w306_literal_expected(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if !matches!(cmd_name, "regexp" | "regsub") {
+            return;
+        }
+        let Some(idx) = regexp_pattern_index(args) else {
+            return;
+        };
+        let (Some(&tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
+            return;
+        };
+        if is_braced_word(&tok) || !has_substitution(text, &tok) {
+            return;
+        }
+        let start = tok.span.start() as usize;
+        let end = tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return;
+        }
+        let is_subst_token = matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        );
+        // A quoted/literal token (not a single `$var` / `[cmd]` word) only
+        // counts when the raw source carries a *live* (unescaped) `[`/`$`.
+        if !is_subst_token && !raw_has_live_substitution(&self.source[start..end]) {
+            return;
+        }
+        // Bare `$var` / `${var}` is the canonical idiom — a `Var` word has
+        // no surrounding literal text, so it is exactly that form.
+        if tok.kind == tcl_lexer::TokenType::Var {
+            return;
+        }
+        let is_quoted = self.source.as_bytes().get(start) == Some(&b'"');
+        let found = if text.contains('$') { "'$'" } else { "'['" };
+        let advice = if is_quoted {
+            ". Use braces '{...}' instead of quotes."
+        } else {
+            ". Use braces '{...}' to prevent substitution."
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W306".to_string(),
+            span: tok.span,
+            message: format!(
+                "Literal expected in {cmd_name} pattern \u{2014} found {found}{advice}"
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     /// **IRULE2002.** Warn when a deprecated iRules command is used —
     /// the command's spec carries a `deprecated_replacement`.  Only fires
     /// under the `f5-irules` dialect.  Mirrors
@@ -4577,6 +4796,7 @@ file; this call falls through to the 'unknown' handler."
         self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
+        self.emit_interval_bounds_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
         }
@@ -5917,6 +6137,69 @@ file; this call falls through to the 'unknown' handler."
                 span,
                 message: format!(
                     "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W230 / W231 / W232 (dynamic).** Interval-driven out-of-range index
+    /// detection for a `$var` index whose [`crate::intervals`] range — guard-
+    /// narrowed at the use site — proves the access is wholly out of range
+    /// against a statically-established container length.  Complements the
+    /// syntactic bounds checks (literal index + literal container only); the
+    /// two never double-fire because the syntactic checks back off on any
+    /// `$var` index.  Restricted to SCCP-reachable blocks so a dynamic index
+    /// in dead code does not warn.  Mirrors
+    /// `_diag_interval_bounds.py::_emit_interval_bounds_diagnostics`.
+    fn emit_interval_bounds_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        let executable: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().cloned().collect()
+        } else {
+            fu.sccp.executable_blocks.iter().cloned().collect()
+        };
+        let findings = crate::interval_bounds::find_interval_bounds(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            &executable,
+        );
+        for f in findings {
+            if f.span.is_empty() {
+                continue;
+            }
+            let bound = if f.reason == "negative" {
+                "below 0".to_string()
+            } else {
+                format!("past the end ({})", f.length)
+            };
+            let rng = if f.reason == "negative" {
+                "negative".to_string()
+            } else if f.index_interval.lo == f.index_interval.hi {
+                format!("is {}", f.index_interval.lo.map_or(0, |l| l))
+            } else {
+                let lo = f
+                    .index_interval
+                    .lo
+                    .map_or("-inf".to_string(), |l| l.to_string());
+                let hi = f
+                    .index_interval
+                    .hi
+                    .map_or("+inf".to_string(), |h| h.to_string());
+                format!("is in [{lo}, {hi}]")
+            };
+            let outcome = if f.code == "W231" {
+                "raises 'index out of range' at runtime"
+            } else {
+                "silently returns the empty string"
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: f.code,
+                span: f.span,
+                message: format!(
+                    "{}: index ${} {rng}, {bound} \u{2014} {outcome}.",
+                    f.command, f.index_var
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
@@ -8100,6 +8383,81 @@ mod tests {
         );
     }
 
+    // -- subcommand-level E003 arity (per-subcommand signatures) -----
+
+    #[test]
+    fn e003_fires_on_subcommand_over_arity() {
+        // `string length` takes exactly one argument — three positional
+        // words must trip E003.
+        let mut a = Analyser::new();
+        let result = a.analyse("string length a b c", "tcl8.6");
+        let e003: Vec<&Diagnostic> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "E003")
+            .collect();
+        assert!(
+            !e003.is_empty(),
+            "expected E003 for `string length a b c`, got {:?}",
+            result.diagnostics
+        );
+        assert!(
+            e003[0].message.contains("string length"),
+            "message should name the subcommand: {:?}",
+            e003[0].message
+        );
+    }
+
+    #[test]
+    fn e003_fires_on_file_link_over_arity() {
+        // `file link ?-linktype? linkName ?target?` — `link` accepts at
+        // most two positional args, so three literal targets is E003.
+        let mut a = Analyser::new();
+        let result = a.analyse("file link $a $b $c", "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == "E003"),
+            "expected E003 for `file link $a $b $c`, got {:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn e003_silent_for_subcommand_leading_options() {
+        // Per-subcommand options (`file link -symbolic` / `-hard`,
+        // `string match -nocase`) must be skipped before counting
+        // positionals, so these well-formed calls stay silent.
+        for snippet in [
+            "file link -symbolic $a $b",
+            "file link -hard $a $b",
+            "string match -nocase $a $b",
+        ] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            let e003: Vec<&Diagnostic> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == "E003")
+                .collect();
+            assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
+        }
+    }
+
+    #[test]
+    fn subcommand_arity_skips_unknown_and_dynamic_subcommands() {
+        // An unknown subcommand is W001's job, not E003; a dynamic
+        // subcommand word (`$sub`) can't be resolved, so neither path
+        // should emit E003.
+        for snippet in ["string $sub a b c", "string [x] a b c"] {
+            let mut a = Analyser::new();
+            let result = a.analyse(snippet, "tcl8.6");
+            assert!(
+                !result.diagnostics.iter().any(|d| d.code == "E003"),
+                "unexpected E003 for {snippet:?}: {:?}",
+                result.diagnostics
+            );
+        }
+    }
+
     #[test]
     fn e002_fires_on_too_few_args() {
         // `regsub` requires at least 3 args (exp string subSpec).
@@ -8796,6 +9154,28 @@ mod tests {
         assert!(w211s[0].message.contains("'y'"));
         assert!(w211s[0].message.contains("set but never used"));
         assert_eq!(w211s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w211_w220_skipped_for_traced_var() {
+        // A write trace makes `x` observable on every `set`, so neither
+        // W211 (unused) nor W220 (dead store) may fire.  Both the 8.5+
+        // `trace add variable` and 8.4 `trace variable` spellings count.
+        for src in [
+            "proc f {} { trace add variable x write cb; set x 1 }",
+            "proc f {} { trace variable x w cb; set x 1 }",
+        ] {
+            let mut a = Analyser::new();
+            a.emit_cfg_ssa_diagnostics(src);
+            assert!(
+                !a.result
+                    .diagnostics
+                    .iter()
+                    .any(|d| matches!(d.code.as_str(), "W211" | "W220")),
+                "traced var must not fire W211/W220 for {src:?}; got {:?}",
+                a.result.diagnostics,
+            );
+        }
     }
 
     #[test]
@@ -10515,5 +10895,61 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
             .diagnostics
             .iter()
             .any(|d| d.code == "W310"));
+    }
+
+    #[test]
+    fn w306_literal_expected_in_regexp_pattern() {
+        fn has_w306(src: &str) -> bool {
+            let mut a = Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W306")
+        }
+        // Quoted `"$var"` / `"[cmd]"` patterns fire (Tcl substitutes them
+        // before the regex engine sees the value).
+        assert!(has_w306("regexp \"$pat\" $s\n"));
+        assert!(has_w306("regexp \"[clock seconds]\" $s\n"));
+        // A bare `$var` is the canonical parameterised-pattern idiom — exempt.
+        assert!(!has_w306("regexp $pat $s\n"));
+        // A braced pattern suppresses substitution — exempt.
+        assert!(!has_w306("regexp {[abc]+} $s\n"));
+        // An escaped `\[` in a quoted pattern is a literal regex char — exempt.
+        assert!(!has_w306("regexp \"\\[abc\\]+\" $s\n"));
+        // A bare `[cmd]` pattern is the foot-gun (parsed as command sub) — fires.
+        assert!(has_w306("regexp [join $parts] $s\n"));
+    }
+
+    #[test]
+    fn w304_does_not_cross_proc_param_shadow() {
+        // The outer `set path -force` must NOT be attributed to the inner
+        // `$path` use — the proc param `path` shadows it.  W304 may still
+        // fire on the substituted `file delete $path`, but never claiming
+        // the value is `-force`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "set path -force\nproc useit {path} { file delete $path }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W304" && d.message.contains("-force")),
+            "{:?}",
+            r.diagnostics
+        );
+        // Control: a top-level `$path` use *after* a complete proc still
+        // resolves to the outer literal (no shadow crossing).
+        let r2 = a.analyse(
+            "set path -force\nproc p {path} {}\nfile delete $path\n",
+            "tcl8.6",
+        );
+        assert!(
+            r2.diagnostics
+                .iter()
+                .any(|d| d.code == "W304" && d.message.contains("-force")),
+            "{:?}",
+            r2.diagnostics
+        );
     }
 }

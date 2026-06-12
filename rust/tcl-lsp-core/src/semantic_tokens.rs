@@ -1770,23 +1770,21 @@ fn collect_expr(
                     entries,
                 );
             }
-            E::Function => {
-                if !et.text.is_empty() && !et.text.contains('\n') {
-                    let pos = line_index
-                        .position_at_utf16(u32::try_from(abs_start).unwrap_or(0), full_source);
-                    let mods = if math.contains(et.text.as_str()) {
-                        MOD_DEFAULT_LIBRARY
-                    } else {
-                        0
-                    };
-                    entries.push((
-                        pos.line,
-                        pos.character,
-                        utf16_len(&et.text),
-                        TokenKind::Function,
-                        mods,
-                    ));
-                }
+            E::Function if !et.text.is_empty() && !et.text.contains('\n') => {
+                let pos = line_index
+                    .position_at_utf16(u32::try_from(abs_start).unwrap_or(0), full_source);
+                let mods = if math.contains(et.text.as_str()) {
+                    MOD_DEFAULT_LIBRARY
+                } else {
+                    0
+                };
+                entries.push((
+                    pos.line,
+                    pos.character,
+                    utf16_len(&et.text),
+                    TokenKind::Function,
+                    mods,
+                ));
             }
             _ => {}
         }
@@ -2056,14 +2054,30 @@ fn push_token(
     entries: &mut Vec<Entry>,
 ) {
     let span = tok.span;
-    let len_bytes = span.end() - span.start();
-    if len_bytes == 0 {
+    let start = span.start();
+    let mut end = span.end();
+    // The lexer's empty-content clamp (tcl-lexer `parse_quoted`) extends a
+    // quoted `Esc` fragment's span by one byte over the `$` / `[` that
+    // introduces the *next* substitution token, so `token_text` stays empty
+    // while `span.end` lands on the terminator.  That introducer byte
+    // belongs to the following `Var` / `Cmd` token; emitting it here would
+    // produce overlapping semantic tokens (e.g. `"$x"` → the opening
+    // fragment `"$` overlapping the `$x` variable).  A clamped-empty ESC is
+    // recognised by `span_len == content_offset + 1` with a `$` / `[` last
+    // byte; trim it back to just its leading delimiter (the opening `"`, or
+    // nothing when there is no delimiter, e.g. between adjacent `$a$b`).
+    if tok.kind == TokenType::Esc && end - start == u32::from(tok.content_offset) + 1 {
+        if let Some(&last) = source.as_bytes().get((end - 1) as usize) {
+            if last == b'$' || last == b'[' {
+                end = start + u32::from(tok.content_offset);
+            }
+        }
+    }
+    if end <= start {
         return;
     }
-    let pos = line_index.position_at_utf16(span.start(), source);
-    let text = source
-        .get(span.start() as usize..span.end() as usize)
-        .unwrap_or("");
+    let pos = line_index.position_at_utf16(start, source);
+    let text = source.get(start as usize..end as usize).unwrap_or("");
     // Skip multi-line tokens — LSP encoding wants per-line
     // entries; multi-line tokens would need splitting.
     // For the minimal rich port, drop them.
@@ -2192,6 +2206,74 @@ mod tests {
             .chunks(5)
             .map(|c| c[3])
             .collect()
+    }
+
+    /// Decode the packed stream into absolute `(line, col, len)` triples.
+    fn decode(src: &str, dialect: &str, registry: &CommandRegistry) -> Vec<(u32, u32, u32)> {
+        let st = full(src, dialect, registry);
+        let mut line = 0u32;
+        let mut col = 0u32;
+        let mut out = Vec::new();
+        for c in st.data.chunks(5) {
+            let (dl, dc, len) = (c[0], c[1], c[2]);
+            if dl > 0 {
+                line += dl;
+                col = dc;
+            } else {
+                col += dc;
+            }
+            out.push((line, col, len));
+        }
+        out
+    }
+
+    /// Assert no two tokens on the same line overlap (next starts at or
+    /// after the previous token's end) — the client "Overlapping semantic
+    /// tokens detected" invariant.
+    fn assert_non_overlapping(src: &str, registry: &CommandRegistry) {
+        let toks = decode(src, "tcl", registry);
+        for w in toks.windows(2) {
+            let (l0, c0, len0) = w[0];
+            let (l1, c1, _) = w[1];
+            if l0 == l1 {
+                assert!(
+                    c1 >= c0 + len0,
+                    "overlap on line {l0}: token at col {c1} starts before \
+                     previous token end {} (src={src:?}, toks={toks:?})",
+                    c0 + len0,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn quoted_var_at_string_start_no_overlap() {
+        // Regression: the lexer's empty-content clamp made the opening `"`
+        // fragment span `"$`, overlapping the `$x` variable token.  The
+        // opening fragment must shrink to just the `"`.
+        let r = reg();
+        assert_non_overlapping("puts \"$x y\"\n", &r);
+        assert_non_overlapping("set x 1\nputs \"$x — résumé — 日本語\"\n", &r);
+        // Adjacent substitutions: the empty ESC between `$a` and `$b`
+        // carries no delimiter, so it must vanish entirely (no zero-area
+        // overlap at the `$b`).
+        assert_non_overlapping("puts \"$a$b\"\n", &r);
+        // Command substitution introducer `[` at string start.
+        assert_non_overlapping("puts \"[expr {1+2}] z\"\n", &r);
+        // Dense line with several adjacent substitutions/strings.
+        assert_non_overlapping("set a 1;set b 2;puts \"$a [expr {$a+$b}] $b\";# tail\n", &r);
+    }
+
+    #[test]
+    fn quoted_string_opening_fragment_is_single_quote() {
+        // `puts "$x y"` — the opening string fragment is exactly the `"`
+        // (col 5, len 1), not `"$` (len 2).
+        let toks = decode("puts \"$x y\"\n", "tcl", &reg());
+        // The opening `"` lands at byte/col 5 on line 0 with length 1.
+        assert!(
+            toks.contains(&(0, 5, 1)),
+            "expected a length-1 string token at col 5, got {toks:?}",
+        );
     }
 
     #[test]

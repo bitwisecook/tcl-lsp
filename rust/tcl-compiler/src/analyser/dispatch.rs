@@ -107,16 +107,23 @@ pub fn signature_for_command(
                 .iter()
                 .map(|(idx, role)| (*idx, *role))
                 .collect();
+            // Per-subcommand options (e.g. `-symbolic` / `-hard` on
+            // `file link`) feed the subcommand arity check's leading-
+            // option skip, mirroring `_subcommand_switch_names` in
+            // `core/commands/registry/runtime.py`.  The option dialect
+            // inherits from the subcommand (falling back to the parent
+            // command) when it does not pin its own.
+            let leading_options = sub
+                .switch_names(Some(dialect), spec.dialects)
+                .into_iter()
+                .map(str::to_string)
+                .collect();
             subs.insert(
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
                     arg_roles,
-                    // Subcommand-level arity checking isn't wired up
-                    // yet (only simple-command E002 / E003 fires), so
-                    // the per-subcommand option set is left empty until
-                    // that follow-up lands.
-                    leading_options: BTreeSet::new(),
+                    leading_options,
                 },
             );
         }

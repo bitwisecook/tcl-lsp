@@ -1749,6 +1749,20 @@ mod tests {
     }
 
     #[test]
+    fn analyse_skips_w105_for_command_substitution_body() {
+        // A whole-word `[…]` command-substitution body is the safe
+        // list-building idiom — `check_unbraced_body` exempts `Cmd`
+        // tokens, so no W105.
+        let mut a = Analyser::new();
+        let r = a.analyse("eval [list set y $x]\n", "tcl");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W105"),
+            "{:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
     fn analyse_emits_w105_for_unbraced_while_body_var() {
         // ``while {$cond} $body`` — Var-token body is still an
         // unbraced body with substitution.  Mirrors Python's

@@ -97,6 +97,8 @@ pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
 pub mod inline_uplevel;
 pub mod interprocedural;
+pub mod interval_bounds;
+pub mod intervals;
 pub mod ir;
 pub mod ir_helpers;
 pub mod irules_checks;

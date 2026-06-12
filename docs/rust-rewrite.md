@@ -5026,6 +5026,113 @@ fp_inj 1.
   **fp_opt O106/O109/O116** (3), and the residual misc (namespace-ensemble
   resolution, `eval [list set …]` def recognition, S101 intrep-thrash).
 
+2. **E003 subcommand arity** (closes `test_diagnostic_matrix_e2e[E003]` +
+   `test_diagnostics_e2e::test_file_link_too_many_positionals_is_e003`).
+   `analyser/diagnostics.rs::emit_arity_diagnostics` previously returned early
+   for `WithSubcommands`; it now ports the Python `_check_arity` →
+   `_check_simple_arity` path (`analyser/compiler_checks.py:783-797`) by
+   extracting a shared `check_simple_arity` helper and running it on `args[1:]`
+   against the resolved subcommand's `CommandSig`. The per-subcommand option set
+   (`SubCommand.options`, e.g. `-symbolic`/`-hard` on `file link`,
+   `-nocase` on `string match`) is now threaded into the subcommand
+   `CommandSig.leading_options` via a new `SubCommand::switch_names`
+   (mirroring `_subcommand_switch_names`), so option-aware skipping matches.
+   Stays silent on `file link -symbolic $a $b`, `file link -hard $a $b`,
+   `string match -nocase $a $b`; fires on `string length a b c` and
+   `file link $a $b $c`. Shadowing-proc suppression and `{*}`-expansion handling
+   carry over unchanged (the candidate still flows through
+   `flush_arity_diagnostics` keyed on the base command name). lsp_e2e
+   463→465 passing; precision battery held at 284/93.
+
+3. **semantic_tokens non-overlap after `$var`** (closes
+   `test_semantic_tokens_e2e::TestTokenInvariants::test_tokens_strictly_non_overlapping_dense_line`
+   + `…test_tokens_satisfy_invariants[unicode_after_var]`). The tcl-lexer
+   `parse_quoted` *empty-content clamp* extends a quoted `Esc` fragment's span
+   by one byte over the `$` / `[` that introduces the next substitution token
+   (so `token_text` stays empty while `span.end` lands on the terminator). The
+   semantic-token emitter (`semantic_tokens.rs::push_token`) used that raw span
+   verbatim, so the opening fragment of `"$x …"` spanned `"$` and overlapped the
+   `$x` Variable token — a client "Overlapping semantic tokens detected"
+   violation. `push_token` now recognises a clamped-empty `Esc`
+   (`span_len == content_offset + 1` with a `$` / `[` last byte) and trims it to
+   just its leading delimiter (the opening `"`, or nothing for an empty ESC
+   between adjacent `$a$b`). Also collapsed the pre-existing `E::Function`
+   `if` into a match guard so the file is clippy-pedantic clean. lsp_e2e
+   465→467 passing; precision battery unchanged.
+
+4. **invariants[clean] shared-server document leak** (closes
+   `test_invariants_e2e::TestRangeInvariants::test_all_provider_ranges_well_formed[clean]`
+   + `…TestRobustnessAdversarial::test_server_survives_and_responds[clean]`).
+   Order-dependent: passed in isolation, failed in the full suite. The
+   `lsp_server` fixtures are session-scoped and tests never closed the
+   documents they opened, so the native server's **cross-document references**
+   feature (a Rust enhancement Python lacks) surfaced a leftover
+   `proc greet` from `test_hover_e2e::test_proc_multiline_doc` (where `greet`
+   sits at line 2 col 5) in the unrelated `clean` document's references —
+   out of bounds for the clean source's one-char line 2, tripping the range
+   invariant. Fix is the leak, not the assertion: `LspServerClient` now tracks
+   open URIs, and a function-scoped autouse fixture closes every test's
+   documents on all live servers during teardown, so the shared servers start
+   each test with no foreign documents open. Test-harness only (no analyser /
+   server change); full Python-backend e2e suite still green (488 passed),
+   native lsp_e2e 467→469 passing.
+
+5. **inlay-hint optional-positional labels for `?option ...?` synopses**
+   (closes `test_editor_features_e2e::TestInlayHintOptionalPositionals::test_no_documentation_placeholder_labels`).
+   `lsearch`'s registry hover synopsis is `lsearch ?option ...? list pattern`.
+   `param_names_from_synopsis` checked the bare-varargs stop (`if
+   group.contains("...") { break; }`) *before* the optional-group handling, so
+   the `?option ...?` flag-group placeholder was mistaken for a hard varargs
+   terminator and the parse aborted — dropping the real `list` / `pattern`
+   positionals (zero hints emitted). The optional `?...?` branch now runs
+   first, so an optional flag/repeat placeholder carrying `...` is skipped
+   (multi-word inner → not a plain name) while the trailing positionals are
+   still labelled; a *non-optional* `...` repeat marker still stops the parse
+   after its preceding positional. lsp_e2e 469→470 passing; precision battery
+   unchanged.
+
+6. **IRULE3102 unnormalised getter nested in a sink argument** (closes
+   `test_irules_e2e::TestIrulesTaintDiagnostics::test_taint_source_in_http_sink_fires_irule3102`).
+   `find_unnormalised_getter_warnings` only inspected top-level `Call`
+   (command *is* the getter) and `AssignValue` RHS (`set u [HTTP::uri]`)
+   statements. In `HTTP::respond 200 content [HTTP::uri]` the `[HTTP::uri]`
+   getter stays a literal `Cmd` *argument* of the outer sink call rather than
+   a separate statement, so it was never flagged. The `Call` arm now also
+   walks each argument: a command-substitution arg (`[…]`) is parsed via
+   `parse_command_substitution` and checked with `is_unnormalised_getter`,
+   anchoring the diagnostic on the argument token's own span. Stays silent on
+   a constant (`"static body"`) and on the `-normalized` form. lsp_e2e
+   470→471 passing; precision battery unchanged.
+
+7. **Bracket-recovery brace-word bail** (#560; closes 2/3 of
+   `test_recovery_e2e::TestInertBracketVeto` —
+   `test_brace_word_break_still_flags_and_recovers` and
+   `test_brace_word_break_no_duplicate_diagnostics`). For
+   `set x [foo {bar\nproc …}` the command-break heuristic's after-`bar`
+   boundary is inert (inside the `{bar …}` brace word), so it was vetoed and
+   the analyser fell through to the `e201_at_brace` fallback, which inserted a
+   ghost `]` *before* the `{` — folding the swallowed `proc` / `puts` into a
+   brace-word argument (hidden from analysis, spurious E003/W123 on a 3-arg
+   `set`). `e201_at_command` now reports when a *known* command was swallowed
+   into an inert span; `detect_e201` then suppresses the brace-break fallback
+   and bails to the fix-less fallback, so no ghost is inserted, the
+   scan-to-next recovery's partial command stands (generic E200), and the tail
+   `proc` / trailing `set` are analysed as real code (symbol recovered; E002
+   on the bare `set`). Matches the Python analyser + C Tcl 9.0.3
+   (`info complete {set x [foo {bar]}` == 0). lsp_e2e 471→473; precision
+   battery held at 284/93; workspace tests + clippy green.
+
+   **Remaining (3rd test, `test_midword_delimiter_still_recovers`):** the
+   mid-word-`"` case `set x [foo abc"\nproc …` needs the *bracket interior*
+   re-lex to treat a mid-word `"` as a literal (C Tcl completes
+   `set x [foo abc"]`). The lexer's command-substitution scanner
+   (`scan_cmd_sub` / `Lexer::scan_command_substitution`) toggles quote on any
+   `"` at `blevel == 0` regardless of word-start, so a ghost `]` inserted
+   after `abc"` lands "inside the quote" and never closes the bracket. Closing
+   this needs the command-sub quote handling aligned to the word-start rule
+   `scan_top` already uses — a core-lexer change deferred to its own strip to
+   keep this batch's regression surface small.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
@@ -5755,6 +5862,154 @@ unit tests, full compiler suite green (2518).  **GAP-A4 is now complete**
 for the shippable token/regex form (W230-W232 + W240-W242); the
 interval-domain W233 remains the eventual main-parity target (§E2), not a
 present gap.
+
+**LANDED (W231 proc-scoped length recovery — battery 2026-06-12).**  The
+GAP-A4 `_infer_list_length_from_recent_set` port had quietly diverged: it
+recovered the list length by *top-level* command segmentation instead of
+Python's line-anchored `_LIST_SET_RE` + `_scope_is_flat` text scan.  That
+divergence silently dropped the common case where the `set var {…}` and the
+`lset` sit in the *same* `proc` body (neither is a top-level command), so
+`proc f {} { set l {a b c}; lset l 99 X }` never fired W231.  Re-ported to
+mirror Python exactly: a hand-rolled scan for `(?:^|\n)\s*set\s+(\w+)\s+
+(\{[^{}]*\})\s*(?=\n|$|;)` (no regex crate in the workspace), accepted only
+when the between-text stays at brace depth zero and crosses no
+`proc`/`namespace eval`/`apply`/`try` boundary (`scope_is_flat` +
+`has_scope_marker`).  Now recovers a same-scope `set` nested in a `proc`
+body while still rejecting cross-scope leaks; 2 unit tests, battery W231
+proc-body TPs (`lset l 99 X`, `lset l end X` on `{}`) now pass.
+
+**LANDED (bounds checks recurse into `[…]` substitutions — battery
+2026-06-12).**  The main analyser walk descends proc / control-flow
+*bodies* (so their commands run the per-command syntactic checks) but
+treats a `[cmd …]` substitution as an opaque value and never descends it
+— so `set x [string index abc 99]` / `return [lindex {a b c} 9]` escaped
+the index-bounds family entirely.  Added `run_nested_bounds_diagnostics`
+(+ free `collect_substitution_bounds` / `run_segment_bounds`), the bounds
+companion of the existing `collect_substitution_heads` W123/W307 walk:
+for each `[…]` word it descends the substitution and runs W230 / W231 /
+W232 + W240-W242 on every inner command, recursing into nested `[…]` and
+the inner commands' own bodies.  Mirrors main's `_recurse_nested_commands`
+re-running `run_all_checks`.  Only `[…]` regions are entered, so a command
+the main walk already checked never double-fires (verified by a
+count-of-one unit test).  Battery `TP_W232_string_index_past_end_is_smell`
+and `FP_NAB_02_lindex_oor_smell_fires` now pass; 1 unit test.  The
+remaining `$var`-indexed bounds TPs (`FP_BND_01`/`FP_BND_03`) still need
+the interval domain (§E2), not this syntactic path.
+
+**LANDED (full per-command dispatch on `[…]` substitutions — battery
+2026-06-12).**  Generalised the substitution recursion above from the
+bounds family to the whole per-command dispatch
+(`emit_dispatch_site_diagnostics`: security W101-W312, bounds W230-W242,
+W001 / W004 / W304, arity E002-E003, …), matching Python's
+`_recurse_nested_commands` re-running the full `run_all_checks`.
+`run_nested_command_diagnostics` collects the descended substitution
+commands as owned `SegmentedCommand`s (so the immutable source borrow ends
+before the `&mut self` dispatch) and runs the dispatch on each, with the
+enclosing command's `scope_path` (a substitution shares its embedding
+command's frame).  Only `[…]` regions are entered, so the main walk's
+already-checked commands never double-fire.  Battery
+`FP_NAB_06_open_variable_pipe_fires_w103` (`set fh [open "|$cmd" r]`) now
+passes; zero battery / e2e regressions; +1 unit test.
+
+**LANDED (W304 stops at a shadowing proc param — battery 2026-06-12).**
+`last_literal_set_value_for_var` (the W304 "currently resolves to …"
+value-recovery) segmented the prefix at top level and walked backward, so
+`set path -force` at top level was wrongly attributed to the inner `$path`
+use in `proc useit {path} { file delete $path }`.  Ported the
+`_last_literal_set_value_for_var` cross-scope guard: when the backward
+scan reaches the truncated-unclosed `proc` containing the use
+(`span.end()+1 >= before_offset`) and that proc's parameter list contains
+`var_name`, stop — the parameter shadows the outer scope.  A *complete*
+proc before a top-level use ends earlier and does not shadow (control
+preserved).  Battery `FP_NAB_05_w304_lexical_does_not_cross_proc_boundary`
+now passes; 1 unit test.
+
+**LANDED (W306 literal-expected `regexp`/`regsub` pattern — battery
+2026-06-12).**  Ported the `regexp` / `regsub` arm of
+`_domain.py::check_literal_expected` (the whole check was previously
+absent in Rust).  `emit_w306_literal_expected` finds the pattern arg
+(`regexp_pattern_index` — skip options, `-start` consumes a value, `--`
+terminates), and fires when it carries a *live* substitution Tcl expands
+before the regex engine sees it: a quoted `"$var"` / `"[cmd]"` or an
+unbraced `[cmd]`.  Exemptions match Python: a braced `{…}` pattern
+(substitution suppressed), a bare single `$var` word (the canonical
+parameterised-pattern idiom, no braced equivalent), and `\[` / `\$` in a
+quoted pattern (literal regex chars — checked against the raw source slice
+via `raw_has_live_substitution`, since the resolved text can't distinguish
+an escaped bracket from a live command sub).  The `class match`/`search`
+arm (f5-irules) is not ported (no battery driver).  Battery
+`FP_STY_02_live_cmdsub_in_quoted_pattern_still_fires` and
+`FP_STY_02_live_dollar_in_quoted_pattern_still_fires` now pass; 1 unit
+test; no battery / e2e regressions.
+
+**LANDED (W105 exempts a command-substitution body — battery
+2026-06-12).**  `emit_w105_unbraced_body` treated a whole-word `[…]` body
+as a substitution-bearing unbraced body and fired W105 at ERROR, diverging
+from `check_unbraced_body` which skips a `TokenType.CMD` body *before* the
+substitution test.  A `[list …]` / `[buildScript]` body is the recommended
+*safe* form — produced dynamically, parsed once, no double-substitution
+risk, and it cannot be braced (`eval {[list …]}` changes the meaning).
+Added the `Cmd`-token exemption (a `Var` body like `while {$cond} $body`
+is still flagged — only `Cmd` words are exempt).  Battery
+`TN_safe_eval_with_list_form` (`eval [list set y $x]`) now passes; 1 unit
+test.
+
+**LANDED (interval abstract domain + dynamic index bounds — battery
+2026-06-12).**  Ported `compiler/intervals.py` → `intervals.rs` (the integer
+interval lattice: `join`/`widen`/`add`/`sub`/`mul`/`intersect`, abstract
+`eval_expr`, constant-bound guard narrowing `refine_interval` +
+`build_guard_index`, and the widening forward fixpoint `compute_intervals`
+seeded from SCCP constants) and the bounds-finding portion of
+`compiler/interval_bounds.py::find_interval_bounds` → `interval_bounds.rs`.
+`emit_interval_bounds_diagnostics` runs it per function over SCCP-reachable
+blocks and fires **W230 / W231 / W232** on a `$var` index whose
+guard-narrowed interval *proves* the access is wholly out of range against a
+statically-recovered container length — the dynamic cases the syntactic
+bounds checks deliberately skip (so the two never double-fire).  One
+divergence handled for parity: Rust's SSA inserts a loop-header phi for a
+list `lset` mutates (Rust's `lset` *reads* the list), which Python's pruned
+SSA does not; `resolve_list_length` follows that phi to the length its known
+incomings agree on, ignoring the unknown length-preserving back-edge, so
+`for {set j 4} {$j < 9} {incr j} { lset l $j $v }` recovers length 3 and
+fires W231 exactly as Python does.  Battery `FP_BND_01` (loop counter past
+append) and `FP_BND_03` (×2, `string index $s $i` with a const-var index)
+now pass; 6 unit tests; zero battery / e2e regressions.
+
+**LANDED (traced variables excluded from W211/W220 — battery
+2026-06-12).**  `scan_scope_aliases` (the dead-store / unused-variable
+observability gate) recognised `global` / `variable` / `upvar` / `namespace
+upvar` aliases but not `trace`.  A write trace fires its callback on every
+`set`, so the traced variable is observable and must never be a dead store
+(W220) or set-but-never-used (W211).  Added a `trace` arm recognising both
+`trace add variable NAME …` (8.5+) and the 8.4 `trace variable NAME …`
+spelling (a dynamic `$`-target names no static local and is skipped).
+Battery `FP_DS_04_traced_var_no_w220` and `FP_DS_04_84_form_also_excluded`
+now pass; 1 unit test; no regressions.
+
+**LANDED (hex / binary literals typed INT — battery 2026-06-12).**
+`type_infer::literal_type` typed only decimal integers as INT (`parse::<i64>`),
+so `set n 0x80` was STRING and `incr n` looked like a per-iteration
+string→int shimmer (false S101/S102).  Matched `core_analyses._literal_type`:
+a `0x`/`0X` hex or `0b`/`0B` binary form (optionally signed) is INT — one
+clean parse, the canonical tcllib idiom — while `0o` octal stays STRING.
+Battery `FP_SH_04_hex_literal_increment_no_shimmer` now passes; 1 unit test;
+no regressions.
+
+**LANDED (S102 requires genuine per-iteration oscillation — battery
+2026-06-12).**  The thunking pass fired S102 on *any* SHIMMERED loop-header
+phi, so a one-time promotion (`set r {}`; `foreach … {lappend r …}` — STRING
+once then LIST forever) and sibling loops with different per-loop type
+effects on the same name produced false positives.  Ported `_find_thunking`'s
+refined condition: classify the phi's incomings into entry vs body
+(back-edge) types, exclude the empty-literal reset, and fire only when the
+body re-introduces an entry type (`entry ∩ body`) or itself produces ≥2
+distinct types.  Body types are scoped to each header's *natural loop* (a
+back-edge-driven block walk, the Rust analogue of `build_loop_forest`) so a
+sibling loop never pollutes the check; destructure-foreach (`foreach … break`)
+blocks are excluded.  Battery `FP_SH_05_destructure_foreach_no_s102` and
+`FP_SH_06_sibling_loops_no_s102` now pass; the existing one-time-promotion TP
+test (a Rust over-fire Python suppresses) was corrected to a genuine
+two-type-body case; 3 unit tests; no regressions.
 
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed

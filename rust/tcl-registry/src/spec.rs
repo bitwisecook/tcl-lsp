@@ -688,6 +688,34 @@ impl SubCommand {
             .map(|(_, r)| *r)
     }
 
+    /// Declared option-flag names for this subcommand, filtered by
+    /// *dialect*.
+    ///
+    /// Mirrors `_subcommand_switch_names` in
+    /// `core/commands/registry/runtime.py`: per-subcommand options
+    /// (e.g. `-symbolic` / `-hard` on `file link`) flow into the
+    /// subcommand's [`crate::analyser`]-side `leading_options` so the
+    /// arity check skips them before counting positionals.  An option's
+    /// dialect membership inherits from this subcommand's `dialects`
+    /// (falling back to *`parent_dialects`*, the parent
+    /// [`CommandSpec::dialects`]) when the option itself does not pin a
+    /// dialect.
+    #[must_use]
+    pub fn switch_names(
+        &self,
+        dialect: Option<DialectSet>,
+        parent_dialects: Option<DialectSet>,
+    ) -> Vec<&'static str> {
+        let effective_parent = self.dialects.or(parent_dialects);
+        let mut names: Vec<&'static str> = Vec::new();
+        for opt in self.options {
+            if opt.supports_dialect(dialect, effective_parent) && !names.contains(&opt.name) {
+                names.push(opt.name);
+            }
+        }
+        names
+    }
+
     /// Look up enumerable argument values for the 0-based
     /// `index` *after* the subcommand word.  Returns an empty
     /// slice when this argument has no fixed value set.
