@@ -1506,6 +1506,17 @@ mod tests {
     }
 
     #[test]
+    fn security_checks_recurse_into_command_substitutions() {
+        // The full per-command dispatch — not just bounds — runs on a
+        // substitution command, so `open "|$cmd"` nested in `[…]` still
+        // fires the W103 pipeline-injection check.
+        assert!(has_code(
+            "proc f {cmd} { set fh [open \"|$cmd\" r] }\n",
+            "W103"
+        ));
+    }
+
+    #[test]
     fn w231_length_not_recovered_across_scope_boundary() {
         // A `set` in a *different* proc body must not leak its length to a
         // top-level `lset` — `scope_is_flat` rejects the proc crossing.

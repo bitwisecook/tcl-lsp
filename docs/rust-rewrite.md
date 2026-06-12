@@ -5896,6 +5896,21 @@ and `FP_NAB_02_lindex_oor_smell_fires` now pass; 1 unit test.  The
 remaining `$var`-indexed bounds TPs (`FP_BND_01`/`FP_BND_03`) still need
 the interval domain (§E2), not this syntactic path.
 
+**LANDED (full per-command dispatch on `[…]` substitutions — battery
+2026-06-12).**  Generalised the substitution recursion above from the
+bounds family to the whole per-command dispatch
+(`emit_dispatch_site_diagnostics`: security W101-W312, bounds W230-W242,
+W001 / W004 / W304, arity E002-E003, …), matching Python's
+`_recurse_nested_commands` re-running the full `run_all_checks`.
+`run_nested_command_diagnostics` collects the descended substitution
+commands as owned `SegmentedCommand`s (so the immutable source borrow ends
+before the `&mut self` dispatch) and runs the dispatch on each, with the
+enclosing command's `scope_path` (a substitution shares its embedding
+command's frame).  Only `[…]` regions are entered, so the main walk's
+already-checked commands never double-fire.  Battery
+`FP_NAB_06_open_variable_pipe_fires_w103` (`set fh [open "|$cmd" r]`) now
+passes; zero battery / e2e regressions; +1 unit test.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
