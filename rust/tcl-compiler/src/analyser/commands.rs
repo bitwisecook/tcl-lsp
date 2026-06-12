@@ -461,6 +461,7 @@ impl Analyser {
             self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
         }
         self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
+        self.emit_w002_disabled_command(cmd_name, cmd_tok);
         if cmd_name == "if" {
             self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
         }

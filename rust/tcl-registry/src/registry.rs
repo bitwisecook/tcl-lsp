@@ -41,6 +41,16 @@ impl CommandRegistry {
         for spec in crate::commands::tcllib::tcllib_command_specs() {
             registry.insert(spec);
         }
+        // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
+        // are part of the always-known command universe: a `.tcl` script may
+        // `package require Tk` at runtime, and the diagnostics treat them as
+        // recognised under every Tcl dialect (Python loads Tk into its base
+        // registry).  Mark the dialect loaded so a later `load_dialect(TK)` is
+        // a no-op rather than a double-insert.
+        for spec in crate::commands::tk::tk_command_specs() {
+            registry.insert(spec);
+        }
+        registry.loaded_dialects |= DialectSet::TK;
         registry
     }
 
@@ -1143,11 +1153,21 @@ mod tests {
 
     #[test]
     fn load_tk_dialect() {
-        let base = CommandRegistry::build_default();
-        let base_count = base.len();
-        let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::TK);
-        assert!(reg.len() > base_count, "Tk should add commands");
+        // Tk is part of the always-known base registry now, so it is present
+        // by default and a later `load_dialect(TK)` is an idempotent no-op.
+        let reg = CommandRegistry::build_default();
+        assert!(
+            reg.get("grid").is_some(),
+            "Tk commands are loaded by default"
+        );
+        let base_count = reg.len();
+        let mut reg2 = CommandRegistry::build_default();
+        reg2.load_dialect(DialectSet::TK);
+        assert_eq!(
+            reg2.len(),
+            base_count,
+            "load_dialect(TK) is a no-op after default load"
+        );
     }
 
     #[test]

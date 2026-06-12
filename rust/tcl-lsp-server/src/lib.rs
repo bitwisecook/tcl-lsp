@@ -4159,6 +4159,16 @@ fn lift_compiler_diagnostics(
     // as HINT-severity suggestions (the editor renders the code-action
     // fix from the diagnostic; the fix plumbing itself is GAP-C3).
     for o in optimise_with_dialect(text, registry, dialect_opt) {
+        // Surface the fold/rewrite text as the quick-fix `data.replacement`
+        // (mirrors Python's `Optimisation.replacement` -> diagnostic data), so
+        // editors and the e2e battery can apply the suggested replacement.
+        let data = (!o.replacement.is_empty()).then(|| {
+            serde_json::json!({
+                "replacement": o.replacement,
+                "startOffset": o.span.start(),
+                "endOffset": o.span.end(),
+            })
+        });
         out.push(tower_lsp::lsp_types::Diagnostic {
             range: lift_span(text, &line_index, o.span),
             severity: Some(DiagnosticSeverity::HINT),
@@ -4168,7 +4178,7 @@ fn lift_compiler_diagnostics(
             message: o.message,
             related_information: None,
             tags: None,
-            data: None,
+            data,
         });
     }
 

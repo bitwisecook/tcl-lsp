@@ -977,9 +977,17 @@ fn visit_call_cmd_subst_folds(
             if let Some(folded) =
                 try_o129_fold(reg, &ctx.command_mutations, constants, inner, ctx.dialect)
             {
+                // `list` / `lindex` keep their historical diagnostic codes
+                // (O116 / O118) for editor granularity; everything else reports
+                // the general O129.  Mirrors `_propagation.py:335`.
+                let (code, message) = match inner.split_whitespace().next() {
+                    Some("list") => ("O116", "Fold constant list command"),
+                    Some("lindex") => ("O118", "Fold constant lindex command"),
+                    _ => ("O129", "Fold constant builtin command substitution"),
+                };
                 ctx.report(Optimisation::new(
-                    "O129",
-                    "Fold constant builtin command substitution",
+                    code,
+                    message,
                     full_word_span(ctx.source, *argv_span),
                     folded,
                 ));
@@ -2104,7 +2112,17 @@ mod tests {
         // brace-quoted by `render_propagation_word`.
         assert_eq!(fold("puts [concat a b c]"), vec!["{a b c}".to_string()]);
         assert_eq!(fold("puts [join {a b c} -]"), vec!["a-b-c".to_string()]);
-        assert_eq!(fold("puts [lindex {a b c} 1]"), vec!["b".to_string()]);
+        // `lindex` / `list` keep their historical codes (O118 / O116) for
+        // editor granularity, so filter by those rather than O129.
+        let fold_code = |src: &str, code: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == code)
+                .map(|o| o.replacement)
+                .collect()
+        };
+        assert_eq!(fold_code("puts [lindex {a b c} 1]", "O118"), vec!["b".to_string()]);
+        assert_eq!(fold_code("set x [list]", "O116"), vec!["{}".to_string()]);
         assert_eq!(fold("puts [dict get {a 1 b 2} b]"), vec!["2".to_string()]);
         assert_eq!(
             fold("puts [lreverse {a b c}]"),

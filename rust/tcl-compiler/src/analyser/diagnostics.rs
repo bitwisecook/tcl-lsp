@@ -3346,6 +3346,53 @@ Consider capturing the result: catch {\u{2026}} result"
     /// case, and ``{*}LITERAL`` for an unknown subcommand is rare
     /// enough in practice that the divergence is acceptable until
     /// expand-flag plumbing lands as its own chunk.
+    /// **W002** — the command is disabled in the active dialect profile: it
+    /// exists in the registry but not for the active dialect (e.g. `dict` under
+    /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
+    /// `$obj` / `[cmd]` head is W307's concern — and an earlier unconditional
+    /// user-proc definition that shadows the built-in suppresses it (Tcl
+    /// resolves the proc at the call site).  Mirrors `check_disabled_command`
+    /// in `analyser/checks/_domain.py`.
+    pub(super) fn emit_w002_disabled_command(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
+        use tcl_registry::prelude::DialectSet;
+        // A dynamic command head (`$obj method`, `[lookup] arg`) is resolved at
+        // runtime — W307 handles it, not W002.
+        if matches!(
+            cmd_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            return;
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let bare = cmd_name.trim_start_matches(':');
+        if bare.is_empty() {
+            return;
+        }
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // EXISTS in the active dialect → fine.  UNKNOWN everywhere → W123's
+        // concern.  Only DISALLOWED (exists in some dialect, not this one) fires.
+        if registry.get_for_dialect(bare, dialect).is_some() || registry.get(bare).is_none() {
+            return;
+        }
+        // An earlier *unconditional* user proc with this name shadows the
+        // would-be-disabled built-in at the call site.
+        let qualified = crate::naming::normalise_qualified_name(bare);
+        if let Some(def) = self.result.all_procs.get(&qualified) {
+            if def.name_span.start() < cmd_tok.span.start() {
+                return;
+            }
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W002".to_string(),
+            span: cmd_tok.span,
+            message: format!("'{cmd_name}' is disabled in the active dialect profile"),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     pub(super) fn emit_w001_unknown_subcommand(
         &mut self,
         cmd_name: &str,
@@ -3367,13 +3414,25 @@ Consider capturing the result: catch {\u{2026}} result"
         if first_arg.contains('$') || first_arg.contains('[') {
             return;
         }
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // Tk geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
+        // are recognised for the unknown-subcommand check regardless of the
+        // active Tcl dialect — a `.tcl` script may `package require Tk` at
+        // runtime, and Python fires W001 on `grid bogus` under every dialect.
+        let dialect =
+            DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL) | DialectSet::TK;
         let Some(CommandSignature::WithSubcommands(sig)) =
             signature_for_command(registry, cmd_name, dialect)
         else {
             return;
         };
         if sig.allow_unknown {
+            return;
+        }
+        // Tk geometry managers accept `manager pathName ?args?` as a shortcut
+        // for `manager configure pathName ?args?` (grid.n / pack.n / place.n).
+        // A window path starts with `.`, which is not a valid subcommand-name
+        // first character, so this is unambiguous.  Mirrors `compiler_checks.py`.
+        if matches!(cmd_name, "grid" | "pack" | "place") && first_arg.starts_with('.') {
             return;
         }
         if sig.subcommands.contains_key(first_arg) {

@@ -5426,6 +5426,41 @@ Closed the W220 dead-store pair, both faithful ports of Python's precision:
 Two ported unit tests with all controls (genuine dead store still fires;
 different keys / intervening read don't).  **W220 dead-store pair closed.**
 
+### SYNC-JUN12-misc — Tk W001, W002, O116 fold, LICM purity, bridge dialect (battery 6→2)
+
+Closed four self-contained battery gaps plus two diag-bridge limitations:
+
+- **FP-STY-01 (W001 on Tk `grid`).** `grid bogus .x` must fire W001.  Tk
+  commands weren't in the default registry — `build_default` now loads the Tk
+  pack (Python's base registry includes Tk; W001 fires under every dialect).
+  The W001 emitter folds `TK` into its dialect set and adds the geometry-manager
+  window-path shortcut (`grid .a .b` → no W001), mirroring `compiler_checks.py`.
+- **FP-NAB-10 (W002 command-disabled-in-dialect).** Implemented the missing
+  W002 emitter: a *literal* command head that exists in the registry but not for
+  the active dialect (`dict` under `tcl8.4`) fires, unless an earlier
+  unconditional user proc shadows it.  DISALLOWED = `get(name)` Some but
+  `get_for_dialect(name, dialect)` None, mirroring Python's `command_status`.
+- **FP-OPT-02 (O116 empty-list fold).** The const-fold now picks the code by
+  head (`list`→O116, `lindex`→O118, else O129) and the server lifts the fold
+  `replacement` into the diagnostic `data` (`{replacement, startOffset,
+  endOffset}`), mirroring `_propagation.py`.  `set x [list]` → O116 with
+  `data.replacement == "{}"`.
+- **FP-OPT-03 (LICM purity).** `[format %04d [incr testnum]]` is not
+  loop-invariant — the inner `[incr testnum]` mutates per iteration.  Fixed
+  `split_cmd_text` (`gvn.rs`) to keep a nested `[…]` / `{…}` region as one word
+  so `is_pure_command`'s recursive purity check sees the impure inner cmd-sub
+  (it was splitting `[incr testnum]` on the space and losing it).
+- **Diag-bridge dialect threading.** `tests/rust_diag_bridge.py` now opens the
+  probe document with the active `dialect_scope` dialect as the `languageId`
+  (re-opening on change), so dialect-sensitive batteries (W002, taint) analyse
+  under the right dialect.  `_to_diagnostic` surfaces the server's `data` so the
+  O116 quick-fix `replacement` is assertable.
+
+Ported unit tests for W001 window-shortcut, W002 (disabled/enabled/shadowed),
+O116/O118 fold codes, and LICM nested-impurity.  `cargo test --workspace`
+(2533) / clippy / fmt clean; no e2e regressions.  Remaining battery (2): T102
+path-prefix taint (INJ-04) and S101 per-iteration shimmer.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
