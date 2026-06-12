@@ -95,6 +95,19 @@ impl ProfileRegistry {
         self.namespaces.get(prefix)
     }
 
+    /// Whether `profile` is connection *infrastructure* — a transport
+    /// (`TCP`/`UDP`/`FASTL4`/`SCTP`) or shared-TLS/persistence
+    /// (`SSL_PERSISTENCE`/`PERSIST`) profile that the stack implies rather
+    /// than the operator selecting. The `# Profiles:` header code action
+    /// filters these out. Derives the former hardcoded `INFRA_PROFILES`
+    /// list from each profile's registered `layer` (mirrors the
+    /// `transport` / `tls_shared` layers of Python `_PROFILE_LAYERS`).
+    #[must_use]
+    pub fn is_infrastructure_profile(&self, profile: &str) -> bool {
+        self.get_profile(profile)
+            .is_some_and(|p| matches!(p.layer, "transport" | "tls_shared"))
+    }
+
     /// All registered profile names.
     #[must_use]
     pub fn all_profile_names(&self) -> Vec<&str> {
@@ -462,7 +475,10 @@ fn profile_specs() -> Vec<ProfileSpec> {
         },
         ProfileSpec {
             name: "PERSIST",
-            layer: "tls",
+            // Side-independent (shared) TLS/persistence layer — mirrors
+            // Python `_PROFILE_LAYERS["PERSIST"] == "tls_shared"`. Stack
+            // infrastructure, not an operator-selected profile.
+            layer: "tls_shared",
             side: "both",
             requires: &["TCP"],
             conflicts: &[],
@@ -598,7 +614,10 @@ fn profile_specs() -> Vec<ProfileSpec> {
         },
         ProfileSpec {
             name: "SSL_PERSISTENCE",
-            layer: "tls",
+            // Side-independent (shared) TLS layer — mirrors Python
+            // `_PROFILE_LAYERS["SSL_PERSISTENCE"] == "tls_shared"`. Stack
+            // infrastructure, not an operator-selected profile.
+            layer: "tls_shared",
             side: "client",
             requires: &["TCP"],
             conflicts: &[],
