@@ -19,6 +19,7 @@
 //! "each diagnostic is its own sub-strip" sequencing.
 
 use tcl_lexer::Span;
+use tcl_registry::events::EventRegistry;
 use tcl_registry::CommandRegistry;
 
 use crate::cfg_builder::build_cfg;
@@ -336,15 +337,6 @@ fn scan_when_body_for_drops(fu: &crate::compilation_unit::FunctionUnit) -> Vec<I
 // registry's `EventProps.client_side` / `server_side` flags override
 // when set exclusively.
 
-const DATA_EVENT_REQUIREMENTS: &[(&str, &[&str], &str)] = &[
-    ("CLIENT_DATA", &["TCP", "UDP"], "client"),
-    ("SERVER_DATA", &["TCP", "UDP"], "server"),
-    ("HTTP_REQUEST_DATA", &["HTTP"], "client"),
-    ("HTTP_RESPONSE_DATA", &["HTTP"], "server"),
-    ("CLIENTSSL_DATA", &["SSL"], "client"),
-    ("SERVERSSL_DATA", &["SSL"], "server"),
-];
-
 fn default_collect_side(event_name: &str) -> &'static str {
     let upper = event_name.to_ascii_uppercase();
     // Strip any priority index suffix (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
@@ -536,16 +528,23 @@ pub fn find_collect_flow_warnings(
 
     // Pass 2: emit per-event IRULE1005 (using the first when proc as
     // anchor span; finer span resolution requires the `when` event-token
-    // span which the analyser layer carries).
-    for (event, protocols, required_side) in DATA_EVENT_REQUIREMENTS {
-        if !events_seen.iter().any(|e| e == event) {
+    // span which the analyser layer carries). The collect requirement of
+    // each `*_DATA` event (protocols + side) comes from the event
+    // registry's `EventProps`, not a table here.
+    let events = EventRegistry::build();
+    let mut emitted_events: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for event in &events_seen {
+        let Some((protocols, required_side)) = events.data_collect_requirement(event) else {
+            continue;
+        };
+        if !emitted_events.insert(event.as_str()) {
             continue;
         }
         let satisfied = protocols.iter().any(|p| {
             state
                 .collected
                 .get(&p.to_ascii_uppercase())
-                .is_some_and(|s| s.contains(*required_side))
+                .is_some_and(|s| s.contains(required_side))
         });
         if satisfied {
             continue;
