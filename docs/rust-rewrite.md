@@ -5373,9 +5373,30 @@ Python's read-recovery precision, with no regressions:
   `namespace eval` bodies while still recovering same-frame `eval` reads.
   Mirrors Python's `_block_local_reads` `caller_scope=False` early-return.
 
-Three ported unit tests (incl. the `eval`-same-frame control).  The remaining
-W210 case — `upvar 1 $varName local; puts $local` (dynamic-target possibly-unset)
-— is the foundational dynamic-upvar model, tracked next.
+Three ported unit tests (incl. the `eval`-same-frame control).
+
+### SYNC-JUN12-w210b — dynamic-target upvar possibly-unset model (battery 9→8)
+
+Closed the last W210 battery case, `upvar 1 $varName local; puts $local`.  A
+dynamic `$name` / `[cmd]` upvar target may resolve to a non-existent caller
+variable, so the local is *possibly-unset* and an unconditional read errors
+(tclsh: `can't read "local": no such variable`).
+
+- **`lower_upvar`** (`lowering_hooks.rs`) now records a `local` as a clean def
+  only when its *caller target* is a literal name — a dynamic target yields no
+  def, so the read resolves to version-0 and the read-before-set pass sees it.
+  This aligns the upvar `Call.defs` with `upvar_local_declaration_indices`
+  (which already excluded dynamic targets) and Python's behaviour.
+- A new `scan_dynamic_upvar_locals` (`optimiser/elimination.rs`) collects those
+  locals into `UndefSuppression.dynamic_upvar_locals`; the W210 read-before-set
+  pass *overrides* the scope-alias suppression for them (an unconditional read
+  fires) while a literal-target upvar, an `[info exists local]` guard, and a
+  *write* through the alias (observable, never a dead store) all stay correct.
+  Mirrors Python's dynamic-target handling in `_collect_upvar_targets` /
+  `_read_before_set`.
+
+One ported unit test with all four controls (dynamic fires, literal/guarded
+suppressed, dynamic write not a W220 dead store).  **W210 cluster fully closed.**
 
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 

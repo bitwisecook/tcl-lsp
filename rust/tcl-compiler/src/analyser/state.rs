@@ -1358,6 +1358,46 @@ mod tests {
     }
 
     #[test]
+    fn w210_dynamic_target_upvar_is_possibly_unset() {
+        // TP-W210: `upvar 1 $varName local` aliases `local` to the caller var
+        // named by `$varName`; if that var doesn't exist the alias is a no-op
+        // and an unconditional `$local` read errors — so W210 fires.
+        let codes = rbs_codes("proc foo {varName} {\n  upvar 1 $varName local\n  puts $local\n}\n");
+        assert!(
+            codes.iter().any(|c| c == "W210"),
+            "dynamic-target upvar read: {codes:?}"
+        );
+        // A *literal*-target upvar aliases a concrete caller var, so the local
+        // is treated as bound — no W210.
+        let codes = rbs_codes("proc foo {} {\n  upvar 1 caller local\n  puts $local\n}\n");
+        assert!(
+            !codes.iter().any(|c| c == "W210"),
+            "literal-target upvar: {codes:?}"
+        );
+        // An `[info exists local]` guard suppresses the read.
+        let codes = rbs_codes(
+            "proc foo {varName} {\n  upvar 1 $varName local\n  if {[info exists local]} { puts $local }\n}\n",
+        );
+        assert!(
+            !codes.iter().any(|c| c == "W210"),
+            "guarded dynamic upvar: {codes:?}"
+        );
+        // A *write* through the alias is observable (goes to the caller var),
+        // so it is not a dead store even with a dynamic target.
+        let mut a = Analyser::new();
+        assert!(
+            !a.analyse(
+                "proc foo {v} {\n  upvar 1 $v local\n  set local 5\n}\n",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220"),
+            "write through a dynamic upvar alias is observable, not a dead store",
+        );
+    }
+
+    #[test]
     fn w210_gets_in_while_condition_writes_loop_var() {
         // FP-RBS-03: `[gets $fp line]` in the while condition writes `line`;
         // the body's `$line` reads must not fire W210.

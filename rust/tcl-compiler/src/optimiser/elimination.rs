@@ -855,6 +855,46 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
     out
 }
 
+/// Local names bound by an `upvar` (or `namespace upvar`) whose *caller
+/// target* is dynamic (`$name` / `[cmd]`).  Such an alias may resolve to a
+/// non-existent caller variable, so the local is possibly-unset: an
+/// unconditional read of it is a read-before-set (W210).  Kept separate from
+/// [`scan_scope_aliases`] (which still records the local for W211/W220, since
+/// a *write* through the alias is observable) — only the W210 read-before-set
+/// pass consults this set to *override* the scope-alias suppression.  Mirrors
+/// Python's dynamic-target handling in `_collect_upvar_targets` /
+/// `_read_before_set`.
+pub(crate) fn scan_dynamic_upvar_locals(cfg: &CfgFunction) -> HashSet<String> {
+    let mut out: HashSet<String> = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            let Statement::Call { command, args, .. } = stmt else {
+                continue;
+            };
+            // `upvar ?level? caller local …` or `namespace upvar ns caller local …`.
+            let start = match command.as_str() {
+                "upvar" => {
+                    let has_level = args
+                        .first()
+                        .is_some_and(|a| a.starts_with('#') || a.parse::<i64>().is_ok());
+                    usize::from(has_level)
+                }
+                "namespace" if args.first().map(String::as_str) == Some("upvar") => 2,
+                _ => continue,
+            };
+            let mut i = start;
+            while i + 1 < args.len() {
+                let caller = &args[i];
+                if caller.starts_with('$') || caller.starts_with('[') {
+                    out.insert(crate::naming::normalise_var_name(&args[i + 1]).to_owned());
+                }
+                i += 2;
+            }
+        }
+    }
+    out
+}
+
 /// Scan every CFG block for scope-alias commands (`global`,
 /// `variable`, `upvar`, `namespace upvar`) and collect the
 /// variable names they bind. Those must not be flagged as dead

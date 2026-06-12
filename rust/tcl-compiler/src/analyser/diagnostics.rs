@@ -1497,6 +1497,12 @@ struct UndefSuppression {
     /// suppress-only — mirrors Python's `command_sub_write_names` contribution
     /// to the `skip` set in `core_analyses.py::_read_before_set`.
     cmd_sub_writes: HashSet<String>,
+    /// Locals aliased to a *dynamic* upvar target (`upvar 1 $name local`).
+    /// The alias may resolve to a non-existent caller variable, so the local
+    /// is possibly-unset: read-before-set must *override* the scope-alias
+    /// suppression and fire on an unconditional read (an `[info exists]` guard
+    /// still suppresses it per-use).
+    dynamic_upvar_locals: HashSet<String>,
 }
 
 impl UndefSuppression {
@@ -1557,18 +1563,17 @@ fn collect_expr_cmd_sub_writes(
     out
 }
 
-fn build_undef_suppression(
+/// `dict with` / `dict update` key-aware suppression: record the dict-var
+/// names and, when the dict value is a same-block literal (or an
+/// interprocedurally-propagated SCCP const), its keys.  A value that resolves
+/// to neither marks the dict shape unknown.  Mirrors the dict-with arm of
+/// `_read_before_set`.
+fn harvest_dict_with_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
-) -> UndefSuppression {
+    s: &mut UndefSuppression,
+) {
     use crate::ir::Statement;
-    let mut s = UndefSuppression {
-        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
-        ..Default::default()
-    };
-
-    // `dict with` / `dict update`: harvest the dict-var names and, when the
-    // dict value is a same-block literal, its keys (key-aware suppression).
     for bn in considered {
         let Some(block) = fu.cfg.blocks.get(bn) else {
             continue;
@@ -1599,12 +1604,12 @@ fn build_undef_suppression(
                 continue;
             }
             s.dict_vars.insert(dvar.clone());
-            // Resolve the dict's value to harvest its keys.  Prefer the
-            // SCCP CONST of the SPECIFIC version read by this dict-with (so
-            // interprocedurally-propagated literals — a caller passing `{}`
-            // — are honoured), falling back to a same-block literal `set`.
-            // A known value (even empty) harvests its keys; only a value
-            // that resolves to neither marks the dict shape unknown.
+            // Resolve the dict's value to harvest its keys.  Prefer the SCCP
+            // CONST of the SPECIFIC version read by this dict-with (so
+            // interprocedurally-propagated literals — a caller passing `{}` —
+            // are honoured), falling back to a same-block literal `set`.  A
+            // known value (even empty) harvests its keys; only a value that
+            // resolves to neither marks the dict shape unknown.
             let mut literal: Option<String> = None;
             if let Some(sb) = fu.ssa.blocks.get(bn) {
                 if let Some(ver) = sb
@@ -1650,6 +1655,18 @@ fn build_undef_suppression(
             }
         }
     }
+}
+
+fn build_undef_suppression(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> UndefSuppression {
+    let mut s = UndefSuppression {
+        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
+        dynamic_upvar_locals: crate::optimiser::elimination::scan_dynamic_upvar_locals(&fu.cfg),
+        ..Default::default()
+    };
+    harvest_dict_with_suppression(fu, considered, &mut s);
 
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).
@@ -5868,7 +5885,11 @@ file; this call falls through to the 'unknown' handler."
             if params.contains(var.as_str()) {
                 continue;
             }
-            if scope_aliases.contains(var) {
+            // A dynamic-target upvar local is possibly-unset, so its
+            // scope-alias status must not suppress the read-before-set (an
+            // unconditional `$local` read still fires; an `[info exists local]`
+            // guard suppresses it per-use below).
+            if scope_aliases.contains(var) && !supp.dynamic_upvar_locals.contains(var) {
                 continue;
             }
             if extra_known_defined.contains(var) {
