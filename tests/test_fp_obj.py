@@ -376,8 +376,9 @@ def test_FP_OBJ_06_private_proc_body_analysed():
     """FP / control: a proc declared inside snit::type body is type-private but
     its body must still be analysed.  The `${a}($a)` scalar-vs-array smell
     inside the proc body must still fire — proves the body isn't silently
-    dropped."""
-    src = "snit::type T {\n    proc Helper {a} {\n        return [info exists ${a}($a)]\n    }\n}"
+    dropped.  (The marker is in a *value* position; a varname position would be
+    the legitimate indirect-array idiom and stay silent — see FP-STY-12.)"""
+    src = "snit::type T {\n    proc Helper {a} {\n        return ${a}($a)\n    }\n}"
     diags = _codes(src, "W216")
     assert diags, "snit private proc body must be analysed (expected W216)"
     assert "${a}($a)" in diags[0].message

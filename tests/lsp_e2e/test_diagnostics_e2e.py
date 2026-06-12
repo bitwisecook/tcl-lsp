@@ -185,6 +185,125 @@ class TestDiagnosticCanaries:
         assert lsp_server.open_ready(uri, src) == []
 
 
+class TestIndirectArrayIdiom:
+    """FP-STY-12: ``${var}(idx)`` in a varname position is the indirect-array-
+    element idiom (``var`` holds the array name), not a broken ``$var(idx)`` —
+    so neither W216 nor W212 fire through the server pipeline.  A value-position
+    ``${arr}(x)`` still fires W216."""
+
+    def test_set_indirect_array_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "set token ::http::1\nset ${token}(status) eof\n")
+        assert "W216" not in _codes(diags), _codes(diags)
+        assert "W212" not in _codes(diags), _codes(diags)
+
+    def test_info_exists_indirect_array_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "info exists ${token}(-pipeline)\n")
+        assert "W216" not in _codes(diags)
+        assert "W212" not in _codes(diags)
+
+    def test_unset_and_vwait_indirect_array_silent(self, lsp_server, uri_factory):
+        for src in ("unset ${tok}(socketcoro)\n", "vwait ${token}(status)\n"):
+            uri = uri_factory()
+            assert "W216" not in _codes(lsp_server.open_ready(uri, src)), src
+
+    def test_value_position_still_fires_w216(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "puts ${arr}(x)\n")
+        assert "W216" in _codes(diags), _codes(diags)
+        assert 0 in _on_line(diags, "W216")
+
+    def test_bare_dollar_name_still_fires_w212(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W212" in _codes(lsp_server.open_ready(uri, "set $x v\n"))
+
+
+class TestOverridableLibraryProcs:
+    """FP-STY-13: redefining an overridable Tcl *library* proc (``unknown``,
+    ``history``, ``auto_*`` …) is not shadowing a C built-in — no W113.
+    Redefining a genuine built-in (``set``/``clock``) still fires."""
+
+    def test_unknown_override_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W113" not in _codes(lsp_server.open_ready(uri, "proc unknown args { return }\n"))
+
+    def test_library_procs_silent(self, lsp_server, uri_factory):
+        for name in ("history", "auto_execok", "tcl_findLibrary", "pkg_mkIndex"):
+            uri = uri_factory()
+            src = f"proc {name} {{args}} {{ return }}\n"
+            assert "W113" not in _codes(lsp_server.open_ready(uri, src)), name
+
+    def test_c_builtin_override_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W113" in _codes(lsp_server.open_ready(uri, "proc set {a b} { return }\n"))
+
+    def test_non_bytecompiled_c_command_still_fires(self, lsp_server, uri_factory):
+        # clock/after/socket/glob are C commands (not byte-compiled) but must
+        # still fire — the library-proc exemption must not over-reach.
+        for name in ("clock", "after", "socket", "glob"):
+            uri = uri_factory()
+            src = f"proc {name} {{a}} {{ return }}\n"
+            assert "W113" in _codes(lsp_server.open_ready(uri, src)), name
+
+
+class TestSingleVarBodyW105:
+    """FP-STY-14: a body argument that is a single bare variable substitution
+    (``eval $cmd``, ``$state(-command)``, ``after 0 $coroName``) is a
+    script-valued reference, not an inline block — no W105 through the server
+    pipeline.  A quoted/composite interpolated body still fires."""
+
+    def test_eval_single_var_body_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W105" not in _codes(lsp_server.open_ready(uri, "eval $cmd\n"))
+
+    def test_callback_dispatch_body_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = "namespace eval :: $state(-command) $token\n"
+        assert "W105" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_after_and_dynamic_proc_silent(self, lsp_server, uri_factory):
+        for src in ("after 0 $coroName\n", "proc $fakeName $arglist $body\n"):
+            uri = uri_factory()
+            assert "W105" not in _codes(lsp_server.open_ready(uri, src)), src
+
+    def test_quoted_interpolated_body_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, 'eval "do $script"\n')
+        assert "W105" in _codes(diags), _codes(diags)
+        assert 0 in _on_line(diags, "W105")
+
+    def test_composite_body_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W105" in _codes(lsp_server.open_ready(uri, "eval $cmd$args\n"))
+
+
+class TestDollarBeforeCloseQuoteW306:
+    """FP-STY-15: a ``$`` immediately before a closing ``"`` (the regex
+    end-anchor ``"^foo$"`` / ``"\\n$"``) is literal — the lexer must not merge
+    the quoted word with the next, so no E002/E205 and no spurious W306.  A
+    live ``$bar`` in a quoted pattern still fires W306."""
+
+    def test_regsub_end_anchor_no_errors(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        codes = _codes(lsp_server.open_ready(uri, 'regsub "\\n$" $msg "" out\n'))
+        assert "E002" not in codes, codes
+        assert "E205" not in codes, codes
+        assert "W306" not in codes, codes
+
+    def test_string_match_end_anchor_no_arity(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "E002" not in _codes(lsp_server.open_ready(uri, 'string match "abc$" $x\n'))
+
+    def test_regex_end_anchor_no_w306(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W306" not in _codes(lsp_server.open_ready(uri, 'regexp -- "^foo$" $text\n'))
+
+    def test_live_var_in_quoted_pattern_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        assert "W306" in _codes(lsp_server.open_ready(uri, 'regexp -- "^foo$bar" $text\n'))
+
+
 class TestDiagnosticsTrackEdits:
     def test_fixing_the_source_clears_the_diagnostic(self, lsp_server, uri_factory):
         uri = uri_factory()
@@ -221,3 +340,109 @@ class TestDiagnosticsTrackEdits:
         lsp_server.replace_document(uri, 2, "set\n")
         diags = lsp_server.await_diagnostics(uri, version=2)
         assert "E002" in _codes(diags)
+
+
+class TestSoundnessRegressionsE2E:
+    """End-to-end coverage for three latent W210 soundness bugs surfaced
+    while reviewing the Rust port and fixed in the analyser.  Ground truth is
+    real tclsh 9.0.3; these drive the packaged server's ``publishDiagnostics``
+    over the full pipeline, not just the in-process checker.
+    """
+
+    # -- Omitted-arg call-site constants are poisoned (interproc) ---------- #
+
+    def test_omitted_default_arg_does_not_hide_read_before_set(self, lsp_server, uri_factory):
+        # ``p`` (slot 0 omitted → default ``x == 0``) leaves ``y`` unset, so
+        # ``puts $y`` is a real read-before-set; the literal ``1`` passed by
+        # ``p 1`` must not be bound as a constant for ``x``.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc p {{x 0}} {
+                if {$x} {
+                    set y 5
+                }
+                puts $y
+            }
+            p
+            p 1
+        """)
+        diags = lsp_server.open_ready(uri, src)
+        assert "W210" in _codes(diags), _codes(diags)
+        assert 4 in _on_line(diags, "W210"), [d.get("range") for d in diags]
+
+    def test_uniform_literal_arg_still_binds_silent(self, lsp_server, uri_factory):
+        # Every caller passes ``1`` at slot 0 → the constant binding holds, the
+        # ``if {$x}`` body is provably taken, ``y`` is always set: stay silent.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc q {{x 0}} {
+                if {$x} {
+                    set y 5
+                }
+                puts $y
+            }
+            q 1
+            q 1
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    # -- regexp ``-expanded`` is not unconditionally literal-safe ---------- #
+
+    def test_regexp_expanded_whitespace_pattern_silent(self, lsp_server, uri_factory):
+        # ``-expanded`` ignores unescaped whitespace, so ``{a b}`` matches the
+        # substring ``ab`` and writes ``v``; reading ``v`` must not fire W210.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc g {input} {
+                regexp -expanded {a b} $input v
+                puts $v
+            }
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_regexp_expanded_clean_literal_still_fires(self, lsp_server, uri_factory):
+        # A whitespace/``#``-free literal stays provably literal: ``{x}`` never
+        # matches ``X``, never writes ``w`` → reading ``w`` is read-before-set.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc g {} {
+                regexp -expanded {x} X w
+                puts $w
+            }
+        """)
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+    # -- try body throw keeps its handler exception edge ------------------- #
+
+    def test_try_body_throw_keeps_handler_defs_silent(self, lsp_server, uri_factory):
+        # ``x`` is set before the only throw, so the handler always sees it
+        # (tclsh prints ``1``): stay silent.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc f {} {
+                try {
+                    set x 1
+                    error boom
+                } on error {} {
+                    puts $x
+                }
+            }
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_try_body_earlier_conditional_throw_fires(self, lsp_server, uri_factory):
+        # The handler is reachable from every throw point; ``x`` is unset on the
+        # earlier ``if {$c} {error a}`` path, so the read is maybe-unset.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc f {c} {
+                try {
+                    if {$c} { error a }
+                    set x 1
+                    error b
+                } on error {} {
+                    puts $x
+                }
+            }
+        """)
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))

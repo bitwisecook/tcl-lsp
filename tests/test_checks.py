@@ -720,6 +720,126 @@ class TestCatchBodyDefsInCondition:
         assert len(diags) == 0
 
 
+class TestSoundnessRegressionsFromRustReview:
+    """Three latent soundness bugs surfaced while reviewing the Rust port.
+
+    Each was hiding a real read-before-set (W210) finding (or, for the
+    ``-expanded`` case, false-firing one).  Ground truth is real tclsh 9.0.3.
+    """
+
+    def test_omitted_arg_call_site_constant_is_poisoned(self):
+        """A parameter omitted by one caller takes its default, so the
+        constant another caller passes must NOT be bound to it.
+
+        tclsh 9.0.3: ``p`` (default ``x == 0``) leaves ``y`` unset, so
+        ``puts $y`` errors ``can't read "y"``.  Binding ``x = const(1)`` from
+        the ``p 1`` call site would analyse the ``if {$x}`` body as always
+        taken and hide the finding."""
+        src = "proc p {{x 0}} {\n    if {$x} {\n        set y 5\n    }\n    puts $y\n}\np\np 1"
+        assert len(_diag_with_code(src, "W210")) == 1
+
+    def test_uniform_literal_call_sites_still_bind(self):
+        """When every caller passes the same literal at a slot, the constant
+        binding still applies (no over-poisoning) — the ``if {$x}`` body is
+        provably taken, so ``y`` is always set and no W210 fires."""
+        src = "proc q {{x 0}} {\n    if {$x} {\n        set y 5\n    }\n    puts $y\n}\nq 1\nq 1"
+        assert len(_diag_with_code(src, "W210")) == 0
+
+    def test_regexp_expanded_whitespace_pattern_no_false_w210(self):
+        """``-expanded`` ignores unescaped whitespace, so ``regexp -expanded
+        {a b} $input v`` matches the substring ``ab`` and writes ``v``.
+
+        tclsh 9.0.3: ``regexp -expanded {a b} ab v`` returns 1 and sets
+        ``v == ab``.  The no-match proof must not claim no-match here, else a
+        later read of ``v`` false-fires W210."""
+        src = "proc g {input} {\n    regexp -expanded {a b} $input v\n    puts $v\n}"
+        assert len(_diag_with_code(src, "W210")) == 0
+
+    def test_regexp_expanded_clean_literal_still_proves_no_match(self):
+        """A whitespace-and-``#``-free literal stays provably literal under
+        ``-expanded``: ``regexp -expanded {x} X w`` never matches (returns 0)
+        and never writes ``w``, so reading ``w`` is genuinely read-before-set."""
+        src = "proc g {} {\n    regexp -expanded {x} X w\n    puts $w\n}"
+        assert len(_diag_with_code(src, "W210")) == 1
+
+    def test_try_body_unconditional_throw_keeps_handler_defs(self):
+        """A ``try`` body that always throws after defining a var: the
+        on-error handler is reachable only from the throw point, where the
+        var is set.
+
+        tclsh 9.0.3: ``try {set x 1; error boom} on error {} {puts $x}``
+        prints ``1``.  The handler must source its versions from the throwing
+        block (``x`` set), not the pre-``try`` block (``x`` unset)."""
+        src = (
+            "proc f {} {\n"
+            "    try {\n"
+            "        set x 1\n"
+            "        error boom\n"
+            "    } on error {} {\n"
+            "        puts $x\n"
+            "    }\n"
+            "}"
+        )
+        assert len(_diag_with_code(src, "W210")) == 0
+
+    def test_try_body_throw_genuine_read_before_set_still_warns(self):
+        """A handler reading a var the body never set still fires W210 —
+        the throwing-block edge keeps a never-set var version-0."""
+        src = (
+            "proc f {} {\n"
+            "    try {\n"
+            "        error boom\n"
+            "    } on error {} {\n"
+            "        puts $y\n"
+            "    }\n"
+            "}"
+        )
+        assert len(_diag_with_code(src, "W210")) == 1
+
+    def test_try_body_earlier_conditional_throw_still_warns(self):
+        """The handler is reachable from *every* throw point, so a var set
+        before a late throw but unset on an earlier conditional throw is
+        maybe-unset and must still fire W210.
+
+        tclsh 9.0.3: ``f 1`` enters the handler with ``x`` UNSET (the
+        ``if {$c} {error a}`` fires before ``set x 1``); ``f 0`` enters with
+        ``x == 1``.  Sourcing the on-error edge only from the *last* throw
+        (``error b``, where ``x`` is set) would miss the unset path."""
+        src = (
+            "proc f {c} {\n"
+            "    try {\n"
+            "        if {$c} { error a }\n"
+            "        set x 1\n"
+            "        error b\n"
+            "    } on error {} {\n"
+            "        puts $x\n"
+            "    }\n"
+            "}"
+        )
+        diags = _diag_with_code(src, "W210")
+        assert [d.message for d in diags] == ["Variable 'x' is read before it is set"]
+
+    def test_try_nested_caught_throw_not_attributed_to_outer(self):
+        """A throw raised and caught by a nested ``try`` is not an outer throw
+        point.  The outer handler is reachable only from the outer body's own
+        throws, where ``x`` is provably set, so no W210 fires.
+
+        tclsh 9.0.3: the inner ``error inner`` is swallowed, so the outer
+        handler always sees ``x == 1``."""
+        src = (
+            "proc f {} {\n"
+            "    try {\n"
+            "        set x 1\n"
+            "        try { error inner } on error {} { }\n"
+            "        error outer\n"
+            "    } on error {} {\n"
+            "        puts $x\n"
+            "    }\n"
+            "}"
+        )
+        assert len(_diag_with_code(src, "W210")) == 0
+
+
 class TestInfoExistsNotReadBeforeSet:
     """`info exists`/`array exists` is the canonical test-before-use idiom —
     referencing an unset variable there is legal (returns 0), so it must never
@@ -2047,22 +2167,27 @@ class TestUnbracedBody:
         assert len(diags) == 1
         assert diags[0].severity == Severity.ERROR
 
-    def test_eval_var_quickfix_preserves_dollar(self):
-        # Regression for #438 — the quick-fix used to wrap ``args[idx]``
-        # (the *post-substitution* value, ``script``) and produced
-        # ``{script}``, silently dropping the ``$``.  It must wrap the
-        # raw source slice so ``$script`` round-trips intact.
-        diags = _diag_with_code("eval $script", "W105")
-        assert len(diags) == 1
-        assert diags[0].fixes
-        assert diags[0].fixes[0].new_text == "{$script}"
+    def test_eval_single_var_body_not_flagged(self):
+        # FP-STY-14: ``eval $script`` is a *script-valued reference* — the
+        # variable already holds the script — not an inline code block.
+        # Bracing it (``{$script}``) would evaluate the literal text
+        # ``$script``, so W105 must NOT fire (the eval-injection risk is
+        # W101's to flag).  Consistent with ``uplevel $script`` (long silent).
+        assert _diag_with_code("eval $script", "W105") == []
 
-    def test_while_var_quickfix_preserves_dollar(self):
-        # Same shape as above for ``while`` body argument.
-        diags = _diag_with_code("while 1 $body", "W105")
+    def test_while_single_var_body_not_flagged(self):
+        # FP-STY-14: same for a ``while`` body that is a single bare variable.
+        assert _diag_with_code("while 1 $body", "W105") == []
+
+    def test_quoted_var_body_quickfix_preserves_dollar(self):
+        # Regression for #438 — when W105 DOES fire (a quoted body with
+        # interpolation, ``eval "do $script"``), the quick-fix must wrap the
+        # raw source slice so ``$script`` round-trips intact (it must not wrap
+        # the post-substitution value and drop the ``$``).
+        diags = _diag_with_code('eval "do $script"', "W105")
         assert len(diags) == 1
         assert diags[0].fixes
-        assert diags[0].fixes[0].new_text == "{$body}"
+        assert diags[0].fixes[0].new_text == "{do $script}"
 
 
 # W106: Dangerous unbraced switch body
@@ -2187,10 +2312,19 @@ class TestLiteralExpected:
         assert len(diags) == 1
         assert "quotes" in diags[0].message.lower()
 
-    def test_regexp_quoted_pattern_with_dollar_anchor(self):
-        # The classic foot-gun: ``$"`` is unintended substitution where
-        # the user likely meant the regex end-of-line anchor.
-        diags = _diag_with_code('regexp -- "^foo$" $text', "W306")
+    def test_regexp_quoted_dollar_anchor_clean(self):
+        # FP-STY-15: ``$`` immediately before the closing ``"`` (``"^foo$"``)
+        # is a *literal* ``$`` — the regex end-of-line anchor — not a Tcl
+        # substitution (``"`` is not a variable-name character), so W306 must
+        # NOT fire.  tclsh: ``regexp -- "^foo$" "foo"`` → 1.  (Pre-fix a lexer
+        # bug merged the closing quote with the following word, making the
+        # ``$`` look like a live substitution.)
+        assert _diag_with_code('regexp -- "^foo$" $text', "W306") == []
+
+    def test_regexp_quoted_live_dollar_var_still_fires(self):
+        # TP control: ``$bar`` (a real substitution — ``b`` is a name char)
+        # in a quoted regex pattern IS the foot-gun and still fires W306.
+        diags = _diag_with_code('regexp -- "^foo$bar" $text', "W306")
         assert len(diags) == 1
 
     def test_class_match_literal_name_clean(self):
@@ -2313,10 +2447,10 @@ $obj greet world
     def test_snit_type_private_proc_still_analysed(self):
         """A ``proc`` inside a snit body is a type-private proc — its body must
         still be analysed (not silently dropped)."""
-        src = (
-            "snit::type T {\n    proc Helper {a} {\n        return [info exists ${a}($a)]\n    }\n}"
-        )
-        # The ${a}($a) scalar-vs-array smell must still fire from the proc body.
+        src = "snit::type T {\n    proc Helper {a} {\n        return ${a}($a)\n    }\n}"
+        # The ${a}($a) scalar-vs-array smell (in a *value* position — a varname
+        # position would be the legitimate indirect-array idiom) must still fire
+        # from the proc body.
         diags = _diag_with_code(src, "W216")
         assert len(diags) == 1
         assert "${a}($a)" in diags[0].message

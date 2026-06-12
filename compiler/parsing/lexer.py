@@ -817,7 +817,17 @@ class TclLexer:
             ):
                 return self._parse_expand()
             return self._parse_brace()
-        if newword and self.remaining and self._cur() == '"':
+        # ``not self.insidequote`` guard: a bare ``$`` at the tail of a quoted
+        # word (``"abc$"``) is emitted as a STR token *inside* the quote, so we
+        # re-enter here with ``newword`` True and ``insidequote`` still True and
+        # the cursor on the **closing** ``"``.  Without the guard that closing
+        # quote was misread as a *new opening* quote, swallowing the following
+        # words into one token (``regsub "abc$" $x …`` merged ``"abc$" $x`` →
+        # spurious E205 "extra characters after close-quote" + E002 arity).
+        # When already inside a quote the ``"`` is the closer — fall through to
+        # the scanner, which handles it at the ``ch == '"' and insidequote``
+        # branch below.
+        if newword and self.remaining and self._cur() == '"' and not self.insidequote:
             self.insidequote = True
             self._advance()
         self._start = self.pos

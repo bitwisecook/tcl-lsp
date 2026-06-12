@@ -389,3 +389,241 @@ def test_FP_STY_11_scan_fewer_specifiers_than_vars_still_fires():
     assert _codes(src, "W210"), (
         "scan with one %s but a ``return $v2`` must fire W210 on v2 (never written)"
     )
+
+
+# FP-STY-12 — W216 / W212 braced indirect-array-element idiom ${var}(idx)
+
+
+def test_FP_STY_12_set_indirect_array_no_w216_w212():
+    """FP: ``set ${token}(status) eof`` where ``token`` holds an array name
+    is the canonical indirect-array-element write — ``${token}`` substitutes
+    the array name and ``(status)`` is the appended literal index.  Both the
+    W216 ``did you mean $token(status)`` suggestion and the W212
+    ``did you mean token(status)`` suggestion are wrong, so neither fires."""
+    src = "set token ::http::1\nset ${token}(status) eof\n"
+    assert _codes(src, "W216") == []
+    assert _codes(src, "W212") == []
+
+
+def test_FP_STY_12_info_exists_indirect_no_w216_w212():
+    """FP: ``info exists ${token}(-pipeline)`` indirect-array read."""
+    src = "info exists ${token}(-pipeline)\n"
+    assert _codes(src, "W216") == []
+    assert _codes(src, "W212") == []
+
+
+def test_FP_STY_12_unset_indirect_no_w216():
+    """FP: ``unset ${tok}(socketcoro)`` — unset takes a varname, so the
+    indirect-array form is the intended element unset."""
+    src = "unset ${tok}(socketcoro)\n"
+    assert _codes(src, "W216") == []
+    assert _codes(src, "W212") == []
+
+
+def test_FP_STY_12_vwait_incr_append_lappend_indirect_no_w216():
+    """FP variants: every varname-taking command honours the indirect idiom."""
+    for src in (
+        "vwait ${token}(status)\n",
+        "incr ${arr}(n)\n",
+        "append ${arr}(buf) x\n",
+        "lappend ${arr}(list) item\n",
+    ):
+        assert _codes(src, "W216") == [], f"W216 should be silent on {src!r}"
+        assert _codes(src, "W212") == [], f"W212 should be silent on {src!r}"
+
+
+def test_FP_STY_12_value_position_still_fires_w216():
+    """TP control: in a *value* position ``${arr}(x)`` is a broken read for
+    ``$arr(x)`` (Tcl errors ``variable is array``), so W216 still fires."""
+    assert _codes("puts ${arr}(x)\n", "W216"), "value-position ${arr}(x) must fire W216"
+    assert _codes("set y ${arr}(x)\n", "W216"), "value-position ${arr}(x) must fire W216"
+
+
+def test_FP_STY_12_bare_dollar_name_still_fires_w212():
+    """TP control: bare ``set $x`` and ``set $arr(idx)`` are genuine
+    dynamic-name foot-guns (no braces → not the indirect-array idiom)."""
+    assert _codes("set $x v\n", "W212"), "set $x must still fire W212"
+    assert _codes("set $arr(idx) v\n", "W212"), "set $arr(idx) must still fire W212"
+
+
+def test_FP_STY_12_index_less_brace_still_fires_w212():
+    """TP control: ``set ${x} v`` (no ``(idx)`` suffix) is the dynamic-name
+    foot-gun, not the indirect-array idiom, so W212 still fires."""
+    assert _codes("set ${x} v\n", "W212"), "set ${x} must still fire W212"
+
+
+# FP-STY-13 — W113 redefining an overridable Tcl library procedure
+
+
+def test_FP_STY_13_unknown_override_no_w113():
+    """FP: ``proc unknown`` is the documented Tcl extension hook (a Tcl
+    library proc, not a C built-in) — redefining it is supported, so no W113."""
+    assert _codes("proc unknown args { return }\n", "W113") == []
+
+
+def test_FP_STY_13_library_procs_no_w113():
+    """FP variants: the overridable Tcl *library* procedures (defined in
+    init.tcl / auto.tcl / history.tcl / package.tcl / word.tcl) are not C
+    built-ins and must not fire W113 when redefined."""
+    for name, params in (
+        ("history", "{args}"),
+        ("auto_execok", "name"),
+        ("auto_load", "{cmd {ns {}}}"),
+        ("auto_mkindex", "{dir args}"),
+        ("auto_qualify", "{cmd ns}"),
+        ("auto_reset", "{}"),
+        ("parray", "{a {pattern *}}"),
+        ("pkg_mkIndex", "args"),
+        ("tcl_findLibrary", "{a b c d e f}"),
+        ("tcl_wordBreakAfter", "{str start}"),
+        ("tcl_endOfWord", "{str start}"),
+    ):
+        src = f"proc {name} {params} {{ return }}\n"
+        assert _codes(src, "W113") == [], f"W113 should be silent on {name!r}"
+
+
+def test_FP_STY_13_c_builtin_still_fires_w113():
+    """TP control: redefining a genuine C built-in (byte-compiled) still fires."""
+    assert _codes("proc set {a b} { return }\n", "W113"), "proc set must fire W113"
+    assert _codes("proc puts {a} { return }\n", "W113"), "proc puts must fire W113"
+
+
+def test_FP_STY_13_non_bytecompiled_c_command_still_fires_w113():
+    """TP control: C commands that are *not* byte-compiled but dangerous to
+    redefine (clock/after/socket/glob) must NOT be swept up by the
+    library-proc exemption — they keep firing W113."""
+    for name in ("clock", "after", "socket", "glob"):
+        src = f"proc {name} {{a}} {{ return }}\n"
+        assert _codes(src, "W113"), f"proc {name} must still fire W113"
+
+
+# FP-STY-14 — W105 single bare-variable body is a script reference
+
+
+def test_FP_STY_14_eval_single_var_body_no_w105():
+    """FP: ``eval $cmd`` — the variable holds the script; bracing it
+    (``eval {$cmd}``) evaluates the literal text ``$cmd`` (a different,
+    usually-erroring program), so the W105 brace-fix is wrong and must not
+    fire.  The eval-injection risk is W101's to flag."""
+    assert _codes("eval $cmd", "W105") == []
+
+
+def test_FP_STY_14_callback_dispatch_body_no_w105():
+    """FP: ``namespace eval :: $state(-command) $token`` is registered-callback
+    dispatch (the same shape W307 already accepts); W105 must not double-flag
+    it at Error severity."""
+    assert _codes("namespace eval :: $state(-command) $token", "W105") == []
+
+
+def test_FP_STY_14_dynamic_proc_and_after_no_w105():
+    """FP variants: every single-bare-variable body is a script reference."""
+    for src in (
+        "proc $fakeName $arglist $body",
+        "after 0 $coroName",
+        "interp eval $child $contents",
+        "foreach name $nameList $body",
+        "uplevel $script",
+    ):
+        assert _codes(src, "W105") == [], f"W105 should be silent on {src!r}"
+
+
+def test_FP_STY_14_quoted_interpolated_body_still_fires():
+    """TP control: a *quoted* body with interpolation (``eval "do $script"``)
+    really is an inline script being woven from substitutions — it can and
+    should be braced, so W105 still fires."""
+    assert _codes('eval "do $script"', "W105"), "quoted interpolated body must fire W105"
+
+
+def test_FP_STY_14_composite_body_still_fires():
+    """TP control: a composite body (var + concatenation) still fires — it is
+    not a single bare reference."""
+    assert _codes("eval $cmd$args", "W105"), "composite body must fire W105"
+    assert _codes("fileevent $s readable ${t}--Coro", "W105"), "composite body must fire W105"
+
+
+# FP-STY-15 — lexer: $ before a closing " merged the quoted word with the next
+
+
+def _all(source: str):
+    from server.features.diagnostics import get_diagnostics
+
+    return {d.code for d in get_diagnostics(source)}
+
+
+def test_FP_STY_15_regsub_dollar_anchor_no_errors():
+    """FP: ``regsub "\\n$" $msg "" out`` — ``"\\n$"`` is a literal regex
+    end-of-line anchor (``$`` before ``"`` is not a substitution).  Pre-fix the
+    lexer merged the closing quote with ``$msg``, raising E002/E205/W306 on
+    valid Tcl."""
+    codes = _all(r'regsub "\n$" $msg "" out')
+    assert "E002" not in codes
+    assert "E205" not in codes
+    assert "W306" not in codes
+
+
+def test_FP_STY_15_string_match_dollar_anchor_no_arity():
+    """FP: ``string match "abc$" $x`` is two args after ``match``; the tail
+    ``$`` must not merge ``"abc$"`` with ``$x`` into one word (E002)."""
+    assert "E002" not in _all('string match "abc$" $x')
+
+
+def test_FP_STY_15_dollar_quote_word_boundary_lexes():
+    """FP (token level): ``"abc$" $x`` is two words — the closing ``"`` must
+    terminate the quoted word so ``$x`` is a separate token."""
+    from compiler.parsing.lexer import TclLexer
+
+    toks = [t for t in TclLexer('"abc$" $x').tokenise_all() if t.type.name not in ("EOF", "EOL")]
+    # Must contain a SEP (the word boundary) and a standalone VAR 'x'.
+    assert any(t.type.name == "SEP" for t in toks), [t.type.name for t in toks]
+    assert any(t.type.name == "VAR" and t.text == "x" for t in toks), [
+        (t.type.name, t.text) for t in toks
+    ]
+
+
+def test_FP_STY_15_regex_end_anchor_no_w306():
+    """FP: ``regexp -- "^foo$" $text`` — the ``$`` is the literal end-anchor,
+    not a substitution, so W306 must not fire."""
+    assert "W306" not in _all('regexp -- "^foo$" $text')
+
+
+def test_FP_STY_15_live_var_in_quoted_pattern_still_w306():
+    """TP control: a genuine live ``$bar`` (b is a name char) in a quoted regex
+    pattern is the foot-gun and still fires W306."""
+    assert "W306" in _all('regexp -- "^foo$bar" $text')
+
+
+# FP-STY-16 — W201 manual-path-concat on prose / protocol / display strings
+
+
+def test_FP_STY_16_http_request_line_no_w201():
+    """FP: ``"CONNECT $host:$port HTTP/1.1"`` is an HTTP request line — the
+    ``/`` is the protocol version, not a path separator.  ``[file join]`` would
+    shred it on the spaces, so W201 must not fire."""
+    assert _codes('set bypass "CONNECT $host:$port HTTP/1.1"', "W201") == []
+
+
+def test_FP_STY_16_usage_message_no_w201():
+    """FP: a usage / display message is not a filesystem path."""
+    assert _codes('set msg "Usage: [file tail $exe] script "', "W201") == []
+
+
+def test_FP_STY_16_prose_with_path_no_w201():
+    """FP: prose that merely mentions a path (``"see $dir/readme for help"``)
+    is display text, not path construction."""
+    assert _codes('set x "see $dir/readme for help"', "W201") == []
+
+
+def test_FP_STY_16_genuine_path_concat_still_fires():
+    """TP control: a real path-building concat with no literal whitespace
+    still fires W201."""
+    assert _codes('set f "$dir/$name"', "W201"), "genuine path concat must fire W201"
+    assert _codes("set p $root/sub/$file", "W201"), "genuine path concat must fire W201"
+
+
+def test_FP_STY_16_path_with_command_sub_still_fires():
+    """TP control: ``set f "$dir/[file tail $path]"`` — the command sub's
+    *internal* spaces are inside one CMD token and must NOT suppress; this is a
+    genuine path concat and still fires W201."""
+    assert _codes('set f "$dir/[file tail $path]"', "W201"), (
+        "path concat with command-sub segment must still fire W201"
+    )

@@ -25,6 +25,7 @@ from compiler.registry.runtime import (
     arg_indices_for_role,
 )
 from shared.codes import diag
+from shared.naming import is_braced_indirect_array_ref
 from shared.ranges import (
     position_from_relative,
     range_from_token,
@@ -297,6 +298,30 @@ def check_subst_nocommands(
 # W105: Unbraced code block
 
 
+_W105_NON_CONTENT_TOKENS = frozenset(
+    {TokenType.SEP, TokenType.EOL, TokenType.EOF, TokenType.COMMENT}
+)
+
+
+def _word_is_single_var(all_tokens: list[Token], word_tok: Token) -> bool:
+    """Return True when the word spanned by *word_tok* is a single bare
+    variable substitution (``$cmd`` / ``${cmd}`` / ``$state(-command)`` /
+    ``$ns::var``).
+
+    Such a word is a *script-valued reference* — the variable already holds
+    the script — not an inline code block, so W105's "wrap in braces" advice
+    is wrong (``{$cmd}`` would evaluate the literal text ``$cmd``).  A
+    composite word that merely *starts* with a var (``${t}--Coro``) or a
+    quoted body with interpolation (``"set x $y"``) has more than one content
+    token and is *not* exempt."""
+    s = word_tok.start.offset
+    e = word_tok.end.offset
+    inside = [
+        t for t in all_tokens if s <= t.start.offset <= e and t.type not in _W105_NON_CONTENT_TOKENS
+    ]
+    return len(inside) == 1 and inside[0].type is TokenType.VAR
+
+
 @diag(
     "W105",
     "Unbraced code block or missing `variable` declaration in `namespace eval`.",
@@ -337,6 +362,19 @@ def check_unbraced_body(
         # ``eval [list puts $a]`` does not re-substitute ``$a``) and it cannot
         # be braced (``eval {[list …]}`` changes the meaning).  Don't flag it.
         if tok.type is TokenType.CMD:
+            continue
+
+        # A body that is a *single bare variable substitution* (``eval $cmd``,
+        # ``namespace eval :: $state(-command)``, ``proc $n $a $body``,
+        # ``after 0 $coroName``) is a script-valued reference, not an inline
+        # code block: the variable already holds the script.  Bracing it
+        # (``{$cmd}``) would turn the reference into the literal text ``$cmd``
+        # — the W105 quick-fix is actively wrong here — and the genuine
+        # double-substitution (eval) / dynamic-dispatch (command name) risks
+        # are W101's and W307's to flag.  ``uplevel $script`` is already
+        # silent; this makes ``eval`` and the callback-dispatch forms
+        # consistent with it.
+        if _word_is_single_var(all_tokens, tok):
             continue
 
         # Skip if body looks like a single bare word (e.g. a proc name,
@@ -1108,6 +1146,14 @@ def check_name_vs_value(
         # #527 convention), so pull in the closing brace too.
         if written.startswith("${") and e + 1 < len(source) and source[e + 1] == "}":
             written = source[s : e + 2]
+        # ``set ${token}(status) …`` is the braced indirect-array-element
+        # idiom, not a name-vs-value foot-gun: ``${token}`` substitutes the
+        # array *name* and ``(status)`` is the literal index appended, so the
+        # element written is ``<value-of-token>(status)``.  There is no safer
+        # rewrite (``token(status)`` would target a literally-named array), so
+        # this is not a W212 — only a value-position ``$arr(x)`` typo is.
+        if is_braced_indirect_array_ref(written):
+            continue
         # The literal name to suggest: strip only the *outer* substitution syntax
         # — the leading ``$`` and a ``${…}`` wrapping the reference — which is the
         # indirection W212 flags, while keeping a legitimate inner substitution
