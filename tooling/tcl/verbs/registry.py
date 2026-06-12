@@ -14,6 +14,7 @@ import argparse
 import json
 
 from tooling.cli._utils import _write_text_output
+from tooling.explorer.pipeline import AVAILABLE_DIALECTS
 from tooling.registry_snapshot import (
     TCL_DIALECTS,
     command_registry_snapshot,
@@ -46,6 +47,7 @@ def _configure_registry_dump(
     group = p.add_mutually_exclusive_group()
     group.add_argument(
         "--dialect",
+        choices=AVAILABLE_DIALECTS,
         default=default_dialect,
         help=f"Dialect to dump (default: {default_dialect}).",
     )
