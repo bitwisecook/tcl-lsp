@@ -1470,6 +1470,41 @@ mod tests {
         );
     }
 
+    fn has_code(src: &str, code: &str) -> bool {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == code)
+    }
+
+    #[test]
+    fn bounds_checks_recurse_into_command_substitutions() {
+        // The main walk never descends a `[…]` substitution, so the
+        // bounds family runs on its inner commands via the nested-bounds
+        // recursion.
+        assert!(has_code("set x [lindex {a b c} 9]\n", "W230"));
+        assert!(has_code(
+            "proc f {} { return [string index abc 99] }\n",
+            "W232"
+        ));
+        // Nested two deep: `[foo [string index abc 99]]`.
+        assert!(has_code(
+            "proc f {} { return [join [string index abc 99]] }\n",
+            "W232"
+        ));
+        // A bare (non-substituted) command is still checked exactly once —
+        // the recursion only enters `[…]`, so no double-fire.
+        let mut a = Analyser::new();
+        let n = a
+            .analyse("set x [lindex {a b c} 9]\n", "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W230")
+            .count();
+        assert_eq!(n, 1);
+    }
+
     #[test]
     fn w231_length_not_recovered_across_scope_boundary() {
         // A `set` in a *different* proc body must not leak its length to a

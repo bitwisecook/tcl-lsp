@@ -5878,6 +5878,24 @@ when the between-text stays at brace depth zero and crosses no
 body while still rejecting cross-scope leaks; 2 unit tests, battery W231
 proc-body TPs (`lset l 99 X`, `lset l end X` on `{}`) now pass.
 
+**LANDED (bounds checks recurse into `[…]` substitutions — battery
+2026-06-12).**  The main analyser walk descends proc / control-flow
+*bodies* (so their commands run the per-command syntactic checks) but
+treats a `[cmd …]` substitution as an opaque value and never descends it
+— so `set x [string index abc 99]` / `return [lindex {a b c} 9]` escaped
+the index-bounds family entirely.  Added `run_nested_bounds_diagnostics`
+(+ free `collect_substitution_bounds` / `run_segment_bounds`), the bounds
+companion of the existing `collect_substitution_heads` W123/W307 walk:
+for each `[…]` word it descends the substitution and runs W230 / W231 /
+W232 + W240-W242 on every inner command, recursing into nested `[…]` and
+the inner commands' own bodies.  Mirrors main's `_recurse_nested_commands`
+re-running `run_all_checks`.  Only `[…]` regions are entered, so a command
+the main walk already checked never double-fires (verified by a
+count-of-one unit test).  Battery `TP_W232_string_index_past_end_is_smell`
+and `FP_NAB_02_lindex_oor_smell_fires` now pass; 1 unit test.  The
+remaining `$var`-indexed bounds TPs (`FP_BND_01`/`FP_BND_03`) still need
+the interval domain (§E2), not this syntactic path.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL

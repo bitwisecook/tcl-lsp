@@ -262,6 +262,16 @@ impl Analyser {
         // (Python).
         self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
 
+        // Run the per-command index-bounds checks (W230/W231/W232 +
+        // loop-termination) on commands nested inside ``[…]``
+        // substitutions — the main walk never descends a substitution
+        // (it treats `[cmd …]` as a value), so `set x [string index abc
+        // 99]` / `return [lindex {a b c} 9]` would otherwise escape the
+        // syntactic bounds checks.  Mirrors main's
+        // ``_recurse_nested_commands`` re-running ``run_all_checks`` on
+        // each descended substitution command.
+        self.run_nested_bounds_diagnostics(arg_tokens_in);
+
         // **C41d3.** Record variable-as-command and
         // command-substitution-as-command call sites so the
         // post-walk W307 / W308 emitters can resolve them.
@@ -716,6 +726,45 @@ impl Analyser {
         self.push_collected_heads(heads);
     }
 
+    /// Run the syntactic index-bounds checks on every command nested in a
+    /// ``[…]`` substitution of this command's words, recursing into
+    /// further nested substitutions.  The main analyser walk descends
+    /// proc / control-flow *bodies* (so those commands are already
+    /// checked) but never a ``[…]`` substitution, which it treats as an
+    /// opaque value — so the bounds family (W230 `lindex`, W231 `lset`,
+    /// W232 `string index`/…, W240-W242 loop-termination) would miss
+    /// `set x [string index abc 99]` / `return [lindex {a b c} 9]`.
+    /// Mirrors main's ``_recurse_nested_commands`` re-running
+    /// ``run_all_checks`` on each descended substitution command.
+    ///
+    /// Only ``[…]`` regions are entered here; everything inside one is
+    /// invisible to the main walk, so the recursion may freely descend
+    /// the nested commands' own bodies and substitutions without
+    /// double-firing a diagnostic the main walk already emitted.
+    fn run_nested_bounds_diagnostics(&mut self, arg_tokens_in: &[Token]) {
+        let config = self.lexer_config();
+        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
+        {
+            let sm = SourceMap::new(&self.source);
+            for arg_tok in arg_tokens_in {
+                if arg_tok.kind != TokenType::Cmd {
+                    continue;
+                }
+                for frag in self.cmd_fragments(*arg_tok, config) {
+                    collect_substitution_bounds(
+                        &sm,
+                        self.registry.as_ref(),
+                        &self.source,
+                        frag,
+                        config,
+                        &mut diags,
+                    );
+                }
+            }
+        }
+        self.result.diagnostics.extend(diags);
+    }
+
     /// The `[…]` substitution fragment tokens of a (possibly compound)
     /// `Cmd`-headed word, with absolute spans.  Re-lexing the word slice
     /// recovers the per-fragment boundaries the argv merge erased, so
@@ -1071,6 +1120,90 @@ fn collect_expr_substitutions(
         for tok in &seg.all_tokens {
             if tok.kind == TokenType::Cmd {
                 collect_substitution_heads(sm, registry, *tok, config, out);
+            }
+        }
+    }
+}
+
+/// Descend a ``[…]`` substitution token and run the syntactic
+/// index-bounds checks on every command inside it, recursing into nested
+/// ``[…]`` and the inner commands' bodies.  The companion of
+/// [`collect_substitution_heads`] for the bounds family — see
+/// [`Analyser::run_nested_bounds_diagnostics`] for why a substitution is
+/// the only region the main walk leaves unchecked.
+fn collect_substitution_bounds(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    source: &str,
+    cmd_tok: Token,
+    config: LexerConfig,
+    out: &mut Vec<super::types::Diagnostic>,
+) {
+    if cmd_tok.kind != TokenType::Cmd || sm.token_text(cmd_tok).is_empty() {
+        return;
+    }
+    let descended = descend_token(sm, cmd_tok, config);
+    for seg in segments_from_tree(descended.tree(), sm) {
+        run_segment_bounds(sm, registry, source, &seg, config, out);
+    }
+}
+
+/// Run the bounds checks on one (already-segmented) substitution command,
+/// then recurse into its own nested ``[…]`` substitutions and registry-
+/// resolved bodies.  All of these live inside an outer ``[…]`` (the entry
+/// is [`collect_substitution_bounds`]), so none are visited by the main
+/// walk and the checks never double-fire.
+fn run_segment_bounds(
+    sm: &SourceMap<'_>,
+    registry: Option<&CommandRegistry>,
+    source: &str,
+    seg: &SegmentedCommand,
+    config: LexerConfig,
+    out: &mut Vec<super::types::Diagnostic>,
+) {
+    let Some(cmd_name) = seg.texts.first() else {
+        return;
+    };
+    let cmd_name = cmd_name.as_str();
+    let args: Vec<String> = seg.texts.iter().skip(1).cloned().collect();
+    let arg_tokens: Vec<Token> = seg.argv.iter().skip(1).copied().collect();
+
+    out.extend(super::bounds_checks::loop_termination_diagnostics(
+        cmd_name,
+        &args,
+        &arg_tokens,
+    ));
+    out.extend(super::bounds_checks::list_index_diagnostics(
+        cmd_name,
+        &args,
+        &arg_tokens,
+    ));
+    out.extend(super::bounds_checks::lset_index_diagnostics(
+        cmd_name,
+        &args,
+        &arg_tokens,
+        source,
+    ));
+    out.extend(super::bounds_checks::string_index_diagnostics(
+        cmd_name,
+        &args,
+        &arg_tokens,
+    ));
+
+    // Nested ``[…]`` substitutions in any word of this command.
+    for tok in &seg.all_tokens {
+        if tok.kind == TokenType::Cmd {
+            collect_substitution_bounds(sm, registry, source, *tok, config, out);
+        }
+    }
+
+    // Registry-resolved body arguments (`[if {$c} {string index …}]`):
+    // their commands are also invisible to the main walk here.
+    if let Some(registry) = registry {
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        for body in descend_command(registry, sm, cmd_name, &arg_strs, &arg_tokens, config) {
+            for inner in segments_from_tree(body.descended.tree(), sm) {
+                run_segment_bounds(sm, Some(registry), source, &inner, config, out);
             }
         }
     }
