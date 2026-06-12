@@ -24,6 +24,13 @@ pub struct VarScanOptions {
     pub include_var_read_roles: bool,
     /// When `true`, recurse into `[…]` command substitutions.
     pub recurse_cmd_substitutions: bool,
+    /// When `true`, a read-modify-write command (`incr` / `append` /
+    /// `lappend` — the `READS_BEFORE_WRITE` trait) also reports its
+    /// `VarWrite` target as a *read* (it reads the prior value).  Name-level
+    /// only — intended for dead-store / unused-variable liveness recovery,
+    /// kept out of SSA `uses` so read-before-set versioning is unperturbed.
+    /// Mirrors Python's `include_reads_before_write`.
+    pub include_reads_before_write: bool,
 }
 
 impl Default for VarScanOptions {
@@ -31,6 +38,7 @@ impl Default for VarScanOptions {
         Self {
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
         }
     }
 }
@@ -149,7 +157,8 @@ impl VarReferenceScanner {
         }
 
         if self.options.include_var_read_roles {
-            let role_vars = scan_var_read_role_names(source, registry);
+            let role_vars =
+                scan_var_read_role_names(source, registry, self.options.include_reads_before_write);
             vars_found.extend(role_vars);
         }
 
@@ -162,7 +171,11 @@ impl VarReferenceScanner {
 /// This is a standalone function (not cached) that tokenises a script,
 /// segments it into commands, and queries the registry for which argument
 /// positions hold variable-read references.
-fn scan_var_read_role_names(source: &str, registry: &CommandRegistry) -> BTreeSet<String> {
+fn scan_var_read_role_names(
+    source: &str,
+    registry: &CommandRegistry,
+    include_rmw: bool,
+) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let source_map = SourceMap::new(source);
     let lexer = Lexer::new(source);
@@ -181,7 +194,18 @@ fn scan_var_read_role_names(source: &str, registry: &CommandRegistry) -> BTreeSe
         }
         let cmd_name = &words[0];
         let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
-        for idx in registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarRead) {
+        let mut read_idx: Vec<usize> =
+            registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarRead);
+        // A read-modify-write command (`incr` / `append` / `lappend`) reads
+        // its `VarWrite` target's prior value, so report it as a read too.
+        if include_rmw
+            && registry
+                .get(cmd_name)
+                .is_some_and(|s| s.traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE))
+        {
+            read_idx.extend(registry.arg_indices_for_role(cmd_name, &args, ArgRole::VarWrite));
+        }
+        for idx in read_idx {
             if idx < args.len() {
                 let name = normalise_var_name(args[idx]);
                 if !name.is_empty() {
@@ -228,6 +252,7 @@ pub fn vars_in_word(text: &str, registry: &CommandRegistry) -> BTreeSet<String> 
     let mut scanner = VarReferenceScanner::new(VarScanOptions {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
+        include_reads_before_write: false,
     });
     scanner.scan_word(text, registry)
 }
@@ -390,6 +415,7 @@ mod tests {
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
             recurse_cmd_substitutions: false,
+            include_reads_before_write: false,
         });
         // With recursion off, $inner inside [cmd $inner] should NOT be found.
         let vars = scanner.scan_word("[set x $inner]", &reg);
@@ -405,6 +431,7 @@ mod tests {
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
         });
         let vars = scanner.scan_word("[set x $inner]", &reg);
         assert!(

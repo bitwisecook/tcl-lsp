@@ -5398,6 +5398,34 @@ variable, so the local is *possibly-unset* and an unconditional read errors
 One ported unit test with all four controls (dynamic fires, literal/guarded
 suppressed, dynamic write not a W220 dead store).  **W210 cluster fully closed.**
 
+### SYNC-JUN12-w220 — RMW read recovery + must-alias array-element kill (battery 8→6)
+
+Closed the W220 dead-store pair, both faithful ports of Python's precision:
+
+- **FP-DS-01 (read-modify-write in a substitution).** `lappend r [incr i $j]`
+  reads `i`'s prior value, so the feeding `set i 0` is alive.  Added an
+  `include_reads_before_write` option to `VarReferenceScanner`: when set, a
+  `READS_BEFORE_WRITE`-trait command (`incr` / `append` / `lappend`) reports its
+  `VarWrite` target as a read too.  A new
+  `collect_rmw_hidden_reads` (`optimiser/elimination.rs`) runs that deep scan
+  over each statement's substitution-bearing words and unions the recovered
+  names into the dead-store / unused suppression set for *both* the analyser
+  (W211/W220) and the optimiser (O109/O126).  Kept out of SSA `uses` so
+  read-before-set versioning is unperturbed — mirrors Python's
+  `expr_substitution_read_names` / `_DEEP_RMW_VAR_REF_SCANNER`.
+- **FP-DS-06 (must-alias kill).** `set a(k) 1; set a(k) 2; return $a(k)` — the
+  first write is dead (the later-version read sees the second write).  Added
+  `must_alias_killed_in_block` (`place_bridge.rs`): for a literal-key
+  `ArrayElem` / `DictPath` write, walk the block forward for an intervening read
+  of the *exact* same element (cancels the kill) or a later write to it
+  (must-alias kill).  `element_writes_observed_by_reads` now reports — rather
+  than suppresses — a killed write, overriding the over-approximating
+  element-observed suppression.  Mirrors Python's `_must_alias_killed_in_block`
+  (PR #498 G15).
+
+Two ported unit tests with all controls (genuine dead store still fires;
+different keys / intervening read don't).  **W220 dead-store pair closed.**
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

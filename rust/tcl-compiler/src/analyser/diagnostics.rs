@@ -5253,6 +5253,16 @@ file; this call falls through to the 'unknown' handler."
         // (W220).  Mirrors Python threading `cross_event_vars` through
         // both `_dead_stores` and `_unused_variables`.
         textually_referenced.extend(cross_event_vars.iter().cloned());
+        // A read-modify-write command's target buried in a substitution
+        // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
+        // recover those name-level reads so they suppress the dead-store /
+        // unused-variable hints.
+        if let Some(registry) = self.registry.as_ref() {
+            textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
+                function_unit,
+                registry,
+            ));
+        }
         let ir_proc = ir_module.procedures.get(&function_unit.name);
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
@@ -6006,6 +6016,7 @@ file; this call falls through to the 'unknown' handler."
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
         });
 
         let mut reported: HashSet<String> = HashSet::new();

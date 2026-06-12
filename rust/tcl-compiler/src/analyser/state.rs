@@ -1358,6 +1358,81 @@ mod tests {
     }
 
     #[test]
+    fn w220_must_alias_kill_same_array_element() {
+        // FP-DS-06: two writes to the *same* literal-key array element with no
+        // intervening read of it make the first dead — the later-version read
+        // `$a(k)` reads the second write, not the first.  Must-alias kill
+        // overrides the element-observed suppression.
+        let mut a = Analyser::new();
+        assert!(
+            a.analyse(
+                "proc f {} {\n    set a(k) 1\n    set a(k) 2\n    return $a(k)\n}",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220" || d.code == "O109"),
+            "two writes to a(k) with no intervening read: first is dead",
+        );
+        // Control: different keys are independent — no dead store.
+        let mut b = Analyser::new();
+        assert!(
+            !b.analyse(
+                "proc f {} {\n    set a(k) 1\n    set a(j) 2\n    return $a(k)\n}",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220" || d.code == "O109"),
+            "writes to different array elements are not dead stores",
+        );
+        // Control: an intervening read of the same element cancels the kill.
+        let mut c = Analyser::new();
+        assert!(
+            !c.analyse(
+                "proc f {} {\n    set a(k) 1\n    puts $a(k)\n    set a(k) 2\n    return $a(k)\n}",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220" || d.code == "O109"),
+            "an intervening read of a(k) keeps the first write live",
+        );
+    }
+
+    #[test]
+    fn dead_store_recovers_rmw_read_in_command_sub() {
+        // FP-DS-01: `[incr i $j]` buried in a substitution reads `i`'s prior
+        // value, so the feeding `set i 0` is alive — no dead-store (W220/O109)
+        // or unused (W211/O126).
+        let mut a = Analyser::new();
+        let codes: Vec<_> = a
+            .analyse(
+                "proc f {} {\n    set i 0\n    foreach j {1 2 3} { lappend r [incr i $j] }\n    return $r\n}\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W220" | "W211" | "O109" | "O126"))
+            .map(|d| d.code.clone())
+            .collect();
+        assert!(
+            codes.is_empty(),
+            "RMW read in cmd-sub keeps set i 0 alive: {codes:?}"
+        );
+        // TP control: no read-modify-write of `i` — the first assignment is
+        // truly dead, so a dead-store hint must still fire.
+        let mut b = Analyser::new();
+        assert!(
+            b.analyse("proc f {} { set i 0\n set i 5\n return $i }", "tcl")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W220" || d.code == "O109"),
+            "a genuine dead store must still fire",
+        );
+    }
+
+    #[test]
     fn w210_dynamic_target_upvar_is_possibly_unset() {
         // TP-W210: `upvar 1 $varName local` aliases `local` to the caller var
         // named by `$varName`; if that var doesn't exist the alias is a no-op

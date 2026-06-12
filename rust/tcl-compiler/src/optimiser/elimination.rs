@@ -420,7 +420,12 @@ fn emit_dead_stores_and_unused(
     // textual pass over the CFG to collect every var name that
     // appears in any source slice. Any def of a name referenced
     // textually is kept live — conservative but correct.
-    let textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
+    let mut textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
+    // A read-modify-write command's target buried in a substitution
+    // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive.
+    if let Some(registry) = ctx.registry {
+        textually_referenced.extend(collect_rmw_hidden_reads(fu, registry));
+    }
 
     // Phase 8 place model (SYNC-MAY31-1b): array-element writes the name-level
     // SSA mis-folds (`set a(k) 1` "overwritten" by `set a(j) 2`) but that a read
@@ -889,6 +894,50 @@ pub(crate) fn scan_dynamic_upvar_locals(cfg: &CfgFunction) -> HashSet<String> {
                     out.insert(crate::naming::normalise_var_name(&args[i + 1]).to_owned());
                 }
                 i += 2;
+            }
+        }
+    }
+    out
+}
+
+/// Variable names read *inside command substitutions* that the shallow word
+/// scan misses — chiefly a read-modify-write command's target buried in a
+/// substitution (`lappend r [incr i $j]` reads `i`), plus vars read via a
+/// `VarRead`-role argument of a substituted command.  Name-level only and
+/// **suppress-only**: it keeps a feeding `set i 0` from being reported as a
+/// dead store / unused variable.  Deliberately computed *outside* SSA `uses`
+/// so read-before-set versioning is unperturbed.  Mirrors Python's
+/// `expr_substitution_read_names` (deep RMW scan minus the shallow scan).
+pub(crate) fn collect_rmw_hidden_reads(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+) -> HashSet<String> {
+    use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+    let mut deep = VarReferenceScanner::new(VarScanOptions {
+        include_var_read_roles: true,
+        recurse_cmd_substitutions: true,
+        include_reads_before_write: true,
+    });
+    let mut shallow = VarReferenceScanner::new(VarScanOptions::default());
+    let mut out: HashSet<String> = HashSet::new();
+    let mut scan = |word: &str| {
+        if !word.contains('[') {
+            return;
+        }
+        let d = deep.scan_word(word, registry);
+        let s = shallow.scan_word(word, registry);
+        out.extend(d.difference(&s).cloned());
+    };
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
+                    for arg in args {
+                        scan(arg);
+                    }
+                }
+                Statement::AssignValue { value, .. } => scan(value),
+                _ => {}
             }
         }
     }
