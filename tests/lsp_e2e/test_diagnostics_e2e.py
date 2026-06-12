@@ -340,3 +340,109 @@ class TestDiagnosticsTrackEdits:
         lsp_server.replace_document(uri, 2, "set\n")
         diags = lsp_server.await_diagnostics(uri, version=2)
         assert "E002" in _codes(diags)
+
+
+class TestSoundnessRegressionsE2E:
+    """End-to-end coverage for three latent W210 soundness bugs surfaced
+    while reviewing the Rust port and fixed in the analyser.  Ground truth is
+    real tclsh 9.0.3; these drive the packaged server's ``publishDiagnostics``
+    over the full pipeline, not just the in-process checker.
+    """
+
+    # -- Omitted-arg call-site constants are poisoned (interproc) ---------- #
+
+    def test_omitted_default_arg_does_not_hide_read_before_set(self, lsp_server, uri_factory):
+        # ``p`` (slot 0 omitted → default ``x == 0``) leaves ``y`` unset, so
+        # ``puts $y`` is a real read-before-set; the literal ``1`` passed by
+        # ``p 1`` must not be bound as a constant for ``x``.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc p {{x 0}} {
+                if {$x} {
+                    set y 5
+                }
+                puts $y
+            }
+            p
+            p 1
+        """)
+        diags = lsp_server.open_ready(uri, src)
+        assert "W210" in _codes(diags), _codes(diags)
+        assert 4 in _on_line(diags, "W210"), [d.get("range") for d in diags]
+
+    def test_uniform_literal_arg_still_binds_silent(self, lsp_server, uri_factory):
+        # Every caller passes ``1`` at slot 0 → the constant binding holds, the
+        # ``if {$x}`` body is provably taken, ``y`` is always set: stay silent.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc q {{x 0}} {
+                if {$x} {
+                    set y 5
+                }
+                puts $y
+            }
+            q 1
+            q 1
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    # -- regexp ``-expanded`` is not unconditionally literal-safe ---------- #
+
+    def test_regexp_expanded_whitespace_pattern_silent(self, lsp_server, uri_factory):
+        # ``-expanded`` ignores unescaped whitespace, so ``{a b}`` matches the
+        # substring ``ab`` and writes ``v``; reading ``v`` must not fire W210.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc g {input} {
+                regexp -expanded {a b} $input v
+                puts $v
+            }
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_regexp_expanded_clean_literal_still_fires(self, lsp_server, uri_factory):
+        # A whitespace/``#``-free literal stays provably literal: ``{x}`` never
+        # matches ``X``, never writes ``w`` → reading ``w`` is read-before-set.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc g {} {
+                regexp -expanded {x} X w
+                puts $w
+            }
+        """)
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+    # -- try body throw keeps its handler exception edge ------------------- #
+
+    def test_try_body_throw_keeps_handler_defs_silent(self, lsp_server, uri_factory):
+        # ``x`` is set before the only throw, so the handler always sees it
+        # (tclsh prints ``1``): stay silent.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc f {} {
+                try {
+                    set x 1
+                    error boom
+                } on error {} {
+                    puts $x
+                }
+            }
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_try_body_earlier_conditional_throw_fires(self, lsp_server, uri_factory):
+        # The handler is reachable from every throw point; ``x`` is unset on the
+        # earlier ``if {$c} {error a}`` path, so the read is maybe-unset.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc f {c} {
+                try {
+                    if {$c} { error a }
+                    set x 1
+                    error b
+                } on error {} {
+                    puts $x
+                }
+            }
+        """)
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
