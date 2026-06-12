@@ -1,6 +1,6 @@
 //! `pem_dtos` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "pem_dtos",
         dialects: Some(DialectSet::IRULES),

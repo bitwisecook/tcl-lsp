@@ -1,6 +1,6 @@
 //! `XLAT::src_endpoint_reservation` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XLAT::src_endpoint_reservation",
         dialects: Some(DialectSet::IRULES),

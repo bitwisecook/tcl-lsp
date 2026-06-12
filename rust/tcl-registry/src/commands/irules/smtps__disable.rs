@@ -1,6 +1,6 @@
 //! `SMTPS::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SMTPS::disable",
         dialects: Some(DialectSet::IRULES),

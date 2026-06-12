@@ -1,6 +1,6 @@
 //! `ROUTE::clear` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ROUTE::clear",
         dialects: Some(DialectSet::IRULES),

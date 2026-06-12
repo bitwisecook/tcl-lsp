@@ -1,6 +1,6 @@
 //! `CRYPTO::encrypt` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CRYPTO::encrypt",
         dialects: Some(DialectSet::IRULES),

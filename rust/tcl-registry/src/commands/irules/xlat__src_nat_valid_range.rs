@@ -1,6 +1,6 @@
 //! `XLAT::src_nat_valid_range` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XLAT::src_nat_valid_range",
         dialects: Some(DialectSet::IRULES),

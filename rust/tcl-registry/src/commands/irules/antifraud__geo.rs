@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::geo` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::geo",
         dialects: Some(DialectSet::IRULES),

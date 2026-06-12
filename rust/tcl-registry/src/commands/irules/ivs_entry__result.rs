@@ -1,6 +1,6 @@
 //! `IVS_ENTRY::result` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IVS_ENTRY::result",
         dialects: Some(DialectSet::IRULES),

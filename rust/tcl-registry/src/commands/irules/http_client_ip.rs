@@ -1,6 +1,6 @@
 //! `http_client_ip` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "http_client_ip",
         dialects: Some(DialectSet::IRULES),

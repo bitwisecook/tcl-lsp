@@ -1,6 +1,6 @@
 //! `DHCPv4::giaddr` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv4::giaddr",
         dialects: Some(DialectSet::IRULES),

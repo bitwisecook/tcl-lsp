@@ -1,6 +1,6 @@
 //! `WS::masking` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "WS::masking",
         dialects: Some(DialectSet::IRULES),

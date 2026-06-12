@@ -1,6 +1,6 @@
 //! `translate` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "translate",
         dialects: Some(DialectSet::IRULES),

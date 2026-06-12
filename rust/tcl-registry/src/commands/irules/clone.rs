@@ -1,6 +1,6 @@
 //! `clone` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "clone",
         dialects: Some(DialectSet::IRULES),

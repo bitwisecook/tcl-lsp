@@ -1,6 +1,6 @@
 //! `MR::restore` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::restore",
         dialects: Some(DialectSet::IRULES),

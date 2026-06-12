@@ -1,6 +1,6 @@
 //! `HTTP::username` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::username",
         dialects: Some(DialectSet::IRULES),

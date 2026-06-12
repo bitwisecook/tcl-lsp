@@ -1,6 +1,6 @@
 //! `ILX::notify` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ILX::notify",
         dialects: Some(DialectSet::IRULES),

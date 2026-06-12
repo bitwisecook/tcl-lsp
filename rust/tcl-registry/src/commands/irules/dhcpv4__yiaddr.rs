@@ -1,6 +1,6 @@
 //! `DHCPv4::yiaddr` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv4::yiaddr",
         dialects: Some(DialectSet::IRULES),

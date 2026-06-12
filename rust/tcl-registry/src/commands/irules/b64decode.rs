@@ -1,6 +1,6 @@
 //! `b64decode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "b64decode",
         dialects: Some(DialectSet::IRULES),

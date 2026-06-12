@@ -1,6 +1,6 @@
 //! `PROFILE::http` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROFILE::http",
         dialects: Some(DialectSet::IRULES),

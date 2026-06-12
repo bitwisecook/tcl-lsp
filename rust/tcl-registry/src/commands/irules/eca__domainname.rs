@@ -1,6 +1,6 @@
 //! `ECA::domainname` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ECA::domainname",
         dialects: Some(DialectSet::IRULES),

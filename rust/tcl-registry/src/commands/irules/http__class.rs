@@ -11,7 +11,7 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
     ..SubCommand::DEFAULT
 }];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::class",
         dialects: Some(DialectSet::IRULES),

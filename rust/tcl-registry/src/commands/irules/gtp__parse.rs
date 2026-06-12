@@ -1,6 +1,6 @@
 //! `GTP::parse` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GTP::parse",
         dialects: Some(DialectSet::IRULES),

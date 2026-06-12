@@ -1,6 +1,6 @@
 //! `uniq_sorted_ip_list` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "uniq_sorted_ip_list",
         dialects: Some(DialectSet::IRULES),

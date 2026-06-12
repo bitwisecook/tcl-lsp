@@ -1,6 +1,6 @@
 //! `STATS::incr` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "STATS::incr",
         dialects: Some(DialectSet::IRULES),

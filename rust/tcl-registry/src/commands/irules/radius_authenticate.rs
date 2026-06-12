@@ -1,6 +1,6 @@
 //! `radius_authenticate` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "radius_authenticate",
         dialects: Some(DialectSet::IRULES),

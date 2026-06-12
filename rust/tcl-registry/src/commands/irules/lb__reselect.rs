@@ -1,6 +1,6 @@
 //! `LB::reselect` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::reselect",
         dialects: Some(DialectSet::IRULES),

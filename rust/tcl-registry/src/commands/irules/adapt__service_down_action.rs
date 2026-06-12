@@ -1,6 +1,6 @@
 //! `ADAPT::service_down_action` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::service_down_action",
         dialects: Some(DialectSet::IRULES),

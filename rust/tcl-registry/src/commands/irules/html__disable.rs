@@ -1,6 +1,6 @@
 //! `HTML::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTML::disable",
         dialects: Some(DialectSet::IRULES),

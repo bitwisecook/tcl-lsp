@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::alert_license_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::alert_license_id",
         dialects: Some(DialectSet::IRULES),

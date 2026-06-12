@@ -1,6 +1,6 @@
 //! `imid` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "imid",
         dialects: Some(DialectSet::IRULES),

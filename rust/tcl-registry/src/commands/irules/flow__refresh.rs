@@ -1,6 +1,6 @@
 //! `FLOW::refresh` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::refresh",
         dialects: Some(DialectSet::IRULES),

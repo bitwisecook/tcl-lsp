@@ -1,6 +1,6 @@
 //! `AAA::acct_result` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AAA::acct_result",
         dialects: Some(DialectSet::IRULES),

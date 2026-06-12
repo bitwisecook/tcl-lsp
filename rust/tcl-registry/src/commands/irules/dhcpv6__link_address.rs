@@ -1,6 +1,6 @@
 //! `DHCPv6::link_address` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv6::link_address",
         dialects: Some(DialectSet::IRULES),

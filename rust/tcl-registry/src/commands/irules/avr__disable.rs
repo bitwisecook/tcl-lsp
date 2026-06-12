@@ -1,6 +1,6 @@
 //! `AVR::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AVR::disable",
         dialects: Some(DialectSet::IRULES),

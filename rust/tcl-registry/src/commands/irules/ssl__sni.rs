@@ -33,7 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::sni",
         dialects: Some(DialectSet::IRULES),

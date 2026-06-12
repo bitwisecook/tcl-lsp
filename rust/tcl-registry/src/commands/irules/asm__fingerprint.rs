@@ -1,6 +1,6 @@
 //! `ASM::fingerprint` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::fingerprint",
         dialects: Some(DialectSet::IRULES),

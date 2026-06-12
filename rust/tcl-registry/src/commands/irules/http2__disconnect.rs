@@ -1,6 +1,6 @@
 //! `HTTP2::disconnect` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::disconnect",
         dialects: Some(DialectSet::IRULES),

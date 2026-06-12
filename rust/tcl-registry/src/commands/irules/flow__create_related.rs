@@ -1,6 +1,6 @@
 //! `FLOW::create_related` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::create_related",
         dialects: Some(DialectSet::IRULES),

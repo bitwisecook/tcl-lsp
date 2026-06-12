@@ -1,6 +1,6 @@
 //! `DIAMETER::is_response` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::is_response",
         dialects: Some(DialectSet::IRULES),

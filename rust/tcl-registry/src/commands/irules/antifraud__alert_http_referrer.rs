@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::alert_http_referrer` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::alert_http_referrer",
         dialects: Some(DialectSet::IRULES),

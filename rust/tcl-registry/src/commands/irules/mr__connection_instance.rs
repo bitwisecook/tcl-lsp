@@ -1,6 +1,6 @@
 //! `MR::connection_instance` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::connection_instance",
         dialects: Some(DialectSet::IRULES),

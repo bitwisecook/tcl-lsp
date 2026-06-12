@@ -1,6 +1,6 @@
 //! `HTTP::is_redirect` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::is_redirect",
         traits: Traits::PURE,

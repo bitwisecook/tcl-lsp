@@ -235,7 +235,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::session",
         dialects: Some(DialectSet::IRULES),

@@ -41,10 +41,12 @@ const WHEN_TIMING_VALUES: &[ArgValue] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "when",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::IS_EVENT_HANDLER | Traits::IRULES_TOP_LEVEL_ONLY,
+        traits: Traits::LANGUAGE_KEYWORD
+            .union(Traits::IS_EVENT_HANDLER)
+            .union(Traits::IRULES_TOP_LEVEL_ONLY),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),

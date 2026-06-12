@@ -1,6 +1,6 @@
 //! `MR::available_for_routing` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::available_for_routing",
         dialects: Some(DialectSet::IRULES),

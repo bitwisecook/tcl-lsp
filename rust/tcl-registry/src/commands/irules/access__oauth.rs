@@ -1,6 +1,6 @@
 //! `ACCESS::oauth` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::oauth",
         dialects: Some(DialectSet::IRULES),

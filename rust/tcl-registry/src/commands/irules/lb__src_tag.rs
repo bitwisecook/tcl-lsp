@@ -1,6 +1,6 @@
 //! `LB::src_tag` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::src_tag",
         dialects: Some(DialectSet::IRULES),

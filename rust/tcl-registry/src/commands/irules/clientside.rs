@@ -1,6 +1,6 @@
 //! `clientside` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "clientside",
         traits: Traits::IS_SIDE_SWITCH,

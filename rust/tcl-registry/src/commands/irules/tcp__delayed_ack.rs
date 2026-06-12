@@ -1,6 +1,6 @@
 //! `TCP::delayed_ack` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::delayed_ack",
         dialects: Some(DialectSet::IRULES),

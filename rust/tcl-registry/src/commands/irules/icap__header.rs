@@ -1,6 +1,6 @@
 //! `ICAP::header` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ICAP::header",
         dialects: Some(DialectSet::IRULES),

@@ -60,7 +60,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::acl",
         dialects: Some(DialectSet::IRULES),

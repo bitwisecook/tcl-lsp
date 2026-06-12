@@ -1,6 +1,6 @@
 //! `HTTP2::concurrency` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::concurrency",
         dialects: Some(DialectSet::IRULES),

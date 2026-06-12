@@ -1,6 +1,6 @@
 //! `SCTP::rto_initial` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SCTP::rto_initial",
         dialects: Some(DialectSet::IRULES),

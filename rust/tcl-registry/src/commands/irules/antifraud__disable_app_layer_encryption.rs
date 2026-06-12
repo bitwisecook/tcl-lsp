@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::disable_app_layer_encryption` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::disable_app_layer_encryption",
         dialects: Some(DialectSet::IRULES),

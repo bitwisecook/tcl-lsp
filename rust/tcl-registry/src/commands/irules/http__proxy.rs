@@ -144,7 +144,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::proxy",
         dialects: Some(DialectSet::IRULES),

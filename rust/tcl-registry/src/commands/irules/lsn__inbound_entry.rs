@@ -1,6 +1,6 @@
 //! `LSN::inbound-entry` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::inbound-entry",
         dialects: Some(DialectSet::IRULES),

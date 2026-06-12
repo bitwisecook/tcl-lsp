@@ -1,6 +1,6 @@
 //! `SSL::modssl_sessionid_headers` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::modssl_sessionid_headers",
         dialects: Some(DialectSet::IRULES),

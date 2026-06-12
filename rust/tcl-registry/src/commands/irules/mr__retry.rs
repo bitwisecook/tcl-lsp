@@ -1,6 +1,6 @@
 //! `MR::retry` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::retry",
         dialects: Some(DialectSet::IRULES),

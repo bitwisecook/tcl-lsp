@@ -1,6 +1,6 @@
 //! `snat` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "snat",
         traits: Traits::DIAGRAM_ACTION,

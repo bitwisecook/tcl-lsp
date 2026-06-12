@@ -1,6 +1,6 @@
 //! `cpu` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "cpu",
         dialects: Some(DialectSet::IRULES),

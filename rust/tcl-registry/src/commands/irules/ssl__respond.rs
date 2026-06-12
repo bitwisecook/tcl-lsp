@@ -1,6 +1,6 @@
 //! `SSL::respond` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::respond",
         traits: Traits::DIAGRAM_ACTION,

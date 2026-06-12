@@ -1,6 +1,6 @@
 //! `CLASSIFY::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CLASSIFY::disable",
         dialects: Some(DialectSet::IRULES),

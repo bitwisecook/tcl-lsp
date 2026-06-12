@@ -1,6 +1,6 @@
 //! `FLOW::idle_timeout` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::idle_timeout",
         dialects: Some(DialectSet::IRULES),

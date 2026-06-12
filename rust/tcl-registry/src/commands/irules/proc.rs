@@ -8,10 +8,10 @@
 //! shadows the Tcl spec with empty roles.
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
-        traits: Traits::DEFINES_PROCEDURE | Traits::NEVER_INLINE_BODY,
+        traits: Traits::DEFINES_PROCEDURE.union(Traits::NEVER_INLINE_BODY),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(3),
         arg_roles: &[

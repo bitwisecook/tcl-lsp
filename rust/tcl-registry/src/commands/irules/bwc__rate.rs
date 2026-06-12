@@ -1,6 +1,6 @@
 //! `BWC::rate` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BWC::rate",
         dialects: Some(DialectSet::IRULES),

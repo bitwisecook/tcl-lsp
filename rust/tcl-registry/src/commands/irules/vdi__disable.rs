@@ -1,6 +1,6 @@
 //! `VDI::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "VDI::disable",
         dialects: Some(DialectSet::IRULES),

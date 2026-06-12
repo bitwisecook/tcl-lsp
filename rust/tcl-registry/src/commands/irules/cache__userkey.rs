@@ -1,6 +1,6 @@
 //! `CACHE::userkey` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CACHE::userkey",
         dialects: Some(DialectSet::IRULES),

@@ -1,9 +1,9 @@
 //! `node` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "node",
-        traits: Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION,
+        traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {

@@ -1,6 +1,6 @@
 //! `TCP::lossfilter` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::lossfilter",
         dialects: Some(DialectSet::IRULES),

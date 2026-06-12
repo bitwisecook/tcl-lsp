@@ -1,6 +1,6 @@
 //! `SSL::allow_dynamic_record_sizing` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::allow_dynamic_record_sizing",
         dialects: Some(DialectSet::IRULES),

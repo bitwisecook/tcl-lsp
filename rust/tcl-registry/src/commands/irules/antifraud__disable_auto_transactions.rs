@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::disable_auto_transactions` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::disable_auto_transactions",
         dialects: Some(DialectSet::IRULES),

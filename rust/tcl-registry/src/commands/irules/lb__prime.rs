@@ -1,6 +1,6 @@
 //! `LB::prime` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::prime",
         dialects: Some(DialectSet::IRULES),

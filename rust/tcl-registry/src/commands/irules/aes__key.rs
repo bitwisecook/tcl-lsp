@@ -1,6 +1,6 @@
 //! `AES::key` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AES::key",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `FIX::tag` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FIX::tag",
         dialects: Some(DialectSet::IRULES),

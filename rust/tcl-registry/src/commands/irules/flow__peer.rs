@@ -1,6 +1,6 @@
 //! `FLOW::peer` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::peer",
         dialects: Some(DialectSet::IRULES),

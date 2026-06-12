@@ -1,6 +1,6 @@
 //! `DIAMETER::disconnect` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::disconnect",
         dialects: Some(DialectSet::IRULES),

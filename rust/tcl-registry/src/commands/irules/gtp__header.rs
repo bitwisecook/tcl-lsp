@@ -135,7 +135,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GTP::header",
         dialects: Some(DialectSet::IRULES),

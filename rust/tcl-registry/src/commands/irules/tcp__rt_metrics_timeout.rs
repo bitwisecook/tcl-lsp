@@ -1,6 +1,6 @@
 //! `TCP::rt_metrics_timeout` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rt_metrics_timeout",
         dialects: Some(DialectSet::IRULES),

@@ -103,7 +103,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::topic",
         dialects: Some(DialectSet::IRULES),

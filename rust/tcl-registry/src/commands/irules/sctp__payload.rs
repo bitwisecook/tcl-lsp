@@ -1,6 +1,6 @@
 //! `SCTP::payload` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SCTP::payload",
         dialects: Some(DialectSet::IRULES),

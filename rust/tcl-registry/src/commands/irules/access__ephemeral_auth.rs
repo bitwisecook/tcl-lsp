@@ -1,6 +1,6 @@
 //! `ACCESS::ephemeral-auth` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::ephemeral-auth",
         dialects: Some(DialectSet::IRULES),

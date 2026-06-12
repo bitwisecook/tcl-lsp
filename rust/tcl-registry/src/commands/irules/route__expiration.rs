@@ -1,6 +1,6 @@
 //! `ROUTE::expiration` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ROUTE::expiration",
         dialects: Some(DialectSet::IRULES),

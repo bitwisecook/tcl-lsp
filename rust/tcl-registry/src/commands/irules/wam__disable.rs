@@ -1,6 +1,6 @@
 //! `WAM::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "WAM::disable",
         dialects: Some(DialectSet::IRULES),

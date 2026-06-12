@@ -1,6 +1,6 @@
 //! `X509::issuer` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::issuer",
         dialects: Some(DialectSet::IRULES),

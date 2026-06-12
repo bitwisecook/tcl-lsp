@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::enable_log` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::enable_log",
         dialects: Some(DialectSet::IRULES),

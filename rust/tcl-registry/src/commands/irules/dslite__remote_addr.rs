@@ -1,6 +1,6 @@
 //! `DSLITE::remote_addr` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DSLITE::remote_addr",
         dialects: Some(DialectSet::IRULES),

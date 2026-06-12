@@ -1,6 +1,6 @@
 //! `SDP::session_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SDP::session_id",
         dialects: Some(DialectSet::IRULES),

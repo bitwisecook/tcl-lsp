@@ -1,6 +1,6 @@
 //! `XLAT::src_port` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XLAT::src_port",
         dialects: Some(DialectSet::IRULES),

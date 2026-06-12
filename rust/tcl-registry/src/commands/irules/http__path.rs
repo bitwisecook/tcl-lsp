@@ -13,10 +13,10 @@ const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
     message: "HTTP::path value must start with '/'",
 }];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::path",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION | Traits::UNNORMALISED_HTTP_GETTER,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE).union(Traits::DIAGRAM_ACTION).union(Traits::UNNORMALISED_HTTP_GETTER),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
         options: &[OptionSpec {

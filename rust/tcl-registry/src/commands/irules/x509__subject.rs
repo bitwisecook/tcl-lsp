@@ -1,6 +1,6 @@
 //! `X509::subject` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::subject",
         dialects: Some(DialectSet::IRULES),

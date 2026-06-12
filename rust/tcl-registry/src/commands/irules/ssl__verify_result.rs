@@ -1,6 +1,6 @@
 //! `SSL::verify_result` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::verify_result",
         dialects: Some(DialectSet::IRULES),

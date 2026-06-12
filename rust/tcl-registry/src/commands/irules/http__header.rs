@@ -124,10 +124,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::header",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION,
+        traits: Traits::PURE
+            .union(Traits::CSE_CANDIDATE)
+            .union(Traits::DIAGRAM_ACTION),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(1),
         options: &[OptionSpec {

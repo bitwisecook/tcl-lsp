@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::disable_alert` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::disable_alert",
         dialects: Some(DialectSet::IRULES),

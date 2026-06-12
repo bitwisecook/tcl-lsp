@@ -1,6 +1,6 @@
 //! `TMM::cmp_groups` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TMM::cmp_groups",
         dialects: Some(DialectSet::IRULES),

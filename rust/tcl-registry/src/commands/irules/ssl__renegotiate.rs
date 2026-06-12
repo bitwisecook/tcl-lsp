@@ -1,6 +1,6 @@
 //! `SSL::renegotiate` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::renegotiate",
         dialects: Some(DialectSet::IRULES),

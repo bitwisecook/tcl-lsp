@@ -1,6 +1,6 @@
 //! `MQTT::retain` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::retain",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `CONNECTOR::profile` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CONNECTOR::profile",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ADAPT::result` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::result",
         dialects: Some(DialectSet::IRULES),

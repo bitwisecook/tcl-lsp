@@ -1,6 +1,6 @@
 //! `WS::collect` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "WS::collect",
         dialects: Some(DialectSet::IRULES),

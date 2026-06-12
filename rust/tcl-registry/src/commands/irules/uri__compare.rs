@@ -1,6 +1,6 @@
 //! `URI::compare` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "URI::compare",
         dialects: Some(DialectSet::IRULES),

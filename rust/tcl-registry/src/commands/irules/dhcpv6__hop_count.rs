@@ -1,6 +1,6 @@
 //! `DHCPv6::hop_count` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv6::hop_count",
         dialects: Some(DialectSet::IRULES),

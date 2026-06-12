@@ -1,6 +1,6 @@
 //! `RADIUS::avp` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "RADIUS::avp",
         dialects: Some(DialectSet::IRULES),

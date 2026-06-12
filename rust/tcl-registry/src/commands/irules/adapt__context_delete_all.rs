@@ -1,6 +1,6 @@
 //! `ADAPT::context_delete_all` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::context_delete_all",
         dialects: Some(DialectSet::IRULES),

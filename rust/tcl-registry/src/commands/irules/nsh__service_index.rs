@@ -1,6 +1,6 @@
 //! `NSH::service_index` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "NSH::service_index",
         dialects: Some(DialectSet::IRULES),

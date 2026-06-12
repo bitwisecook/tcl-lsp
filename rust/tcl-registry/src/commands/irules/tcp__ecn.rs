@@ -1,6 +1,6 @@
 //! `TCP::ecn` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::ecn",
         dialects: Some(DialectSet::IRULES),

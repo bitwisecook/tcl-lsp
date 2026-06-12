@@ -1,6 +1,6 @@
 //! `HTTP2::push` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::push",
         dialects: Some(DialectSet::IRULES),

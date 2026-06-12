@@ -1,6 +1,6 @@
 //! `AUTH::last_event_session_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::last_event_session_id",
         dialects: Some(DialectSet::IRULES),

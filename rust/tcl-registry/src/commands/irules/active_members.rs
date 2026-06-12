@@ -1,6 +1,6 @@
 //! `active_members` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "active_members",
         dialects: Some(DialectSet::IRULES),

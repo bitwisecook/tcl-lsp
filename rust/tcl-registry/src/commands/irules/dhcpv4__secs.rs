@@ -1,6 +1,6 @@
 //! `DHCPv4::secs` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv4::secs",
         dialects: Some(DialectSet::IRULES),

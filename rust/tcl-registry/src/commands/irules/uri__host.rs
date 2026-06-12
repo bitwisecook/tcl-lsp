@@ -1,6 +1,6 @@
 //! `URI::host` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "URI::host",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `HTTP::fallback` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::fallback",
         dialects: Some(DialectSet::IRULES),

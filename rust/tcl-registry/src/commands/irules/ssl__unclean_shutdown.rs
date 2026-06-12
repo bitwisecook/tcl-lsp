@@ -1,6 +1,6 @@
 //! `SSL::unclean_shutdown` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::unclean_shutdown",
         dialects: Some(DialectSet::IRULES),

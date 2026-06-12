@@ -1,6 +1,6 @@
 //! `MQTT::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::disable",
         dialects: Some(DialectSet::IRULES),

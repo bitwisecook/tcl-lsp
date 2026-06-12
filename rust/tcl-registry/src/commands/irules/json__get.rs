@@ -1,6 +1,6 @@
 //! `JSON::get` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "JSON::get",
         dialects: Some(DialectSet::IRULES),

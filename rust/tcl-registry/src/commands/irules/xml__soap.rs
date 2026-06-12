@@ -1,6 +1,6 @@
 //! `XML::soap` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XML::soap",
         dialects: Some(DialectSet::IRULES),

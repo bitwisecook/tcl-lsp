@@ -154,7 +154,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::header",
         dialects: Some(DialectSet::IRULES),

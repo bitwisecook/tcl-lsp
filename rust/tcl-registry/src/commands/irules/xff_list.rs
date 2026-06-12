@@ -1,6 +1,6 @@
 //! `xff_list` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "xff_list",
         dialects: Some(DialectSet::IRULES),

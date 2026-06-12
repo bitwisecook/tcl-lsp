@@ -1,6 +1,6 @@
 //! `ASM::threat_campaign` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::threat_campaign",
         dialects: Some(DialectSet::IRULES),

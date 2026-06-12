@@ -1,6 +1,6 @@
 //! `SIPALG::hairpin_default` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIPALG::hairpin_default",
         dialects: Some(DialectSet::IRULES),

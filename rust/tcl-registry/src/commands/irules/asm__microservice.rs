@@ -1,6 +1,6 @@
 //! `ASM::microservice` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::microservice",
         dialects: Some(DialectSet::IRULES),

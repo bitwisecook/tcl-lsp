@@ -1,6 +1,6 @@
 //! `IKE::san_uri` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IKE::san_uri",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `HSL::send` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HSL::send",
         dialects: Some(DialectSet::IRULES),

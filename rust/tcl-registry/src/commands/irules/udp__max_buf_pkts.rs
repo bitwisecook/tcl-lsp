@@ -1,6 +1,6 @@
 //! `UDP::max_buf_pkts` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "UDP::max_buf_pkts",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `GTP::length` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GTP::length",
         dialects: Some(DialectSet::IRULES),

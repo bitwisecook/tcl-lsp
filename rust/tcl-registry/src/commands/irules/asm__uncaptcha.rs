@@ -1,6 +1,6 @@
 //! `ASM::uncaptcha` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::uncaptcha",
         dialects: Some(DialectSet::IRULES),

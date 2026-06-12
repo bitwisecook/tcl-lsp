@@ -1,6 +1,6 @@
 //! `DHCPv6::len` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv6::len",
         dialects: Some(DialectSet::IRULES),

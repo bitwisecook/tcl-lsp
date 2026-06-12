@@ -1,6 +1,6 @@
 //! `LSN::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::disable",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `UDP::drop` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "UDP::drop",
         dialects: Some(DialectSet::IRULES),

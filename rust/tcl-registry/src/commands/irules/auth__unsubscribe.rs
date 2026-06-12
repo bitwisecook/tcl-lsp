@@ -1,6 +1,6 @@
 //! `AUTH::unsubscribe` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::unsubscribe",
         dialects: Some(DialectSet::IRULES),

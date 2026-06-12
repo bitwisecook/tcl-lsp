@@ -1,6 +1,6 @@
 //! `MR::flow_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::flow_id",
         dialects: Some(DialectSet::IRULES),

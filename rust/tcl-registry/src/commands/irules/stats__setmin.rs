@@ -1,6 +1,6 @@
 //! `STATS::setmin` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "STATS::setmin",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `DNS::len` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::len",
         dialects: Some(DialectSet::IRULES),

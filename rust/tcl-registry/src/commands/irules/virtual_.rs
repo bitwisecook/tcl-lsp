@@ -1,9 +1,9 @@
 //! `virtual` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "virtual",
-        traits: Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION,
+        traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
 hover: Some(HoverSnippet {

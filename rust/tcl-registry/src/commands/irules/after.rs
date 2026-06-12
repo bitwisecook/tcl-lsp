@@ -24,7 +24,7 @@ fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
         traits: Traits::DIAGRAM_ACTION,

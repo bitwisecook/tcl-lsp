@@ -1,6 +1,6 @@
 //! `AUTH::abort` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::abort",
         dialects: Some(DialectSet::IRULES),

@@ -1,9 +1,9 @@
 //! `IP::tos` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::tos",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
 hover: Some(HoverSnippet {

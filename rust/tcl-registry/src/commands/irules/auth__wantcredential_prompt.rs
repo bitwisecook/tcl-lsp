@@ -1,6 +1,6 @@
 //! `AUTH::wantcredential_prompt` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::wantcredential_prompt",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `sha256` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "sha256",
         dialects: Some(DialectSet::IRULES),

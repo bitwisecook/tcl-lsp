@@ -1,6 +1,6 @@
 //! `IP::ingress_drop_rate` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::ingress_drop_rate",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ONECONNECT::select` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ONECONNECT::select",
         dialects: Some(DialectSet::IRULES),

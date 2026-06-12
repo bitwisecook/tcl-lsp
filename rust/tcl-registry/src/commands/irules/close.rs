@@ -7,7 +7,7 @@
 //! loaded (otherwise the iRules override shadows the Tcl spec
 //! with empty roles and the diagnostic silently stops firing).
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `PSC::imeisv` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PSC::imeisv",
         dialects: Some(DialectSet::IRULES),

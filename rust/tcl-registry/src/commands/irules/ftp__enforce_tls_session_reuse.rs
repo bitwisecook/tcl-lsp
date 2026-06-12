@@ -1,6 +1,6 @@
 //! `FTP::enforce_tls_session_reuse` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FTP::enforce_tls_session_reuse",
         dialects: Some(DialectSet::IRULES),

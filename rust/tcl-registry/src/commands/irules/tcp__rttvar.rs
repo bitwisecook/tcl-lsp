@@ -1,6 +1,6 @@
 //! `TCP::rttvar` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rttvar",
         dialects: Some(DialectSet::IRULES),

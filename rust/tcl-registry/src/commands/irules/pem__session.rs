@@ -1,6 +1,6 @@
 //! `PEM::session` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PEM::session",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `IMAP::activation_mode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IMAP::activation_mode",
         dialects: Some(DialectSet::IRULES),
