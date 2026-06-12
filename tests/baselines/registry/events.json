@@ -1,0 +1,6057 @@
+{
+  "dialect": "f5-irules",
+  "eventCount": 176,
+  "events": [
+    {
+      "deprecated": false,
+      "event": "ACCESS2_POLICY_EXPRESSION_EVAL",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_ACL_ALLOWED",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 39,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_ACL_DENIED",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 40,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_PER_REQUEST_AGENT_EVENT",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 41,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_POLICY_AGENT_EVENT",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 19,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_POLICY_COMPLETED",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 20,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_SAML_ASSERTION",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_SAML_AUTHN",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_SAML_SLO_REQ",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_SAML_SLO_RESP",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_SESSION_CLOSED",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 73,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": false,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1169,
+      "validCommandsDigest": "sha256:3d7225b25bab87e352e32bdeef77fbefd6826279a8be3c6d751ce3c2dc007907"
+    },
+    {
+      "deprecated": false,
+      "event": "ACCESS_SESSION_STARTED",
+      "impliedProfiles": [
+        "ACCESS"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 18,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:200072aca01117338ab746e4def5367169ae85ad83e2a5f8dc63ee2088b5af5f"
+    },
+    {
+      "deprecated": false,
+      "event": "ADAPT_REQUEST_HEADERS",
+      "impliedProfiles": [
+        "REQUESTADAPT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "REQUESTADAPT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1255,
+      "validCommandsDigest": "sha256:b2499c85cbf8d9d9db86f2cd8575b3a8d0ebe79b0bea0b2e12aaa5fd38bec396"
+    },
+    {
+      "deprecated": false,
+      "event": "ADAPT_REQUEST_RESULT",
+      "impliedProfiles": [
+        "REQUESTADAPT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "REQUESTADAPT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1255,
+      "validCommandsDigest": "sha256:b2499c85cbf8d9d9db86f2cd8575b3a8d0ebe79b0bea0b2e12aaa5fd38bec396"
+    },
+    {
+      "deprecated": false,
+      "event": "ADAPT_RESPONSE_HEADERS",
+      "impliedProfiles": [
+        "RESPONSEADAPT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RESPONSEADAPT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:8a832edebda50ec8bc3c75dbef71b2e00e270a16c0d90bf25a35aa6959339174"
+    },
+    {
+      "deprecated": false,
+      "event": "ADAPT_RESPONSE_RESULT",
+      "impliedProfiles": [
+        "RESPONSEADAPT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RESPONSEADAPT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:8a832edebda50ec8bc3c75dbef71b2e00e270a16c0d90bf25a35aa6959339174"
+    },
+    {
+      "deprecated": false,
+      "event": "ANTIFRAUD_ALERT",
+      "impliedProfiles": [
+        "ANTIFRAUD"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ANTIFRAUD"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1282,
+      "validCommandsDigest": "sha256:d97e65aae093890515f78e836303514491e9bfa20d071da0d080772b60b999e6"
+    },
+    {
+      "deprecated": false,
+      "event": "ANTIFRAUD_LOGIN",
+      "impliedProfiles": [
+        "ANTIFRAUD"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ANTIFRAUD"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1286,
+      "validCommandsDigest": "sha256:5be0e678ce66e904f4896c099024863a65adf7b87ea448883dd9cf5c27d53279"
+    },
+    {
+      "deprecated": false,
+      "event": "ASM_REQUEST_BLOCKING",
+      "impliedProfiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 30,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ASM",
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1307,
+      "validCommandsDigest": "sha256:da8108631947e562c4254ff74574a20e5847ee9bb90c80a1198dd414a72795ee"
+    },
+    {
+      "deprecated": false,
+      "event": "ASM_REQUEST_DONE",
+      "impliedProfiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 28,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ASM",
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1307,
+      "validCommandsDigest": "sha256:da8108631947e562c4254ff74574a20e5847ee9bb90c80a1198dd414a72795ee"
+    },
+    {
+      "deprecated": false,
+      "event": "ASM_REQUEST_VIOLATION",
+      "impliedProfiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 29,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ASM",
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1307,
+      "validCommandsDigest": "sha256:da8108631947e562c4254ff74574a20e5847ee9bb90c80a1198dd414a72795ee"
+    },
+    {
+      "deprecated": false,
+      "event": "ASM_RESPONSE_LOGIN",
+      "impliedProfiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 60,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ASM",
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1311,
+      "validCommandsDigest": "sha256:3473b1fed9ac25c5799b67c19db4dff352383ca6bcb9e8e1c6557dff25ede195"
+    },
+    {
+      "deprecated": false,
+      "event": "ASM_RESPONSE_VIOLATION",
+      "impliedProfiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 59,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ASM",
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1311,
+      "validCommandsDigest": "sha256:3473b1fed9ac25c5799b67c19db4dff352383ca6bcb9e8e1c6557dff25ede195"
+    },
+    {
+      "deprecated": false,
+      "event": "AUTH_ERROR",
+      "impliedProfiles": [
+        "AUTH"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 16,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "AUTH"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1167,
+      "validCommandsDigest": "sha256:46baf2343e2b908a1d9b82e861b81fce891ec1306dbfd6d555b3290e4c573b07"
+    },
+    {
+      "deprecated": false,
+      "event": "AUTH_FAILURE",
+      "impliedProfiles": [
+        "AUTH"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 15,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "AUTH"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1167,
+      "validCommandsDigest": "sha256:46baf2343e2b908a1d9b82e861b81fce891ec1306dbfd6d555b3290e4c573b07"
+    },
+    {
+      "deprecated": false,
+      "event": "AUTH_RESULT",
+      "impliedProfiles": [
+        "AUTH"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 13,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "AUTH"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1172,
+      "validCommandsDigest": "sha256:13969fe959aa5df8584c6f0aa1d65c5cc14280291b275ed8fdfbf97bec889e7e"
+    },
+    {
+      "deprecated": false,
+      "event": "AUTH_SUCCESS",
+      "impliedProfiles": [
+        "AUTH"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 14,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "AUTH"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1167,
+      "validCommandsDigest": "sha256:46baf2343e2b908a1d9b82e861b81fce891ec1306dbfd6d555b3290e4c573b07"
+    },
+    {
+      "deprecated": false,
+      "event": "AUTH_WANTCREDENTIAL",
+      "impliedProfiles": [
+        "AUTH"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 17,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "AUTH"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1172,
+      "validCommandsDigest": "sha256:13969fe959aa5df8584c6f0aa1d65c5cc14280291b275ed8fdfbf97bec889e7e"
+    },
+    {
+      "deprecated": false,
+      "event": "AVR_CSPM_INJECTION",
+      "impliedProfiles": [
+        "AVR"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "AVR"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:6598f3cba630115e8369a3eb0d8fb65871277a99b61d930552695f77a1545f51"
+    },
+    {
+      "deprecated": false,
+      "event": "BOTDEFENSE_ACTION",
+      "impliedProfiles": [
+        "BOTDEFENSE"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 62,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "BOTDEFENSE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1276,
+      "validCommandsDigest": "sha256:fefbf64ed4f93b013fc3008da963a9d66226773668242872f952b42ac8999954"
+    },
+    {
+      "deprecated": false,
+      "event": "BOTDEFENSE_REQUEST",
+      "impliedProfiles": [
+        "BOTDEFENSE"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 61,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "BOTDEFENSE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1276,
+      "validCommandsDigest": "sha256:fefbf64ed4f93b013fc3008da963a9d66226773668242872f952b42ac8999954"
+    },
+    {
+      "deprecated": false,
+      "event": "CACHE_REQUEST",
+      "impliedProfiles": [
+        "CACHE",
+        "WEBACCELERATION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 25,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CACHE",
+          "WEBACCELERATION"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1265,
+      "validCommandsDigest": "sha256:c430c09c363249c7b166b2a10500e95bc9f38263b8437d91181d9ee8d2be39df"
+    },
+    {
+      "deprecated": false,
+      "event": "CACHE_RESPONSE",
+      "impliedProfiles": [
+        "CACHE",
+        "WEBACCELERATION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 26,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CACHE",
+          "WEBACCELERATION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1264,
+      "validCommandsDigest": "sha256:38c7a9700002aff9d205145d351a0fac36a9330adb8d1219d1033953e6cb8be0"
+    },
+    {
+      "deprecated": false,
+      "event": "CACHE_UPDATE",
+      "impliedProfiles": [
+        "CACHE",
+        "WEBACCELERATION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 63,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CACHE",
+          "WEBACCELERATION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1269,
+      "validCommandsDigest": "sha256:39fcf6cfd398ca24ea55508cb738f3618e8420c14488c9b18b6eadf2213e2542"
+    },
+    {
+      "deprecated": false,
+      "event": "CATEGORY_MATCHED",
+      "impliedProfiles": [
+        "ACCESS",
+        "CATEGORY",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 22,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ACCESS",
+          "CATEGORY",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1263,
+      "validCommandsDigest": "sha256:14b7d21fc1c0111d2db0af3a0a99a2d345f68498860f9f1f454e8ea7a130f36c"
+    },
+    {
+      "deprecated": false,
+      "event": "CLASSIFICATION_DETECTED",
+      "impliedProfiles": [
+        "CLASSIFICATION"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 21,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLASSIFICATION"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1173,
+      "validCommandsDigest": "sha256:299d67b12887580a33ae263fec8ae8332e899b9eee96610d52534eefc607bb61"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENTSSL_CLIENTCERT",
+      "impliedProfiles": [
+        "CLIENTSSL",
+        "PERSIST",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 6,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLIENTSSL",
+          "PERSIST",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1182,
+      "validCommandsDigest": "sha256:6d5a30cb95602ab393a2a402a9689e0cd377d2c676a70f2f045070f63f19fc15"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENTSSL_CLIENTHELLO",
+      "impliedProfiles": [
+        "CLIENTSSL",
+        "PERSIST",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 4,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLIENTSSL",
+          "PERSIST",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:ffb2d971e5426c006f168286545c6d8e62fd0bad9c82de06749535ca4db01ac4"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENTSSL_DATA",
+      "impliedProfiles": [
+        "CLIENTSSL",
+        "PERSIST",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 8,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLIENTSSL",
+          "PERSIST",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": false,
+        "setup_event": "CLIENTSSL_HANDSHAKE",
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:ffb2d971e5426c006f168286545c6d8e62fd0bad9c82de06749535ca4db01ac4"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENTSSL_HANDSHAKE",
+      "impliedProfiles": [
+        "CLIENTSSL",
+        "PERSIST",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 7,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLIENTSSL",
+          "PERSIST",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1182,
+      "validCommandsDigest": "sha256:6d5a30cb95602ab393a2a402a9689e0cd377d2c676a70f2f045070f63f19fc15"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENTSSL_PASSTHROUGH",
+      "impliedProfiles": [
+        "CLIENTSSL",
+        "PERSIST",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 9,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLIENTSSL",
+          "PERSIST",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:ffb2d971e5426c006f168286545c6d8e62fd0bad9c82de06749535ca4db01ac4"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENTSSL_SERVERHELLO_SEND",
+      "impliedProfiles": [
+        "CLIENTSSL",
+        "PERSIST",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 5,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CLIENTSSL",
+          "PERSIST",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:ffb2d971e5426c006f168286545c6d8e62fd0bad9c82de06749535ca4db01ac4"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENT_ACCEPTED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 2,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": true,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1200,
+      "validCommandsDigest": "sha256:87ab1bd8faafa39238673dc58d5d9e24e8c9fce7afc9b3a32763efeeab58b788"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENT_CLOSED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 72,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:5962a9a587129c27c44337605a9e7954ebb4aabe16f3a94f4656b7ff1343dbb6"
+    },
+    {
+      "deprecated": false,
+      "event": "CLIENT_DATA",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 3,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": "CLIENT_ACCEPTED",
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1192,
+      "validCommandsDigest": "sha256:c66d6a5b2033e21a7ee136e339ad71c341c5d0293600b11aabfa80f2bc3ee5b0"
+    },
+    {
+      "deprecated": false,
+      "event": "CONNECTOR_OPEN",
+      "impliedProfiles": [
+        "CONNECTOR"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "CONNECTOR"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:07951c7ab8f15c11d1043884b0639c78e3dec0ef964ca384ac46ef6d2d2f0570"
+    },
+    {
+      "deprecated": false,
+      "event": "DIAMETER_EGRESS",
+      "impliedProfiles": [
+        "DIAMETER",
+        "DIAMETERSESSION",
+        "DIAMETER_ENDPOINT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "DIAMETER",
+          "DIAMETERSESSION",
+          "DIAMETER_ENDPOINT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1193,
+      "validCommandsDigest": "sha256:f13005df57593b2ecdc81853b3b7ca6eeb09f3b585b492c4db2bb77ffbd77052"
+    },
+    {
+      "deprecated": false,
+      "event": "DIAMETER_INGRESS",
+      "impliedProfiles": [
+        "DIAMETER",
+        "DIAMETERSESSION",
+        "DIAMETER_ENDPOINT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "DIAMETER",
+          "DIAMETERSESSION",
+          "DIAMETER_ENDPOINT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1189,
+      "validCommandsDigest": "sha256:d7b90466c4fcd0859369962c3325dca3c1f3d680ed533136efe9eca2dee17700"
+    },
+    {
+      "deprecated": false,
+      "event": "DIAMETER_RETRANSMISSION",
+      "impliedProfiles": [
+        "DIAMETER",
+        "DIAMETERSESSION"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "DIAMETER",
+          "DIAMETERSESSION"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1189,
+      "validCommandsDigest": "sha256:d7b90466c4fcd0859369962c3325dca3c1f3d680ed533136efe9eca2dee17700"
+    },
+    {
+      "deprecated": false,
+      "event": "DNS_REQUEST",
+      "impliedProfiles": [
+        "DNS"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 31,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "DNS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1184,
+      "validCommandsDigest": "sha256:448f3bd8ba8f18114f000712071dbde813001fc0c70d72dd647dfff60d3e3989"
+    },
+    {
+      "deprecated": false,
+      "event": "DNS_RESPONSE",
+      "impliedProfiles": [
+        "DNS"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 52,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "DNS"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side and server-side",
+      "transport": "udp",
+      "validCommandCount": 1185,
+      "validCommandsDigest": "sha256:e60b0274252b8d65e956d95d49629e03492e0917b20c0eae966e994970cfac71"
+    },
+    {
+      "deprecated": false,
+      "event": "ECA_REQUEST_ALLOWED",
+      "impliedProfiles": [
+        "ECA"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ECA"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "ECA_REQUEST_DENIED",
+      "impliedProfiles": [
+        "ECA"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ECA"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "EPI_NA_CHECK_HTTP_REQUEST",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "FIX_HEADER",
+      "impliedProfiles": [
+        "FIX"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FIX"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:d62ad8e85e9e39e7e6de2d2e3e7f63f25227487c638fabaeae51f47b53c8ade3"
+    },
+    {
+      "deprecated": false,
+      "event": "FIX_MESSAGE",
+      "impliedProfiles": [
+        "FIX"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FIX"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:d62ad8e85e9e39e7e6de2d2e3e7f63f25227487c638fabaeae51f47b53c8ade3"
+    },
+    {
+      "deprecated": false,
+      "event": "FLOW_INIT",
+      "impliedProfiles": [
+        "FLOW"
+      ],
+      "known": true,
+      "multiplicity": "once_per_connection",
+      "orderIndex": 1,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FLOW"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1188,
+      "validCommandsDigest": "sha256:6b5a0619bcb5a4e406f5ae7c6befc2a983f74f69e141fb0ca5250fb6367625d8"
+    },
+    {
+      "deprecated": false,
+      "event": "GENERICMESSAGE_EGRESS",
+      "impliedProfiles": [
+        "GENERICMSG"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GENERICMSG"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1170,
+      "validCommandsDigest": "sha256:284eae09fe825b67e4a4d0fa55ea44b5b1baf011c01e5f0edc9d807d135647ee"
+    },
+    {
+      "deprecated": false,
+      "event": "GENERICMESSAGE_INGRESS",
+      "impliedProfiles": [
+        "GENERICMSG"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GENERICMSG"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:29412400b239a7fe9be960d1478cebac5dbb1470957be32dab5329895c9e5a0a"
+    },
+    {
+      "deprecated": false,
+      "event": "GTP_GPDU_EGRESS",
+      "impliedProfiles": [
+        "GTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side and server-side",
+      "transport": "udp",
+      "validCommandCount": 1159,
+      "validCommandsDigest": "sha256:d4deaf1efabfaf0a5e4dce08c8c17f7f2ab4f099d9cf75228d2139b5962481ff"
+    },
+    {
+      "deprecated": false,
+      "event": "GTP_GPDU_INGRESS",
+      "impliedProfiles": [
+        "GTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1158,
+      "validCommandsDigest": "sha256:431d7f69f4cf6b5f48b3bc61136d0f8aee1cc75f43226d2ae9c0a28d5a7dc5f4"
+    },
+    {
+      "deprecated": false,
+      "event": "GTP_PRIME_EGRESS",
+      "impliedProfiles": [
+        "GTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1169,
+      "validCommandsDigest": "sha256:66bfea412865ccfb54cb49c9b871a2d8b42651da73f560f05ff326b24a956658"
+    },
+    {
+      "deprecated": false,
+      "event": "GTP_PRIME_INGRESS",
+      "impliedProfiles": [
+        "GTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "GTP_SIGNALLING_EGRESS",
+      "impliedProfiles": [
+        "GTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side and server-side",
+      "transport": "udp",
+      "validCommandCount": 1159,
+      "validCommandsDigest": "sha256:d4deaf1efabfaf0a5e4dce08c8c17f7f2ab4f099d9cf75228d2139b5962481ff"
+    },
+    {
+      "deprecated": false,
+      "event": "GTP_SIGNALLING_INGRESS",
+      "impliedProfiles": [
+        "GTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "GTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1158,
+      "validCommandsDigest": "sha256:431d7f69f4cf6b5f48b3bc61136d0f8aee1cc75f43226d2ae9c0a28d5a7dc5f4"
+    },
+    {
+      "deprecated": false,
+      "event": "HTML_COMMENT_MATCHED",
+      "impliedProfiles": [
+        "HTML",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 66,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTML",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1256,
+      "validCommandsDigest": "sha256:b233d425dbb805689825797f1a0884433745ae9d671bc7c4d8a8e422b9ddf654"
+    },
+    {
+      "deprecated": false,
+      "event": "HTML_TAG_MATCHED",
+      "impliedProfiles": [
+        "HTML",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 65,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTML",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1256,
+      "validCommandsDigest": "sha256:b233d425dbb805689825797f1a0884433745ae9d671bc7c4d8a8e422b9ddf654"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_CLASS_FAILED",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 24,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:7f25fb1d478900481c139a6797c684485c3f782e126b24a2f080342b3add4dad"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_CLASS_SELECTED",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 23,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:7f25fb1d478900481c139a6797c684485c3f782e126b24a2f080342b3add4dad"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_DISABLED",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 69,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_PROXY_CONNECT",
+      "impliedProfiles": [
+        "HTTP",
+        "HTTP_PROXY_CONNECT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "HTTP_PROXY_CONNECT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_PROXY_REQUEST",
+      "impliedProfiles": [
+        "HTTP",
+        "HTTP_PROXY_CONNECT"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 12,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "HTTP_PROXY_CONNECT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_PROXY_RESPONSE",
+      "impliedProfiles": [
+        "HTTP",
+        "HTTP_PROXY_CONNECT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "HTTP_PROXY_CONNECT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_REJECT",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 70,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_REQUEST",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 10,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": true,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1290,
+      "validCommandsDigest": "sha256:2e619ef4ec40c7700d936e512d9ffb63a3beb877ef4f06bd404201e12054d96e"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_REQUEST_DATA",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 11,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": true,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": "HTTP_REQUEST",
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:7f25fb1d478900481c139a6797c684485c3f782e126b24a2f080342b3add4dad"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_REQUEST_RELEASE",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 50,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_REQUEST_SEND",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 49,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_RESPONSE",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 56,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": true,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1289,
+      "validCommandsDigest": "sha256:12437b6c71a963556b14b0922c4fbda6b256b749e936c88f6f00e0efcc9120a6"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_RESPONSE_CONTINUE",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 58,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_RESPONSE_DATA",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 57,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": true,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": "HTTP_RESPONSE",
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "HTTP_RESPONSE_RELEASE",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 68,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "ICAP_REQUEST",
+      "impliedProfiles": [
+        "ICAP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ICAP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1170,
+      "validCommandsDigest": "sha256:96cf4bbbda8ccfc3f1b14dcb115e1a91ad995c8ebe3344ba67a2bf6cb65456c0"
+    },
+    {
+      "deprecated": false,
+      "event": "ICAP_RESPONSE",
+      "impliedProfiles": [
+        "ICAP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "ICAP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1174,
+      "validCommandsDigest": "sha256:d97cc50d294eedd0f5e9a99f738dff88cf8430cf37b471b2a298dd350882b1a7"
+    },
+    {
+      "deprecated": false,
+      "event": "IN_DOSL7_ATTACK",
+      "impliedProfiles": [
+        "DOSL7",
+        "FASTHTTP",
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 27,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "DOSL7",
+          "FASTHTTP",
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "IP_GTM",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": false,
+        "common": false,
+        "deprecated": false,
+        "flow": false,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "global",
+      "transport": null,
+      "validCommandCount": 1133,
+      "validCommandsDigest": "sha256:8c4893dc4a2ecfd6091c21979425e20d53b7d2fb31e221db55c975477d8b8117"
+    },
+    {
+      "deprecated": false,
+      "event": "IVS_ENTRY_REQUEST",
+      "impliedProfiles": [
+        "IVS_ENTRY"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "IVS_ENTRY"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:11b1726f82b179efc5349aed0204bbcfd82b5af0debbda285a58f2f6b65f3efa"
+    },
+    {
+      "deprecated": false,
+      "event": "IVS_ENTRY_RESPONSE",
+      "impliedProfiles": [
+        "IVS_ENTRY"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "IVS_ENTRY"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1170,
+      "validCommandsDigest": "sha256:241b542d4eecc443398a01d72a22fced8b89c59b284e8a10f37b125933f25822"
+    },
+    {
+      "deprecated": false,
+      "event": "JSON_REQUEST",
+      "impliedProfiles": [
+        "JSON"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "JSON"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "JSON_REQUEST_ERROR",
+      "impliedProfiles": [
+        "JSON"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "JSON"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "JSON_REQUEST_MISSING",
+      "impliedProfiles": [
+        "JSON"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "JSON"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "JSON_RESPONSE",
+      "impliedProfiles": [
+        "JSON"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "JSON"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "JSON_RESPONSE_ERROR",
+      "impliedProfiles": [
+        "JSON"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "JSON"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "JSON_RESPONSE_MISSING",
+      "impliedProfiles": [
+        "JSON"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "JSON"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "L7CHECK_CLIENT_DATA",
+      "impliedProfiles": [
+        "L7CHECK"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "L7CHECK"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:07951c7ab8f15c11d1043884b0639c78e3dec0ef964ca384ac46ef6d2d2f0570"
+    },
+    {
+      "deprecated": false,
+      "event": "L7CHECK_SERVER_DATA",
+      "impliedProfiles": [
+        "L7CHECK"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "L7CHECK"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1170,
+      "validCommandsDigest": "sha256:42ee67c1c20539b64164c73e95a88d0c367bd4d0cb12f38e7b78f011faf5fe3e"
+    },
+    {
+      "deprecated": false,
+      "event": "LB_FAILED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 35,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1181,
+      "validCommandsDigest": "sha256:3f3c4e9a303de8065ce15126f2a3f73b65170b9fb96ed86b3a560efc4bfcf01a"
+    },
+    {
+      "deprecated": false,
+      "event": "LB_QUEUED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 36,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1180,
+      "validCommandsDigest": "sha256:053769388f68049e21ec104291167507fa4400a28dbb98449c4cc5445e8a7042"
+    },
+    {
+      "deprecated": false,
+      "event": "LB_SELECTED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 34,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1192,
+      "validCommandsDigest": "sha256:68aad7633e0d15b28f3baaed5fdead2dcb202a0324e8a7d388eb2b259ad7e73b"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_CLIENT_DATA",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1192,
+      "validCommandsDigest": "sha256:74672112b8399ad04da153a5434ce19b9a9ad24b6f0c02cf70a5577f625a0917"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_CLIENT_EGRESS",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1192,
+      "validCommandsDigest": "sha256:74672112b8399ad04da153a5434ce19b9a9ad24b6f0c02cf70a5577f625a0917"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_CLIENT_INGRESS",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1192,
+      "validCommandsDigest": "sha256:74672112b8399ad04da153a5434ce19b9a9ad24b6f0c02cf70a5577f625a0917"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_CLIENT_SHUTDOWN",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1192,
+      "validCommandsDigest": "sha256:74672112b8399ad04da153a5434ce19b9a9ad24b6f0c02cf70a5577f625a0917"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_SERVER_DATA",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1196,
+      "validCommandsDigest": "sha256:33527e410a65d7e629377997a70d8729103ca774537437cd885ddaa43805ab41"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_SERVER_EGRESS",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1196,
+      "validCommandsDigest": "sha256:33527e410a65d7e629377997a70d8729103ca774537437cd885ddaa43805ab41"
+    },
+    {
+      "deprecated": false,
+      "event": "MQTT_SERVER_INGRESS",
+      "impliedProfiles": [
+        "MQTT"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MQTT"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1196,
+      "validCommandsDigest": "sha256:33527e410a65d7e629377997a70d8729103ca774537437cd885ddaa43805ab41"
+    },
+    {
+      "deprecated": false,
+      "event": "MR_DATA",
+      "impliedProfiles": [
+        "MR"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MR"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1202,
+      "validCommandsDigest": "sha256:341c1149e65835f3cf6b900395e9a7ab271326d04b9df2ab333d7eef661e8502"
+    },
+    {
+      "deprecated": false,
+      "event": "MR_EGRESS",
+      "impliedProfiles": [
+        "MR"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MR"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1216,
+      "validCommandsDigest": "sha256:e5cb036b422712937c7d0d995385d5d2c7e2a060057f3aafe839154b6b56c333"
+    },
+    {
+      "deprecated": false,
+      "event": "MR_FAILED",
+      "impliedProfiles": [
+        "MR"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MR"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1209,
+      "validCommandsDigest": "sha256:14ce9b102b78657a5b9063e0d842b81b5fad5d3668216c6c94d27b86e7c80187"
+    },
+    {
+      "deprecated": false,
+      "event": "MR_INGRESS",
+      "impliedProfiles": [
+        "MR"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MR"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1221,
+      "validCommandsDigest": "sha256:c4ed961b07646e14b3d37a3b82f98c1db7f1a87b0bc87e734cfcdffeb650039c"
+    },
+    {
+      "deprecated": false,
+      "event": "NAME_RESOLVED",
+      "impliedProfiles": [
+        "NAME"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "NAME"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1168,
+      "validCommandsDigest": "sha256:1297e2d14f95bc83c770b4843af8da675d71775973948fc3c35e835f9c36303b"
+    },
+    {
+      "deprecated": false,
+      "event": "PCP_REQUEST",
+      "impliedProfiles": [
+        "PCP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PCP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1161,
+      "validCommandsDigest": "sha256:95d86e9c79feed1881d7a117f0cea80d48704cab42795e2a73cb73c8e083fbf7"
+    },
+    {
+      "deprecated": false,
+      "event": "PCP_RESPONSE",
+      "impliedProfiles": [
+        "PCP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PCP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side and server-side",
+      "transport": "udp",
+      "validCommandCount": 1162,
+      "validCommandsDigest": "sha256:c6b826fd283bda52807b12336b44c235e88b704ff47c6be1ec81b3aa199ee791"
+    },
+    {
+      "deprecated": false,
+      "event": "PEM_POLICY",
+      "impliedProfiles": [
+        "PEM"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PEM"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "PEM_SUBS_SESS_CREATED",
+      "impliedProfiles": [
+        "PEM"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PEM"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "PEM_SUBS_SESS_DELETED",
+      "impliedProfiles": [
+        "PEM"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PEM"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "PEM_SUBS_SESS_UPDATED",
+      "impliedProfiles": [
+        "PEM"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PEM"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "PERSIST_DOWN",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 33,
+      "props": {
+        "client_side": false,
+        "common": false,
+        "deprecated": false,
+        "flow": false,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "global",
+      "transport": null,
+      "validCommandCount": 1136,
+      "validCommandsDigest": "sha256:023c91dcce10f6bfc648f663c81f2362cdfcc2ae04c50ca6315657e897d59d19"
+    },
+    {
+      "deprecated": false,
+      "event": "PING_REQUEST_READY",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "PING_RESPONSE_READY",
+      "impliedProfiles": [
+        "HTTP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "PROTOCOL_INSPECTION_MATCH",
+      "impliedProfiles": [
+        "IPS",
+        "PROTOCOL_INSPECTION"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "IPS",
+          "PROTOCOL_INSPECTION"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1166,
+      "validCommandsDigest": "sha256:8e80202f7065191837e4aaf6dc3aa74ca8a16eb2445177320fccda7cf79b291f"
+    },
+    {
+      "deprecated": false,
+      "event": "QOE_PARSE_DONE",
+      "impliedProfiles": [
+        "QOE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "QOE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1257,
+      "validCommandsDigest": "sha256:c9473f4d53917f2f893c9aacdc959237b48eab3dde36b8e856e36953458853c8"
+    },
+    {
+      "deprecated": false,
+      "event": "RADIUS_AAA_ACCT_REQUEST",
+      "impliedProfiles": [
+        "RADIUS",
+        "RADIUS_AAA"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RADIUS",
+          "RADIUS_AAA"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1158,
+      "validCommandsDigest": "sha256:431d7f69f4cf6b5f48b3bc61136d0f8aee1cc75f43226d2ae9c0a28d5a7dc5f4"
+    },
+    {
+      "deprecated": false,
+      "event": "RADIUS_AAA_ACCT_RESPONSE",
+      "impliedProfiles": [
+        "RADIUS",
+        "RADIUS_AAA"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RADIUS",
+          "RADIUS_AAA"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side and server-side",
+      "transport": "udp",
+      "validCommandCount": 1159,
+      "validCommandsDigest": "sha256:d4deaf1efabfaf0a5e4dce08c8c17f7f2ab4f099d9cf75228d2139b5962481ff"
+    },
+    {
+      "deprecated": false,
+      "event": "RADIUS_AAA_AUTH_REQUEST",
+      "impliedProfiles": [
+        "RADIUS",
+        "RADIUS_AAA"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RADIUS",
+          "RADIUS_AAA"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1158,
+      "validCommandsDigest": "sha256:431d7f69f4cf6b5f48b3bc61136d0f8aee1cc75f43226d2ae9c0a28d5a7dc5f4"
+    },
+    {
+      "deprecated": false,
+      "event": "RADIUS_AAA_AUTH_RESPONSE",
+      "impliedProfiles": [
+        "RADIUS",
+        "RADIUS_AAA"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RADIUS",
+          "RADIUS_AAA"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side and server-side",
+      "transport": "udp",
+      "validCommandCount": 1159,
+      "validCommandsDigest": "sha256:d4deaf1efabfaf0a5e4dce08c8c17f7f2ab4f099d9cf75228d2139b5962481ff"
+    },
+    {
+      "deprecated": false,
+      "event": "REWRITE_REQUEST",
+      "impliedProfiles": [
+        "HTTP",
+        "REWRITE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "REWRITE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:9f9e6b7a9a6d526dd38d42cc4bb06cf466bb2d853fdcb3abe0ab39fa6136c990"
+    },
+    {
+      "deprecated": false,
+      "event": "REWRITE_REQUEST_DONE",
+      "impliedProfiles": [
+        "HTTP",
+        "REWRITE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 42,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "REWRITE"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:9f9e6b7a9a6d526dd38d42cc4bb06cf466bb2d853fdcb3abe0ab39fa6136c990"
+    },
+    {
+      "deprecated": false,
+      "event": "REWRITE_RESPONSE",
+      "impliedProfiles": [
+        "HTTP",
+        "REWRITE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "REWRITE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1262,
+      "validCommandsDigest": "sha256:01fb63cea7b055ec954cfd283699e1c92a784a3253dcd7a2e0f1b76f4f38fc94"
+    },
+    {
+      "deprecated": false,
+      "event": "REWRITE_RESPONSE_DONE",
+      "impliedProfiles": [
+        "HTTP",
+        "REWRITE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 67,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "REWRITE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1262,
+      "validCommandsDigest": "sha256:01fb63cea7b055ec954cfd283699e1c92a784a3253dcd7a2e0f1b76f4f38fc94"
+    },
+    {
+      "deprecated": false,
+      "event": "RTSP_REQUEST",
+      "impliedProfiles": [
+        "RTSP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RTSP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1171,
+      "validCommandsDigest": "sha256:2f4766ce19c74bb5e31fb6ec432bfa8910f67a2ce38e801888c68bd85b0322c8"
+    },
+    {
+      "deprecated": false,
+      "event": "RTSP_REQUEST_DATA",
+      "impliedProfiles": [
+        "RTSP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RTSP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1171,
+      "validCommandsDigest": "sha256:2f4766ce19c74bb5e31fb6ec432bfa8910f67a2ce38e801888c68bd85b0322c8"
+    },
+    {
+      "deprecated": false,
+      "event": "RTSP_RESPONSE",
+      "impliedProfiles": [
+        "RTSP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RTSP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1170,
+      "validCommandsDigest": "sha256:31ec2e1afc669a9f6f50f153e1a650ae5a7b60d3ec06fe22d028a67585b14021"
+    },
+    {
+      "deprecated": false,
+      "event": "RTSP_RESPONSE_DATA",
+      "impliedProfiles": [
+        "RTSP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "RTSP"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1170,
+      "validCommandsDigest": "sha256:31ec2e1afc669a9f6f50f153e1a650ae5a7b60d3ec06fe22d028a67585b14021"
+    },
+    {
+      "deprecated": false,
+      "event": "RULE_INIT",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "init",
+      "orderIndex": 0,
+      "props": {
+        "client_side": false,
+        "common": true,
+        "deprecated": false,
+        "flow": false,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "global",
+      "transport": null,
+      "validCommandCount": 1126,
+      "validCommandsDigest": "sha256:7331816a3ab112cc5730a6e7dcf775a0a136e2a92d56d1cbf890a0a9bb7f3ebe"
+    },
+    {
+      "deprecated": false,
+      "event": "SA_PICKED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 37,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1182,
+      "validCommandsDigest": "sha256:db57b27b28687abb7e9167be43e00d39259084b42848efb5a657192525b3394b"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVERSSL_CLIENTHELLO_SEND",
+      "impliedProfiles": [
+        "PERSIST",
+        "SERVERSSL",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 44,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PERSIST",
+          "SERVERSSL",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:893e652ad39617160adc1c3b9a22d678d7d39567a05f5afc75b88c714de9d0e3"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVERSSL_DATA",
+      "impliedProfiles": [
+        "PERSIST",
+        "SERVERSSL",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 48,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PERSIST",
+          "SERVERSSL",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": true,
+        "setup_event": "SERVERSSL_HANDSHAKE",
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:893e652ad39617160adc1c3b9a22d678d7d39567a05f5afc75b88c714de9d0e3"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVERSSL_HANDSHAKE",
+      "impliedProfiles": [
+        "PERSIST",
+        "SERVERSSL",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 47,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PERSIST",
+          "SERVERSSL",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:893e652ad39617160adc1c3b9a22d678d7d39567a05f5afc75b88c714de9d0e3"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVERSSL_SERVERCERT",
+      "impliedProfiles": [
+        "PERSIST",
+        "SERVERSSL",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 46,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PERSIST",
+          "SERVERSSL",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:893e652ad39617160adc1c3b9a22d678d7d39567a05f5afc75b88c714de9d0e3"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVERSSL_SERVERHELLO",
+      "impliedProfiles": [
+        "PERSIST",
+        "SERVERSSL",
+        "SSL_PERSISTENCE"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 45,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "PERSIST",
+          "SERVERSSL",
+          "SSL_PERSISTENCE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1177,
+      "validCommandsDigest": "sha256:893e652ad39617160adc1c3b9a22d678d7d39567a05f5afc75b88c714de9d0e3"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVER_CLOSED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 71,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1180,
+      "validCommandsDigest": "sha256:053769388f68049e21ec104291167507fa4400a28dbb98449c4cc5445e8a7042"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVER_CONNECTED",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 43,
+      "props": {
+        "client_side": true,
+        "common": true,
+        "deprecated": false,
+        "flow": true,
+        "hot": true,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1197,
+      "validCommandsDigest": "sha256:c2ad73df521d7fefad9f83cfda23c66dd59ec75682505d76b01a0109e5dcace1"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVER_DATA",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": 51,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": "SERVER_CONNECTED",
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1185,
+      "validCommandsDigest": "sha256:ba6fe7a0a92b45d9789d074d7db681c7b2f2828597f0cfda90038153673a3d54"
+    },
+    {
+      "deprecated": false,
+      "event": "SERVER_INIT",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 38,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": [
+          "tcp",
+          "udp"
+        ]
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp/udp",
+      "validCommandCount": 1179,
+      "validCommandsDigest": "sha256:e63785725cb3c41382a16a8926df61a011b0809ee45f0954641049a0b1867614"
+    },
+    {
+      "deprecated": false,
+      "event": "SIP_REQUEST",
+      "impliedProfiles": [
+        "SIP",
+        "SIPROUTER",
+        "SIPSESSION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 32,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SIP",
+          "SIPROUTER",
+          "SIPSESSION"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "client-side",
+      "transport": null,
+      "validCommandCount": 1199,
+      "validCommandsDigest": "sha256:98f060a960764a69192044866d728f221bd3587e417a897831dc214836deca2c"
+    },
+    {
+      "deprecated": false,
+      "event": "SIP_REQUEST_DONE",
+      "impliedProfiles": [
+        "SIP",
+        "SIPROUTER",
+        "SIPSESSION"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SIP",
+          "SIPROUTER",
+          "SIPSESSION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "client-side and server-side",
+      "transport": null,
+      "validCommandCount": 1168,
+      "validCommandsDigest": "sha256:2ef3b9338e1b382555e158c63e3e8e86374ec5622da127f8113628d489b4efe0"
+    },
+    {
+      "deprecated": false,
+      "event": "SIP_REQUEST_SEND",
+      "impliedProfiles": [
+        "SIP",
+        "SIPROUTER",
+        "SIPSESSION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 53,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SIP",
+          "SIPROUTER",
+          "SIPSESSION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "client-side and server-side",
+      "transport": null,
+      "validCommandCount": 1195,
+      "validCommandsDigest": "sha256:73757f8a770e9fa02a7f9bed6962136ee2da82c25c23a832af96f32b776576ed"
+    },
+    {
+      "deprecated": false,
+      "event": "SIP_RESPONSE",
+      "impliedProfiles": [
+        "SIP",
+        "SIPROUTER",
+        "SIPSESSION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 54,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SIP",
+          "SIPROUTER",
+          "SIPSESSION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "client-side and server-side",
+      "transport": null,
+      "validCommandCount": 1195,
+      "validCommandsDigest": "sha256:73757f8a770e9fa02a7f9bed6962136ee2da82c25c23a832af96f32b776576ed"
+    },
+    {
+      "deprecated": false,
+      "event": "SIP_RESPONSE_DONE",
+      "impliedProfiles": [
+        "SIP",
+        "SIPROUTER",
+        "SIPSESSION"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SIP",
+          "SIPROUTER",
+          "SIPSESSION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "client-side and server-side",
+      "transport": null,
+      "validCommandCount": 1168,
+      "validCommandsDigest": "sha256:2ef3b9338e1b382555e158c63e3e8e86374ec5622da127f8113628d489b4efe0"
+    },
+    {
+      "deprecated": false,
+      "event": "SIP_RESPONSE_SEND",
+      "impliedProfiles": [
+        "SIP",
+        "SIPROUTER",
+        "SIPSESSION"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 55,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SIP",
+          "SIPROUTER",
+          "SIPSESSION"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": null
+      },
+      "side": "client-side and server-side",
+      "transport": null,
+      "validCommandCount": 1168,
+      "validCommandsDigest": "sha256:2ef3b9338e1b382555e158c63e3e8e86374ec5622da127f8113628d489b4efe0"
+    },
+    {
+      "deprecated": false,
+      "event": "SOCKS_REQUEST",
+      "impliedProfiles": [
+        "SOCKS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SOCKS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1168,
+      "validCommandsDigest": "sha256:6edf3b80128cacb88f8d99ec9c77b330e59ce973539fe83811f82d55d2adbca1"
+    },
+    {
+      "deprecated": false,
+      "event": "SSE_RESPONSE",
+      "impliedProfiles": [
+        "SSE"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "SSE"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1259,
+      "validCommandsDigest": "sha256:d111efab1f5bd929fdb701774bc87b5dbce77a1c374ab4b7cd664d8bad377179"
+    },
+    {
+      "deprecated": false,
+      "event": "STREAM_MATCHED",
+      "impliedProfiles": [
+        "STREAM"
+      ],
+      "known": true,
+      "multiplicity": "per_request",
+      "orderIndex": 64,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "STREAM"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1181,
+      "validCommandsDigest": "sha256:1f770e2aa1e10c3761ffeed47cecff5ad46f6c03428b2f917d152d9ad0922cf3"
+    },
+    {
+      "deprecated": false,
+      "event": "TAP_REQUEST",
+      "impliedProfiles": [
+        "TAP"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "TAP"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1167,
+      "validCommandsDigest": "sha256:b0d39e9c0ca10349b35acd3f50aa7c91dbc58627cf2185578813be3327d935ef"
+    },
+    {
+      "deprecated": false,
+      "event": "TCP_GTM",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1165,
+      "validCommandsDigest": "sha256:016250931c1ea2cc4546411fbfbe278fd8fd278941bd3e2042d27dde2552c003"
+    },
+    {
+      "deprecated": false,
+      "event": "TDS_REQUEST",
+      "impliedProfiles": [
+        "MSSQL",
+        "TDS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MSSQL",
+          "TDS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1167,
+      "validCommandsDigest": "sha256:503aa0658d2f6c44ccbf6d5c34140b8fabc97ecd3ad5e65492d7d1d7399e1388"
+    },
+    {
+      "deprecated": false,
+      "event": "TDS_RESPONSE",
+      "impliedProfiles": [
+        "MSSQL",
+        "TDS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "MSSQL",
+          "TDS"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1171,
+      "validCommandsDigest": "sha256:afe2fa58fd365735f0595f8b193eda2eb0242867a9f4365c686edbecd65f2a0b"
+    },
+    {
+      "deprecated": false,
+      "event": "UDP_GTM",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "udp"
+      },
+      "side": "client-side",
+      "transport": "udp",
+      "validCommandCount": 1158,
+      "validCommandsDigest": "sha256:431d7f69f4cf6b5f48b3bc61136d0f8aee1cc75f43226d2ae9c0a28d5a7dc5f4"
+    },
+    {
+      "deprecated": false,
+      "event": "USER_REQUEST",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1169,
+      "validCommandsDigest": "sha256:66bfea412865ccfb54cb49c9b871a2d8b42651da73f560f05ff326b24a956658"
+    },
+    {
+      "deprecated": false,
+      "event": "USER_RESPONSE",
+      "impliedProfiles": [],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1169,
+      "validCommandsDigest": "sha256:66bfea412865ccfb54cb49c9b871a2d8b42651da73f560f05ff326b24a956658"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_CLIENT_DATA",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_CLIENT_FRAME",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_CLIENT_FRAME_DONE",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_REQUEST",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1254,
+      "validCommandsDigest": "sha256:f327ef8c5e56eb4f1a2c0514134731e015f845012a75aa24b9a07619561ac180"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_RESPONSE",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_SERVER_DATA",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_SERVER_FRAME",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "WS_SERVER_FRAME_DONE",
+      "impliedProfiles": [
+        "HTTP",
+        "WS"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": false,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "HTTP",
+          "WS"
+        ],
+        "server_side": true,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side and server-side",
+      "transport": "tcp",
+      "validCommandCount": 1258,
+      "validCommandsDigest": "sha256:e9dc694ce0c71148b7e92123e84ca283779c58b5b043a8b1cfe124022e330436"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_BEGIN_DOCUMENT",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_BEGIN_ELEMENT",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_CDATA",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_CONTENT_BASED_ROUTING",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_END_DOCUMENT",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_END_ELEMENT",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    },
+    {
+      "deprecated": false,
+      "event": "XML_EVENT",
+      "impliedProfiles": [
+        "FASTHTTP",
+        "HTTP",
+        "XML"
+      ],
+      "known": true,
+      "multiplicity": "unknown",
+      "orderIndex": null,
+      "props": {
+        "client_side": true,
+        "common": false,
+        "deprecated": true,
+        "flow": true,
+        "hot": false,
+        "implied_profiles": [
+          "FASTHTTP",
+          "HTTP",
+          "XML"
+        ],
+        "server_side": false,
+        "setup_event": null,
+        "transport": "tcp"
+      },
+      "side": "client-side",
+      "transport": "tcp",
+      "validCommandCount": 1285,
+      "validCommandsDigest": "sha256:21202f8eb3961cd64d057ed6fb1d3863d7f7f2473a342dc03e7620d01be9eca6"
+    }
+  ],
+  "flowChains": {
+    "plain_tcp": {
+      "chain_id": "plain_tcp",
+      "description": "Plain TCP (tcp profile only)",
+      "notes": "",
+      "profiles": [
+        "TCP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_ACCEPTED",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "Requires TCP::collect in CLIENT_ACCEPTED",
+          "conditional": true,
+          "event": "CLIENT_DATA",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SA_PICKED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_INIT",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CONNECTED",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "Requires TCP::collect in SERVER_CONNECTED",
+          "conditional": true,
+          "event": "SERVER_DATA",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CLOSED",
+          "phase": "l4_teardown"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_CLOSED",
+          "phase": "l4_teardown"
+        }
+      ]
+    },
+    "tcp_clientssl_http": {
+      "chain_id": "tcp_clientssl_http",
+      "description": "TCP + ClientSSL + HTTP (client-side TLS termination)",
+      "notes": "",
+      "profiles": [
+        "CLIENTSSL",
+        "HTTP",
+        "TCP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_ACCEPTED",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_CLIENTHELLO",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_SERVERHELLO_SEND",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "Only with mutual TLS (client certificate required)",
+          "conditional": true,
+          "event": "CLIENTSSL_CLIENTCERT",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_HANDSHAKE",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "Requires HTTP::collect in HTTP_REQUEST",
+          "conditional": true,
+          "event": "HTTP_REQUEST_DATA",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SA_PICKED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_INIT",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CONNECTED",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_SEND",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_RELEASE",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "Requires HTTP::collect in HTTP_RESPONSE",
+          "conditional": true,
+          "event": "HTTP_RESPONSE_DATA",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE_RELEASE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CLOSED",
+          "phase": "l4_teardown"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_CLOSED",
+          "phase": "l4_teardown"
+        }
+      ]
+    },
+    "tcp_clientssl_serverssl_http": {
+      "chain_id": "tcp_clientssl_serverssl_http",
+      "description": "Full HTTPS (ClientSSL + ServerSSL + HTTP)",
+      "notes": "",
+      "profiles": [
+        "CLIENTSSL",
+        "HTTP",
+        "SERVERSSL",
+        "TCP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_ACCEPTED",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_CLIENTHELLO",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_SERVERHELLO_SEND",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "Only with mutual TLS (client certificate required)",
+          "conditional": true,
+          "event": "CLIENTSSL_CLIENTCERT",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_HANDSHAKE",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "Requires HTTP::collect in HTTP_REQUEST",
+          "conditional": true,
+          "event": "HTTP_REQUEST_DATA",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SA_PICKED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_INIT",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CONNECTED",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_CLIENTHELLO_SEND",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_SERVERHELLO",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_SERVERCERT",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_HANDSHAKE",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_SEND",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_RELEASE",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "Requires HTTP::collect in HTTP_RESPONSE",
+          "conditional": true,
+          "event": "HTTP_RESPONSE_DATA",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE_RELEASE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CLOSED",
+          "phase": "l4_teardown"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_CLOSED",
+          "phase": "l4_teardown"
+        }
+      ]
+    },
+    "tcp_clientssl_serverssl_http_collect": {
+      "chain_id": "tcp_clientssl_serverssl_http_collect",
+      "description": "Full HTTPS with HTTP::collect (request + response body)",
+      "notes": "Both HTTP_REQUEST_DATA and HTTP_RESPONSE_DATA fire because the iRule calls HTTP::collect in the respective request/response events.  Client sends a POST with body.",
+      "profiles": [
+        "CLIENTSSL",
+        "HTTP",
+        "SERVERSSL",
+        "TCP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_ACCEPTED",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_CLIENTHELLO",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_SERVERHELLO_SEND",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENTSSL_HANDSHAKE",
+          "phase": "tls_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "HTTP::collect called in HTTP_REQUEST",
+          "conditional": false,
+          "event": "HTTP_REQUEST_DATA",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SA_PICKED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_INIT",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CONNECTED",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_CLIENTHELLO_SEND",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_SERVERHELLO",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_SERVERCERT",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVERSSL_HANDSHAKE",
+          "phase": "tls_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_SEND",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_RELEASE",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "HTTP::collect called in HTTP_RESPONSE",
+          "conditional": false,
+          "event": "HTTP_RESPONSE_DATA",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE_RELEASE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CLOSED",
+          "phase": "l4_teardown"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_CLOSED",
+          "phase": "l4_teardown"
+        }
+      ]
+    },
+    "tcp_dns": {
+      "chain_id": "tcp_dns",
+      "description": "TCP + DNS",
+      "notes": "",
+      "profiles": [
+        "DNS",
+        "TCP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_ACCEPTED",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "Requires TCP::collect in CLIENT_ACCEPTED",
+          "conditional": true,
+          "event": "CLIENT_DATA",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "DNS_REQUEST",
+          "phase": "dns_request"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SA_PICKED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_INIT",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CONNECTED",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "DNS_RESPONSE",
+          "phase": "dns_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CLOSED",
+          "phase": "l4_teardown"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_CLOSED",
+          "phase": "l4_teardown"
+        }
+      ]
+    },
+    "tcp_http": {
+      "chain_id": "tcp_http",
+      "description": "TCP + HTTP",
+      "notes": "",
+      "profiles": [
+        "HTTP",
+        "TCP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_ACCEPTED",
+          "phase": "l4_client"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "Requires HTTP::collect in HTTP_REQUEST",
+          "conditional": true,
+          "event": "HTTP_REQUEST_DATA",
+          "phase": "http_request"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SA_PICKED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_INIT",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CONNECTED",
+          "phase": "l4_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_SEND",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_REQUEST_RELEASE",
+          "phase": "http_request_server"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "Requires HTTP::collect in HTTP_RESPONSE",
+          "conditional": true,
+          "event": "HTTP_RESPONSE_DATA",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "HTTP_RESPONSE_RELEASE",
+          "phase": "http_response"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "SERVER_CLOSED",
+          "phase": "l4_teardown"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "CLIENT_CLOSED",
+          "phase": "l4_teardown"
+        }
+      ]
+    },
+    "udp_dns": {
+      "chain_id": "udp_dns",
+      "description": "UDP + DNS",
+      "notes": "",
+      "profiles": [
+        "DNS",
+        "UDP"
+      ],
+      "steps": [
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "RULE_INIT",
+          "phase": "init"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "DNS_REQUEST",
+          "phase": "dns_request"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "LB_SELECTED",
+          "phase": "lb"
+        },
+        {
+          "condition_note": "",
+          "conditional": false,
+          "event": "DNS_RESPONSE",
+          "phase": "dns_response"
+        }
+      ]
+    }
+  },
+  "masterOrder": [
+    {
+      "event": "RULE_INIT",
+      "profiles": []
+    },
+    {
+      "event": "FLOW_INIT",
+      "profiles": [
+        "FLOW"
+      ]
+    },
+    {
+      "event": "CLIENT_ACCEPTED",
+      "profiles": []
+    },
+    {
+      "event": "CLIENT_DATA",
+      "profiles": []
+    },
+    {
+      "event": "CLIENTSSL_CLIENTHELLO",
+      "profiles": [
+        "CLIENTSSL",
+        "PERSIST"
+      ]
+    },
+    {
+      "event": "CLIENTSSL_SERVERHELLO_SEND",
+      "profiles": [
+        "CLIENTSSL"
+      ]
+    },
+    {
+      "event": "CLIENTSSL_CLIENTCERT",
+      "profiles": [
+        "CLIENTSSL",
+        "PERSIST"
+      ]
+    },
+    {
+      "event": "CLIENTSSL_HANDSHAKE",
+      "profiles": [
+        "CLIENTSSL"
+      ]
+    },
+    {
+      "event": "CLIENTSSL_DATA",
+      "profiles": [
+        "CLIENTSSL"
+      ]
+    },
+    {
+      "event": "CLIENTSSL_PASSTHROUGH",
+      "profiles": [
+        "CLIENTSSL"
+      ]
+    },
+    {
+      "event": "HTTP_REQUEST",
+      "profiles": [
+        "FASTHTTP",
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_REQUEST_DATA",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_PROXY_REQUEST",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "AUTH_RESULT",
+      "profiles": [
+        "AUTH"
+      ]
+    },
+    {
+      "event": "AUTH_SUCCESS",
+      "profiles": [
+        "AUTH"
+      ]
+    },
+    {
+      "event": "AUTH_FAILURE",
+      "profiles": [
+        "AUTH"
+      ]
+    },
+    {
+      "event": "AUTH_ERROR",
+      "profiles": [
+        "AUTH"
+      ]
+    },
+    {
+      "event": "AUTH_WANTCREDENTIAL",
+      "profiles": [
+        "AUTH"
+      ]
+    },
+    {
+      "event": "ACCESS_SESSION_STARTED",
+      "profiles": [
+        "ACCESS"
+      ]
+    },
+    {
+      "event": "ACCESS_POLICY_AGENT_EVENT",
+      "profiles": [
+        "ACCESS"
+      ]
+    },
+    {
+      "event": "ACCESS_POLICY_COMPLETED",
+      "profiles": [
+        "ACCESS"
+      ]
+    },
+    {
+      "event": "CLASSIFICATION_DETECTED",
+      "profiles": [
+        "CLASSIFICATION"
+      ]
+    },
+    {
+      "event": "CATEGORY_MATCHED",
+      "profiles": [
+        "ACCESS",
+        "CATEGORY",
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_CLASS_SELECTED",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_CLASS_FAILED",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "CACHE_REQUEST",
+      "profiles": [
+        "CACHE",
+        "WEBACCELERATION"
+      ]
+    },
+    {
+      "event": "CACHE_RESPONSE",
+      "profiles": [
+        "CACHE",
+        "WEBACCELERATION"
+      ]
+    },
+    {
+      "event": "IN_DOSL7_ATTACK",
+      "profiles": [
+        "DOSL7",
+        "FASTHTTP",
+        "HTTP"
+      ]
+    },
+    {
+      "event": "ASM_REQUEST_DONE",
+      "profiles": [
+        "ASM"
+      ]
+    },
+    {
+      "event": "ASM_REQUEST_VIOLATION",
+      "profiles": [
+        "ASM"
+      ]
+    },
+    {
+      "event": "ASM_REQUEST_BLOCKING",
+      "profiles": [
+        "ASM"
+      ]
+    },
+    {
+      "event": "DNS_REQUEST",
+      "profiles": [
+        "DNS"
+      ]
+    },
+    {
+      "event": "SIP_REQUEST",
+      "profiles": [
+        "SIP"
+      ]
+    },
+    {
+      "event": "PERSIST_DOWN",
+      "profiles": []
+    },
+    {
+      "event": "LB_SELECTED",
+      "profiles": []
+    },
+    {
+      "event": "LB_FAILED",
+      "profiles": []
+    },
+    {
+      "event": "LB_QUEUED",
+      "profiles": []
+    },
+    {
+      "event": "SA_PICKED",
+      "profiles": []
+    },
+    {
+      "event": "SERVER_INIT",
+      "profiles": []
+    },
+    {
+      "event": "ACCESS_ACL_ALLOWED",
+      "profiles": [
+        "ACCESS"
+      ]
+    },
+    {
+      "event": "ACCESS_ACL_DENIED",
+      "profiles": [
+        "ACCESS"
+      ]
+    },
+    {
+      "event": "ACCESS_PER_REQUEST_AGENT_EVENT",
+      "profiles": [
+        "ACCESS"
+      ]
+    },
+    {
+      "event": "REWRITE_REQUEST_DONE",
+      "profiles": [
+        "HTTP",
+        "REWRITE"
+      ]
+    },
+    {
+      "event": "SERVER_CONNECTED",
+      "profiles": []
+    },
+    {
+      "event": "SERVERSSL_CLIENTHELLO_SEND",
+      "profiles": [
+        "SERVERSSL"
+      ]
+    },
+    {
+      "event": "SERVERSSL_SERVERHELLO",
+      "profiles": [
+        "PERSIST",
+        "SERVERSSL"
+      ]
+    },
+    {
+      "event": "SERVERSSL_SERVERCERT",
+      "profiles": [
+        "SERVERSSL"
+      ]
+    },
+    {
+      "event": "SERVERSSL_HANDSHAKE",
+      "profiles": [
+        "PERSIST",
+        "SERVERSSL"
+      ]
+    },
+    {
+      "event": "SERVERSSL_DATA",
+      "profiles": [
+        "SERVERSSL"
+      ]
+    },
+    {
+      "event": "HTTP_REQUEST_SEND",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_REQUEST_RELEASE",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "SERVER_DATA",
+      "profiles": []
+    },
+    {
+      "event": "DNS_RESPONSE",
+      "profiles": [
+        "DNS"
+      ]
+    },
+    {
+      "event": "SIP_REQUEST_SEND",
+      "profiles": [
+        "SIP"
+      ]
+    },
+    {
+      "event": "SIP_RESPONSE",
+      "profiles": [
+        "SIP"
+      ]
+    },
+    {
+      "event": "SIP_RESPONSE_SEND",
+      "profiles": [
+        "SIP"
+      ]
+    },
+    {
+      "event": "HTTP_RESPONSE",
+      "profiles": [
+        "FASTHTTP",
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_RESPONSE_DATA",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_RESPONSE_CONTINUE",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "ASM_RESPONSE_VIOLATION",
+      "profiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ]
+    },
+    {
+      "event": "ASM_RESPONSE_LOGIN",
+      "profiles": [
+        "ASM",
+        "FASTHTTP",
+        "HTTP"
+      ]
+    },
+    {
+      "event": "BOTDEFENSE_REQUEST",
+      "profiles": [
+        "BOTDEFENSE"
+      ]
+    },
+    {
+      "event": "BOTDEFENSE_ACTION",
+      "profiles": [
+        "BOTDEFENSE"
+      ]
+    },
+    {
+      "event": "CACHE_UPDATE",
+      "profiles": [
+        "CACHE",
+        "WEBACCELERATION"
+      ]
+    },
+    {
+      "event": "STREAM_MATCHED",
+      "profiles": [
+        "STREAM"
+      ]
+    },
+    {
+      "event": "HTML_TAG_MATCHED",
+      "profiles": [
+        "HTML"
+      ]
+    },
+    {
+      "event": "HTML_COMMENT_MATCHED",
+      "profiles": [
+        "HTML"
+      ]
+    },
+    {
+      "event": "REWRITE_RESPONSE_DONE",
+      "profiles": [
+        "HTTP",
+        "REWRITE"
+      ]
+    },
+    {
+      "event": "HTTP_RESPONSE_RELEASE",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_DISABLED",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "HTTP_REJECT",
+      "profiles": [
+        "HTTP"
+      ]
+    },
+    {
+      "event": "SERVER_CLOSED",
+      "profiles": []
+    },
+    {
+      "event": "CLIENT_CLOSED",
+      "profiles": []
+    },
+    {
+      "event": "ACCESS_SESSION_CLOSED",
+      "profiles": [
+        "ACCESS"
+      ]
+    }
+  ],
+  "schema": "tcl-lsp/registry/events/v1"
+}

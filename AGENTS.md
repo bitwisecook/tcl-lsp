@@ -878,6 +878,19 @@ layers — not just the feature module closest to the symptom.
 - Test framework: **pytest** (configuration in `pyproject.toml`)
 - Tests live in `tests/` — run with `make test-py` or `uv run pytest tests/ -q`
 - VS Code extension tests: `make test-ext`
+- **Registry contract tests** (`tests/registry_contract/`, plus
+  `tests/lsp_e2e/test_registry_contract_e2e.py`): front-end-driven
+  coverage of the whole command registry and the iRules
+  event/profile/object graphs.  They drive the real `tcl` / `f5` verbs
+  (`registry-dump`, `command-info`, `event-info`) and the LSP
+  `executeCommand` registry handlers, asserting against the
+  language-agnostic golden fixtures in `tests/baselines/registry/`.
+  Regenerate the fixtures with `make gen-registry-baselines` after an
+  intentional registry change (a stale-fixture test and
+  `make check-registry-baselines` guard drift).  The contract is the
+  emitted JSON shape, so the same fixtures validate the `rust` branch's
+  front-ends — see
+  [`docs/design/contracts/registry-contract-tests.md`](docs/design/contracts/registry-contract-tests.md).
 - **iRule test framework** (`tooling/irule_test/`): simulates TMM for testing iRules
   without hardware.  See `docs/design/contracts/irule-test-framework.md` for architecture.
   Codegen: `python -m tooling.irule_test.codegen_mock_stubs` (after registry changes)
