@@ -905,6 +905,27 @@ pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
                             i += 2;
                         }
                     }
+                    "trace" => {
+                        // A write trace fires the callback on every `set`, so
+                        // the traced variable is observable and must never be
+                        // a dead store (W220) / unused (W211).  Recognises both
+                        // `trace add variable NAME …` (8.5+) and the 8.4 `trace
+                        // variable NAME …` spelling; a dynamic `$`-target names
+                        // no static local and is skipped here.
+                        let target = if args.len() >= 3 && args[0] == "add" && args[1] == "variable"
+                        {
+                            Some(&args[2])
+                        } else if args.len() >= 2 && args[0] == "variable" {
+                            Some(&args[1])
+                        } else {
+                            None
+                        };
+                        if let Some(t) = target {
+                            if !t.starts_with('$') && !t.contains('[') {
+                                aliases.insert(t.clone());
+                            }
+                        }
+                    }
                     _ => {
                         // For other calls, trust the per-statement
                         // `defs` annotation when present (it

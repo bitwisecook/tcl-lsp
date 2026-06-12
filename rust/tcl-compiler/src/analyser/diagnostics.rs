@@ -9157,6 +9157,28 @@ mod tests {
     }
 
     #[test]
+    fn emit_cfg_ssa_diagnostics_w211_w220_skipped_for_traced_var() {
+        // A write trace makes `x` observable on every `set`, so neither
+        // W211 (unused) nor W220 (dead store) may fire.  Both the 8.5+
+        // `trace add variable` and 8.4 `trace variable` spellings count.
+        for src in [
+            "proc f {} { trace add variable x write cb; set x 1 }",
+            "proc f {} { trace variable x w cb; set x 1 }",
+        ] {
+            let mut a = Analyser::new();
+            a.emit_cfg_ssa_diagnostics(src);
+            assert!(
+                !a.result
+                    .diagnostics
+                    .iter()
+                    .any(|d| matches!(d.code.as_str(), "W211" | "W220")),
+                "traced var must not fire W211/W220 for {src:?}; got {:?}",
+                a.result.diagnostics,
+            );
+        }
+    }
+
+    #[test]
     fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
         // ``proc foo {} { set msg hello; puts "got $msg" }`` —
         // ``msg`` is referenced inside a quoted string; the

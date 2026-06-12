@@ -5975,6 +5975,17 @@ fires W231 exactly as Python does.  Battery `FP_BND_01` (loop counter past
 append) and `FP_BND_03` (×2, `string index $s $i` with a const-var index)
 now pass; 6 unit tests; zero battery / e2e regressions.
 
+**LANDED (traced variables excluded from W211/W220 — battery
+2026-06-12).**  `scan_scope_aliases` (the dead-store / unused-variable
+observability gate) recognised `global` / `variable` / `upvar` / `namespace
+upvar` aliases but not `trace`.  A write trace fires its callback on every
+`set`, so the traced variable is observable and must never be a dead store
+(W220) or set-but-never-used (W211).  Added a `trace` arm recognising both
+`trace add variable NAME …` (8.5+) and the 8.4 `trace variable NAME …`
+spelling (a dynamic `$`-target names no static local and is skipped).
+Battery `FP_DS_04_traced_var_no_w220` and `FP_DS_04_84_form_also_excluded`
+now pass; 1 unit test; no regressions.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
