@@ -236,6 +236,11 @@ pub struct Backend {
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
     optimiser_enabled: Mutex<bool>,
+    /// Optimisation profile (`tclLsp.optimiser.profile`) controlling which
+    /// O-code categories surface as diagnostics. Default
+    /// [`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]
+    /// (`readability`).
+    optimiser_profile: Mutex<tcl_compiler::optimiser::profiles::OptimisationProfile>,
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
@@ -430,6 +435,7 @@ impl Backend {
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            optimiser_profile: Mutex::new(default_optimiser_profile()),
             line_length: Mutex::new(80),
         }
     }
@@ -1557,6 +1563,14 @@ impl Backend {
         {
             *self.optimiser_enabled.lock().await = flag;
         }
+        if let Some(profile) = cfg
+            .get("optimiser")
+            .and_then(|o| o.get("profile"))
+            .and_then(serde_json::Value::as_str)
+        {
+            *self.optimiser_profile.lock().await =
+                tcl_compiler::optimiser::profiles::OptimisationProfile::parse(profile);
+        }
         if let Some(len) = cfg
             .get("formatting")
             .and_then(|f| f.get("lineLength"))
@@ -1826,11 +1840,19 @@ impl Backend {
         let line_count = text.lines().count();
         let registry = self.registry_for_dialect(&dialect).await;
         let (disabled, na_mode) = self.analyser_config().await;
+        let opt_disabled = tcl_compiler::optimiser::profiles::profile_to_disabled(
+            *self.optimiser_profile.lock().await,
+        );
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
             let analysis = analyser.analyse(&text, &dialect).clone();
             let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
-            diagnostics.extend(lift_compiler_diagnostics(&text, &registry, &dialect));
+            diagnostics.extend(lift_compiler_diagnostics(
+                &text,
+                &registry,
+                &dialect,
+                &opt_disabled,
+            ));
             // GAP-C1 strip 2: source-style pass (W111 / W112 / W115
             // / W118), suppression-filtered via the analyser's
             // `suppressed_lines` and the user's disabled-diagnostics set.
@@ -3840,6 +3862,18 @@ fn dedup_locations(locations: &mut Vec<Location>) {
 /// Shared by every `lift_*_diagnostics` helper so the offset →
 /// (line, character) mapping is identical for analyser, compiler-
 /// check, and optimiser diagnostics.
+/// The startup optimisation profile: the `TCL_LSP_OPTIMISER_PROFILE` env
+/// override (used by the fp/ground-truth battery harness to request the
+/// `full` profile), else the editor default
+/// ([`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]).
+/// A `tclLsp.optimiser.profile` config pull overrides it at runtime.
+fn default_optimiser_profile() -> tcl_compiler::optimiser::profiles::OptimisationProfile {
+    std::env::var("TCL_LSP_OPTIMISER_PROFILE").map_or(
+        tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE,
+        |s| tcl_compiler::optimiser::profiles::OptimisationProfile::parse(&s),
+    )
+}
+
 /// Map a `tclLsp.style.nonAscii` setting string to a [`NonAsciiMode`].
 /// An unknown / absent value resolves to [`NonAsciiMode::Default`] (the
 /// per-dialect auto behaviour).
@@ -4116,6 +4150,7 @@ fn lift_compiler_diagnostics(
     text: &str,
     registry: &CommandRegistry,
     dialect: &str,
+    disabled_optimisations: &std::collections::HashSet<&'static str>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
@@ -4159,6 +4194,13 @@ fn lift_compiler_diagnostics(
     // as HINT-severity suggestions (the editor renders the code-action
     // fix from the diagnostic; the fix plumbing itself is GAP-C3).
     for o in optimise_with_dialect(text, registry, dialect_opt) {
+        // Profile gate: the active optimisation profile disables whole
+        // O-code categories (the default `readability` profile surfaces
+        // only readability rewrites). Mirrors the Python server's
+        // `disabled_optimisations` filter.
+        if disabled_optimisations.contains(o.code.as_str()) {
+            continue;
+        }
         // Surface the fold/rewrite text as the quick-fix `data.replacement`
         // (mirrors Python's `Optimisation.replacement` -> diagnostic data), so
         // editors and the e2e battery can apply the suggested replacement.
@@ -4627,7 +4669,8 @@ mod tests {
     fn lift_compiler_diagnostics_surfaces_compiler_check_codes() {
         let registry = CommandRegistry::build_default();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
-        let diags = lift_compiler_diagnostics(src, &registry, "");
+        let diags =
+            lift_compiler_diagnostics(src, &registry, "", &std::collections::HashSet::new());
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
@@ -4648,7 +4691,12 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let diags = lift_compiler_diagnostics(src, &registry, "f5-irules");
+        let diags = lift_compiler_diagnostics(
+            src,
+            &registry,
+            "f5-irules",
+            &std::collections::HashSet::new(),
+        );
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
@@ -5164,6 +5212,7 @@ mod tests {
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            optimiser_profile: Mutex::new(default_optimiser_profile()),
             line_length: Mutex::new(80),
         }
     }

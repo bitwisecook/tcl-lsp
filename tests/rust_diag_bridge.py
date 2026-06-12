@@ -58,6 +58,12 @@ def _client():
             "TCL_LSP_DIAG_BACKEND=rust but no native tcl-lsp-server binary found; "
             "set TCL_LSP_SERVER_BIN or run `make rust-server`."
         )
+    # The fp/ground-truth battery mirrors ``get_diagnostics`` with no
+    # optimisation-profile filter (all O-codes on), so drive the native
+    # server under the ``full`` profile via the startup env override. The
+    # editor default is ``readability`` (only readability rewrites surface),
+    # exercised by the e2e suite instead.
+    os.environ.setdefault("TCL_LSP_OPTIMISER_PROFILE", "full")
     client = LspServerClient(server_launch_argv(native), _REPO)
     client.start()
     client.initialize(root_uri=_REPO.as_uri())

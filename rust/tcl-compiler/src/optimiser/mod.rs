@@ -39,6 +39,7 @@ pub mod expr_simplify;
 pub mod helpers;
 pub mod manager;
 pub mod pattern_recognition;
+pub mod profiles;
 pub mod propagation;
 pub mod structure_elimination;
 pub mod tail_call;
