@@ -1503,6 +1503,10 @@ struct UndefSuppression {
     /// suppression and fire on an unconditional read (an `[info exists]` guard
     /// still suppresses it per-use).
     dynamic_upvar_locals: HashSet<String>,
+    /// `(name, version)` pairs killed by an `unset` — undef at their reads,
+    /// so a direct read of one is read-before-set just like a version-0
+    /// origin.
+    killed: HashSet<(String, crate::ssa::Version)>,
 }
 
 impl UndefSuppression {
@@ -1661,9 +1665,11 @@ fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
 ) -> UndefSuppression {
+    let (_phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
         dynamic_upvar_locals: crate::optimiser::elimination::scan_dynamic_upvar_locals(&fu.cfg),
+        killed,
         ..Default::default()
     };
     harvest_dict_with_suppression(fu, considered, &mut s);
@@ -5947,7 +5953,10 @@ file; this call falls through to the 'unknown' handler."
         let exists_guards = collect_existence_guards(fu);
 
         for chain in fu.def_use.chains.values() {
-            if chain.definition.kind != DefKind::Parameter {
+            // Version-0 synthetic defs are the undef origin; an
+            // `unset`-killed real version is undef at its reads too, so both
+            // flow through the same suppression + emission logic below.
+            if chain.definition.kind != DefKind::Parameter && !supp.killed.contains(&chain.key) {
                 continue;
             }
             let (var, _version) = &chain.key;
@@ -10019,6 +10028,24 @@ mod tests {
         assert!(w213s[0].message.contains("'xs'"));
         assert!(w213s[0].message.contains("unset -nocomplain"));
         assert_eq!(w213s[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
+        // ``set a 1; unset a; puts $a`` — the `unset` kills `a`, so the
+        // later `$a` read is read-before-set. W210 fires on the read line
+        // (the killed real version is undef at its use, like a version-0
+        // origin). Mirrors Python `_read_before_set`.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc f {} {\n    set a 1\n    unset a\n    puts $a\n}");
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'a'")),
+            "W210 expected for read after unset; got {:?}",
+            a.result.diagnostics,
+        );
     }
 
     #[test]

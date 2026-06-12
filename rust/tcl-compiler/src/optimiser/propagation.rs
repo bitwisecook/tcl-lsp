@@ -1210,6 +1210,14 @@ fn visit_call_tokens(
         if single {
             visit_simple_var_word(ctx, *span, text, constants);
         }
+        // A braced `{…}` word (kind `Str`) is a literal / script body: its
+        // `$var` and `[cmd]` are NOT substitutions, so the interpolation
+        // folds must not touch it (else a proc body like
+        // `{ set d [dict create a 1] }` is wrongly spliced into a quoted
+        // string). The `"…"` / bareword interpolation paths still apply.
+        if tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Str) {
+            continue;
+        }
         // `"..."` interpolation substitution — works on both
         // single-token (quoted strings) and composite (mixed
         // text + var) words.
