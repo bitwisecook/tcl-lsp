@@ -806,6 +806,33 @@ fn try_fold_return_terminator(
         return;
     }
 
+    // O101: a constant `[expr {…}]` return value folds to its value
+    // (`return [expr {1 + 2}]` → `return 3`).
+    if let Some(inner) = value
+        .map(str::trim)
+        .and_then(|t| t.strip_prefix('[').and_then(|s| s.strip_suffix(']')))
+    {
+        let mut parts = inner.splitn(2, char::is_whitespace);
+        if parts.next() == Some("expr") {
+            let body = parts.next().unwrap_or("").trim();
+            let body = body
+                .strip_prefix('{')
+                .and_then(|b| b.strip_suffix('}'))
+                .unwrap_or(body);
+            if let Some(folded) = super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect) {
+                if !folded.contains(['$', '[']) {
+                    ctx.report(Optimisation::new(
+                        "O101",
+                        "Fold constant expression",
+                        span,
+                        format!("return {}", render_propagation_word(&folded)),
+                    ));
+                    return;
+                }
+            }
+        }
+    }
+
     // Only fold `return $v` — numeric/bare literals and complex
     // values are left to richer passes.
     if expr.is_some() {
@@ -968,6 +995,33 @@ fn visit_call_cmd_subst_folds(
                 collapsed,
             ));
             continue;
+        }
+        // O101: fold a constant `[expr {…}]` cmd-sub in this argument
+        // position (`return [expr {1 + 2}]` → `return 3`). The general
+        // `AssignExpr` / `ExprEval` expr folds don't reach a cmd-sub
+        // embedded in a `Call` argument, so handle it here.
+        {
+            let mut parts = inner.splitn(2, char::is_whitespace);
+            if parts.next() == Some("expr") {
+                let body = parts.next().unwrap_or("").trim();
+                let body = body
+                    .strip_prefix('{')
+                    .and_then(|b| b.strip_suffix('}'))
+                    .unwrap_or(body);
+                if let Some(folded) =
+                    super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                {
+                    if !folded.contains(['$', '[']) {
+                        ctx.report(Optimisation::new(
+                            "O101",
+                            "Fold constant expression",
+                            full_word_span(ctx.source, *argv_span),
+                            folded,
+                        ));
+                        continue;
+                    }
+                }
+            }
         }
         // O129: fold a pure-builtin cmd-sub with constant (literal) args
         // through the registry `const_fold` callback (no interproc
