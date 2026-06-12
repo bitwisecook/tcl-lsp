@@ -1204,7 +1204,7 @@ impl Analyser {
         // populates ``superclasses`` / ``mixins`` / ``methods`` /
         // ``class_methods`` from the OO-define subcommands.
         if let (Some(body_text), Some(body_tok)) = (args.get(2), body_tok_opt) {
-            self.parse_oo_definition_body(body_text, body_tok, &mut class);
+            self.parse_oo_definition_body(body_text, body_tok, &mut class, &qualified, scope_path);
         }
         // Register globally and in the current scope. Mirrors the
         // proc registration path: ``result.all_classes`` is keyed
@@ -1319,7 +1319,13 @@ impl Analyser {
         } else if let Some(body_tok) = arg_tokens.get(1).copied() {
             // ``oo::define Class { body }`` — args[1] is the
             // body text, arg_tokens[1] is the body token.
-            self.parse_oo_definition_body(&args[1], body_tok, &mut class_def);
+            self.parse_oo_definition_body(
+                &args[1],
+                body_tok,
+                &mut class_def,
+                &qualified,
+                scope_path,
+            );
         }
 
         // Same dual-registration as ``oo::class create`` — keep

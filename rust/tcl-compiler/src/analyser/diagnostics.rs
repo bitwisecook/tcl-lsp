@@ -77,7 +77,7 @@
 //!   ``ConnectionScope`` lands on the Rust side, the emitter
 //!   wires up in a single call to ``emit_racy_static_diagnostics``.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::SourceMap;
 
@@ -129,6 +129,94 @@ fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(Str
         return None;
     }
     Some((prefix.to_string(), tail.to_string()))
+}
+
+/// Harvest `array set arr {k1 v1 k2 v2 …}` literal element values into the
+/// constset map keyed by `arr(key)`, so the W307 callback-array suppression
+/// can check the *actual* value of `$arr(-command)` against the known-command
+/// set.  Without this, the dash-prefixed / callback-suffixed array-key
+/// heuristic fires even when SCCP-equivalent literal evidence proves the value
+/// is (or isn't) a command.  Mirrors `_diag_var_command.py:421-452`.
+fn harvest_array_set_constants(
+    cu: &crate::compilation_unit::CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    use crate::ir::Statement;
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let (Statement::Call { command, args, .. }
+                | Statement::Barrier { command, args, .. }) = stmt
+                else {
+                    continue;
+                };
+                let is_array =
+                    command == "array" || stmt.canonical_command_or_source() == "::array";
+                if !is_array || args.first().map(String::as_str) != Some("set") || args.len() < 3 {
+                    continue;
+                }
+                let arr_name = &args[1];
+                let items = crate::tcl_expr_eval::split_tcl_list(&args[2]);
+                if items.len() % 2 != 0 {
+                    continue;
+                }
+                for pair in items.chunks_exact(2) {
+                    let elem_name = format!("{arr_name}({})", pair[0]);
+                    out.entry(elem_name).or_default().insert(pair[1].clone());
+                }
+            }
+        }
+    }
+}
+
+/// Harvest `dict with d { … }` unpacked variable values: when `d` is a known
+/// literal dict (via SCCP CONST at param entry — usually from call-site
+/// constant propagation), the body sees each dict key as a local variable
+/// bound to its value.  Register those bindings so a `$cmd hi` dispatch inside
+/// the body checks `cmd`'s value against the known-command set.  Mirrors
+/// `_diag_var_command.py:380-420`.
+fn harvest_dict_with_constants(
+    cu: &crate::compilation_unit::CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    use crate::ir::Statement;
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let (Statement::Barrier { command, args, .. }
+                | Statement::Call { command, args, .. }) = stmt
+                else {
+                    continue;
+                };
+                let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
+                if !is_dict || args.first().map(String::as_str) != Some("with") {
+                    continue;
+                }
+                let Some(dict_var) = args.get(1) else {
+                    continue;
+                };
+                let dvar = crate::naming::normalise_var_name(dict_var);
+                // The call-site-propagated literal lands at the param entry (v0).
+                let Some(crate::analyses::LatticeValue::Const(
+                    crate::analyses::ConstValue::String(dict_text),
+                )) = fu.sccp.values.get(&(dvar.to_string(), 0))
+                else {
+                    continue;
+                };
+                let items = crate::tcl_expr_eval::split_tcl_list(dict_text);
+                if items.len() % 2 != 0 {
+                    continue;
+                }
+                for pair in items.chunks_exact(2) {
+                    out.entry(pair[0].clone())
+                        .or_default()
+                        .insert(pair[1].clone());
+                }
+            }
+        }
+    }
 }
 
 /// True when `tok` is a `${name}` (brace-form) VAR token.  Mirrors
@@ -6979,33 +7067,102 @@ file; this call falls through to the 'unknown' handler."
         u32::try_from(off).unwrap_or(0)
     }
 
+    /// True when `my <method>` / `self <method>` dispatched at `site_offset`
+    /// resolves to a method in the enclosing class whose body is a simple
+    /// `return <literal>` — i.e. it returns a plain string, not an object
+    /// handle.  The enclosing class is the one whose `body_span` contains the
+    /// dispatch offset; the method is looked up in its `methods` /
+    /// `class_methods`.  A literal return is `return <word>` on a single line
+    /// with no command substitution (`[`) or variable interpolation (`$`) in
+    /// the returned word.  Mirrors `_diag_var_command.py:1343-1385`.
+    fn oo_self_method_returns_literal(&self, site_offset: u32, method_name: &str) -> bool {
+        for class_def in self.result.all_classes.values() {
+            let body = class_def.body_span;
+            if !(body.start() <= site_offset && site_offset <= body.end()) {
+                continue;
+            }
+            let Some(md) = class_def
+                .methods
+                .get(method_name)
+                .or_else(|| class_def.class_methods.get(method_name))
+            else {
+                // Enclosing class found but no such method — stay conservative
+                // (treat as object-returning), matching Python's `break`.
+                return false;
+            };
+            let start = md.body_span.start() as usize;
+            let end = (md.body_span.end() as usize).min(self.source.len());
+            if start >= end {
+                return false;
+            }
+            let mut bt = self.source[start..end].trim();
+            // Strip one layer of surrounding braces.
+            if let Some(inner) = bt.strip_prefix('{') {
+                bt = inner.trim_end();
+                bt = bt.strip_suffix('}').unwrap_or(bt).trim();
+            }
+            // Simple `return <literal>` — single statement, no substitutions.
+            if bt.contains('\n') || bt.contains(';') {
+                return false;
+            }
+            let Some(ret_arg) = bt.strip_prefix("return ") else {
+                return false;
+            };
+            let ret_arg = ret_arg.trim();
+            return !ret_arg.is_empty() && !ret_arg.contains('[') && !ret_arg.contains('$');
+        }
+        false
+    }
+
+    /// Harvest `set x [Cls new]` / `set x [Cls create name]` where `Cls` is a
+    /// known `TclOO` class: `x` then holds an Object of class `Cls`, so a later
+    /// `$x method` dispatch resolves through the W308 method check instead of
+    /// firing W307.  The type lattice doesn't model the constructor return
+    /// type for a var assignment yet (the cmd-site path recognises the
+    /// bare-class `new`/`create` pattern directly), so mirror that recognition
+    /// here for the var-assignment shape.
+    fn harvest_constructor_object_types(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        out: &mut HashMap<String, HashSet<String>>,
+    ) {
+        use crate::ir::Statement;
+        let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+        for fu in units {
+            for block in fu.cfg.blocks.values() {
+                for stmt in &block.statements {
+                    let Statement::AssignValue { name, value, .. } = stmt else {
+                        continue;
+                    };
+                    let Some((head, args)) =
+                        crate::value_shapes::parse_command_substitution(value.trim())
+                    else {
+                        continue;
+                    };
+                    if !args.first().is_some_and(|s| s == "new" || s == "create") {
+                        continue;
+                    }
+                    let class_qn = self.canonicalise_class_name(&head);
+                    if self.result.all_classes.contains_key(&class_qn)
+                        || self.result.all_classes.contains_key(&head)
+                    {
+                        out.entry(name.clone()).or_default().insert(class_qn);
+                    }
+                }
+            }
+        }
+    }
+
     /// W307 — non-literal command name (variable / command-sub
-    /// used as command head).
+    /// used as command head) and W308 (unknown method on object).
     ///
-    /// Mirrors the W307 half of `_emit_var_command_diagnostics`
-    /// in `core/analysis/_analyser/_diag_var_command.py:22-294`.
-    /// Walks every recorded site in [`Self::var_command_sites`]
-    /// and emits W307 unless the variable's value is statically
-    /// resolvable to a finite set of known command names.
-    ///
-    /// **Resolution paths** (mirrors Python; first match
-    /// suppresses W307):
-    ///
-    /// - Aggregate every CONSTSET / CONST entry in `cu`'s SCCP
-    ///   results for the variable name; if every value in the
-    ///   set is a known command, proc, class, or class-tail name,
-    ///   the command head is statically resolvable — suppress.
-    ///
-    /// **Known limitations.**  W308 (unknown method on object)
-    /// is deferred to a follow-up — it needs the
-    /// `class_hierarchy` / MRO port (the C41e0 architectural
-    /// decision still pending).  Likewise the
-    /// `_cmd_command_sites` (``[cmd] method``) suppression via
-    /// return-type analysis is deferred — that path needs the
-    /// IR-level type-lattice plumbing extended into the
-    /// analyser, which is a larger change than fits this strip.
-    /// In-method W307 suppression and dict-with /
-    /// dict-update barrier-range suppression also defer.
+    /// Mirrors `_emit_var_command_diagnostics` in
+    /// `core/analysis/_analyser/_diag_var_command.py`.  Walks every recorded
+    /// site in [`Self::var_command_sites`] / [`Self::cmd_command_sites`] and
+    /// emits W307 unless the command head is statically resolvable to a finite
+    /// set of known command names, an OBJECT of a known class (→ W308 method
+    /// check), or a positive OO-dispatch signal (`$self`, `my`/`self`
+    /// self-dispatch, namespaced ensemble, callback-array, dict-with unpack).
     #[allow(clippy::too_many_lines)]
     // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
     fn emit_var_command_diagnostics(
@@ -7050,44 +7207,7 @@ file; this call falls through to the 'unknown' handler."
         for fu in cu.procedures.values() {
             collect_object_types(&fu.types, &mut all_object_types);
         }
-        // Harvest `set x [Cls new]` / `set x [Cls create name]` where `Cls` is
-        // a known TclOO class: `x` then holds an Object of class `Cls`, so a
-        // later `$x method` dispatch resolves through the W308 method check
-        // instead of firing W307.  The type lattice doesn't model the
-        // constructor return type for a var assignment yet (the cmd-site path
-        // below recognises the bare-class `new`/`create` pattern directly), so
-        // mirror that recognition here for the var-assignment shape.
-        let harvest_constructor_vars =
-            |this: &Self,
-             fu: &crate::compilation_unit::FunctionUnit,
-             out: &mut HashMap<String, HashSet<String>>| {
-                use crate::ir::Statement;
-                for block in fu.cfg.blocks.values() {
-                    for stmt in &block.statements {
-                        let Statement::AssignValue { name, value, .. } = stmt else {
-                            continue;
-                        };
-                        let Some((head, args)) =
-                            crate::value_shapes::parse_command_substitution(value.trim())
-                        else {
-                            continue;
-                        };
-                        if !args.first().is_some_and(|s| s == "new" || s == "create") {
-                            continue;
-                        }
-                        let class_qn = this.canonicalise_class_name(&head);
-                        if this.result.all_classes.contains_key(&class_qn)
-                            || this.result.all_classes.contains_key(&head)
-                        {
-                            out.entry(name.clone()).or_default().insert(class_qn);
-                        }
-                    }
-                }
-            };
-        harvest_constructor_vars(self, &cu.top_level, &mut all_object_types);
-        for fu in cu.procedures.values() {
-            harvest_constructor_vars(self, fu, &mut all_object_types);
-        }
+        self.harvest_constructor_object_types(cu, &mut all_object_types);
 
         // Build the class hierarchy once for W308 method
         // resolution (uses the C41e0 ``ClassHierarchy``).
@@ -7123,99 +7243,8 @@ file; this call falls through to the 'unknown' handler."
             collect_from(&fu.sccp, &mut all_constsets);
         }
 
-        // Harvest `array set arr {k1 v1 k2 v2 …}` literal element values into
-        // the constset map keyed by `arr(key)`, so the W307 callback-array
-        // suppression can check the *actual* value of `$arr(-command)` against
-        // the known-command set.  Without this, the dash-prefixed /
-        // callback-suffixed array-key heuristic fires even when SCCP-equivalent
-        // literal evidence proves the value is (or isn't) a command.  Mirrors
-        // `_diag_var_command.py:421-452`.
-        let harvest_array_set =
-            |fu: &crate::compilation_unit::FunctionUnit,
-             out: &mut HashMap<String, HashSet<String>>| {
-                use crate::ir::Statement;
-                for block in fu.cfg.blocks.values() {
-                    for stmt in &block.statements {
-                        let (Statement::Call { command, args, .. }
-                        | Statement::Barrier { command, args, .. }) = stmt
-                        else {
-                            continue;
-                        };
-                        let is_array =
-                            command == "array" || stmt.canonical_command_or_source() == "::array";
-                        if !is_array
-                            || args.first().map(String::as_str) != Some("set")
-                            || args.len() < 3
-                        {
-                            continue;
-                        }
-                        let arr_name = &args[1];
-                        let items = crate::tcl_expr_eval::split_tcl_list(&args[2]);
-                        if items.len() % 2 != 0 {
-                            continue;
-                        }
-                        for pair in items.chunks_exact(2) {
-                            let elem_name = format!("{arr_name}({})", pair[0]);
-                            out.entry(elem_name).or_default().insert(pair[1].clone());
-                        }
-                    }
-                }
-            };
-        harvest_array_set(&cu.top_level, &mut all_constsets);
-        for fu in cu.procedures.values() {
-            harvest_array_set(fu, &mut all_constsets);
-        }
-
-        // Harvest `dict with d { … }` unpacked variable values: when `d` is a
-        // known literal dict (via SCCP CONST at param entry — usually from
-        // call-site constant propagation), the body sees each dict key as a
-        // local variable bound to its value.  Register those bindings so a
-        // `$cmd hi` dispatch inside the body checks `cmd`'s value against the
-        // known-command set.  Mirrors `_diag_var_command.py:380-420`.
-        let harvest_dict_with =
-            |fu: &crate::compilation_unit::FunctionUnit,
-             out: &mut HashMap<String, HashSet<String>>| {
-                use crate::ir::Statement;
-                for block in fu.cfg.blocks.values() {
-                    for stmt in &block.statements {
-                        let (Statement::Barrier { command, args, .. }
-                        | Statement::Call { command, args, .. }) = stmt
-                        else {
-                            continue;
-                        };
-                        let is_dict =
-                            command == "dict" || stmt.canonical_command_or_source() == "::dict";
-                        if !is_dict || args.first().map(String::as_str) != Some("with") {
-                            continue;
-                        }
-                        let Some(dict_var) = args.get(1) else {
-                            continue;
-                        };
-                        let dvar = crate::naming::normalise_var_name(dict_var);
-                        // Look up the dict var's value at param entry (v0) — the
-                        // call-site-propagated literal lands here.
-                        let Some(crate::analyses::LatticeValue::Const(
-                            crate::analyses::ConstValue::String(dict_text),
-                        )) = fu.sccp.values.get(&(dvar.to_string(), 0))
-                        else {
-                            continue;
-                        };
-                        let items = crate::tcl_expr_eval::split_tcl_list(dict_text);
-                        if items.len() % 2 != 0 {
-                            continue;
-                        }
-                        for pair in items.chunks_exact(2) {
-                            out.entry(pair[0].clone())
-                                .or_default()
-                                .insert(pair[1].clone());
-                        }
-                    }
-                }
-            };
-        harvest_dict_with(&cu.top_level, &mut all_constsets);
-        for fu in cu.procedures.values() {
-            harvest_dict_with(fu, &mut all_constsets);
-        }
+        harvest_array_set_constants(cu, &mut all_constsets);
+        harvest_dict_with_constants(cu, &mut all_constsets);
 
         // Build the "known commands" universe — registry +
         // user-defined procs + class tail names.
@@ -7509,9 +7538,12 @@ file; this call falls through to the 'unknown' handler."
         // ``_diag_var_command.py:296-375``.
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
-            if site.in_method {
-                continue;
-            }
+            // No blanket `in_method` suppression: an in-method `[cmd] method`
+            // dispatch must earn its silence from a positive signal (a known
+            // OBJECT return type, or `my`/`self` self-dispatch resolving to a
+            // method that returns an object).  Mirrors the F4 closure in
+            // `_diag_var_command.py` (PR #498/#499) that dropped the blanket.
+            //
             // Parse the command-substitution text into
             // ``head ?args...``.  ``cmd_text`` is what the
             // analyser captured from
@@ -7530,9 +7562,25 @@ file; this call falls through to the 'unknown' handler."
             };
             let arg_strs: Vec<&str> = parts.collect();
 
-            // OO self-dispatch ⇒ suppress W307.
-            let is_oo_self_dispatch = matches!(head, "my" | "self");
-            if is_oo_self_dispatch {
+            // OO self-dispatch (`my <method>` / `self <method>`): by default
+            // the return is treated as an object handle (suppress).  But when
+            // the dispatched method resolves in the enclosing class and its
+            // body is a simple `return <literal>`, the result is a plain
+            // string, not an object — so the *outer* dispatch fires W307.
+            // Mirrors the D3-P4 closure in `_diag_var_command.py:1343-1385`.
+            if matches!(head, "my" | "self") {
+                let returns_literal = arg_strs.first().is_some_and(|method| {
+                    self.oo_self_method_returns_literal(site.cmd_span.start(), method)
+                });
+                if returns_literal {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W307".to_string(),
+                        span: site.cmd_span,
+                        message: "Non-literal command name — cannot statically analyze".to_string(),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
                 continue;
             }
 

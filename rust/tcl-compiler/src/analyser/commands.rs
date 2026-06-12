@@ -279,7 +279,7 @@ impl Analyser {
         // Mirrors the inline recording in
         // ``_AnalyserCommandsMixin._process_command``
         // (``_commands.py:182-198``).
-        self.record_var_or_cmd_command_site(cmd_tok, args);
+        self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
 
         // Record TclOO instance creation (`set v [Cls new]`,
         // `Cls create inst`) so the LSP providers can resolve
@@ -907,8 +907,13 @@ impl Analyser {
     /// recording in ``_AnalyserCommandsMixin._process_command``
     /// (``core/analysis/_analyser/_commands.py:182-198``).  OO
     /// method-context detection lands in C41e.
-    fn record_var_or_cmd_command_site(&mut self, cmd_tok: Token, args: &[String]) {
-        let in_method = false;
+    fn record_var_or_cmd_command_site(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        let in_method = self.scope_path_in_method_body(scope_path);
         match cmd_tok.kind {
             TokenType::Var => {
                 let sm = tcl_lexer::SourceMap::new(&self.source);

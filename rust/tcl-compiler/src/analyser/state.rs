@@ -1346,6 +1346,93 @@ mod tests {
     }
 
     #[test]
+    fn w307_in_method_body_dispatch_fires_and_suppresses() {
+        // TclOO method bodies are now walked in a `Method` scope, so their
+        // `[cmd] method` dispatch sites are recorded for W307.
+        // TP: `[format notACommand] run` returns a string, not an object.
+        let mut a = Analyser::new();
+        let fires = a
+            .analyse(
+                "oo::class create C { method m {} { [format notACommand] run } }",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(fires, "in-method [format ...] dispatch must fire W307");
+
+        // Control: `[D new] run` where D is a known class returns an Object —
+        // suppressed (and `run` resolves on D, so no W308 either).
+        let mut b = Analyser::new();
+        let fires = b
+            .analyse(
+                "oo::class create D { method run {} { return ok } }\n\
+                 oo::class create C { method m {} { [D new] run } }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(!fires, "in-method [D new] dispatch on known class must not fire W307");
+    }
+
+    #[test]
+    fn w307_my_method_literal_vs_object_return() {
+        // TP: `[my plain] run` where `plain` returns a literal — the return is
+        // a plain string, so the outer dispatch fires W307.
+        let mut a = Analyser::new();
+        let fires = a
+            .analyse(
+                "oo::class create C { method plain {} { return notACommand }\n\
+                 method m {} { [my plain] run } }",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(fires, "[my plain] returning a literal must fire W307");
+
+        // Control: `[my obj] run` where `obj` returns `[D new]` — object
+        // handle, suppressed.
+        let mut b = Analyser::new();
+        let fires = b
+            .analyse(
+                "oo::class create D { method run {} { return ok } }\n\
+                 oo::class create C { method obj {} { return [D new] }\n\
+                 method m {} { [my obj] run } }",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(!fires, "[my obj] returning an object must not fire W307");
+    }
+
+    #[test]
+    fn method_body_params_and_instance_vars_not_flagged() {
+        // Walking method bodies must not false-fire read-before-set / unused
+        // on the method's formal parameters or the class's instance variables.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create C {\n\
+             variable count\n\
+             method add {n} { incr count $n; return $count }\n\
+             }\n",
+            "tcl",
+        );
+        let offenders: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W210" | "W214"))
+            .map(|d| d.code.clone())
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "method params / instance vars must not fire W210/W214: {offenders:?}",
+        );
+    }
+
+    #[test]
     fn w307_namespaced_ensemble_composed_name_resolution() {
         // TN: `${ns}::dowork` where `ns` is the const `mypkg` and
         // `::mypkg::dowork` is a known proc — the composed name resolves, so

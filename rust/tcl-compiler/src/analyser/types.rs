@@ -72,6 +72,11 @@ pub enum ScopeKind {
     /// frame rather than the enclosing proc — completion / definition
     /// see globals + this scope's locals, not the proc's locals.
     Uplevel,
+    /// A `TclOO` `method` / `constructor` / `destructor` body scope.
+    /// Like [`Self::Proc`] but the body runs as an object method: its
+    /// formal parameters and the class's instance ``variable``s are
+    /// pre-bound, and ``$self`` / ``my`` self-dispatch is recognised.
+    Method,
 }
 
 impl ScopeKind {
@@ -85,6 +90,7 @@ impl ScopeKind {
             Self::Namespace => "namespace",
             Self::Proc => "proc",
             Self::Uplevel => "uplevel",
+            Self::Method => "method",
         }
     }
 }

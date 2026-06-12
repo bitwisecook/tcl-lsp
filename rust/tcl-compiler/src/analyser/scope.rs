@@ -368,6 +368,20 @@ impl Analyser {
                         _ => "::".to_string(),
                     };
                 }
+                // A method body resolves commands in its class's namespace —
+                // the prefix of the method's qualified `class::method` name,
+                // same shape as a proc.
+                ScopeKind::Method => {
+                    let qualified = if child.name.starts_with("::") {
+                        normalise_qualified_name(&child.name)
+                    } else {
+                        join_namespace(&ns, &child.name)
+                    };
+                    ns = match qualified.rsplit_once("::") {
+                        Some((prefix, _)) if !prefix.is_empty() => prefix.to_string(),
+                        _ => "::".to_string(),
+                    };
+                }
                 ScopeKind::Global => {}
                 // `uplevel #0` runs in the global frame, so command
                 // resolution from inside its body is global-rooted.
@@ -396,7 +410,32 @@ impl Analyser {
             let Some(child) = cursor.children.get(idx) else {
                 break;
             };
-            if child.kind == ScopeKind::Proc {
+            // A method body, like a proc body, resolves its calls at call
+            // time (after the whole script has loaded), so a later shadowing
+            // definition still silences the arity check.
+            if matches!(child.kind, ScopeKind::Proc | ScopeKind::Method) {
+                return true;
+            }
+            cursor = child;
+        }
+        false
+    }
+
+    /// True when `scope_path` descends through a `TclOO` method body scope.
+    ///
+    /// Drives the `in_method` flag on recorded `$obj method` / `[cmd] method`
+    /// dispatch sites so the W307 post-pass can apply the OO-specific
+    /// suppression signals (`$self` self-reference, `my`/`self` self-dispatch
+    /// with method-return inference).  Mirrors `_scope_is_method` in
+    /// `analyser/_analyser/_commands.py`.
+    #[must_use]
+    pub(super) fn scope_path_in_method_body(&self, scope_path: &[usize]) -> bool {
+        let mut cursor = &self.result.global_scope;
+        for &idx in scope_path {
+            let Some(child) = cursor.children.get(idx) else {
+                break;
+            };
+            if child.kind == ScopeKind::Method {
                 return true;
             }
             cursor = child;
