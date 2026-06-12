@@ -5911,6 +5911,19 @@ already-checked commands never double-fire.  Battery
 `FP_NAB_06_open_variable_pipe_fires_w103` (`set fh [open "|$cmd" r]`) now
 passes; zero battery / e2e regressions; +1 unit test.
 
+**LANDED (W304 stops at a shadowing proc param — battery 2026-06-12).**
+`last_literal_set_value_for_var` (the W304 "currently resolves to …"
+value-recovery) segmented the prefix at top level and walked backward, so
+`set path -force` at top level was wrongly attributed to the inner `$path`
+use in `proc useit {path} { file delete $path }`.  Ported the
+`_last_literal_set_value_for_var` cross-scope guard: when the backward
+scan reaches the truncated-unclosed `proc` containing the use
+(`span.end()+1 >= before_offset`) and that proc's parameter list contains
+`var_name`, stop — the parameter shadows the outer scope.  A *complete*
+proc before a top-level use ends earlier and does not shadow (control
+preserved).  Battery `FP_NAB_05_w304_lexical_does_not_cross_proc_boundary`
+now passes; 1 unit test.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL

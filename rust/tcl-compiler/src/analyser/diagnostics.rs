@@ -1869,6 +1869,29 @@ fn last_literal_set_value_for_var(
     let segments = crate::segmenter::segment_commands_with_offset_and_config(prefix, 0, config);
 
     for cmd in segments.iter().rev() {
+        // Cross-scope guard: stop the backward scan at a `proc NAME
+        // {PARAMS} BODY` whose body *contains* the use offset and whose
+        // params include `var_name` — the parameter shadows any outer
+        // scope, so an outer `set` must not be attributed to the inner
+        // use.  The use is inside the proc body iff that proc is the one
+        // left unclosed by the truncation at `before_offset`: its span
+        // then reaches the last truncated byte (`end + 1 >= head`).  A
+        // *complete* proc before the use ends well before that and does
+        // not shadow.  Mirrors `_last_literal_set_value_for_var`.
+        let use_inside_proc = cmd.span.end() as usize + 1 >= head;
+        if use_inside_proc
+            && cmd.texts.first().map(String::as_str) == Some("proc")
+            && cmd.texts.len() >= 4
+            && cmd.texts[2].contains(var_name)
+        {
+            let shadows = crate::tcl_expr_eval::split_tcl_list(&cmd.texts[2])
+                .iter()
+                .any(|el| el.split_whitespace().next() == Some(var_name));
+            if shadows {
+                return None;
+            }
+        }
+
         if cmd.texts.first().map(String::as_str) != Some("set") {
             continue;
         }
@@ -10657,5 +10680,38 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
             .diagnostics
             .iter()
             .any(|d| d.code == "W310"));
+    }
+
+    #[test]
+    fn w304_does_not_cross_proc_param_shadow() {
+        // The outer `set path -force` must NOT be attributed to the inner
+        // `$path` use — the proc param `path` shadows it.  W304 may still
+        // fire on the substituted `file delete $path`, but never claiming
+        // the value is `-force`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "set path -force\nproc useit {path} { file delete $path }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == "W304" && d.message.contains("-force")),
+            "{:?}",
+            r.diagnostics
+        );
+        // Control: a top-level `$path` use *after* a complete proc still
+        // resolves to the outer literal (no shadow crossing).
+        let r2 = a.analyse(
+            "set path -force\nproc p {path} {}\nfile delete $path\n",
+            "tcl8.6",
+        );
+        assert!(
+            r2.diagnostics
+                .iter()
+                .any(|d| d.code == "W304" && d.message.contains("-force")),
+            "{:?}",
+            r2.diagnostics
+        );
     }
 }
