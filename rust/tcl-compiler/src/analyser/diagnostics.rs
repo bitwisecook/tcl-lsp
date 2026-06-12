@@ -2011,6 +2011,17 @@ impl Analyser {
         if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
             return;
         }
+        // A whole-word command-substitution body — `eval [list set y $x]`
+        // (the recommended *safe* form), `uplevel [buildScript]` — is
+        // produced dynamically and parsed once by the consumer: there is
+        // no double-substitution risk and it cannot be braced
+        // (`eval {[list …]}` changes the meaning).  Mirrors
+        // `check_unbraced_body`'s `tok.type is TokenType.CMD` skip.  (A
+        // `Var` body such as `while {$cond} $body` is *not* exempt — only
+        // a `Cmd` word is.)
+        if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
+            return;
+        }
         let trimmed = body_text.trim();
         // Mirror Python's ``_has_substitution``: textual ``$`` /
         // ``[`` count as substitutions, and so do ``Var`` / ``Cmd``

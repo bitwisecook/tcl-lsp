@@ -5942,6 +5942,18 @@ arm (f5-irules) is not ported (no battery driver).  Battery
 `FP_STY_02_live_dollar_in_quoted_pattern_still_fires` now pass; 1 unit
 test; no battery / e2e regressions.
 
+**LANDED (W105 exempts a command-substitution body — battery
+2026-06-12).**  `emit_w105_unbraced_body` treated a whole-word `[…]` body
+as a substitution-bearing unbraced body and fired W105 at ERROR, diverging
+from `check_unbraced_body` which skips a `TokenType.CMD` body *before* the
+substitution test.  A `[list …]` / `[buildScript]` body is the recommended
+*safe* form — produced dynamically, parsed once, no double-substitution
+risk, and it cannot be braced (`eval {[list …]}` changes the meaning).
+Added the `Cmd`-token exemption (a `Var` body like `while {$cond} $body`
+is still flagged — only `Cmd` words are exempt).  Battery
+`TN_safe_eval_with_list_form` (`eval [list set y $x]`) now passes; 1 unit
+test.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
