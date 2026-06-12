@@ -71,7 +71,7 @@ use std::collections::{HashMap, HashSet};
 
 use bitflags::bitflags;
 
-use tcl_lexer::Span;
+use tcl_lexer::{backslash_subst, Lexer, SourceMap, Span, TokenType};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, Traits};
 
@@ -288,14 +288,25 @@ pub struct TaintWarning {
 /// When `dialect` is `"f5-irules"` / `"irules"`, iRules namespace
 /// prefixes (`HTTP::`, `URI::`, `IP::`, …) are also treated as
 /// attacker-controlled sources.
-fn is_taint_source(
+/// The taint lattice a source `command` produces, or `None` when the
+/// call is not a taint source. Wraps the registry's
+/// `taint_source_colour` (which carries the per-command source colour
+/// and the derived-safety augmentation) into the compiler's mirror
+/// lattice. Replaces the old "any source ⇒ bare `TAINTED`" rule so
+/// path/IP/port/FQDN getters propagate their option-injection-safe
+/// colours.
+fn source_colour(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
     dialect: Option<&str>,
-) -> bool {
+) -> Option<TaintLattice> {
     let dialect_set = dialect_to_set(dialect);
-    tcl_registry::taint::is_taint_source(registry, command, args, dialect_set)
+    tcl_registry::taint::taint_source_colour(registry, command, args, dialect_set).map(|c| {
+        TaintLattice {
+            colours: reg_colour(c),
+        }
+    })
 }
 
 /// Bridge a `tcl_registry::TaintColour` to the compiler's mirror enum.
@@ -411,8 +422,8 @@ fn word_taint(
         if is_sanitiser(ctx.registry, &cmd, &arg_refs) {
             return TaintLattice::clean();
         }
-        if is_taint_source(ctx.registry, &cmd, &arg_refs, ctx.dialect) {
-            return TaintLattice::tainted();
+        if let Some(t) = source_colour(ctx.registry, &cmd, &arg_refs, ctx.dialect) {
+            return t;
         }
         // Interprocedural: if `cmd` resolves to a known proc with a
         // passthrough parameter, propagate the taint of the matching
@@ -491,10 +502,122 @@ fn word_taint(
                 t = t.join(var_taint(name, uses, taints));
             }
         }
-        return t;
+        return interpolation_carve_out(word, t);
     }
 
     TaintLattice::clean()
+}
+
+/// Re-derive the structural / option-prefix colours of an interpolated
+/// (concatenated) word from its literal fragments — the port of Python
+/// `_evaluate_interpolated_word_taint`'s tail.
+///
+/// Interpolation invalidates every structural guarantee unless the
+/// literal text re-establishes it: the canonical-list / normalised-path /
+/// escaped colours are cleared, `CRLF_FREE` is cleared when a literal
+/// fragment contains CR/LF, and the leading literal character controls
+/// option-prefix safety (`PATH_PREFIXED` / `NON_DASH_PREFIXED`). A clean
+/// join is returned unchanged.
+fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
+    if !joined.is_tainted() {
+        return TaintLattice::clean();
+    }
+    let mut colour = joined.colours;
+    colour &= !(TaintColour::LIST_CANONICAL
+        | TaintColour::PATH_NORMALISED
+        | TaintColour::PATH_BOUNDED
+        | TaintColour::HEADER_TOKEN_SAFE
+        | TaintColour::HTML_ESCAPED
+        | TaintColour::URL_ENCODED
+        | TaintColour::REGEX_LITERAL
+        | TaintColour::SHELL_ATOM);
+    if literal_contains_crlf(value) {
+        colour &= !TaintColour::CRLF_FREE;
+    }
+    match leading_literal_prefix_char(value) {
+        Some('/') => colour |= TaintColour::PATH_PREFIXED | TaintColour::NON_DASH_PREFIXED,
+        Some('-') => colour &= !(TaintColour::NON_DASH_PREFIXED | TaintColour::PATH_PREFIXED),
+        Some(_) => {
+            colour |= TaintColour::NON_DASH_PREFIXED;
+            colour &= !TaintColour::PATH_PREFIXED;
+        }
+        None => {}
+    }
+    TaintLattice {
+        colours: colour | TaintColour::TAINTED,
+    }
+}
+
+/// Return the leading literal character of `value`, or `None` when the
+/// word starts with a variable/command substitution (dynamic prefix).
+///
+/// Ports Python `_leading_literal_prefix_char`: the first `Esc` token is
+/// rendered through `backslash_subst` (so `\x2f` → `/`); the first `Str`
+/// (braced) token contributes its literal first char; a leading `Var` or
+/// `Cmd` token means the prefix is dynamic.
+fn leading_literal_prefix_char(value: &str) -> Option<char> {
+    let source_map = SourceMap::new(value);
+    let tokens = Lexer::new(value).tokenise_all().ok()?;
+    for tok in tokens {
+        match tok.kind {
+            // End of input, or a dynamic (variable/command) prefix — no
+            // literal leading character to report.
+            TokenType::Eol | TokenType::Eof | TokenType::Var | TokenType::Cmd => return None,
+            TokenType::Esc => {
+                let text = source_map.text(tok.span);
+                let rendered = if text.contains('\\') {
+                    backslash_subst(text).into_owned()
+                } else {
+                    text.to_owned()
+                };
+                if let Some(c) = rendered.chars().next() {
+                    return Some(c);
+                }
+            }
+            TokenType::Str => {
+                if let Some(c) = source_map.text(tok.span).chars().next() {
+                    return Some(c);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Return `true` when any rendered literal fragment of `value` contains a
+/// CR or LF. Ports Python `_literal_contains_crlf`: `Esc` fragments are
+/// `backslash_subst`-rendered (so `\n` resolves to a real newline) before
+/// the scan.
+fn literal_contains_crlf(value: &str) -> bool {
+    let source_map = SourceMap::new(value);
+    let Ok(tokens) = Lexer::new(value).tokenise_all() else {
+        return false;
+    };
+    for tok in tokens {
+        match tok.kind {
+            TokenType::Eol => return false,
+            TokenType::Esc => {
+                let text = source_map.text(tok.span);
+                let rendered = if text.contains('\\') {
+                    backslash_subst(text).into_owned()
+                } else {
+                    text.to_owned()
+                };
+                if rendered.contains('\r') || rendered.contains('\n') {
+                    return true;
+                }
+            }
+            TokenType::Str => {
+                let text = source_map.text(tok.span);
+                if text.contains('\r') || text.contains('\n') {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// When `command` resolves to an internal proc with a known
@@ -571,8 +694,8 @@ fn evaluate_taint_def(
             if is_sanitiser(ctx.registry, command, &arg_refs) {
                 return TaintLattice::clean();
             }
-            if is_taint_source(ctx.registry, command, &arg_refs, ctx.dialect) {
-                return TaintLattice::tainted();
+            if let Some(t) = source_colour(ctx.registry, command, &arg_refs, ctx.dialect) {
+                return t;
             }
             if let Some(t) = interproc_call_taint(command, args, uses, taints, ctx) {
                 return t;
@@ -1880,6 +2003,12 @@ fn emit_option_injection(
         if !t.is_tainted() {
             continue;
         }
+        // Suppress when a mitigating colour proves the value cannot
+        // start with `-` (PATH_PREFIXED / NON_DASH_PREFIXED / IP_ADDRESS
+        // / PORT / FQDN) — the T102_SAFE set. Ports `_should_suppress_t102`.
+        if t.colours.intersects(TaintColour::T102_SAFE) {
+            continue;
+        }
         if emitted.contains(var) {
             continue;
         }
@@ -2915,32 +3044,35 @@ mod tests {
     /// iRules-dialect: `HTTP::uri` is a taint source when dialect is
     /// enabled, and clean when it is not.
     #[test]
-    fn irules_http_uri_is_source_under_dialect() {
+    fn irules_http_uri_is_a_dialect_agnostic_source() {
         use crate::compilation_unit::CompilationUnit;
 
         let registry = CommandRegistry::build_default();
 
-        // Without the dialect: HTTP::uri is unknown → not a source.
-        let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry, false);
-        let fu = cu.function("::top").unwrap();
-        assert!(
-            !fu.taints
+        // Python's `TAINT_HINTS` is an import-time global, so `HTTP::uri`
+        // is a taint source in *every* dialect — including a `tcl8.6`
+        // document whose registry never loaded the iRules commands. (The
+        // Python analyser taints `u` here; only the separate W002
+        // "disabled command" check is dialect-gated.) The getter form
+        // carries the path-prefixed, option-injection-safe colours.
+        for dialect in [None, Some("f5-irules")] {
+            let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry, false)
+                .with_interprocedural(&registry, dialect);
+            let fu = cu.function("::top").unwrap();
+            let u = fu
+                .taints
                 .iter()
-                .any(|((n, _), t)| n == "u" && t.is_tainted()),
-            "without iRules dialect, HTTP::uri should not be a source",
-        );
-
-        // With the dialect: `with_interprocedural("f5-irules")` rebuilds
-        // taint, which is where the dialect takes effect.
-        let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry, false)
-            .with_interprocedural(&registry, Some("f5-irules"));
-        let fu = cu.function("::top").unwrap();
-        assert!(
-            fu.taints
-                .iter()
-                .any(|((n, _), t)| n == "u" && t.is_tainted()),
-            "under f5-irules, HTTP::uri should be a taint source",
-        );
+                .find(|((n, _), _)| n == "u")
+                .map(|(_, t)| *t);
+            assert!(
+                u.is_some_and(TaintLattice::is_tainted),
+                "HTTP::uri should be a taint source (dialect={dialect:?})",
+            );
+            assert!(
+                u.is_some_and(|t| t.colours.contains(TaintColour::PATH_PREFIXED)),
+                "HTTP::uri getter should carry PATH_PREFIXED (dialect={dialect:?})",
+            );
+        }
     }
 
     /// Inter-procedural: `proc id {x} { return $x }` + tainted actual

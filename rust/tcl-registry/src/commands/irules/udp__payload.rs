@@ -39,6 +39,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

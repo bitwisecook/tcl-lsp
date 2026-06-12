@@ -49,6 +49,7 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::path ?-normalized?" },
             FormSpec { kind: FormKind::Setter, synopsis: "HTTP::path <PATH_VALUE>" },
         ],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
         ..CommandSpec::DEFAULT
     }
 }

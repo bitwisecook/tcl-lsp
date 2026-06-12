@@ -33,6 +33,7 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::Both,
         }],
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

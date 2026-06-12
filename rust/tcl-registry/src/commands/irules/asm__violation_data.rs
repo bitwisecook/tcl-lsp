@@ -35,6 +35,7 @@ hover: Some(HoverSnippet {
             },
         ],
         deprecated_replacement: Some("ASM::violation"),
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

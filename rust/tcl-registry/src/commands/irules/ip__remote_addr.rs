@@ -35,6 +35,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::IP_ADDRESS)),
         ..CommandSpec::DEFAULT
     }
 }

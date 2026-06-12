@@ -14,6 +14,37 @@ use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
+/// The process-wide taint-source index: command name → source colour,
+/// derived once from every command spec's
+/// [`crate::CommandSpec::taint_source`].
+///
+/// Built by scanning the spec modules whose commands declare taint
+/// sources (core Tcl + iRules) rather than by hand — the data's single
+/// home is each `CommandSpec`. The scan covers the iRules specs even
+/// though `build_default` does not load them as active commands, because
+/// taint-source classification is global (Python's `TAINT_HINTS` is
+/// populated at import for every dialect), so a `tcl8.6` document still
+/// sees `HTTP::path` as a source.
+fn taint_source_index() -> &'static HashMap<&'static str, crate::taint::TaintColour> {
+    static INDEX: std::sync::OnceLock<HashMap<&'static str, crate::taint::TaintColour>> =
+        std::sync::OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut index = HashMap::new();
+        let modules: [fn() -> Vec<CommandSpec>; 2] = [
+            crate::commands::tcl::tcl_command_specs,
+            crate::commands::irules::irules_command_specs,
+        ];
+        for specs in modules {
+            for spec in specs() {
+                if let Some(colour) = spec.taint_source {
+                    index.insert(spec.name, colour);
+                }
+            }
+        }
+        index
+    })
+}
+
 /// Lookup facade over command specs.
 ///
 /// The registry is built once from the command spec modules and then
@@ -144,6 +175,21 @@ impl CommandRegistry {
     /// Return all registered command names.
     pub fn command_names(&self) -> impl Iterator<Item = &str> {
         self.by_name.keys().map(String::as_str)
+    }
+
+    /// The taint-source colour declared by `command`'s spec, or `None`
+    /// when it is not a source.
+    ///
+    /// Reads the process-wide [`taint_source_index`] — a table *derived*
+    /// from every command spec's [`crate::CommandSpec::taint_source`]
+    /// (core + iRules), built once. It is deliberately **dialect-agnostic
+    /// and independent of which dialects are loaded into this registry**,
+    /// mirroring Python's import-time global `TAINT_HINTS`: an iRules
+    /// getter such as `HTTP::path` is a known source even when analysing a
+    /// `tcl8.6` document whose registry never loaded the iRules commands.
+    #[must_use]
+    pub fn taint_source(&self, command: &str) -> Option<crate::taint::TaintColour> {
+        taint_source_index().get(command).copied()
     }
 
     /// Return all command specs whose traits include `t`.

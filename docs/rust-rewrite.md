@@ -10412,3 +10412,46 @@ for the common call forms.
   external-site scan descends command-subs + proc/method
   bodies but not string interpolation
   (`"prefix[$d bark]"`); a rare residual form.
+
+## SYNC-JUN12-T102: registry-driven taint sources + PATH_PREFIXED model (battery 2→1)
+
+Closed **FP_INJ_04** (the T102 path-prefix option-injection model), porting
+the Python taint-source colour lattice faithfully and moving all source
+metadata into the registry as the single source of truth.
+
+* **Source colour on the spec**: new `CommandSpec.taint_source:
+  Option<TaintColour>` carries the getter-form result colour — plain
+  `TAINTED`, or `… | PATH_PREFIXED` (`HTTP::path`/`HTTP::uri`),
+  `… | IP_ADDRESS` (`IP::client_addr`/`remote_addr`), `… | PORT`
+  (`TCP::client_port`/`remote_port`), `… | FQDN` (`SSL::sni`). Set on the
+  78 iRules getter specs whose Python `taint_hints().source` is non-None
+  (the data now lives beside each command, mirroring `dialects/f5/irules/*.py`).
+* **Derived dialect-agnostic index**: `CommandRegistry::taint_source(cmd)`
+  reads a process-wide table *derived* from every spec's `taint_source`
+  (built once via `OnceLock` over the `tcl` + `irules` spec modules — no
+  hand-maintained parallel list). Global on purpose: Python's `TAINT_HINTS`
+  is an import-time global, so `HTTP::path` is a source even when a
+  `tcl8.6` document's registry never loaded the iRules commands. This
+  replaced the old `IRULES_TAINT_SOURCE_PREFIXES` source heuristic, which
+  over-matched the `URI::encode` *transform* as a source.
+* **Propagation** (`tcl_compiler::taint`): `word_taint`/`evaluate_taint_def`
+  now return the source's full colour lattice (was bare `TAINTED`) via
+  `taint_source_colour` + `_augment_source_colours` (PATH_PREFIXED ⇒
+  NON_DASH_PREFIXED; IP/PORT/FQDN ⇒ +CRLF_FREE +SHELL_ATOM).
+* **Interpolation carve-out**: ported `_evaluate_interpolated_word_taint`
+  — a concatenated word clears the structural colours and re-derives
+  option-prefix safety from its leading literal (`/` ⇒ PATH_PREFIXED, other
+  non-`-` ⇒ NON_DASH_PREFIXED, `-` ⇒ clears both) via
+  `leading_literal_prefix_char` / `literal_contains_crlf` (lexer-tokenised,
+  `backslash_subst`-rendered).
+* **T102 gate**: `emit_option_injection` now suppresses on the `T102_SAFE`
+  colour set (`_should_suppress_t102`).
+* **Guardrail corrections**: two Rust unit tests encoded a *dialect-gated*
+  source rule Python does not produce (verified: under `tcl8.6` Python
+  taints `[HTTP::uri]` and fires T102 on `-[HTTP::path]`). Rewrote
+  `http_uri_is_not_a_source_outside_irules` → `…is_a_source_in_every_dialect`
+  and `irules_http_uri_is_source_under_dialect` →
+  `…is_a_dialect_agnostic_source` to match Python.
+
+Battery: `402 passed / 1 failed` (only the pre-existing S101 intrep-thrash
+gap remains). `make test-lsp-e2e-rust` unaffected.

@@ -2121,7 +2121,10 @@ mod tests {
                 .map(|o| o.replacement)
                 .collect()
         };
-        assert_eq!(fold_code("puts [lindex {a b c} 1]", "O118"), vec!["b".to_string()]);
+        assert_eq!(
+            fold_code("puts [lindex {a b c} 1]", "O118"),
+            vec!["b".to_string()]
+        );
         assert_eq!(fold_code("set x [list]", "O116"), vec!["{}".to_string()]);
         assert_eq!(fold("puts [dict get {a 1 b 2} b]"), vec!["2".to_string()]);
         assert_eq!(

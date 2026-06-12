@@ -115,8 +115,12 @@ pub const IRULES_TAINT_SOURCE_PREFIXES: &[&str] = &[
 /// * the [`Traits::TAINT_SOURCE`] flag on the matched
 ///   [`crate::SubCommand`], for subcommand-shaped sources such as
 ///   `chan gets` / `chan read` / `encoding convertfrom`; and
-/// * iRules namespace-prefixed getters (`HTTP::*`, `URI::*`, …)
-///   when `dialect` is iRules.
+/// * the registry's dialect-agnostic taint-source index
+///   ([`CommandRegistry::taint_source`]) — the iRules namespace getters
+///   (`HTTP::path`, `IP::client_addr`, …), each declaring its source
+///   colour on its own [`crate::CommandSpec::taint_source`]. The index is
+///   global, mirroring Python's import-time `TAINT_HINTS`, so these fire
+///   in every dialect (even `tcl8.6`).
 #[must_use]
 pub fn is_taint_source(
     registry: &CommandRegistry,
@@ -124,26 +128,73 @@ pub fn is_taint_source(
     args: &[&str],
     dialect: DialectSet,
 ) -> bool {
-    let Some(spec) = registry.get(command) else {
-        return irules_dialect_only_source(command, dialect);
-    };
-
-    if spec
-        .traits
-        .intersects(Traits::TAINT_SOURCE | Traits::UNNORMALISED_HTTP_GETTER)
-    {
-        return true;
-    }
-
-    if let Some(sub_name) = args.first().copied() {
-        if let Some(sub) = spec.subcommand(sub_name) {
-            if sub.traits.contains(Traits::TAINT_SOURCE) {
-                return true;
+    let _ = dialect;
+    if let Some(spec) = registry.get(command) {
+        if spec
+            .traits
+            .intersects(Traits::TAINT_SOURCE | Traits::UNNORMALISED_HTTP_GETTER)
+        {
+            return true;
+        }
+        if let Some(sub_name) = args.first().copied() {
+            if let Some(sub) = spec.subcommand(sub_name) {
+                if sub.traits.contains(Traits::TAINT_SOURCE) {
+                    return true;
+                }
             }
         }
     }
+    registry.taint_source(command).is_some()
+}
 
-    irules_dialect_only_source(command, dialect)
+/// The taint colour a source `command` (with `args`) stamps on its
+/// return value, augmented with derived safety properties, or `None`
+/// when the call is not a taint source.
+///
+/// Ports `compiler/taint/_lattice.py::_taint_source_colour` together
+/// with its inner `_augment_source_colours`. The base colour comes from
+/// the command's own [`crate::CommandSpec::taint_source`] (surfaced
+/// dialect-agnostically via [`CommandRegistry::taint_source`]); a
+/// trait-detected source with no index entry (`gets`, `read`, …) is plain
+/// `TAINTED`. The indexed colour is the getter-form result, so its
+/// non-`TAINTED` bits apply only when `args` is empty (Python keys the
+/// path/IP/port/FQDN getters on `Arity(0, 0)`).
+#[must_use]
+pub fn taint_source_colour(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+    dialect: DialectSet,
+) -> Option<TaintColour> {
+    if !is_taint_source(registry, command, args, dialect) {
+        return None;
+    }
+    let indexed = registry
+        .taint_source(command)
+        .unwrap_or(TaintColour::TAINTED);
+    // The path/IP/port/FQDN colours describe the getter (0-arg) form only.
+    let base = if args.is_empty() {
+        indexed
+    } else {
+        TaintColour::TAINTED
+    };
+    Some(augment_source_colours(base | TaintColour::TAINTED))
+}
+
+/// Add the conservative derived properties a source colour implies —
+/// the port of Python `_augment_source_colours`. A path-prefixed value
+/// also proves `NON_DASH_PREFIXED`; an IP / port / FQDN value proves
+/// `NON_DASH_PREFIXED`, `CRLF_FREE`, and `SHELL_ATOM`.
+#[must_use]
+pub fn augment_source_colours(colour: TaintColour) -> TaintColour {
+    let mut out = colour;
+    if out.contains(TaintColour::PATH_PREFIXED) {
+        out |= TaintColour::NON_DASH_PREFIXED;
+    }
+    if out.intersects(TaintColour::IP_ADDRESS | TaintColour::PORT | TaintColour::FQDN) {
+        out |= TaintColour::NON_DASH_PREFIXED | TaintColour::CRLF_FREE | TaintColour::SHELL_ATOM;
+    }
+    out
 }
 
 /// Return `true` when `command` carries the iRules data-getter trait
@@ -160,16 +211,6 @@ pub fn is_irules_data_getter(registry: &CommandRegistry, command: &str) -> bool 
     IRULES_TAINT_SOURCE_PREFIXES
         .iter()
         .any(|p| command.starts_with(p))
-}
-
-fn irules_dialect_only_source(command: &str, dialect: DialectSet) -> bool {
-    if dialect.contains(DialectSet::IRULES) {
-        IRULES_TAINT_SOURCE_PREFIXES
-            .iter()
-            .any(|p| command.starts_with(p))
-    } else {
-        false
-    }
 }
 
 /// Return `true` when `command` (with optional subcommand in `args`)
@@ -387,17 +428,65 @@ mod tests {
     }
 
     #[test]
-    fn http_uri_is_not_a_source_outside_irules() {
-        // HTTP::* outside the iRules dialect must not be treated as
-        // a taint source — regular Tcl scripts can define their own
-        // HTTP::uri proc.
+    fn http_uri_is_a_source_in_every_dialect() {
+        // Python's `TAINT_HINTS` is an import-time global, so `HTTP::uri`
+        // is a taint source even when analysing a non-iRules document
+        // (e.g. `tcl8.6`, where the iRules spec set is not loaded). This
+        // is what lets the generic option-injection / sink checks fire on
+        // iRules data regardless of the document's declared dialect.
         let registry = CommandRegistry::build_default();
-        assert!(!is_taint_source(
+        assert!(is_taint_source(
             &registry,
             "HTTP::uri",
             &[],
             DialectSet::empty()
         ));
+    }
+
+    #[test]
+    fn http_path_source_colour_is_path_prefixed() {
+        // The getter form carries `PATH_PREFIXED`, augmented to
+        // `NON_DASH_PREFIXED` — the option-injection-safe colour set.
+        let registry = CommandRegistry::build_default();
+        let colour =
+            taint_source_colour(&registry, "HTTP::path", &[], DialectSet::empty()).unwrap();
+        assert!(colour.contains(TaintColour::TAINTED));
+        assert!(colour.contains(TaintColour::PATH_PREFIXED));
+        assert!(colour.contains(TaintColour::NON_DASH_PREFIXED));
+    }
+
+    #[test]
+    fn ip_and_port_source_colours_are_augmented() {
+        // IP / port getters prove NON_DASH_PREFIXED + CRLF_FREE +
+        // SHELL_ATOM on top of their IP_ADDRESS / PORT colour.
+        let registry = CommandRegistry::build_default();
+        let ip =
+            taint_source_colour(&registry, "IP::client_addr", &[], DialectSet::empty()).unwrap();
+        assert!(
+            ip.contains(TaintColour::IP_ADDRESS | TaintColour::CRLF_FREE | TaintColour::SHELL_ATOM)
+        );
+        let port =
+            taint_source_colour(&registry, "TCP::remote_port", &[], DialectSet::empty()).unwrap();
+        assert!(port.contains(TaintColour::PORT | TaintColour::NON_DASH_PREFIXED));
+    }
+
+    #[test]
+    fn plain_irules_source_is_bare_tainted() {
+        // A prefix-matched getter without a special colour is plain
+        // TAINTED — no mitigating colours.
+        let registry = CommandRegistry::build_default();
+        let colour =
+            taint_source_colour(&registry, "HTTP::header", &["host"], DialectSet::empty()).unwrap();
+        assert_eq!(colour, TaintColour::TAINTED);
+    }
+
+    #[test]
+    fn non_source_has_no_source_colour() {
+        let registry = CommandRegistry::build_default();
+        assert!(
+            taint_source_colour(&registry, "string", &["length", "$x"], DialectSet::empty())
+                .is_none()
+        );
     }
 
     #[test]
@@ -446,6 +535,7 @@ mod tests {
     fn default_spec_has_no_taint_metadata() {
         use crate::spec::{CommandSpec, SubCommand};
         let c = CommandSpec::DEFAULT;
+        assert!(c.taint_source.is_none());
         assert!(c.taint_output_sink.is_none());
         assert!(c.taint_log_sink.is_none());
         assert!(c.taint_network_sink_args.is_none());

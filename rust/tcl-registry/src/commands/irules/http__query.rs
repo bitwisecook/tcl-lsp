@@ -35,6 +35,7 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::query ?-normalized?" },
             FormSpec { kind: FormKind::Setter, synopsis: "HTTP::query <QUERY_STRING>" },
         ],
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

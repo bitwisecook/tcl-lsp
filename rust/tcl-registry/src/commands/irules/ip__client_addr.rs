@@ -36,6 +36,7 @@ hover: Some(HoverSnippet {
             },
         ],
         xc_translatable: Some(true),
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::IP_ADDRESS)),
         ..CommandSpec::DEFAULT
     }
 }
