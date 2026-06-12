@@ -37,29 +37,22 @@ use super::utils::parse_param_list;
 /// but still dangerous to redefine (`clock`, `after`, `socket`, `glob`) are
 /// deliberately excluded — they keep firing W113.  Mirrors
 /// `_OVERRIDABLE_LIBRARY_PROCS` in `analyser/_analyser/_proc.py`.
-const OVERRIDABLE_LIBRARY_PROCS: &[&str] = &[
-    "unknown",
-    "auto_execok",
-    "auto_import",
-    "auto_load",
-    "auto_load_index",
-    "auto_mkindex",
-    "auto_mkindex_old",
-    "auto_qualify",
-    "auto_reset",
-    "history",
-    "parray",
-    "pkg_mkIndex",
-    "tclLog",
-    "tclPkgSetup",
-    "tclPkgUnknown",
-    "tcl_findLibrary",
-    "tcl_endOfWord",
-    "tcl_startOfNextWord",
-    "tcl_startOfPreviousWord",
-    "tcl_wordBreakAfter",
-    "tcl_wordBreakBefore",
-];
+/// Memoised set of the redefinable Tcl library procs (`unknown`,
+/// `auto_*`, `pkg_*`, `tclLog`, `tcl_findLibrary`, the word-boundary
+/// helpers, …), sourced from the registry's
+/// [`Traits::OVERRIDABLE_LIBRARY_PROC`] trait. Redefining one of these
+/// must not fire W113. Cached once; the set is dialect-agnostic core Tcl.
+fn overridable_library_procs() -> &'static std::collections::HashSet<String> {
+    use std::sync::OnceLock;
+    static SET: OnceLock<std::collections::HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        tcl_registry::CommandRegistry::build_default()
+            .commands_with_trait(tcl_registry::Traits::OVERRIDABLE_LIBRARY_PROC)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
 /// Build a fully-qualified Tcl proc / class name from a namespace
 /// prefix and a possibly-relative name.
@@ -348,7 +341,7 @@ impl Analyser {
         // script-defined, documented user-replaceable overlays.  Mirrors
         // `_proc.py:129-143`.
         let shadow_name = shadow_name.filter(|name| {
-            !name.contains("::") && !OVERRIDABLE_LIBRARY_PROCS.contains(&name.as_str())
+            !name.contains("::") && !overridable_library_procs().contains(name.as_str())
         });
         if shadow_name.is_some() {
             let dialect_label = if self.dialect.is_empty() {

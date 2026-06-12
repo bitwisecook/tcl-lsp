@@ -76,7 +76,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "history",
-        traits: Traits::UNSAFE,
+        traits: Traits::UNSAFE | Traits::OVERRIDABLE_LIBRARY_PROC,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

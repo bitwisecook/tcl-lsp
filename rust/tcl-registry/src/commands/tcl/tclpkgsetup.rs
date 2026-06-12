@@ -1,15 +1,16 @@
-//! `auto_import` command (name-parity reconcile, GAP-d).
+//! `tclPkgSetup` library proc.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "auto_import",
+        name: "tclPkgSetup",
+        // A redefinable Tcl library proc — see `Traits::OVERRIDABLE_LIBRARY_PROC`.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
-        arity: Arity::at_least(1),
+        arity: Arity::exact(4),
         hover: Some(HoverSnippet {
-            summary: "Import auto-loaded commands into namespace",
+            summary: "Set up auto-loading stubs for a package's commands",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl library (init.tcl)",
             examples: "",
             return_value: "",
         }),

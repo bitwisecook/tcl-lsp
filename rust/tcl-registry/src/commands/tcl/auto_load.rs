@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_load",
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Auto-load a command from the library",

@@ -10,6 +10,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkIndex",
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
 hover: Some(HoverSnippet {

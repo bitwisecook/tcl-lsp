@@ -207,5 +207,13 @@ bitflags! {
         /// indexed slot. Single source of truth for the former
         /// `FRAME_HASH_BUILTINS` list.
         const FRAME_HASH_BUILTIN        = 1 << 50;
+
+        /// A Tcl auto-loading / library proc that user code is expected to
+        /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
+        /// `tcl_findLibrary`, the `tcl_*Word*` helpers, …), so redefining
+        /// it must not fire the W113 "overrides a built-in" warning.
+        /// Single source of truth for the former
+        /// `OVERRIDABLE_LIBRARY_PROCS` list.
+        const OVERRIDABLE_LIBRARY_PROC  = 1 << 51;
     }
 }

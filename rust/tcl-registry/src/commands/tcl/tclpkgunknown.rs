@@ -1,15 +1,16 @@
-//! `auto_import` command (name-parity reconcile, GAP-d).
+//! `tclPkgUnknown` library proc.
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
-        name: "auto_import",
+        name: "tclPkgUnknown",
+        // A redefinable Tcl library proc — see `Traits::OVERRIDABLE_LIBRARY_PROC`.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
-            summary: "Import auto-loaded commands into namespace",
+            summary: "Default handler that loads pkgIndex.tcl files on demand",
             synopsis: &[],
             snippet: "",
-            source: "",
+            source: "Tcl library (init.tcl)",
             examples: "",
             return_value: "",
         }),
