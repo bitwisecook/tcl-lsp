@@ -5995,6 +5995,22 @@ clean parse, the canonical tcllib idiom — while `0o` octal stays STRING.
 Battery `FP_SH_04_hex_literal_increment_no_shimmer` now passes; 1 unit test;
 no regressions.
 
+**LANDED (S102 requires genuine per-iteration oscillation — battery
+2026-06-12).**  The thunking pass fired S102 on *any* SHIMMERED loop-header
+phi, so a one-time promotion (`set r {}`; `foreach … {lappend r …}` — STRING
+once then LIST forever) and sibling loops with different per-loop type
+effects on the same name produced false positives.  Ported `_find_thunking`'s
+refined condition: classify the phi's incomings into entry vs body
+(back-edge) types, exclude the empty-literal reset, and fire only when the
+body re-introduces an entry type (`entry ∩ body`) or itself produces ≥2
+distinct types.  Body types are scoped to each header's *natural loop* (a
+back-edge-driven block walk, the Rust analogue of `build_loop_forest`) so a
+sibling loop never pollutes the check; destructure-foreach (`foreach … break`)
+blocks are excluded.  Battery `FP_SH_05_destructure_foreach_no_s102` and
+`FP_SH_06_sibling_loops_no_s102` now pass; the existing one-time-promotion TP
+test (a Rust over-fire Python suppresses) was corrected to a genuine
+two-type-body case; 3 unit tests; no regressions.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
