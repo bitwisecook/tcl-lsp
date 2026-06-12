@@ -35,6 +35,9 @@
 //! * No dynamic name access (``set $varname value``).
 
 use std::collections::{BTreeMap, HashSet};
+use std::sync::OnceLock;
+
+use tcl_registry::{CommandRegistry, Traits};
 
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
@@ -60,10 +63,22 @@ const INFO_INTROSPECTING_SUBCMDS: &[&str] = &["exists", "vars", "locals", "args"
 /// ``trace`` subcommands that target a variable by name.
 const TRACE_NAME_TARGETING: &[&str] = &["add", "remove", "info", "variable", "vdelete", "vinfo"];
 
-/// Commands whose body is executed by the interpreter, opening a
-/// name-resolution channel back into the local frame.
-const DYNAMIC_EVAL_COMMANDS: &[&str] =
-    &["eval", "uplevel", "apply", "source", "namespace", "interp"];
+/// Memoised set of commands carrying [`Traits::DYNAMIC_EVAL_BODY`] —
+/// those whose body is executed by the interpreter, opening a
+/// name-resolution channel back into the local frame (`eval` / `uplevel`
+/// / `apply` / `source` / `namespace` / `interp`). Sourced from the
+/// registry (the single source of truth); cached once because the set is
+/// dialect-agnostic core Tcl.
+fn dynamic_eval_set() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .commands_with_trait(Traits::DYNAMIC_EVAL_BODY)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
 /// Strip a leading `::` from a command name for canonical lookup.
 fn normalise_cmd(cmd: &str) -> &str {
@@ -190,7 +205,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
                 return true;
             }
             let cmd = normalise_cmd(command);
-            if DYNAMIC_EVAL_COMMANDS.contains(&cmd) {
+            if dynamic_eval_set().contains(cmd) {
                 return true;
             }
             if cmd == "set" && !args.is_empty() && is_dynamic_value(&args[0]) {

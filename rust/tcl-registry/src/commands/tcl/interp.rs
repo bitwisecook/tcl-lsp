@@ -219,7 +219,8 @@ pub fn spec() -> CommandSpec {
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::HAS_INTERP_EVAL
-            | Traits::HAS_DESTRUCTIVE_OPS | Traits::LANGUAGE_KEYWORD,
+            | Traits::HAS_DESTRUCTIVE_OPS | Traits::LANGUAGE_KEYWORD
+            | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
 hover: Some(HoverSnippet {

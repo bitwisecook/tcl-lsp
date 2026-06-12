@@ -24,7 +24,8 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_BARRIER
             | Traits::EVALUATES_CODE
             | Traits::TAINT_SINK
-            | Traits::UNSAFE | Traits::CREATES_DYNAMIC_BARRIER,
+            | Traits::UNSAFE | Traits::CREATES_DYNAMIC_BARRIER
+            | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         lowering_hook: Some(crate::hooks::LoweringHookId::Uplevel),
         return_type: Some(TclType::String),

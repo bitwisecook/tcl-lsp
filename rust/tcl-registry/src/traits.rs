@@ -176,5 +176,15 @@ bitflags! {
         /// observed by the read. Single source of truth for the former
         /// `WHOLE_ARRAY_COMMANDS` allow-list.
         const WHOLE_ARRAY_ARG           = 1 << 46;
+
+        /// Executes a body through the interpreter, opening a
+        /// name-resolution channel back into the local frame — `eval` /
+        /// `uplevel` / `apply` / `source` / `namespace` / `interp`. The
+        /// var-escape slot resolver treats a frame reached this way as
+        /// hash-backed. Single source of truth for the former
+        /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
+        /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
+        /// of these carry.)
+        const DYNAMIC_EVAL_BODY         = 1 << 47;
     }
 }
