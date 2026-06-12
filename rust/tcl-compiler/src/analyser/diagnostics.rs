@@ -99,6 +99,38 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
     }
 }
 
+/// Parse a namespaced-ensemble dispatch head `${prefix}::tail` or
+/// `$prefix::tail` from the source slice at `span`, returning
+/// `(prefix_var_name, tail)`.  Returns `None` when the head isn't this shape
+/// (e.g. a plain `$var`, an array element, or a `[cmd]::tail` substitution).
+/// Mirrors the `is_namespaced_ensemble` detection + tail scan in
+/// `_diag_var_command.py`.
+fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(String, String)> {
+    let start = span.start() as usize;
+    let end = (span.end() as usize).min(source.len());
+    if start >= end {
+        return None;
+    }
+    let head = &source[start..end];
+    let rest = head.strip_prefix('$')?;
+    // `${prefix}::tail` (brace form) or `$prefix::tail` (bare form).
+    let (prefix, after) = if let Some(braced) = rest.strip_prefix('{') {
+        let close = braced.find('}')?;
+        (&braced[..close], &braced[close + 1..])
+    } else {
+        let sep = rest.find("::")?;
+        (&rest[..sep], &rest[sep..])
+    };
+    let tail = after.strip_prefix("::")?;
+    // A bare-form prefix must be a plain variable name (no `(` array index,
+    // no embedded `::` before the separator we split on); the brace form is
+    // already delimited.  Both prefix and tail must be non-empty.
+    if prefix.is_empty() || tail.is_empty() || prefix.contains('(') {
+        return None;
+    }
+    Some((prefix.to_string(), tail.to_string()))
+}
+
 /// True when `tok` is a `${name}` (brace-form) VAR token.  Mirrors
 /// `_is_brace_form` in `_diag_brace_then_paren.py`: bare `$name` spans
 /// `name.len() + 1` (one `$`); brace `${name}` spans more (`${` + name).
@@ -7434,6 +7466,25 @@ file; this call falls through to the 'unknown' handler."
                 .is_some_and(|s| s.contains(&site.var_name));
             if dispatcher_suppressed && !tainted {
                 continue;
+            }
+            // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where
+            // `ns` holds a namespace prefix and `::tail` composes a qualified
+            // command path (tcllib's logger / dns / irc modules use this).
+            // When the prefix is an SCCP const and *every* composed name
+            // `<value>::tail` resolves to a known command/proc/class, the
+            // dispatch is statically resolvable — suppress.  A composition
+            // that resolves to nothing (unknown proc) still fires.  Mirrors
+            // the composed-name arm of `_diag_var_command.py:1200-1248`.
+            if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span) {
+                if let Some(values) = all_constsets.get(&prefix) {
+                    if !values.is_empty()
+                        && values
+                            .iter()
+                            .all(|v| is_known_command(&format!("{v}::{tail}")))
+                    {
+                        continue;
+                    }
+                }
             }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W307".to_string(),

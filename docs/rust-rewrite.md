@@ -5302,14 +5302,20 @@ const by the Rust interproc pass, so a `harvest_dict_with` (mirroring
 into the constset map — `$cmd`→`puts` (known) suppresses, `notACommand` fires.
 One ported unit test.
 
-The remaining **three** W307 cases need broader infrastructure, out of scope for
-a focused fix and carrying regression risk:
+### SYNC-JUN12-w307c — namespaced-ensemble composed-name resolution (battery 16→15)
 
-- **`namespaced_ensemble`** (`${ns}::dowork`): blocked on namespace-eval-body
-  proc registration — a `proc` defined inside `namespace eval ::mypkg { … }` is
-  not registered in `all_procs` (verified empty), so the composed-name
-  `::mypkg::dowork` can't resolve to a known proc.  The dispatch-site source
-  slice *does* expose the full `${ns}::dowork` head for ensemble-shape detection.
+Closed a fourth W307 case.  `${ns}::tail` / `$ns::tail` (the tcllib logger /
+namespaced-ensemble idiom) is detected from the dispatch-site source slice
+(`parse_namespaced_ensemble`); when `ns` is an SCCP const and *every* composed
+name `<value>::tail` resolves to a known command/proc/class, the dispatch is
+statically resolvable and W307 is suppressed.  An unresolvable composition
+(`${ns}::unknownproc`, or `set ns nope; ${ns}::missing`) still fires.  (The
+earlier note that `namespace eval` procs aren't registered was a buggy probe —
+`::mypkg::dowork` *is* in `all_procs`.)  One ported unit test with both the TN
+and the composed-unknown TP control.
+
+The remaining **two** W307 cases need broader infrastructure, out of scope for a
+focused fix and carrying regression risk:
 - **`format_in_method` / `my_method`** (`[format …] run`, `[my plain] run`):
   Rust does not yet recurse into TclOO method bodies to record dispatch sites
   (the deferred "C41e Method scope" work), and `[my <m>] …` needs

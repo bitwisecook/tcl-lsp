@@ -1346,6 +1346,38 @@ mod tests {
     }
 
     #[test]
+    fn w307_namespaced_ensemble_composed_name_resolution() {
+        // TN: `${ns}::dowork` where `ns` is the const `mypkg` and
+        // `::mypkg::dowork` is a known proc — the composed name resolves, so
+        // no W307.
+        let mut a = Analyser::new();
+        let has = a
+            .analyse(
+                "namespace eval ::mypkg { proc dowork {arg} {} }\n\
+                 proc f {} { set ns mypkg; ${ns}::dowork arg }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(!has, "resolvable namespaced ensemble must not fire W307");
+        // TP control: composed name with no known proc still fires.
+        let mut b = Analyser::new();
+        let has = b
+            .analyse(
+                "proc f {} { set ns mypkg; ${ns}::unknownproc arg }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            has,
+            "unresolvable composed namespaced ensemble must fire W307"
+        );
+    }
+
+    #[test]
     fn w307_interproc_dict_with_const_element_suppression() {
         // TN: `dict with d { $cmd hi }` where the caller passes `{cmd puts}` —
         // the dict-with unpacks `cmd` to the known command `puts`, so the
