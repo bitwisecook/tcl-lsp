@@ -448,6 +448,61 @@ fn has_substitution(text: &str, tok: &tcl_lexer::Token) -> bool {
         )
 }
 
+/// First positional (pattern) argument index of `regexp` / `regsub`,
+/// after skipping option switches (`-start` consumes a value, `--`
+/// terminates).  Mirrors `regexp_pattern_index` (and the regexp arg-role
+/// resolver's option skip).  `args` excludes the command name.
+fn regexp_pattern_index(args: &[String]) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    (i < args.len()).then_some(i)
+}
+
+/// True when the **source** slice `raw` (backslashes intact) carries a
+/// *live* substitution: an unescaped `[`, or a `$` that actually
+/// introduces a variable name (`[A-Za-z0-9_]`, `{`, or `:`).  A `\[` /
+/// `\$` is a literal regex character, and a `$` before a quote / end /
+/// punctuation (the `(.*)$` end-anchor) is a literal dollar — neither
+/// counts.  Mirrors `_raw_has_live_substitution`.
+fn raw_has_live_substitution(raw: &str) -> bool {
+    let b = raw.as_bytes();
+    let n = b.len();
+    let mut i = 0;
+    while i < n {
+        match b[i] {
+            b'\\' => {
+                i += 2; // the next char is escaped (literal) — skip both
+                continue;
+            }
+            b'[' => return true,
+            b'$' => {
+                if let Some(&c) = b.get(i + 1) {
+                    if c.is_ascii_alphanumeric() || matches!(c, b'_' | b'{' | b':') {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
 /// True when `text` is a simple numeric or boolean literal that needs
 /// no bracing.  Mirrors `_is_safe_literal`.
 fn is_safe_literal(text: &str) -> bool {
@@ -4076,6 +4131,69 @@ matching time on crafted input."
                 });
             }
         }
+    }
+
+    /// **W306.** Warn when a `regexp` / `regsub` *pattern* — a
+    /// literal-expected position — contains a *live* substitution Tcl
+    /// expands before the regex engine sees it.  A bare `$var` pattern is
+    /// the canonical parameterised-pattern idiom and is exempt (there is
+    /// no braced equivalent); a quoted `"$var"` / `"[cmd]"` or an unbraced
+    /// `[cmd]` is the foot-gun.  `\[` / `\$` in a quoted pattern are
+    /// literal regex characters, not substitutions.  Mirrors the
+    /// `regexp` / `regsub` arm of `_domain.py::check_literal_expected`.
+    pub(super) fn emit_w306_literal_expected(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+    ) {
+        if !matches!(cmd_name, "regexp" | "regsub") {
+            return;
+        }
+        let Some(idx) = regexp_pattern_index(args) else {
+            return;
+        };
+        let (Some(&tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
+            return;
+        };
+        if is_braced_word(&tok) || !has_substitution(text, &tok) {
+            return;
+        }
+        let start = tok.span.start() as usize;
+        let end = tok.span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return;
+        }
+        let is_subst_token = matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        );
+        // A quoted/literal token (not a single `$var` / `[cmd]` word) only
+        // counts when the raw source carries a *live* (unescaped) `[`/`$`.
+        if !is_subst_token && !raw_has_live_substitution(&self.source[start..end]) {
+            return;
+        }
+        // Bare `$var` / `${var}` is the canonical idiom — a `Var` word has
+        // no surrounding literal text, so it is exactly that form.
+        if tok.kind == tcl_lexer::TokenType::Var {
+            return;
+        }
+        let is_quoted = self.source.as_bytes().get(start) == Some(&b'"');
+        let found = if text.contains('$') { "'$'" } else { "'['" };
+        let advice = if is_quoted {
+            ". Use braces '{...}' instead of quotes."
+        } else {
+            ". Use braces '{...}' to prevent substitution."
+        };
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W306".to_string(),
+            span: tok.span,
+            message: format!(
+                "Literal expected in {cmd_name} pattern \u{2014} found {found}{advice}"
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
     }
 
     /// **IRULE2002.** Warn when a deprecated iRules command is used —
@@ -10680,6 +10798,29 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
             .diagnostics
             .iter()
             .any(|d| d.code == "W310"));
+    }
+
+    #[test]
+    fn w306_literal_expected_in_regexp_pattern() {
+        fn has_w306(src: &str) -> bool {
+            let mut a = Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W306")
+        }
+        // Quoted `"$var"` / `"[cmd]"` patterns fire (Tcl substitutes them
+        // before the regex engine sees the value).
+        assert!(has_w306("regexp \"$pat\" $s\n"));
+        assert!(has_w306("regexp \"[clock seconds]\" $s\n"));
+        // A bare `$var` is the canonical parameterised-pattern idiom — exempt.
+        assert!(!has_w306("regexp $pat $s\n"));
+        // A braced pattern suppresses substitution — exempt.
+        assert!(!has_w306("regexp {[abc]+} $s\n"));
+        // An escaped `\[` in a quoted pattern is a literal regex char — exempt.
+        assert!(!has_w306("regexp \"\\[abc\\]+\" $s\n"));
+        // A bare `[cmd]` pattern is the foot-gun (parsed as command sub) — fires.
+        assert!(has_w306("regexp [join $parts] $s\n"));
     }
 
     #[test]

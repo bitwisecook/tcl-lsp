@@ -473,6 +473,7 @@ impl Analyser {
         self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
         self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
         self.emit_w303_redos(cmd_name, args, arg_tokens);
+        self.emit_w306_literal_expected(cmd_name, args, arg_tokens);
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);

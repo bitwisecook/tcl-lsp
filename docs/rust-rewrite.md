@@ -5924,6 +5924,24 @@ proc before a top-level use ends earlier and does not shadow (control
 preserved).  Battery `FP_NAB_05_w304_lexical_does_not_cross_proc_boundary`
 now passes; 1 unit test.
 
+**LANDED (W306 literal-expected `regexp`/`regsub` pattern — battery
+2026-06-12).**  Ported the `regexp` / `regsub` arm of
+`_domain.py::check_literal_expected` (the whole check was previously
+absent in Rust).  `emit_w306_literal_expected` finds the pattern arg
+(`regexp_pattern_index` — skip options, `-start` consumes a value, `--`
+terminates), and fires when it carries a *live* substitution Tcl expands
+before the regex engine sees it: a quoted `"$var"` / `"[cmd]"` or an
+unbraced `[cmd]`.  Exemptions match Python: a braced `{…}` pattern
+(substitution suppressed), a bare single `$var` word (the canonical
+parameterised-pattern idiom, no braced equivalent), and `\[` / `\$` in a
+quoted pattern (literal regex chars — checked against the raw source slice
+via `raw_has_live_substitution`, since the resolved text can't distinguish
+an escaped bracket from a live command sub).  The `class match`/`search`
+arm (f5-irules) is not ported (no battery driver).  Battery
+`FP_STY_02_live_cmdsub_in_quoted_pattern_still_fires` and
+`FP_STY_02_live_dollar_in_quoted_pattern_still_fires` now pass; 1 unit
+test; no battery / e2e regressions.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
