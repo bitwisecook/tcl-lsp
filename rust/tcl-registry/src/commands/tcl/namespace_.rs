@@ -60,6 +60,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::NamespaceEval),
         return_type: Some(TclType::String),
+        // The body evaluates in the *namespace* frame, not the caller's, so
+        // SSA must not recover its `$var` reads as caller-local reads (else a
+        // proc param read only inside the body looks used).  Mirrors Python's
+        // `caller_scope=False` block exclusion in `_block_local_reads`.
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -102,6 +107,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace inscope namespace script ?arg ...?",
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
         return_type: Some(TclType::String),
+        // Like `eval`, the script runs in the namespace frame.
+        body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },
     SubCommand {

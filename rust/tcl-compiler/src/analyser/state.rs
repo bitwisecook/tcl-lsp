@@ -1345,6 +1345,65 @@ mod tests {
         );
     }
 
+    /// Helper: the RBS-family diagnostic codes (W210 read-before-set, W213
+    /// unset-no-complain, W214 unused-param) emitted for `src`.
+    fn rbs_codes(src: &str) -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W210" | "W213" | "W214"))
+            .map(|d| d.code.clone())
+            .collect()
+    }
+
+    #[test]
+    fn w210_gets_in_while_condition_writes_loop_var() {
+        // FP-RBS-03: `[gets $fp line]` in the while condition writes `line`;
+        // the body's `$line` reads must not fire W210.
+        let codes = rbs_codes(
+            "proc f {fp} {\n  while {[gets $fp line] >= 0} {\n    set n [string length $line]\n    puts \"$line ($n chars)\"\n  }\n}\n",
+        );
+        assert!(codes.is_empty(), "gets-in-condition writes line: {codes:?}");
+    }
+
+    #[test]
+    fn w210_catch_in_expr_writes_result_var() {
+        // FP-RBS-06: `[catch {…} tmp]` inside `[expr {…}]` writes `tmp`; the
+        // same-expression `|| $tmp` read must not fire W210.
+        let codes = rbs_codes(
+            "proc f {sock} {\n  set eof [expr {[catch {eof $sock} tmp] || $tmp}]\n  return $eof\n}\n",
+        );
+        assert!(codes.is_empty(), "catch-in-expr writes tmp: {codes:?}");
+    }
+
+    #[test]
+    fn w214_namespace_eval_body_does_not_recover_caller_param() {
+        // FP-RBS-10: a `namespace eval ::ns {…}` body runs in the namespace
+        // frame, so `$x` there is NOT a read of the caller's parameter `x` —
+        // W214 (unused param) must still fire.  The `eval {…}` form runs in
+        // the caller frame, so its `$x` read DOES recover the param (no W214).
+        let mut a = Analyser::new();
+        assert!(
+            a.analyse(
+                "proc g {x} {\n  namespace eval ::ns { puts \"hello $x\" }\n}\n",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W214"),
+            "namespace-eval body must not recover the caller's param read",
+        );
+        let mut b = Analyser::new();
+        assert!(
+            !b.analyse("proc f {x} {\n  eval { puts $x }\n}\n", "tcl")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W214"),
+            "eval body runs in the caller frame; $x read recovers the param",
+        );
+    }
+
     #[test]
     fn w307_in_method_body_dispatch_fires_and_suppresses() {
         // TclOO method bodies are now walked in a `Method` scope, so their
@@ -1373,7 +1432,10 @@ mod tests {
             .diagnostics
             .iter()
             .any(|d| d.code == "W307");
-        assert!(!fires, "in-method [D new] dispatch on known class must not fire W307");
+        assert!(
+            !fires,
+            "in-method [D new] dispatch on known class must not fire W307"
+        );
     }
 
     #[test]

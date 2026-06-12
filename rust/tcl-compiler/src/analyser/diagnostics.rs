@@ -1490,6 +1490,13 @@ struct UndefSuppression {
     explicitly_defined: HashSet<String>,
     /// Local-alias tails declared by a qualified `variable ns::tail`.
     alias_tails: HashSet<String>,
+    /// Names written by a command substitution buried inside an `expr`
+    /// argument (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
+    /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
+    /// `$tmp` read in the same expression looks read-before-set.  Name-level,
+    /// suppress-only — mirrors Python's `command_sub_write_names` contribution
+    /// to the `skip` set in `core_analyses.py::_read_before_set`.
+    cmd_sub_writes: HashSet<String>,
 }
 
 impl UndefSuppression {
@@ -1512,7 +1519,10 @@ impl UndefSuppression {
     /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
     /// is not hidden.
     fn suppresses_strict(&self, name: &str) -> bool {
-        if self.alias_tails.contains(name) || self.dict_vars.contains(name) {
+        if self.alias_tails.contains(name)
+            || self.dict_vars.contains(name)
+            || self.cmd_sub_writes.contains(name)
+        {
             return true;
         }
         self.has_dict_with
@@ -1522,12 +1532,40 @@ impl UndefSuppression {
 }
 
 /// Build the [`UndefSuppression`] context over `considered` blocks.
+/// Names written by a command substitution buried inside an `expr` argument.
+/// `set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during expr
+/// evaluation; the `set x [expr {E}]` form lowers to `AssignExpr`, so the
+/// condition-out-var extractor over its expr recovers those writes.
+/// Name-level, suppress-only — mirrors `command_sub_write_names` over
+/// expr-role args in `core_analyses.py::_read_before_set`.
+fn collect_expr_cmd_sub_writes(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> HashSet<String> {
+    use crate::ir::Statement;
+    let mut out = HashSet::new();
+    for bn in considered {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            if let Statement::AssignExpr { expr, .. } = stmt {
+                out.extend(crate::ir_helpers::condition_command_out_vars(expr));
+            }
+        }
+    }
+    out
+}
+
 fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
 ) -> UndefSuppression {
     use crate::ir::Statement;
-    let mut s = UndefSuppression::default();
+    let mut s = UndefSuppression {
+        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
+        ..Default::default()
+    };
 
     // `dict with` / `dict update`: harvest the dict-var names and, when the
     // dict value is a same-block literal, its keys (key-aware suppression).
@@ -1821,7 +1859,45 @@ fn extract_quoted_word(message: &str) -> Option<String> {
 /// prevent.  The bare-name match enforces a non-identifier
 /// boundary on each side so ``$abc`` doesn't match ``$ab``,
 /// and skips the variable when it follows a ``\\`` escape.
+/// True when the proc body textually references the parameter `$param` /
+/// `${param}`, scanning command-by-command so a `namespace eval` body — which
+/// runs in the *namespace* frame, not the caller's — does **not** falsely
+/// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
+/// loops) run in the caller frame, so their `$param` reads still count.
+/// Mirrors `_block_local_reads`'s `caller_scope` early-return in
+/// `core_analyses.py`.
 fn body_references_param(body: &str, param: &str) -> bool {
+    if param.is_empty() {
+        return false;
+    }
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+        body,
+        0,
+        tcl_lexer::LexerConfig::default(),
+    );
+    for cmd in &cmds {
+        // `namespace eval NS BODY` — the trailing body word evaluates in NS's
+        // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)
+        // is still substituted in the caller frame and is scanned.
+        let is_ns_eval = cmd.texts.first().map(String::as_str) == Some("namespace")
+            && cmd.texts.get(1).map(String::as_str) == Some("eval");
+        let skip_last = is_ns_eval && cmd.texts.len() >= 4;
+        let last_idx = cmd.texts.len().saturating_sub(1);
+        for (i, word) in cmd.texts.iter().enumerate() {
+            if skip_last && i == last_idx {
+                continue;
+            }
+            if word_references_param(word, param) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// True when a single word textually references `$param` / `${param}`.  Flat
+/// byte scan with identifier-boundary and `\$` escape handling.
+fn word_references_param(body: &str, param: &str) -> bool {
     if param.is_empty() {
         return false;
     }

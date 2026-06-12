@@ -5349,6 +5349,34 @@ Three ported unit tests; `cargo test --workspace` / `clippy --all-targets` /
 `fmt` clean; battery **15→13**, e2e steady at 6 — **W307 cluster fully closed
 (6/6)**.
 
+### SYNC-JUN12-w210a — frame-aware W210 read recovery (battery 13→9)
+
+Closed three W210/RBS false-positives and one true-negative (W214) by mirroring
+Python's read-recovery precision, with no regressions:
+
+- **FP-RBS-03 (`gets` in a loop condition).** `[gets $fp line]` writes `line`;
+  added `gets` to `cmd_substitution_out_vars` (`ir_helpers.rs`) so the while
+  condition records `line` as a CFG def and the body's `$line` reads are
+  covered.
+- **FP-RBS-06 (`catch` inside `expr`).** `set e [expr {[catch {…} tmp] || $tmp}]`
+  writes `tmp` during expr evaluation.  Added a `cmd_sub_writes` skip-set to
+  `UndefSuppression` (`diagnostics.rs`), populated from each `AssignExpr`'s expr
+  via `condition_command_out_vars` — name-level suppress, mirroring
+  `command_sub_write_names`'s contribution to the `skip` set in
+  `_read_before_set`.
+- **FP-RBS-10 / FP-DS-07 (`namespace eval` frame).** The body runs in the
+  namespace frame, so `$x` there is not a read of the caller's param `x`.
+  Marked the `namespace eval` / `inscope` subcommands `BodyKind::Structural`
+  (`tcl-registry`), so `structural_body_indices` excludes their bodies from
+  caller-frame SSA use recovery — W214 (unused param) now fires, and the
+  textual W214 fallback `body_references_param` was made segment-aware to skip
+  `namespace eval` bodies while still recovering same-frame `eval` reads.
+  Mirrors Python's `_block_local_reads` `caller_scope=False` early-return.
+
+Three ported unit tests (incl. the `eval`-same-frame control).  The remaining
+W210 case — `upvar 1 $varName local; puts $local` (dynamic-target possibly-unset)
+— is the foundational dynamic-upvar model, tracked next.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
