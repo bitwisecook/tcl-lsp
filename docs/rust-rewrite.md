@@ -5276,6 +5276,27 @@ each fix carries a ported unit test. **lsp_e2e 12→6 failed**; the remaining ba
 W307 non-literal-command, S101, O106 LICM, T102 taint, W001-arity, and the two
 diag-bridge limitations (FP_NAB_10 dialect, FP_OPT_02 quick-fix data).
 
+### SYNC-JUN12-w307a — array-set + known-class-new const harvest (battery 19→17)
+
+Closed two of the six W307 non-literal-command cases by harvesting more static
+evidence into `emit_var_command_diagnostics` (`diagnostics.rs`), mirroring
+`_diag_var_command.py`:
+
+- **`array set arr {k v …}` literal element values** → keyed `arr(key)` in the
+  constset map, so `$arr(-command)` dispatch checks the actual value against the
+  known-command set. `array set state {-command puts}` → silent; `{-command
+  notACommand}` → still fires. (Bug caught in dev: the IR `array` command's
+  `command` field is `"array"`, not the canonical `"::array"`.)
+- **`set x [Cls new]` / `[Cls create name]` for a known TclOO class** → records
+  `x`'s Object class so a later `$x method` dispatch resolves through the W308
+  method check instead of firing W307.
+
+Two ported unit tests; `cargo test`/`clippy`/`fmt` clean. The remaining four
+W307 cases need deeper infrastructure: composed-name `${ns}::proc` resolution,
+interproc dict-with literal propagation, and OO **method-body analysis** (the
+two `[format …] run` / `[my plain] run` in-method TP cases — Rust does not yet
+recurse into method bodies to record dispatch sites).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

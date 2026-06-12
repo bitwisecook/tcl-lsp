@@ -1312,6 +1312,58 @@ mod tests {
     }
 
     #[test]
+    fn w307_array_set_const_element_suppression() {
+        // TN: `array set state {-command puts}; $state(-command) hi` — the
+        // literal element value `puts` is a known command, so the callback-key
+        // heuristic must not fire W307. Harvested from the `array set` literal.
+        let mut a = Analyser::new();
+        let has_w307 = a
+            .analyse(
+                "proc f {} { array set state {-command puts}; $state(-command) hi }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            !has_w307,
+            "array-element holding a known command must not fire W307",
+        );
+        // TP control: a non-command literal value still fires W307.
+        let mut b = Analyser::new();
+        let has_w307 = b
+            .analyse(
+                "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            has_w307,
+            "array-element holding a non-command must still fire W307",
+        );
+    }
+
+    #[test]
+    fn w307_known_class_new_var_suppression() {
+        // TN: `set x [C new]; $x run` where C is a known oo::class — `x` holds
+        // an Object of class C, so the `$x run` dispatch resolves through the
+        // method check (run exists on C) instead of firing W307.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { method run {} { return ok } }\n\
+             proc f {} { set x [C new]; $x run }\n",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "var assigned from a known-class constructor must not fire W307: {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
     fn w216_brace_then_paren_name_vs_value_positions() {
         // FP-STY-12: the braced indirect-array idiom `${name}(idx)` in a
         // *variable-name* position (`set`/`unset`/`incr`/`append`/`lappend`/

@@ -7018,6 +7018,44 @@ file; this call falls through to the 'unknown' handler."
         for fu in cu.procedures.values() {
             collect_object_types(&fu.types, &mut all_object_types);
         }
+        // Harvest `set x [Cls new]` / `set x [Cls create name]` where `Cls` is
+        // a known TclOO class: `x` then holds an Object of class `Cls`, so a
+        // later `$x method` dispatch resolves through the W308 method check
+        // instead of firing W307.  The type lattice doesn't model the
+        // constructor return type for a var assignment yet (the cmd-site path
+        // below recognises the bare-class `new`/`create` pattern directly), so
+        // mirror that recognition here for the var-assignment shape.
+        let harvest_constructor_vars =
+            |this: &Self,
+             fu: &crate::compilation_unit::FunctionUnit,
+             out: &mut HashMap<String, HashSet<String>>| {
+                use crate::ir::Statement;
+                for block in fu.cfg.blocks.values() {
+                    for stmt in &block.statements {
+                        let Statement::AssignValue { name, value, .. } = stmt else {
+                            continue;
+                        };
+                        let Some((head, args)) =
+                            crate::value_shapes::parse_command_substitution(value.trim())
+                        else {
+                            continue;
+                        };
+                        if !args.first().is_some_and(|s| s == "new" || s == "create") {
+                            continue;
+                        }
+                        let class_qn = this.canonicalise_class_name(&head);
+                        if this.result.all_classes.contains_key(&class_qn)
+                            || this.result.all_classes.contains_key(&head)
+                        {
+                            out.entry(name.clone()).or_default().insert(class_qn);
+                        }
+                    }
+                }
+            };
+        harvest_constructor_vars(self, &cu.top_level, &mut all_object_types);
+        for fu in cu.procedures.values() {
+            harvest_constructor_vars(self, fu, &mut all_object_types);
+        }
 
         // Build the class hierarchy once for W308 method
         // resolution (uses the C41e0 ``ClassHierarchy``).
@@ -7051,6 +7089,49 @@ file; this call falls through to the 'unknown' handler."
         collect_from(&cu.top_level.sccp, &mut all_constsets);
         for fu in cu.procedures.values() {
             collect_from(&fu.sccp, &mut all_constsets);
+        }
+
+        // Harvest `array set arr {k1 v1 k2 v2 …}` literal element values into
+        // the constset map keyed by `arr(key)`, so the W307 callback-array
+        // suppression can check the *actual* value of `$arr(-command)` against
+        // the known-command set.  Without this, the dash-prefixed /
+        // callback-suffixed array-key heuristic fires even when SCCP-equivalent
+        // literal evidence proves the value is (or isn't) a command.  Mirrors
+        // `_diag_var_command.py:421-452`.
+        let harvest_array_set =
+            |fu: &crate::compilation_unit::FunctionUnit,
+             out: &mut HashMap<String, HashSet<String>>| {
+                use crate::ir::Statement;
+                for block in fu.cfg.blocks.values() {
+                    for stmt in &block.statements {
+                        let (Statement::Call { command, args, .. }
+                        | Statement::Barrier { command, args, .. }) = stmt
+                        else {
+                            continue;
+                        };
+                        let is_array =
+                            command == "array" || stmt.canonical_command_or_source() == "::array";
+                        if !is_array
+                            || args.first().map(String::as_str) != Some("set")
+                            || args.len() < 3
+                        {
+                            continue;
+                        }
+                        let arr_name = &args[1];
+                        let items = crate::tcl_expr_eval::split_tcl_list(&args[2]);
+                        if items.len() % 2 != 0 {
+                            continue;
+                        }
+                        for pair in items.chunks_exact(2) {
+                            let elem_name = format!("{arr_name}({})", pair[0]);
+                            out.entry(elem_name).or_default().insert(pair[1].clone());
+                        }
+                    }
+                }
+            };
+        harvest_array_set(&cu.top_level, &mut all_constsets);
+        for fu in cu.procedures.values() {
+            harvest_array_set(fu, &mut all_constsets);
         }
 
         // Build the "known commands" universe — registry +
