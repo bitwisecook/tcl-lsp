@@ -4796,6 +4796,7 @@ file; this call falls through to the 'unknown' handler."
         self.emit_existence_constant_branch_diagnostics(function_unit, ir_proc);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
+        self.emit_interval_bounds_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(function_unit, ir_proc);
         }
@@ -6136,6 +6137,69 @@ file; this call falls through to the 'unknown' handler."
                 span,
                 message: format!(
                     "{verb} by a provably-zero divisor — raises 'divide by zero' at runtime."
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W230 / W231 / W232 (dynamic).** Interval-driven out-of-range index
+    /// detection for a `$var` index whose [`crate::intervals`] range — guard-
+    /// narrowed at the use site — proves the access is wholly out of range
+    /// against a statically-established container length.  Complements the
+    /// syntactic bounds checks (literal index + literal container only); the
+    /// two never double-fire because the syntactic checks back off on any
+    /// `$var` index.  Restricted to SCCP-reachable blocks so a dynamic index
+    /// in dead code does not warn.  Mirrors
+    /// `_diag_interval_bounds.py::_emit_interval_bounds_diagnostics`.
+    fn emit_interval_bounds_diagnostics(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
+        let executable: HashSet<String> = if fu.sccp.executable_blocks.is_empty() {
+            fu.ssa.blocks.keys().cloned().collect()
+        } else {
+            fu.sccp.executable_blocks.iter().cloned().collect()
+        };
+        let findings = crate::interval_bounds::find_interval_bounds(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            &executable,
+        );
+        for f in findings {
+            if f.span.is_empty() {
+                continue;
+            }
+            let bound = if f.reason == "negative" {
+                "below 0".to_string()
+            } else {
+                format!("past the end ({})", f.length)
+            };
+            let rng = if f.reason == "negative" {
+                "negative".to_string()
+            } else if f.index_interval.lo == f.index_interval.hi {
+                format!("is {}", f.index_interval.lo.map_or(0, |l| l))
+            } else {
+                let lo = f
+                    .index_interval
+                    .lo
+                    .map_or("-inf".to_string(), |l| l.to_string());
+                let hi = f
+                    .index_interval
+                    .hi
+                    .map_or("+inf".to_string(), |h| h.to_string());
+                format!("is in [{lo}, {hi}]")
+            };
+            let outcome = if f.code == "W231" {
+                "raises 'index out of range' at runtime"
+            } else {
+                "silently returns the empty string"
+            };
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: f.code,
+                span: f.span,
+                message: format!(
+                    "{}: index ${} {rng}, {bound} \u{2014} {outcome}.",
+                    f.command, f.index_var
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),

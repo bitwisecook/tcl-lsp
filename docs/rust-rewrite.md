@@ -5954,6 +5954,27 @@ is still flagged — only `Cmd` words are exempt).  Battery
 `TN_safe_eval_with_list_form` (`eval [list set y $x]`) now passes; 1 unit
 test.
 
+**LANDED (interval abstract domain + dynamic index bounds — battery
+2026-06-12).**  Ported `compiler/intervals.py` → `intervals.rs` (the integer
+interval lattice: `join`/`widen`/`add`/`sub`/`mul`/`intersect`, abstract
+`eval_expr`, constant-bound guard narrowing `refine_interval` +
+`build_guard_index`, and the widening forward fixpoint `compute_intervals`
+seeded from SCCP constants) and the bounds-finding portion of
+`compiler/interval_bounds.py::find_interval_bounds` → `interval_bounds.rs`.
+`emit_interval_bounds_diagnostics` runs it per function over SCCP-reachable
+blocks and fires **W230 / W231 / W232** on a `$var` index whose
+guard-narrowed interval *proves* the access is wholly out of range against a
+statically-recovered container length — the dynamic cases the syntactic
+bounds checks deliberately skip (so the two never double-fire).  One
+divergence handled for parity: Rust's SSA inserts a loop-header phi for a
+list `lset` mutates (Rust's `lset` *reads* the list), which Python's pruned
+SSA does not; `resolve_list_length` follows that phi to the length its known
+incomings agree on, ignoring the unknown length-preserving back-edge, so
+`for {set j 4} {$j < 9} {incr j} { lset l $j $v }` recovers length 3 and
+fires W231 exactly as Python does.  Battery `FP_BND_01` (loop counter past
+append) and `FP_BND_03` (×2, `string index $s $i` with a const-var index)
+now pass; 6 unit tests; zero battery / e2e regressions.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
