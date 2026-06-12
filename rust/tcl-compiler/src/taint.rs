@@ -2031,26 +2031,6 @@ fn emit_option_injection(
 // IRULE3101 — setter-constraint violations
 // ---------------------------------------------------------------------------
 
-/// Command table for setter-constraint checks.
-///
-/// Entries are `(command, required_prefix, code, message)`. Matches
-/// `TAINT_HINTS[cmd].setter_constraints` in Python for `HTTP::uri` /
-/// `HTTP::path`. Both constrain `arg_index = 0` today.
-const SETTER_CONSTRAINTS: &[(&str, &str, &str, &str)] = &[
-    (
-        "HTTP::uri",
-        "/",
-        "IRULE3101",
-        "HTTP::uri value must start with '/'",
-    ),
-    (
-        "HTTP::path",
-        "/",
-        "IRULE3101",
-        "HTTP::path value must start with '/'",
-    ),
-];
-
 /// Find setter-constraint violations (IRULE3101) — ports
 /// `_find_setter_constraint_violations` in Python. Currently constrains
 /// `HTTP::uri` / `HTTP::path` setters to paths beginning with `/`.
@@ -2069,6 +2049,7 @@ const SETTER_CONSTRAINTS: &[(&str, &str, &str, &str)] = &[
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
 pub(crate) fn find_setter_constraint_warnings(
+    registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -2095,27 +2076,28 @@ pub(crate) fn find_setter_constraint_warnings(
                 continue;
             };
             let span = ssa_stmt.statement.span();
-            for (cmd_name, prefix, code, message) in SETTER_CONSTRAINTS {
-                if command != cmd_name {
-                    continue;
-                }
-                // arg_index = 0 for the built-in table.
-                let Some(arg_val) = args.first() else {
+            // The setter constraints are command metadata, read straight
+            // from the registry spec (`HTTP::uri` / `HTTP::path` declare
+            // their `/`-prefix IRULE3101 rule) rather than a hardcoded
+            // table here.
+            for constraint in tcl_registry::taint::setter_constraints(registry, command) {
+                let Some(arg_val) = args.get(constraint.arg_index as usize) else {
                     continue;
                 };
                 let stripped = arg_val.trim();
+                let warn = |variable: String| TaintWarning {
+                    span,
+                    variable,
+                    sink_command: command.clone(),
+                    code: constraint.code.to_owned(),
+                    message: constraint.message.to_owned(),
+                    replacement: None,
+                };
 
                 // Literal: neither `$` nor `[`.
                 if !stripped.starts_with('$') && !stripped.contains('[') {
-                    if !stripped.starts_with(prefix) {
-                        out.push(TaintWarning {
-                            span,
-                            variable: String::new(),
-                            sink_command: (*cmd_name).to_owned(),
-                            code: (*code).to_owned(),
-                            message: (*message).to_owned(),
-                            replacement: None,
-                        });
+                    if !stripped.starts_with(constraint.required_prefix) {
+                        out.push(warn(String::new()));
                     }
                     continue;
                 }
@@ -2131,26 +2113,12 @@ pub(crate) fn find_setter_constraint_warnings(
                     if t.is_tainted() && t.colours.intersects(safe_path_colours) {
                         continue;
                     }
-                    out.push(TaintWarning {
-                        span,
-                        variable: var_name.to_owned(),
-                        sink_command: (*cmd_name).to_owned(),
-                        code: (*code).to_owned(),
-                        message: (*message).to_owned(),
-                        replacement: None,
-                    });
+                    out.push(warn(var_name.to_owned()));
                     continue;
                 }
 
                 // Dynamic (interpolation, command sub, mixed) — always warn.
-                out.push(TaintWarning {
-                    span,
-                    variable: String::new(),
-                    sink_command: (*cmd_name).to_owned(),
-                    code: (*code).to_owned(),
-                    message: (*message).to_owned(),
-                    replacement: None,
-                });
+                out.push(warn(String::new()));
             }
         }
     }
@@ -3419,7 +3387,11 @@ mod tests {
 
     fn setter_warnings_for_dialect(source: &str, dialect: Option<&str>) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
-        let registry = CommandRegistry::build_default();
+        let mut registry = CommandRegistry::build_default();
+        // The IRULE3101 setter constraints live on the iRules specs, so the
+        // registry must have them loaded for the dialect-gated check to see
+        // anything.
+        registry.load_irules();
         let mut cu = CompilationUnit::build_for(source, &registry, false);
         if dialect.is_some() {
             cu = cu.with_interprocedural(&registry, dialect);
@@ -3427,6 +3399,7 @@ mod tests {
         let mut out: Vec<TaintWarning> = Vec::new();
         for fu in cu.functions() {
             out.extend(find_setter_constraint_warnings(
+                &registry,
                 &fu.cfg,
                 &fu.ssa,
                 &fu.taints,

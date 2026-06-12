@@ -362,14 +362,10 @@ pub fn taint_sink_safe_colour(registry: &CommandRegistry, command: &str) -> Opti
     registry.get(command)?.taint_sink_safe_colour
 }
 
-/// Setter-form constraints declared on `command` (IRULE3101) — the
-/// registry-driven replacement for the hardcoded `SETTER_CONSTRAINTS`
-/// table in `tcl_compiler::taint`. Empty slice when none.
-///
-// TODO(consumer): GAP-D2 — `tcl_compiler::taint` still carries a 2-entry
-// hardcoded `SETTER_CONSTRAINTS` table (at `taint.rs:~1262`). Replace it
-// with a call to this function over the iRules-loaded registry so the
-// table is data-driven (HTTP::uri / HTTP::path are populated here).
+/// Setter-form constraints declared on `command` (IRULE3101) — read by
+/// `tcl_compiler::taint::find_setter_constraint_warnings` straight from
+/// the spec (`HTTP::uri` / `HTTP::path` declare the `/`-prefix rule), so
+/// the constraint table is owned by the registry. Empty slice when none.
 #[must_use]
 pub fn setter_constraints(
     registry: &CommandRegistry,
