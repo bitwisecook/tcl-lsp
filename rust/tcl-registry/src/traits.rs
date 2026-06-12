@@ -186,5 +186,18 @@ bitflags! {
         /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
         /// of these carry.)
         const DYNAMIC_EVAL_BODY         = 1 << 47;
+
+        /// (Subcommand) introspects program state by variable *name* —
+        /// `info exists|vars|locals|args|default`. The var-escape slot
+        /// resolver treats the named variable as ineligible for a slot.
+        /// Single source of truth for the former
+        /// `INFO_INTROSPECTING_SUBCMDS` list.
+        const INTROSPECTS_BY_NAME       = 1 << 48;
+
+        /// (Subcommand) targets a variable by *name* —
+        /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
+        /// var-escape slot resolver. Single source of truth for the former
+        /// `TRACE_NAME_TARGETING` list.
+        const TARGETS_VARIABLE_BY_NAME  = 1 << 49;
     }
 }

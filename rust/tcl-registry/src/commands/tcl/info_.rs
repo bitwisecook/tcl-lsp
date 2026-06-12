@@ -10,6 +10,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "args",
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(1),
         detail: "Returns the names of the parameters to the procedure named procname.",
         synopsis: "info args procname",
@@ -104,6 +105,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "default",
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(3),
         detail: "If the parameter has a default value, stores that value in varname and returns 1.",
         synopsis: "info default procname parameter varname",
@@ -123,6 +125,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::exact(1),
         detail: "Returns 1 if a variable named varName is visible and has been defined, and 0 otherwise.",
         synopsis: "info exists varName",
@@ -198,6 +201,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "locals",
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::new(0, 1),
         detail: "Returns the name of each local variable matching pattern.",
         synopsis: "info locals ?pattern?",
@@ -273,6 +277,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "vars",
+        traits: Traits::INTROSPECTS_BY_NAME,
         arity: Arity::new(0, 1),
         detail: "Returns the names of all visible variables.",
         synopsis: "info vars ?pattern?",

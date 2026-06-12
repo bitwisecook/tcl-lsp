@@ -212,6 +212,20 @@ impl CommandRegistry {
             .map(|(_, colour)| *colour)
     }
 
+    /// Return the names of `command`'s subcommands whose traits include
+    /// `t` — the subcommand-level counterpart of [`Self::commands_with_trait`].
+    /// Empty when the command is unknown or has no matching subcommand.
+    #[must_use]
+    pub fn subcommands_with_trait(&self, command: &str, t: Traits) -> Vec<&str> {
+        self.get(command).map_or_else(Vec::new, |spec| {
+            spec.subcommands
+                .iter()
+                .filter(|s| s.traits.contains(t))
+                .map(|s| s.name)
+                .collect()
+        })
+    }
+
     /// Return all command specs whose traits include `t`.
     #[must_use]
     pub fn commands_with_trait(&self, t: Traits) -> Vec<&str> {

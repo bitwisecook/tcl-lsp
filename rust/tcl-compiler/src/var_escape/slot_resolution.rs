@@ -57,11 +57,33 @@ const FRAME_HASH_BUILTINS: &[&str] = &[
     "vwait", "tkwait",
 ];
 
-/// ``info`` subcommands that introspect by name.
-const INFO_INTROSPECTING_SUBCMDS: &[&str] = &["exists", "vars", "locals", "args", "default"];
+/// Memoised set of `info` subcommands that introspect by variable name
+/// (`info exists|vars|locals|args|default`), sourced from the registry's
+/// [`Traits::INTROSPECTS_BY_NAME`] subcommand trait.
+fn info_introspecting_subcmds() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .subcommands_with_trait("info", Traits::INTROSPECTS_BY_NAME)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
-/// ``trace`` subcommands that target a variable by name.
-const TRACE_NAME_TARGETING: &[&str] = &["add", "remove", "info", "variable", "vdelete", "vinfo"];
+/// Memoised set of `trace` subcommands that target a variable by name
+/// (`trace add|remove|info|variable|vdelete|vinfo`), sourced from the
+/// registry's [`Traits::TARGETS_VARIABLE_BY_NAME`] subcommand trait.
+fn trace_name_targeting() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .subcommands_with_trait("trace", Traits::TARGETS_VARIABLE_BY_NAME)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
 /// Memoised set of commands carrying [`Traits::DYNAMIC_EVAL_BODY`] —
 /// those whose body is executed by the interpreter, opening a
@@ -213,7 +235,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
             }
             if cmd == "info" && !args.is_empty() {
                 let sub = args[0].as_str();
-                if INFO_INTROSPECTING_SUBCMDS.contains(&sub) {
+                if info_introspecting_subcmds().contains(sub) {
                     if args.len() >= 2 {
                         let target = &args[1];
                         if is_dynamic_value(target) {
@@ -230,7 +252,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
             }
             if cmd == "trace" && !args.is_empty() {
                 let sub = args[0].as_str();
-                if TRACE_NAME_TARGETING.contains(&sub) {
+                if trace_name_targeting().contains(sub) {
                     if (sub == "add" || sub == "remove" || sub == "info") && args.len() >= 3 {
                         if args[1] == "variable" {
                             let target = &args[2];
