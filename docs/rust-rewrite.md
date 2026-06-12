@@ -5863,6 +5863,21 @@ for the shippable token/regex form (W230-W232 + W240-W242); the
 interval-domain W233 remains the eventual main-parity target (§E2), not a
 present gap.
 
+**LANDED (W231 proc-scoped length recovery — battery 2026-06-12).**  The
+GAP-A4 `_infer_list_length_from_recent_set` port had quietly diverged: it
+recovered the list length by *top-level* command segmentation instead of
+Python's line-anchored `_LIST_SET_RE` + `_scope_is_flat` text scan.  That
+divergence silently dropped the common case where the `set var {…}` and the
+`lset` sit in the *same* `proc` body (neither is a top-level command), so
+`proc f {} { set l {a b c}; lset l 99 X }` never fired W231.  Re-ported to
+mirror Python exactly: a hand-rolled scan for `(?:^|\n)\s*set\s+(\w+)\s+
+(\{[^{}]*\})\s*(?=\n|$|;)` (no regex crate in the workspace), accepted only
+when the between-text stays at brace depth zero and crosses no
+`proc`/`namespace eval`/`apply`/`try` boundary (`scope_is_flat` +
+`has_scope_marker`).  Now recovers a same-scope `set` nested in a `proc`
+body while still rejecting cross-scope leaks; 2 unit tests, battery W231
+proc-body TPs (`lset l 99 X`, `lset l end X` on `{}`) now pass.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
