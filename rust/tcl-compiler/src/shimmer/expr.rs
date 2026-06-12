@@ -105,7 +105,9 @@ fn collect_expr_shimmers(
             collect_expr_shimmers(right, uses, types, stmt_span, out);
 
             match op {
-                // Arithmetic operators require numeric operands.
+                // Arithmetic, bitwise, logical, and *ordering* comparison
+                // operators are always a numeric context (Tcl `<`/`<=`/`>`/`>=`
+                // compare numerically when possible).  Mirrors `_NUMERIC_OPS`.
                 BinOp::Add
                 | BinOp::Sub
                 | BinOp::Mul
@@ -116,9 +118,28 @@ fn collect_expr_shimmers(
                 | BinOp::RShift
                 | BinOp::BitAnd
                 | BinOp::BitOr
-                | BinOp::BitXor => {
+                | BinOp::BitXor
+                | BinOp::And
+                | BinOp::Or
+                | BinOp::Lt
+                | BinOp::Le
+                | BinOp::Gt
+                | BinOp::Ge => {
                     check_numeric_operand(left, uses, types, stmt_span, *op, out);
                     check_numeric_operand(right, uses, types, stmt_span, *op, out);
+                }
+
+                // `==` / `!=` take the numeric-coercion path only when at least
+                // one operand is provably numeric (else Tcl falls back to a
+                // string compare and no shimmer occurs).  Mirrors
+                // `_CONDITIONAL_NUMERIC_OPS` + `_operand_looks_numeric`.
+                BinOp::Eq | BinOp::Ne => {
+                    if operand_looks_numeric(left, uses, types)
+                        || operand_looks_numeric(right, uses, types)
+                    {
+                        check_numeric_operand(left, uses, types, stmt_span, *op, out);
+                        check_numeric_operand(right, uses, types, stmt_span, *op, out);
+                    }
                 }
 
                 // String comparison operators: operands should be String.
@@ -153,6 +174,64 @@ fn collect_expr_shimmers(
 
         _ => {}
     }
+}
+
+/// True when `node` is provably numeric-looking — gates the conditional
+/// `==` / `!=` numeric-shimmer check.  Mirrors `_operand_looks_numeric`
+/// (the SCCP-CONST arm is omitted; the literal / numeric-string / typed-var
+/// arms cover the shimmer cases the syntactic types reach).
+fn operand_looks_numeric(
+    node: &ExprNode,
+    uses: &HashMap<String, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+) -> bool {
+    match node {
+        ExprNode::Literal { .. } => true,
+        ExprNode::String { text, .. } => expr_string_is_numeric(text),
+        ExprNode::Var { name, .. } => {
+            let base = normalise_var_name(name);
+            let Some(&ver) = uses.get(base) else {
+                return false;
+            };
+            if ver == 0 {
+                return false;
+            }
+            types
+                .get(&(base.to_owned(), ver))
+                .filter(|l| l.kind == TypeKind::Known)
+                .and_then(|l| l.tcl_type)
+                .is_some_and(|t| {
+                    matches!(
+                        t,
+                        TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+                    )
+                })
+        }
+        _ => false,
+    }
+}
+
+/// True when `text` (an `ExprNode::String` body or raw value, possibly still
+/// wrapped in `{}` / `"`) parses as an int, float, or Tcl boolean literal.
+/// Mirrors `_expr_string_is_numeric`.
+fn expr_string_is_numeric(text: &str) -> bool {
+    let mut s = text.trim();
+    if s.len() >= 2
+        && ((s.starts_with('{') && s.ends_with('}')) || (s.starts_with('"') && s.ends_with('"')))
+    {
+        s = &s[1..s.len() - 1];
+    }
+    let s = s.trim();
+    if s.is_empty() {
+        return false;
+    }
+    if s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok() {
+        return true;
+    }
+    matches!(
+        s.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off"
+    )
 }
 
 /// Emit S100 if `node` is a variable reference with a non-numeric type
@@ -288,6 +367,36 @@ mod tests {
         assert!(
             has_shimmer,
             "expected string-in-arithmetic shimmer, got: {w:?}"
+        );
+    }
+
+    /// A String variable compared with `==` against a numeric literal takes
+    /// the numeric-coercion path and shimmers; comparing against a non-numeric
+    /// string stays on the string path and does not.
+    #[test]
+    fn expr_shimmer_string_eq_numeric_literal() {
+        let cu = CompilationUnit::build_for(
+            "set s [string trim hello]\nset y [expr {$s == \"5\"}]",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let w = find_expr_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            w.iter().any(|sw| sw.variable == "s"),
+            "string == numeric literal must shimmer: {w:?}"
+        );
+        // `$s == "hello"` — both string, no numeric coercion, no shimmer.
+        let cu2 = CompilationUnit::build_for(
+            "set s [string trim hello]\nset y [expr {$s == \"hello\"}]",
+            &registry(),
+            false,
+        );
+        let fu2 = cu2.function("::top").unwrap();
+        let w2 = find_expr_shimmers(&fu2.cfg, &fu2.ssa, &fu2.types, &fu2.sccp.executable_blocks);
+        assert!(
+            !w2.iter().any(|sw| sw.variable == "s"),
+            "string == string must not shimmer: {w2:?}"
         );
     }
 
