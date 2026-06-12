@@ -511,7 +511,16 @@ impl CfgBuilder {
             self.new_block("try_ok")
         };
 
+        // Install a fresh throw-block list around the body so on-error edges
+        // are sourced from each explicit `error`/`throw` point (where the
+        // body's prior defs are live), not the pre-`try` block. Restore the
+        // outer list afterwards so a nested `try`'s throws aren't attributed
+        // to this handler. Mirrors Python `_lower_try`.
+        let outer_throw_blocks = self.throw_blocks.take();
+        self.throw_blocks = Some(Vec::new());
         let body_tail = self.lower_script(body, &body_block);
+        let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
+        self.throw_blocks = outer_throw_blocks;
         if let Some(tail) = &body_tail {
             self.ensure_goto(tail, &post_body, Some(*body_span));
         }
@@ -538,7 +547,10 @@ impl CfgBuilder {
                         self.exception_edges
                             .push((tail.clone(), handler_block.clone()));
                     }
-                } else {
+                } else if body_throw_blocks.is_empty() {
+                    // No explicit `error`/`throw`: a sub-command may raise at
+                    // any point, so a body-set var is *maybe* defined — merge
+                    // the pre-`try` state (version-0) with the body-exit state.
                     self.exception_edges
                         .push((block_name.to_owned(), handler_block.clone()));
                     if let Some(tail) = &body_tail {
@@ -546,6 +558,15 @@ impl CfgBuilder {
                             self.exception_edges
                                 .push((tail.clone(), handler_block.clone()));
                         }
+                    }
+                } else {
+                    // Source the on-error edge from each explicit throw point
+                    // at its throw-time versions: a var set before the only
+                    // throw is defined in the handler; a var unset on an
+                    // earlier conditional throw stays maybe-undef via the merge.
+                    for tb in &body_throw_blocks {
+                        self.exception_edges
+                            .push((tb.clone(), handler_block.clone()));
                     }
                 }
             }

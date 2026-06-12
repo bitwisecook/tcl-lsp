@@ -1507,6 +1507,11 @@ struct UndefSuppression {
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
     killed: HashSet<(String, crate::ssa::Version)>,
+    /// Phi versions that can be undefined on some executable path
+    /// (a one-branch `set y 1` merge, or a try-handler merge). A statement
+    /// read of one is read-before-set; the def-use pass can't express this
+    /// because the read targets the *phi* version, not a version-0 origin.
+    can_undef: HashSet<(String, crate::ssa::Version)>,
 }
 
 impl UndefSuppression {
@@ -1665,11 +1670,32 @@ fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
 ) -> UndefSuppression {
-    let (_phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+    let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+    // Phi versions that can reach an undef origin on some executable path —
+    // a statement read of one is read-before-set. The per-use existence
+    // guard + suppression set still apply in the emitter loop.
+    let exists_guards = collect_existence_guards(fu);
+    let mut can_undef: HashSet<(String, crate::ssa::Version)> = HashSet::new();
+    for key in phi_def.keys() {
+        let mut seen = HashSet::new();
+        if phi_can_undef(
+            &key.0,
+            key.1,
+            &phi_def,
+            &killed,
+            considered,
+            &exists_guards,
+            &fu.ssa,
+            &mut seen,
+        ) {
+            can_undef.insert(key.clone());
+        }
+    }
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
         dynamic_upvar_locals: crate::optimiser::elimination::scan_dynamic_upvar_locals(&fu.cfg),
         killed,
+        can_undef,
         ..Default::default()
     };
     harvest_dict_with_suppression(fu, considered, &mut s);
@@ -5106,7 +5132,14 @@ file; this call falls through to the 'unknown' handler."
         if let Some(d) = DialectSet::parse(&self.dialect) {
             registry.load_dialect(d);
         }
-        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        // Seed each proc's SCCP with caller-side parameter constants so a
+        // branch on a param every caller passes the same literal folds (the
+        // `if {$x}` body is provably taken under uniform `q 1` callers, so a
+        // var set only there is not read-before-set). Mirrors the Python
+        // analyser's interprocedurally-seeded compilation unit.
+        let dialect_opt = (!self.dialect.is_empty()).then_some(self.dialect.as_str());
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, dialect_opt);
 
         // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
@@ -5954,9 +5987,14 @@ file; this call falls through to the 'unknown' handler."
 
         for chain in fu.def_use.chains.values() {
             // Version-0 synthetic defs are the undef origin; an
-            // `unset`-killed real version is undef at its reads too, so both
-            // flow through the same suppression + emission logic below.
-            if chain.definition.kind != DefKind::Parameter && !supp.killed.contains(&chain.key) {
+            // `unset`-killed real version, and a phi version that can reach
+            // an undef origin (one-branch `set` / try-handler merge), are
+            // undef at their reads too — all flow through the same
+            // suppression + emission logic below.
+            if chain.definition.kind != DefKind::Parameter
+                && !supp.killed.contains(&chain.key)
+                && !supp.can_undef.contains(&chain.key)
+            {
                 continue;
             }
             let (var, _version) = &chain.key;

@@ -60,6 +60,13 @@ pub(crate) struct CfgBuilder {
     /// codegen builds so the default bytecode is unchanged (mirrors Python's
     /// `_faithful_exceptions`).
     faithful_exceptions: bool,
+    /// When `Some`, every block that raises an explicit `error` / `throw`
+    /// is recorded here. `lower_try` installs a fresh list around its body
+    /// so the on-error edge is sourced from each throw point (at its
+    /// throw-time SSA versions) rather than the pre-`try` block — a
+    /// body-set var is defined at a later throw. Mirrors Python's
+    /// `_throw_blocks`.
+    throw_blocks: Option<Vec<String>>,
 }
 
 impl CfgBuilder {
@@ -83,6 +90,7 @@ impl CfgBuilder {
             loop_stack: Vec::new(),
             exception_edges: Vec::new(),
             faithful_exceptions: false,
+            throw_blocks: None,
         }
     }
 
@@ -275,6 +283,15 @@ impl CfgBuilder {
         if let Statement::Call { command, span, .. } = stmt {
             if is_block_terminating_command(command) && self.block_mut(current).terminator.is_none()
             {
+                // A catchable `error` / `throw` (not `exit`, which leaves the
+                // process) is a throw point: record the current block so an
+                // enclosing `try`'s on-error edge can be sourced from here,
+                // where the body's prior defs are live.
+                if is_catchable_throw(command) {
+                    if let Some(blocks) = self.throw_blocks.as_mut() {
+                        blocks.push(current.to_owned());
+                    }
+                }
                 self.block_mut(current).terminator = Some(Terminator::Return {
                     value: None,
                     span: Some(*span),
@@ -782,6 +799,13 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 /// as its own `Statement::Return`.
 fn is_block_terminating_command(command: &str) -> bool {
     matches!(command.trim_start_matches(':'), "error" | "throw" | "exit")
+}
+
+/// Whether `command` raises a *catchable* exception (`error` / `throw`) —
+/// `exit` terminates the process and is not caught by `try`. Throw points
+/// of this kind source an enclosing `try`'s on-error edge.
+fn is_catchable_throw(command: &str) -> bool {
+    matches!(command.trim_start_matches(':'), "error" | "throw")
 }
 
 /// Lex *text* into Tcl words, accumulating contiguous tokens between
