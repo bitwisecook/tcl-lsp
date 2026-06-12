@@ -5461,6 +5461,35 @@ O116/O118 fold codes, and LICM nested-impurity.  `cargo test --workspace`
 (2533) / clippy / fmt clean; no e2e regressions.  Remaining battery (2): T102
 path-prefix taint (INJ-04) and S101 per-iteration shimmer.
 
+### SYNC-JUN12-remaining2 — the last two battery gaps (large analyses)
+
+Two battery failures remain (battery now **2 / 401**); both require new
+analysis subsystems, not focused carve-outs, and a partial implementation would
+regress passing controls:
+
+- **FP-INJ-04 (T102 path-prefix taint).** `set foo "-[HTTP::path]"; regexp $foo
+  test` must fire T102 (the literal `-` breaks `HTTP::path`'s `/`-anchoring),
+  while the INJ-03 controls (`[HTTP::path]` alone, `"path_[HTTP::path]"`) must
+  stay silent.  The Rust taint seeds an HTTP getter as plain `TAINTED` only —
+  it does **not** carry the `PATH_PREFIXED` / `STARTS_WITH_SLASH` colours, does
+  not recognise iRules taint sources outside the `IRULES` dialect (Python's
+  `is_taint_source` uses `command_names("f5-irules")` unconditionally — verified
+  Python fires T102 under `tcl8.6`), and `emit_option_injection` has no
+  `T102_SAFE` gate.  Needs: (1) drop the dialect gate in
+  `irules_dialect_only_source`, (2) seed HTTP getters with the path-anchor
+  colours, (3) propagate them through string interpolation with a leading-`-`
+  carve-out that clears the anchor, (4) a `T102_SAFE` gate in
+  `emit_option_injection`.  Items 1–3 are exactly what keeps INJ-03 green, so it
+  is all-or-nothing.
+- **TP-S101 (per-iteration intrep thrash).** `foreach x $l { string length $x;
+  lindex $x 0 }` must fire S100/S101/S102.  The Rust use-site shimmer already
+  emits S101 in-loop, but only for a variable with a **known** intrep type — a
+  `foreach` loop variable is currently `Unknown`, so nothing fires.  Needs
+  foreach-variable intrep type inference (`x` → `List` from the list-of-lists
+  source) plus the `loop_use_targets` distinct-target classification (a
+  loop-invariant var coerced to ≥2 types per iteration is S101, not S100), as
+  in `compiler/shimmer.py:270-285`.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
