@@ -5986,6 +5986,15 @@ spelling (a dynamic `$`-target names no static local and is skipped).
 Battery `FP_DS_04_traced_var_no_w220` and `FP_DS_04_84_form_also_excluded`
 now pass; 1 unit test; no regressions.
 
+**LANDED (hex / binary literals typed INT — battery 2026-06-12).**
+`type_infer::literal_type` typed only decimal integers as INT (`parse::<i64>`),
+so `set n 0x80` was STRING and `incr n` looked like a per-iteration
+string→int shimmer (false S101/S102).  Matched `core_analyses._literal_type`:
+a `0x`/`0X` hex or `0b`/`0B` binary form (optionally signed) is INT — one
+clean parse, the canonical tcllib idiom — while `0o` octal stays STRING.
+Battery `FP_SH_04_hex_literal_increment_no_shimmer` now passes; 1 unit test;
+no regressions.
+
 **GAP-A5 — `core/compiler/inlining/` general function inliner (2650 LOC)
 — absent.**  `inline_pass.py::inline_module` (IR body splicer, consumed
 by `codegen/wasm/__init__.py:424`), `decision.py` (ALWAYS / IF_SINGLE_CALL
