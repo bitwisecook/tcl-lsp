@@ -199,5 +199,13 @@ bitflags! {
         /// var-escape slot resolver. Single source of truth for the former
         /// `TRACE_NAME_TARGETING` list.
         const TARGETS_VARIABLE_BY_NAME  = 1 << 49;
+
+        /// Aliases / reads / writes variables through the frame's *hash
+        /// bucket* by name (`upvar` / `global` / `variable` / `lassign` /
+        /// `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait` /
+        /// `tkwait`), so a named variable it touches cannot live in an
+        /// indexed slot. Single source of truth for the former
+        /// `FRAME_HASH_BUILTINS` list.
+        const FRAME_HASH_BUILTIN        = 1 << 50;
     }
 }

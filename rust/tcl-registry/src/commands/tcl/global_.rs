@@ -17,7 +17,8 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::CREATES_BARRIER
             | Traits::CREATES_SCOPE_ALIAS
-            | Traits::CREATES_DYNAMIC_BARRIER,
+            | Traits::CREATES_DYNAMIC_BARRIER
+            | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

@@ -26,7 +26,8 @@ fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
-        traits: Traits::FRAMELESS_RUNTIME,
+        traits: Traits::FRAMELESS_RUNTIME
+            | Traits::FRAME_HASH_BUILTIN,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),

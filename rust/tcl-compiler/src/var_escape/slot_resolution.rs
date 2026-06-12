@@ -52,10 +52,21 @@ pub const LOCALS_ARRAY_CAP: usize = 16;
 /// aliases on the frame's hash bucket; ``info exists`` /
 /// ``info vars`` / ``info locals`` walk the bucket;
 /// ``trace add variable`` registers against the bucket.
-const FRAME_HASH_BUILTINS: &[&str] = &[
-    "upvar", "global", "variable", "lassign", "lset", "regexp", "regsub", "scan", "binary",
-    "vwait", "tkwait",
-];
+/// Memoised set of commands that alias / read / write variables through
+/// the frame's hash bucket by name (`upvar` / `global` / `variable` /
+/// `lassign` / `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait`
+/// / `tkwait`), sourced from the registry's [`Traits::FRAME_HASH_BUILTIN`]
+/// trait.
+fn frame_hash_builtins() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .commands_with_trait(Traits::FRAME_HASH_BUILTIN)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
 /// Memoised set of `info` subcommands that introspect by variable name
 /// (`info exists|vars|locals|args|default`), sourced from the registry's
@@ -272,7 +283,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
                     }
                 }
             }
-            if FRAME_HASH_BUILTINS.contains(&cmd) {
+            if frame_hash_builtins().contains(cmd) {
                 return true;
             }
             false

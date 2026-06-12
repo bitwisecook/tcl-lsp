@@ -11,7 +11,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
-        traits: Traits::BYTE_COMPILED,
+        traits: Traits::BYTE_COMPILED
+            | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::new(3, 4),
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {

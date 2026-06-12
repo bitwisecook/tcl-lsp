@@ -95,7 +95,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
-        traits: Traits::BYTE_COMPILED | Traits::CREATES_DYNAMIC_BARRIER,
+        traits: Traits::BYTE_COMPILED | Traits::CREATES_DYNAMIC_BARRIER
+            | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::VarRead)],
         return_type: Some(TclType::String),
