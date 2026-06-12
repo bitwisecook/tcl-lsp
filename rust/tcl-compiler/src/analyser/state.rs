@@ -494,6 +494,7 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 &[],
             );
+            self.emit_w216_brace_then_paren(&cmd);
             self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
@@ -1275,6 +1276,89 @@ mod tests {
     }
 
     #[test]
+    fn w113_silent_on_overridable_library_procs() {
+        // FP-STY-13: the script-defined Tcl *library* procedures
+        // (`unknown`, `history`, `auto_*`, `parray`, `pkg_mkIndex`,
+        // `tcl_*` word helpers) are documented as user-replaceable
+        // overlays, not C built-ins — redefining one must not fire
+        // W113.  Mirrors `_OVERRIDABLE_LIBRARY_PROCS` in `_proc.py`.
+        let mut a = Analyser::new();
+        for name in [
+            "unknown",
+            "history",
+            "auto_execok",
+            "auto_load",
+            "auto_mkindex",
+            "auto_qualify",
+            "auto_reset",
+            "parray",
+            "pkg_mkIndex",
+            "tcl_findLibrary",
+            "tcl_wordBreakAfter",
+            "tcl_endOfWord",
+        ] {
+            let r = a.analyse(&format!("proc {name} args {{ return }}\n"), "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == "W113"),
+                "W113 should be silent on overridable library proc {name:?}",
+            );
+        }
+        // TP control: a genuine C built-in still fires.
+        let r = a.analyse("proc set {} {}\n", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W113"),
+            "W113 must still fire when redefining a C built-in (`set`)",
+        );
+    }
+
+    #[test]
+    fn w216_brace_then_paren_name_vs_value_positions() {
+        // FP-STY-12: the braced indirect-array idiom `${name}(idx)` in a
+        // *variable-name* position (`set`/`unset`/`incr`/`append`/`lappend`/
+        // `vwait`/`info exists`) is the legitimate "array name held in a
+        // scalar" access — neither W216 nor W212 fires.
+        let mut a = Analyser::new();
+        for src in [
+            "set token ::http::1\nset ${token}(status) eof\n",
+            "info exists ${token}(-pipeline)\n",
+            "unset ${tok}(socketcoro)\n",
+            "vwait ${token}(status)\n",
+            "incr ${arr}(n)\n",
+            "append ${arr}(buf) x\n",
+            "lappend ${arr}(list) item\n",
+        ] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                !r.diagnostics
+                    .iter()
+                    .any(|d| d.code == "W216" || d.code == "W212"),
+                "indirect-array idiom must not fire W216/W212: {src:?} -> {:?}",
+                r.diagnostics,
+            );
+        }
+        // TP control: in a *value* position `${arr}(x)` is a broken read for
+        // `$arr(x)` — W216 still fires.
+        for src in ["puts ${arr}(x)\n", "set y ${arr}(x)\n"] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                r.diagnostics.iter().any(|d| d.code == "W216"),
+                "value-position ${{arr}}(x) must fire W216: {src:?} -> {:?}",
+                r.diagnostics,
+            );
+        }
+        // TP control: bare `set $x` / `set ${x}` (no `(idx)` suffix) is the
+        // dynamic-name foot-gun, not the indirect idiom — W212 still fires.
+        for src in ["set $x v\n", "set ${x} v\n"] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                r.diagnostics.iter().any(|d| d.code == "W212"),
+                "bare dynamic-name must still fire W212: {src:?} -> {:?}",
+                r.diagnostics,
+            );
+        }
+    }
+
+    #[test]
     fn analyse_dedupes_back_to_back_identical_diagnostics() {
         // Two identical W113 emissions for the same proc name
         // should collapse to one.
@@ -1763,14 +1847,40 @@ mod tests {
     }
 
     #[test]
-    fn analyse_emits_w105_for_unbraced_while_body_var() {
-        // ``while {$cond} $body`` — Var-token body is still an
-        // unbraced body with substitution.  Mirrors Python's
-        // ``_has_substitution(..., tok)`` which treats VAR / CMD
-        // tokens as substitutions for the W105 check, so the
-        // diagnostic fires at ERROR severity.
+    fn analyse_skips_w105_for_single_var_body() {
+        // FP-STY-14: a body that is a *single bare variable* (`$body`,
+        // `$cmd`, `$script`) is a script-valued reference — the variable
+        // already holds the script — not an inline code block.  Bracing it
+        // (`{$body}`) would turn the reference into the literal text, so the
+        // W105 quick-fix is wrong and must not fire.  Verified against the
+        // Python reference (post-#587): `while {$cond} $body` → no W105,
+        // matching `eval $cmd`, `proc $n $a $body`, `uplevel $script`.
         let mut a = Analyser::new();
-        let r = a.analyse("while {$cond} $body\n", "tcl");
+        for src in [
+            "while {$cond} $body\n",
+            "eval $cmd\n",
+            "after 0 $coroName\n",
+            "proc $fakeName $arglist $body\n",
+            "foreach name $nameList $body\n",
+            "uplevel $script\n",
+        ] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == "W105"),
+                "W105 should be silent on single-var body {src:?}, got {:?}",
+                r.diagnostics,
+            );
+        }
+    }
+
+    #[test]
+    fn analyse_emits_w105_for_quoted_interpolated_body() {
+        // TP control: a *quoted* body with interpolation (`eval "do $script"`)
+        // really is an inline script woven from substitutions — it can and
+        // should be braced, so W105 still fires at ERROR severity.  Mirrors
+        // Python: `eval "do $script"` → W105.
+        let mut a = Analyser::new();
+        let r = a.analyse("eval \"do $script\"\n", "tcl");
         let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
         assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
         assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));

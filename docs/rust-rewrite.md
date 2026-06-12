@@ -5223,6 +5223,59 @@ in passes already ported. None affects a TP — every "still fires" case in
 `test_fp_sty.py` is green in rust mode, so closing these is strictly
 FP-reduction. Captured as `SYNC-JUN12` rows in **Outstanding** below.
 
+### SYNC-JUN12-impl — style FP cluster closed + EOF-span crash fix (battery 30→19, lsp_e2e 12→6)
+
+Re-baselined the rust-mode precision battery against a freshly built
+`target/release/tcl-lsp-server`: **30 failed / 373 passed** (the mission's "~358/19"
+is against the older suite shape). Closed the whole `FP-STY` style cluster plus a
+latent server-crash, with zero regressions:
+
+- **W113 (STY-13) — overridable library procs.** `handlers.rs` now computes a
+  `shadow_name: Option<String>` and drops it when the matched name is
+  namespace-qualified (`::base64::encode`) *or* in the new
+  `OVERRIDABLE_LIBRARY_PROCS` set (`unknown` / `history` / `auto_*` / `parray` /
+  `pkg_mkIndex` / `tcl_*` word helpers). Mirrors `_proc.py:129-143`. Corrected two
+  pre-existing rust unit tests that encoded behaviour Python doesn't produce
+  (verified against the Python analyser): `proc HTTP::respond` never fires W113
+  (namespace-qualified), so the dialect-specific test now uses the *unqualified*
+  iRules command `pool`.
+- **W105 (STY-14) — single bare-var body.** Threaded `arg_single` into
+  `dispatch_body_arguments` → `emit_w105_unbraced_body`; a body word that is a
+  single `Var` token (`eval $cmd`, `proc $n $a $body`, `after 0 $coroName`) is a
+  script-valued reference and is exempt, while a quoted interpolated body
+  (`eval "do $script"`) still fires. Mirrors `_word_is_single_var`. Corrected the
+  `while {$cond} $body` unit test (Python emits no W105 there — verified).
+- **W212 + W216 (STY-12) — braced indirect array idiom.** Added
+  `is_braced_indirect_array_ref` and `is_bare_var_name` to `tcl-syntax::naming`.
+  W212 now skips `${name}(idx)` in a name position. **W216 is newly implemented**
+  (`emit_w216_brace_then_paren` in `diagnostics.rs`, wired at both
+  `process_command` call sites) — a faithful port of
+  `_diag_brace_then_paren.py`: Pattern (1) `${arr}(foo)` and Pattern (2)
+  `${arr($foo)}`, with the `_varname_word_indices` name-position suppression and
+  the `[file join]`/bare-form replacement. Value-position `puts ${arr}(x)` fires;
+  name-position `set ${token}(status)` is silent.
+- **W201 (STY-16) — prose / request-line / URL path-concat.** Added a
+  `HAS_LITERAL_SPACE` may-property to `rendered_properties.rs` (set on a top-level
+  word break, not on spaces inside a `[cmd]`/`${var}` hole) and the `://`/`<`/`>`
+  markup skip + literal-space suppression to `path_concat.rs`. Mirrors
+  `_path_concat.py:101-152`. Genuine `"$dir/$name"` and command-sub-segment
+  `"$dir/[file tail $path]"` still fire.
+- **EOF-span crash (root cause of an apparent server hang).** A W210 diagnostic on
+  a final unbraced `$body` word (no trailing newline) carried a span ending two
+  bytes past EOF; `LineIndex::position_at_utf16` panicked on the out-of-range
+  slice, which killed the `spawn_blocking` diagnostic worker so the server
+  published *nothing* for that document — surfacing as a 30 s timeout in the
+  bridge. Fixed by clamping the slice end to `source.len()`, mirroring Python's
+  `_offset_to_position`'s `min(offset, len)` guard. This was a pre-existing latent
+  bug the W105 fix merely exposed (the old test failed earlier, before reaching
+  the foreach reproducer).
+
+`cargo test --workspace --all-features` + `clippy --all-targets` + `fmt` clean;
+each fix carries a ported unit test. **lsp_e2e 12→6 failed**; the remaining battery
+(19) and e2e (6) failures are the W210 path-sensitive dataflow, W220 dead-store,
+W307 non-literal-command, S101, O106 LICM, T102 taint, W001-arity, and the two
+diag-bridge limitations (FP_NAB_10 dialect, FP_OPT_02 quick-fix data).
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to

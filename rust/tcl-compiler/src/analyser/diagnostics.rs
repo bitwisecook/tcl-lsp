@@ -99,6 +99,154 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
     }
 }
 
+/// True when `tok` is a `${name}` (brace-form) VAR token.  Mirrors
+/// `_is_brace_form` in `_diag_brace_then_paren.py`: bare `$name` spans
+/// `name.len() + 1` (one `$`); brace `${name}` spans more (`${` + name).
+/// The Rust [`tcl_lexer::Span`] end is exclusive, so the span length is
+/// `end - start`, equal to Python's inclusive `end.offset - start.offset + 1`.
+fn is_brace_form_var(sm: &SourceMap<'_>, tok: tcl_lexer::Token) -> bool {
+    if tok.kind != tcl_lexer::TokenType::Var {
+        return false;
+    }
+    let span_len = (tok.span.end() - tok.span.start()) as usize;
+    span_len > sm.token_text(tok).len() + 1
+}
+
+/// Return `true` if `inner` contains a `$` or `[` the user likely expects to
+/// substitute — the trigger for the `${arr($foo)}` Pattern-(2) variant of
+/// W216.  Skips backslash escapes.  Mirrors `_index_has_substitution`.
+fn index_has_substitution(inner: &str) -> bool {
+    let bytes = inner.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'$' | b'[' => return true,
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Render the safe replacement for a W216 array-element reference.  Bare
+/// `$name(idx)` is the only `$`-form that substitutes `$` inside the index,
+/// so prefer it when `name` allows it; otherwise `[set "name(idx)"]` (the
+/// command parser substitutes `$`-vars in `set`'s argument).  Mirrors
+/// `_build_replacement`.
+fn build_w216_replacement(name: &str, inner: &str) -> String {
+    if tcl_syntax::naming::is_bare_var_name(name) {
+        format!("${name}({inner})")
+    } else {
+        format!("[set \"{name}({inner})\"]")
+    }
+}
+
+/// Indices into *args* (0-based, word index `i + 1`) that `cmd_name` reads as
+/// a **variable name** — where the braced indirect-array idiom
+/// `${name}(idx)` is correct rather than a typo.  Mirrors
+/// `_varname_word_indices` in `_diag_brace_then_paren.py`.
+fn w216_varname_word_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
+    match cmd_name {
+        "set" | "incr" | "append" | "lappend" | "vwait" => {
+            if args.is_empty() {
+                Vec::new()
+            } else {
+                vec![0]
+            }
+        }
+        "unset" => {
+            // unset ?-nocomplain? ?--? varName ?varName ...?
+            let mut start = 0;
+            for (i, a) in args.iter().enumerate() {
+                if a == "--" {
+                    start = i + 1;
+                    break;
+                }
+                if a.starts_with('-') {
+                    start = i + 1;
+                    continue;
+                }
+                start = i;
+                break;
+            }
+            (start..args.len()).collect()
+        }
+        "info" => {
+            if args.len() >= 2 && args[0] == "exists" {
+                vec![1]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Find the offset of the `)` matching the `(` at `paren_start`.  Skips
+/// balanced `{...}`, double-quoted strings, and backslash escapes.  Returns
+/// `None` on malformed input.  Mirrors `_find_matching_close_paren`.
+fn find_matching_close_paren(source: &[u8], paren_start: usize) -> Option<usize> {
+    let n = source.len();
+    let mut depth = 1i32;
+    let mut j = paren_start + 1;
+    let mut in_quote = false;
+    while j < n && depth > 0 {
+        let c = source[j];
+        if in_quote {
+            if c == b'\\' && j + 1 < n {
+                j += 2;
+                continue;
+            }
+            if c == b'"' {
+                in_quote = false;
+            }
+            j += 1;
+            continue;
+        }
+        match c {
+            b'"' => {
+                in_quote = true;
+                j += 1;
+                continue;
+            }
+            b'{' => {
+                let mut bd = 1i32;
+                j += 1;
+                while j < n && bd > 0 {
+                    if source[j] == b'\\' && j + 1 < n {
+                        j += 2;
+                        continue;
+                    }
+                    match source[j] {
+                        b'{' => bd += 1,
+                        b'}' => bd -= 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                continue;
+            }
+            b'\\' if j + 1 < n => {
+                j += 2;
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+        j += 1;
+    }
+    if depth != 0 {
+        None
+    } else {
+        Some(j - 1)
+    }
+}
+
 /// True when `ch` is a standard ASCII character W108 leaves alone: tab
 /// / LF / CR, or printable ASCII `0x20`-`0x7e`.  Mirrors
 /// `_NON_ASCII_RE = [^\x09\x0a\x0d\x20-\x7e]` (negated).
@@ -2004,6 +2152,7 @@ impl Analyser {
         cmd_name: &str,
         body_text: &str,
         body_tok: tcl_lexer::Token,
+        is_single_token: bool,
     ) {
         // Already braced — `Str` token kind means the source
         // started with ``{``.  Mirrors ``_first_token_is_braced``
@@ -2020,6 +2169,20 @@ impl Analyser {
         // `Var` body such as `while {$cond} $body` is *not* exempt — only
         // a `Cmd` word is.)
         if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
+            return;
+        }
+        // A body that is a *single bare variable substitution* (`eval $cmd`,
+        // `proc $n $a $body`, `after 0 $coroName`, `$state(-command)`) is a
+        // script-valued reference, not an inline code block: the variable
+        // already holds the script.  Bracing it (`{$cmd}`) would turn the
+        // reference into the literal text `$cmd` — the W105 quick-fix is
+        // actively wrong here — and the genuine double-substitution (eval) /
+        // dynamic-dispatch (command name) risks are W101's and W307's to
+        // flag.  A *single-token* word whose token is a `Var` is exactly this
+        // case; a composite word (`${t}--Coro`) or quoted interpolated body
+        // (`"do $script"`) has more than one fragment and is not exempt.
+        // Mirrors `_word_is_single_var` in `analyser/checks/_style.py`.
+        if is_single_token && matches!(body_tok.kind, tcl_lexer::TokenType::Var) {
             return;
         }
         let trimmed = body_text.trim();
@@ -2629,6 +2792,16 @@ Use braces: {{ \u{2026} }}"
             if tok.kind != tcl_lexer::TokenType::Var {
                 continue;
             }
+            // `set ${token}(status) …` in a variable-name position is the
+            // braced indirect-array-element idiom (`token` holds the array
+            // name), not a `set $token` dynamic-name foot-gun.  Both the
+            // W212 `did you mean token(status)` and the W216
+            // `did you mean $token(status)` suggestions are wrong there, so
+            // neither fires.  Mirrors `check_name_vs_value`'s
+            // `is_braced_indirect_array_ref` carve-out.
+            if tcl_syntax::naming::is_braced_indirect_array_ref(text) {
+                continue;
+            }
             let bare = text
                 .trim_start_matches('$')
                 .trim_start_matches('{')
@@ -2647,6 +2820,127 @@ Use braces: {{ \u{2026} }}"
                 ),
                 severity: super::types::Severity::Warning,
                 fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W216** — broken brace-form variants of array element access.
+    ///
+    /// Two related shapes both look like array-element access but parse
+    /// differently than the user intends:
+    ///
+    /// 1. `${arr}(foo)` — the lexer ends the variable substitution at the
+    ///    `}`, so this is scalar `${arr}` followed by *literal* `(foo)`; no
+    ///    array access happens.
+    /// 2. `${arr($foo)}` — the brace form applies no further substitution to
+    ///    its content, so `$foo` inside the braces is the literal four-char
+    ///    string, not the value of `foo`.
+    ///
+    /// In a *variable-name* position (`set` / `incr` / `append` / `lappend` /
+    /// `unset` / `info exists` / `vwait`) Pattern (1) is the legitimate
+    /// indirect-array-element idiom (`token` holds the array name) and must
+    /// not fire — see [`tcl_syntax::naming::is_braced_indirect_array_ref`].
+    /// Mirrors `_emit_w216_for_command` in
+    /// `analyser/_analyser/_diag_brace_then_paren.py`.
+    pub(super) fn emit_w216_brace_then_paren(&mut self, cmd: &crate::segmenter::SegmentedCommand) {
+        if cmd.texts.is_empty() {
+            return;
+        }
+        let sm = SourceMap::new(&self.source);
+        let source = self.source.as_bytes();
+        // Word-start offsets the command reads as a variable name; a
+        // `${name}(idx)` Pattern-(1) match starting there is the indirect
+        // idiom and must not fire W216.
+        let cmd_name = cmd.texts[0].as_str();
+        let args = &cmd.texts[1..];
+        let mut varname_word_starts: HashSet<u32> = HashSet::new();
+        for ai in w216_varname_word_indices(cmd_name, args) {
+            let wi = ai + 1;
+            if let Some(tok) = cmd.argv.get(wi) {
+                varname_word_starts.insert(tok.span.start());
+            }
+        }
+        for &t1 in &cmd.all_tokens {
+            // Token spans are absolute into the full document; skip any token
+            // whose span exceeds the current source (synthetic unit-test
+            // tokens, or a span past a truncated buffer) before slicing.
+            if t1.span.end() as usize > source.len() {
+                continue;
+            }
+            if !is_brace_form_var(&sm, t1) {
+                continue;
+            }
+            let text = sm.token_text(t1).to_string();
+
+            // Pattern (2) — `${arr($foo)}`: the VAR token's own text contains
+            // `(...)` with `$`/`[` inside.
+            if text.contains('(') && text.ends_with(')') {
+                if let Some(paren_idx) = text.find('(') {
+                    let name = &text[..paren_idx];
+                    let inner = &text[paren_idx + 1..text.len() - 1];
+                    if !name.is_empty() && index_has_substitution(inner) {
+                        let corrected = build_w216_replacement(name, inner);
+                        // Token span end is exclusive — it sits on the `}`.
+                        let span = tcl_lexer::Span::new(t1.span.start(), t1.span.end() + 1);
+                        let message = format!(
+                            "`${{{name}({inner})}}` does not substitute `{inner}` \
+(the brace form is documented to apply no further substitution to its \
+content); use `{corrected}` to access the array element with index substitution"
+                        );
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W216".to_string(),
+                            span,
+                            message,
+                            severity: Severity::Warning,
+                            fixes: vec![super::types::CodeFix {
+                                span,
+                                new_text: corrected.clone(),
+                                description: format!("Replace with `{corrected}`"),
+                            }],
+                        });
+                    }
+                }
+                continue;
+            }
+
+            // Pattern (1) — `${arr}(foo)`: the VAR token ends at the last
+            // char before `}`; a literal `}` follows (the exclusive span end),
+            // then `(` opens a paren group.
+            let close_brace = t1.span.end() as usize;
+            if close_brace >= source.len() || source[close_brace] != b'}' {
+                continue;
+            }
+            let paren_start = close_brace + 1;
+            if paren_start >= source.len() || source[paren_start] != b'(' {
+                continue;
+            }
+            let Some(paren_end) = find_matching_close_paren(source, paren_start) else {
+                continue;
+            };
+            // Variable-name position → indirect-array idiom, suppress.
+            if varname_word_starts.contains(&t1.span.start()) {
+                continue;
+            }
+            let inner = &self.source[paren_start + 1..paren_end];
+            let corrected = build_w216_replacement(&text, inner);
+            let span = tcl_lexer::Span::new(
+                t1.span.start(),
+                u32::try_from(paren_end + 1).unwrap_or(t1.span.end()),
+            );
+            let message = format!(
+                "`${{{text}}}({inner})` is parsed as scalar `${{{text}}}` followed by \
+literal text `({inner})`; did you mean `{corrected}` for array element access?"
+            );
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W216".to_string(),
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: vec![super::types::CodeFix {
+                    span,
+                    new_text: corrected.clone(),
+                    description: format!("Replace with `{corrected}`"),
+                }],
             });
         }
     }

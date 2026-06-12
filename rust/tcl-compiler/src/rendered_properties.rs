@@ -61,6 +61,10 @@ bitflags! {
         const HAS_DOUBLE_ESCAPE   = 1 << 4;
         /// Rendered text contains `\x00` / null byte.
         const HAS_NULL            = 1 << 5;
+        /// Value has a top-level word break (a literal space / tab not
+        /// inside a `$var` / `[cmd]` interpolation) — prose, a protocol
+        /// line, or display text, not a single filesystem path token.
+        const HAS_LITERAL_SPACE   = 1 << 11;
 
         // -- provenance bits (propagated explicitly by commands) --
         /// Value passed through `subst` / `URI::decode` / `b64decode`.
@@ -87,7 +91,8 @@ impl RenderedProperties {
             | Self::HAS_CRLF.bits()
             | Self::HAS_INTERPOLATION.bits()
             | Self::HAS_DOUBLE_ESCAPE.bits()
-            | Self::HAS_NULL.bits(),
+            | Self::HAS_NULL.bits()
+            | Self::HAS_LITERAL_SPACE.bits(),
     );
 
     /// Mask of provenance bits.
@@ -327,6 +332,17 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
             }
             0 => {
                 may |= RenderedProperties::HAS_NULL;
+                leading_resolved = true;
+                i += 1;
+            }
+            // A top-level word separator in the (unquoted) value means the
+            // original source was a multi-word quoted string — prose, a
+            // protocol line, display text — not a single path token.  A
+            // command substitution `[cmd a b]` stays one CMD token (skipped
+            // above via `skip_command_sub`), so its internal spaces do NOT
+            // set this.  Mirrors the Python pass's `TokenType.SEP` arm.
+            b' ' | b'\t' => {
+                may |= RenderedProperties::HAS_LITERAL_SPACE;
                 leading_resolved = true;
                 i += 1;
             }

@@ -149,6 +149,7 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 scope_path,
             );
+            self.emit_w216_brace_then_paren(&cmd);
             // `S-document-highlight-rich` / `S-references-rich`
             // follow-up: record every `$var` substitution in
             // arg positions so `VarDef.references` carries the
@@ -417,7 +418,7 @@ impl Analyser {
         // marks arg 1 as BODY; set `current_event` for the body
         // walk so race-detection diagnostics see the event
         // name, mirroring the Python behaviour.
-        self.dispatch_body_arguments(cmd_name, args, arg_tokens, scope_path);
+        self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
     }
 
     /// Dispatch-site diagnostic emitters, run from
@@ -587,6 +588,7 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) {
         let Some(registry) = self.registry.as_ref() else {
@@ -612,7 +614,8 @@ impl Analyser {
         for idx in body_indices {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
-                self.emit_w105_unbraced_body(cmd_name, body_text, body_tok);
+                let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
+                self.emit_w105_unbraced_body(cmd_name, body_text, body_tok, is_single_token);
                 self.analyse_body(body_text, body_tok, scope_path);
             }
         }

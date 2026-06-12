@@ -125,10 +125,14 @@ impl LineIndex {
     /// two (a surrogate pair). For ASCII input the answer is
     /// identical to [`Self::position_at`].
     ///
+    /// An *offset* past the end of *source* is clamped to the end (the
+    /// returned `character` is the line's full UTF-16 length); the
+    /// `SourcePosition.offset` field keeps the raw *offset*.
+    ///
     /// # Panics
     ///
-    /// Panics if *offset* falls inside a UTF-8 multi-byte sequence
-    /// (the resulting position would be unrepresentable). Callers
+    /// Panics if an in-range *offset* falls inside a UTF-8 multi-byte
+    /// sequence (the resulting position would be unrepresentable). Callers
     /// should align *offset* to a `char` boundary before calling.
     #[must_use]
     pub fn position_at_utf16(&self, offset: u32, source: &str) -> SourcePosition {
@@ -138,7 +142,14 @@ impl LineIndex {
             .saturating_sub(1);
         let line_start = self.line_starts[line_idx];
         let prefix_start = line_start as usize;
-        let prefix_end = offset as usize;
+        // Clamp an out-of-range offset to the end of the source rather than
+        // panicking on the slice.  A diagnostic span may legitimately end one
+        // or two bytes past EOF (e.g. a final unbraced word with no trailing
+        // newline), and the server lifts every analyser span through here on a
+        // worker thread — a panic there silently drops the whole document's
+        // diagnostics.  Mirrors the Python `_offset_to_position`'s
+        // `min(offset, len(source))` guard.
+        let prefix_end = (offset as usize).min(source.len());
         // Count UTF-16 code units in the line slice up to *offset*.
         // ``str::encode_utf16`` is the canonical conversion; the
         // alternative (summing ``ch.len_utf16()``) is equivalent
@@ -204,6 +215,22 @@ impl LineIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn position_at_utf16_clamps_offset_past_eof() {
+        // A diagnostic span may end one or two bytes past EOF (e.g. a final
+        // unbraced `$body` word with no trailing newline).  The conversion
+        // must clamp to the line's UTF-16 length rather than panicking on the
+        // out-of-range slice — a panic on the server's diagnostic worker
+        // silently drops the whole document's diagnostics.
+        let src = "foreach name $nameList $body";
+        let idx = LineIndex::new(src);
+        let len = u32::try_from(src.len()).unwrap();
+        let pos = idx.position_at_utf16(len + 2, src);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.character, len); // clamped to the line's full length
+        assert_eq!(pos.offset, len + 2); // raw offset preserved
+    }
 
     #[test]
     fn offset_at_utf16_roundtrips_and_clamps() {

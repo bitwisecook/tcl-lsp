@@ -30,6 +30,37 @@ use super::state::Analyser;
 use super::types::ProcDef;
 use super::utils::parse_param_list;
 
+/// Tcl *library* procedures (defined in init.tcl / auto.tcl / history.tcl /
+/// package.tcl / word.tcl) that are script-defined and documented as
+/// user-replaceable — redefining one is the supported overlay idiom, not
+/// shadowing a C built-in.  Genuine C commands that are not byte-compiled
+/// but still dangerous to redefine (`clock`, `after`, `socket`, `glob`) are
+/// deliberately excluded — they keep firing W113.  Mirrors
+/// `_OVERRIDABLE_LIBRARY_PROCS` in `analyser/_analyser/_proc.py`.
+const OVERRIDABLE_LIBRARY_PROCS: &[&str] = &[
+    "unknown",
+    "auto_execok",
+    "auto_import",
+    "auto_load",
+    "auto_load_index",
+    "auto_mkindex",
+    "auto_mkindex_old",
+    "auto_qualify",
+    "auto_reset",
+    "history",
+    "parray",
+    "pkg_mkIndex",
+    "tclLog",
+    "tclPkgSetup",
+    "tclPkgUnknown",
+    "tcl_findLibrary",
+    "tcl_endOfWord",
+    "tcl_startOfNextWord",
+    "tcl_startOfPreviousWord",
+    "tcl_wordBreakAfter",
+    "tcl_wordBreakBefore",
+];
+
 /// Build a fully-qualified Tcl proc / class name from a namespace
 /// prefix and a possibly-relative name.
 ///
@@ -298,15 +329,28 @@ impl Analyser {
         // to mutate.
         let normalised_proc: String = raw_name.trim_start_matches(':').to_string();
         let normalised_qual: String = qualified.trim_start_matches(':').to_string();
-        let shadow_match = {
+        let shadow_name: Option<String> = {
             let builtins = self.builtin_command_names();
             if builtins.contains(&normalised_proc) {
-                true
+                Some(normalised_proc.clone())
+            } else if builtins.contains(&normalised_qual) {
+                Some(normalised_qual.clone())
             } else {
-                builtins.contains(&normalised_qual)
+                None
             }
         };
-        if shadow_match {
+        // Only *core global* built-ins are shadow-worthy (unqualified
+        // `set` / `dict` / …).  A namespace-qualified match
+        // (`::base64::encode`, `::snit::type`) is a library/package command
+        // living in its own namespace — its own definition or a deliberate
+        // override, not shadowing a built-in.  And the overridable Tcl
+        // *library* procedures (`unknown`, `history`, `auto_*`, …) are
+        // script-defined, documented user-replaceable overlays.  Mirrors
+        // `_proc.py:129-143`.
+        let shadow_name = shadow_name.filter(|name| {
+            !name.contains("::") && !OVERRIDABLE_LIBRARY_PROCS.contains(&name.as_str())
+        });
+        if shadow_name.is_some() {
             let dialect_label = if self.dialect.is_empty() {
                 String::new()
             } else {
@@ -2215,10 +2259,53 @@ mod tests {
 
     #[test]
     fn handle_proc_w113_dialect_specific_command_only_shadows_in_that_dialect() {
-        // ``HTTP::respond`` is iRules-specific; under the
-        // ``f5-irules`` dialect a proc named ``HTTP::respond``
-        // shadows a built-in, but under plain ``tcl`` it does
-        // not.
+        // ``pool`` is an *unqualified* iRules-specific command; under the
+        // ``f5-irules`` dialect a proc named ``pool`` shadows a built-in,
+        // but under plain ``tcl`` it does not.  (A *namespace-qualified*
+        // iRules command like ``HTTP::respond`` is never flagged — see
+        // `_proc.py:129-137` — because a qualified match is a library/package
+        // command living in its own namespace, not a core-global shadow.)
+        let mut a = Analyser::new();
+        a.dialect = "f5-irules".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["pool".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 9)),
+                str_tok(span(10, 12)),
+                str_tok(span(13, 15)),
+            ],
+            &[],
+        );
+        assert!(
+            a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "f5-irules dialect should treat pool as built-in",
+        );
+
+        // Same proc, plain tcl dialect → no W113.
+        let mut b = Analyser::new();
+        b.dialect = "tcl".to_string();
+        b.handle_proc_command(
+            "proc",
+            &["pool".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 9)),
+                str_tok(span(10, 12)),
+                str_tok(span(13, 15)),
+            ],
+            &[],
+        );
+        assert!(
+            !b.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "plain tcl dialect should NOT flag pool",
+        );
+    }
+
+    #[test]
+    fn handle_proc_w113_silent_on_namespace_qualified_shadow() {
+        // FP: a namespace-qualified match (`HTTP::respond` under f5-irules)
+        // is a library/package command in its own namespace, not a
+        // core-global shadow — never W113.  Mirrors `_proc.py:136-137`.
         let mut a = Analyser::new();
         a.dialect = "f5-irules".to_string();
         a.handle_proc_command(
@@ -2232,26 +2319,8 @@ mod tests {
             &[],
         );
         assert!(
-            a.result.diagnostics.iter().any(|d| d.code == "W113"),
-            "f5-irules dialect should treat HTTP::respond as built-in",
-        );
-
-        // Same proc, plain tcl dialect → no W113.
-        let mut b = Analyser::new();
-        b.dialect = "tcl".to_string();
-        b.handle_proc_command(
-            "proc",
-            &["HTTP::respond".to_string(), String::new(), String::new()],
-            &[
-                esc_tok(span(5, 18)),
-                str_tok(span(19, 21)),
-                str_tok(span(22, 24)),
-            ],
-            &[],
-        );
-        assert!(
-            !b.result.diagnostics.iter().any(|d| d.code == "W113"),
-            "plain tcl dialect should NOT flag HTTP::respond",
+            !a.result.diagnostics.iter().any(|d| d.code == "W113"),
+            "namespace-qualified HTTP::respond must not fire W113",
         );
     }
 

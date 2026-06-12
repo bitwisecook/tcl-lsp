@@ -95,6 +95,107 @@ pub fn normalise_var_name(name: &str) -> &str {
     }
 }
 
+/// Return `true` when `$name` would lex as a single bare variable token.
+///
+/// Mirrors `compiler/parsing/lexer._parse_var`'s bare-form rule: a name is
+/// one or more `::`-separated segments, each consisting of Unicode alnum or
+/// `_` characters, with an optional leading `::`.  Used to decide between
+/// the bare `$name` and brace `${name}` forms in quick fixes.  Mirrors
+/// `is_bare_var_name` in `shared/naming.py`.
+///
+/// ```
+/// use tcl_syntax::naming::is_bare_var_name;
+/// assert!(is_bare_var_name("foo"));
+/// assert!(is_bare_var_name("ns::bar"));
+/// assert!(is_bare_var_name("::baz"));
+/// assert!(!is_bare_var_name("has-dash"));
+/// assert!(!is_bare_var_name(""));
+/// ```
+#[must_use]
+pub fn is_bare_var_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let s = name.strip_prefix("::").unwrap_or(name);
+    if s.is_empty() {
+        return false;
+    }
+    for segment in s.split("::") {
+        if segment.is_empty() {
+            return false;
+        }
+        if !segment.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+            return false;
+        }
+    }
+    true
+}
+
+/// Return `true` when *word* is the braced indirect-array-element idiom
+/// `${name}(index)`.
+///
+/// Tcl parses `${name}(index)` as the brace-form substitution `${name}`
+/// (which the lexer ends at the `}`) concatenated with the *literal* text
+/// `(index)`.  In a variable-name position (the target of `set` / `incr` /
+/// `append` / `lappend` / `unset` / `info exists` / `vwait`) the resulting
+/// string `<value-of-name>(index)` names element `index` of the array whose
+/// name is held in the scalar `name` — the standard "array name kept in a
+/// variable" idiom (e.g. `set ${token}(status) eof`).  The braces are
+/// essential: the bare `$name(index)` is a *direct* array reference, a
+/// different construct, so this returns `false` for it.
+///
+/// This is the discriminator that keeps the W216 (brace-then-paren) and W212
+/// (substitution-where-name-expected) checks from false-positiving on the
+/// indirect idiom.  Mirrors `is_braced_indirect_array_ref` in
+/// `shared/naming.py`.
+///
+/// ```
+/// use tcl_syntax::naming::is_braced_indirect_array_ref;
+/// assert!(is_braced_indirect_array_ref("${token}(status)"));
+/// assert!(!is_braced_indirect_array_ref("$arr(idx)"));
+/// assert!(!is_braced_indirect_array_ref("${x}"));
+/// assert!(!is_braced_indirect_array_ref("${}(x)"));
+/// ```
+#[must_use]
+pub fn is_braced_indirect_array_ref(word: &str) -> bool {
+    if !word.starts_with("${") {
+        return false;
+    }
+    let bytes = word.as_bytes();
+    let n = bytes.len();
+    // Walk to the depth-0 `}` that closes the brace-form variable name.
+    let mut i = 2usize;
+    let mut depth = 0i32;
+    let mut close: Option<usize> = None;
+    while i < n {
+        match bytes[i] {
+            b'\\' if i + 1 < n => {
+                i += 2;
+                continue;
+            }
+            b'{' => depth += 1,
+            b'}' => {
+                if depth == 0 {
+                    close = Some(i);
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    // No closing brace, or an empty name (`${}(…)`) — not the idiom.  The
+    // closing `}` must sit past the `${` and the (non-empty) name.
+    let Some(close) = close.filter(|&c| c > 2) else {
+        return false;
+    };
+    // The closing `}` must be immediately followed by `(…)` running to the
+    // end of the word.
+    let rest = &bytes[close + 1..];
+    rest.len() >= 2 && rest[0] == b'(' && *rest.last().unwrap() == b')'
+}
+
 /// Normalise a possibly-qualified Tcl command or procedure name.
 ///
 /// Ensures the name starts with `::` and removes empty parts from
