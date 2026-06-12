@@ -13,6 +13,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_registry::TclType;
+
 use crate::cfg::Function as CfgFunction;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
@@ -20,6 +22,7 @@ use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::loop_body_blocks;
 use super::span::{def_range_map, phi_span};
+use super::thunking::{destructure_foreach_blocks, empty_value_versions, per_loop_body_types};
 use super::{type_name, ShimmerWarning};
 
 /// Find phi-node shimmer warnings for a function.
@@ -28,6 +31,7 @@ use super::{type_name, ShimmerWarning};
 /// `TypeLattice` is `Shimmered`, the variable will require an intrep
 /// conversion on the first use after the merge point.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub(crate) fn find_phi_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -36,6 +40,12 @@ pub(crate) fn find_phi_shimmers(
 ) -> Vec<ShimmerWarning> {
     let loop_blocks = loop_body_blocks(cfg);
     let def_map = def_range_map(ssa);
+    let empty_by_name = empty_value_versions(ssa);
+    let destructure = destructure_foreach_blocks(cfg);
+    // Python's phi pass uses the *function-wide* loop-body type map (unlike the
+    // per-loop S102 thunking pass); reproduce that with the whole loop-block set.
+    let loop_body_types =
+        per_loop_body_types("", &loop_blocks, &destructure, ssa, types, &empty_by_name);
     let mut out = Vec::new();
 
     for block_name in cfg_order(cfg) {
@@ -61,6 +71,54 @@ pub(crate) fn find_phi_shimmers(
             let Some(to) = lattice.tcl_type else {
                 continue;
             };
+
+            // Refine the SHIMMERED-phi verdict (mirrors `_find_phi_shimmers`).
+            // A loop-header phi is SHIMMERED on any entry-vs-body type change,
+            // but the empty-accumulator promotion (`set r {}`; `lappend r …`)
+            // and a branch merge whose only shimmer comes from an empty literal
+            // are not real per-use intrep conversions.
+            let empty_vers = empty_by_name.get(&phi.name);
+            let mut entry_types: HashSet<TclType> = HashSet::new();
+            let mut body_types: HashSet<TclType> = HashSet::new();
+            let mut nonempty_known: HashSet<TclType> = HashSet::new();
+            let mut has_shimmered_incoming = false;
+            for (pred, &inc_ver) in &phi.incoming {
+                if inc_ver == 0 {
+                    continue;
+                }
+                let Some(inc_type) = types.get(&(phi.name.clone(), inc_ver)) else {
+                    continue;
+                };
+                if inc_type.kind == TypeKind::Unknown {
+                    continue;
+                }
+                let is_empty = empty_vers.is_some_and(|s| s.contains(&inc_ver));
+                if inc_type.kind == TypeKind::Known && !is_empty {
+                    if let Some(t) = inc_type.tcl_type {
+                        if loop_blocks.contains(pred) {
+                            body_types.insert(t);
+                        } else {
+                            entry_types.insert(t);
+                        }
+                        nonempty_known.insert(t);
+                    }
+                } else if inc_type.kind == TypeKind::Shimmered {
+                    has_shimmered_incoming = true;
+                }
+            }
+            if in_loop {
+                let mut all_body = body_types;
+                if let Some(pl) = loop_body_types.get(&phi.name) {
+                    all_body.extend(pl.iter().copied());
+                }
+                let oscillates =
+                    entry_types.intersection(&all_body).next().is_some() || all_body.len() >= 2;
+                if !oscillates {
+                    continue;
+                }
+            } else if !has_shimmered_incoming && nonempty_known.len() <= 1 {
+                continue;
+            }
 
             let span = phi_span(phi, ssa, &def_map);
             let related: Vec<_> = phi
@@ -126,6 +184,23 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The empty-accumulator promotion (`set r {}`; `foreach … {lappend r …}`)
+    /// is a one-time STRING→LIST stabilisation, not a per-use shimmer — no S101.
+    #[test]
+    fn no_phi_shimmer_for_empty_accumulator() {
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set r {}\n foreach x {1 2 3} { lappend r $x }\n return [llength $r] }",
+            &registry(),
+            false,
+        );
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
+        assert!(
+            !warnings.iter().any(|w| w.variable == "r"),
+            "accumulator must not phi-shimmer: {warnings:?}"
+        );
     }
 
     /// API smoke-test: function runs on empty source without panicking.

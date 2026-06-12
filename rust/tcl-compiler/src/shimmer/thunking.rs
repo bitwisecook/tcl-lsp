@@ -34,7 +34,9 @@ use super::span::{def_range_map, phi_span};
 use super::{type_name, ThunkingWarning};
 
 /// Invert a successor map into a predecessor map.
-fn build_predecessors(succs: &HashMap<String, Vec<String>>) -> HashMap<String, Vec<String>> {
+pub(super) fn build_predecessors(
+    succs: &HashMap<String, Vec<String>>,
+) -> HashMap<String, Vec<String>> {
     let mut preds: HashMap<String, Vec<String>> = HashMap::new();
     for (p, targets) in succs {
         for t in targets {
@@ -49,7 +51,7 @@ fn build_predecessors(succs: &HashMap<String, Vec<String>>) -> HashMap<String, V
 /// per-loop block set `build_loop_forest` provides Python's S102 pass, so a
 /// sibling loop's type effect on the same name never pollutes this loop's
 /// oscillation check.
-fn natural_loop_blocks(
+pub(super) fn natural_loop_blocks(
     header: &str,
     preds: &HashMap<String, Vec<String>>,
     loop_blocks: &HashSet<String>,
@@ -83,7 +85,7 @@ fn natural_loop_blocks(
 /// SSA versions of each name defined by the empty literal (`set x {}` / `""`)
 /// over the whole function — the typeless-empty reset, excluded from the
 /// oscillation type sets.  Mirrors `_empty_literal_versions`.
-fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet<Version>> {
+pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet<Version>> {
     let mut out: HashMap<String, HashSet<Version>> = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
@@ -106,7 +108,7 @@ fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet<Version>> 
 /// idiom (`foreach {a b c} $l break`), a one-time multi-assign whose bindings
 /// must not count as per-iteration loop-body types.  Mirrors
 /// `_destructure_foreach_blocks` (block-shape heuristic).
-fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
+pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let mut out = HashSet::new();
     for (bn, block) in &cfg.blocks {
         if block.statements.len() == 1 {
@@ -123,7 +125,7 @@ fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
 /// KNOWN, non-empty intreps each name is *defined as* inside the per-loop
 /// blocks of `header` (destructure foreach blocks excluded).  Mirrors the
 /// per-loop `per_header_body_types` build in `_find_thunking`.
-fn per_loop_body_types(
+pub(super) fn per_loop_body_types(
     header: &str,
     loop_block_set: &HashSet<String>,
     destructure: &HashSet<String>,
