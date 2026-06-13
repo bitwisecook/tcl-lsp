@@ -2163,6 +2163,11 @@ impl LanguageServer for Backend {
                 uri.clone(),
                 DocumentState::with_version(params.text_document.text, dialect, version),
             );
+            // Set the salsa input while holding the `documents` lock — same
+            // reasoning as `did_change`: a reader must never see the new
+            // `doc.text` with a stale query result for the old text.
+            self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
+                .await;
             drop(docs);
             self.workspace_index
                 .lock()
@@ -2170,8 +2175,6 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             (0, Some(version))
         };
-        self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
-            .await;
         self.schedule_diagnostics(uri, text, dialect_for_diags, revision, version)
             .await;
     }
@@ -2205,26 +2208,25 @@ impl LanguageServer for Backend {
             let dialect = entry.dialect.clone();
             let revision = entry.revision;
             let version = entry.version;
+            // Update the salsa `SourceFile` input WHILE still holding the
+            // `documents` lock, so no concurrent request can observe the new
+            // `doc.text` (from `read_document`) together with a stale
+            // `file_analysis`/`document_symbols`/`semantic_tokens` query result
+            // for the old text. (db_set_source locks db→db_files, never
+            // documents, so this nesting introduces no new lock-order cycle.)
+            self.db_set_source(&uri, text.clone(), dialect.clone())
+                .await;
             drop(docs);
-            // `S-hover-sync11`: drop every cached hover response
-            // for this URI so subsequent requests return answers
-            // against the freshly-edited source rather than stale
-            // pre-edit results.
-            // `S-semantic-tokens-rich` delta: drop the cached
-            // token snapshot so the next `semanticTokens/full/delta`
-            // returns a fresh full result instead of an empty edit
-            // list against an outdated baseline.
             // The per-document analysis is no longer cached on the server — it
-            // lives in the query database, invalidated by `db_set_source`
-            // (called below) bumping the `SourceFile` input.
+            // lives in the query database, invalidated by the `db_set_source`
+            // above bumping the `SourceFile` input. The cross-document index is
+            // still refreshed by the diagnostics run below.
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
             (text, dialect, revision, version)
         };
-        self.db_set_source(&uri, text.clone(), dialect.clone())
-            .await;
         self.schedule_diagnostics(uri, text, dialect, revision, version)
             .await;
     }
