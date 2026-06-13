@@ -128,9 +128,10 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"mixin", def_mixin);
     interp.register_builtin(b"forward", def_forward);
     interp.register_builtin(b"filter", def_filter);
-    // Method-context commands.
+    // Method-context commands. `my` is created *per object* (in each object's
+    // namespace) like C TclOO — never global — so a test's `rename ::my {}`
+    // can't break it. `self`/`next` resolve via the call stack.
     interp.register_builtin(b"self", self_cmd);
-    interp.register_builtin(b"my", my_cmd);
     interp.register_builtin(b"next", next_cmd);
     // Root classes (so `superclass`-less classes inherit `object` and
     // `superclass oo::class`/`oo::object` validate; `oo::class` keeps its
@@ -594,6 +595,15 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+impl Interp {
+    /// Register the per-object `my` command in the object's namespace (`<fqn>::my`).
+    pub(crate) fn oo_register_my(&mut self, fqn: &[u8]) {
+        let mut name = fqn.to_vec();
+        name.extend_from_slice(b"::my");
+        self.ns_register(&name, Command::Builtin(my_cmd));
+    }
+}
+
 fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"my methodName ?arg ...?");
@@ -927,6 +937,7 @@ impl Interp {
             },
         );
         self.ns_register(fqn, Command::OoObject(fqn.to_vec()));
+        self.oo_register_my(fqn);
         if let Some(script) = script {
             self.oo
                 .borrow_mut()
@@ -1017,6 +1028,7 @@ impl Interp {
             },
         );
         self.ns_register(&fqn, Command::OoObject(fqn.clone()));
+        self.oo_register_my(&fqn);
 
         let mro = self.mro(class);
         if mro.iter().any(|c| self.class_has_ctor(c)) {
