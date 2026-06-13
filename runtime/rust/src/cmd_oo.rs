@@ -209,6 +209,10 @@ pub fn install(interp: &mut Interp) {
     }
     let _ =
         interp.eval_str(b"namespace eval ::oo {variable version 1.3.1; variable patchlevel 1.3.1}");
+    // The definition namespaces exist as real namespaces (TIP 524 lets user
+    // code put them on a `namespace path`); the actual definition subcommands
+    // are resolved by the global builtins + the define-context fallback.
+    let _ = interp.eval_str(b"namespace eval ::oo::define {}; namespace eval ::oo::objdefine {}");
 }
 
 fn err(interp: &mut Interp, msg: &[u8]) -> Code {
@@ -986,14 +990,20 @@ impl Interp {
         );
         let cands: &[&[u8]] = if is_object { OBJ_CMDS } else { CLASS_CMDS };
         // Exact name wins; otherwise a unique prefix (ambiguous → not resolved).
-        let full: &[u8] = if let Some(c) = cands.iter().find(|c| **c == name) {
-            c
+        let matched: Option<&[u8]> = if let Some(c) = cands.iter().find(|c| **c == name) {
+            Some(c)
         } else {
             let mut it = cands.iter().filter(|c| c.starts_with(name));
             match (it.next(), it.next()) {
-                (Some(c), None) => c,
-                _ => return None,
+                (Some(c), None) => Some(c),
+                _ => None,
             }
+        };
+        let Some(full) = matched else {
+            // Not a standard definition subcommand: a user-set definition
+            // namespace (TIP 524) contributes commands too — resolve `name`
+            // there (exact or unique prefix) and dispatch the qualified form.
+            return self.oo_define_ns_command(name, argv);
         };
         Some(match full {
             b"method" => def_method(self, argv),
@@ -1014,6 +1024,41 @@ impl Interp {
             b"definitionnamespace" => def_definitionnamespace(self, argv),
             _ => return None,
         })
+    }
+
+    /// Resolve a definition-body command in the target's TIP-524 definition
+    /// namespace (exact name or unique prefix), dispatching the qualified form.
+    /// `None` when there is no custom namespace or no match.
+    fn oo_define_ns_command(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Option<Code> {
+        let target = self.oo.borrow().def_stack.last().cloned()?;
+        let def_ns = self.definition_namespace_for(&target)?;
+        let cmds = self.commands_in_namespace(&def_ns);
+        let full: &[u8] = if let Some(c) = cmds.iter().find(|c| c.as_slice() == name) {
+            c
+        } else {
+            let mut it = cmds.iter().filter(|c| c.starts_with(name));
+            match (it.next(), it.next()) {
+                (Some(c), None) => c,
+                _ => return None,
+            }
+        };
+        // Dispatch `<def_ns>::<full> <args…>`.
+        let mut qualified = def_ns.clone();
+        qualified.extend_from_slice(b"::");
+        qualified.extend_from_slice(full);
+        let head = obj::new_string_bytes(&qualified);
+        unsafe { obj::incr_ref_count(head) };
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len());
+        new_argv.push(head);
+        for &a in &argv[1..] {
+            unsafe { obj::incr_ref_count(a) };
+            new_argv.push(a);
+        }
+        let code = self.dispatch(&new_argv);
+        for a in new_argv {
+            unsafe { obj::decr_ref_count(a) };
+        }
+        Some(code)
     }
 }
 
@@ -1171,6 +1216,29 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let yes = match cat.as_slice() {
                 b"object" => interp.oo.borrow().objects.contains_key(&target),
                 b"class" => interp.oo.borrow().classes.contains_key(&target),
+                // A metaclass is a class whose own hierarchy includes
+                // `::oo::class` (so its instances are themselves classes).
+                b"metaclass" => {
+                    let is_class = interp.oo.borrow().classes.contains_key(&target);
+                    is_class
+                        && interp
+                            .mro(&target)
+                            .iter()
+                            .any(|c| c.as_slice() == b"::oo::class")
+                }
+                // `mixin`: `mixinClass` is mixed into the object directly or via
+                // its class.
+                b"mixin" => {
+                    let mixin = interp.fqn_for(&obj_bytes(argv[5]));
+                    let oo = interp.oo.borrow();
+                    oo.objects.get(&target).is_some_and(|o| {
+                        o.mixins.contains(&mixin)
+                            || oo
+                                .classes
+                                .get(&o.class)
+                                .is_some_and(|c| c.mixins.contains(&mixin))
+                    })
+                }
                 b"typeof" => {
                     let want = interp.fqn_for(&obj_bytes(argv[5]));
                     interp
@@ -1652,19 +1720,24 @@ impl Interp {
 
     /// Run an `oo::define`/`oo::objdefine` body or single subcommand on `target`.
     fn oo_run_def(&mut self, target: DefTarget, argv: &[*mut TclObj]) -> Code {
-        // TIP 524: a user-set definition namespace becomes the resolution scope
-        // for the body, so its procs are reachable as bare definition commands.
-        let def_ns = self.definition_namespace_for(&target);
-        self.oo.borrow_mut().def_stack.push(target);
-        let saved = def_ns.as_deref().map(|n| self.enter_namespace(n));
-        let code = if argv.len() == 3 {
-            self.eval_str(&obj_bytes(argv[2]))
-        } else {
-            self.dispatch(&argv[2..])
-        };
-        if let Some(s) = saved {
-            self.leave_namespace(s);
+        if argv.len() == 3 {
+            let body = obj_bytes(argv[2]);
+            return self.oo_define_body(target, &body);
         }
+        self.oo.borrow_mut().def_stack.push(target);
+        let code = self.dispatch(&argv[2..]);
+        self.oo.borrow_mut().def_stack.pop();
+        code
+    }
+
+    /// Evaluate a definition `body` on `target`. The target's definition
+    /// namespace (TIP 524) contributes commands via `oo_define_command` (a path-
+    /// style lookup on a command miss), so bare procs there are reachable while
+    /// class-name *arguments* still resolve in the caller's namespace. Shared by
+    /// `oo_run_def` and the `oo::class` constructor (a metaclass instance body).
+    fn oo_define_body(&mut self, target: DefTarget, body: &[u8]) -> Code {
+        self.oo.borrow_mut().def_stack.push(target);
+        let code = self.eval_str(body);
         self.oo.borrow_mut().def_stack.pop();
         code
     }
@@ -1700,9 +1773,22 @@ impl Interp {
             // builds a *class* (`oo_make_class`), and `new` is unexported on it
             // (anonymous classes are not created through the public surface).
             let is_meta = fqn == b"::oo::class";
+            // A class may `unexport` its own `create`/`new` (e.g. a metaclass
+            // that wants a custom factory); then those names are plain unknown
+            // methods, not the built-in instantiation forms.
+            let (cre_ok, new_ok) = {
+                let oo = self.oo.borrow();
+                match oo.objects.get(fqn) {
+                    Some(o) => (
+                        !o.unexported.contains(b"create".as_slice()),
+                        !o.unexported.contains(b"new".as_slice()),
+                    ),
+                    None => (true, true),
+                }
+            };
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-                Some(b"new") if !is_meta => self.oo_new(fqn, None, &argv[2..]),
-                Some(b"create") => {
+                Some(b"new") if !is_meta && new_ok => self.oo_new(fqn, None, &argv[2..]),
+                Some(b"create") if cre_ok => {
                     if argv.len() < 3 {
                         let mut u = obj_bytes(argv[0]);
                         u.extend_from_slice(b" create objectName ?arg ...?");
@@ -1779,25 +1865,41 @@ impl Interp {
                 ..Object::default()
             },
         );
+        // Instantiating a *metaclass* (one whose MRO includes `::oo::class`)
+        // produces a class: register the new instance in the class map too, so
+        // it responds to `create`/`new` and is `info object isa class`.
+        let mro = self.mro(class);
+        let is_metaclass = mro.iter().any(|c| c.as_slice() == b"::oo::class");
+        if is_metaclass {
+            self.oo.borrow_mut().classes.insert(
+                fqn.clone(),
+                Class {
+                    supers: vec![b"::oo::object".to_vec()],
+                    ..Class::default()
+                },
+            );
+        }
         self.ns_register(&fqn, Command::OoObject(fqn.clone()));
         self.oo_register_my(&fqn);
 
-        let mro = self.mro(class);
-        if mro.iter().any(|c| self.class_has_ctor(c)) {
-            // Constructor dispatch runs along the *class* MRO (objects can't
-            // define constructors), with the object as `self`. The chain is the
-            // constructor-providing classes in MRO order (so `next` chains).
-            let chain: Vec<CallStep> = mro
-                .iter()
-                .filter(|c| self.class_has_ctor(c))
-                .map(|c| CallStep {
-                    provider: c.clone(),
-                    method: Vec::new(),
-                })
-                .collect();
+        // Constructor dispatch runs along the *class* MRO (objects can't define
+        // constructors), with the object as `self`; the chain is the
+        // constructor-providing classes in MRO order (so `next` chains). For a
+        // metaclass instance, `::oo::class` contributes a synthetic constructor
+        // that applies the (optional) definition-script argument.
+        let chain: Vec<CallStep> = mro
+            .iter()
+            .filter(|c| self.class_has_ctor(c) || (is_metaclass && c.as_slice() == b"::oo::class"))
+            .map(|c| CallStep {
+                provider: c.clone(),
+                method: Vec::new(),
+            })
+            .collect();
+        if !chain.is_empty() {
             let code = self.oo_run(&fqn, chain, 0, b"", args);
             if code == Code::Error {
                 self.oo.borrow_mut().objects.remove(&fqn);
+                self.oo.borrow_mut().classes.remove(&fqn);
                 self.delete_command(&fqn);
                 return Code::Error;
             }
@@ -2071,6 +2173,17 @@ impl Interp {
         let method = chain[index].method.clone();
         // Object-vs-class resolution is by identity (a class is in both maps).
         let is_object = prov == obj;
+        // The `::oo::class` synthetic constructor: instantiating a metaclass
+        // runs the (optional) definition-script argument on the new class. C's
+        // `oo::class` constructor is `{{definitionScript ""}}`.
+        if method.is_empty() && prov == b"::oo::class" {
+            let body = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
+            if body.is_empty() {
+                self.set_result_bytes(b"");
+                return Code::Ok;
+            }
+            return self.oo_define_body(DefTarget::Class(obj.to_vec()), &body);
+        }
         let m = if method.is_empty() {
             self.oo
                 .borrow()
@@ -2215,6 +2328,9 @@ impl Interp {
             }
         }
         self.oo.borrow_mut().objects.remove(obj);
+        // A metaclass instance is also registered as a class; drop both entries
+        // so the name frees up cleanly.
+        self.oo.borrow_mut().classes.remove(obj);
         self.delete_command(obj);
     }
 
@@ -2498,6 +2614,30 @@ mod tests {
             assert_eq!(i.eval_str(b"info class methodtype C nope"), Code::Error);
             // `forward` on a non-forward method.
             assert_eq!(i.eval_str(b"info class forward C foo"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn metaclass_instantiation() {
+        leak_free(|i| {
+            // A metaclass's instances are themselves classes.
+            ok(i, b"oo::class create meta { superclass oo::class }");
+            ok(i, b"meta create instance1");
+            ok(i, b"instance1 create instance2");
+            assert_eq!(ok(i, b"info object class instance1"), b"::meta");
+            assert_eq!(ok(i, b"info object class instance2"), b"::instance1");
+            assert_eq!(ok(i, b"info object isa class instance1"), b"1");
+            assert_eq!(ok(i, b"info object isa metaclass meta"), b"1");
+            assert_eq!(ok(i, b"info object isa metaclass instance1"), b"0");
+            assert_eq!(ok(i, b"info object isa object instance2"), b"1");
+            // A metaclass instance can carry a definition-script body.
+            ok(i, b"set c [meta create C { method foo {} { return MF } }]");
+            assert_eq!(ok(i, b"[C new] foo"), b"MF");
+            // Destroying the metaclass cascades to its class-instances (both maps
+            // freed), so the names can be recreated.
+            ok(i, b"meta destroy");
+            assert_eq!(i.eval_str(b"instance1 create x"), Code::Error);
+            ok(i, b"oo::class create instance1");
         });
     }
 

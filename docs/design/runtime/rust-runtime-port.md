@@ -1726,6 +1726,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `info commands` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11662 / 20532** |
 | + `info procs` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11665 / 20532** |
 | + TclOO `definitionnamespace` (TIP 524) define subcommand + semantics | **129 / 168** | 39 (0 timeout) | **11672 / 20532** |
+| + TclOO metaclasses (`meta create` → class, synthetic `oo::class` ctor, `isa metaclass`) | **129 / 168** | 39 (0 timeout) | **11679 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1835,6 +1836,17 @@ metaclass's `-class` namespace, an `oo::objdefine` on an object its class's
 `-instance` namespace (the built-in `::oo::define`/`::oo::objdefine` defaults
 stay served by the global definition commands). `oo.test` 124 → 131; sweep
 11665 → 11672.
+
+The 2026-06-13 **TclOO metaclasses** chunk (**+7 tests, zero regressions**) —
+instantiating a *metaclass* (a class whose MRO includes `::oo::class`) now
+produces a class: the new instance is registered in both the object and class
+maps, and `::oo::class` contributes a synthetic constructor that applies the
+optional definition-script argument (in the metaclass's `-class` definition
+namespace, completing the TIP-524 semantics for `foocls create foo {…}`).
+`info object isa metaclass`/`mixin` were added; `oo_dispatch` now honours a
+class that `unexport`s its own `create`/`new` (a custom factory metaclass —
+they become plain unknown methods); and `oo_destroy` frees a metaclass
+instance from *both* maps so its name can be recreated. `oo.test` 131 → 138.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2472,7 +2484,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11672/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11679/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +

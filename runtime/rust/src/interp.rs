@@ -835,27 +835,6 @@ impl Interp {
     /// (creating it, relative to the current ns unless `::`-anchored), evaluate
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
-    /// Enter the namespace `name` (a new namespace scope), returning the saved
-    /// previous namespace to restore via [`leave_namespace`]. The namespace is
-    /// created if missing. Used to evaluate a definition body in a class's
-    /// definition namespace (TIP 524).
-    pub(crate) fn enter_namespace(&mut self, name: &[u8]) -> NsId {
-        let target = self
-            .namespaces
-            .borrow_mut()
-            .ensure_namespace(self.current_ns.get(), name);
-        let saved = self.current_ns.get();
-        self.current_ns.set(target);
-        self.frames.borrow_mut().push_namespace(target);
-        saved
-    }
-
-    /// Restore the namespace saved by [`enter_namespace`].
-    pub(crate) fn leave_namespace(&mut self, saved: NsId) {
-        self.frames.borrow_mut().pop();
-        self.current_ns.set(saved);
-    }
-
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
         let target = self
             .namespaces
