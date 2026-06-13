@@ -1710,6 +1710,12 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `lsort` options (`-stride`/`-index`/`-dictionary`/`-command`/`-indices`) | **128 / 168** | 40 (0 timeout) | **11116 / 19027** |
 | + `lsearch` options (`-sorted`/`-index`/`-stride`/`-regexp`/`-subindices`/…) | **128 / 168** | 40 (0 timeout) | **11216 / 19027** |
 | + `string` insert/replace/wordstart/wordend/compare-opts/is-dict + `tcl::prefix` | **128 / 168** | 40 (0 timeout) | **11408 / 19027** |
+| + `binary encode`/`decode` (hex/base64/uuencode) + `u` scan modifier | **128 / 168** | 40 (0 timeout) | **11516 / 19027** |
+
+The 2026-06-13 **`binary`** increment (**+108 tests, zero regressions**) —
+`binary encode`/`decode` for `hex`/`base64` (`-maxlen`/`-wrapchar`/`-strict`)/
+`uuencode` (`tclBinary.c`), plus the `u` unsigned modifier on integer `binary
+scan` codes. Byte-identical to `tclsh9.0`. `binary.test` 308 → 404.
 
 The 2026-06-13 **`string`-surface** increment (**+192 tests, zero regressions**)
 — `string insert`/`replace`/`wordstart`/`wordend` subcommands, `-nocase`/`-length`
@@ -2064,6 +2070,15 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`binary encode`/`decode` + unsigned scan)
+
+`cmd_binary.rs`: `binary encode`/`decode hex`/`base64`/`uuencode` (the base64
+`-maxlen`/`-wrapchar` wrapping and `-strict` invalid-char error, ported from
+`tclBinary.c`), and the `u` unsigned modifier on integer `binary scan` codes
+(mask the low `size*8` bits). No Zig fix back-ported (mirror `8150eca`);
+byte-checked against `tclsh9.0`. `binary.test` 308 → 404; sweep
+**11408 → 11516**, zero regressions.
+
 ### SYNC inbound — 2026-06-13 (`string` surface + `tcl::prefix`)
 
 `cmd_string.rs`: added the `string insert`/`replace`/`wordstart`/`wordend`
@@ -2318,7 +2333,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11408/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11516/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`
