@@ -399,6 +399,8 @@ pub struct InterpState {
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
     /// accumulate.
     eval_depth: Cell<usize>,
+    /// Count of commands dispatched (`info cmdcount`).
+    cmd_count: Cell<u64>,
     result: Cell<*mut TclObj>,
 }
 
@@ -434,6 +436,7 @@ impl Interp {
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
+            cmd_count: Cell::new(0),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -1894,6 +1897,7 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        self.cmd_count.set(self.cmd_count.get() + 1);
         // Fast path: no command/execution traces, or we're already inside a
         // trace callback (C's INTERP_TRACE_IN_PROGRESS) — original dispatch.
         let traced = {
@@ -2160,6 +2164,37 @@ impl Interp {
         }
         fqn.extend_from_slice(name);
         fqn
+    }
+
+    /// Commands dispatched so far (`info cmdcount`).
+    pub(crate) fn cmd_count(&self) -> u64 {
+        self.cmd_count.get()
+    }
+
+    /// The `info cmdtype` classification of `name`, or `None` if no such command.
+    pub(crate) fn cmdtype(&self, name: &[u8]) -> Option<&'static [u8]> {
+        let cmd = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)?;
+        Some(match cmd {
+            Command::Builtin(_) => b"native",
+            Command::Proc(_) => b"proc",
+            Command::Alias { .. } | Command::ParentAlias { .. } => b"alias",
+            Command::Imported { .. } => b"import",
+            Command::Ensemble(_) => b"ensemble",
+            Command::OoObject(_) => b"object",
+            Command::ChildInterp(_) => b"native",
+        })
+    }
+
+    /// The `::tcl::mathfunc::*` function names (`info functions`).
+    pub(crate) fn mathfunc_names(&self) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        match ns.find_namespace(GLOBAL, b"::tcl::mathfunc") {
+            Some(id) => ns.command_names(id).iter().map(|n| n.to_vec()).collect(),
+            None => Vec::new(),
+        }
     }
 
     /// The canonical FQN `name` resolves to (full resolution order), or `None`

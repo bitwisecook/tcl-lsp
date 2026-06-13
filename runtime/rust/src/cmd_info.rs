@@ -38,13 +38,17 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"args",
         b"body",
         b"class",
+        b"cmdcount",
+        b"cmdtype",
         b"commands",
         b"complete",
         b"default",
         b"exists",
         b"frame",
+        b"functions",
         b"globals",
         b"level",
+        b"loaded",
         b"library",
         b"locals",
         b"nameofexecutable",
@@ -96,6 +100,28 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"body" => info_body(interp, argv),
         b"args" => info_args(interp, argv),
         b"default" => info_default(interp, argv),
+        b"cmdtype" => info_cmdtype(interp, argv),
+        b"cmdcount" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info cmdcount");
+            }
+            interp.set_result(crate::obj::new_wide_int_obj(interp.cmd_count() as i64));
+            Code::Ok
+        }
+        b"functions" => {
+            if argv.len() > 3 {
+                return wrong_args(interp, b"info functions ?pattern?");
+            }
+            let pat = argv.get(2).map(|&a| obj_bytes(a));
+            set_filtered(interp, interp.mathfunc_names(), pat.as_deref())
+        }
+        b"loaded" => {
+            if argv.len() > 4 {
+                return wrong_args(interp, b"info loaded ?interp? ?prefix?");
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
         b"script" => {
             if argv.len() > 3 {
                 return wrong_args(interp, b"info script ?filename?");
@@ -122,8 +148,28 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.extend_from_slice(
-                b"\": must be args, body, commands, complete, default, exists, frame, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
+                b"\": must be args, body, class, cmdcount, cmdtype, commands, complete, default, exists, frame, functions, globals, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
             );
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `info cmdtype command` — the kind of command (`native`/`proc`/`alias`/…).
+fn info_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"info cmdtype commandName");
+    }
+    let name = obj_bytes(argv[2]);
+    match interp.cmdtype(&name) {
+        Some(t) => {
+            interp.set_result_bytes(t);
+            Code::Ok
+        }
+        None => {
+            let mut m = b"unknown command \"".to_vec();
+            m.extend_from_slice(&name);
+            m.push(b'"');
             interp.set_error(&m)
         }
     }
@@ -476,6 +522,24 @@ mod tests {
             assert_eq!(
                 run(i, b"h"),
                 b"type eval line 1 cmd {info frame 0} proc ::h"
+            );
+        });
+    }
+
+    #[test]
+    fn info_cmdtype_loaded_functions() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"info cmdtype puts"), b"native");
+            assert_eq!(run(i, b"proc p {} {}; info cmdtype p"), b"proc");
+            assert_eq!(run(i, b"info loaded"), b"");
+            assert_eq!(run(i, b"info functions sin"), b"sin");
+            // cmdcount increases as commands run.
+            assert_eq!(
+                run(
+                    i,
+                    b"set a [info cmdcount]; set b [info cmdcount]; expr {$b > $a}"
+                ),
+                b"1"
             );
         });
     }

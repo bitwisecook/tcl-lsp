@@ -1711,6 +1711,13 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `lsearch` options (`-sorted`/`-index`/`-stride`/`-regexp`/`-subindices`/…) | **128 / 168** | 40 (0 timeout) | **11216 / 19027** |
 | + `string` insert/replace/wordstart/wordend/compare-opts/is-dict + `tcl::prefix` | **128 / 168** | 40 (0 timeout) | **11408 / 19027** |
 | + `binary encode`/`decode` (hex/base64/uuencode) + `u` scan modifier | **128 / 168** | 40 (0 timeout) | **11516 / 19027** |
+| + `info cmdtype`/`cmdcount`/`functions`/`loaded` | **128 / 168** | 40 (0 timeout) | **11534 / 19027** |
+
+The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
+`info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
+bulk of `info.test`'s remainder is `info frame` source-location exactness
+(PC-5, deferred) and the 5 missing `::tcl::mathfunc` names that `info functions`
+lists. `info.test` 81 → 99.
 
 The 2026-06-13 **`binary`** increment (**+108 tests, zero regressions**) —
 `binary encode`/`decode` for `hex`/`base64` (`-maxlen`/`-wrapchar`/`-strict`)/
@@ -2070,6 +2077,15 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`info` subcommands)
+
+`cmd_info.rs`: `info cmdtype` (Command-variant → native/proc/alias/import/
+ensemble/object), `info cmdcount` (a per-dispatch counter), `info functions`
+(the `::tcl::mathfunc` names), `info loaded` (empty — no C extensions). No Zig
+fix back-ported (mirror `8150eca`). `info.test` 81 → 99; sweep **11516 →
+11534**, zero regressions. Residual: `info frame` byte-exactness (PC-5) and the
+`isnormal`/`issubnormal`/`isunordered`/`rand`/`srand` mathfuncs.
+
 ### SYNC inbound — 2026-06-13 (`binary encode`/`decode` + unsigned scan)
 
 `cmd_binary.rs`: `binary encode`/`decode hex`/`base64`/`uuencode` (the base64
@@ -2333,7 +2349,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11516/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11534/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`
