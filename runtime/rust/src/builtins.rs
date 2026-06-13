@@ -34,6 +34,8 @@ pub fn install(interp: &mut Interp) {
     #[cfg(have_tommath)]
     crate::cmd_mathop::install(interp);
     crate::cmd_list::install(interp);
+    #[cfg(have_tommath)]
+    crate::cmd_lseq::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_string::install(interp);
     crate::cmd_alias::install(interp);
@@ -592,6 +594,29 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // trace at the inner command — preserve it (no `expr` frame).
         Err(_) if propagated => Code::Error,
         Err(e) => interp.set_error(&e.0),
+    }
+}
+
+/// Evaluate `src` as a Tcl expression, returning the result object (owned — the
+/// caller holds a `+1` and must release it) or the error `Code` (interp result =
+/// message). Used where an argument "may be a valid expression" — e.g. `lseq`'s
+/// numeric arguments (`SequenceIdentifyArgument`).
+#[cfg(have_tommath)]
+pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclObj, Code> {
+    let Ok(s) = core::str::from_utf8(src) else {
+        return Err(interp.set_error(b"expr operand is not valid UTF-8"));
+    };
+    let node = tcl_syntax::expr::parse_expr(s, None);
+    let mut ctx = InterpExprCtx {
+        interp: &mut *interp,
+        propagated: false,
+    };
+    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let propagated = ctx.propagated;
+    match result {
+        Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
+        Err(_) if propagated => Err(Code::Error),
+        Err(e) => Err(interp.set_error(&e.0)),
     }
 }
 

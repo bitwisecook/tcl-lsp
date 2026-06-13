@@ -1704,8 +1704,9 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + auto-load fixes + re-entrant Safe Base | **124 / 168** | 43 (+1 timeout) | **8654 / 18939** |
 | + `ledit` + three-way var-read-miss error | **124 / 168** | 43 (+1 timeout) | **10448 / 18939** |
 | + `lmap` + empty-script result reset | **125 / 168** | 43 (0 timeout) | **10566 / 19027** |
+| + `lseq` (arithmetic-series generator) | **125 / 168** | 43 (0 timeout) | **10660 / 19027** |
 
-The 2026-06-13 increments (**+1912 tests, 45.7% → 55.5%**, zero regressions):
+The 2026-06-13 increments (**+2006 tests, 45.7% → 56.0%**, zero regressions):
 
 - **`ledit listVar first last ?element ...?`** (`cmd_list.rs`) — the Tcl 8.7/9.0
   in-place `lreplace` on a list *variable*. Shares `lreplace`'s index/clamp/
@@ -1732,6 +1733,20 @@ The 2026-06-13 increments (**+1912 tests, 45.7% → 55.5%**, zero regressions):
   by an `lmap` body of `{}`, also affects empty proc bodies / `eval {}`). Rippled
   +6 `uplevel.test`, recovered `for.test` from a timeout (+51), +1 each to
   `if`/`compile`/`execute`/`namespace-old`.
+- **`lseq start ?(..|to)? end ??by? step?`** / `lseq start count count …` /
+  `lseq count …` (`cmd_lseq.rs`, new module, `have_tommath`-gated) — the
+  arithmetic-series generator, ported from C's `Tcl_LseqObjCmd` +
+  `TclNewArithSeriesObj`: the argument-decode key, the `..`/`to`/`count`/`by`
+  keywords, expression-valued arguments (via `eval_expr_obj`), int-vs-double
+  selection, the `ArithSeriesLenInt`/`ArithSeriesLenDbl` length formula, and the
+  `maxObjPrecision`/`ArithRound` double-precision matching (`lseq 0 0.5 by 0.1` →
+  `0.0 0.1 0.2 0.3 0.4 0.5`). We materialise a concrete list (C's lazy abstract
+  series is representation-only, incompatible-by-design) and cap at 100M elements
+  with C's "max length of a Tcl list exceeded" rather than OOM-aborting on the
+  multi-billion-element lazy-series tests. `lseq.test` **0 → 94 / 134** (the
+  remainder are `tcl::unsupported::representation` / lazy-series / extreme-
+  magnitude `1e50`-formatting cases — the last a pre-existing `tcl-syntax`
+  `format_double` limitation, not `lseq`).
 
 Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
 **81 → 45**, **+2974 tests pass**, and **zero panics** (the passed *count*
@@ -1961,12 +1976,14 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
-### SYNC inbound — 2026-06-13 (`ledit`/`lmap` + var-read-miss + eval-reset; audit re-baseline)
+### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
-Chunks: `ledit`, `lmap`, the three-way variable-read-miss error, and the
-empty-script result reset (scoreboard above). `lmap` was written against C's
+Chunks: `ledit`, `lmap`, `lseq`, the three-way variable-read-miss error, and
+the empty-script result reset (scoreboard above). `lmap` was written against C's
 shared `EachloopCmd` (`tclCmdAH.c`, `TCL_EACH_COLLECT`) — `foreach` refactored to
-the same engine; the empty-script reset matches `Tcl_EvalEx` (`tclBasic.c`).
+the same engine; `lseq` against `Tcl_LseqObjCmd`/`TclNewArithSeriesObj`
+(`tclCmdIL.c`/`tclArithSeries.c`); the empty-script reset matches `Tcl_EvalEx`
+(`tclBasic.c`).
 
 - **Derived from C, cross-checked vs the Zig oracle.** `ledit` was written
   against C's `Tcl_LeditObjCmd` (`tmp/tcl9.0.3/generic/tclCmdIL.c`) and the
@@ -2129,9 +2146,9 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **10566/19027**, the 2026-06-13 `ledit`/`lmap` + var-read-miss + empty-script
-    reset increments landed the list/loop-command surface that `lreplace.test`/
-    `lmap.test`/`set*.test` exercise). Run the **unmodified** pure-Tcl
+    **10660/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    empty-script reset increments landed the list/loop-command surface that
+    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise). Run the **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return
