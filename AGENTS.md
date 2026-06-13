@@ -879,6 +879,24 @@ layers — not just the feature module closest to the symptom.
 - Test framework: **pytest** (configuration in `pyproject.toml`)
 - Tests live in `tests/` — run with `make test-py` or `uv run pytest tests/ -q`
 - VS Code extension tests: `make test-ext`
+- **Registry contract & behaviour tests** (`tests/registry_contract/`,
+  plus `tests/lsp_e2e/test_registry_contract_e2e.py`): front-end-driven
+  coverage of the whole command registry and the iRules
+  event/profile/object graphs.  The registry **generates** real Tcl
+  scripts and iRules (`when EVENT { … }`) and the tests assert the live
+  front-end analysis — arity (E002/E003), subcommands (E001/W001), event
+  scoping (IRULE1001/1002) via `tcl diag`, event ordering via
+  `f5 irule event-order`, and the LSP `executeCommand` registry
+  handlers.  A small CSV presence safety-net in
+  `tests/baselines/registry/` pins that every command (with arity),
+  event, profile, and object exists; regenerate with
+  `make gen-registry-baselines` after an intentional registry change
+  (a stale-fixture test and `make check-registry-baselines` guard
+  drift).  Generators live in `tests/registry_contract/_generators.py`.
+  Because the contract is front-end behaviour, the same tests validate
+  the `rust` branch's front-ends (CLI subprocess + the e2e harness's
+  `TCL_LSP_SERVER_KIND=rust`) — see
+  [`docs/design/contracts/registry-contract-tests.md`](docs/design/contracts/registry-contract-tests.md).
 - **iRule test framework** (`tooling/irule_test/`): simulates TMM for testing iRules
   without hardware.  See `docs/design/contracts/irule-test-framework.md` for architecture.
   Codegen: `python -m tooling.irule_test.codegen_mock_stubs` (after registry changes)
