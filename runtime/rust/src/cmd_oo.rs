@@ -262,28 +262,25 @@ fn def_target(interp: &mut Interp) -> Result<DefTarget, Code> {
 
 /// Install `method` into the current definition target (class or object).
 fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
-    match def_target(interp) {
+    let ok = match def_target(interp) {
         Ok(DefTarget::Class(c)) => {
-            interp
-                .oo
-                .borrow_mut()
-                .classes
+            let mut oo = interp.oo.borrow_mut();
+            oo.classes
                 .get_mut(&c)
-                .unwrap()
-                .methods
-                .insert(name, m);
+                .map(|cl| cl.methods.insert(name, m))
+                .is_some()
         }
         Ok(DefTarget::Object(o)) => {
-            interp
-                .oo
-                .borrow_mut()
-                .objects
+            let mut oo = interp.oo.borrow_mut();
+            oo.objects
                 .get_mut(&o)
-                .unwrap()
-                .methods
-                .insert(name, m);
+                .map(|ob| ob.methods.insert(name, m))
+                .is_some()
         }
         Err(code) => return code,
+    };
+    if !ok {
+        return interp.set_error(b"no current class/object to define on");
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -492,6 +489,27 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         )
     });
     let Some((object, class, method)) = ctx else {
+        // Define-context `self`: inside an `oo::define`/`oo::class create` body,
+        // `self ?subcmd …?` applies objdefine-style directives to the object
+        // being defined (the classes-as-objects model). `self` alone returns it.
+        let def_target = interp.oo.borrow().def_stack.last().cloned();
+        if let Some(target) = def_target {
+            let tfqn = match target {
+                DefTarget::Class(c) | DefTarget::Object(c) => c,
+            };
+            if argv.len() == 1 {
+                interp.set_result(obj::new_string_bytes(&tfqn));
+                return Code::Ok;
+            }
+            interp
+                .oo
+                .borrow_mut()
+                .def_stack
+                .push(DefTarget::Object(tfqn));
+            let code = interp.dispatch(&argv[1..]);
+            interp.oo.borrow_mut().def_stack.pop();
+            return code;
+        }
         return err(interp, b"self may only be called from inside a method");
     };
     match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
@@ -545,8 +563,15 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"next may only be called from inside a method");
     };
     let is_ctor = method.is_empty();
-    let next =
-        (index + 1..chain.len()).find(|&j| interp.oo_has_method(&chain[j], &method, is_ctor));
+    // `next` always continues into the class chain (j >= 1), so look up class
+    // (instance) methods / constructors there.
+    let next = (index + 1..chain.len()).find(|&j| {
+        if is_ctor {
+            interp.class_has_ctor(&chain[j])
+        } else {
+            interp.oo_has_method(&chain[j], &method, false)
+        }
+    });
     match next {
         Some(j) => interp.oo_call(&object, chain, j, &method, &argv[1..]),
         None if is_ctor => {
@@ -810,6 +835,18 @@ impl Interp {
                 ..Class::default()
             },
         );
+        // A class is also an object (an instance of `::oo::class`), so it can
+        // carry its own methods (`oo::define … self method`) — the TclOO
+        // classes-as-objects model.
+        let var_ns = self.ensure_namespace(fqn);
+        self.oo.borrow_mut().objects.insert(
+            fqn.to_vec(),
+            Object {
+                class: b"::oo::class".to_vec(),
+                var_ns,
+                ..Object::default()
+            },
+        );
         self.ns_register(fqn, Command::OoObject(fqn.to_vec()));
         if let Some(script) = script {
             self.oo
@@ -819,6 +856,11 @@ impl Interp {
             let code = self.eval_str(script);
             self.oo.borrow_mut().def_stack.pop();
             if code != Code::Ok {
+                // Roll back a failed definition so the name frees up (C destroys
+                // a partially-created class whose definition script errors).
+                self.oo.borrow_mut().classes.remove(fqn);
+                self.oo.borrow_mut().objects.remove(fqn);
+                self.delete_command(fqn);
                 return code;
             }
         }
@@ -852,7 +894,9 @@ impl Interp {
                     self.set_result_bytes(b"");
                     Code::Ok
                 }
-                Some(other) => unknown_method(self, other),
+                // Any other subcommand is a class-object method (defined via
+                // `oo::define … self method`); dispatch it on the class object.
+                Some(other) => self.oo_invoke(fqn, other, &argv[2..], true),
                 None => self.error(b"wrong # args: should be \"class method ?arg ...?\""),
             }
         } else if self.oo.borrow().objects.contains_key(fqn) {
@@ -931,8 +975,9 @@ impl Interp {
             return self.invalid_command(obj);
         }
         let chain = self.method_chain(obj);
-        let found = chain.iter().position(|c| {
-            self.oo_has_method(c, method, false) && !(external && self.method_unexported(c, method))
+        let found = (0..chain.len()).find(|&i| {
+            self.oo_has_method(&chain[i], method, i == 0)
+                && !(external && self.method_unexported(&chain[i], method, i == 0))
         });
         match found {
             Some(j) => self.oo_call(obj, chain, j, method, args),
@@ -972,17 +1017,19 @@ impl Interp {
 
     /// Whether the provider `prov` (object FQN or class FQN) defines `method`
     /// (or a constructor, when `ctor`).
-    fn oo_has_method(&self, prov: &[u8], method: &[u8], ctor: bool) -> bool {
-        if ctor {
-            return self
-                .oo
+    /// Whether provider `prov` defines `method`. Resolution is positional: the
+    /// object itself (`is_object`, the chain head) carries *per-object* methods
+    /// (`objects[prov].methods`); the rest of the chain are classes carrying
+    /// *instance* methods (`classes[prov].methods`). A class is registered in
+    /// both maps (classes-as-objects), so this distinction must be by position,
+    /// not by which map `prov` is in.
+    fn oo_has_method(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
+        if is_object {
+            self.oo
                 .borrow()
-                .classes
+                .objects
                 .get(prov)
-                .is_some_and(|c| c.constructor.is_some());
-        }
-        if let Some(o) = self.oo.borrow().objects.get(prov) {
-            o.methods.contains_key(method)
+                .is_some_and(|o| o.methods.contains_key(method))
         } else {
             self.oo
                 .borrow()
@@ -992,9 +1039,22 @@ impl Interp {
         }
     }
 
-    fn method_unexported(&self, prov: &[u8], method: &[u8]) -> bool {
-        if let Some(o) = self.oo.borrow().objects.get(prov) {
-            o.unexported.contains(method)
+    /// Whether the class `prov` defines a constructor.
+    fn class_has_ctor(&self, prov: &[u8]) -> bool {
+        self.oo
+            .borrow()
+            .classes
+            .get(prov)
+            .is_some_and(|c| c.constructor.is_some())
+    }
+
+    fn method_unexported(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
+        if is_object {
+            self.oo
+                .borrow()
+                .objects
+                .get(prov)
+                .is_some_and(|o| o.unexported.contains(method))
         } else {
             self.oo
                 .borrow()
@@ -1021,9 +1081,15 @@ impl Interp {
                 .classes
                 .get(&prov)
                 .and_then(|c| c.constructor.clone())
-        } else if let Some(o) = self.oo.borrow().objects.get(&prov) {
-            o.methods.get(method).cloned()
+        } else if index == 0 {
+            // The object's own (per-object / class-object) methods.
+            self.oo
+                .borrow()
+                .objects
+                .get(&prov)
+                .and_then(|o| o.methods.get(method).cloned())
         } else {
+            // A class in the chain → its instance methods.
             self.oo
                 .borrow()
                 .classes
@@ -1168,6 +1234,7 @@ impl Interp {
             self.oo_destroy(&o);
         }
         self.oo.borrow_mut().classes.remove(class);
+        self.oo.borrow_mut().objects.remove(class);
         self.delete_command(class);
     }
 
@@ -1217,6 +1284,31 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn class_methods_via_self() {
+        leak_free(|i| {
+            // `oo::define … self method` defines a method on the class object.
+            ok(i, b"oo::class create C");
+            ok(
+                i,
+                b"oo::define C self method greet {} {return \"hi from [self]\"}",
+            );
+            assert_eq!(ok(i, b"C greet"), b"hi from ::C");
+            // `self method` inside the class body, and `self` alone returns it.
+            assert_eq!(
+                ok(
+                    i,
+                    b"oo::class create D {self method who {} {return [self]}}; D who"
+                ),
+                b"::D"
+            );
+            // Instance methods still resolve (the class-as-object regression guard).
+            ok(i, b"oo::class create E {method m {} {return inst}}");
+            assert_eq!(ok(i, b"E create e; e m"), b"inst");
+            i.eval_str(b"C destroy; D destroy; E destroy");
+        });
     }
 
     #[test]
