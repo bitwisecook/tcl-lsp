@@ -486,14 +486,23 @@ impl Interp {
             .borrow_mut()
             .rename(self.current_ns.get(), old, new);
         if let Some(of) = old_fqn {
+            let oo_live = !self.oo_is_empty();
             match outcome {
-                // The trace list follows the command to its new name.
+                // The trace list (and any OO object) follows to the new name.
                 RenameOutcome::Renamed => {
                     let nf = self.fqn_for(new);
                     self.move_cmd_traces(&of, &nf);
+                    if oo_live {
+                        self.oo_command_renamed(&of, Some(&nf));
+                    }
                 }
-                // The command is gone; its traces go with it.
-                RenameOutcome::Deleted => self.remove_cmd_traces(&of),
+                // The command is gone; its traces and OO registry entry go too.
+                RenameOutcome::Deleted => {
+                    self.remove_cmd_traces(&of);
+                    if oo_live {
+                        self.oo_command_renamed(&of, None);
+                    }
+                }
                 RenameOutcome::NoSuchCommand => {}
             }
         }

@@ -1712,6 +1712,17 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `string` insert/replace/wordstart/wordend/compare-opts/is-dict + `tcl::prefix` | **128 / 168** | 40 (0 timeout) | **11408 / 19027** |
 | + `binary encode`/`decode` (hex/base64/uuencode) + `u` scan modifier | **128 / 168** | 40 (0 timeout) | **11516 / 19027** |
 | + `info cmdtype`/`cmdcount`/`functions`/`loaded` | **128 / 168** | 40 (0 timeout) | **11534 / 19027** |
+| + OO object-lifetime sync on `rename`/delete | **128 / 168** | 40 (0 timeout) | **11536 / 19027** |
+
+The 2026-06-13 **OO rename/delete** fix (**+2 tests, zero regressions**) — an
+OO object/class is tied to its command, so `rename obj {}` (the tests' cleanup
+idiom) must drop it from the `OoState` registry (both the object and class
+maps — a class is in both) and a rename must move it; otherwise the name could
+not be recreated (the dominant `oo.test` setup-cascade) and a stale half-entry
+could panic a later method dispatch (now a clean `object … has been deleted`).
+The bulk of `oo.test` remains the TclOO **meta-protocol** (filters, private
+methods, `my`/`self` subcommands, classes-as-objects, full C3 linearisation) —
+the deferred 3-file blocker.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2349,7 +2360,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11534/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11536/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`

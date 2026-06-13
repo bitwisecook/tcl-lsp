@@ -769,6 +769,31 @@ fn set_list(interp: &mut Interp, names: &[Vec<u8>]) {
 // -- the object-system engine (impl Interp) ----------------------------------
 
 impl Interp {
+    /// An OO object's/class's command was renamed or deleted (e.g. `rename obj
+    /// {}`): keep the OO registry in sync so the name frees up / follows the
+    /// command. Tcl ties an object's lifetime to its command.
+    pub(crate) fn oo_command_renamed(&mut self, old_fqn: &[u8], new_fqn: Option<&[u8]>) {
+        let mut oo = self.oo.borrow_mut();
+        // A class is registered in *both* maps (a class is also an object), so
+        // move/remove from both to avoid a dangling half-entry.
+        let obj = oo.objects.remove(old_fqn);
+        let cls = oo.classes.remove(old_fqn);
+        if let Some(nf) = new_fqn {
+            if let Some(o) = obj {
+                oo.objects.insert(nf.to_vec(), o);
+            }
+            if let Some(c) = cls {
+                oo.classes.insert(nf.to_vec(), c);
+            }
+        }
+    }
+
+    /// Whether the OO registry is empty (the rename hot-path early-out).
+    pub(crate) fn oo_is_empty(&self) -> bool {
+        let oo = self.oo.borrow();
+        oo.objects.is_empty() && oo.classes.is_empty()
+    }
+
     /// Create class `fqn` (running its optional definition script).
     fn oo_make_class(&mut self, fqn: &[u8], script: Option<&[u8]>) -> Code {
         if self.oo.borrow().classes.contains_key(fqn) || self.oo.borrow().objects.contains_key(fqn)
@@ -1040,7 +1065,12 @@ impl Interp {
         let Method::Body { params, body } = m else {
             unreachable!("forward handled above");
         };
-        let var_ns = self.oo.borrow().objects[obj].var_ns;
+        let Some(var_ns) = self.oo.borrow().objects.get(obj).map(|o| o.var_ns) else {
+            let mut m = b"object \"".to_vec();
+            m.extend_from_slice(obj);
+            m.extend_from_slice(b"\" has been deleted");
+            return self.error(&m);
+        };
         // The declared instance variables visible to the method: union over the
         // chain's classes.
         let mut vars: Vec<Vec<u8>> = Vec::new();
@@ -1093,8 +1123,8 @@ impl Interp {
                     .classes
                     .get(c)
                     .and_then(|c| c.destructor.clone());
-                if let Some(body) = dtor {
-                    let var_ns = self.oo.borrow().objects[obj].var_ns;
+                let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
+                if let (Some(body), Some(var_ns)) = (dtor, var_ns) {
                     self.oo.borrow_mut().call_stack.push(OoFrame {
                         object: obj.to_vec(),
                         chain: mro.clone(),
@@ -1187,6 +1217,25 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn rename_to_empty_frees_object_and_class_names() {
+        leak_free(|i| {
+            // Deleting an object's command (rename to {}) frees the name so it
+            // can be recreated — the OO registry tracks the command's lifetime.
+            ok(i, b"oo::object create foo");
+            ok(i, b"rename foo {}");
+            assert_eq!(ok(i, b"oo::object create foo"), b"::foo");
+            // Same for a class (registered in both the object and class maps).
+            ok(i, b"oo::class create C");
+            ok(i, b"rename C {}");
+            assert_eq!(ok(i, b"oo::class create C"), b"::C");
+            // A renamed object follows its command to the new name.
+            ok(i, b"oo::object create a; rename a b");
+            assert_eq!(ok(i, b"info object isa object b"), b"1");
+            i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
     }
 
     #[test]
