@@ -1727,6 +1727,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `info procs` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11665 / 20532** |
 | + TclOO `definitionnamespace` (TIP 524) define subcommand + semantics | **129 / 168** | 39 (0 timeout) | **11672 / 20532** |
 | + TclOO metaclasses (`meta create` → class, synthetic `oo::class` ctor, `isa metaclass`) | **129 / 168** | 39 (0 timeout) | **11679 / 20532** |
+| + TclOO `info object`/`class call` + `self call` + TIP 500 same-object private visibility | **129 / 168** | 39 (0 timeout) | **11680 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1847,6 +1848,16 @@ namespace, completing the TIP-524 semantics for `foocls create foo {…}`).
 class that `unexport`s its own `create`/`new` (a custom factory metaclass —
 they become plain unknown methods); and `oo_destroy` frees a metaclass
 instance from *both* maps so its name can be recreated. `oo.test` 131 → 138.
+
+The 2026-06-13 **`info call` + `self call`** chunk (**zero regressions**) —
+`info object`/`info class call` and `self call` report the method-resolution
+chain (each step a `{callType method declarer methodType}` element, `callType`
+`method`/`private`, `methodType` `method`/`forward`); `self call` adds the
+current index. Implementing it required TIP 500's same-object private
+visibility: a private method is reachable by an external dispatch (`[self]
+priv`) that originates from within the same object, so `oo_invoke` relaxes the
+export check when the calling frame belongs to the target object. `oo.test`
+138 → 139.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2484,7 +2495,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11679/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11680/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +

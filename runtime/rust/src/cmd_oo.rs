@@ -912,6 +912,31 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => interp.set_result_bytes(b""),
             }
         }
+        // `self call` — `{chain index}`: the full call chain (each step a
+        // `{callType method declarer methodType}` element) and the current index.
+        Some(b"call") => {
+            let (chain, index) = interp
+                .oo
+                .borrow()
+                .call_stack
+                .last()
+                .map(|f| (f.chain.clone(), f.index))
+                .unwrap_or_default();
+            let elems: Vec<Vec<u8>> = chain
+                .iter()
+                .map(|s| call_chain_elem(interp, &s.provider, &s.method, s.provider == object))
+                .collect();
+            let inner_objs: Vec<*mut TclObj> =
+                elems.iter().map(|e| obj::new_string_bytes(e)).collect();
+            let inner = crate::list::new_list_obj(&inner_objs);
+            let inner_str = obj_bytes(inner);
+            crate::interp::drop_fresh(inner);
+            let outer = [
+                obj::new_string_bytes(&inner_str),
+                obj::new_string_bytes(index.to_string().as_bytes()),
+            ];
+            interp.set_result(crate::list::new_list_obj(&outer));
+        }
         Some(other) => {
             let mut m = b"unsupported self subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -1335,7 +1360,8 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"forward" => info_forward(interp, &obj, argv, false),
         b"definition" => info_definition(interp, &obj, argv, false),
         b"methodtype" => info_methodtype(interp, &obj, argv, false),
-        // `call`/`properties` are not yet modelled.
+        b"call" => info_call(interp, &obj, argv, false),
+        // `properties` is not yet modelled.
         other => {
             let mut m = b"unsupported info object subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -1458,6 +1484,73 @@ fn unknown_method_named(interp: &mut Interp, name: &[u8]) -> Code {
     m.extend_from_slice(name);
     m.push(b'"');
     interp.set_error(&m)
+}
+
+/// `info object|class call fqn methodName` — the method-resolution chain for
+/// `methodName`, each step a `{callType methodName declarer methodType}` list.
+fn info_call(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+    if argv.len() != 5 {
+        let u: &[u8] = if class {
+            b"info class call className methodName"
+        } else {
+            b"info object call objName methodName"
+        };
+        return wrong_args(interp, u);
+    }
+    let method = obj_bytes(argv[4]);
+    // For a class, the chain is the instance-method MRO; for an object, its full
+    // method chain (own methods, mixins, then class MRO).
+    let providers = if class {
+        interp.mro(fqn)
+    } else {
+        interp.method_chain(fqn)
+    };
+    let mut elems: Vec<Vec<u8>> = Vec::new();
+    for p in &providers {
+        let is_object = !class && p.as_slice() == fqn;
+        if !interp.oo_has_method(p, &method, is_object) {
+            continue;
+        }
+        elems.push(call_chain_elem(interp, p, &method, is_object));
+    }
+    set_list(interp, &elems);
+    Code::Ok
+}
+
+/// One `info call` / `self call` chain element: `callType methodName declarer
+/// methodType` (a 4-word string the list quoter braces as one element).
+fn call_chain_elem(interp: &Interp, provider: &[u8], method: &[u8], is_object: bool) -> Vec<u8> {
+    let (impl_type, private): (&[u8], bool) = {
+        let oo = interp.oo.borrow();
+        let (m, unexp) = if is_object {
+            match oo.objects.get(provider) {
+                Some(o) => (o.methods.get(method), o.unexported.contains(method)),
+                None => (None, false),
+            }
+        } else {
+            match oo.classes.get(provider) {
+                Some(c) => (c.methods.get(method), c.unexported.contains(method)),
+                None => (None, false),
+            }
+        };
+        let t: &[u8] = match m {
+            Some(Method::Forward { .. }) => b"forward",
+            _ => b"method",
+        };
+        (t, unexp)
+    };
+    // A private (unexported) method reports `private` as its call-chain type.
+    let mut e: Vec<u8> = if private {
+        b"private ".to_vec()
+    } else {
+        b"method ".to_vec()
+    };
+    e.extend_from_slice(method);
+    e.push(b' ');
+    e.extend_from_slice(provider);
+    e.push(b' ');
+    e.extend_from_slice(impl_type);
+    e
 }
 
 /// `info class subcommand class ?arg?`.
@@ -1598,7 +1691,8 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"forward" => info_forward(interp, &cls, argv, true),
         b"definition" => info_definition(interp, &cls, argv, true),
         b"methodtype" => info_methodtype(interp, &cls, argv, true),
-        // `call`/`properties` are not yet modelled.
+        b"call" => info_call(interp, &cls, argv, true),
+        // `properties` is not yet modelled.
         other => {
             let mut m = b"unsupported info class subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -1922,13 +2016,23 @@ impl Interp {
         if !self.oo.borrow().objects.contains_key(obj) {
             return self.invalid_command(obj);
         }
+        // TIP 500: a private (unexported) method is still visible to an external
+        // call that originates from *within the same object* (e.g. `[self]
+        // priv`), since the caller belongs to the object.
+        let caller_is_self = self
+            .oo
+            .borrow()
+            .call_stack
+            .last()
+            .is_some_and(|f| f.object.as_slice() == obj);
+        let enforce = external && !caller_is_self;
         let providers = self.method_chain(obj);
         // The target-method steps: every provider that defines `method`.
         let mut steps: Vec<CallStep> = providers
             .iter()
             .filter(|p| {
                 self.oo_has_method(p, method, p.as_slice() == obj)
-                    && !(external && self.method_unexported(p, method, p.as_slice() == obj))
+                    && !(enforce && self.method_unexported(p, method, p.as_slice() == obj))
             })
             .map(|p| CallStep {
                 provider: p.clone(),
@@ -2614,6 +2718,39 @@ mod tests {
             assert_eq!(i.eval_str(b"info class methodtype C nope"), Code::Error);
             // `forward` on a non-forward method.
             assert_eq!(i.eval_str(b"info class forward C foo"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn info_call_and_self_call() {
+        leak_free(|i| {
+            ok(i, b"oo::class create A { method foo {} {} }");
+            ok(
+                i,
+                b"oo::class create B { superclass A; method foo {} { next } }",
+            );
+            assert_eq!(
+                ok(i, b"info class call B foo"),
+                b"{method foo ::B method} {method foo ::A method}"
+            );
+            // `self call` reports the live chain + index; a private method shows
+            // as `private` and is visible to a same-object `[self]` dispatch.
+            ok(
+                i,
+                b"oo::class create P { method chain {} { return [self call] } }",
+            );
+            ok(
+                i,
+                b"oo::class create Q { superclass P; private method chain {} { next }; method viapub {} { [self] chain } }",
+            );
+            ok(i, b"set q [Q new]");
+            assert_eq!(
+                ok(i, b"$q viapub"),
+                b"{{private chain ::Q method} {method chain ::P method}} 1"
+            );
+            // An external call from outside the object skips Q's private `chain`
+            // and runs P's public one.
+            assert_eq!(ok(i, b"$q chain"), b"{{method chain ::P method}} 0");
         });
     }
 
