@@ -1,6 +1,6 @@
 //! `REWRITE::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "REWRITE::disable",
         dialects: Some(DialectSet::IRULES),

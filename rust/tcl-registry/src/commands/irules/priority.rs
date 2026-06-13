@@ -1,6 +1,6 @@
 //! `priority` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "priority",
         traits: Traits::IRULES_TOP_LEVEL_ONLY,

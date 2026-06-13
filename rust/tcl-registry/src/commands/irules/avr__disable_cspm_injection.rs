@@ -1,6 +1,6 @@
 //! `AVR::disable_cspm_injection` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AVR::disable_cspm_injection",
         dialects: Some(DialectSet::IRULES),

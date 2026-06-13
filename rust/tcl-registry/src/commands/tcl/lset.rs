@@ -47,6 +47,7 @@ const LSET_FLAT_PATH: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lset",
+        traits: Traits::FRAME_HASH_BUILTIN,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],

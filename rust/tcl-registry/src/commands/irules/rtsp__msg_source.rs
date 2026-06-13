@@ -1,6 +1,6 @@
 //! `RTSP::msg_source` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "RTSP::msg_source",
         dialects: Some(DialectSet::IRULES),

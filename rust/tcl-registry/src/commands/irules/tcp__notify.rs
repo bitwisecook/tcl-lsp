@@ -1,6 +1,6 @@
 //! `TCP::notify` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::notify",
         dialects: Some(DialectSet::IRULES),

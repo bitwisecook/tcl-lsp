@@ -33,7 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::sni",
         dialects: Some(DialectSet::IRULES),
@@ -58,6 +58,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::FQDN)),
         ..CommandSpec::DEFAULT
     }
 }

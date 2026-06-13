@@ -1,6 +1,6 @@
 //! `DATAGRAM::ip` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DATAGRAM::ip",
         dialects: Some(DialectSet::IRULES),

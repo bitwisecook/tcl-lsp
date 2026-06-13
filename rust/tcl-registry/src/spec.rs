@@ -215,6 +215,19 @@ pub struct CommandSpec {
     /// `taint_interp_eval_subcommands`.
     pub taint_interp_eval_subcommands: &'static [&'static str],
 
+    /// Colour bits this command's *return value* carries when it acts as
+    /// a taint source — the getter-form result. `Some(TAINTED)` is a
+    /// plain attacker-controlled source; `Some(TAINTED | PATH_PREFIXED)`
+    /// (`HTTP::path`/`HTTP::uri`), `… | IP_ADDRESS` (`IP::client_addr`),
+    /// `… | PORT` (`TCP::*_port`), `… | FQDN` (`SSL::sni`) carry the
+    /// option-injection-safe mitigations too. `None` = not a source.
+    /// Mirrors the per-command `TaintHint.source` map in
+    /// `dialects/f5/irules/*.py`; the registry collects every spec's
+    /// `taint_source` into a dialect-agnostic index
+    /// ([`crate::CommandRegistry::taint_source`]) at build time, matching
+    /// Python's import-time global `TAINT_HINTS`.
+    pub taint_source: Option<TaintColour>,
+
     /// Colour bits this command *adds* to a tainted value it returns —
     /// a sanitising transform (`uri::encode` ⇒ `URL_ENCODED`,
     /// `file join` ⇒ `PATH_JOINED`). `None` = no transform. Mirrors
@@ -331,6 +344,7 @@ impl CommandSpec {
         taint_log_sink: None,
         taint_network_sink_args: None,
         taint_interp_eval_subcommands: &[],
+        taint_source: None,
         taint_transform: None,
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,

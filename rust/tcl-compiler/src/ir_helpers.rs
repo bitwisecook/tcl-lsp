@@ -262,6 +262,13 @@ fn cmd_substitution_out_vars(words: &[String], out: &mut Vec<String>) {
                 push_out_var(w, out);
             }
         }
+        // `gets channelId ?varName?` writes the line into `varName` in the
+        // current scope (e.g. `while {[gets $fp line] >= 0} {…}`).
+        Some("gets") => {
+            if let Some(w) = words.get(2) {
+                push_out_var(w, out);
+            }
+        }
         // `regexp ?switches? EXP STRING ?matchVar subVar ...?`
         Some("regexp") => {
             let mut i = 1;

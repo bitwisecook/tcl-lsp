@@ -1,6 +1,6 @@
 //! `STREAM::max_matchsize` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "STREAM::max_matchsize",
         dialects: Some(DialectSet::IRULES),

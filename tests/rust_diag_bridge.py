@@ -31,6 +31,12 @@ _LOCK = threading.Lock()
 _CLIENT: Any = None
 _VERSION = 0
 _URI = "file:///rust_diag_bridge_probe.tcl"
+#: The dialect the probe document is currently opened under.  The native
+#: server resolves a document's analysis dialect from its ``languageId`` at
+#: open time, so a ``dialect_scope`` change is honoured by *re-opening* the
+#: document with the new dialect as the ``languageId`` (e.g. ``tcl8.4`` for the
+#: W002 battery, ``f5-irules`` for the taint battery).
+_OPEN_DIALECT: str | None = None
 
 
 def active() -> bool:
@@ -52,6 +58,12 @@ def _client():
             "TCL_LSP_DIAG_BACKEND=rust but no native tcl-lsp-server binary found; "
             "set TCL_LSP_SERVER_BIN or run `make rust-server`."
         )
+    # The fp/ground-truth battery mirrors ``get_diagnostics`` with no
+    # optimisation-profile filter (all O-codes on), so drive the native
+    # server under the ``full`` profile via the startup env override. The
+    # editor default is ``readability`` (only readability rewrites surface),
+    # exercised by the e2e suite instead.
+    os.environ.setdefault("TCL_LSP_OPTIMISER_PROFILE", "full")
     client = LspServerClient(server_launch_argv(native), _REPO)
     client.start()
     client.initialize(root_uri=_REPO.as_uri())
@@ -72,17 +84,34 @@ def _to_diagnostic(d: dict) -> types.Diagnostic:
         message=d.get("message") or "",
         severity=types.DiagnosticSeverity(severity) if severity is not None else None,
         code=d.get("code"),
+        # Surface the server's quick-fix payload (e.g. an O116 fold's
+        # ``replacement``) so the battery can assert on ``data['replacement']``.
+        data=d.get("data"),
     )
 
 
 def rust_diagnostics(source: str, language_id: str = "tcl") -> list[types.Diagnostic]:
-    global _VERSION
+    global _VERSION, _OPEN_DIALECT
+    from compiler.registry.dialect import active_dialect
+
     with _LOCK:
         client = _client()
+        # Resolve the document's dialect from the active signature profile (a
+        # test's ``dialect_scope(...)``) and use it as the ``languageId`` — the
+        # native server's `dialect_from_language_id` maps `tcl8.4` / `tcl9.0` /
+        # `f5-irules` / … directly.  ``language_id`` is honoured only when no
+        # profile dialect is set (it never is in the battery).
+        dialect = active_dialect() or language_id
         _VERSION += 1
         version = _VERSION
-        if version == 1:
-            diags = client.open_ready(_URI, source, language_id=language_id, version=version)
+        if _OPEN_DIALECT is None:
+            diags = client.open_ready(_URI, source, language_id=dialect, version=version)
+            _OPEN_DIALECT = dialect
+        elif dialect != _OPEN_DIALECT:
+            # Re-open under the new dialect so the server re-resolves it.
+            client.close_document(_URI)
+            diags = client.open_ready(_URI, source, language_id=dialect, version=version)
+            _OPEN_DIALECT = dialect
         else:
             client.replace_document(_URI, version, source)
             diags = client.await_diagnostics(_URI, version=version, timeout=30.0)

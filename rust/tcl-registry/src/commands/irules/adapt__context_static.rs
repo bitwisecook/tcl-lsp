@@ -1,6 +1,6 @@
 //! `ADAPT::context_static` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::context_static",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `SCTP::sack_timeout` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SCTP::sack_timeout",
         dialects: Some(DialectSet::IRULES),

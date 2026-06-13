@@ -1,6 +1,6 @@
 //! `DIAG::test` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAG::test",
         dialects: Some(DialectSet::IRULES),

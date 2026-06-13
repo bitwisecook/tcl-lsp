@@ -840,6 +840,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     let mut scanner = VarReferenceScanner::new(VarScanOptions {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
+        include_reads_before_write: false,
     });
 
     // 3. Rename walk — iterative using an explicit stack to avoid
@@ -1614,6 +1615,7 @@ mod tests {
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: true,
             recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
         });
         let stmt = Statement::AssignValue {
             span: Span::new(0, 15),

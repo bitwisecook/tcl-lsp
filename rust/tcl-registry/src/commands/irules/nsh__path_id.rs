@@ -1,6 +1,6 @@
 //! `NSH::path_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "NSH::path_id",
         dialects: Some(DialectSet::IRULES),

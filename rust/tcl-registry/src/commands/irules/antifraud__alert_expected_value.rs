@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::alert_expected_value` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::alert_expected_value",
         dialects: Some(DialectSet::IRULES),

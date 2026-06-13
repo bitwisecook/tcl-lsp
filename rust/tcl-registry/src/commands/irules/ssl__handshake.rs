@@ -1,6 +1,6 @@
 //! `SSL::handshake` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::handshake",
         dialects: Some(DialectSet::IRULES),

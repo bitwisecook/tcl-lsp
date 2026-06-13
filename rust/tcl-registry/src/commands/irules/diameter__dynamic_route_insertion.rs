@@ -1,6 +1,6 @@
 //! `DIAMETER::dynamic_route_insertion` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::dynamic_route_insertion",
         dialects: Some(DialectSet::IRULES),

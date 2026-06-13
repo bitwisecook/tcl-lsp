@@ -1,6 +1,6 @@
 //! `FLOW::this` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::this",
         dialects: Some(DialectSet::IRULES),

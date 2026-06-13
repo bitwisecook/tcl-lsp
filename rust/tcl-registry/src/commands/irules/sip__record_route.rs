@@ -1,6 +1,6 @@
 //! `SIP::record-route` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIP::record-route",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `AUTH::cert_credential` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::cert_credential",
         dialects: Some(DialectSet::IRULES),

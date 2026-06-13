@@ -1,6 +1,6 @@
 //! `LB::enable_decisionlog` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::enable_decisionlog",
         dialects: Some(DialectSet::IRULES),

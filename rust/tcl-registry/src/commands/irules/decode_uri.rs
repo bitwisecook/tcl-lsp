@@ -1,6 +1,6 @@
 //! `decode_uri` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "decode_uri",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ASM::violation_data` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::violation_data",
         dialects: Some(DialectSet::IRULES),
@@ -35,6 +35,7 @@ hover: Some(HoverSnippet {
             },
         ],
         deprecated_replacement: Some("ASM::violation"),
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

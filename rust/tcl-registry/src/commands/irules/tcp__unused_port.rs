@@ -1,6 +1,6 @@
 //! `TCP::unused_port` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::unused_port",
         dialects: Some(DialectSet::IRULES),

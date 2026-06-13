@@ -1,6 +1,6 @@
 //! `DATAGRAM::l2` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DATAGRAM::l2",
         dialects: Some(DialectSet::IRULES),

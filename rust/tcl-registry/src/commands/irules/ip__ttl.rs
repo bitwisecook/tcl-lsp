@@ -1,6 +1,6 @@
 //! `IP::ttl` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::ttl",
         dialects: Some(DialectSet::IRULES),

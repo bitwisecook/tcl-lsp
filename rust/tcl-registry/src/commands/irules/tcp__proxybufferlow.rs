@@ -1,6 +1,6 @@
 //! `TCP::proxybufferlow` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::proxybufferlow",
         dialects: Some(DialectSet::IRULES),

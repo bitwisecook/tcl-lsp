@@ -1,6 +1,6 @@
 //! `DNS::last_act` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::last_act",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `DOSL7::health` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DOSL7::health",
         dialects: Some(DialectSet::IRULES),

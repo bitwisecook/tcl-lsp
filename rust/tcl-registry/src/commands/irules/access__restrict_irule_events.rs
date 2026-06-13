@@ -1,6 +1,6 @@
 //! `ACCESS::restrict_irule_events` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::restrict_irule_events",
         dialects: Some(DialectSet::IRULES),

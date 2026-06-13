@@ -806,6 +806,33 @@ fn try_fold_return_terminator(
         return;
     }
 
+    // O101: a constant `[expr {…}]` return value folds to its value
+    // (`return [expr {1 + 2}]` → `return 3`).
+    if let Some(inner) = value
+        .map(str::trim)
+        .and_then(|t| t.strip_prefix('[').and_then(|s| s.strip_suffix(']')))
+    {
+        let mut parts = inner.splitn(2, char::is_whitespace);
+        if parts.next() == Some("expr") {
+            let body = parts.next().unwrap_or("").trim();
+            let body = body
+                .strip_prefix('{')
+                .and_then(|b| b.strip_suffix('}'))
+                .unwrap_or(body);
+            if let Some(folded) = super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect) {
+                if !folded.contains(['$', '[']) {
+                    ctx.report(Optimisation::new(
+                        "O101",
+                        "Fold constant expression",
+                        span,
+                        format!("return {}", render_propagation_word(&folded)),
+                    ));
+                    return;
+                }
+            }
+        }
+    }
+
     // Only fold `return $v` — numeric/bare literals and complex
     // values are left to richer passes.
     if expr.is_some() {
@@ -969,6 +996,33 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
+        // O101: fold a constant `[expr {…}]` cmd-sub in this argument
+        // position (`return [expr {1 + 2}]` → `return 3`). The general
+        // `AssignExpr` / `ExprEval` expr folds don't reach a cmd-sub
+        // embedded in a `Call` argument, so handle it here.
+        {
+            let mut parts = inner.splitn(2, char::is_whitespace);
+            if parts.next() == Some("expr") {
+                let body = parts.next().unwrap_or("").trim();
+                let body = body
+                    .strip_prefix('{')
+                    .and_then(|b| b.strip_suffix('}'))
+                    .unwrap_or(body);
+                if let Some(folded) =
+                    super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                {
+                    if !folded.contains(['$', '[']) {
+                        ctx.report(Optimisation::new(
+                            "O101",
+                            "Fold constant expression",
+                            full_word_span(ctx.source, *argv_span),
+                            folded,
+                        ));
+                        continue;
+                    }
+                }
+            }
+        }
         // O129: fold a pure-builtin cmd-sub with constant (literal) args
         // through the registry `const_fold` callback (no interproc
         // needed). Checked before the O103 interproc bail so it fires
@@ -977,9 +1031,17 @@ fn visit_call_cmd_subst_folds(
             if let Some(folded) =
                 try_o129_fold(reg, &ctx.command_mutations, constants, inner, ctx.dialect)
             {
+                // `list` / `lindex` keep their historical diagnostic codes
+                // (O116 / O118) for editor granularity; everything else reports
+                // the general O129.  Mirrors `_propagation.py:335`.
+                let (code, message) = match inner.split_whitespace().next() {
+                    Some("list") => ("O116", "Fold constant list command"),
+                    Some("lindex") => ("O118", "Fold constant lindex command"),
+                    _ => ("O129", "Fold constant builtin command substitution"),
+                };
                 ctx.report(Optimisation::new(
-                    "O129",
-                    "Fold constant builtin command substitution",
+                    code,
+                    message,
                     full_word_span(ctx.source, *argv_span),
                     folded,
                 ));
@@ -1201,6 +1263,14 @@ fn visit_call_tokens(
         };
         if single {
             visit_simple_var_word(ctx, *span, text, constants);
+        }
+        // A braced `{…}` word (kind `Str`) is a literal / script body: its
+        // `$var` and `[cmd]` are NOT substitutions, so the interpolation
+        // folds must not touch it (else a proc body like
+        // `{ set d [dict create a 1] }` is wrongly spliced into a quoted
+        // string). The `"…"` / bareword interpolation paths still apply.
+        if tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Str) {
+            continue;
         }
         // `"..."` interpolation substitution — works on both
         // single-token (quoted strings) and composite (mixed
@@ -2104,7 +2174,20 @@ mod tests {
         // brace-quoted by `render_propagation_word`.
         assert_eq!(fold("puts [concat a b c]"), vec!["{a b c}".to_string()]);
         assert_eq!(fold("puts [join {a b c} -]"), vec!["a-b-c".to_string()]);
-        assert_eq!(fold("puts [lindex {a b c} 1]"), vec!["b".to_string()]);
+        // `lindex` / `list` keep their historical codes (O118 / O116) for
+        // editor granularity, so filter by those rather than O129.
+        let fold_code = |src: &str, code: &str| -> Vec<String> {
+            crate::optimiser::optimise_raw(src, &registry(), None)
+                .into_iter()
+                .filter(|o| o.code == code)
+                .map(|o| o.replacement)
+                .collect()
+        };
+        assert_eq!(
+            fold_code("puts [lindex {a b c} 1]", "O118"),
+            vec!["b".to_string()]
+        );
+        assert_eq!(fold_code("set x [list]", "O116"), vec!["{}".to_string()]);
         assert_eq!(fold("puts [dict get {a 1 b 2} b]"), vec!["2".to_string()]);
         assert_eq!(
             fold("puts [lreverse {a b c}]"),

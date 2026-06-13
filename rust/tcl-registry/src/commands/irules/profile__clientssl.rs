@@ -1,6 +1,6 @@
 //! `PROFILE::clientssl` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROFILE::clientssl",
         dialects: Some(DialectSet::IRULES),

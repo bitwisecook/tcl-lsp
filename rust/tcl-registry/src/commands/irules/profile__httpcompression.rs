@@ -1,6 +1,6 @@
 //! `PROFILE::httpcompression` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROFILE::httpcompression",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ONECONNECT::detach` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ONECONNECT::detach",
         dialects: Some(DialectSet::IRULES),

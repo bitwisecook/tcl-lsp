@@ -1,6 +1,6 @@
 //! `SSL::maximum_record_size` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::maximum_record_size",
         dialects: Some(DialectSet::IRULES),

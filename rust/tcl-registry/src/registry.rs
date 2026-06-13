@@ -14,6 +14,54 @@ use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
+/// Number of commands declaring a taint source — computed at compile
+/// time so [`TAINT_SOURCE_INDEX`] can be a fixed-size `const` array.
+const fn count_taint_sources(specs: &[CommandSpec]) -> usize {
+    let mut n = 0;
+    let mut i = 0;
+    while i < specs.len() {
+        if specs[i].taint_source.is_some() {
+            n += 1;
+        }
+        i += 1;
+    }
+    n
+}
+
+/// Build the taint-source index at compile time by scanning the const
+/// [`crate::commands::irules::IRULES_SPECS`] array for every spec's
+/// [`crate::CommandSpec::taint_source`].
+const fn build_taint_source_index(
+) -> [(&'static str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] {
+    let specs = crate::commands::irules::IRULES_SPECS;
+    let mut out = [("", crate::taint::TaintColour::empty()); TAINT_SOURCE_COUNT];
+    let mut i = 0;
+    let mut k = 0;
+    while i < specs.len() {
+        if let Some(colour) = specs[i].taint_source {
+            out[k] = (specs[i].name, colour);
+            k += 1;
+        }
+        i += 1;
+    }
+    out
+}
+
+const TAINT_SOURCE_COUNT: usize = count_taint_sources(crate::commands::irules::IRULES_SPECS);
+
+/// The taint-source index: command name → getter-form source colour, a
+/// **compile-time** table derived from every iRules spec's
+/// [`crate::CommandSpec::taint_source`] — the data's single home is each
+/// `CommandSpec`, so this never drifts from the spec definitions.
+///
+/// Independent of which dialects a registry has loaded, mirroring
+/// Python's import-time global `TAINT_HINTS`: a `tcl8.6` document still
+/// sees `HTTP::path` as a source. (The core Tcl sources `gets` / `read` /
+/// `exec` / … are classified by [`crate::Traits::TAINT_SOURCE`] instead,
+/// so they carry no index entry.)
+const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] =
+    build_taint_source_index();
+
 /// Lookup facade over command specs.
 ///
 /// The registry is built once from the command spec modules and then
@@ -41,6 +89,16 @@ impl CommandRegistry {
         for spec in crate::commands::tcllib::tcllib_command_specs() {
             registry.insert(spec);
         }
+        // Tk geometry/widget commands (`grid` / `pack` / `wm` / `button` / …)
+        // are part of the always-known command universe: a `.tcl` script may
+        // `package require Tk` at runtime, and the diagnostics treat them as
+        // recognised under every Tcl dialect (Python loads Tk into its base
+        // registry).  Mark the dialect loaded so a later `load_dialect(TK)` is
+        // a no-op rather than a double-insert.
+        for spec in crate::commands::tk::tk_command_specs() {
+            registry.insert(spec);
+        }
+        registry.loaded_dialects |= DialectSet::TK;
         registry
     }
 
@@ -134,6 +192,38 @@ impl CommandRegistry {
     /// Return all registered command names.
     pub fn command_names(&self) -> impl Iterator<Item = &str> {
         self.by_name.keys().map(String::as_str)
+    }
+
+    /// The taint-source colour declared by `command`'s spec, or `None`
+    /// when it is not a source.
+    ///
+    /// Reads the compile-time [`TAINT_SOURCE_INDEX`] — a table *derived*
+    /// from every command spec's [`crate::CommandSpec::taint_source`],
+    /// built at compile time. It is deliberately **dialect-agnostic and
+    /// independent of which dialects are loaded into this registry**,
+    /// mirroring Python's import-time global `TAINT_HINTS`: an iRules
+    /// getter such as `HTTP::path` is a known source even when analysing a
+    /// `tcl8.6` document whose registry never loaded the iRules commands.
+    #[must_use]
+    pub fn taint_source(&self, command: &str) -> Option<crate::taint::TaintColour> {
+        TAINT_SOURCE_INDEX
+            .iter()
+            .find(|(name, _)| *name == command)
+            .map(|(_, colour)| *colour)
+    }
+
+    /// Return the names of `command`'s subcommands whose traits include
+    /// `t` — the subcommand-level counterpart of [`Self::commands_with_trait`].
+    /// Empty when the command is unknown or has no matching subcommand.
+    #[must_use]
+    pub fn subcommands_with_trait(&self, command: &str, t: Traits) -> Vec<&str> {
+        self.get(command).map_or_else(Vec::new, |spec| {
+            spec.subcommands
+                .iter()
+                .filter(|s| s.traits.contains(t))
+                .map(|s| s.name)
+                .collect()
+        })
     }
 
     /// Return all command specs whose traits include `t`.
@@ -1143,11 +1233,21 @@ mod tests {
 
     #[test]
     fn load_tk_dialect() {
-        let base = CommandRegistry::build_default();
-        let base_count = base.len();
-        let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::TK);
-        assert!(reg.len() > base_count, "Tk should add commands");
+        // Tk is part of the always-known base registry now, so it is present
+        // by default and a later `load_dialect(TK)` is an idempotent no-op.
+        let reg = CommandRegistry::build_default();
+        assert!(
+            reg.get("grid").is_some(),
+            "Tk commands are loaded by default"
+        );
+        let base_count = reg.len();
+        let mut reg2 = CommandRegistry::build_default();
+        reg2.load_dialect(DialectSet::TK);
+        assert_eq!(
+            reg2.len(),
+            base_count,
+            "load_dialect(TK) is a no-op after default load"
+        );
     }
 
     #[test]

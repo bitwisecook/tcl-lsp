@@ -494,6 +494,7 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 &[],
             );
+            self.emit_w216_brace_then_paren(&cmd);
             self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
@@ -1275,6 +1276,472 @@ mod tests {
     }
 
     #[test]
+    fn w113_silent_on_overridable_library_procs() {
+        // FP-STY-13: the script-defined Tcl *library* procedures
+        // (`unknown`, `history`, `auto_*`, `parray`, `pkg_mkIndex`,
+        // `tcl_*` word helpers) are documented as user-replaceable
+        // overlays, not C built-ins — redefining one must not fire
+        // W113.  Mirrors `_OVERRIDABLE_LIBRARY_PROCS` in `_proc.py`.
+        let mut a = Analyser::new();
+        for name in [
+            "unknown",
+            "history",
+            "auto_execok",
+            "auto_load",
+            "auto_mkindex",
+            "auto_qualify",
+            "auto_reset",
+            "parray",
+            "pkg_mkIndex",
+            "tcl_findLibrary",
+            "tcl_wordBreakAfter",
+            "tcl_endOfWord",
+        ] {
+            let r = a.analyse(&format!("proc {name} args {{ return }}\n"), "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == "W113"),
+                "W113 should be silent on overridable library proc {name:?}",
+            );
+        }
+        // TP control: a genuine C built-in still fires.
+        let r = a.analyse("proc set {} {}\n", "tcl");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == "W113"),
+            "W113 must still fire when redefining a C built-in (`set`)",
+        );
+    }
+
+    #[test]
+    fn w307_array_set_const_element_suppression() {
+        // TN: `array set state {-command puts}; $state(-command) hi` — the
+        // literal element value `puts` is a known command, so the callback-key
+        // heuristic must not fire W307. Harvested from the `array set` literal.
+        let mut a = Analyser::new();
+        let has_w307 = a
+            .analyse(
+                "proc f {} { array set state {-command puts}; $state(-command) hi }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            !has_w307,
+            "array-element holding a known command must not fire W307",
+        );
+        // TP control: a non-command literal value still fires W307.
+        let mut b = Analyser::new();
+        let has_w307 = b
+            .analyse(
+                "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            has_w307,
+            "array-element holding a non-command must still fire W307",
+        );
+    }
+
+    /// Helper: the RBS-family diagnostic codes (W210 read-before-set, W213
+    /// unset-no-complain, W214 unused-param) emitted for `src`.
+    fn rbs_codes(src: &str) -> Vec<String> {
+        Analyser::new()
+            .analyse(src, "tcl")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W210" | "W213" | "W214"))
+            .map(|d| d.code.clone())
+            .collect()
+    }
+
+    #[test]
+    fn w220_must_alias_kill_same_array_element() {
+        // FP-DS-06: two writes to the *same* literal-key array element with no
+        // intervening read of it make the first dead — the later-version read
+        // `$a(k)` reads the second write, not the first.  Must-alias kill
+        // overrides the element-observed suppression.
+        let mut a = Analyser::new();
+        assert!(
+            a.analyse(
+                "proc f {} {\n    set a(k) 1\n    set a(k) 2\n    return $a(k)\n}",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220" || d.code == "O109"),
+            "two writes to a(k) with no intervening read: first is dead",
+        );
+        // Control: different keys are independent — no dead store.
+        let mut b = Analyser::new();
+        assert!(
+            !b.analyse(
+                "proc f {} {\n    set a(k) 1\n    set a(j) 2\n    return $a(k)\n}",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220" || d.code == "O109"),
+            "writes to different array elements are not dead stores",
+        );
+        // Control: an intervening read of the same element cancels the kill.
+        let mut c = Analyser::new();
+        assert!(
+            !c.analyse(
+                "proc f {} {\n    set a(k) 1\n    puts $a(k)\n    set a(k) 2\n    return $a(k)\n}",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220" || d.code == "O109"),
+            "an intervening read of a(k) keeps the first write live",
+        );
+    }
+
+    #[test]
+    fn dead_store_recovers_rmw_read_in_command_sub() {
+        // FP-DS-01: `[incr i $j]` buried in a substitution reads `i`'s prior
+        // value, so the feeding `set i 0` is alive — no dead-store (W220/O109)
+        // or unused (W211/O126).
+        let mut a = Analyser::new();
+        let codes: Vec<_> = a
+            .analyse(
+                "proc f {} {\n    set i 0\n    foreach j {1 2 3} { lappend r [incr i $j] }\n    return $r\n}\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W220" | "W211" | "O109" | "O126"))
+            .map(|d| d.code.clone())
+            .collect();
+        assert!(
+            codes.is_empty(),
+            "RMW read in cmd-sub keeps set i 0 alive: {codes:?}"
+        );
+        // TP control: no read-modify-write of `i` — the first assignment is
+        // truly dead, so a dead-store hint must still fire.
+        let mut b = Analyser::new();
+        assert!(
+            b.analyse("proc f {} { set i 0\n set i 5\n return $i }", "tcl")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W220" || d.code == "O109"),
+            "a genuine dead store must still fire",
+        );
+    }
+
+    #[test]
+    fn w210_dynamic_target_upvar_is_possibly_unset() {
+        // TP-W210: `upvar 1 $varName local` aliases `local` to the caller var
+        // named by `$varName`; if that var doesn't exist the alias is a no-op
+        // and an unconditional `$local` read errors — so W210 fires.
+        let codes = rbs_codes("proc foo {varName} {\n  upvar 1 $varName local\n  puts $local\n}\n");
+        assert!(
+            codes.iter().any(|c| c == "W210"),
+            "dynamic-target upvar read: {codes:?}"
+        );
+        // A *literal*-target upvar aliases a concrete caller var, so the local
+        // is treated as bound — no W210.
+        let codes = rbs_codes("proc foo {} {\n  upvar 1 caller local\n  puts $local\n}\n");
+        assert!(
+            !codes.iter().any(|c| c == "W210"),
+            "literal-target upvar: {codes:?}"
+        );
+        // An `[info exists local]` guard suppresses the read.
+        let codes = rbs_codes(
+            "proc foo {varName} {\n  upvar 1 $varName local\n  if {[info exists local]} { puts $local }\n}\n",
+        );
+        assert!(
+            !codes.iter().any(|c| c == "W210"),
+            "guarded dynamic upvar: {codes:?}"
+        );
+        // A *write* through the alias is observable (goes to the caller var),
+        // so it is not a dead store even with a dynamic target.
+        let mut a = Analyser::new();
+        assert!(
+            !a.analyse(
+                "proc foo {v} {\n  upvar 1 $v local\n  set local 5\n}\n",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W220"),
+            "write through a dynamic upvar alias is observable, not a dead store",
+        );
+    }
+
+    #[test]
+    fn w210_gets_in_while_condition_writes_loop_var() {
+        // FP-RBS-03: `[gets $fp line]` in the while condition writes `line`;
+        // the body's `$line` reads must not fire W210.
+        let codes = rbs_codes(
+            "proc f {fp} {\n  while {[gets $fp line] >= 0} {\n    set n [string length $line]\n    puts \"$line ($n chars)\"\n  }\n}\n",
+        );
+        assert!(codes.is_empty(), "gets-in-condition writes line: {codes:?}");
+    }
+
+    #[test]
+    fn w210_catch_in_expr_writes_result_var() {
+        // FP-RBS-06: `[catch {…} tmp]` inside `[expr {…}]` writes `tmp`; the
+        // same-expression `|| $tmp` read must not fire W210.
+        let codes = rbs_codes(
+            "proc f {sock} {\n  set eof [expr {[catch {eof $sock} tmp] || $tmp}]\n  return $eof\n}\n",
+        );
+        assert!(codes.is_empty(), "catch-in-expr writes tmp: {codes:?}");
+    }
+
+    #[test]
+    fn w214_namespace_eval_body_does_not_recover_caller_param() {
+        // FP-RBS-10: a `namespace eval ::ns {…}` body runs in the namespace
+        // frame, so `$x` there is NOT a read of the caller's parameter `x` —
+        // W214 (unused param) must still fire.  The `eval {…}` form runs in
+        // the caller frame, so its `$x` read DOES recover the param (no W214).
+        let mut a = Analyser::new();
+        assert!(
+            a.analyse(
+                "proc g {x} {\n  namespace eval ::ns { puts \"hello $x\" }\n}\n",
+                "tcl"
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W214"),
+            "namespace-eval body must not recover the caller's param read",
+        );
+        let mut b = Analyser::new();
+        assert!(
+            !b.analyse("proc f {x} {\n  eval { puts $x }\n}\n", "tcl")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W214"),
+            "eval body runs in the caller frame; $x read recovers the param",
+        );
+    }
+
+    #[test]
+    fn w307_in_method_body_dispatch_fires_and_suppresses() {
+        // TclOO method bodies are now walked in a `Method` scope, so their
+        // `[cmd] method` dispatch sites are recorded for W307.
+        // TP: `[format notACommand] run` returns a string, not an object.
+        let mut a = Analyser::new();
+        let fires = a
+            .analyse(
+                "oo::class create C { method m {} { [format notACommand] run } }",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(fires, "in-method [format ...] dispatch must fire W307");
+
+        // Control: `[D new] run` where D is a known class returns an Object —
+        // suppressed (and `run` resolves on D, so no W308 either).
+        let mut b = Analyser::new();
+        let fires = b
+            .analyse(
+                "oo::class create D { method run {} { return ok } }\n\
+                 oo::class create C { method m {} { [D new] run } }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            !fires,
+            "in-method [D new] dispatch on known class must not fire W307"
+        );
+    }
+
+    #[test]
+    fn w307_my_method_literal_vs_object_return() {
+        // TP: `[my plain] run` where `plain` returns a literal — the return is
+        // a plain string, so the outer dispatch fires W307.
+        let mut a = Analyser::new();
+        let fires = a
+            .analyse(
+                "oo::class create C { method plain {} { return notACommand }\n\
+                 method m {} { [my plain] run } }",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(fires, "[my plain] returning a literal must fire W307");
+
+        // Control: `[my obj] run` where `obj` returns `[D new]` — object
+        // handle, suppressed.
+        let mut b = Analyser::new();
+        let fires = b
+            .analyse(
+                "oo::class create D { method run {} { return ok } }\n\
+                 oo::class create C { method obj {} { return [D new] }\n\
+                 method m {} { [my obj] run } }",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(!fires, "[my obj] returning an object must not fire W307");
+    }
+
+    #[test]
+    fn method_body_params_and_instance_vars_not_flagged() {
+        // Walking method bodies must not false-fire read-before-set / unused
+        // on the method's formal parameters or the class's instance variables.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create C {\n\
+             variable count\n\
+             method add {n} { incr count $n; return $count }\n\
+             }\n",
+            "tcl",
+        );
+        let offenders: Vec<_> = r
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W210" | "W214"))
+            .map(|d| d.code.clone())
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "method params / instance vars must not fire W210/W214: {offenders:?}",
+        );
+    }
+
+    #[test]
+    fn w307_namespaced_ensemble_composed_name_resolution() {
+        // TN: `${ns}::dowork` where `ns` is the const `mypkg` and
+        // `::mypkg::dowork` is a known proc — the composed name resolves, so
+        // no W307.
+        let mut a = Analyser::new();
+        let has = a
+            .analyse(
+                "namespace eval ::mypkg { proc dowork {arg} {} }\n\
+                 proc f {} { set ns mypkg; ${ns}::dowork arg }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(!has, "resolvable namespaced ensemble must not fire W307");
+        // TP control: composed name with no known proc still fires.
+        let mut b = Analyser::new();
+        let has = b
+            .analyse(
+                "proc f {} { set ns mypkg; ${ns}::unknownproc arg }\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            has,
+            "unresolvable composed namespaced ensemble must fire W307"
+        );
+    }
+
+    #[test]
+    fn w307_interproc_dict_with_const_element_suppression() {
+        // TN: `dict with d { $cmd hi }` where the caller passes `{cmd puts}` —
+        // the dict-with unpacks `cmd` to the known command `puts`, so the
+        // body's `$cmd hi` dispatch must not fire W307.  The literal is
+        // harvested from `d`'s call-site-propagated v0 SCCP const.
+        let mut a = Analyser::new();
+        let has_w307 = a
+            .analyse(
+                "proc f {d} { dict with d { $cmd hi } }\nf {cmd puts}\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            !has_w307,
+            "dict-with-unpacked known command must not fire W307"
+        );
+        // TP control: a non-command unpacked value still fires.
+        let mut b = Analyser::new();
+        let has_w307 = b
+            .analyse(
+                "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n",
+                "tcl",
+            )
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W307");
+        assert!(
+            has_w307,
+            "dict-with-unpacked non-command must still fire W307"
+        );
+    }
+
+    #[test]
+    fn w307_known_class_new_var_suppression() {
+        // TN: `set x [C new]; $x run` where C is a known oo::class — `x` holds
+        // an Object of class C, so the `$x run` dispatch resolves through the
+        // method check (run exists on C) instead of firing W307.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { method run {} { return ok } }\n\
+             proc f {} { set x [C new]; $x run }\n",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code == "W307"),
+            "var assigned from a known-class constructor must not fire W307: {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn w216_brace_then_paren_name_vs_value_positions() {
+        // FP-STY-12: the braced indirect-array idiom `${name}(idx)` in a
+        // *variable-name* position (`set`/`unset`/`incr`/`append`/`lappend`/
+        // `vwait`/`info exists`) is the legitimate "array name held in a
+        // scalar" access — neither W216 nor W212 fires.
+        let mut a = Analyser::new();
+        for src in [
+            "set token ::http::1\nset ${token}(status) eof\n",
+            "info exists ${token}(-pipeline)\n",
+            "unset ${tok}(socketcoro)\n",
+            "vwait ${token}(status)\n",
+            "incr ${arr}(n)\n",
+            "append ${arr}(buf) x\n",
+            "lappend ${arr}(list) item\n",
+        ] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                !r.diagnostics
+                    .iter()
+                    .any(|d| d.code == "W216" || d.code == "W212"),
+                "indirect-array idiom must not fire W216/W212: {src:?} -> {:?}",
+                r.diagnostics,
+            );
+        }
+        // TP control: in a *value* position `${arr}(x)` is a broken read for
+        // `$arr(x)` — W216 still fires.
+        for src in ["puts ${arr}(x)\n", "set y ${arr}(x)\n"] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                r.diagnostics.iter().any(|d| d.code == "W216"),
+                "value-position ${{arr}}(x) must fire W216: {src:?} -> {:?}",
+                r.diagnostics,
+            );
+        }
+        // TP control: bare `set $x` / `set ${x}` (no `(idx)` suffix) is the
+        // dynamic-name foot-gun, not the indirect idiom — W212 still fires.
+        for src in ["set $x v\n", "set ${x} v\n"] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                r.diagnostics.iter().any(|d| d.code == "W212"),
+                "bare dynamic-name must still fire W212: {src:?} -> {:?}",
+                r.diagnostics,
+            );
+        }
+    }
+
+    #[test]
     fn analyse_dedupes_back_to_back_identical_diagnostics() {
         // Two identical W113 emissions for the same proc name
         // should collapse to one.
@@ -1763,14 +2230,40 @@ mod tests {
     }
 
     #[test]
-    fn analyse_emits_w105_for_unbraced_while_body_var() {
-        // ``while {$cond} $body`` — Var-token body is still an
-        // unbraced body with substitution.  Mirrors Python's
-        // ``_has_substitution(..., tok)`` which treats VAR / CMD
-        // tokens as substitutions for the W105 check, so the
-        // diagnostic fires at ERROR severity.
+    fn analyse_skips_w105_for_single_var_body() {
+        // FP-STY-14: a body that is a *single bare variable* (`$body`,
+        // `$cmd`, `$script`) is a script-valued reference — the variable
+        // already holds the script — not an inline code block.  Bracing it
+        // (`{$body}`) would turn the reference into the literal text, so the
+        // W105 quick-fix is wrong and must not fire.  Verified against the
+        // Python reference (post-#587): `while {$cond} $body` → no W105,
+        // matching `eval $cmd`, `proc $n $a $body`, `uplevel $script`.
         let mut a = Analyser::new();
-        let r = a.analyse("while {$cond} $body\n", "tcl");
+        for src in [
+            "while {$cond} $body\n",
+            "eval $cmd\n",
+            "after 0 $coroName\n",
+            "proc $fakeName $arglist $body\n",
+            "foreach name $nameList $body\n",
+            "uplevel $script\n",
+        ] {
+            let r = a.analyse(src, "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == "W105"),
+                "W105 should be silent on single-var body {src:?}, got {:?}",
+                r.diagnostics,
+            );
+        }
+    }
+
+    #[test]
+    fn analyse_emits_w105_for_quoted_interpolated_body() {
+        // TP control: a *quoted* body with interpolation (`eval "do $script"`)
+        // really is an inline script woven from substitutions — it can and
+        // should be braced, so W105 still fires at ERROR severity.  Mirrors
+        // Python: `eval "do $script"` → W105.
+        let mut a = Analyser::new();
+        let r = a.analyse("eval \"do $script\"\n", "tcl");
         let w105: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W105").collect();
         assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
         assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));

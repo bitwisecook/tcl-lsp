@@ -1,6 +1,6 @@
 //! `HTTP2::disable` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::disable",
         dialects: Some(DialectSet::IRULES),

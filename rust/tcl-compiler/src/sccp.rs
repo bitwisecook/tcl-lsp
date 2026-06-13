@@ -716,7 +716,23 @@ pub fn evaluate_branch(
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
 ) -> Option<bool> {
-    let env = env_from_uses(&ssa_block.exit_versions, values);
+    let mut env = env_from_uses(&ssa_block.exit_versions, values);
+    // A parameter read in a branch condition without a local redefinition
+    // isn't in `exit_versions` (those carry defined-in-block versions), so
+    // its caller-provided version-0 seed never reaches the fold. Bind it
+    // here — but only when version 0 is still live (the param is not
+    // redefined to another value before the branch).
+    for name in crate::var_refs::vars_in_expr(condition) {
+        if env.contains_key(&name) {
+            continue;
+        }
+        let v0_live = ssa_block.exit_versions.get(&name).copied().unwrap_or(0) == 0;
+        if v0_live {
+            if let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), 0)) {
+                env.insert(name, const_to_env_value(c));
+            }
+        }
+    }
     let v = eval_tcl_expr(condition, &env)?;
     Some(v.is_truthy())
 }

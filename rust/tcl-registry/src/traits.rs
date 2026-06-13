@@ -163,5 +163,57 @@ bitflags! {
         /// stamping a command that secretly eval-falls-back would
         /// break eval-inside-proc semantics in escape-free procs.
         const FRAMELESS_RUNTIME         = 1 << 44;
+
+        /// First argument is a variable *name* (read / write / modify),
+        /// not a value — `set` / `incr` / `append` / `lappend` / `unset`.
+        /// The var-escape analysis uses this to detect dynamic-name forms
+        /// (`set $n value`). Single source of truth for the former
+        /// `NAME_FIRST_COMMANDS` allow-list.
+        const FIRST_ARG_VARNAME         = 1 << 45;
+
+        /// A `VarRead`-role argument names the *whole* array, not a single
+        /// element (`array` / `parray`), so a write to any element is
+        /// observed by the read. Single source of truth for the former
+        /// `WHOLE_ARRAY_COMMANDS` allow-list.
+        const WHOLE_ARRAY_ARG           = 1 << 46;
+
+        /// Executes a body through the interpreter, opening a
+        /// name-resolution channel back into the local frame — `eval` /
+        /// `uplevel` / `apply` / `source` / `namespace` / `interp`. The
+        /// var-escape slot resolver treats a frame reached this way as
+        /// hash-backed. Single source of truth for the former
+        /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
+        /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
+        /// of these carry.)
+        const DYNAMIC_EVAL_BODY         = 1 << 47;
+
+        /// (Subcommand) introspects program state by variable *name* —
+        /// `info exists|vars|locals|args|default`. The var-escape slot
+        /// resolver treats the named variable as ineligible for a slot.
+        /// Single source of truth for the former
+        /// `INFO_INTROSPECTING_SUBCMDS` list.
+        const INTROSPECTS_BY_NAME       = 1 << 48;
+
+        /// (Subcommand) targets a variable by *name* —
+        /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
+        /// var-escape slot resolver. Single source of truth for the former
+        /// `TRACE_NAME_TARGETING` list.
+        const TARGETS_VARIABLE_BY_NAME  = 1 << 49;
+
+        /// Aliases / reads / writes variables through the frame's *hash
+        /// bucket* by name (`upvar` / `global` / `variable` / `lassign` /
+        /// `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait` /
+        /// `tkwait`), so a named variable it touches cannot live in an
+        /// indexed slot. Single source of truth for the former
+        /// `FRAME_HASH_BUILTINS` list.
+        const FRAME_HASH_BUILTIN        = 1 << 50;
+
+        /// A Tcl auto-loading / library proc that user code is expected to
+        /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
+        /// `tcl_findLibrary`, the `tcl_*Word*` helpers, …), so redefining
+        /// it must not fire the W113 "overrides a built-in" warning.
+        /// Single source of truth for the former
+        /// `OVERRIDABLE_LIBRARY_PROCS` list.
+        const OVERRIDABLE_LIBRARY_PROC  = 1 << 51;
     }
 }

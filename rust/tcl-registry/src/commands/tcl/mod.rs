@@ -12,6 +12,7 @@ mod array_;
 mod auto_execok;
 mod auto_import;
 mod auto_load;
+mod auto_load_index;
 mod auto_mkindex;
 mod auto_mkindex_old;
 mod auto_qualify;
@@ -129,6 +130,9 @@ mod tcl_findlibrary;
 mod tcl_idna;
 mod tcl_process;
 mod tcl_unsupported_corotype;
+mod tcllog;
+mod tclpkgsetup;
+mod tclpkgunknown;
 mod tell_;
 mod throw_;
 mod time;
@@ -170,6 +174,10 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
         auto_mkindex_old::spec(),
         auto_qualify::spec(),
         auto_reset::spec(),
+        auto_load_index::spec(),
+        tcllog::spec(),
+        tclpkgsetup::spec(),
+        tclpkgunknown::spec(),
         bgerror::spec(),
         filename::spec(),
         http::spec(),

@@ -1,6 +1,6 @@
 //! `PROFILE::webacceleration` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROFILE::webacceleration",
         dialects: Some(DialectSet::IRULES),

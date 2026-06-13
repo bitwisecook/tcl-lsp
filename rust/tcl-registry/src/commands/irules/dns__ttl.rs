@@ -1,6 +1,6 @@
 //! `DNS::ttl` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::ttl",
         dialects: Some(DialectSet::IRULES),

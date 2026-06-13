@@ -13,10 +13,10 @@ const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
     message: "HTTP::path value must start with '/'",
 }];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::path",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION | Traits::UNNORMALISED_HTTP_GETTER,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE).union(Traits::DIAGRAM_ACTION).union(Traits::UNNORMALISED_HTTP_GETTER),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
         options: &[OptionSpec {
@@ -49,6 +49,7 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::path ?-normalized?" },
             FormSpec { kind: FormKind::Setter, synopsis: "HTTP::path <PATH_VALUE>" },
         ],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
         ..CommandSpec::DEFAULT
     }
 }

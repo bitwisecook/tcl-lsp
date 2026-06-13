@@ -1,6 +1,6 @@
 //! `SOCKS::allowed` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SOCKS::allowed",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `CLASSIFICATION::protocol` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CLASSIFICATION::protocol",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `BOTDEFENSE::previous_support_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BOTDEFENSE::previous_support_id",
         dialects: Some(DialectSet::IRULES),

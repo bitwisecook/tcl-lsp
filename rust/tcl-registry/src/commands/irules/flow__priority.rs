@@ -1,6 +1,6 @@
 //! `FLOW::priority` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::priority",
         dialects: Some(DialectSet::IRULES),

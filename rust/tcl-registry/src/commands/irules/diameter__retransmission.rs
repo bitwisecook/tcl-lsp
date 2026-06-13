@@ -1,6 +1,6 @@
 //! `DIAMETER::retransmission` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::retransmission",
         dialects: Some(DialectSet::IRULES),

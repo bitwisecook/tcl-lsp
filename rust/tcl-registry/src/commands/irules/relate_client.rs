@@ -1,6 +1,6 @@
 //! `relate_client` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "relate_client",
         dialects: Some(DialectSet::IRULES),

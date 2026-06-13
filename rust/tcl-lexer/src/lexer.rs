@@ -1082,6 +1082,25 @@ impl<'src> Lexer<'src> {
         let mut in_quotes = false;
 
         while let Some(ch) = self.current_char() {
+            // A recovery ghost `]` (GAP-A1) is a deliberate insertion that
+            // closes this command *unconditionally* — even inside a `"…"`
+            // sub-region or brace run the faithful quote/brace counters would
+            // otherwise keep open. Without this, a mid-word `"` (`[foo abc"`)
+            // toggles `in_quotes`, and the ghost `]` that E201 recovery placed
+            // before the following command would be swallowed as quoted text,
+            // leaving that command unrecovered. The ghost was vetoed from inert
+            // (brace / escape / `${…}`) positions when it was derived, so it is
+            // always a sound structural closer here.
+            if self.ghost_at(self.pos) == Some(b']') {
+                level -= 1;
+                if level == 0 {
+                    // Leave `self.pos` at the ghost `]`; the post-loop code
+                    // consumes it zero-width.
+                    break;
+                }
+                self.pos += 1;
+                continue;
+            }
             match ch {
                 '"' if blevel == 0 => {
                     in_quotes = !in_quotes;

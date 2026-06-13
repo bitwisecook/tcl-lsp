@@ -1,6 +1,6 @@
 //! `COMPRESS::nodelay` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "COMPRESS::nodelay",
         dialects: Some(DialectSet::IRULES),

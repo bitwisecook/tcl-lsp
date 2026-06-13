@@ -1,6 +1,6 @@
 //! `SSL::allow_nonssl` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::allow_nonssl",
         dialects: Some(DialectSet::IRULES),

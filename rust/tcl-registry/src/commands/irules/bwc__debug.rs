@@ -1,6 +1,6 @@
 //! `BWC::debug` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BWC::debug",
         dialects: Some(DialectSet::IRULES),

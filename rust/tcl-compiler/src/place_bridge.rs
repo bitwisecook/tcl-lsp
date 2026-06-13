@@ -12,7 +12,7 @@
 //! Faithful port of `compiler/place_bridge.py` on `main`.  No consumer is wired
 //! yet (that is stage 4) — this stage is output-equivalent.
 
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
@@ -27,11 +27,15 @@ use crate::var_scoping::{
 };
 use tcl_lexer::TokenType;
 
-// Commands whose VAR_READ-role argument names the *whole* array, not a scalar
-// (so a write to any element is observed).  Conservative — extra members only
-// widen overlap (sound).
-const WHOLE_ARRAY_COMMANDS: &[&str] = &["::array", "::parray"];
-const WHOLE_ARRAY_BARE: &[&str] = &["array", "parray"];
+/// True when `name`'s `VarRead`-role argument names the *whole* array,
+/// not a scalar (so a write to any element is observed) — the registry's
+/// [`Traits::WHOLE_ARRAY_ARG`] (`array` / `parray`). `registry.get`
+/// resolves the bare and `::`-qualified forms alike.
+fn is_whole_array_command(registry: &CommandRegistry, name: &str) -> bool {
+    registry
+        .get(name)
+        .is_some_and(|s| s.traits.contains(Traits::WHOLE_ARRAY_ARG))
+}
 
 /// Scan *cfg* for the in-scope variable declarations and build the
 /// [`ResolveContext`] used to resolve places within the function.
@@ -232,8 +236,7 @@ fn command_reads(
             continue;
         }
         let args = cmd.args();
-        let whole = WHOLE_ARRAY_BARE.contains(&name)
-            || WHOLE_ARRAY_COMMANDS.contains(&normalise_qualified_name(name).as_str());
+        let whole = is_whole_array_command(registry, name);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         for i in registry.arg_indices_for_role(name, &arg_strs, ArgRole::VarRead) {
             if let Some(a) = args.get(i) {
@@ -327,7 +330,7 @@ pub fn read_places(
         } => {
             let whole = canonical_command
                 .as_deref()
-                .is_some_and(|c| WHOLE_ARRAY_COMMANDS.contains(&c));
+                .is_some_and(|c| is_whole_array_command(registry, c));
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
             let read_idx: std::collections::HashSet<usize> = registry
                 .arg_indices_for_role(command, &arg_strs, ArgRole::VarRead)
@@ -439,6 +442,84 @@ pub fn terminator_read_places(
     out
 }
 
+/// True when two places denote the **exact same** literal-key array element or
+/// dict path (same kind, namespace, base name, and statically-known index /
+/// key path).  Dynamic indices never compare equal — they keep the
+/// conservative behaviour.
+fn same_literal_element(a: &Place, b: &Place) -> bool {
+    use crate::place::IndexKind;
+    if a.kind != b.kind || a.ns != b.ns || a.name != b.name {
+        return false;
+    }
+    match a.kind {
+        PlaceKind::ArrayElem => matches!(
+            (&a.index, &b.index),
+            (Some(ai), Some(bi))
+                if ai.kind == IndexKind::Literal
+                    && bi.kind == IndexKind::Literal
+                    && ai.value == bi.value
+        ),
+        PlaceKind::DictPath => {
+            !a.keys.is_empty()
+                && a.keys.len() == b.keys.len()
+                && a.keys.iter().zip(&b.keys).all(|(ai, bi)| {
+                    ai.kind == IndexKind::Literal
+                        && bi.kind == IndexKind::Literal
+                        && ai.value == bi.value
+                })
+        }
+        _ => false,
+    }
+}
+
+/// True when a literal-key `ArrayElem` / `DictPath` write at
+/// `block.statements[def_idx]` is overwritten by a *later* write in the same
+/// block to the EXACT same place, with no intervening read of that specific
+/// element.  Such a store is dead regardless of any later-version read of the
+/// element — the must-alias kill overrides the over-approximating
+/// element-observed suppression.  Mirrors Python's
+/// `_must_alias_killed_in_block` (PR #498 G15).
+fn must_alias_killed_in_block(
+    block: &crate::cfg::Block,
+    def_idx: usize,
+    def_place: &Place,
+    ctx: &ResolveContext,
+    registry: &CommandRegistry,
+) -> bool {
+    use crate::place::IndexKind;
+    let def_is_literal = match def_place.kind {
+        PlaceKind::ArrayElem => def_place
+            .index
+            .as_ref()
+            .is_some_and(|i| i.kind == IndexKind::Literal),
+        PlaceKind::DictPath => {
+            !def_place.keys.is_empty()
+                && def_place.keys.iter().all(|i| i.kind == IndexKind::Literal)
+        }
+        _ => false,
+    };
+    if !def_is_literal {
+        return false;
+    }
+    for stmt in block.statements.iter().skip(def_idx + 1) {
+        // An intervening read of the same element cancels the kill.
+        if read_places(stmt, ctx, registry)
+            .iter()
+            .any(|rp| same_literal_element(rp, def_place))
+        {
+            return false;
+        }
+        // A later write to the same element is a must-alias kill.
+        if def_places(stmt, ctx, registry)
+            .iter()
+            .any(|dp| same_literal_element(dp, def_place))
+        {
+            return true;
+        }
+    }
+    false
+}
+
 /// `(block_name, statement_index)` of every array-element / dict-path
 /// assignment in *cfg* whose def [`Place`] is **observed** by some read place
 /// in the function — the element writes a *name-level* dead-store / unused
@@ -505,11 +586,18 @@ pub fn element_writes_observed_by_reads(
             if !is_array_assign(stmt) {
                 continue;
             }
-            let observed = def_places(stmt, &ctx, registry).iter().any(|d| {
+            // An element write is suppressed only when a read *observes* it AND
+            // it is not overwritten by a later same-element write first: a
+            // must-alias kill (a later write to the exact same literal key with
+            // no intervening read of it) makes this store dead regardless of any
+            // later-version read.  Mirrors Python's
+            // `if must_alias_killed: dead elif element_observed: suppress`.
+            let suppress = def_places(stmt, &ctx, registry).iter().any(|d| {
                 matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
                     && reads.iter().any(|r| overlap(d, r))
+                    && !must_alias_killed_in_block(block, idx, d, &ctx, registry)
             });
-            if observed {
+            if suppress {
                 if let Ok(i) = i32::try_from(idx) {
                     out.insert((block_name.clone(), i));
                 }

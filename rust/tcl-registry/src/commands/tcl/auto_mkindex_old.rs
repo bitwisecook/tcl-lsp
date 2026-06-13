@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_mkindex_old",
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Legacy tclIndex generator",

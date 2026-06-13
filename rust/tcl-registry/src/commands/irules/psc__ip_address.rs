@@ -1,6 +1,6 @@
 //! `PSC::ip_address` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PSC::ip_address",
         dialects: Some(DialectSet::IRULES),

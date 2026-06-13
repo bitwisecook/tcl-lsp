@@ -1,6 +1,6 @@
 //! `DNS::origin` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::origin",
         dialects: Some(DialectSet::IRULES),

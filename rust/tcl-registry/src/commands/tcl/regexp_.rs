@@ -41,7 +41,8 @@ fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
-        traits: Traits::BYTE_COMPILED | Traits::WARN_WITHOUT_TERMINATOR,
+        traits: Traits::BYTE_COMPILED | Traits::WARN_WITHOUT_TERMINATOR
+            | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {

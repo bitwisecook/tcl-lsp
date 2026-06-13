@@ -1,6 +1,6 @@
 //! `XML::payload` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XML::payload",
         dialects: Some(DialectSet::IRULES),
@@ -27,6 +27,7 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::Both,
         }],
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

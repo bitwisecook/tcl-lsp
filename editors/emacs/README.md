@@ -14,34 +14,46 @@ The `.pyz` zipapp bundles all Python dependencies internally — no
 See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
-The server needs to be accessible via one of:
+The default backend is the native Rust server (`tcl-lsp-server`); the Python
+reference server is the opt-out.  The server needs to be accessible via one of:
 
 ```sh
-# Option A — run from source (requires uv)
+# Default — native Rust server (build with `make rust-server`)
+/path/to/tcl-lsp/target/release/tcl-lsp-server
+
+# Python opt-out A — run from source (requires uv)
 uv run --directory /path/to/tcl-lsp --no-dev python -m server
 
-# Option B — standalone zipapp (just needs Python 3.10+)
+# Python opt-out B — standalone zipapp (just needs Python 3.10+)
 python3 /path/to/tcl-lsp-server.pyz
 ```
 
-To point to a specific Python interpreter, use its full path as the first
-element of the command list (e.g. `"/opt/homebrew/bin/python3.14"`).
+For the Python backend, point to a specific interpreter by using its full path
+as the first element of the command list (e.g. `"/opt/homebrew/bin/python3.14"`).
 
 ## eglot (Emacs 29+)
 
-Add to your `init.el`:
+Add to your `init.el` (native Rust server, the default):
+
+```elisp
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '(tcl-mode . ("/path/to/tcl-lsp/target/release/tcl-lsp-server"))))
+
+;; Auto-start on Tcl files
+(add-hook 'tcl-mode-hook #'eglot-ensure)
+```
+
+Or opt into the Python reference server, from source:
 
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                '(tcl-mode . ("uv" "run" "--directory" "/path/to/tcl-lsp"
                              "--no-dev" "python" "-m" "server"))))
-
-;; Auto-start on Tcl files
-(add-hook 'tcl-mode-hook #'eglot-ensure)
 ```
 
-Or with the standalone zipapp:
+...or the standalone zipapp:
 
 ```elisp
 (with-eval-after-load 'eglot

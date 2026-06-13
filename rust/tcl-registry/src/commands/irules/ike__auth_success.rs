@@ -1,6 +1,6 @@
 //! `IKE::auth_success` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IKE::auth_success",
         dialects: Some(DialectSet::IRULES),

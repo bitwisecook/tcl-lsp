@@ -18,7 +18,8 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::CREATES_BARRIER
             | Traits::CREATES_SCOPE_ALIAS
-            | Traits::CREATES_DYNAMIC_BARRIER,
+            | Traits::CREATES_DYNAMIC_BARRIER
+            | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

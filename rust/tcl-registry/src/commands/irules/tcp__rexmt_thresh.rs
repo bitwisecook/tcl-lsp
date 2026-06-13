@@ -1,6 +1,6 @@
 //! `TCP::rexmt_thresh` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rexmt_thresh",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `SCTP::rto_min` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SCTP::rto_min",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ADAPT::preview_size` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::preview_size",
         dialects: Some(DialectSet::IRULES),

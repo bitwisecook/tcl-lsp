@@ -1,6 +1,6 @@
 //! `HTTP::is_keepalive` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::is_keepalive",
         traits: Traits::PURE,

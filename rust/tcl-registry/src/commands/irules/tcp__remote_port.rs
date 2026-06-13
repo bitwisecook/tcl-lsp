@@ -1,9 +1,9 @@
 //! `TCP::remote_port` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::remote_port",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
 hover: Some(HoverSnippet {
@@ -35,6 +35,7 @@ hover: Some(HoverSnippet {
                 connection_side: ConnectionSide::Both,
             },
         ],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::PORT)),
         ..CommandSpec::DEFAULT
     }
 }

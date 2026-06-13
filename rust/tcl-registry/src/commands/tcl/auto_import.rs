@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_import",
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Import auto-loaded commands into namespace",

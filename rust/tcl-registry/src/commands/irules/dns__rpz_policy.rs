@@ -1,6 +1,6 @@
 //! `DNS::rpz_policy` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::rpz_policy",
         dialects: Some(DialectSet::IRULES),

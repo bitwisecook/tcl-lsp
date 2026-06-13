@@ -46,8 +46,9 @@
 
 use tcl_lexer::{Span, Token, TokenType};
 
+use super::scope::scope_at_mut;
 use super::state::Analyser;
-use super::types::{ClassDef, MethodDef, PropertyDef, UnknownProcInfo};
+use super::types::{ClassDef, MethodDef, PropertyDef, Scope, ScopeKind, UnknownProcInfo};
 use super::utils::parse_param_list;
 use crate::ir::{Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
@@ -83,6 +84,8 @@ impl Analyser {
         body_text: &str,
         body_tok: Token,
         class_def: &mut ClassDef,
+        class_qualified: &str,
+        scope_path: &[usize],
     ) {
         if body_tok.kind != TokenType::Str {
             return;
@@ -93,12 +96,78 @@ impl Analyser {
             base_offset,
             self.lexer_config(),
         );
-        for cmd in cmds {
+        // Phase 1: populate the `ClassDef` (methods, instance variables,
+        // superclasses, …) and collect each method body to walk afterwards.
+        // The walk is deferred so every class-level `variable` declaration is
+        // visible as a pre-bound local in *every* method body, regardless of
+        // source order — mirroring Python's two-phase `_parse_oo_definition_body`.
+        let mut method_bodies: Vec<CollectedMethodBody> = Vec::new();
+        for cmd in &cmds {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
             }
             apply_oo_subcommand(&cmd.texts, &cmd.argv, class_def);
+            if let Some(mb) = collect_method_body(&cmd.texts, &cmd.argv) {
+                method_bodies.push(mb);
+            }
         }
+        // Phase 2: walk each method body in its own `Method` scope with the
+        // formal parameters and the class's instance variables pre-bound.
+        let class_variables = class_def.variables.clone();
+        for mb in method_bodies {
+            self.walk_method_body(&class_variables, class_qualified, scope_path, &mb);
+        }
+    }
+
+    /// Walk a single TclOO method body in a fresh [`ScopeKind::Method`] scope.
+    ///
+    /// Pre-binds the method's formal parameters and the class's instance
+    /// `variable`s as defined-but-not-warned locals (so reads of them do not
+    /// false-fire W210 read-before-set / W214 unused), then re-walks the body
+    /// through [`Self::analyse_body`] so its `$obj method` / `[cmd] method`
+    /// dispatch sites are recorded (with `in_method = true`) for the W307 /
+    /// W308 post-pass.  Mirrors `_extract_method_def`'s `method_scope`
+    /// construction + `_analyse_body` call in `analyser/_analyser/_oo.py`.
+    fn walk_method_body(
+        &mut self,
+        class_variables: &[String],
+        class_qualified: &str,
+        scope_path: &[usize],
+        mb: &CollectedMethodBody,
+    ) {
+        if mb.body_tok.kind != TokenType::Str {
+            return;
+        }
+        let method_qn = if class_qualified.is_empty() {
+            mb.name.clone()
+        } else {
+            format!("{class_qualified}::{}", mb.name)
+        };
+        let Some(method_idx) = ({
+            scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
+                let mut child = Scope::new(ScopeKind::Method, method_qn);
+                child.body_span = Some(mb.body_tok.span);
+                parent.children.push(child);
+                parent.children.len() - 1
+            })
+        }) else {
+            return;
+        };
+        let mut method_path = scope_path.to_vec();
+        method_path.push(method_idx);
+        // Formal parameters — defined, never unused-warned.
+        for p in &mb.params {
+            self.define_var(&p.name, mb.body_tok, &method_path, false, None);
+        }
+        // Class instance variables — visible in every method body.
+        for var in class_variables {
+            let base = crate::naming::normalise_var_name(var);
+            if base.is_empty() || mb.params.iter().any(|p| p.name == base) {
+                continue;
+            }
+            self.define_var(base, mb.body_tok, &method_path, false, None);
+        }
+        self.analyse_body(&mb.body_text, mb.body_tok, &method_path);
     }
 
     /// Detect dispatch shape of a user-defined ``unknown`` proc.
@@ -317,6 +386,48 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
 /// `oo::define Cls private <subcmd> ...` — wraps a method-defining
 /// subcommand with `visibility = "private"`.  Extracted from
 /// [`apply_oo_subcommand`] to keep the dispatch under threshold.
+/// A TclOO method body collected during the class-body walk, to be analysed
+/// in a [`ScopeKind::Method`] scope once the whole `ClassDef` is populated.
+struct CollectedMethodBody {
+    /// Method name (`<constructor>` / `<destructor>` for those forms).
+    name: String,
+    /// Formal parameters (empty for `destructor`).
+    params: Vec<ParamDef>,
+    /// Inner body text (braces stripped), as `analyse_body` expects.
+    body_text: String,
+    /// The body word token (carries the absolute span + `content_offset`).
+    body_tok: Token,
+}
+
+/// Recognise a method-defining subcommand in a class body and return its body
+/// to walk.  Covers the direct forms (`method` / `classmethod` / `constructor`
+/// / `destructor`); the `forward` form has no body, and dynamic (non-braced)
+/// bodies are filtered downstream by [`Analyser::walk_method_body`].  Mirrors
+/// the body-bearing arms of `_extract_method_def`.
+fn collect_method_body(texts: &[String], argv: &[Token]) -> Option<CollectedMethodBody> {
+    match texts.first().map(String::as_str)? {
+        "method" | "classmethod" if texts.len() >= 4 => Some(CollectedMethodBody {
+            name: texts[1].clone(),
+            params: parse_param_list(&texts[2]),
+            body_text: texts[3].clone(),
+            body_tok: *argv.get(3)?,
+        }),
+        "constructor" if texts.len() >= 3 => Some(CollectedMethodBody {
+            name: "<constructor>".to_string(),
+            params: parse_param_list(&texts[1]),
+            body_text: texts[2].clone(),
+            body_tok: *argv.get(2)?,
+        }),
+        "destructor" if texts.len() >= 2 => Some(CollectedMethodBody {
+            name: "<destructor>".to_string(),
+            params: Vec::new(),
+            body_text: texts[1].clone(),
+            body_tok: *argv.get(1)?,
+        }),
+        _ => None,
+    }
+}
+
 fn apply_oo_private(sub_args: &[String], sub_tokens: &[Token], class_def: &mut ClassDef) {
     if sub_args.is_empty() {
         return;

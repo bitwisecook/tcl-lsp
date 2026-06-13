@@ -1,6 +1,6 @@
 //! `TCP::enhanced_loss_recovery` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::enhanced_loss_recovery",
         dialects: Some(DialectSet::IRULES),

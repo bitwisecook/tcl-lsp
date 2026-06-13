@@ -1,6 +1,6 @@
 //! `LINE::set` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LINE::set",
         dialects: Some(DialectSet::IRULES),

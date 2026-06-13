@@ -35,6 +35,9 @@
 //! * No dynamic name access (``set $varname value``).
 
 use std::collections::{BTreeMap, HashSet};
+use std::sync::OnceLock;
+
+use tcl_registry::{CommandRegistry, Traits};
 
 use crate::ir::{Module, Script, Statement};
 use crate::var_escape::types::ProcEscapeSummary;
@@ -49,21 +52,66 @@ pub const LOCALS_ARRAY_CAP: usize = 16;
 /// aliases on the frame's hash bucket; ``info exists`` /
 /// ``info vars`` / ``info locals`` walk the bucket;
 /// ``trace add variable`` registers against the bucket.
-const FRAME_HASH_BUILTINS: &[&str] = &[
-    "upvar", "global", "variable", "lassign", "lset", "regexp", "regsub", "scan", "binary",
-    "vwait", "tkwait",
-];
+/// Memoised set of commands that alias / read / write variables through
+/// the frame's hash bucket by name (`upvar` / `global` / `variable` /
+/// `lassign` / `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait`
+/// / `tkwait`), sourced from the registry's [`Traits::FRAME_HASH_BUILTIN`]
+/// trait.
+fn frame_hash_builtins() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .commands_with_trait(Traits::FRAME_HASH_BUILTIN)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
-/// ``info`` subcommands that introspect by name.
-const INFO_INTROSPECTING_SUBCMDS: &[&str] = &["exists", "vars", "locals", "args", "default"];
+/// Memoised set of `info` subcommands that introspect by variable name
+/// (`info exists|vars|locals|args|default`), sourced from the registry's
+/// [`Traits::INTROSPECTS_BY_NAME`] subcommand trait.
+fn info_introspecting_subcmds() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .subcommands_with_trait("info", Traits::INTROSPECTS_BY_NAME)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
-/// ``trace`` subcommands that target a variable by name.
-const TRACE_NAME_TARGETING: &[&str] = &["add", "remove", "info", "variable", "vdelete", "vinfo"];
+/// Memoised set of `trace` subcommands that target a variable by name
+/// (`trace add|remove|info|variable|vdelete|vinfo`), sourced from the
+/// registry's [`Traits::TARGETS_VARIABLE_BY_NAME`] subcommand trait.
+fn trace_name_targeting() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .subcommands_with_trait("trace", Traits::TARGETS_VARIABLE_BY_NAME)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
-/// Commands whose body is executed by the interpreter, opening a
-/// name-resolution channel back into the local frame.
-const DYNAMIC_EVAL_COMMANDS: &[&str] =
-    &["eval", "uplevel", "apply", "source", "namespace", "interp"];
+/// Memoised set of commands carrying [`Traits::DYNAMIC_EVAL_BODY`] —
+/// those whose body is executed by the interpreter, opening a
+/// name-resolution channel back into the local frame (`eval` / `uplevel`
+/// / `apply` / `source` / `namespace` / `interp`). Sourced from the
+/// registry (the single source of truth); cached once because the set is
+/// dialect-agnostic core Tcl.
+fn dynamic_eval_set() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .commands_with_trait(Traits::DYNAMIC_EVAL_BODY)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
 /// Strip a leading `::` from a command name for canonical lookup.
 fn normalise_cmd(cmd: &str) -> &str {
@@ -190,7 +238,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
                 return true;
             }
             let cmd = normalise_cmd(command);
-            if DYNAMIC_EVAL_COMMANDS.contains(&cmd) {
+            if dynamic_eval_set().contains(cmd) {
                 return true;
             }
             if cmd == "set" && !args.is_empty() && is_dynamic_value(&args[0]) {
@@ -198,7 +246,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
             }
             if cmd == "info" && !args.is_empty() {
                 let sub = args[0].as_str();
-                if INFO_INTROSPECTING_SUBCMDS.contains(&sub) {
+                if info_introspecting_subcmds().contains(sub) {
                     if args.len() >= 2 {
                         let target = &args[1];
                         if is_dynamic_value(target) {
@@ -215,7 +263,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
             }
             if cmd == "trace" && !args.is_empty() {
                 let sub = args[0].as_str();
-                if TRACE_NAME_TARGETING.contains(&sub) {
+                if trace_name_targeting().contains(sub) {
                     if (sub == "add" || sub == "remove" || sub == "info") && args.len() >= 3 {
                         if args[1] == "variable" {
                             let target = &args[2];
@@ -235,7 +283,7 @@ fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>)
                     }
                 }
             }
-            if FRAME_HASH_BUILTINS.contains(&cmd) {
+            if frame_hash_builtins().contains(cmd) {
                 return true;
             }
             false

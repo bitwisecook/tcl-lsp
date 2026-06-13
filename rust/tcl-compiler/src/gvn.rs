@@ -886,11 +886,38 @@ fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
             }
             _ => {
                 while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                    if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                        i += 2;
-                        continue;
+                    match bytes[i] {
+                        b'\\' if i + 1 < bytes.len() => {
+                            i += 2;
+                        }
+                        // A `[…]` command substitution or `{…}` brace region
+                        // inside a word keeps its internal whitespace — skip the
+                        // balanced region so `x[incr i]y` / `[format %d [incr
+                        // i]]` stay a single word (else the nested `[incr i]`
+                        // splits and its impurity is lost to the LICM purity
+                        // check).
+                        b'[' | b'{' => {
+                            let (open, close) = if bytes[i] == b'[' {
+                                (b'[', b']')
+                            } else {
+                                (b'{', b'}')
+                            };
+                            let mut depth = 1i32;
+                            i += 1;
+                            while i < bytes.len() && depth > 0 {
+                                match bytes[i] {
+                                    b'\\' if i + 1 < bytes.len() => {
+                                        i += 1;
+                                    }
+                                    c if c == open => depth += 1,
+                                    c if c == close => depth -= 1,
+                                    _ => {}
+                                }
+                                i += 1;
+                            }
+                        }
+                        _ => i += 1,
                     }
-                    i += 1;
                 }
             }
         }

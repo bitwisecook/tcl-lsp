@@ -1,6 +1,6 @@
 //! `HTML::encode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTML::encode",
         dialects: Some(DialectSet::IRULES),

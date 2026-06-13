@@ -1,6 +1,6 @@
 //! `TCP::dsack` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::dsack",
         dialects: Some(DialectSet::IRULES),

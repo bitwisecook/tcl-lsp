@@ -1,6 +1,6 @@
 //! `AUTH::ssl_cc_ldap_username` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::ssl_cc_ldap_username",
         dialects: Some(DialectSet::IRULES),

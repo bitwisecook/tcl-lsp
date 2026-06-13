@@ -1,6 +1,6 @@
 //! `PROFILE::exists` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROFILE::exists",
         dialects: Some(DialectSet::IRULES),

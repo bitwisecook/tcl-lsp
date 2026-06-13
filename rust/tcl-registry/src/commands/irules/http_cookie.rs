@@ -1,6 +1,6 @@
 //! `http_cookie` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "http_cookie",
         dialects: Some(DialectSet::IRULES),

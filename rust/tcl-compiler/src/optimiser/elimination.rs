@@ -420,7 +420,12 @@ fn emit_dead_stores_and_unused(
     // textual pass over the CFG to collect every var name that
     // appears in any source slice. Any def of a name referenced
     // textually is kept live — conservative but correct.
-    let textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
+    let mut textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
+    // A read-modify-write command's target buried in a substitution
+    // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive.
+    if let Some(registry) = ctx.registry {
+        textually_referenced.extend(collect_rmw_hidden_reads(fu, registry));
+    }
 
     // Phase 8 place model (SYNC-MAY31-1b): array-element writes the name-level
     // SSA mis-folds (`set a(k) 1` "overwritten" by `set a(j) 2`) but that a read
@@ -852,6 +857,90 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
     let mut out: HashSet<String> = HashSet::new();
     scan_dollar_refs(slice, &mut out);
     scan_set_read_refs(slice, &mut out);
+    out
+}
+
+/// Local names bound by an `upvar` (or `namespace upvar`) whose *caller
+/// target* is dynamic (`$name` / `[cmd]`).  Such an alias may resolve to a
+/// non-existent caller variable, so the local is possibly-unset: an
+/// unconditional read of it is a read-before-set (W210).  Kept separate from
+/// [`scan_scope_aliases`] (which still records the local for W211/W220, since
+/// a *write* through the alias is observable) — only the W210 read-before-set
+/// pass consults this set to *override* the scope-alias suppression.  Mirrors
+/// Python's dynamic-target handling in `_collect_upvar_targets` /
+/// `_read_before_set`.
+pub(crate) fn scan_dynamic_upvar_locals(cfg: &CfgFunction) -> HashSet<String> {
+    let mut out: HashSet<String> = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            let Statement::Call { command, args, .. } = stmt else {
+                continue;
+            };
+            // `upvar ?level? caller local …` or `namespace upvar ns caller local …`.
+            let start = match command.as_str() {
+                "upvar" => {
+                    let has_level = args
+                        .first()
+                        .is_some_and(|a| a.starts_with('#') || a.parse::<i64>().is_ok());
+                    usize::from(has_level)
+                }
+                "namespace" if args.first().map(String::as_str) == Some("upvar") => 2,
+                _ => continue,
+            };
+            let mut i = start;
+            while i + 1 < args.len() {
+                let caller = &args[i];
+                if caller.starts_with('$') || caller.starts_with('[') {
+                    out.insert(crate::naming::normalise_var_name(&args[i + 1]).to_owned());
+                }
+                i += 2;
+            }
+        }
+    }
+    out
+}
+
+/// Variable names read *inside command substitutions* that the shallow word
+/// scan misses — chiefly a read-modify-write command's target buried in a
+/// substitution (`lappend r [incr i $j]` reads `i`), plus vars read via a
+/// `VarRead`-role argument of a substituted command.  Name-level only and
+/// **suppress-only**: it keeps a feeding `set i 0` from being reported as a
+/// dead store / unused variable.  Deliberately computed *outside* SSA `uses`
+/// so read-before-set versioning is unperturbed.  Mirrors Python's
+/// `expr_substitution_read_names` (deep RMW scan minus the shallow scan).
+pub(crate) fn collect_rmw_hidden_reads(
+    fu: &FunctionUnit,
+    registry: &CommandRegistry,
+) -> HashSet<String> {
+    use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+    let mut deep = VarReferenceScanner::new(VarScanOptions {
+        include_var_read_roles: true,
+        recurse_cmd_substitutions: true,
+        include_reads_before_write: true,
+    });
+    let mut shallow = VarReferenceScanner::new(VarScanOptions::default());
+    let mut out: HashSet<String> = HashSet::new();
+    let mut scan = |word: &str| {
+        if !word.contains('[') {
+            return;
+        }
+        let d = deep.scan_word(word, registry);
+        let s = shallow.scan_word(word, registry);
+        out.extend(d.difference(&s).cloned());
+    };
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
+                    for arg in args {
+                        scan(arg);
+                    }
+                }
+                Statement::AssignValue { value, .. } => scan(value),
+                _ => {}
+            }
+        }
+    }
     out
 }
 

@@ -1,6 +1,6 @@
 //! `CACHE::disabled` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CACHE::disabled",
         dialects: Some(DialectSet::IRULES),

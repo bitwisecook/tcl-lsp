@@ -1,6 +1,6 @@
 //! `SSL::mode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::mode",
         dialects: Some(DialectSet::IRULES),

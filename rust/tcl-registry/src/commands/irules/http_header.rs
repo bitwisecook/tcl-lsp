@@ -1,6 +1,6 @@
 //! `http_header` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "http_header",
         dialects: Some(DialectSet::IRULES),

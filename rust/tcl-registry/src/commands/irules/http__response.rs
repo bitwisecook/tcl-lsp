@@ -1,6 +1,6 @@
 //! `HTTP::response` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::response",
         dialects: Some(DialectSet::IRULES),

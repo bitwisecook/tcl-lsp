@@ -1,6 +1,6 @@
 //! `POP3::activation_mode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "POP3::activation_mode",
         dialects: Some(DialectSet::IRULES),

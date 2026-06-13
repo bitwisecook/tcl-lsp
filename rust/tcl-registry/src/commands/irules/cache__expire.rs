@@ -1,6 +1,6 @@
 //! `CACHE::expire` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CACHE::expire",
         dialects: Some(DialectSet::IRULES),

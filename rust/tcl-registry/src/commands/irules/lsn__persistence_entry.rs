@@ -1,6 +1,6 @@
 //! `LSN::persistence-entry` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::persistence-entry",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ADAPT::context_current` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::context_current",
         dialects: Some(DialectSet::IRULES),

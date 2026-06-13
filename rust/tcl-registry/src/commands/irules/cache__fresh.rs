@@ -1,6 +1,6 @@
 //! `CACHE::fresh` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CACHE::fresh",
         dialects: Some(DialectSet::IRULES),

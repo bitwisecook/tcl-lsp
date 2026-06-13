@@ -1,6 +1,6 @@
 //! `TCP::rto` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rto",
         dialects: Some(DialectSet::IRULES),

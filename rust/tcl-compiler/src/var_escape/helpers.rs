@@ -11,8 +11,9 @@
 //!   commands the codegen dispatches via dedicated runtime helpers
 //!   (no eval-fallback), sourced from the registry's
 //!   `FRAMELESS_RUNTIME` trait.
-//! * [`NAME_FIRST_COMMANDS`] — the five commands whose first arg is
-//!   the variable name (used by the dynamic-name-first detector).
+//! * [`is_name_first_command`] — the commands whose first arg is the
+//!   variable name (registry `FIRST_ARG_VARNAME` trait), used by the
+//!   dynamic-name-first detector.
 //! * [`scan_value_for_info_hazards`] — find embedded
 //!   `[info <subcmd> ...]` substitutions inside a value string.
 
@@ -26,9 +27,22 @@ use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
 
-/// Commands whose first arg is the variable name (read / write /
-/// modify). Used to detect dynamic-name forms like `set $n value`.
-pub const NAME_FIRST_COMMANDS: &[&str] = &["set", "incr", "append", "lappend", "unset"];
+/// Memoised set of commands carrying the registry's
+/// [`Traits::FIRST_ARG_VARNAME`] trait — the commands whose first arg is
+/// the variable *name* (`set` / `incr` / `append` / `lappend` / `unset`).
+/// Used to detect dynamic-name forms like `set $n value`. Sourced from
+/// the registry (the single source of truth); cached once because the set
+/// is dialect-agnostic (all entries are core Tcl commands).
+fn name_first_set() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        CommandRegistry::build_default()
+            .commands_with_trait(Traits::FIRST_ARG_VARNAME)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
 
 /// Memoised set of commands carrying the registry's
 /// [`Traits::FRAMELESS_RUNTIME`] trait — the audited allow-list of
@@ -128,7 +142,7 @@ pub fn is_frameless_runtime_command(cmd: &str) -> bool {
 /// name.
 #[must_use]
 pub fn is_name_first_command(cmd: &str) -> bool {
-    NAME_FIRST_COMMANDS.contains(&cmd)
+    name_first_set().contains(cmd)
 }
 
 /// Scan a value string for embedded `[info <subcmd> ...]`

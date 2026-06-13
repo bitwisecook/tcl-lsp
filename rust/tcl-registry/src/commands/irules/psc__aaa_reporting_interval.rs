@@ -1,6 +1,6 @@
 //! `PSC::aaa_reporting_interval` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PSC::aaa_reporting_interval",
         dialects: Some(DialectSet::IRULES),

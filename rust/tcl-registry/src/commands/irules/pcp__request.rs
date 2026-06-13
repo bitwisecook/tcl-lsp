@@ -1,6 +1,6 @@
 //! `PCP::request` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PCP::request",
         dialects: Some(DialectSet::IRULES),

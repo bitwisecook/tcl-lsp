@@ -1000,11 +1000,6 @@ fn inline_proc_action(source: &str, range: LspRange, analysis: &AnalysisResult) 
 // iRules `# Profiles:` header source action.
 // ---------------------------------------------------------------------------
 
-/// Transport / TLS-shared profiles implied by the stack rather than selected
-/// by the operator — filtered out of the `# Profiles:` header.  Mirrors the
-/// `transport` / `tls_shared` layers of `_PROFILE_LAYERS`.
-const INFRA_PROFILES: &[&str] = &["TCP", "UDP", "FASTL4", "SCTP", "SSL_PERSISTENCE", "PERSIST"];
-
 /// Compute the sorted required virtual-server profiles from the file's events
 /// (`EventProps.implied_profiles`) and commands (`event_requires.profiles`).
 /// Mirrors `_compute_required_profiles`.
@@ -1036,7 +1031,10 @@ fn compute_required_profiles(
     if profiles.contains("HTTP") {
         profiles.remove("FASTHTTP");
     }
-    profiles.retain(|p| !INFRA_PROFILES.contains(&p.as_str()));
+    // Drop the stack-implied transport / shared-TLS profiles — classified
+    // from each profile's `layer` in the registry, not a hardcoded list.
+    let profile_registry = tcl_registry::profiles::ProfileRegistry::build();
+    profiles.retain(|p| !profile_registry.is_infrastructure_profile(p));
     profiles.into_iter().collect()
 }
 

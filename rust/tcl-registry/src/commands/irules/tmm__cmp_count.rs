@@ -1,6 +1,6 @@
 //! `TMM::cmp_count` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TMM::cmp_count",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `HTML::comment` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTML::comment",
         dialects: Some(DialectSet::IRULES),

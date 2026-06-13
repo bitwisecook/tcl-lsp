@@ -514,16 +514,30 @@ export async function activate(context: ExtensionContext) {
   const config = workspace.getConfiguration("tclLsp");
   const configuredServerPath = config.get<string>("serverPath", "");
 
-  let serverOptions: ServerOptions;
+  let serverOptions: ServerOptions | undefined;
 
-  // Backend selection: "python" (default, the packaged/uv server) or "rust"
-  // (the native `tcl-lsp-server` binary from the Rust workspace).  Env vars
-  // override config so the e2e / VS Code test harnesses can pick a backend
-  // without writing workspace settings: TCL_LSP_SERVER_KIND=python|rust and
-  // TCL_LSP_SERVER_BIN=/path/to/tcl-lsp-server.
-  const serverKind = (process.env.TCL_LSP_SERVER_KIND || config.get<string>("serverKind", "python"))
+  // Backend selection: "rust" (default, the native `tcl-lsp-server` binary
+  // from the Rust workspace) or "python" (the packaged/uv reference server).
+  // Env vars override config so the e2e / VS Code test harnesses can pick a
+  // backend without writing workspace settings: TCL_LSP_SERVER_KIND=python|rust
+  // and TCL_LSP_SERVER_BIN=/path/to/tcl-lsp-server.
+  //
+  // We must distinguish "user explicitly chose a backend" from "left at the
+  // default".  `config.get("serverKind")` folds in the package.json schema
+  // default ("rust"), so it can't tell them apart — use `inspect()` and look
+  // only at values the user actually set.  When nothing is set, Rust is the
+  // default but a missing binary falls back to Python (see below); an explicit
+  // "rust" with no binary is a hard error.
+  const inspected = config.inspect<string>("serverKind");
+  const userConfiguredKind =
+    inspected?.workspaceFolderValue ??
+    inspected?.workspaceValue ??
+    inspected?.globalValue ??
+    "";
+  const explicitKind = (process.env.TCL_LSP_SERVER_KIND || userConfiguredKind)
     .trim()
     .toLowerCase();
+  const serverKind = explicitKind || "rust";
 
   if (serverKind === "rust" || serverKind === "native") {
     const rustBin = resolveRustServer(
@@ -532,20 +546,33 @@ export async function activate(context: ExtensionContext) {
       context.extensionPath,
     );
     if (!rustBin) {
-      window.showErrorMessage(
-        "Tcl LSP: serverKind is 'rust' but no native tcl-lsp-server binary was found. " +
-          "Build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
-          "or set 'tclLsp.rustServerPath'.",
+      // When the user *explicitly* asked for the native backend, surface the
+      // missing-binary error.  When Rust is merely the default (no explicit
+      // preference), fall back to the Python server so the extension still
+      // works out of the box without a built binary.
+      if (explicitKind === "rust" || explicitKind === "native") {
+        window.showErrorMessage(
+          "Tcl LSP: serverKind is 'rust' but no native tcl-lsp-server binary was found. " +
+            "Build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
+            "or set 'tclLsp.rustServerPath'.",
+        );
+        return;
+      }
+      ch.appendLine(
+        "No native tcl-lsp-server binary found; falling back to the Python server. " +
+          "Build it with `make rust-server` for the native backend.",
       );
-      return;
+    } else {
+      ch.appendLine(`Rust mode: using native server ${rustBin}`);
+      serverOptions = {
+        command: rustBin,
+        args: [],
+        options: { cwd: path.dirname(rustBin) },
+      };
     }
-    ch.appendLine(`Rust mode: using native server ${rustBin}`);
-    serverOptions = {
-      command: rustBin,
-      args: [],
-      options: { cwd: path.dirname(rustBin) },
-    };
-  } else {
+  }
+
+  if (!serverOptions) {
     // Dev mode: explicit serverPath or running from a git checkout.
     const serverDir = resolveServerDir(configuredServerPath, context.extensionPath);
     if (configuredServerPath || hasServerBundle(serverDir)) {
@@ -650,6 +677,12 @@ export async function activate(context: ExtensionContext) {
       },
     },
   };
+
+  if (!serverOptions) {
+    // Every backend branch above either assigns serverOptions or returns; this
+    // guard makes that invariant explicit for the type checker.
+    return;
+  }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
 

@@ -1,6 +1,6 @@
 //! `TAP::insight` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TAP::insight",
         dialects: Some(DialectSet::IRULES),

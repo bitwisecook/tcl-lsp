@@ -5223,6 +5223,273 @@ in passes already ported. None affects a TP — every "still fires" case in
 `test_fp_sty.py` is green in rust mode, so closing these is strictly
 FP-reduction. Captured as `SYNC-JUN12` rows in **Outstanding** below.
 
+### SYNC-JUN12-impl — style FP cluster closed + EOF-span crash fix (battery 30→19, lsp_e2e 12→6)
+
+Re-baselined the rust-mode precision battery against a freshly built
+`target/release/tcl-lsp-server`: **30 failed / 373 passed** (the mission's "~358/19"
+is against the older suite shape). Closed the whole `FP-STY` style cluster plus a
+latent server-crash, with zero regressions:
+
+- **W113 (STY-13) — overridable library procs.** `handlers.rs` now computes a
+  `shadow_name: Option<String>` and drops it when the matched name is
+  namespace-qualified (`::base64::encode`) *or* in the new
+  `OVERRIDABLE_LIBRARY_PROCS` set (`unknown` / `history` / `auto_*` / `parray` /
+  `pkg_mkIndex` / `tcl_*` word helpers). Mirrors `_proc.py:129-143`. Corrected two
+  pre-existing rust unit tests that encoded behaviour Python doesn't produce
+  (verified against the Python analyser): `proc HTTP::respond` never fires W113
+  (namespace-qualified), so the dialect-specific test now uses the *unqualified*
+  iRules command `pool`.
+- **W105 (STY-14) — single bare-var body.** Threaded `arg_single` into
+  `dispatch_body_arguments` → `emit_w105_unbraced_body`; a body word that is a
+  single `Var` token (`eval $cmd`, `proc $n $a $body`, `after 0 $coroName`) is a
+  script-valued reference and is exempt, while a quoted interpolated body
+  (`eval "do $script"`) still fires. Mirrors `_word_is_single_var`. Corrected the
+  `while {$cond} $body` unit test (Python emits no W105 there — verified).
+- **W212 + W216 (STY-12) — braced indirect array idiom.** Added
+  `is_braced_indirect_array_ref` and `is_bare_var_name` to `tcl-syntax::naming`.
+  W212 now skips `${name}(idx)` in a name position. **W216 is newly implemented**
+  (`emit_w216_brace_then_paren` in `diagnostics.rs`, wired at both
+  `process_command` call sites) — a faithful port of
+  `_diag_brace_then_paren.py`: Pattern (1) `${arr}(foo)` and Pattern (2)
+  `${arr($foo)}`, with the `_varname_word_indices` name-position suppression and
+  the `[file join]`/bare-form replacement. Value-position `puts ${arr}(x)` fires;
+  name-position `set ${token}(status)` is silent.
+- **W201 (STY-16) — prose / request-line / URL path-concat.** Added a
+  `HAS_LITERAL_SPACE` may-property to `rendered_properties.rs` (set on a top-level
+  word break, not on spaces inside a `[cmd]`/`${var}` hole) and the `://`/`<`/`>`
+  markup skip + literal-space suppression to `path_concat.rs`. Mirrors
+  `_path_concat.py:101-152`. Genuine `"$dir/$name"` and command-sub-segment
+  `"$dir/[file tail $path]"` still fire.
+- **EOF-span crash (root cause of an apparent server hang).** A W210 diagnostic on
+  a final unbraced `$body` word (no trailing newline) carried a span ending two
+  bytes past EOF; `LineIndex::position_at_utf16` panicked on the out-of-range
+  slice, which killed the `spawn_blocking` diagnostic worker so the server
+  published *nothing* for that document — surfacing as a 30 s timeout in the
+  bridge. Fixed by clamping the slice end to `source.len()`, mirroring Python's
+  `_offset_to_position`'s `min(offset, len)` guard. This was a pre-existing latent
+  bug the W105 fix merely exposed (the old test failed earlier, before reaching
+  the foreach reproducer).
+
+`cargo test --workspace --all-features` + `clippy --all-targets` + `fmt` clean;
+each fix carries a ported unit test. **lsp_e2e 12→6 failed**; the remaining battery
+(19) and e2e (6) failures are the W210 path-sensitive dataflow, W220 dead-store,
+W307 non-literal-command, S101, O106 LICM, T102 taint, W001-arity, and the two
+diag-bridge limitations (FP_NAB_10 dialect, FP_OPT_02 quick-fix data).
+
+### SYNC-JUN12-w307a — array-set + known-class-new const harvest (battery 19→17)
+
+Closed two of the six W307 non-literal-command cases by harvesting more static
+evidence into `emit_var_command_diagnostics` (`diagnostics.rs`), mirroring
+`_diag_var_command.py`:
+
+- **`array set arr {k v …}` literal element values** → keyed `arr(key)` in the
+  constset map, so `$arr(-command)` dispatch checks the actual value against the
+  known-command set. `array set state {-command puts}` → silent; `{-command
+  notACommand}` → still fires. (Bug caught in dev: the IR `array` command's
+  `command` field is `"array"`, not the canonical `"::array"`.)
+- **`set x [Cls new]` / `[Cls create name]` for a known TclOO class** → records
+  `x`'s Object class so a later `$x method` dispatch resolves through the W308
+  method check instead of firing W307.
+
+Two ported unit tests; `cargo test`/`clippy`/`fmt` clean.
+
+### SYNC-JUN12-w307b — interproc dict-with const harvest (battery 17→16)
+
+Closed a third W307 case: `dict with d { $cmd hi }` where the caller passes
+`{cmd puts}`.  `d`'s call-site literal is already propagated to its v0 SCCP
+const by the Rust interproc pass, so a `harvest_dict_with` (mirroring
+`_diag_var_command.py:380-420`) splits that literal and binds each key→value
+into the constset map — `$cmd`→`puts` (known) suppresses, `notACommand` fires.
+One ported unit test.
+
+### SYNC-JUN12-w307c — namespaced-ensemble composed-name resolution (battery 16→15)
+
+Closed a fourth W307 case.  `${ns}::tail` / `$ns::tail` (the tcllib logger /
+namespaced-ensemble idiom) is detected from the dispatch-site source slice
+(`parse_namespaced_ensemble`); when `ns` is an SCCP const and *every* composed
+name `<value>::tail` resolves to a known command/proc/class, the dispatch is
+statically resolvable and W307 is suppressed.  An unresolvable composition
+(`${ns}::unknownproc`, or `set ns nope; ${ns}::missing`) still fires.  (The
+earlier note that `namespace eval` procs aren't registered was a buggy probe —
+`::mypkg::dowork` *is* in `all_procs`.)  One ported unit test with both the TN
+and the composed-unknown TP control.
+
+### SYNC-JUN12-w307d — TclOO method-scope foundation (W307 cluster complete; battery 15→13)
+
+Built the deferred **C41e method scope** so the analyser walks TclOO method
+bodies, closing the final two W307 cases (`format_in_method`, `my_method`) with
+no battery/e2e regressions.
+
+- **`ScopeKind::Method`** added (`types.rs`); `command_resolution_namespace`
+  treats it like a proc (class-namespace prefix), `scope_path_in_proc_body`
+  counts it (call-time arity resolution), and a new `scope_path_in_method_body`
+  derives the `in_method` flag for recorded dispatch sites (`scope.rs`).
+- **Two-phase `parse_oo_definition_body`** (`oo.rs`): phase 1 populates the
+  `ClassDef` and collects each method body (`collect_method_body` for
+  `method` / `classmethod` / `constructor` / `destructor`); phase 2 walks each
+  body via a new `walk_method_body` in a fresh `Method` scope with the formal
+  parameters *and* the class's instance `variable`s pre-bound as
+  defined-not-warned locals — so reads of them don't false-fire W210/W214.
+  Mirrors Python's `_extract_method_def` `method_scope` + `_analyse_body`.
+- **`record_var_or_cmd_command_site`** derives `in_method` from the scope path
+  instead of hardcoding `false`.
+- **W307 cmd-site path** (`diagnostics.rs`): dropped the blanket `in_method`
+  suppression (Python's F4 closure) — an in-method `[cmd] method` dispatch
+  earns silence only from a known OBJECT return type or `my`/`self`
+  self-dispatch.  `my <method>` / `self <method>` is refined by
+  `oo_self_method_returns_literal`: it resolves the method in the enclosing
+  class (dispatch offset within the class `body_span`) and fires W307 when the
+  method body is a simple `return <literal>` (string), while a `return [D new]`
+  (object) stays suppressed.  Mirrors `_diag_var_command.py`'s D3-P4 closure.
+- The W307 const harvest closures were extracted into
+  `harvest_array_set_constants` / `harvest_dict_with_constants` /
+  `harvest_constructor_object_types` for readability.
+
+Three ported unit tests; `cargo test --workspace` / `clippy --all-targets` /
+`fmt` clean; battery **15→13**, e2e steady at 6 — **W307 cluster fully closed
+(6/6)**.
+
+### SYNC-JUN12-w210a — frame-aware W210 read recovery (battery 13→9)
+
+Closed three W210/RBS false-positives and one true-negative (W214) by mirroring
+Python's read-recovery precision, with no regressions:
+
+- **FP-RBS-03 (`gets` in a loop condition).** `[gets $fp line]` writes `line`;
+  added `gets` to `cmd_substitution_out_vars` (`ir_helpers.rs`) so the while
+  condition records `line` as a CFG def and the body's `$line` reads are
+  covered.
+- **FP-RBS-06 (`catch` inside `expr`).** `set e [expr {[catch {…} tmp] || $tmp}]`
+  writes `tmp` during expr evaluation.  Added a `cmd_sub_writes` skip-set to
+  `UndefSuppression` (`diagnostics.rs`), populated from each `AssignExpr`'s expr
+  via `condition_command_out_vars` — name-level suppress, mirroring
+  `command_sub_write_names`'s contribution to the `skip` set in
+  `_read_before_set`.
+- **FP-RBS-10 / FP-DS-07 (`namespace eval` frame).** The body runs in the
+  namespace frame, so `$x` there is not a read of the caller's param `x`.
+  Marked the `namespace eval` / `inscope` subcommands `BodyKind::Structural`
+  (`tcl-registry`), so `structural_body_indices` excludes their bodies from
+  caller-frame SSA use recovery — W214 (unused param) now fires, and the
+  textual W214 fallback `body_references_param` was made segment-aware to skip
+  `namespace eval` bodies while still recovering same-frame `eval` reads.
+  Mirrors Python's `_block_local_reads` `caller_scope=False` early-return.
+
+Three ported unit tests (incl. the `eval`-same-frame control).
+
+### SYNC-JUN12-w210b — dynamic-target upvar possibly-unset model (battery 9→8)
+
+Closed the last W210 battery case, `upvar 1 $varName local; puts $local`.  A
+dynamic `$name` / `[cmd]` upvar target may resolve to a non-existent caller
+variable, so the local is *possibly-unset* and an unconditional read errors
+(tclsh: `can't read "local": no such variable`).
+
+- **`lower_upvar`** (`lowering_hooks.rs`) now records a `local` as a clean def
+  only when its *caller target* is a literal name — a dynamic target yields no
+  def, so the read resolves to version-0 and the read-before-set pass sees it.
+  This aligns the upvar `Call.defs` with `upvar_local_declaration_indices`
+  (which already excluded dynamic targets) and Python's behaviour.
+- A new `scan_dynamic_upvar_locals` (`optimiser/elimination.rs`) collects those
+  locals into `UndefSuppression.dynamic_upvar_locals`; the W210 read-before-set
+  pass *overrides* the scope-alias suppression for them (an unconditional read
+  fires) while a literal-target upvar, an `[info exists local]` guard, and a
+  *write* through the alias (observable, never a dead store) all stay correct.
+  Mirrors Python's dynamic-target handling in `_collect_upvar_targets` /
+  `_read_before_set`.
+
+One ported unit test with all four controls (dynamic fires, literal/guarded
+suppressed, dynamic write not a W220 dead store).  **W210 cluster fully closed.**
+
+### SYNC-JUN12-w220 — RMW read recovery + must-alias array-element kill (battery 8→6)
+
+Closed the W220 dead-store pair, both faithful ports of Python's precision:
+
+- **FP-DS-01 (read-modify-write in a substitution).** `lappend r [incr i $j]`
+  reads `i`'s prior value, so the feeding `set i 0` is alive.  Added an
+  `include_reads_before_write` option to `VarReferenceScanner`: when set, a
+  `READS_BEFORE_WRITE`-trait command (`incr` / `append` / `lappend`) reports its
+  `VarWrite` target as a read too.  A new
+  `collect_rmw_hidden_reads` (`optimiser/elimination.rs`) runs that deep scan
+  over each statement's substitution-bearing words and unions the recovered
+  names into the dead-store / unused suppression set for *both* the analyser
+  (W211/W220) and the optimiser (O109/O126).  Kept out of SSA `uses` so
+  read-before-set versioning is unperturbed — mirrors Python's
+  `expr_substitution_read_names` / `_DEEP_RMW_VAR_REF_SCANNER`.
+- **FP-DS-06 (must-alias kill).** `set a(k) 1; set a(k) 2; return $a(k)` — the
+  first write is dead (the later-version read sees the second write).  Added
+  `must_alias_killed_in_block` (`place_bridge.rs`): for a literal-key
+  `ArrayElem` / `DictPath` write, walk the block forward for an intervening read
+  of the *exact* same element (cancels the kill) or a later write to it
+  (must-alias kill).  `element_writes_observed_by_reads` now reports — rather
+  than suppresses — a killed write, overriding the over-approximating
+  element-observed suppression.  Mirrors Python's `_must_alias_killed_in_block`
+  (PR #498 G15).
+
+Two ported unit tests with all controls (genuine dead store still fires;
+different keys / intervening read don't).  **W220 dead-store pair closed.**
+
+### SYNC-JUN12-misc — Tk W001, W002, O116 fold, LICM purity, bridge dialect (battery 6→2)
+
+Closed four self-contained battery gaps plus two diag-bridge limitations:
+
+- **FP-STY-01 (W001 on Tk `grid`).** `grid bogus .x` must fire W001.  Tk
+  commands weren't in the default registry — `build_default` now loads the Tk
+  pack (Python's base registry includes Tk; W001 fires under every dialect).
+  The W001 emitter folds `TK` into its dialect set and adds the geometry-manager
+  window-path shortcut (`grid .a .b` → no W001), mirroring `compiler_checks.py`.
+- **FP-NAB-10 (W002 command-disabled-in-dialect).** Implemented the missing
+  W002 emitter: a *literal* command head that exists in the registry but not for
+  the active dialect (`dict` under `tcl8.4`) fires, unless an earlier
+  unconditional user proc shadows it.  DISALLOWED = `get(name)` Some but
+  `get_for_dialect(name, dialect)` None, mirroring Python's `command_status`.
+- **FP-OPT-02 (O116 empty-list fold).** The const-fold now picks the code by
+  head (`list`→O116, `lindex`→O118, else O129) and the server lifts the fold
+  `replacement` into the diagnostic `data` (`{replacement, startOffset,
+  endOffset}`), mirroring `_propagation.py`.  `set x [list]` → O116 with
+  `data.replacement == "{}"`.
+- **FP-OPT-03 (LICM purity).** `[format %04d [incr testnum]]` is not
+  loop-invariant — the inner `[incr testnum]` mutates per iteration.  Fixed
+  `split_cmd_text` (`gvn.rs`) to keep a nested `[…]` / `{…}` region as one word
+  so `is_pure_command`'s recursive purity check sees the impure inner cmd-sub
+  (it was splitting `[incr testnum]` on the space and losing it).
+- **Diag-bridge dialect threading.** `tests/rust_diag_bridge.py` now opens the
+  probe document with the active `dialect_scope` dialect as the `languageId`
+  (re-opening on change), so dialect-sensitive batteries (W002, taint) analyse
+  under the right dialect.  `_to_diagnostic` surfaces the server's `data` so the
+  O116 quick-fix `replacement` is assertable.
+
+Ported unit tests for W001 window-shortcut, W002 (disabled/enabled/shadowed),
+O116/O118 fold codes, and LICM nested-impurity.  `cargo test --workspace`
+(2533) / clippy / fmt clean; no e2e regressions.  Remaining battery (2): T102
+path-prefix taint (INJ-04) and S101 per-iteration shimmer.
+
+### SYNC-JUN12-remaining2 — the last two battery gaps (large analyses)
+
+Two battery failures remain (battery now **2 / 401**); both require new
+analysis subsystems, not focused carve-outs, and a partial implementation would
+regress passing controls:
+
+- **FP-INJ-04 (T102 path-prefix taint).** `set foo "-[HTTP::path]"; regexp $foo
+  test` must fire T102 (the literal `-` breaks `HTTP::path`'s `/`-anchoring),
+  while the INJ-03 controls (`[HTTP::path]` alone, `"path_[HTTP::path]"`) must
+  stay silent.  The Rust taint seeds an HTTP getter as plain `TAINTED` only —
+  it does **not** carry the `PATH_PREFIXED` / `STARTS_WITH_SLASH` colours, does
+  not recognise iRules taint sources outside the `IRULES` dialect (Python's
+  `is_taint_source` uses `command_names("f5-irules")` unconditionally — verified
+  Python fires T102 under `tcl8.6`), and `emit_option_injection` has no
+  `T102_SAFE` gate.  Needs: (1) drop the dialect gate in
+  `irules_dialect_only_source`, (2) seed HTTP getters with the path-anchor
+  colours, (3) propagate them through string interpolation with a leading-`-`
+  carve-out that clears the anchor, (4) a `T102_SAFE` gate in
+  `emit_option_injection`.  Items 1–3 are exactly what keeps INJ-03 green, so it
+  is all-or-nothing.
+- **TP-S101 (per-iteration intrep thrash).** `foreach x $l { string length $x;
+  lindex $x 0 }` must fire S100/S101/S102.  The Rust use-site shimmer already
+  emits S101 in-loop, but only for a variable with a **known** intrep type — a
+  `foreach` loop variable is currently `Unknown`, so nothing fires.  Needs
+  foreach-variable intrep type inference (`x` → `List` from the list-of-lists
+  source) plus the `loop_use_targets` distinct-target classification (a
+  loop-invariant var coerced to ≥2 types per iteration is S101, not S100), as
+  in `compiler/shimmer.py:270-285`.
+
 ## Testing strategy — porting the 14k-test pytest suite to Rust
 
 Audit (2026-06-10) of the **448 pytest files / ~14,112 test functions** to
@@ -10145,3 +10412,176 @@ for the common call forms.
   external-site scan descends command-subs + proc/method
   bodies but not string interpolation
   (`"prefix[$d bark]"`); a rare residual form.
+
+## SYNC-JUN12-T102: registry-driven taint sources + PATH_PREFIXED model (battery 2→1)
+
+Closed **FP_INJ_04** (the T102 path-prefix option-injection model), porting
+the Python taint-source colour lattice faithfully and moving all source
+metadata into the registry as the single source of truth.
+
+* **Source colour on the spec**: new `CommandSpec.taint_source:
+  Option<TaintColour>` carries the getter-form result colour — plain
+  `TAINTED`, or `… | PATH_PREFIXED` (`HTTP::path`/`HTTP::uri`),
+  `… | IP_ADDRESS` (`IP::client_addr`/`remote_addr`), `… | PORT`
+  (`TCP::client_port`/`remote_port`), `… | FQDN` (`SSL::sni`). Set on the
+  78 iRules getter specs whose Python `taint_hints().source` is non-None
+  (the data now lives beside each command, mirroring `dialects/f5/irules/*.py`).
+* **Derived dialect-agnostic index**: `CommandRegistry::taint_source(cmd)`
+  reads a process-wide table *derived* from every spec's `taint_source`
+  (built once via `OnceLock` over the `tcl` + `irules` spec modules — no
+  hand-maintained parallel list). Global on purpose: Python's `TAINT_HINTS`
+  is an import-time global, so `HTTP::path` is a source even when a
+  `tcl8.6` document's registry never loaded the iRules commands. This
+  replaced the old `IRULES_TAINT_SOURCE_PREFIXES` source heuristic, which
+  over-matched the `URI::encode` *transform* as a source.
+* **Propagation** (`tcl_compiler::taint`): `word_taint`/`evaluate_taint_def`
+  now return the source's full colour lattice (was bare `TAINTED`) via
+  `taint_source_colour` + `_augment_source_colours` (PATH_PREFIXED ⇒
+  NON_DASH_PREFIXED; IP/PORT/FQDN ⇒ +CRLF_FREE +SHELL_ATOM).
+* **Interpolation carve-out**: ported `_evaluate_interpolated_word_taint`
+  — a concatenated word clears the structural colours and re-derives
+  option-prefix safety from its leading literal (`/` ⇒ PATH_PREFIXED, other
+  non-`-` ⇒ NON_DASH_PREFIXED, `-` ⇒ clears both) via
+  `leading_literal_prefix_char` / `literal_contains_crlf` (lexer-tokenised,
+  `backslash_subst`-rendered).
+* **T102 gate**: `emit_option_injection` now suppresses on the `T102_SAFE`
+  colour set (`_should_suppress_t102`).
+* **Guardrail corrections**: two Rust unit tests encoded a *dialect-gated*
+  source rule Python does not produce (verified: under `tcl8.6` Python
+  taints `[HTTP::uri]` and fires T102 on `-[HTTP::path]`). Rewrote
+  `http_uri_is_not_a_source_outside_irules` → `…is_a_source_in_every_dialect`
+  and `irules_http_uri_is_source_under_dialect` →
+  `…is_a_dialect_agnostic_source` to match Python.
+
+Battery: `402 passed / 1 failed` (only the pre-existing S101 intrep-thrash
+gap remains). `make test-lsp-e2e-rust` unaffected.
+
+## SYNC-JUN13 — S101 foreach-variable per-iteration intrep thrash
+
+The last battery gap (`test_TP_S101_per_iteration_mixed_intrep_thrash`):
+`foreach x $l { set b [lindex $x 0] }` did not fire S101 in Rust.
+
+* **Root cause** (not a missing pass — a missing *dispatch* arm): a
+  `foreach` element variable is already typed `String` in Rust (the
+  `foreach` spec carries `return_type = String`, and `evaluate_type_def`
+  types the loop-var def via `return_type_for_command`, exactly like
+  Python's `_return_type_for_command("foreach", …)`). The shimmer detector
+  only failed to *check* the use, because `set b [lindex $x 0]` lowers to a
+  `Statement::AssignValue` whose value is a `[cmd …]` substitution, and
+  `check_statement` handled only `Statement::Call` / `Statement::Incr`.
+  Python's `_find_use_site_shimmers` has an explicit `IRAssignValue` arm
+  (parse the command substitution, run `_check_args_for_shimmer`).
+* **Fix** (`shimmer/use_site.rs`): factored the `Call` arg-shimmer body into
+  `check_invocation` and added a `Statement::AssignValue` arm that parses the
+  value as a command substitution and runs the same check — a faithful port
+  of Python's dispatch. Also ported Python's per-block `already_coerced`
+  ledger so a second use coercing the same `(var, ver)` to the same intrep in
+  one block is not double-counted.
+* **Reverted** an earlier exploratory `find_loop_intrep_thrash` use-vs-use
+  pass — it was the wrong model (Python is type-lattice driven; the
+  `String→List` conflict here is between the inferred type and one use, not
+  between two uses).
+
+Battery (rust backend): **403 passed / 0 failed**. `cargo test --workspace
+--all-features` green; `cargo clippy --workspace --all-targets` clean.
+
+## SYNC-JUN13-2 — midword-quote bracket recovery (last e2e failure)
+
+`test_midword_delimiter_still_recovers`: `set x [foo abc"\nproc … {} {}`
+left the tail `proc` unrecovered (absent from document symbols).
+
+* **Root cause**: both the Rust *and* Python lexers toggle the
+  command-substitution `in_quotes` counter on **every** `"` at `blevel == 0`
+  (faithful to each other — the structural-index faithfulness battery pins
+  this). A mid-word `"` (`abc"`) therefore opens a phantom quoted run that
+  swallows the rest of the document. The E201 recovery already derived a
+  ghost `]` at the right offset (before `proc`), but the re-lex ignored it:
+  `parse_command`'s `]` arm is gated on `!in_quotes`, so the ghost was eaten
+  as quoted text and the bracket stayed open to EOF.
+* **Fix** (`tcl-lexer/src/lexer.rs`): a recovery **ghost** `]` now closes the
+  command unconditionally — it is checked at the top of the `parse_command`
+  loop, before the quote/brace guards. A ghost is a deliberate recovery
+  insertion already vetoed from inert (brace / escape / `${…}`) positions
+  when derived, so it is always a sound structural closer. This touches only
+  the `with_ghosts` re-lex path; the no-ghost structural-index faithfulness
+  test is unaffected (still green over its 8000-case corpus).
+* Python recovers the same tail via its fix-less scan-to-next partial-command
+  path (it emits E201-no-fix + E200); the Rust GAP-A1 ghost mechanism reaches
+  the same observable outcome (the `proc` symbol) via the already-derived
+  E201-with-fix.
+
+`make test-lsp-e2e-rust`: **511 passed / 1 skipped / 0 failed**. Battery
+(rust backend): **403 / 0**. `cargo test --workspace --all-features` green;
+`cargo clippy --workspace --all-targets` clean.
+
+## SYNC-JUN13-3 — Pillar C: native Rust server is now the default backend
+
+The native Rust `tcl-lsp-server` is the out-of-the-box backend; the Python
+reference server is an explicit opt-out (`TCL_LSP_SERVER_KIND=python`, or an
+editor's `serverKind` setting). Per the user's direction ("we're trying to
+replace the Python; the lsp-e2e tests are there to help Rust"), the test
+layout was reorganised so the suites name their backend.
+
+* **Backend selector** (`tests/lsp_e2e/harness.py:server_kind`): unset →
+  native when a binary is available, else Python (a bare checkout still runs);
+  `TCL_LSP_SERVER_KIND=rust`/`native` forces native; `=python` forces Python.
+  This mirrors the launcher and VS Code fallback semantics exactly.
+* **`tcl-lsp` console-script launcher** (new `server/launcher.py`, wired in
+  `pyproject.toml`): resolves the native binary (`TCL_LSP_SERVER_BIN`, then
+  `PATH`, then `target/{release,debug}/`) and `os.execv`s it; falls back to the
+  in-process Python server when none is found; `=python` forces Python; an
+  explicit `=rust` with no binary errors out. *Switchover decision*: the
+  console script stays a thin Python shim (so binary-less `pip install`s keep
+  working) that prefers native — the smallest sound change, no wheel-packaging
+  of platform binaries required.
+* **Test layout**: `make test-py` now *excludes* `tests/lsp_e2e` (it covers the
+  PyO3 surfaces + tooling); `make test-rust` runs the cargo workspace tests and
+  then builds the native server and drives the `lsp_e2e` suite against it
+  (`rust-server` + `test-lsp-e2e-rust`). `make test-lsp-e2e` (Python reference)
+  and the `ci-fast` e2e subset are pinned to `TCL_LSP_SERVER_KIND=python` so
+  the Python reference is still exercised deterministically.
+* **Editors**: VS Code `serverKind` defaults to `rust` with a graceful Python
+  fallback when no native binary is found (only an *explicit* `rust` errors);
+  the Neovim/Emacs/Helix config snippets default to the native binary with the
+  Python invocation kept as a documented opt-out. The `.claude` `lsp_client`
+  CLI default flipped to `rust`. README + editor READMEs updated.
+  *Deferred* (compiled / framework-driven, not buildable in this environment):
+  the Zed (Rust/WASM) and JetBrains (Kotlin) extensions and the Sublime LSP
+  plugin still launch the bundled Python `.pyz`; flipping those to a native
+  default + bundling per-platform binaries is a packaging/CI task tracked
+  separately.
+
+Gates: `make test-py` green (16615 passed); `make test-lsp-e2e-rust` green
+(511 passed / 1 skipped); battery (rust) 403/0; default-mode `lsp_e2e`
+(no env vars) resolves to the native server and passes 511/1.
+
+## SYNC-JUN13-4 — PR #595 Codex review fixes
+
+* **VS Code default fallback (P1)**: with the `serverKind` schema default now
+  `"rust"`, `config.get("serverKind", "")` returned `"rust"` even when the user
+  never set it, so the missing-binary path treated the default as an *explicit*
+  Rust request and errored instead of falling back to Python. Fixed: use
+  `config.inspect()` and read only the user/workspace/folder values, so an
+  unset `serverKind` is distinguishable from an explicit one.
+* **`try` handler exception edges (P2)**: the Rust discriminator keyed on
+  "does the body contain an explicit throw?", but Python keys on "does the body
+  have a normal fall-through?" (`body_terminal`). They diverge for a body that
+  both throws *and* falls through (`if {$c} {error e}; set y 2`): the handler
+  can be entered by an abnormal completion at any point, so `y` is only
+  maybe-defined. Rewrote to mirror Python — discriminate on `body_tail.is_none()`
+  and track a `last_terminal_block` for the no-explicit-throw fallback.
+* **Bare `$ns::cmd` (P2)**: `parse_namespaced_ensemble` split the *bare*
+  `$prefix::tail` form, suppressing W307 when `<prefix>::tail` resolved to a
+  known command. But Tcl lexes `$ns::run` as a single variable `ns::run` — only
+  the *braced* `${ns}::tail` composes a command path (Python's
+  `is_namespaced_ensemble` only fires after a `${…}` close brace). Restricted
+  the parser to the braced form; bare `$ns::run` now fires W307, matching Python.
+* **Optimiser disables in diagnostics (P2)**: `tclLsp.optimiser.enabled=false`
+  and per-code `tclLsp.optimiser.O1xx=false` were parsed/holdable but never
+  folded into the diagnostics path (only the profile was). Now the master switch
+  and per-code overrides gate every O-code, including the ones emitted by
+  `run_all_checks` (e.g. the constant-branch `O100`), mirroring Python's
+  `optimiser_enabled` + `disabled_optimisations`.
+
+Battery (rust) 403/0; `make test-lsp-e2e-rust` 511/1; `cargo test`/`clippy`
+clean.

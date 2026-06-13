@@ -1,6 +1,6 @@
 //! `DIAMETER::state` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::state",
         dialects: Some(DialectSet::IRULES),

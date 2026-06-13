@@ -1,6 +1,6 @@
 //! `X509::subject_public_key_type` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::subject_public_key_type",
         dialects: Some(DialectSet::IRULES),

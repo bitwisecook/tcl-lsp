@@ -243,6 +243,7 @@ pub fn run_all_checks(
         // and lets us skip the entire walk under non-iRules dialects.
         if is_irules_dialect(dialect) {
             for w in find_setter_constraint_warnings(
+                registry,
                 &fu.cfg,
                 &fu.ssa,
                 &fu.taints,

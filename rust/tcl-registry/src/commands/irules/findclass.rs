@@ -1,6 +1,6 @@
 //! `findclass` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "findclass",
         dialects: Some(DialectSet::IRULES),

@@ -77,7 +77,7 @@
 //!   ``ConnectionScope`` lands on the Rust side, the emitter
 //!   wires up in a single call to ``emit_racy_static_diagnostics``.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::SourceMap;
 
@@ -96,6 +96,272 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
         source.get(start..end).map(str::to_owned)
     } else {
         None
+    }
+}
+
+/// Parse a namespaced-ensemble dispatch head `${prefix}::tail` from the source
+/// slice at `span`, returning `(prefix_var_name, tail)`.  Returns `None` when
+/// the head isn't this shape.
+///
+/// Only the **braced** form composes a command path.  A bare `$prefix::tail`
+/// is lexed by Tcl as a *single* variable named `prefix::tail` (the runtime
+/// reads that variable — it is not `$prefix` followed by a literal `::tail`),
+/// so it must NOT be treated as ensemble dispatch.  Mirrors
+/// `_diag_var_command.py`'s `is_namespaced_ensemble`, whose check only fires
+/// after a `${…}` closing brace (the bare VAR token already swallows the
+/// `::tail`, so the character after it is never `::`).
+fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(String, String)> {
+    let start = span.start() as usize;
+    let end = (span.end() as usize).min(source.len());
+    if start >= end {
+        return None;
+    }
+    let head = &source[start..end];
+    let braced = head.strip_prefix("${")?;
+    let close = braced.find('}')?;
+    let (prefix, after) = (&braced[..close], &braced[close + 1..]);
+    let tail = after.strip_prefix("::")?;
+    // Both prefix and tail must be non-empty; a `${arr(key)}` array element is
+    // not an ensemble prefix.
+    if prefix.is_empty() || tail.is_empty() || prefix.contains('(') {
+        return None;
+    }
+    Some((prefix.to_string(), tail.to_string()))
+}
+
+/// Harvest `array set arr {k1 v1 k2 v2 …}` literal element values into the
+/// constset map keyed by `arr(key)`, so the W307 callback-array suppression
+/// can check the *actual* value of `$arr(-command)` against the known-command
+/// set.  Without this, the dash-prefixed / callback-suffixed array-key
+/// heuristic fires even when SCCP-equivalent literal evidence proves the value
+/// is (or isn't) a command.  Mirrors `_diag_var_command.py:421-452`.
+fn harvest_array_set_constants(
+    cu: &crate::compilation_unit::CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    use crate::ir::Statement;
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let (Statement::Call { command, args, .. }
+                | Statement::Barrier { command, args, .. }) = stmt
+                else {
+                    continue;
+                };
+                let is_array =
+                    command == "array" || stmt.canonical_command_or_source() == "::array";
+                if !is_array || args.first().map(String::as_str) != Some("set") || args.len() < 3 {
+                    continue;
+                }
+                let arr_name = &args[1];
+                let items = crate::tcl_expr_eval::split_tcl_list(&args[2]);
+                if items.len() % 2 != 0 {
+                    continue;
+                }
+                for pair in items.chunks_exact(2) {
+                    let elem_name = format!("{arr_name}({})", pair[0]);
+                    out.entry(elem_name).or_default().insert(pair[1].clone());
+                }
+            }
+        }
+    }
+}
+
+/// Harvest `dict with d { … }` unpacked variable values: when `d` is a known
+/// literal dict (via SCCP CONST at param entry — usually from call-site
+/// constant propagation), the body sees each dict key as a local variable
+/// bound to its value.  Register those bindings so a `$cmd hi` dispatch inside
+/// the body checks `cmd`'s value against the known-command set.  Mirrors
+/// `_diag_var_command.py:380-420`.
+fn harvest_dict_with_constants(
+    cu: &crate::compilation_unit::CompilationUnit,
+    out: &mut HashMap<String, HashSet<String>>,
+) {
+    use crate::ir::Statement;
+    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+    for fu in units {
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let (Statement::Barrier { command, args, .. }
+                | Statement::Call { command, args, .. }) = stmt
+                else {
+                    continue;
+                };
+                let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
+                if !is_dict || args.first().map(String::as_str) != Some("with") {
+                    continue;
+                }
+                let Some(dict_var) = args.get(1) else {
+                    continue;
+                };
+                let dvar = crate::naming::normalise_var_name(dict_var);
+                // The call-site-propagated literal lands at the param entry (v0).
+                let Some(crate::analyses::LatticeValue::Const(
+                    crate::analyses::ConstValue::String(dict_text),
+                )) = fu.sccp.values.get(&(dvar.to_string(), 0))
+                else {
+                    continue;
+                };
+                let items = crate::tcl_expr_eval::split_tcl_list(dict_text);
+                if items.len() % 2 != 0 {
+                    continue;
+                }
+                for pair in items.chunks_exact(2) {
+                    out.entry(pair[0].clone())
+                        .or_default()
+                        .insert(pair[1].clone());
+                }
+            }
+        }
+    }
+}
+
+/// True when `tok` is a `${name}` (brace-form) VAR token.  Mirrors
+/// `_is_brace_form` in `_diag_brace_then_paren.py`: bare `$name` spans
+/// `name.len() + 1` (one `$`); brace `${name}` spans more (`${` + name).
+/// The Rust [`tcl_lexer::Span`] end is exclusive, so the span length is
+/// `end - start`, equal to Python's inclusive `end.offset - start.offset + 1`.
+fn is_brace_form_var(sm: &SourceMap<'_>, tok: tcl_lexer::Token) -> bool {
+    if tok.kind != tcl_lexer::TokenType::Var {
+        return false;
+    }
+    let span_len = (tok.span.end() - tok.span.start()) as usize;
+    span_len > sm.token_text(tok).len() + 1
+}
+
+/// Return `true` if `inner` contains a `$` or `[` the user likely expects to
+/// substitute — the trigger for the `${arr($foo)}` Pattern-(2) variant of
+/// W216.  Skips backslash escapes.  Mirrors `_index_has_substitution`.
+fn index_has_substitution(inner: &str) -> bool {
+    let bytes = inner.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'$' | b'[' => return true,
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Render the safe replacement for a W216 array-element reference.  Bare
+/// `$name(idx)` is the only `$`-form that substitutes `$` inside the index,
+/// so prefer it when `name` allows it; otherwise `[set "name(idx)"]` (the
+/// command parser substitutes `$`-vars in `set`'s argument).  Mirrors
+/// `_build_replacement`.
+fn build_w216_replacement(name: &str, inner: &str) -> String {
+    if tcl_syntax::naming::is_bare_var_name(name) {
+        format!("${name}({inner})")
+    } else {
+        format!("[set \"{name}({inner})\"]")
+    }
+}
+
+/// Indices into *args* (0-based, word index `i + 1`) that `cmd_name` reads as
+/// a **variable name** — where the braced indirect-array idiom
+/// `${name}(idx)` is correct rather than a typo.  Mirrors
+/// `_varname_word_indices` in `_diag_brace_then_paren.py`.
+fn w216_varname_word_indices(cmd_name: &str, args: &[String]) -> Vec<usize> {
+    match cmd_name {
+        "set" | "incr" | "append" | "lappend" | "vwait" => {
+            if args.is_empty() {
+                Vec::new()
+            } else {
+                vec![0]
+            }
+        }
+        "unset" => {
+            // unset ?-nocomplain? ?--? varName ?varName ...?
+            let mut start = 0;
+            for (i, a) in args.iter().enumerate() {
+                if a == "--" {
+                    start = i + 1;
+                    break;
+                }
+                if a.starts_with('-') {
+                    start = i + 1;
+                    continue;
+                }
+                start = i;
+                break;
+            }
+            (start..args.len()).collect()
+        }
+        "info" => {
+            if args.len() >= 2 && args[0] == "exists" {
+                vec![1]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Find the offset of the `)` matching the `(` at `paren_start`.  Skips
+/// balanced `{...}`, double-quoted strings, and backslash escapes.  Returns
+/// `None` on malformed input.  Mirrors `_find_matching_close_paren`.
+fn find_matching_close_paren(source: &[u8], paren_start: usize) -> Option<usize> {
+    let n = source.len();
+    let mut depth = 1i32;
+    let mut j = paren_start + 1;
+    let mut in_quote = false;
+    while j < n && depth > 0 {
+        let c = source[j];
+        if in_quote {
+            if c == b'\\' && j + 1 < n {
+                j += 2;
+                continue;
+            }
+            if c == b'"' {
+                in_quote = false;
+            }
+            j += 1;
+            continue;
+        }
+        match c {
+            b'"' => {
+                in_quote = true;
+                j += 1;
+                continue;
+            }
+            b'{' => {
+                let mut bd = 1i32;
+                j += 1;
+                while j < n && bd > 0 {
+                    if source[j] == b'\\' && j + 1 < n {
+                        j += 2;
+                        continue;
+                    }
+                    match source[j] {
+                        b'{' => bd += 1,
+                        b'}' => bd -= 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                continue;
+            }
+            b'\\' if j + 1 < n => {
+                j += 2;
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+        j += 1;
+    }
+    if depth != 0 {
+        None
+    } else {
+        Some(j - 1)
     }
 }
 
@@ -1222,6 +1488,28 @@ struct UndefSuppression {
     explicitly_defined: HashSet<String>,
     /// Local-alias tails declared by a qualified `variable ns::tail`.
     alias_tails: HashSet<String>,
+    /// Names written by a command substitution buried inside an `expr`
+    /// argument (`set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during
+    /// expr evaluation).  The `[…]` is opaque to SSA def tracking, so a later
+    /// `$tmp` read in the same expression looks read-before-set.  Name-level,
+    /// suppress-only — mirrors Python's `command_sub_write_names` contribution
+    /// to the `skip` set in `core_analyses.py::_read_before_set`.
+    cmd_sub_writes: HashSet<String>,
+    /// Locals aliased to a *dynamic* upvar target (`upvar 1 $name local`).
+    /// The alias may resolve to a non-existent caller variable, so the local
+    /// is possibly-unset: read-before-set must *override* the scope-alias
+    /// suppression and fire on an unconditional read (an `[info exists]` guard
+    /// still suppresses it per-use).
+    dynamic_upvar_locals: HashSet<String>,
+    /// `(name, version)` pairs killed by an `unset` — undef at their reads,
+    /// so a direct read of one is read-before-set just like a version-0
+    /// origin.
+    killed: HashSet<(String, crate::ssa::Version)>,
+    /// Phi versions that can be undefined on some executable path
+    /// (a one-branch `set y 1` merge, or a try-handler merge). A statement
+    /// read of one is read-before-set; the def-use pass can't express this
+    /// because the read targets the *phi* version, not a version-0 origin.
+    can_undef: HashSet<(String, crate::ssa::Version)>,
 }
 
 impl UndefSuppression {
@@ -1244,7 +1532,10 @@ impl UndefSuppression {
     /// SCCP cannot yet resolve) must still fire so a genuine missing-key read
     /// is not hidden.
     fn suppresses_strict(&self, name: &str) -> bool {
-        if self.alias_tails.contains(name) || self.dict_vars.contains(name) {
+        if self.alias_tails.contains(name)
+            || self.dict_vars.contains(name)
+            || self.cmd_sub_writes.contains(name)
+        {
             return true;
         }
         self.has_dict_with
@@ -1254,15 +1545,42 @@ impl UndefSuppression {
 }
 
 /// Build the [`UndefSuppression`] context over `considered` blocks.
-fn build_undef_suppression(
+/// Names written by a command substitution buried inside an `expr` argument.
+/// `set e [expr {[catch {…} tmp] || $tmp}]` writes `tmp` during expr
+/// evaluation; the `set x [expr {E}]` form lowers to `AssignExpr`, so the
+/// condition-out-var extractor over its expr recovers those writes.
+/// Name-level, suppress-only — mirrors `command_sub_write_names` over
+/// expr-role args in `core_analyses.py::_read_before_set`.
+fn collect_expr_cmd_sub_writes(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
-) -> UndefSuppression {
+) -> HashSet<String> {
     use crate::ir::Statement;
-    let mut s = UndefSuppression::default();
+    let mut out = HashSet::new();
+    for bn in considered {
+        let Some(block) = fu.cfg.blocks.get(bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            if let Statement::AssignExpr { expr, .. } = stmt {
+                out.extend(crate::ir_helpers::condition_command_out_vars(expr));
+            }
+        }
+    }
+    out
+}
 
-    // `dict with` / `dict update`: harvest the dict-var names and, when the
-    // dict value is a same-block literal, its keys (key-aware suppression).
+/// `dict with` / `dict update` key-aware suppression: record the dict-var
+/// names and, when the dict value is a same-block literal (or an
+/// interprocedurally-propagated SCCP const), its keys.  A value that resolves
+/// to neither marks the dict shape unknown.  Mirrors the dict-with arm of
+/// `_read_before_set`.
+fn harvest_dict_with_suppression(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+    s: &mut UndefSuppression,
+) {
+    use crate::ir::Statement;
     for bn in considered {
         let Some(block) = fu.cfg.blocks.get(bn) else {
             continue;
@@ -1293,12 +1611,12 @@ fn build_undef_suppression(
                 continue;
             }
             s.dict_vars.insert(dvar.clone());
-            // Resolve the dict's value to harvest its keys.  Prefer the
-            // SCCP CONST of the SPECIFIC version read by this dict-with (so
-            // interprocedurally-propagated literals — a caller passing `{}`
-            // — are honoured), falling back to a same-block literal `set`.
-            // A known value (even empty) harvests its keys; only a value
-            // that resolves to neither marks the dict shape unknown.
+            // Resolve the dict's value to harvest its keys.  Prefer the SCCP
+            // CONST of the SPECIFIC version read by this dict-with (so
+            // interprocedurally-propagated literals — a caller passing `{}` —
+            // are honoured), falling back to a same-block literal `set`.  A
+            // known value (even empty) harvests its keys; only a value that
+            // resolves to neither marks the dict shape unknown.
             let mut literal: Option<String> = None;
             if let Some(sb) = fu.ssa.blocks.get(bn) {
                 if let Some(ver) = sb
@@ -1344,6 +1662,41 @@ fn build_undef_suppression(
             }
         }
     }
+}
+
+fn build_undef_suppression(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<String>,
+) -> UndefSuppression {
+    let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+    // Phi versions that can reach an undef origin on some executable path —
+    // a statement read of one is read-before-set. The per-use existence
+    // guard + suppression set still apply in the emitter loop.
+    let exists_guards = collect_existence_guards(fu);
+    let mut can_undef: HashSet<(String, crate::ssa::Version)> = HashSet::new();
+    for key in phi_def.keys() {
+        let mut seen = HashSet::new();
+        if phi_can_undef(
+            &key.0,
+            key.1,
+            &phi_def,
+            &killed,
+            considered,
+            &exists_guards,
+            &fu.ssa,
+            &mut seen,
+        ) {
+            can_undef.insert(key.clone());
+        }
+    }
+    let mut s = UndefSuppression {
+        cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
+        dynamic_upvar_locals: crate::optimiser::elimination::scan_dynamic_upvar_locals(&fu.cfg),
+        killed,
+        can_undef,
+        ..Default::default()
+    };
+    harvest_dict_with_suppression(fu, considered, &mut s);
 
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).
@@ -1553,7 +1906,45 @@ fn extract_quoted_word(message: &str) -> Option<String> {
 /// prevent.  The bare-name match enforces a non-identifier
 /// boundary on each side so ``$abc`` doesn't match ``$ab``,
 /// and skips the variable when it follows a ``\\`` escape.
+/// True when the proc body textually references the parameter `$param` /
+/// `${param}`, scanning command-by-command so a `namespace eval` body — which
+/// runs in the *namespace* frame, not the caller's — does **not** falsely
+/// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
+/// loops) run in the caller frame, so their `$param` reads still count.
+/// Mirrors `_block_local_reads`'s `caller_scope` early-return in
+/// `core_analyses.py`.
 fn body_references_param(body: &str, param: &str) -> bool {
+    if param.is_empty() {
+        return false;
+    }
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+        body,
+        0,
+        tcl_lexer::LexerConfig::default(),
+    );
+    for cmd in &cmds {
+        // `namespace eval NS BODY` — the trailing body word evaluates in NS's
+        // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)
+        // is still substituted in the caller frame and is scanned.
+        let is_ns_eval = cmd.texts.first().map(String::as_str) == Some("namespace")
+            && cmd.texts.get(1).map(String::as_str) == Some("eval");
+        let skip_last = is_ns_eval && cmd.texts.len() >= 4;
+        let last_idx = cmd.texts.len().saturating_sub(1);
+        for (i, word) in cmd.texts.iter().enumerate() {
+            if skip_last && i == last_idx {
+                continue;
+            }
+            if word_references_param(word, param) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// True when a single word textually references `$param` / `${param}`.  Flat
+/// byte scan with identifier-boundary and `\$` escape handling.
+fn word_references_param(body: &str, param: &str) -> bool {
     if param.is_empty() {
         return false;
     }
@@ -2004,6 +2395,7 @@ impl Analyser {
         cmd_name: &str,
         body_text: &str,
         body_tok: tcl_lexer::Token,
+        is_single_token: bool,
     ) {
         // Already braced — `Str` token kind means the source
         // started with ``{``.  Mirrors ``_first_token_is_braced``
@@ -2020,6 +2412,20 @@ impl Analyser {
         // `Var` body such as `while {$cond} $body` is *not* exempt — only
         // a `Cmd` word is.)
         if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd) {
+            return;
+        }
+        // A body that is a *single bare variable substitution* (`eval $cmd`,
+        // `proc $n $a $body`, `after 0 $coroName`, `$state(-command)`) is a
+        // script-valued reference, not an inline code block: the variable
+        // already holds the script.  Bracing it (`{$cmd}`) would turn the
+        // reference into the literal text `$cmd` — the W105 quick-fix is
+        // actively wrong here — and the genuine double-substitution (eval) /
+        // dynamic-dispatch (command name) risks are W101's and W307's to
+        // flag.  A *single-token* word whose token is a `Var` is exactly this
+        // case; a composite word (`${t}--Coro`) or quoted interpolated body
+        // (`"do $script"`) has more than one fragment and is not exempt.
+        // Mirrors `_word_is_single_var` in `analyser/checks/_style.py`.
+        if is_single_token && matches!(body_tok.kind, tcl_lexer::TokenType::Var) {
             return;
         }
         let trimmed = body_text.trim();
@@ -2629,6 +3035,16 @@ Use braces: {{ \u{2026} }}"
             if tok.kind != tcl_lexer::TokenType::Var {
                 continue;
             }
+            // `set ${token}(status) …` in a variable-name position is the
+            // braced indirect-array-element idiom (`token` holds the array
+            // name), not a `set $token` dynamic-name foot-gun.  Both the
+            // W212 `did you mean token(status)` and the W216
+            // `did you mean $token(status)` suggestions are wrong there, so
+            // neither fires.  Mirrors `check_name_vs_value`'s
+            // `is_braced_indirect_array_ref` carve-out.
+            if tcl_syntax::naming::is_braced_indirect_array_ref(text) {
+                continue;
+            }
             let bare = text
                 .trim_start_matches('$')
                 .trim_start_matches('{')
@@ -2647,6 +3063,127 @@ Use braces: {{ \u{2026} }}"
                 ),
                 severity: super::types::Severity::Warning,
                 fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W216** — broken brace-form variants of array element access.
+    ///
+    /// Two related shapes both look like array-element access but parse
+    /// differently than the user intends:
+    ///
+    /// 1. `${arr}(foo)` — the lexer ends the variable substitution at the
+    ///    `}`, so this is scalar `${arr}` followed by *literal* `(foo)`; no
+    ///    array access happens.
+    /// 2. `${arr($foo)}` — the brace form applies no further substitution to
+    ///    its content, so `$foo` inside the braces is the literal four-char
+    ///    string, not the value of `foo`.
+    ///
+    /// In a *variable-name* position (`set` / `incr` / `append` / `lappend` /
+    /// `unset` / `info exists` / `vwait`) Pattern (1) is the legitimate
+    /// indirect-array-element idiom (`token` holds the array name) and must
+    /// not fire — see [`tcl_syntax::naming::is_braced_indirect_array_ref`].
+    /// Mirrors `_emit_w216_for_command` in
+    /// `analyser/_analyser/_diag_brace_then_paren.py`.
+    pub(super) fn emit_w216_brace_then_paren(&mut self, cmd: &crate::segmenter::SegmentedCommand) {
+        if cmd.texts.is_empty() {
+            return;
+        }
+        let sm = SourceMap::new(&self.source);
+        let source = self.source.as_bytes();
+        // Word-start offsets the command reads as a variable name; a
+        // `${name}(idx)` Pattern-(1) match starting there is the indirect
+        // idiom and must not fire W216.
+        let cmd_name = cmd.texts[0].as_str();
+        let args = &cmd.texts[1..];
+        let mut varname_word_starts: HashSet<u32> = HashSet::new();
+        for ai in w216_varname_word_indices(cmd_name, args) {
+            let wi = ai + 1;
+            if let Some(tok) = cmd.argv.get(wi) {
+                varname_word_starts.insert(tok.span.start());
+            }
+        }
+        for &t1 in &cmd.all_tokens {
+            // Token spans are absolute into the full document; skip any token
+            // whose span exceeds the current source (synthetic unit-test
+            // tokens, or a span past a truncated buffer) before slicing.
+            if t1.span.end() as usize > source.len() {
+                continue;
+            }
+            if !is_brace_form_var(&sm, t1) {
+                continue;
+            }
+            let text = sm.token_text(t1).to_string();
+
+            // Pattern (2) — `${arr($foo)}`: the VAR token's own text contains
+            // `(...)` with `$`/`[` inside.
+            if text.contains('(') && text.ends_with(')') {
+                if let Some(paren_idx) = text.find('(') {
+                    let name = &text[..paren_idx];
+                    let inner = &text[paren_idx + 1..text.len() - 1];
+                    if !name.is_empty() && index_has_substitution(inner) {
+                        let corrected = build_w216_replacement(name, inner);
+                        // Token span end is exclusive — it sits on the `}`.
+                        let span = tcl_lexer::Span::new(t1.span.start(), t1.span.end() + 1);
+                        let message = format!(
+                            "`${{{name}({inner})}}` does not substitute `{inner}` \
+(the brace form is documented to apply no further substitution to its \
+content); use `{corrected}` to access the array element with index substitution"
+                        );
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W216".to_string(),
+                            span,
+                            message,
+                            severity: Severity::Warning,
+                            fixes: vec![super::types::CodeFix {
+                                span,
+                                new_text: corrected.clone(),
+                                description: format!("Replace with `{corrected}`"),
+                            }],
+                        });
+                    }
+                }
+                continue;
+            }
+
+            // Pattern (1) — `${arr}(foo)`: the VAR token ends at the last
+            // char before `}`; a literal `}` follows (the exclusive span end),
+            // then `(` opens a paren group.
+            let close_brace = t1.span.end() as usize;
+            if close_brace >= source.len() || source[close_brace] != b'}' {
+                continue;
+            }
+            let paren_start = close_brace + 1;
+            if paren_start >= source.len() || source[paren_start] != b'(' {
+                continue;
+            }
+            let Some(paren_end) = find_matching_close_paren(source, paren_start) else {
+                continue;
+            };
+            // Variable-name position → indirect-array idiom, suppress.
+            if varname_word_starts.contains(&t1.span.start()) {
+                continue;
+            }
+            let inner = &self.source[paren_start + 1..paren_end];
+            let corrected = build_w216_replacement(&text, inner);
+            let span = tcl_lexer::Span::new(
+                t1.span.start(),
+                u32::try_from(paren_end + 1).unwrap_or(t1.span.end()),
+            );
+            let message = format!(
+                "`${{{text}}}({inner})` is parsed as scalar `${{{text}}}` followed by \
+literal text `({inner})`; did you mean `{corrected}` for array element access?"
+            );
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W216".to_string(),
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: vec![super::types::CodeFix {
+                    span,
+                    new_text: corrected.clone(),
+                    description: format!("Replace with `{corrected}`"),
+                }],
             });
         }
     }
@@ -2839,6 +3376,53 @@ Consider capturing the result: catch {\u{2026}} result"
     /// case, and ``{*}LITERAL`` for an unknown subcommand is rare
     /// enough in practice that the divergence is acceptable until
     /// expand-flag plumbing lands as its own chunk.
+    /// **W002** — the command is disabled in the active dialect profile: it
+    /// exists in the registry but not for the active dialect (e.g. `dict` under
+    /// `tcl8.4`, added in 8.5).  Only a *literal* command head is checked — a
+    /// `$obj` / `[cmd]` head is W307's concern — and an earlier unconditional
+    /// user-proc definition that shadows the built-in suppresses it (Tcl
+    /// resolves the proc at the call site).  Mirrors `check_disabled_command`
+    /// in `analyser/checks/_domain.py`.
+    pub(super) fn emit_w002_disabled_command(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
+        use tcl_registry::prelude::DialectSet;
+        // A dynamic command head (`$obj method`, `[lookup] arg`) is resolved at
+        // runtime — W307 handles it, not W002.
+        if matches!(
+            cmd_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            return;
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        let bare = cmd_name.trim_start_matches(':');
+        if bare.is_empty() {
+            return;
+        }
+        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // EXISTS in the active dialect → fine.  UNKNOWN everywhere → W123's
+        // concern.  Only DISALLOWED (exists in some dialect, not this one) fires.
+        if registry.get_for_dialect(bare, dialect).is_some() || registry.get(bare).is_none() {
+            return;
+        }
+        // An earlier *unconditional* user proc with this name shadows the
+        // would-be-disabled built-in at the call site.
+        let qualified = crate::naming::normalise_qualified_name(bare);
+        if let Some(def) = self.result.all_procs.get(&qualified) {
+            if def.name_span.start() < cmd_tok.span.start() {
+                return;
+            }
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "W002".to_string(),
+            span: cmd_tok.span,
+            message: format!("'{cmd_name}' is disabled in the active dialect profile"),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     pub(super) fn emit_w001_unknown_subcommand(
         &mut self,
         cmd_name: &str,
@@ -2860,13 +3444,25 @@ Consider capturing the result: catch {\u{2026}} result"
         if first_arg.contains('$') || first_arg.contains('[') {
             return;
         }
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // Tk geometry/widget ensemble commands (`grid` / `pack` / `wm` / …)
+        // are recognised for the unknown-subcommand check regardless of the
+        // active Tcl dialect — a `.tcl` script may `package require Tk` at
+        // runtime, and Python fires W001 on `grid bogus` under every dialect.
+        let dialect =
+            DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL) | DialectSet::TK;
         let Some(CommandSignature::WithSubcommands(sig)) =
             signature_for_command(registry, cmd_name, dialect)
         else {
             return;
         };
         if sig.allow_unknown {
+            return;
+        }
+        // Tk geometry managers accept `manager pathName ?args?` as a shortcut
+        // for `manager configure pathName ?args?` (grid.n / pack.n / place.n).
+        // A window path starts with `.`, which is not a valid subcommand-name
+        // first character, so this is unambiguous.  Mirrors `compiler_checks.py`.
+        if matches!(cmd_name, "grid" | "pack" | "place") && first_arg.starts_with('.') {
             return;
         }
         if sig.subcommands.contains_key(first_arg) {
@@ -4534,7 +5130,14 @@ file; this call falls through to the 'unknown' handler."
         if let Some(d) = DialectSet::parse(&self.dialect) {
             registry.load_dialect(d);
         }
-        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        // Seed each proc's SCCP with caller-side parameter constants so a
+        // branch on a param every caller passes the same literal folds (the
+        // `if {$x}` body is provably taken under uniform `q 1` callers, so a
+        // var set only there is not read-before-set). Mirrors the Python
+        // analyser's interprocedurally-seeded compilation unit.
+        let dialect_opt = (!self.dialect.is_empty()).then_some(self.dialect.as_str());
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, dialect_opt);
 
         // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
@@ -4746,6 +5349,16 @@ file; this call falls through to the 'unknown' handler."
         // (W220).  Mirrors Python threading `cross_event_vars` through
         // both `_dead_stores` and `_unused_variables`.
         textually_referenced.extend(cross_event_vars.iter().cloned());
+        // A read-modify-write command's target buried in a substitution
+        // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
+        // recover those name-level reads so they suppress the dead-store /
+        // unused-variable hints.
+        if let Some(registry) = self.registry.as_ref() {
+            textually_referenced.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
+                function_unit,
+                registry,
+            ));
+        }
         let ir_proc = ir_module.procedures.get(&function_unit.name);
         self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
@@ -5371,14 +5984,26 @@ file; this call falls through to the 'unknown' handler."
         let exists_guards = collect_existence_guards(fu);
 
         for chain in fu.def_use.chains.values() {
-            if chain.definition.kind != DefKind::Parameter {
+            // Version-0 synthetic defs are the undef origin; an
+            // `unset`-killed real version, and a phi version that can reach
+            // an undef origin (one-branch `set` / try-handler merge), are
+            // undef at their reads too — all flow through the same
+            // suppression + emission logic below.
+            if chain.definition.kind != DefKind::Parameter
+                && !supp.killed.contains(&chain.key)
+                && !supp.can_undef.contains(&chain.key)
+            {
                 continue;
             }
             let (var, _version) = &chain.key;
             if params.contains(var.as_str()) {
                 continue;
             }
-            if scope_aliases.contains(var) {
+            // A dynamic-target upvar local is possibly-unset, so its
+            // scope-alias status must not suppress the read-before-set (an
+            // unconditional `$local` read still fires; an `[info exists local]`
+            // guard suppresses it per-use below).
+            if scope_aliases.contains(var) && !supp.dynamic_upvar_locals.contains(var) {
                 continue;
             }
             if extra_known_defined.contains(var) {
@@ -5495,6 +6120,7 @@ file; this call falls through to the 'unknown' handler."
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
             recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
         });
 
         let mut reported: HashSet<String> = HashSet::new();
@@ -6653,33 +7279,102 @@ file; this call falls through to the 'unknown' handler."
         u32::try_from(off).unwrap_or(0)
     }
 
+    /// True when `my <method>` / `self <method>` dispatched at `site_offset`
+    /// resolves to a method in the enclosing class whose body is a simple
+    /// `return <literal>` — i.e. it returns a plain string, not an object
+    /// handle.  The enclosing class is the one whose `body_span` contains the
+    /// dispatch offset; the method is looked up in its `methods` /
+    /// `class_methods`.  A literal return is `return <word>` on a single line
+    /// with no command substitution (`[`) or variable interpolation (`$`) in
+    /// the returned word.  Mirrors `_diag_var_command.py:1343-1385`.
+    fn oo_self_method_returns_literal(&self, site_offset: u32, method_name: &str) -> bool {
+        for class_def in self.result.all_classes.values() {
+            let body = class_def.body_span;
+            if !(body.start() <= site_offset && site_offset <= body.end()) {
+                continue;
+            }
+            let Some(md) = class_def
+                .methods
+                .get(method_name)
+                .or_else(|| class_def.class_methods.get(method_name))
+            else {
+                // Enclosing class found but no such method — stay conservative
+                // (treat as object-returning), matching Python's `break`.
+                return false;
+            };
+            let start = md.body_span.start() as usize;
+            let end = (md.body_span.end() as usize).min(self.source.len());
+            if start >= end {
+                return false;
+            }
+            let mut bt = self.source[start..end].trim();
+            // Strip one layer of surrounding braces.
+            if let Some(inner) = bt.strip_prefix('{') {
+                bt = inner.trim_end();
+                bt = bt.strip_suffix('}').unwrap_or(bt).trim();
+            }
+            // Simple `return <literal>` — single statement, no substitutions.
+            if bt.contains('\n') || bt.contains(';') {
+                return false;
+            }
+            let Some(ret_arg) = bt.strip_prefix("return ") else {
+                return false;
+            };
+            let ret_arg = ret_arg.trim();
+            return !ret_arg.is_empty() && !ret_arg.contains('[') && !ret_arg.contains('$');
+        }
+        false
+    }
+
+    /// Harvest `set x [Cls new]` / `set x [Cls create name]` where `Cls` is a
+    /// known `TclOO` class: `x` then holds an Object of class `Cls`, so a later
+    /// `$x method` dispatch resolves through the W308 method check instead of
+    /// firing W307.  The type lattice doesn't model the constructor return
+    /// type for a var assignment yet (the cmd-site path recognises the
+    /// bare-class `new`/`create` pattern directly), so mirror that recognition
+    /// here for the var-assignment shape.
+    fn harvest_constructor_object_types(
+        &self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        out: &mut HashMap<String, HashSet<String>>,
+    ) {
+        use crate::ir::Statement;
+        let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
+        for fu in units {
+            for block in fu.cfg.blocks.values() {
+                for stmt in &block.statements {
+                    let Statement::AssignValue { name, value, .. } = stmt else {
+                        continue;
+                    };
+                    let Some((head, args)) =
+                        crate::value_shapes::parse_command_substitution(value.trim())
+                    else {
+                        continue;
+                    };
+                    if !args.first().is_some_and(|s| s == "new" || s == "create") {
+                        continue;
+                    }
+                    let class_qn = self.canonicalise_class_name(&head);
+                    if self.result.all_classes.contains_key(&class_qn)
+                        || self.result.all_classes.contains_key(&head)
+                    {
+                        out.entry(name.clone()).or_default().insert(class_qn);
+                    }
+                }
+            }
+        }
+    }
+
     /// W307 — non-literal command name (variable / command-sub
-    /// used as command head).
+    /// used as command head) and W308 (unknown method on object).
     ///
-    /// Mirrors the W307 half of `_emit_var_command_diagnostics`
-    /// in `core/analysis/_analyser/_diag_var_command.py:22-294`.
-    /// Walks every recorded site in [`Self::var_command_sites`]
-    /// and emits W307 unless the variable's value is statically
-    /// resolvable to a finite set of known command names.
-    ///
-    /// **Resolution paths** (mirrors Python; first match
-    /// suppresses W307):
-    ///
-    /// - Aggregate every CONSTSET / CONST entry in `cu`'s SCCP
-    ///   results for the variable name; if every value in the
-    ///   set is a known command, proc, class, or class-tail name,
-    ///   the command head is statically resolvable — suppress.
-    ///
-    /// **Known limitations.**  W308 (unknown method on object)
-    /// is deferred to a follow-up — it needs the
-    /// `class_hierarchy` / MRO port (the C41e0 architectural
-    /// decision still pending).  Likewise the
-    /// `_cmd_command_sites` (``[cmd] method``) suppression via
-    /// return-type analysis is deferred — that path needs the
-    /// IR-level type-lattice plumbing extended into the
-    /// analyser, which is a larger change than fits this strip.
-    /// In-method W307 suppression and dict-with /
-    /// dict-update barrier-range suppression also defer.
+    /// Mirrors `_emit_var_command_diagnostics` in
+    /// `core/analysis/_analyser/_diag_var_command.py`.  Walks every recorded
+    /// site in [`Self::var_command_sites`] / [`Self::cmd_command_sites`] and
+    /// emits W307 unless the command head is statically resolvable to a finite
+    /// set of known command names, an OBJECT of a known class (→ W308 method
+    /// check), or a positive OO-dispatch signal (`$self`, `my`/`self`
+    /// self-dispatch, namespaced ensemble, callback-array, dict-with unpack).
     #[allow(clippy::too_many_lines)]
     // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
     fn emit_var_command_diagnostics(
@@ -6724,6 +7419,7 @@ file; this call falls through to the 'unknown' handler."
         for fu in cu.procedures.values() {
             collect_object_types(&fu.types, &mut all_object_types);
         }
+        self.harvest_constructor_object_types(cu, &mut all_object_types);
 
         // Build the class hierarchy once for W308 method
         // resolution (uses the C41e0 ``ClassHierarchy``).
@@ -6758,6 +7454,9 @@ file; this call falls through to the 'unknown' handler."
         for fu in cu.procedures.values() {
             collect_from(&fu.sccp, &mut all_constsets);
         }
+
+        harvest_array_set_constants(cu, &mut all_constsets);
+        harvest_dict_with_constants(cu, &mut all_constsets);
 
         // Build the "known commands" universe — registry +
         // user-defined procs + class tail names.
@@ -7009,6 +7708,25 @@ file; this call falls through to the 'unknown' handler."
             if dispatcher_suppressed && !tainted {
                 continue;
             }
+            // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where
+            // `ns` holds a namespace prefix and `::tail` composes a qualified
+            // command path (tcllib's logger / dns / irc modules use this).
+            // When the prefix is an SCCP const and *every* composed name
+            // `<value>::tail` resolves to a known command/proc/class, the
+            // dispatch is statically resolvable — suppress.  A composition
+            // that resolves to nothing (unknown proc) still fires.  Mirrors
+            // the composed-name arm of `_diag_var_command.py:1200-1248`.
+            if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span) {
+                if let Some(values) = all_constsets.get(&prefix) {
+                    if !values.is_empty()
+                        && values
+                            .iter()
+                            .all(|v| is_known_command(&format!("{v}::{tail}")))
+                    {
+                        continue;
+                    }
+                }
+            }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W307".to_string(),
                 span: site.cmd_span,
@@ -7032,9 +7750,12 @@ file; this call falls through to the 'unknown' handler."
         // ``_diag_var_command.py:296-375``.
         let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         for site in &cmd_sites {
-            if site.in_method {
-                continue;
-            }
+            // No blanket `in_method` suppression: an in-method `[cmd] method`
+            // dispatch must earn its silence from a positive signal (a known
+            // OBJECT return type, or `my`/`self` self-dispatch resolving to a
+            // method that returns an object).  Mirrors the F4 closure in
+            // `_diag_var_command.py` (PR #498/#499) that dropped the blanket.
+            //
             // Parse the command-substitution text into
             // ``head ?args...``.  ``cmd_text`` is what the
             // analyser captured from
@@ -7053,9 +7774,25 @@ file; this call falls through to the 'unknown' handler."
             };
             let arg_strs: Vec<&str> = parts.collect();
 
-            // OO self-dispatch ⇒ suppress W307.
-            let is_oo_self_dispatch = matches!(head, "my" | "self");
-            if is_oo_self_dispatch {
+            // OO self-dispatch (`my <method>` / `self <method>`): by default
+            // the return is treated as an object handle (suppress).  But when
+            // the dispatched method resolves in the enclosing class and its
+            // body is a simple `return <literal>`, the result is a plain
+            // string, not an object — so the *outer* dispatch fires W307.
+            // Mirrors the D3-P4 closure in `_diag_var_command.py:1343-1385`.
+            if matches!(head, "my" | "self") {
+                let returns_literal = arg_strs.first().is_some_and(|method| {
+                    self.oo_self_method_returns_literal(site.cmd_span.start(), method)
+                });
+                if returns_literal {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W307".to_string(),
+                        span: site.cmd_span,
+                        message: "Non-literal command name — cannot statically analyze".to_string(),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                }
                 continue;
             }
 
@@ -9327,6 +10064,62 @@ mod tests {
         assert!(w213s[0].message.contains("'xs'"));
         assert!(w213s[0].message.contains("unset -nocomplain"));
         assert_eq!(w213s[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
+        // ``set a 1; unset a; puts $a`` — the `unset` kills `a`, so the
+        // later `$a` read is read-before-set. W210 fires on the read line
+        // (the killed real version is undef at its use, like a version-0
+        // origin). Mirrors Python `_read_before_set`.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc f {} {\n    set a 1\n    unset a\n    puts $a\n}");
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'a'")),
+            "W210 expected for read after unset; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn try_handler_edge_merges_pretry_when_body_falls_through() {
+        // A body that *can* fall through normally but also contains an
+        // explicit throw (`if {$c} { error e }; set y 2`) reaches the handler
+        // by an abnormal completion at *any* point, so `y` is only *maybe*
+        // defined — W210 must still fire on the handler's `$y` read. Sourcing
+        // the on-error edge only from the explicit-throw block (after `set y 2`
+        // failed to run) would wrongly suppress it. Mirrors Python `_lower_try`.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(
+            "proc f {c} {\n try {\n  if {$c} { error e }\n  set y 2\n } on error {} {\n  puts $y\n }\n}\n",
+        );
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            "W210 expected for handler read of maybe-undef y; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn try_handler_edge_suppressed_when_var_set_before_sole_throw() {
+        // `set x 1; error boom` — the body has no normal fall-through and `x`
+        // is set before the sole throw, so the handler sees `x` defined; no
+        // W210. Mirrors Python (and tclsh 9.0.3, which reads x == 1 here).
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(
+            "proc f {} {\n try {\n  set x 1\n  error boom\n } on error {} {\n  puts $x\n }\n}\n",
+        );
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must not fire when x is set before the sole throw; got {:?}",
+            a.result.diagnostics,
+        );
     }
 
     #[test]

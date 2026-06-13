@@ -23,7 +23,7 @@ const RESPOND_OPTION_VALUES: &[ArgValue] = &[
     },
 ];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::respond",
         traits: Traits::DIAGRAM_ACTION,

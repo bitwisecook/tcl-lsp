@@ -1,6 +1,6 @@
 //! `DIAMETER::skip_capabilities_exchange` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::skip_capabilities_exchange",
         dialects: Some(DialectSet::IRULES),

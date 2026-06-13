@@ -1,6 +1,6 @@
 //! `X509::signature_algorithm` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::signature_algorithm",
         dialects: Some(DialectSet::IRULES),

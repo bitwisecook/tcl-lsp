@@ -1,6 +1,6 @@
 //! `RESOLV::lookup` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "RESOLV::lookup",
         dialects: Some(DialectSet::IRULES),

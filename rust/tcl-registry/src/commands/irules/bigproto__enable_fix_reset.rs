@@ -1,6 +1,6 @@
 //! `BIGPROTO::enable_fix_reset` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BIGPROTO::enable_fix_reset",
         dialects: Some(DialectSet::IRULES),

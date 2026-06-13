@@ -1,6 +1,6 @@
 //! `RESOLVER::summarize` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "RESOLVER::summarize",
         dialects: Some(DialectSet::IRULES),

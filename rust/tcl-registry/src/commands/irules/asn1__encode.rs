@@ -1,6 +1,6 @@
 //! `ASN1::encode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASN1::encode",
         dialects: Some(DialectSet::IRULES),

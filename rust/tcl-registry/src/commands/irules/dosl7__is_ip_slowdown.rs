@@ -1,6 +1,6 @@
 //! `DOSL7::is_ip_slowdown` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DOSL7::is_ip_slowdown",
         dialects: Some(DialectSet::IRULES),

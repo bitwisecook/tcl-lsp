@@ -1,6 +1,6 @@
 //! `FTP::ftps_mode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FTP::ftps_mode",
         dialects: Some(DialectSet::IRULES),

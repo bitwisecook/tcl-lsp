@@ -1,6 +1,6 @@
 //! `MR::peer` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::peer",
         dialects: Some(DialectSet::IRULES),

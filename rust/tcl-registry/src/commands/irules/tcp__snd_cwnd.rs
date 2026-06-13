@@ -1,6 +1,6 @@
 //! `TCP::snd_cwnd` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::snd_cwnd",
         dialects: Some(DialectSet::IRULES),

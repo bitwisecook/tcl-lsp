@@ -149,6 +149,7 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 scope_path,
             );
+            self.emit_w216_brace_then_paren(&cmd);
             // `S-document-highlight-rich` / `S-references-rich`
             // follow-up: record every `$var` substitution in
             // arg positions so `VarDef.references` carries the
@@ -278,7 +279,7 @@ impl Analyser {
         // Mirrors the inline recording in
         // ``_AnalyserCommandsMixin._process_command``
         // (``_commands.py:182-198``).
-        self.record_var_or_cmd_command_site(cmd_tok, args);
+        self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
 
         // Record TclOO instance creation (`set v [Cls new]`,
         // `Cls create inst`) so the LSP providers can resolve
@@ -417,7 +418,7 @@ impl Analyser {
         // marks arg 1 as BODY; set `current_event` for the body
         // walk so race-detection diagnostics see the event
         // name, mirroring the Python behaviour.
-        self.dispatch_body_arguments(cmd_name, args, arg_tokens, scope_path);
+        self.dispatch_body_arguments(cmd_name, args, arg_tokens, arg_single, scope_path);
     }
 
     /// Dispatch-site diagnostic emitters, run from
@@ -460,6 +461,7 @@ impl Analyser {
             self.emit_w302_catch_no_result_var(args, cmd_tok, arg_tokens, arg_single);
         }
         self.emit_w001_unknown_subcommand(cmd_name, args, cmd_tok, arg_tokens);
+        self.emit_w002_disabled_command(cmd_name, cmd_tok);
         if cmd_name == "if" {
             self.emit_e004_malformed_if(args, cmd_tok, arg_tokens);
         }
@@ -587,6 +589,7 @@ impl Analyser {
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
+        arg_single: &[bool],
         scope_path: &[usize],
     ) {
         let Some(registry) = self.registry.as_ref() else {
@@ -612,7 +615,8 @@ impl Analyser {
         for idx in body_indices {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
-                self.emit_w105_unbraced_body(cmd_name, body_text, body_tok);
+                let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
+                self.emit_w105_unbraced_body(cmd_name, body_text, body_tok, is_single_token);
                 self.analyse_body(body_text, body_tok, scope_path);
             }
         }
@@ -904,8 +908,13 @@ impl Analyser {
     /// recording in ``_AnalyserCommandsMixin._process_command``
     /// (``core/analysis/_analyser/_commands.py:182-198``).  OO
     /// method-context detection lands in C41e.
-    fn record_var_or_cmd_command_site(&mut self, cmd_tok: Token, args: &[String]) {
-        let in_method = false;
+    fn record_var_or_cmd_command_site(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        let in_method = self.scope_path_in_method_body(scope_path);
         match cmd_tok.kind {
             TokenType::Var => {
                 let sm = tcl_lexer::SourceMap::new(&self.source);

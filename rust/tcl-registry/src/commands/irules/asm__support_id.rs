@@ -1,6 +1,6 @@
 //! `ASM::support_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::support_id",
         dialects: Some(DialectSet::IRULES),

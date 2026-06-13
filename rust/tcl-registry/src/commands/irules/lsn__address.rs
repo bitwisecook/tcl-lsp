@@ -1,6 +1,6 @@
 //! `LSN::address` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::address",
         dialects: Some(DialectSet::IRULES),

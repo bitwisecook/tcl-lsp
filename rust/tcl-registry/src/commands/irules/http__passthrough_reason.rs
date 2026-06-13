@@ -1,6 +1,6 @@
 //! `HTTP::passthrough_reason` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::passthrough_reason",
         dialects: Some(DialectSet::IRULES),

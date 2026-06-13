@@ -42,6 +42,7 @@ mod tk_getopenfile;
 mod tk_getsavefile;
 mod tk_messagebox;
 mod tk_popup;
+mod tkwait;
 mod toplevel;
 mod ttk__button;
 mod ttk__combobox;
@@ -97,6 +98,7 @@ pub fn tk_command_specs() -> Vec<CommandSpec> {
         selection::spec(),
         spinbox::spec(),
         text::spec(),
+        tkwait::spec(),
         tk_cmd::spec(),
         tk_choosecolor::spec(),
         tk_choosedirectory::spec(),

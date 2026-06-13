@@ -1,6 +1,6 @@
 //! `TCP::push_flag` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::push_flag",
         dialects: Some(DialectSet::IRULES),

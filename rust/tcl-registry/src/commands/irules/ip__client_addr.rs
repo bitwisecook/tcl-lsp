@@ -1,9 +1,9 @@
 //! `IP::client_addr` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::client_addr",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
 hover: Some(HoverSnippet {
@@ -36,6 +36,7 @@ hover: Some(HoverSnippet {
             },
         ],
         xc_translatable: Some(true),
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::IP_ADDRESS)),
         ..CommandSpec::DEFAULT
     }
 }

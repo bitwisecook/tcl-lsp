@@ -1,6 +1,6 @@
 //! `ACCESS::uuid` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::uuid",
         dialects: Some(DialectSet::IRULES),

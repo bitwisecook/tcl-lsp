@@ -14,6 +14,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::side_effects::ConnectionSide;
+
 /// Per-event protocol stack properties.
 ///
 /// Describes which connection side an event fires on, what transport
@@ -48,6 +50,17 @@ pub struct EventProps {
     pub common: bool,
     /// Parent event for data events (e.g. `HTTP_REQUEST` for `HTTP_REQUEST_DATA`).
     pub setup_event: Option<&'static str>,
+    /// For a collect-gated `*_DATA` event: the protocol collect-command
+    /// namespaces (`TCP`, `UDP`, `HTTP`, `SSL`, …) whose `<proto>::collect`
+    /// — issued on [`Self::data_collect_side`] — lets the event fire.
+    /// Empty when the event is not collect-gated. (`HTTP_REQUEST_DATA` ⇒
+    /// `["HTTP"]`: it never fires without a client-side `HTTP::collect`.)
+    pub data_collect_protocols: &'static [&'static str],
+    /// The connection side that must issue the collect for a collect-gated
+    /// `*_DATA` event; `None` when not collect-gated. (Held explicitly
+    /// because it is not the event's firing side — `SERVER_DATA` fires on
+    /// both sides yet requires a *server*-side collect.)
+    pub data_collect_side: Option<crate::side_effects::ConnectionSide>,
 }
 
 impl EventProps {
@@ -62,6 +75,8 @@ impl EventProps {
         hot: false,
         common: false,
         setup_event: None,
+        data_collect_protocols: &[],
+        data_collect_side: None,
     };
 }
 
@@ -160,6 +175,27 @@ impl EventRegistry {
     #[must_use]
     pub fn get_props(&self, name: &str) -> Option<&EventProps> {
         self.props.get(name)
+    }
+
+    /// The collect requirement of a collect-gated `*_DATA` event: the
+    /// protocol collect namespaces and the side (`"client"` / `"server"`)
+    /// whose `<proto>::collect` lets the event fire. `None` when `event`
+    /// is unknown or not collect-gated.
+    ///
+    /// Drives the IRULE1005 "data event never fires" check from the
+    /// registry rather than a hardcoded table in the compiler.
+    #[must_use]
+    pub fn data_collect_requirement(
+        &self,
+        event: &str,
+    ) -> Option<(&'static [&'static str], &'static str)> {
+        let props = self.get_props(event)?;
+        let side = match props.data_collect_side? {
+            ConnectionSide::Client => "client",
+            ConnectionSide::Server => "server",
+            _ => return None,
+        };
+        Some((props.data_collect_protocols, side))
     }
 
     /// Whether an event name is known.
@@ -617,6 +653,8 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 transport: &["tcp"],
                 implied_profiles: &["CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"],
                 setup_event: Some("CLIENTSSL_HANDSHAKE"),
+                data_collect_protocols: &["SSL"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -673,6 +711,8 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 transport: &["tcp", "udp"],
                 setup_event: Some("CLIENT_ACCEPTED"),
+                data_collect_protocols: &["TCP", "UDP"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -967,6 +1007,8 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 hot: true,
                 common: true,
                 setup_event: Some("HTTP_REQUEST"),
+                data_collect_protocols: &["HTTP"],
+                data_collect_side: Some(ConnectionSide::Client),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1022,6 +1064,8 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 hot: true,
                 common: true,
                 setup_event: Some("HTTP_RESPONSE"),
+                data_collect_protocols: &["HTTP"],
+                data_collect_side: Some(ConnectionSide::Server),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1553,6 +1597,8 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 transport: &["tcp"],
                 implied_profiles: &["PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
                 setup_event: Some("SERVERSSL_HANDSHAKE"),
+                data_collect_protocols: &["SSL"],
+                data_collect_side: Some(ConnectionSide::Server),
                 ..EventProps::DEFAULT
             },
         ),
@@ -1615,6 +1661,8 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
                 server_side: true,
                 transport: &["tcp", "udp"],
                 setup_event: Some("SERVER_CONNECTED"),
+                data_collect_protocols: &["TCP", "UDP"],
+                data_collect_side: Some(ConnectionSide::Server),
                 ..EventProps::DEFAULT
             },
         ),

@@ -1,6 +1,6 @@
 //! `POLICY::targets` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "POLICY::targets",
         dialects: Some(DialectSet::IRULES),

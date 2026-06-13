@@ -22,7 +22,8 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::CREATES_BARRIER
             | Traits::EVALUATES_CODE
-            | Traits::TAINT_SINK | Traits::CREATES_DYNAMIC_BARRIER,
+            | Traits::TAINT_SINK | Traits::CREATES_DYNAMIC_BARRIER
+            | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::Eval),

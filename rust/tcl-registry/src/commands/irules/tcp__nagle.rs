@@ -1,6 +1,6 @@
 //! `TCP::nagle` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::nagle",
         dialects: Some(DialectSet::IRULES),

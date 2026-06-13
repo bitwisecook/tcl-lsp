@@ -1,6 +1,6 @@
 //! `URI::encode` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "URI::encode",
         dialects: Some(DialectSet::IRULES),

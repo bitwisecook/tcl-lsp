@@ -1,6 +1,6 @@
 //! `CRYPTO::keygen` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CRYPTO::keygen",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `CLASSIFY::application` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CLASSIFY::application",
         dialects: Some(DialectSet::IRULES),

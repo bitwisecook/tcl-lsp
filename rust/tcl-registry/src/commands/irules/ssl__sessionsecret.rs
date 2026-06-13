@@ -1,6 +1,6 @@
 //! `SSL::sessionsecret` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::sessionsecret",
         dialects: Some(DialectSet::IRULES),

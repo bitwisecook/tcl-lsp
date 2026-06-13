@@ -1,6 +1,6 @@
 //! `timing` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "timing",
         traits: Traits::IRULES_TOP_LEVEL_ONLY,

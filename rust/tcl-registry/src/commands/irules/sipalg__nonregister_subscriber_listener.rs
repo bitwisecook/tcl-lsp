@@ -1,6 +1,6 @@
 //! `SIPALG::nonregister_subscriber_listener` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIPALG::nonregister_subscriber_listener",
         dialects: Some(DialectSet::IRULES),

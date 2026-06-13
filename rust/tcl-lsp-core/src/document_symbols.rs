@@ -480,6 +480,22 @@ mod tests {
     }
 
     #[test]
+    fn midword_quote_in_unterminated_bracket_still_recovers_tail() {
+        // `[foo abc"` — the `"` is mid-word, an ordinary literal, so the
+        // following line is a genuine command-break that must still recover.
+        // The `"` toggles the command-substitution `in_quotes` counter, so
+        // the E201 recovery ghost `]` only closes the bracket because a
+        // recovery ghost is an unconditional closer (lexer GAP-A1).
+        let source = "set x [foo abc\"\nproc recovered_after_midword {} {}\n";
+        let symbols = document_symbols(source, "tcl8.6");
+        assert!(
+            names(&symbols).contains(&"recovered_after_midword"),
+            "tail proc not recovered: {:?}",
+            names(&symbols)
+        );
+    }
+
+    #[test]
     fn multiple_procs_emit_one_symbol_each() {
         // Mirrors `test_multiple_procs`.
         let source = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";

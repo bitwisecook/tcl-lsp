@@ -1,6 +1,6 @@
 //! `PSC::lease_time` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PSC::lease_time",
         dialects: Some(DialectSet::IRULES),

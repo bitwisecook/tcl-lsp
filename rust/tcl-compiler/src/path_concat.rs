@@ -198,6 +198,14 @@ pub(crate) fn find_path_concat_warnings(
             if parse_command_substitution(trimmed).is_some() {
                 continue;
             }
+            // A URL scheme separator (`://`) marks a URL, not a filesystem
+            // path — its separators are always `/` regardless of platform, so
+            // `[file join]` (which emits native separators) would be wrong.
+            // Likewise HTML/XML markup (`<tag>`) is not a path.  Mirrors
+            // `_find_path_concat_warnings` in `compiler/taint/_path_concat.py`.
+            if trimmed.contains("://") || trimmed.contains('<') || trimmed.contains('>') {
+                continue;
+            }
 
             let Some(ssa_stmt) = ssa_block.statements.get(idx) else {
                 continue;
@@ -205,6 +213,7 @@ pub(crate) fn find_path_concat_warnings(
 
             let mut has_path_sep = false;
             let mut has_interp = false;
+            let mut has_literal_space = false;
             let mut suppressed_by_colour = false;
             for (def_name, &def_ver) in &ssa_stmt.defs {
                 let key: ValueKey = (def_name.clone(), def_ver);
@@ -215,6 +224,9 @@ pub(crate) fn find_path_concat_warnings(
                     if rp.may.contains(RenderedProperties::HAS_INTERPOLATION) {
                         has_interp = true;
                     }
+                    if rp.may.contains(RenderedProperties::HAS_LITERAL_SPACE) {
+                        has_literal_space = true;
+                    }
                 }
                 if let Some(t) = taints.get(&key) {
                     if t.colours.intersects(suppress_colours) {
@@ -223,7 +235,13 @@ pub(crate) fn find_path_concat_warnings(
                 }
             }
 
-            if !has_path_sep || !has_interp || suppressed_by_colour {
+            // A literal space (or tab) in the rendered value marks prose,
+            // protocol, or display text — an HTTP request line
+            // (`"CONNECT $host:$port HTTP/1.1"`), a usage message, an HTML
+            // fragment — not a filesystem path being constructed.  Genuine
+            // path concat (`set f "$dir/$name"`) carries no literal
+            // whitespace.  Mirrors `_path_concat.py:144-152`.
+            if !has_path_sep || !has_interp || has_literal_space || suppressed_by_colour {
                 continue;
             }
 
@@ -420,6 +438,41 @@ mod tests {
             ws.iter().all(|w| w.variable != "p"),
             "subsequent [file normalize $p] should suppress W201: {ws:?}",
         );
+    }
+
+    /// FP-STY-16: a literal space (or tab) in the rendered value marks
+    /// prose, a protocol line, or display text — not a path.  An HTTP
+    /// request line / usage message / prose-with-path must not flag W201.
+    #[test]
+    fn literal_space_marks_prose_no_w201() {
+        for src in [
+            "set host h\nset port p\nset bypass \"CONNECT $host:$port HTTP/1.1\"",
+            "set exe e\nset msg \"Usage: [file tail $exe] script \"",
+            "set dir d\nset x \"see $dir/readme for help\"",
+        ] {
+            let ws = warnings_for(src);
+            assert!(
+                ws.iter().all(|w| w.code != "W201"),
+                "literal-space prose should not flag W201: {src:?} -> {ws:?}",
+            );
+        }
+    }
+
+    /// TP control: a genuine path concat with no literal whitespace still
+    /// fires, and a command-sub segment's *internal* spaces (one CMD token)
+    /// must not suppress.
+    #[test]
+    fn genuine_path_concat_still_fires_w201() {
+        for src in [
+            "set dir d\nset name n\nset f \"$dir/$name\"",
+            "set dir d\nset path p\nset f \"$dir/[file tail $path]\"",
+        ] {
+            let ws = warnings_for(src);
+            assert!(
+                ws.iter().any(|w| w.code == "W201"),
+                "genuine path concat must fire W201: {src:?} -> {ws:?}",
+            );
+        }
     }
 
     /// The emitted warning carries a buildable `[file join …]`

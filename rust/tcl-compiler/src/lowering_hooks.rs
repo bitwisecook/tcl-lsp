@@ -372,12 +372,23 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         .all(|c| c.is_ascii_digit())
         || cmd.args[0].starts_with('#');
     let start = usize::from(has_level);
-    let my_vars: Vec<String> = cmd.args[start..]
-        .iter()
-        .skip(1)
-        .step_by(2)
-        .map(|a| normalise_var_name(a).to_owned())
-        .collect();
+    // `upvar ?level? caller local ?caller local ...?`.  A `local` is a clean
+    // def only when its `caller` target is a *literal* name: a dynamic
+    // `$name` / `[cmd]` target may resolve to a non-existent caller variable,
+    // in which case the alias is a no-op and reading `$local` errors — so the
+    // local is possibly-unset and must not be recorded as a def (read-before-set
+    // fires on an unconditional read).  Mirrors `upvar_local_declaration_indices`
+    // and Python's dynamic-target read-before-set firing.
+    let rest = &cmd.args[start..];
+    let mut my_vars: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i + 1 < rest.len() {
+        let caller = &rest[i];
+        if !caller.starts_with('$') && !caller.starts_with('[') {
+            my_vars.push(normalise_var_name(&rest[i + 1]).to_owned());
+        }
+        i += 2;
+    }
     Some(Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),

@@ -118,7 +118,8 @@ fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
-        traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
+        traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE
+            | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
 hover: Some(HoverSnippet {

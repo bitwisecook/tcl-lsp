@@ -1,6 +1,6 @@
 //! `substr` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "substr",
         dialects: Some(DialectSet::IRULES),

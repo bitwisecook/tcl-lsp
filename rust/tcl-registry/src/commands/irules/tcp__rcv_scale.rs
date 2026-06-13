@@ -1,6 +1,6 @@
 //! `TCP::rcv_scale` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rcv_scale",
         dialects: Some(DialectSet::IRULES),

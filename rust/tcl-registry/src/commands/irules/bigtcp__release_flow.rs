@@ -1,6 +1,6 @@
 //! `BIGTCP::release_flow` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BIGTCP::release_flow",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `ANTIFRAUD::disable_injection` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::disable_injection",
         dialects: Some(DialectSet::IRULES),

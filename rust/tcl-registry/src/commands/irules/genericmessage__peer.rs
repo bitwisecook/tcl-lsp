@@ -1,6 +1,6 @@
 //! `GENERICMESSAGE::peer` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GENERICMESSAGE::peer",
         dialects: Some(DialectSet::IRULES),

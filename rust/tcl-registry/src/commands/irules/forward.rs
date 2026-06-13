@@ -1,6 +1,6 @@
 //! `forward` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "forward",
         dialects: Some(DialectSet::IRULES),

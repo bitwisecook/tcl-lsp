@@ -1,6 +1,6 @@
 //! `DNS::is_wideip` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::is_wideip",
         dialects: Some(DialectSet::IRULES),

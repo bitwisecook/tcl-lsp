@@ -1,6 +1,6 @@
 //! `LINK::qos` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LINK::qos",
         dialects: Some(DialectSet::IRULES),

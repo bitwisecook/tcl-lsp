@@ -1,6 +1,6 @@
 //! `ACCESS2::access2_proc` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS2::access2_proc",
         dialects: Some(DialectSet::IRULES),

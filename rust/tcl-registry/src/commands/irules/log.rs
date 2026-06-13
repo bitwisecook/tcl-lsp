@@ -1,6 +1,6 @@
 //! `log` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "log",
         traits: Traits::DIAGRAM_ACTION,

@@ -13,10 +13,10 @@ const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
     message: "HTTP::uri value must start with '/'",
 }];
 
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::uri",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::DIAGRAM_ACTION | Traits::UNNORMALISED_HTTP_GETTER,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE).union(Traits::DIAGRAM_ACTION).union(Traits::UNNORMALISED_HTTP_GETTER),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
         options: &[OptionSpec {
@@ -49,6 +49,7 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::uri ?-normalized?" },
             FormSpec { kind: FormKind::Setter, synopsis: "HTTP::uri <URI>" },
         ],
+        taint_source: Some(TaintColour::TAINTED.union(TaintColour::PATH_PREFIXED)),
         ..CommandSpec::DEFAULT
     }
 }

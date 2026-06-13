@@ -1,6 +1,6 @@
 //! `tcpdump` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcpdump",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `crc32` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "crc32",
         dialects: Some(DialectSet::IRULES),

@@ -1,6 +1,6 @@
 //! `XLAT::listen_lifetime` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XLAT::listen_lifetime",
         dialects: Some(DialectSet::IRULES),

@@ -1,9 +1,9 @@
 //! `HTTP::query` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::query",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE | Traits::UNNORMALISED_HTTP_GETTER,
+        traits: Traits::PURE.union(Traits::CSE_CANDIDATE).union(Traits::UNNORMALISED_HTTP_GETTER),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
         options: &[OptionSpec {
@@ -35,6 +35,7 @@ hover: Some(HoverSnippet {
             FormSpec { kind: FormKind::Getter, synopsis: "HTTP::query ?-normalized?" },
             FormSpec { kind: FormKind::Setter, synopsis: "HTTP::query <QUERY_STRING>" },
         ],
+        taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }
 }

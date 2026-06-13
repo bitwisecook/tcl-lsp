@@ -1,6 +1,6 @@
 //! `PSC::calling_id` iRules command.
 use crate::prelude::*;
-pub fn spec() -> CommandSpec {
+pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PSC::calling_id",
         dialects: Some(DialectSet::IRULES),
