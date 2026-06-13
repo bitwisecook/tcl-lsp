@@ -70,12 +70,28 @@ pub struct CmdTrace {
     pub command: Vec<u8>,
 }
 
+/// A live interp-wide step trace: installed when a command carrying
+/// `enterstep`/`leavestep` is entered, it fires for every command executed
+/// until that command returns (C's `tcmdPtr->stepTrace` + `startLevel`/
+/// `startCmd`). Our call stack brackets the window: it is installed on entry to
+/// the step-traced command's `dispatch_traced` and removed on its exit, so
+/// recursion installs only the outermost (dedup by `owner`/`command`).
+pub struct StepActive {
+    /// The FQN of the command whose execution we are stepping (for dedup).
+    pub owner: Vec<u8>,
+    /// The step ops (`ENTERSTEP`/`LEAVESTEP`) and the callback prefix.
+    pub ops: u8,
+    pub command: Vec<u8>,
+}
+
 /// The interp's trace registries plus a re-entrancy guard.
 #[derive(Default)]
 pub struct TraceTable {
     pub traces: Vec<VarTrace>,
     /// Command + execution traces, keyed by resolved command FQN.
     pub cmd_traces: Vec<CmdTrace>,
+    /// Live interp-wide step traces (see [`StepActive`]).
+    pub step_active: Vec<StepActive>,
     /// Non-zero while traces are firing — suppresses re-entrant firing so a
     /// trace that touches its own variable doesn't recurse (Tcl marks the
     /// active trace; a global guard is a safe coarsening).
@@ -631,6 +647,77 @@ mod tests {
             ok(i, b"proc boom {args} {error OVERRIDE}");
             ok(i, b"trace add execution bar leave boom");
             assert_eq!(err(i, b"bar"), b"OVERRIDE");
+        });
+    }
+
+    #[test]
+    fn step_trace_fires_for_body_commands() {
+        leak_free(|i| {
+            ok(i, b"set log {}");
+            ok(i, b"proc tr {args} {global log; lappend log $args}");
+            ok(i, b"proc foo {} {set a 1; set b 2}");
+            ok(i, b"trace add execution foo {enterstep leavestep} tr");
+            ok(i, b"foo");
+            // Each body command gets enterstep before and leavestep after, with
+            // <code> <result>; foo itself is not stepped by its own trace.
+            assert_eq!(
+                ok(i, b"set log"),
+                &b"{{set a 1} enterstep} {{set a 1} 0 1 leavestep} {{set b 2} enterstep} {{set b 2} 0 2 leavestep}"[..]
+            );
+            i.eval_str(b"unset -nocomplain log");
+        });
+    }
+
+    #[test]
+    fn step_trace_recursion_installs_once() {
+        leak_free(|i| {
+            ok(i, b"set log {}");
+            ok(
+                i,
+                b"proc tr {args} {global log; lappend log [lindex $args 0]}",
+            );
+            ok(i, b"proc rec {n} {if {$n>0} {rec [expr {$n-1}]}}");
+            ok(i, b"trace add execution rec enterstep tr");
+            ok(i, b"rec 1");
+            // Only the outermost rec installs the step trace; the inner call is
+            // stepped by that single active trace (no double-firing).
+            assert_eq!(
+                ok(i, b"set log"),
+                &b"{if {$n>0} {rec [expr {$n-1}]}} {expr {$n-1}} {rec 0} {if {$n>0} {rec [expr {$n-1}]}}"[..]
+            );
+            i.eval_str(b"unset -nocomplain log");
+        });
+    }
+
+    #[test]
+    fn redefining_a_proc_clears_and_fires_delete_traces() {
+        leak_free(|i| {
+            ok(i, b"set log {}");
+            ok(i, b"proc cb {args} {global log; lappend log $args}");
+            ok(i, b"proc foo {} {}");
+            ok(i, b"trace add command foo delete cb");
+            ok(i, b"trace add execution foo enter cb");
+            // Redefining foo deletes the old command: fire its delete trace,
+            // drop all its traces (C's Tcl_CreateObjCommand replace).
+            ok(i, b"proc foo {} {}");
+            assert_eq!(ok(i, b"set log"), b"{::foo {} delete}");
+            assert_eq!(ok(i, b"trace info command foo"), b"");
+            assert_eq!(ok(i, b"trace info execution foo"), b"");
+            i.eval_str(b"unset -nocomplain log");
+        });
+    }
+
+    #[test]
+    fn unsetting_a_variable_clears_its_traces() {
+        leak_free(|i| {
+            ok(i, b"set x 1");
+            ok(i, b"proc cb {args} {}");
+            ok(i, b"trace add variable x read cb");
+            ok(i, b"unset x");
+            ok(i, b"set x 2");
+            // The trace died with the variable (C frees the Var's trace list).
+            assert_eq!(ok(i, b"trace info variable x"), b"");
+            i.eval_str(b"unset -nocomplain x");
         });
     }
 }

@@ -604,13 +604,34 @@ impl Interp {
             params,
             body,
             ns,
-            fqn,
+            fqn: fqn.clone(),
             source,
             body_line_base,
         });
+        // Redefining a command deletes the old one: fire its delete command
+        // traces and drop all its traces (C's Tcl_CreateObjCommand replacing an
+        // existing command). Keyed by the FQN we are about to bind.
+        self.on_command_replaced(&fqn);
         self.namespaces
             .borrow_mut()
             .bind(ns, &tail, Command::Proc(def));
+    }
+
+    /// A command at `fqn` is being replaced or deleted: fire its `delete`
+    /// command traces, then drop every command/execution trace on it (the
+    /// command — and its trace list — go away). No-op when it has no traces.
+    fn on_command_replaced(&mut self, fqn: &[u8]) {
+        if self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .all(|t| t.name != fqn)
+        {
+            return;
+        }
+        self.fire_cmd_trace(fqn, b"", crate::cmd_trace::ops::DELETE);
+        self.remove_cmd_traces(fqn);
     }
 
     /// The reported `line` of the command currently executing at the top of the
@@ -913,6 +934,16 @@ impl Interp {
         if existed && !self.traces.borrow().traces.is_empty() {
             let (base, elem) = crate::frame::split_array_ref(name);
             self.fire_var_trace(&base, elem.as_deref(), b"unset");
+            // The variable (and its traces) go away — drop every trace on it
+            // (C frees the Var's trace list on unset). Element unset drops only
+            // that element's traces (whole-variable traces survive).
+            let mut t = self.traces.borrow_mut();
+            match elem {
+                Some(e) => t
+                    .traces
+                    .retain(|v| !(v.base == base && v.elem.as_deref() == Some(e.as_slice()))),
+                None => t.traces.retain(|v| v.base != base),
+            }
         }
         existed
     }
@@ -928,6 +959,11 @@ impl Interp {
         );
         if existed && !self.traces.borrow().traces.is_empty() {
             self.fire_var_trace(name, Some(key), b"unset");
+            // Drop this element's traces (whole-array traces survive).
+            self.traces
+                .borrow_mut()
+                .traces
+                .retain(|v| !(v.base == name && v.elem.as_deref() == Some(key)));
         }
         existed
     }
@@ -1801,25 +1837,31 @@ impl Interp {
         self.dispatch_traced(argv)
     }
 
-    /// Slow path: the command may carry execution (enter/leave) traces. Mirrors
-    /// C's `TclEvalObjvInternal` enter/leave-trace wrapping.
+    /// Slow path: the command may carry execution (enter/leave/step) traces, or
+    /// a step trace is active. Mirrors C's `TclEvalObjvInternal` order: interp
+    /// (step) enter traces fire before per-command enter; per-command leave
+    /// fires before interp (step) leave.
     fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
         use crate::cmd_trace::ops;
         let name = obj_bytes(argv[0]);
         let fqn = self.resolve_cmd_fqn(&name);
-        let has_enter_leave = match &fqn {
-            Some(f) => self
-                .traces
-                .borrow()
-                .cmd_traces
-                .iter()
-                .any(|t| t.name == *f && (t.ops & (ops::ENTER | ops::LEAVE)) != 0),
-            None => false,
+        let (has_enter, has_leave, has_step) = match &fqn {
+            Some(f) => {
+                let t = self.traces.borrow();
+                let (mut he, mut hl, mut hs) = (false, false, false);
+                for tr in t.cmd_traces.iter().filter(|tr| tr.name == *f) {
+                    he |= (tr.ops & ops::ENTER) != 0;
+                    hl |= (tr.ops & ops::LEAVE) != 0;
+                    hs |= (tr.ops & ops::STEP_ANY) != 0;
+                }
+                (he, hl, hs)
+            }
+            None => (false, false, false),
         };
-        if !has_enter_leave {
+        let stepping = !self.traces.borrow().step_active.is_empty();
+        if !has_enter && !has_leave && !has_step && !stepping {
             return self.dispatch_inner(argv);
         }
-        let fqn = fqn.expect("Some checked above");
         // The `{cmd arg ...}` word: argv rendered as a single list element (C's
         // `TraceExecutionProc` builds it via per-arg `DStringAppendElement`).
         let cmd_word = {
@@ -1828,13 +1870,147 @@ impl Interp {
             drop_fresh(lst);
             bytes
         };
-        // enter (creation order). An enter-trace non-OK code aborts the command.
-        if let Some(code) = self.fire_exec_enter(&fqn, &cmd_word) {
-            return code;
+        // (A) enterstep for active step traces (interp traces fire on enter
+        // before per-command enter); a non-OK enterstep aborts the command.
+        if stepping {
+            if let Some(c) = self.fire_step(&cmd_word, ops::ENTERSTEP, None) {
+                return c;
+            }
         }
-        let code = self.dispatch_inner(argv);
-        // leave (reverse creation order), with `<code> <result>`.
-        self.fire_exec_leave(&fqn, &cmd_word, code)
+        // (B) per-command enter; a non-OK enter aborts with the callback result.
+        if has_enter {
+            if let Some(c) = self.fire_exec_enter(fqn.as_deref().unwrap(), &cmd_word) {
+                return c;
+            }
+        }
+        // (C) install this command's step traces (deduped against recursion).
+        let installed = if has_step {
+            self.install_step_traces(fqn.as_deref().unwrap())
+        } else {
+            0
+        };
+        let mut code = self.dispatch_inner(argv);
+        // (D) remove the step traces installed above (they are the last pushed).
+        if installed > 0 {
+            self.remove_installed_step_traces(installed);
+        }
+        // (E) per-command leave (before interp/step leave), then (F) leavestep.
+        if has_leave {
+            code = self.fire_exec_leave(fqn.as_deref().unwrap(), &cmd_word, code);
+        }
+        if stepping {
+            if let Some(c) = self.fire_step(&cmd_word, ops::LEAVESTEP, Some(code)) {
+                code = c;
+            }
+        }
+        code
+    }
+
+    /// Push a `StepActive` for each step trace on `fqn` not already live (dedup
+    /// by owner+prefix handles recursion: only the outermost installs). Returns
+    /// how many were pushed (the last `n` of `step_active`, popped on exit).
+    fn install_step_traces(&mut self, fqn: &[u8]) -> usize {
+        use crate::cmd_trace::{ops, StepActive};
+        let to_install: Vec<(u8, Vec<u8>)> = {
+            let t = self.traces.borrow();
+            t.cmd_traces
+                .iter()
+                .filter(|c| c.name == fqn && (c.ops & ops::STEP_ANY) != 0)
+                .filter(|c| {
+                    !t.step_active
+                        .iter()
+                        .any(|s| s.owner == fqn && s.command == c.command)
+                })
+                .map(|c| (c.ops & ops::STEP_ANY, c.command.clone()))
+                .collect()
+        };
+        let n = to_install.len();
+        let mut tt = self.traces.borrow_mut();
+        for (ops_bits, command) in to_install {
+            tt.step_active.push(StepActive {
+                owner: fqn.to_vec(),
+                ops: ops_bits,
+                command,
+            });
+        }
+        n
+    }
+
+    /// Pop the `n` step traces this command installed (balanced nesting keeps
+    /// them at the end: any nested step-traced command popped its own first).
+    fn remove_installed_step_traces(&mut self, n: usize) {
+        let mut tt = self.traces.borrow_mut();
+        let keep = tt.step_active.len() - n;
+        tt.step_active.truncate(keep);
+    }
+
+    /// Fire active step traces for the current command. `ENTERSTEP` fires in
+    /// reverse install order with `<prefix> {cmd args} enterstep` (a non-OK code
+    /// aborts); `LEAVESTEP` fires in install order with `<prefix> {cmd args}
+    /// <code> <result> leavestep` (a non-OK code overrides). The result is saved
+    /// once and restored after, but live between callbacks (C's interp-trace
+    /// `SaveInterpState`/`RestoreInterpState`).
+    fn fire_step(&mut self, cmd_word: &[u8], op_bit: u8, code: Option<Code>) -> Option<Code> {
+        use crate::cmd_trace::ops;
+        let is_enter = op_bit == ops::ENTERSTEP;
+        let mut cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .step_active
+            .iter()
+            .filter(|s| (s.ops & op_bit) != 0)
+            .map(|s| s.command.clone())
+            .collect();
+        if is_enter {
+            cmds.reverse();
+        }
+        if cmds.is_empty() {
+            return None;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        let code_str = code.map(|c| c.as_int().to_string().into_bytes());
+        let op_label: &[u8] = if is_enter { b"enterstep" } else { b"leavestep" };
+
+        self.traces.borrow_mut().exec_firing += 1;
+        let mut outcome: Option<Code> = None;
+        for cmd in cmds {
+            let args = if is_enter {
+                crate::list::new_list_obj(&[new_string(cmd_word), new_string(op_label)])
+            } else {
+                let result_bytes = obj_bytes(self.result.get());
+                crate::list::new_list_obj(&[
+                    new_string(cmd_word),
+                    new_string(code_str.as_deref().unwrap_or(b"0")),
+                    new_string(&result_bytes),
+                    new_string(op_label),
+                ])
+            };
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let c = self.eval_str(&line);
+            if c != Code::Ok {
+                outcome = Some(c);
+                break;
+            }
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+
+        match outcome {
+            Some(c) => {
+                unsafe { obj::decr_ref_count(saved) };
+                Some(c)
+            }
+            None => {
+                unsafe {
+                    obj::decr_ref_count(self.result.get());
+                    self.result.set(saved);
+                }
+                None
+            }
+        }
     }
 
     /// The original resolve→invoke→unknown dispatch (trace-free).
