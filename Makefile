@@ -183,6 +183,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: release release-tag release-codeql-gate release-sums
 # Zig runtime + leak check
 .PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
+# Rust runtime port
+.PHONY: runtime-rust-test runtime-rust-lint runtime-rust-sweep
 # Sphinx docs
 .PHONY: docs docs-html docs-clean docs-linkcheck
 # Screenshots
@@ -1581,6 +1583,22 @@ leakcheck-diff: ## Diff the latest leak sweep against tests/baselines/wasm_leak_
 
 snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to the committed baseline
 	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json
+
+# Rust runtime port (runtime/rust) — standalone crate, excluded from the root
+# workspace (it is `unsafe`; root forbids `unsafe`). These are the gates the
+# rust-runtime-port doc + runtime/rust/README cite. Not wired into ci-fast /
+# prep-pr: the runtime port is a separate workstream from the LSP/compiler CI.
+RUNTIME_RUST_DIR := $(ROOT)runtime/rust
+
+runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)
+	cd $(RUNTIME_RUST_DIR) && cargo test
+
+runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+
+runtime-rust-sweep: ## Sweep the Tcl 9 tcltest suite against the Rust runtime (scoreboard); JSON=path to dump --json
+	cd $(RUNTIME_RUST_DIR) && cargo build --release --example run_script
+	TCL_LIBRARY=$(ROOT)tmp/tcl9.0.3/library python3 $(ROOT)scripts/dev/rust_tcltest_sweep.py $(if $(JSON),--json $(JSON),)
 
 # ---------------------------------------------------------------------------
 # Sphinx — dialects.f5.query Python API reference

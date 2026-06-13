@@ -96,16 +96,11 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     Code::Ok
                 }
                 None => {
-                    // A scalar read of an array name is "variable is array", not
-                    // "no such variable" (the array-vs-scalar distinction Tcl
-                    // reports — matches `var_error(IsArray)`).
-                    let mut msg = b"can't read \"".to_vec();
-                    msg.extend_from_slice(&name);
-                    if elem.is_none() && interp.var_is_array(&base) {
-                        msg.extend_from_slice(b"\": variable is array");
-                    } else {
-                        msg.extend_from_slice(b"\": no such variable");
-                    }
+                    // The C three-way distinction (`tclVar.c`): scalar read of an
+                    // array ("variable is array"), missing element of an existing
+                    // array ("no such element in array"), or wholly missing
+                    // variable ("no such variable").
+                    let msg = interp.read_miss_msg(&base, elem.as_deref());
                     interp.set_error(&msg)
                 }
             }
@@ -525,9 +520,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         match obj {
             Some(o) => Ok(crate::expr::Owned::retain(o)),
             None => {
-                let mut m = b"can't read \"".to_vec();
-                m.extend_from_slice(name.as_bytes());
-                m.extend_from_slice(b"\": no such variable");
+                let m = self.interp.read_miss_msg(&base, elem.as_deref());
                 Err(crate::expr::ExprError(m))
             }
         }

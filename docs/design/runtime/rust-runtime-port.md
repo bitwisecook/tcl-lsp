@@ -1702,6 +1702,25 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO expand / info prefix / hidden+safe | 122 / 168 | 45 | 8529 / 18775 |
 | + cross-interp aliases | 122 / 168 | 45 | 8546 / 18775 |
 | + auto-load fixes + re-entrant Safe Base | **124 / 168** | 43 (+1 timeout) | **8654 / 18939** |
+| + `ledit` + three-way var-read-miss error | **124 / 168** | 43 (+1 timeout) | **10448 / 18939** |
+
+The 2026-06-13 increment (**+1794 tests, 45.7% → 55.2%**, zero regressions):
+
+- **`ledit listVar first last ?element ...?`** (`cmd_list.rs`) — the Tcl 8.7/9.0
+  in-place `lreplace` on a list *variable*. Shares `lreplace`'s index/clamp/
+  replace logic (mirroring the Zig oracle's shared `do_lreplace`, `cmds/list.zig`,
+  and C's `Tcl_LeditObjCmd`, `tclCmdIL.c`): read the var (error on a miss, which
+  C does via `TCL_LEAVE_ERR_MSG`), splice the `[first,last]` range, store the new
+  list back, return it; addresses `a(k)` array elements like `set`/`lappend`.
+  `lreplace.test` **1790 → 3578 / 3579** (the lone residual is a pre-existing
+  backslash-trailing-space list-quoting edge in `Tcl_ConvertElement`, shared by
+  all list rendering — not a `ledit` bug).
+- **three-way variable-read-miss error** (`interp.rs::read_miss_msg`, routed from
+  `set`/`ledit`/`expr $var`) — `tclVar.c`'s distinction: a scalar read of an
+  array is `variable is array`, a missing element of an *existing* array is `no
+  such element in array` (previously wrongly `no such variable`), and a wholly
+  missing variable is `no such variable`. Lifted `set.test`/`set-old.test`/
+  `trace.test` (+6 beyond `ledit`).
 
 Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
 **81 → 45**, **+2974 tests pass**, and **zero panics** (the passed *count*
@@ -1931,6 +1950,26 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`ledit` + var-read-miss; audit re-baseline)
+
+Chunk: `ledit` + the three-way variable-read-miss error (scoreboard above).
+
+- **Derived from C, cross-checked vs the Zig oracle.** `ledit` was written
+  against C's `Tcl_LeditObjCmd` (`tmp/tcl9.0.3/generic/tclCmdIL.c`) and the
+  `no such element in array` distinction against `tclVar.c`; both were confirmed
+  consistent with the Zig oracle (`runtime/zig/cmds/list.zig`'s shared
+  `do_lreplace`, and `runtime/zig/cmds/var.zig`). No Zig behavioural fix was
+  back-ported — the port matches the same C control flow the Zig oracle does.
+- **Audit note (mirror anchor still `8150eca`).** `git log 8150eca..origin/rust
+  -- runtime/zig/` is **no longer empty** (it was, as of #555): the post-#555
+  main-rebases (#573 onto `0becf577`, then #583/#595/#596) carried main's Zig
+  evolution onto the branch — a large diff (≈119 files) that is the **general
+  Zig-on-main churn**, *not* a behavioural fix to a Rust-ported module triggered
+  by this chunk. Reconciling that diff against the per-module mirror baselines is
+  its own (pre-existing) audit task, independent of `ledit`/read-miss; recorded
+  here so it is not lost. The top-of-doc mirror hash is intentionally left at
+  `8150eca` until a deliberate re-baseline.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
@@ -2074,8 +2113,11 @@ compiler/LSP or the Zig runtime.
     `CmdFrame` source/line stack; PC-3 `uplevel` + `eval` + generalised `upvar`;
     PC-4 exceptions (`error`/`catch`/`return -options` + `errorInfo`); PC-5
     `info level`/`info frame`/`source`; PC-6 AOT interop.
-11. **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
-    [`tcltest-bringup.md`](tcltest-bringup.md)). Run the **unmodified** pure-Tcl
+11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
+    [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
+    **10448/18939**, the 2026-06-13 `ledit` + var-read-miss increment landed the
+    list-command surface that `lreplace.test`/`set*.test` exercise). Run the
+    **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return

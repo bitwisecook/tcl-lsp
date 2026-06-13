@@ -2454,15 +2454,34 @@ impl Interp {
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {
+        let msg = self.read_miss_msg(name, index);
+        self.error(&msg)
+    }
+
+    /// Build the C-faithful `can't read "NAME": …` message for a failed variable
+    /// read, distinguishing the three cases `tclVar.c` reports: a scalar read of
+    /// an array (`variable is array`), a missing element of an *existing* array
+    /// (`no such element in array`), and a wholly missing variable (`no such
+    /// variable`). `base`/`index` are the split reference (`base(index)`).
+    pub(crate) fn read_miss_msg(&self, base: &[u8], index: Option<&[u8]>) -> Vec<u8> {
         let mut msg = b"can't read \"".to_vec();
-        msg.extend_from_slice(name);
+        msg.extend_from_slice(base);
         if let Some(i) = index {
             msg.push(b'(');
             msg.extend_from_slice(i);
             msg.push(b')');
         }
-        msg.extend_from_slice(b"\": no such variable");
-        self.error(&msg)
+        msg.extend_from_slice(b"\": ");
+        if self.var_is_array(base) {
+            if index.is_some() {
+                msg.extend_from_slice(b"no such element in array");
+            } else {
+                msg.extend_from_slice(b"variable is array");
+            }
+        } else {
+            msg.extend_from_slice(b"no such variable");
+        }
+        msg
     }
 
     /// Set an error result and return [`Code::Error`] — for builtins.
