@@ -1359,13 +1359,30 @@ impl Interp {
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
-        // Destroy the class's instances first (TclOO cascades).
+        // Destroying a class cascades to its subclasses and instances (TclOO).
+        // Subclasses first: any class that lists this one as a superclass/mixin.
+        let subs: Vec<Vec<u8>> = self
+            .oo
+            .borrow()
+            .classes
+            .iter()
+            .filter(|(k, c)| {
+                k.as_slice() != class
+                    && (c.supers.iter().any(|s| s.as_slice() == class)
+                        || c.mixins.iter().any(|m| m.as_slice() == class))
+            })
+            .map(|(k, _)| k.clone())
+            .collect();
+        for s in subs {
+            self.oo_destroy_class(&s);
+        }
+        // Then this class's direct instances.
         let insts: Vec<Vec<u8>> = self
             .oo
             .borrow()
             .objects
             .iter()
-            .filter(|(_, o)| o.class == class)
+            .filter(|(k, o)| k.as_slice() != class && o.class == class)
             .map(|(k, _)| k.clone())
             .collect();
         for o in insts {
