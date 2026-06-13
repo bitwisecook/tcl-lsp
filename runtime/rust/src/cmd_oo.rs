@@ -115,8 +115,6 @@ pub struct OoState {
 
 /// Register the `oo::*` commands and the definition / context commands.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"oo::class", oo_class_cmd);
-    interp.register_builtin(b"oo::object", oo_object_cmd);
     interp.register_builtin(b"oo::define", oo_define_cmd);
     interp.register_builtin(b"oo::objdefine", oo_objdefine_cmd);
     interp.register_builtin(b"oo::copy", oo_copy_cmd);
@@ -138,8 +136,10 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"self", self_cmd);
     interp.register_builtin(b"next", next_cmd);
     // Root classes (so `superclass`-less classes inherit `object` and
-    // `superclass oo::class`/`oo::object` validate; `oo::class` keeps its
-    // builtin command — only the registry entry is added).
+    // `superclass oo::class`/`oo::object` validate). Both are themselves
+    // objects (instances of `::oo::class`) and dispatch through `oo_dispatch`
+    // like any other class command — so `create`/`new`/`destroy`, unknown-
+    // method errors and the empty-name check are all handled uniformly.
     interp
         .oo
         .borrow_mut()
@@ -152,6 +152,19 @@ pub fn install(interp: &mut Interp) {
             ..Class::default()
         },
     );
+    for fqn in [b"::oo::object".as_slice(), b"::oo::class".as_slice()] {
+        let var_ns = interp.ensure_namespace(fqn);
+        interp.oo.borrow_mut().objects.insert(
+            fqn.to_vec(),
+            Object {
+                class: b"::oo::class".to_vec(),
+                var_ns,
+                ..Object::default()
+            },
+        );
+        interp.ns_register(fqn, Command::OoObject(fqn.to_vec()));
+        interp.oo_register_my(fqn);
+    }
     let _ =
         interp.eval_str(b"namespace eval ::oo {variable version 1.3.1; variable patchlevel 1.3.1}");
 }
@@ -171,13 +184,26 @@ impl Interp {
     /// `unknown method "X": must be <public methods + built-ins>` — the C TclOO
     /// error, listing the callable methods (sorted, `a, b or c` style).
     fn oo_unknown_method(&mut self, obj: &[u8], requested: &[u8]) -> Code {
+        // `destroy` is a real (overridable, unexportable) method on every
+        // object; it is visible unless the object unexports it.
+        let destroy_hidden = self
+            .oo
+            .borrow()
+            .objects
+            .get(obj)
+            .is_some_and(|o| o.unexported.contains(b"destroy".as_slice()));
         let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
         if self.oo.borrow().classes.contains_key(obj) {
-            // A class object responds to the class built-ins.
+            // A class object responds to the class built-ins. `::oo::class`
+            // is a singleton with `new` unexported, so it lists only `create`.
             names.insert(b"create".to_vec());
-            names.insert(b"new".to_vec());
+            if obj != b"::oo::class" {
+                names.insert(b"new".to_vec());
+            }
         }
-        names.insert(b"destroy".to_vec());
+        if !destroy_hidden {
+            names.insert(b"destroy".to_vec());
+        }
         for p in self.method_chain(obj) {
             let is_object = p == obj;
             let oo = self.oo.borrow();
@@ -199,6 +225,13 @@ impl Interp {
             }
         }
         let names: Vec<Vec<u8>> = names.into_iter().collect();
+        if names.is_empty() {
+            // C: an object with no callable methods reports differently.
+            let mut msg = b"object \"".to_vec();
+            msg.extend_from_slice(obj);
+            msg.extend_from_slice(b"\" has no visible methods");
+            return self.error(&msg);
+        }
         let mut msg = b"unknown method \"".to_vec();
         msg.extend_from_slice(requested);
         msg.extend_from_slice(b"\": must be ");
@@ -213,36 +246,6 @@ impl Interp {
 }
 
 // -- oo::class / oo::object / oo::define / oo::objdefine ---------------------
-
-/// `oo::class create name ?definitionScript?` — define a class.
-fn oo_class_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-        Some(b"create") if argv.len() >= 3 => {
-            let fqn = interp.fqn_for(&obj_bytes(argv[2]));
-            interp.oo_make_class(&fqn, argv.get(3).map(|&a| obj_bytes(a)).as_deref())
-        }
-        Some(b"new") => {
-            // Anonymous class.
-            let n = interp.oo.borrow().counter;
-            interp.oo.borrow_mut().counter += 1;
-            let fqn = format!("::oo::Obj{n}").into_bytes();
-            interp.oo_make_class(&fqn, argv.get(2).map(|&a| obj_bytes(a)).as_deref())
-        }
-        _ => wrong_args(interp, b"oo::class create name ?definitionScript?"),
-    }
-}
-
-/// `oo::object create name` / `oo::object new` — create a bare object.
-fn oo_object_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-        Some(b"create") if argv.len() >= 3 => {
-            let name = interp.fqn_for(&obj_bytes(argv[2]));
-            interp.oo_new(b"::oo::object", Some(name), &argv[3..])
-        }
-        Some(b"new") => interp.oo_new(b"::oo::object", None, &argv[2..]),
-        _ => wrong_args(interp, b"oo::object create|new ?arg ...?"),
-    }
-}
 
 /// `oo::define class script` or `oo::define class subcommand ?arg ...?`.
 fn oo_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -1056,11 +1059,28 @@ impl Interp {
     /// Dispatch a command bound to the OO object/class FQN `fqn`.
     pub(crate) fn oo_dispatch(&mut self, fqn: &[u8], argv: &[*mut TclObj]) -> Code {
         if self.oo.borrow().classes.contains_key(fqn) {
+            // The metaclass `::oo::class` is a singleton: instantiating it
+            // builds a *class* (`oo_make_class`), and `new` is unexported on it
+            // (anonymous classes are not created through the public surface).
+            let is_meta = fqn == b"::oo::class";
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-                Some(b"new") => self.oo_new(fqn, None, &argv[2..]),
-                Some(b"create") if argv.len() >= 3 => {
-                    let name = self.fqn_for(&obj_bytes(argv[2]));
-                    self.oo_new(fqn, Some(name), &argv[3..])
+                Some(b"new") if !is_meta => self.oo_new(fqn, None, &argv[2..]),
+                Some(b"create") => {
+                    if argv.len() < 3 {
+                        let mut u = obj_bytes(argv[0]);
+                        u.extend_from_slice(b" create objectName ?arg ...?");
+                        return wrong_args(self, &u);
+                    }
+                    let raw = obj_bytes(argv[2]);
+                    if raw.is_empty() {
+                        return self.error(b"object name must not be empty");
+                    }
+                    let name = self.fqn_for(&raw);
+                    if is_meta {
+                        self.oo_make_class(&name, argv.get(3).map(|&a| obj_bytes(a)).as_deref())
+                    } else {
+                        self.oo_new(fqn, Some(name), &argv[3..])
+                    }
                 }
                 Some(b"destroy") => {
                     self.oo_destroy_class(fqn);
@@ -1069,8 +1089,14 @@ impl Interp {
                 }
                 // Any other subcommand is a class-object method (defined via
                 // `oo::define … self method`); dispatch it on the class object.
+                // An unknown method funnels through `oo_invoke` →
+                // `oo_unknown_method` for the C error text.
                 Some(other) => self.oo_invoke(fqn, other, &argv[2..], true),
-                None => self.error(b"wrong # args: should be \"class method ?arg ...?\""),
+                None => {
+                    let mut u = obj_bytes(argv[0]);
+                    u.extend_from_slice(b" method ?arg ...?");
+                    wrong_args(self, &u)
+                }
             }
         } else if self.oo.borrow().objects.contains_key(fqn) {
             match argv.get(1).map(|&a| obj_bytes(a)) {
@@ -1080,7 +1106,11 @@ impl Interp {
                     Code::Ok
                 }
                 Some(method) => self.oo_invoke(fqn, &method, &argv[2..], true),
-                None => self.error(b"wrong # args: should be \"object method ?arg ...?\""),
+                None => {
+                    let mut u = obj_bytes(argv[0]);
+                    u.extend_from_slice(b" method ?arg ...?");
+                    wrong_args(self, &u)
+                }
             }
         } else {
             self.invalid_command(fqn)
@@ -1132,9 +1162,10 @@ impl Interp {
                 self.delete_command(&fqn);
                 return Code::Error;
             }
-        } else if !args.is_empty() {
-            return self.error(b"object creation takes no arguments (no constructor)");
         }
+        // With no constructor in the MRO, extra construction arguments are
+        // silently ignored (matching tclsh9.0 — the default constructor is a
+        // no-op that does not validate its argument count).
         self.set_result(obj::new_string_bytes(&fqn));
         Code::Ok
     }

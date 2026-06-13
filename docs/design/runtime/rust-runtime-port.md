@@ -1718,6 +1718,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO class-destroy cascades to subclasses | **128 / 168** | 40 (0 timeout) | **11557 / 19027** |
 | + TclOO per-object `my` (not global) | **128 / 168** | 40 (0 timeout) | **11561 / 19027** |
 | + TclOO `private` methods + `unknown` method-list message | **128 / 168** | 40 (0 timeout) | **11572 / 19027** |
+| + TclOO `oo::object`/`oo::class` as real objects (uniform dispatch) | **128 / 168** | 40 (0 timeout) | **11576 / 19027** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1765,6 +1766,17 @@ zero regressions**, `oo.test` 56 → 71):
    `unknown method "X": must be a, b or destroy` enumeration (sorted, non-Oxford
    join; classes also list `create`/`new`). Byte-identical to `tclsh9.0`
    (`oo.test` 60 → 71, sweep 11561 → 11572).
+4. **base classes as real objects** — `oo::object`/`oo::class` are now full
+   objects (in both the `objects` and `classes` maps) that dispatch through the
+   normal `oo_dispatch` path rather than dedicated builtins, so `create`/`new`/
+   `destroy`, the empty-name check (`object name must not be empty`), the
+   `wrong # args: should be "<cmd> method ?arg ...?"` / `"<cmd> create
+   objectName ?arg ...?"` usages, and unknown-method enumeration are all handled
+   uniformly. `::oo::class` is a singleton (`new` unexported → lists only
+   `create or destroy`); an object whose only method (`destroy`) is unexported
+   reports `object "X" has no visible methods`; construction with no constructor
+   silently ignores extra args (matching `tclsh9.0`). (`oo.test` 71 → 75, sweep
+   11572 → 11576).
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2402,9 +2414,10 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11572/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11576/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
-    list) took `oo.test` 45 → 71, the 2026-06-13 `ledit`/`lmap`/`lseq` +
+    list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 75, the
+    2026-06-13 `ledit`/`lmap`/`lseq` +
     var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
