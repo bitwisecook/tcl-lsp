@@ -19,6 +19,16 @@
 >   lattice recompute + interproc cascade is cheap.
 > - **E7 — GO.** `optimise_with_dialect` rebuilds its own CU+interproc (~129 ms
 >   redundant); sharing one CompilationUnit with `run_all_checks` recovers it.
+> - **E4/E8 — GO.** A salsa event-counter prototype (`tcl-lsp-db/tests/
+>   early_cutoff.rs`) confirms the cascade mechanism: a *body* edit re-executes
+>   exactly **one** `item_analysis` (the unchanged sibling is reused); a
+>   *signature* edit re-executes the cross-item aggregate but **zero** item
+>   bodies (field-level deps + the caller→callee-sig edge); and a body change
+>   that leaves the item's *output* unchanged cuts off the aggregate
+>   (tracked-output early cutoff). **Finding:** salsa input setters always bump
+>   the revision (no value-equality cutoff on inputs), so the per-item build
+>   must set an item's body input **only when the item-tree diff says it
+>   changed** — otherwise every keystroke re-runs direct dependents.
 > - **E5 — FOUND A GAP (the fuzzer works).** The differential fuzzer
 >   (`tests/differential_incremental.rs`, `incremental == fresh` under random
 >   edits) shows `analyse_incremental` diverges from `analyse`. Root cause: even
