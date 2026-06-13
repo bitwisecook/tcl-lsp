@@ -12,14 +12,29 @@
 > (Layer 5 read path), writes set inputs. Four of the five hand-maintained
 > server caches — `analyses`, `hover_cache`, `semantic_tokens_cache`,
 > `dialect_registries` — are **deleted**, their invalidation replaced by the
-> single `SourceFile` input bump. **Still to do** (tracked here): the
-> cross-document `workspace_index` → a cross-file query (with the disk-scan
-> path folded into lazily-created inputs), removal of the residual
-> `document_analysis_gate` that the index still needs, and the per-item
-> firewall (`item_tree` + per-body `item_analysis`) that turns per-keystroke
-> work from O(file) into O(edited item) — `file_analysis` is coarse
-> (whole-file) for now, so the cascade's cheapness (firewall + per-item)
-> is not yet realised.
+> single `SourceFile` input bump.
+>
+> **Diagnostics are async + debounced.** `did_open` / `did_change` no longer
+> await the diagnostic run — they `schedule_diagnostics`, which spawns the work
+> after a 50 ms debounce (a burst collapses to one run via a per-URI
+> generation check) and returns immediately, so the message loop is never
+> blocked: post-edit interactive latency on practcl.tcl dropped from ~1080 ms
+> (the loop was blocked by the synchronous full diagnostic) to ~1-20 ms. The
+> diagnostics path computes its base analysis with a *direct* `Analyser::analyse`
+> rather than the salsa query, deliberately: salsa's `set_text` takes **global**
+> write-exclusivity, so a diagnostic read-handle held across the uncancellable
+> analyse would block the next edit's write and stall worker threads under load.
+> Sharing diagnostics and reads behind one cancellation-aware query is the
+> per-item/MVCC step below.
+>
+> **Still to do** (tracked here): the cross-document `workspace_index` → a
+> cross-file query (with the disk-scan path folded into lazily-created inputs),
+> removal of the residual `document_analysis_gate` that the index still needs,
+> and the per-item firewall (`item_tree` + per-body `item_analysis`) with
+> cancellation-aware queries that turns per-keystroke work from O(file) into
+> O(edited item) and lets diagnostics rejoin the shared query graph —
+> `file_analysis` is coarse (whole-file) for now, so the cascade's cheapness
+> (firewall + per-item) is not yet realised.
 
 > Forward-looking companion to
 > [`current-architecture.md`](current-architecture.md). Records the
