@@ -2381,12 +2381,7 @@ impl Interp {
         self.ns_register(fqn, Command::OoObject(fqn.to_vec()));
         self.oo_register_my(fqn);
         if let Some(script) = script {
-            self.oo
-                .borrow_mut()
-                .def_stack
-                .push(DefTarget::Class(fqn.to_vec()));
-            let code = self.eval_str(script);
-            self.oo.borrow_mut().def_stack.pop();
+            let code = self.oo_define_body(DefTarget::Class(fqn.to_vec()), script);
             if code != Code::Ok {
                 // Roll back a failed definition so the name frees up (C destroys
                 // a partially-created class whose definition script errors).
@@ -2418,9 +2413,26 @@ impl Interp {
     /// class-name *arguments* still resolve in the caller's namespace. Shared by
     /// `oo_run_def` and the `oo::class` constructor (a metaclass instance body).
     fn oo_define_body(&mut self, target: DefTarget, body: &[u8]) -> Code {
+        let (kind, fqn): (&[u8], Vec<u8>) = match &target {
+            DefTarget::Class(c) => (b"class", c.clone()),
+            DefTarget::Object(o) => (b"object", o.clone()),
+        };
         self.oo.borrow_mut().def_stack.push(target);
         let code = self.eval_str(body);
         self.oo.borrow_mut().def_stack.pop();
+        // On error, add the `(in definition script for class/object "X" line N)`
+        // errorInfo frame (C's GenerateErrorInfo).
+        if code == Code::Error {
+            let mut inner = b"in definition script for ".to_vec();
+            inner.extend_from_slice(kind);
+            inner.extend_from_slice(b" \"");
+            inner.extend_from_slice(&fqn);
+            inner.push(b'"');
+            self.append_frame_line(&inner);
+            // A frame boundary: let the enclosing `oo::define`/`oo::class create`
+            // command log its own `invoked from within` frame.
+            self.clear_error_logged();
+        }
         code
     }
 

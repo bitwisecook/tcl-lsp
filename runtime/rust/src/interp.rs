@@ -1721,7 +1721,14 @@ impl Interp {
     /// <N>)"` to `errorInfo` (seeding it from the result message if no frame has
     /// been logged yet), where `inner` is the caller-built body — e.g.
     /// `procedure "p"`, `lambda term "..."`, or `"eval" body`.
-    fn append_frame_line(&mut self, inner: &[u8]) {
+    /// Clear `already_logged` after adding a frame at a real frame boundary
+    /// (e.g. an OO definition script), so the enclosing command logs its own
+    /// `invoked from within` frame.
+    pub(crate) fn clear_error_logged(&self) {
+        self.exc.borrow_mut().already_logged = false;
+    }
+
+    pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
         let line = self.exc.borrow().line;
         if self.exc.borrow().info.is_none() {
             let msg = self.result_bytes();
