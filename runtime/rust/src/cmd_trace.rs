@@ -80,6 +80,11 @@ pub struct TraceTable {
     /// trace that touches its own variable doesn't recurse (Tcl marks the
     /// active trace; a global guard is a safe coarsening).
     pub firing: usize,
+    /// Non-zero while a command/execution trace callback is running — C's
+    /// `INTERP_TRACE_IN_PROGRESS`. Suppresses re-entrant command/execution/step
+    /// firing so a callback that renames/invokes the traced command doesn't
+    /// recurse.
+    pub exec_firing: usize,
 }
 
 /// Whether `t` fires for a `(base, elem)` access doing operation `op`.
@@ -543,6 +548,36 @@ mod tests {
                 err(i, b"trace info command nosuch"),
                 b"unknown command \"nosuch\""
             );
+        });
+    }
+
+    #[test]
+    fn command_trace_fires_on_rename_and_delete() {
+        leak_free(|i| {
+            ok(i, b"set log {}");
+            ok(i, b"proc cb {args} {global log; lappend log $args}");
+            ok(i, b"proc foo {} {return hi}");
+            ok(i, b"trace add command foo {rename delete} cb");
+            ok(i, b"rename foo bar");
+            // FQN old/new + op; the trace follows the command to ::bar.
+            assert_eq!(ok(i, b"set log"), b"{::foo ::bar rename}");
+            assert_eq!(ok(i, b"trace info command bar"), b"{{rename delete} cb}");
+            ok(i, b"rename bar {}");
+            assert_eq!(ok(i, b"set log"), b"{::foo ::bar rename} {::bar {} delete}");
+            // The trace went away with the command.
+            assert_eq!(ok(i, b"set log2 [info commands bar]"), b"");
+            i.eval_str(b"unset -nocomplain log log2");
+        });
+    }
+
+    #[test]
+    fn command_trace_callback_error_is_ignored() {
+        leak_free(|i| {
+            ok(i, b"proc boom {args} {error kaboom}");
+            ok(i, b"proc q {} {}");
+            ok(i, b"trace add command q delete boom");
+            // Delete still succeeds; the callback error is swallowed.
+            assert_eq!(ok(i, b"rename q {}"), b"");
         });
     }
 }

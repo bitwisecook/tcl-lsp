@@ -464,9 +464,37 @@ impl Interp {
     /// `rename old new` (or `rename old ""` to delete), relative to the current
     /// namespace. Drives the one command table; see [`Namespaces::rename`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        self.namespaces
+        // Command traces fire *before* the table mutation (C's TclRenameCommand:
+        // the command still exists under its old name during the callback), with
+        // the fully-qualified old and new names.
+        let old_fqn = self.resolve_cmd_fqn(old);
+        if let Some(of) = &old_fqn {
+            if !self.traces.borrow().cmd_traces.is_empty() {
+                if new.is_empty() {
+                    self.fire_cmd_trace(of, b"", crate::cmd_trace::ops::DELETE);
+                } else {
+                    let nf = self.fqn_for(new);
+                    self.fire_cmd_trace(of, &nf, crate::cmd_trace::ops::RENAME);
+                }
+            }
+        }
+        let outcome = self
+            .namespaces
             .borrow_mut()
-            .rename(self.current_ns.get(), old, new)
+            .rename(self.current_ns.get(), old, new);
+        if let Some(of) = old_fqn {
+            match outcome {
+                // The trace list follows the command to its new name.
+                RenameOutcome::Renamed => {
+                    let nf = self.fqn_for(new);
+                    self.move_cmd_traces(&of, &nf);
+                }
+                // The command is gone; its traces go with it.
+                RenameOutcome::Deleted => self.remove_cmd_traces(&of),
+                RenameOutcome::NoSuchCommand => {}
+            }
+        }
+        outcome
     }
 
     /// Install an `interp alias` redirect named `name` → `target ?prefix...?`.
@@ -948,6 +976,76 @@ impl Interp {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
+    }
+
+    /// Fire matching command traces (`rename`/`delete`) as `command oldName
+    /// newName op` (C's `TraceCommandProc`). `new_fqn` is empty for a delete.
+    /// Callback errors are **ignored** (C: "We ignore errors in these traced
+    /// commands"). Re-entrant firing is suppressed (`exec_firing`); the interp
+    /// result is preserved across the callbacks.
+    fn fire_cmd_trace(&mut self, old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
+        if self.traces.borrow().exec_firing > 0 {
+            return;
+        }
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return;
+        }
+        let op: &[u8] = if op_bit == crate::cmd_trace::ops::RENAME {
+            b"rename"
+        } else {
+            b"delete"
+        };
+        // Preserve the result object across the callbacks.
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+
+        self.traces.borrow_mut().exec_firing += 1;
+        for cmd in cmds {
+            // Append `oldName newName op` as properly-quoted list elements.
+            let args = crate::list::new_list_obj(&[
+                new_string(old_fqn),
+                new_string(new_fqn),
+                new_string(op),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+
+        unsafe {
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
+        }
+    }
+
+    /// Move every command/execution trace on `old_fqn` to `new_fqn` (the trace
+    /// follows a renamed command, as C keeps the trace list on the moving
+    /// `Command`).
+    fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+        for t in self.traces.borrow_mut().cmd_traces.iter_mut() {
+            if t.name == old_fqn {
+                t.name = new_fqn.to_vec();
+            }
+        }
+    }
+
+    /// Drop every command/execution trace on `fqn` (the command is gone).
+    fn remove_cmd_traces(&mut self, fqn: &[u8]) {
+        self.traces
+            .borrow_mut()
+            .cmd_traces
+            .retain(|t| t.name != fqn);
     }
 
     /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
