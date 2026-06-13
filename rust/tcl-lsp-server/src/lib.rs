@@ -152,9 +152,6 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// run on a `tokio::spawn`ed task off the LSP event loop.
 struct DiagInputs {
     client: Client,
-    db: tcl_lsp_db::TclDatabase,
-    file: Option<tcl_lsp_db::SourceFile>,
-    config: tcl_lsp_db::AnalyserConfig,
     registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
     non_ascii_mode: NonAsciiMode,
@@ -167,10 +164,16 @@ struct DiagInputs {
 
 /// Run the analyser + diagnostic lifts for one document and publish the result,
 /// off the LSP event loop.  This is the detached body the old synchronous
-/// `publish_analyser_diagnostics` became: the base analysis comes from the
-/// memoised `file_analysis` query, the optimiser / compiler / style lifts run
-/// on a blocking worker, and the workspace index + publish happen under the
-/// gate guarded by the revision check (a superseded run drops its result).
+/// `publish_analyser_diagnostics` became.
+///
+/// Crucially, the diagnostics path computes its base analysis with a *direct*
+/// `Analyser::analyse` rather than the salsa `file_analysis` query.  salsa's
+/// `set_text` write takes global write-exclusivity over the database, so a
+/// diagnostic read-handle held across the (uncancellable) analyse would block
+/// the next edit's write and, under concurrent load, stall worker threads.
+/// Decoupling diagnostics from salsa keeps editing responsive; the interactive
+/// read handlers still use the memoised queries.  (Sharing the two behind one
+/// cancellation-aware query is the later per-item/MVCC step.)
 async fn run_diagnostics_core(
     inputs: DiagInputs,
     uri: Url,
@@ -181,9 +184,6 @@ async fn run_diagnostics_core(
 ) {
     let DiagInputs {
         client,
-        db,
-        file,
-        config,
         registry,
         disabled,
         non_ascii_mode,
@@ -211,43 +211,26 @@ async fn run_diagnostics_core(
     let uri_str = uri.to_string();
     let line_count = text.lines().count();
 
-    // Base analysis from the salsa query graph (memoised, shared with the read
-    // handlers); cold/cancelled fallback computes directly so the publish is
-    // never skipped.
+    // Base analysis: a direct analyse on a blocking worker (no salsa handle —
+    // see the function doc), off the LSP event loop.
     let analysis: Arc<AnalysisResult> = {
-        let snap = db.clone();
-        let from_db = match file {
-            Some(file) => tokio::task::spawn_blocking(move || {
-                salsa::Cancelled::catch(|| tcl_lsp_db::file_analysis(&snap, file, config)).ok()
-            })
-            .await
-            .ok()
-            .flatten(),
-            None => None,
-        };
-        match from_db {
-            Some(arc) => arc,
-            None => {
-                let (text, dialect, disabled) = (text.clone(), dialect.clone(), disabled.clone());
-                tokio::task::spawn_blocking(move || {
-                    Arc::new(
-                        Backend::configured_analyser(disabled, non_ascii_mode)
-                            .analyse(&text, &dialect)
-                            .clone(),
-                    )
-                })
-                .await
-                .unwrap_or_default()
-            }
-        }
+        let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
+        tokio::task::spawn_blocking(move || {
+            Arc::new(
+                Backend::configured_analyser(a_disabled, non_ascii_mode)
+                    .analyse(&a_text, &a_dialect)
+                    .clone(),
+            )
+        })
+        .await
+        .unwrap_or_default()
     };
 
     let analysis_lifts = Arc::clone(&analysis);
     let lift_text = text.clone();
     let lift_dialect = dialect.clone();
     let result = tokio::task::spawn_blocking(move || {
-        let mut diagnostics =
-            lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
+        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
             &registry,
@@ -401,7 +384,7 @@ pub struct Backend {
     /// `db` handle is the write side (set inputs); reads clone it onto a
     /// worker thread and catch `salsa::Cancelled` when a newer edit supersedes
     /// the request.
-    db: Mutex<tcl_lsp_db::TclDatabase>,
+    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>,
@@ -512,7 +495,7 @@ impl Backend {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
-            db: Mutex::new(db),
+            db: Arc::new(Mutex::new(db)),
             db_files: Mutex::new(HashMap::new()),
             db_config: Mutex::new(db_config),
         }
@@ -1955,7 +1938,7 @@ impl Backend {
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
     /// Gather the owned inputs a detached diagnostics run needs.
-    async fn diag_inputs(&self, uri: &Url, dialect: &str) -> DiagInputs {
+    async fn diag_inputs(&self, dialect: &str) -> DiagInputs {
         let opt_disabled: HashSet<String> = {
             let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
                 *self.optimiser_profile.lock().await,
@@ -1973,15 +1956,14 @@ impl Backend {
             set
         };
         let (disabled, non_ascii_mode) = self.analyser_config().await;
+        let registry = self.registry_for_dialect(dialect).await;
+        let optimiser_enabled = *self.optimiser_enabled.lock().await;
         DiagInputs {
             client: self.client.clone(),
-            db: self.db.lock().await.clone(),
-            file: self.db_files.lock().await.get(uri).copied(),
-            config: *self.db_config.lock().await,
-            registry: self.registry_for_dialect(dialect).await,
+            registry,
             disabled,
             non_ascii_mode,
-            optimiser_enabled: *self.optimiser_enabled.lock().await,
+            optimiser_enabled,
             opt_disabled,
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
@@ -1993,6 +1975,7 @@ impl Backend {
     /// on-close/disk paths and tests; the interactive open/change paths use the
     /// detached [`Self::schedule_diagnostics`] instead so they never block the
     /// LSP message loop.
+    #[cfg_attr(not(test), allow(dead_code))]
     async fn publish_analyser_diagnostics(
         &self,
         uri: Url,
@@ -2001,7 +1984,7 @@ impl Backend {
         revision: u64,
         version: Option<i32>,
     ) {
-        let inputs = self.diag_inputs(&uri, &dialect).await;
+        let inputs = self.diag_inputs(&dialect).await;
         run_diagnostics_core(inputs, uri, text, dialect, revision, version).await;
     }
 
@@ -2025,11 +2008,16 @@ impl Backend {
             *slot += 1;
             *slot
         };
-        let inputs = self.diag_inputs(&uri, &dialect).await;
+        let inputs = self.diag_inputs(&dialect).await;
         let diag_gen = Arc::clone(&self.diag_gen);
         tokio::spawn(async move {
+            // Debounce: a burst of edits all sleep here first, so none holds a
+            // salsa read while the next edit's `set_text` write runs — only the
+            // surviving (latest-generation) task then runs one analysis.  This
+            // is load-bearing: without it, concurrent per-edit analyses make
+            // each write block a worker thread waiting for in-flight reads,
+            // stalling the message loop after a dozen edits.
             tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
-            // Superseded by a newer edit during the debounce window — drop.
             if diag_gen.lock().await.get(&uri).copied() != Some(my_gen) {
                 return;
             }
@@ -5333,13 +5321,13 @@ mod tests {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
-            db: Mutex::new(db),
+            db: Arc::new(Mutex::new(db)),
             db_files: Mutex::new(HashMap::new()),
             db_config: Mutex::new(db_config),
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn stale_diagnostics_worker_cannot_overwrite_current_analysis() {
         let backend = test_backend();
         let uri = Url::parse("file:///stale.tcl").unwrap();
