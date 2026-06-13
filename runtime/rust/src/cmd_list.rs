@@ -1,7 +1,7 @@
 //! List commands (T1.6) — `list` / `llength` / `lindex` / `lappend` / `lrange`
-//! / `lreverse` / `concat` / `join` / `split` / `lassign`, over the [`crate::list`]
-//! value type. (`lsort`/`lsearch`/`lset`/`linsert`/`lreplace`/`ledit`/`lrepeat`
-//! follow, once string match/comparison lands.)
+//! / `lreverse` / `concat` / `join` / `split` / `lassign` / `lrepeat` /
+//! `linsert` / `lreplace` / `lset` / `ledit` / `lsearch` / `lsort`, over the
+//! [`crate::list`] value type.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -25,6 +25,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"lrepeat", lrepeat);
     interp.register_builtin(b"linsert", linsert);
     interp.register_builtin(b"lreplace", lreplace);
+    interp.register_builtin(b"lset", lset);
     interp.register_builtin(b"ledit", ledit);
     interp.register_builtin(b"lsearch", lsearch);
     interp.register_builtin(b"lsort", lsort);
@@ -517,6 +518,126 @@ fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// must already exist (a read miss is `can't read ...: no such variable`), the
 /// index clamping is identical to `lreplace`, and `listVar` may name an array
 /// element (`a(k)`), addressed like `set`/`lappend`.
+/// `index "X" out of range` (the `lset` index range error).
+fn lset_out_of_range(interp: &mut Interp, spec: &[u8]) -> Code {
+    let mut m = b"index \"".to_vec();
+    m.extend_from_slice(spec);
+    m.extend_from_slice(b"\" out of range");
+    interp.set_error(&m)
+}
+
+/// Recursively set the element at the index `path` of `list_obj` to `value`,
+/// returning the new (sub)list. Mirrors C's `TclLsetFlat`: each index resolves
+/// against its sublist's length (`end`/`end±N` aware), range `0..=len` with
+/// `len` appending; an empty `path` returns `value` itself (whole-list replace).
+///
+/// The returned object is either `value` (borrowed) or a fresh `new_list_obj`
+/// (rc 0) — in both cases the caller retains it (the parent via `new_list_obj`,
+/// the command via `var_set`/`set_result`), so no extra refcount is taken here.
+fn lset_descend(
+    interp: &mut Interp,
+    list_obj: *mut TclObj,
+    path: &[Vec<u8>],
+    value: *mut TclObj,
+) -> Result<*mut TclObj, Code> {
+    let Some((spec, rest)) = path.split_first() else {
+        // No (more) indices: [lset] is [set] — the value replaces the list.
+        return Ok(value);
+    };
+    let elems = match list::list_elements(list_obj) {
+        Ok(v) => v,
+        Err(e) => return Err(bad_list(interp, e)),
+    };
+    let len = elems.len();
+    let Some(idx) = index_spec(spec, len) else {
+        return Err(bad_index(interp, spec));
+    };
+    if idx < 0 || idx as usize > len {
+        return Err(lset_out_of_range(interp, spec));
+    }
+    let idx = idx as usize;
+    let appending = idx == len;
+    // Descend into the existing element, or a fresh empty list when appending a
+    // new (possibly nested) slot.
+    let child = if appending {
+        list::new_list_obj(&[])
+    } else {
+        elems[idx]
+    };
+    let new_child = match lset_descend(interp, child, rest, value) {
+        Ok(c) => c,
+        Err(e) => {
+            if appending {
+                drop_fresh(child);
+            }
+            return Err(e);
+        }
+    };
+    // Rebuild this level with the element replaced (or the new element pushed).
+    // `new_list_obj` retains every element, including `new_child`.
+    let mut out: Vec<*mut TclObj> = elems;
+    if appending {
+        out.push(new_child);
+    } else {
+        out[idx] = new_child;
+    }
+    let result = list::new_list_obj(&out);
+    if appending {
+        drop_fresh(child);
+    }
+    Ok(result)
+}
+
+/// `lset listVar ?index ...? value` — set the element at the index path in the
+/// list stored in `listVar`, store it back (firing write traces), and return
+/// the new list (`Tcl_LsetObjCmd`). A lone index arg is split into an index
+/// path (`lset x {1 0} v`); multiple index args are each one index.
+fn lset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return wrong_args(interp, b"lset listVar ?index? ?index ...? value");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = crate::frame::split_array_ref(&name);
+    let cur = match &elem {
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
+    };
+    let Some(listobj) = cur else {
+        let msg = interp.read_miss_msg(&base, elem.as_deref());
+        return interp.set_error(&msg);
+    };
+    let value = argv[argv.len() - 1];
+    let idx_args = &argv[2..argv.len() - 1];
+    // Build the index path: a lone arg is itself split into a list of indices
+    // (matching C's TclLsetList); a malformed list falls back to one index.
+    let path: Vec<Vec<u8>> = if idx_args.len() == 1 {
+        match crate::parse::split_list(&obj_bytes(idx_args[0])) {
+            Ok(p) => p,
+            Err(_) => vec![obj_bytes(idx_args[0])],
+        }
+    } else {
+        idx_args.iter().map(|&a| obj_bytes(a)).collect()
+    };
+    let newlist = match lset_descend(interp, listobj, &path, value) {
+        Ok(l) => l,
+        Err(c) => return c,
+    };
+    let stored = match &elem {
+        Some(k) => interp.var_set_elem(&base, k, newlist),
+        None => interp.var_set(&base, newlist),
+    };
+    if let Err(e) = stored {
+        // `newlist` is fresh (rc 0) unless the path was empty (then it is the
+        // borrowed `value`); only the fresh one needs releasing.
+        if newlist != value {
+            drop_fresh(newlist);
+        }
+        return crate::builtins::var_error(interp, &name, e);
+    }
+    interp.set_result(newlist);
+    Code::Ok
+}
+
 fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return wrong_args(interp, b"ledit listVar first last ?element ...?");
@@ -799,6 +920,67 @@ mod tests {
         assert_eq!(ok(b"lreplace {a b c d} 1 2"), b"a d");
         assert_eq!(ok(b"lreplace {a b c} end end Z"), b"a b Z");
         assert_eq!(ok(b"lreplace {a b c} 1 0 X"), b"a X b c"); // first>last → insert
+    }
+
+    fn err(src: &[u8]) -> Vec<u8> {
+        let (c, b) = run(src);
+        assert_eq!(
+            c,
+            Code::Error,
+            "expected error, got {:?}",
+            String::from_utf8_lossy(&b)
+        );
+        b
+    }
+
+    #[test]
+    fn lset_sets_and_appends() {
+        // Replace, append, end-relative; updates the variable and returns it.
+        assert_eq!(ok(b"set x {a b c}; lset x 1 Z"), b"a Z c");
+        assert_eq!(ok(b"set x {a b c}; lset x 1 Z; set x"), b"a Z c");
+        assert_eq!(ok(b"set x {a b c}; lset x end Z"), b"a b Z");
+        assert_eq!(ok(b"set x {a b c}; lset x 3 Z"), b"a b c Z"); // append at len
+                                                                  // No index → whole-list replace (lset is set).
+        assert_eq!(ok(b"set x {a b c}; lset x Z"), b"Z");
+        assert_eq!(ok(b"set x {a b}; lset x {} Z"), b"Z");
+        // Nested: a lone arg is an index path; multiple args each an index.
+        assert_eq!(ok(b"set x {{a b} {c d}}; lset x 1 0 Z"), b"{a b} {Z d}");
+        assert_eq!(ok(b"set x {{a b} {c d}}; lset x {1 0} Z"), b"{a b} {Z d}");
+        assert_eq!(ok(b"set x {a {b c}}; lset x 1 1 Z"), b"a {b Z}");
+        // Empty-list quirks (single-element sublists stringify without braces).
+        assert_eq!(ok(b"set x {}; lset x 0 0 Z"), b"Z");
+        assert_eq!(ok(b"set x {}; lset x end+1 Z"), b"Z");
+        // Array-element addressing, like `ledit`/`lappend`.
+        assert_eq!(ok(b"set a(k) {1 2 3}; lset a(k) 1 Z; set a(k)"), b"1 Z 3");
+        // COW: a shared value isn't mutated through the alias.
+        assert_eq!(
+            ok(b"set l {a b c}; set m $l; lset l 0 X; list $l $m"),
+            b"{X b c} {a b c}"
+        );
+    }
+
+    #[test]
+    fn lset_errors() {
+        assert_eq!(
+            err(b"set x {a b c}; lset x 5 Z"),
+            b"index \"5\" out of range"
+        );
+        assert_eq!(
+            err(b"set x {a b c}; lset x -1 Z"),
+            b"index \"-1\" out of range"
+        );
+        assert_eq!(
+            err(b"set x {a b c}; lset x a Z"),
+            b"bad index \"a\": must be integer?[+-]integer? or end?[+-]integer?"
+        );
+        assert_eq!(
+            err(b"lset nosuchvar 0 Z"),
+            b"can't read \"nosuchvar\": no such variable"
+        );
+        assert_eq!(
+            err(b"lset"),
+            b"wrong # args: should be \"lset listVar ?index? ?index ...? value\""
+        );
     }
 
     #[test]

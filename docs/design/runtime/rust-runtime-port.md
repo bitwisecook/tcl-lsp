@@ -1706,6 +1706,20 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `lmap` + empty-script result reset | **125 / 168** | 43 (0 timeout) | **10566 / 19027** |
 | + `lseq` (arithmetic-series generator) | **125 / 168** | 43 (0 timeout) | **10660 / 19027** |
 | + `trace` command/execution/step + lifecycle | **125 / 168** | 43 (0 timeout) | **10818 / 19027** |
+| + `lset` (list-element set in a variable) | **126 / 168** | 42 (0 timeout) | **10870 / 19027** |
+
+The 2026-06-13 **`lset`** increment (**+52 tests, zero regressions**) — the
+in-variable nested list-element set (`Tcl_LsetObjCmd`/`TclLsetList`/
+`TclLsetFlat`, `tclListObj.c`): `lset listVar ?index ...? value`. A lone index
+arg is an index *path* (`lset x {1 0} v`), multiple args each one index; each
+index resolves against its sublist length (`end`/`end±N`, range `0..=len` with
+`len` appending), descending and rebuilding the nested list bottom-up
+(`cmd_list.rs::lset_descend`, sharing `index_spec`/`bad_index` with
+`lindex`/`ledit`), then storing it back through `var_set` (so write traces fire)
+and returning it. Byte-identical to `tclsh9.0` incl. the empty-list/append
+quirks (single-element sublists stringify without braces, so `lset x 0 0 Z` on
+`{}` → `Z`). `reg.test` 0 → 32 (now runs to a summary), `lsetComp.test` 2 → 19;
+`lset.test` stays constraint-skipped (`testevalex`, a `tcl::test` C command).
 
 The 2026-06-13 **`trace`** increment (**+158 tests, 56.0% → 56.9%**, zero
 regressions) — `trace.test` **49 → 195** (the rest are
@@ -2016,6 +2030,19 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`lset`)
+
+`lset` (`cmd_list.rs`), the in-variable nested list-element set, ported from C's
+`Tcl_LsetObjCmd` + `TclLsetList`/`TclLsetFlat` (`tclListObj.c`). We re-derive the
+recursive descent (parse index → range-check `0..=len` → descend/rebuild) rather
+than C's copy-on-write `pendingInvalidates` chain (a string-rep-invalidation
+detail of C's representation, not behaviour); single-element sublists stringify
+without braces, which reproduces the empty-list/append quirks for free. Shares
+`index_spec`/`bad_index` with `lindex`/`ledit`; stores back through `var_set`
+(write traces fire) like `ledit`. No Zig fix back-ported (mirror anchor
+`8150eca`); byte-checked against `tclsh9.0`. `reg.test` 0 → 32, `lsetComp.test`
+2 → 19; sweep **10818 → 10870**, zero regressions.
+
 ### SYNC inbound — 2026-06-13 (`trace` command/execution/step + lifecycle + var-trace error propagation)
 
 Completes the `trace` command beyond the prior variable-only subset, derived
@@ -2220,11 +2247,12 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **10818/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **10870/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
-    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, and the
+    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`
-    49 → 195). Run the **unmodified** pure-Tcl
+    49 → 195, and `lset` unblocked `reg.test`/`lsetComp.test`). Run the
+    **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return
