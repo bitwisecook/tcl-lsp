@@ -1725,6 +1725,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `export` of built-ins + `info object`/`info class` abbreviation & subcommands | **128 / 168** | 40 (0 timeout) | **11624 / 19027** |
 | + `info commands` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11662 / 20532** |
 | + `info procs` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11665 / 20532** |
+| + TclOO `definitionnamespace` (TIP 524) define subcommand + semantics | **129 / 168** | 39 (0 timeout) | **11672 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1823,6 +1824,17 @@ applied to `info vars`: there it regressed `safe.test` (the safe package's
 `info vars ::safe::S*` state probes legitimately expose teardown residue our
 safe implementation leaves), so `info vars` keeps the visible-scope listing for
 now.
+
+The 2026-06-13 **TclOO `definitionnamespace`** chunk (TIP 524, **+7 tests,
+zero regressions**) — the `definitionnamespace ?-class|-instance? namespace`
+define subcommand stores the namespace on the class (a new `class_def_ns`
+field for `-class`, the existing `def_ns` for `-instance`; an empty name
+resets; the root classes reject it). A definition body now resolves bare
+commands in the applicable namespace: an `oo::define` on a class uses its
+metaclass's `-class` namespace, an `oo::objdefine` on an object its class's
+`-instance` namespace (the built-in `::oo::define`/`::oo::objdefine` defaults
+stay served by the global definition commands). `oo.test` 124 → 131; sweep
+11665 → 11672.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2460,7 +2472,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11665/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11672/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +

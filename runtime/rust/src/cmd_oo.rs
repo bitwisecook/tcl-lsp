@@ -58,8 +58,13 @@ struct Class {
     filters: Vec<Vec<u8>>,
     /// The namespace in which this class's *instances* are defined
     /// (`definitionnamespace`, TIP 524); `info class definitionnamespace
-    /// … -instance`. `None` → the empty default.
+    /// … -instance`. `None` → the empty default. Used as the resolution
+    /// namespace for an `oo::objdefine` body on an instance of this class.
     def_ns: Option<Vec<u8>>,
+    /// The namespace in which *this class itself* is defined (`info class
+    /// definitionnamespace … -class`). When this class is a metaclass, it is
+    /// the resolution namespace for an `oo::define` body on its instances.
+    class_def_ns: Option<Vec<u8>>,
 }
 
 /// An object instance.
@@ -177,6 +182,15 @@ pub fn install(interp: &mut Interp) {
         .get_mut(b"::oo::object".as_slice())
     {
         c.def_ns = Some(b"::oo::objdefine".to_vec());
+    }
+    // Defining a class (an instance of `oo::class`) happens in `::oo::define`.
+    if let Some(c) = interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(b"::oo::class".as_slice())
+    {
+        c.class_def_ns = Some(b"::oo::define".to_vec());
     }
     for fqn in [b"::oo::object".as_slice(), b"::oo::class".as_slice()] {
         let var_ns = interp.ensure_namespace(fqn);
@@ -537,6 +551,69 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `definitionnamespace ?-class|-instance? namespace` (TIP 524) — set the
+/// namespace in which this class (or its instances) are defined. An empty
+/// namespace name resets to the default.
+fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let cls = match def_target(interp) {
+        Ok(DefTarget::Class(c)) => c,
+        Ok(DefTarget::Object(_)) => {
+            return err(
+                interp,
+                b"this command may only be called in a class definition",
+            );
+        }
+        Err(c) => return c,
+    };
+    if cls == b"::oo::object" || cls == b"::oo::class" {
+        return err(
+            interp,
+            b"may not modify the definition namespace of the root classes",
+        );
+    }
+    if argv.len() != 2 && argv.len() != 3 {
+        return wrong_args(interp, b"definitionnamespace ?kind? namespace");
+    }
+    // Default kind is `-class`.
+    let instance = if argv.len() == 3 {
+        match obj_bytes(argv[1]).as_slice() {
+            b"-class" => false,
+            b"-instance" => true,
+            other => {
+                let mut m = b"bad kind \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\": must be -class or -instance");
+                return err(interp, &m);
+            }
+        }
+    } else {
+        false
+    };
+    let ns_arg = obj_bytes(argv[argv.len() - 1]);
+    let stored = if ns_arg.is_empty() {
+        None
+    } else {
+        match interp.resolve_namespace_name(&ns_arg) {
+            Some(qn) => Some(qn),
+            None => {
+                let mut m = b"namespace \"".to_vec();
+                m.extend_from_slice(&ns_arg);
+                m.extend_from_slice(b"\" not found");
+                return err(interp, &m);
+            }
+        }
+    };
+    if let Some(c) = interp.oo.borrow_mut().classes.get_mut(&cls) {
+        if instance {
+            c.def_ns = stored;
+        } else {
+            c.class_def_ns = stored;
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
 fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `method name ?-export|-private? args body` (the visibility flag is TIP 500).
     let (priv_flag, rest): (Option<bool>, &[*mut TclObj]) = match argv.get(2).map(|&a| obj_bytes(a))
@@ -874,6 +951,7 @@ impl Interp {
     pub(crate) fn oo_define_command(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Option<Code> {
         const CLASS_CMDS: &[&[u8]] = &[
             b"constructor",
+            b"definitionnamespace",
             b"deletemethod",
             b"destructor",
             b"export",
@@ -933,6 +1011,7 @@ impl Interp {
             b"deletemethod" => def_deletemethod(self, argv),
             b"renamemethod" => def_renamemethod(self, argv),
             b"class" => def_class(self, argv),
+            b"definitionnamespace" => def_definitionnamespace(self, argv),
             _ => return None,
         })
     }
@@ -1429,15 +1508,8 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 b"-class".to_vec()
             };
             let ns = match kind.as_slice() {
-                // The namespace used to define this class itself. Only the root
-                // metaclass `oo::class` carries the built-in `::oo::define`.
-                b"-class" => {
-                    if cls == b"::oo::class" {
-                        Some(b"::oo::define".to_vec())
-                    } else {
-                        None
-                    }
-                }
+                // The namespace used to define this class itself.
+                b"-class" => interp.oo.borrow().classes[&cls].class_def_ns.clone(),
                 // The namespace used to define this class's instances.
                 b"-instance" => interp.oo.borrow().classes[&cls].def_ns.clone(),
                 _ => {
@@ -1580,14 +1652,45 @@ impl Interp {
 
     /// Run an `oo::define`/`oo::objdefine` body or single subcommand on `target`.
     fn oo_run_def(&mut self, target: DefTarget, argv: &[*mut TclObj]) -> Code {
+        // TIP 524: a user-set definition namespace becomes the resolution scope
+        // for the body, so its procs are reachable as bare definition commands.
+        let def_ns = self.definition_namespace_for(&target);
         self.oo.borrow_mut().def_stack.push(target);
+        let saved = def_ns.as_deref().map(|n| self.enter_namespace(n));
         let code = if argv.len() == 3 {
             self.eval_str(&obj_bytes(argv[2]))
         } else {
             self.dispatch(&argv[2..])
         };
+        if let Some(s) = saved {
+            self.leave_namespace(s);
+        }
         self.oo.borrow_mut().def_stack.pop();
         code
+    }
+
+    /// The custom definition-resolution namespace for a definition `target`, or
+    /// `None` for the built-in default (`::oo::define`/`::oo::objdefine`, which
+    /// our global definition builtins already serve). For a class, it is the
+    /// metaclass's `-class` namespace; for an object, its class's `-instance`.
+    fn definition_namespace_for(&self, target: &DefTarget) -> Option<Vec<u8>> {
+        let oo = self.oo.borrow();
+        let ns = match target {
+            DefTarget::Class(c) => {
+                let meta = oo.objects.get(c).map(|o| o.class.clone())?;
+                oo.classes.get(&meta)?.class_def_ns.clone()
+            }
+            DefTarget::Object(o) => {
+                let cls = oo.objects.get(o).map(|ob| ob.class.clone())?;
+                oo.classes.get(&cls)?.def_ns.clone()
+            }
+        }?;
+        // The built-in defaults are handled by the global definition commands.
+        if ns == b"::oo::define" || ns == b"::oo::objdefine" {
+            None
+        } else {
+            Some(ns)
+        }
     }
 
     /// Dispatch a command bound to the OO object/class FQN `fqn`.
@@ -2395,6 +2498,42 @@ mod tests {
             assert_eq!(i.eval_str(b"info class methodtype C nope"), Code::Error);
             // `forward` on a non-forward method.
             assert_eq!(i.eval_str(b"info class forward C foo"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn definitionnamespace_semantics() {
+        leak_free(|i| {
+            // TIP 524: a metaclass's -class definition namespace becomes the
+            // resolution scope when defining its instances (classes).
+            ok(i, b"oo::class create parent");
+            ok(
+                i,
+                b"namespace eval foodef { proc sparkle {} { return ok } }",
+            );
+            ok(
+                i,
+                b"oo::class create foocls { superclass oo::class parent; definitionnamespace foodef }",
+            );
+            ok(
+                i,
+                b"oo::class create foo { superclass parent; self class foocls }",
+            );
+            // `sparkle` (a proc in foodef) is now reachable in foo's definition.
+            assert_eq!(ok(i, b"oo::define foo { sparkle }"), b"ok");
+            // Round-trip introspection of an explicitly-set namespace.
+            ok(i, b"namespace eval ::nd {}");
+            ok(
+                i,
+                b"oo::class create D; oo::define D { definitionnamespace ::nd }",
+            );
+            assert_eq!(ok(i, b"info class definitionnamespace D"), b"::nd");
+            assert_eq!(ok(i, b"info class definitionnamespace D -instance"), b"");
+            // The root classes reject definition-namespace changes.
+            assert_eq!(
+                i.eval_str(b"oo::define oo::object { definitionnamespace ::nd }"),
+                Code::Error,
+            );
         });
     }
 
