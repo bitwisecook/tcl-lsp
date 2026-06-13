@@ -50,6 +50,7 @@ use tcl_lsp_core::signature_help::{
 };
 use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::workspace_index as core_workspace_index;
+use tcl_lsp_db::TclDb as _;
 // type_hierarchy core provider lands when tower-lsp's
 // LanguageServer trait exposes the type-hierarchy methods.
 // Module is registered in `tcl_lsp_core` for downstream
@@ -171,7 +172,6 @@ pub struct Backend {
     /// Updated by ``did_change_configuration`` so editor reconfigures
     /// take effect for subsequently-opened documents.
     default_dialect: Mutex<String>,
-    dialect_registries: Mutex<HashMap<String, Arc<CommandRegistry>>>,
     /// Workspace folder roots received from `initialize` /
     /// `workspace/didChangeWorkspaceFolders`.  Stored as
     /// `Url` (typically `file://...` directories).
@@ -334,7 +334,6 @@ impl Backend {
             documents: Mutex::new(HashMap::new()),
             document_analysis_gate: Mutex::new(()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
-            dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
@@ -1772,38 +1771,12 @@ impl Backend {
     /// they share a single cached "plain Tcl" registry rather than
     /// leaking a fresh allocation per typo.
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
-        let parsed = DialectSet::parse(dialect);
-        // Canonicalise the cache key: parseable dialects keep
-        // their string; unparseable / plain-Tcl collapse to "".
-        let key = if parsed.is_some() { dialect } else { "" };
-        self.cached_registry(key, parsed).await
-    }
-
-    /// Cache helper for [`Self::registry_for_dialect`].
-    ///
-    /// Builds (or fetches) a registry holding the base specs plus,
-    /// when `dialect` is `Some`, the dialect-loaded specs. The
-    /// cache owns the registries via `Arc`, so they are dropped
-    /// when the `Backend` is dropped instead of living for the
-    /// process lifetime.
-    async fn cached_registry(
-        &self,
-        key: &str,
-        dialect: Option<DialectSet>,
-    ) -> Arc<CommandRegistry> {
-        if let Some(r) = self.dialect_registries.lock().await.get(key).cloned() {
-            return r;
-        }
-        let mut r = CommandRegistry::build_default();
-        if let Some(d) = dialect {
-            r.load_dialect(d);
-        }
-        let arc = Arc::new(r);
-        let mut cache = self.dialect_registries.lock().await;
-        let entry = cache
-            .entry(key.to_owned())
-            .or_insert_with(|| Arc::clone(&arc));
-        Arc::clone(entry)
+        // The dialect-loaded registry lives on the query database as a durable
+        // (non-salsa) value, built once per canonical dialect key and shared.
+        // Clone the db handle (cheap; shares the registry map) so the lookup /
+        // one-time build doesn't hold the db mutex.
+        let db = self.db.lock().await.clone();
+        db.registry(dialect)
     }
 
     /// Run the analyser on `text` and push the resulting
@@ -5251,7 +5224,6 @@ mod tests {
             documents: Mutex::new(HashMap::new()),
             document_analysis_gate: Mutex::new(()),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
-            dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
