@@ -2008,38 +2008,41 @@ fn is_number_literal(text: &str) -> bool {
 /// Scan `source` for `#` comment lines and push each one as
 /// a Comment-kind entry.  Mirrors Python's `_collect_comments`.
 fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<Entry>) {
-    let mut byte_pos: u32 = 0;
+    let bytes = source.as_bytes();
     let mut line_start = true;
-    for c in source.chars() {
-        let len = u32::try_from(c.len_utf8()).unwrap_or(1);
+    // Byte offset up to which the rest of an already-emitted comment line is
+    // skipped.  Derived from `char_indices` so the cursor never desyncs from
+    // the iterator — the previous hand-incremented `byte_pos` drifted past the
+    // buffer end on multi-comment files, slicing out of bounds (panic).
+    let mut skip_until: usize = 0;
+    for (idx, c) in source.char_indices() {
+        if idx < skip_until {
+            continue;
+        }
         if c == '\n' {
             line_start = true;
-            byte_pos += len;
             continue;
         }
         if c.is_whitespace() {
-            byte_pos += len;
             continue;
         }
         if line_start && c == '#' {
             // Find the end of the comment line.
-            let comment_start = byte_pos;
-            let mut p = byte_pos;
-            let bytes = source.as_bytes();
-            while (p as usize) < bytes.len() && bytes[p as usize] != b'\n' {
+            let mut p = idx;
+            while p < bytes.len() && bytes[p] != b'\n' {
                 p += 1;
             }
-            let comment_end = p;
+            let comment_start = u32::try_from(idx).unwrap_or(0);
             let pos = line_index.position_at_utf16(comment_start, source);
-            let len_utf16 = utf16_len(&source[comment_start as usize..comment_end as usize]);
+            let len_utf16 = utf16_len(&source[idx..p]);
             entries.push((pos.line, pos.character, len_utf16, TokenKind::Comment, 0));
-            // Skip past the comment line.
-            byte_pos = comment_end;
+            // Skip the remainder of the comment line; the terminating `\n`
+            // (at `p`) is processed normally and resets `line_start`.
+            skip_until = p;
             line_start = false;
             continue;
         }
         line_start = false;
-        byte_pos += len;
     }
 }
 
@@ -2710,6 +2713,28 @@ mod tests {
             &[0, 0, 5, TokenKind::Comment as u32, 0],
             "comment token length must count the emoji as two UTF-16 code units",
         );
+    }
+
+    #[test]
+    fn many_comment_lines_do_not_drift_out_of_bounds() {
+        // Regression: `push_comment_tokens` hand-incremented a byte cursor to
+        // the end of each comment line while the `chars()` iterator only
+        // advanced one char, so the cursor drifted past the buffer and sliced
+        // out of bounds (panic) on files with several comment lines.
+        use std::fmt::Write as _;
+        let mut src = String::new();
+        for i in 0..40 {
+            let _ = writeln!(src, "# comment line number {i} with some padding text");
+        }
+        src.push_str("set x 1\n");
+        src.push_str("# trailing comment after code, no final newline");
+        let st = full(&src, "tcl", &reg()); // must not panic
+        let comments = st
+            .data
+            .chunks(5)
+            .filter(|c| c[3] == TokenKind::Comment as u32)
+            .count();
+        assert_eq!(comments, 41, "expected one token per comment line");
     }
 
     #[test]
