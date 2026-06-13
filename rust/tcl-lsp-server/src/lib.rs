@@ -200,13 +200,6 @@ pub struct Backend {
     /// = false`). Threaded into every analyser build so the disabled
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
-    /// `S-hover-sync11`: LRU(256) cache of hover responses
-    /// keyed on `(uri, line, character)`.  Invalidated per
-    /// URI on `did_change` / `did_close` so stale answers
-    /// don't outlive the document version that produced them.
-    /// `None` entries record "no hover here" so repeated
-    /// requests for the same empty position are also fast.
-    hover_cache: Mutex<HoverCache>,
     /// Per-URI semantic-tokens delta cache.  Records the last
     /// `result_id` and packed token stream we returned for
     /// each document so `semanticTokens/full/delta` can short-
@@ -334,82 +327,6 @@ struct SemanticTokensEntry {
     data: Vec<u32>,
 }
 
-/// Result of a `HoverCache::get` lookup.
-#[derive(Debug, Clone)]
-enum HoverLookup {
-    /// Cache miss — the caller must compute the hover.
-    Miss,
-    /// Cached "no hover here" answer (the provider returned
-    /// `None` for this position last time).
-    HitEmpty,
-    /// Cached hover response.
-    Hit(tcl_lsp_core::hover::Hover),
-}
-
-/// LRU cache of hover responses bounded at 256 entries.
-/// Keys are `(uri, line, character)`.  Stored values
-/// distinguish between "no entry" and "entry with empty
-/// hover" so repeated requests on positions that have no
-/// hover are also fast.  On capacity overflow the oldest
-/// entry is evicted.
-#[derive(Debug, Default)]
-struct HoverCache {
-    /// FIFO queue of cache keys in insertion order.  Doubles
-    /// as the eviction order — bounded LRU; reads don't
-    /// promote.  256 is the SYNC11-mandated cap.
-    order: std::collections::VecDeque<(Url, u32, u32)>,
-    entries: HashMap<(Url, u32, u32), Option<tcl_lsp_core::hover::Hover>>,
-}
-
-impl HoverCache {
-    const CAP: usize = 256;
-
-    fn get(&self, key: &(Url, u32, u32)) -> HoverLookup {
-        match self.entries.get(key) {
-            None => HoverLookup::Miss,
-            Some(None) => HoverLookup::HitEmpty,
-            Some(Some(h)) => HoverLookup::Hit(h.clone()),
-        }
-    }
-
-    fn put(&mut self, key: (Url, u32, u32), value: Option<tcl_lsp_core::hover::Hover>) {
-        use std::collections::hash_map::Entry;
-        match self.entries.entry(key.clone()) {
-            Entry::Occupied(mut e) => {
-                e.insert(value);
-            }
-            Entry::Vacant(slot) => {
-                if self.order.len() >= Self::CAP {
-                    if let Some(old) = self.order.pop_front() {
-                        // The slot we're about to fill matches
-                        // `key`; the popped key is different, so
-                        // remove it via a direct lookup.
-                        if old != key {
-                            // The Vacant binding holds the entry,
-                            // so we can't remove via the same map
-                            // without giving it up.  Stash the key,
-                            // drop the entry, then evict, then
-                            // re-insert.
-                            drop(slot);
-                            self.entries.remove(&old);
-                            self.order.push_back(key.clone());
-                            self.entries.insert(key, value);
-                            return;
-                        }
-                    }
-                }
-                slot.insert(value);
-                self.order.push_back(key);
-            }
-        }
-    }
-
-    fn invalidate_uri(&mut self, uri: &Url) {
-        self.order.retain(|(u, _, _)| u != uri);
-        self.entries.retain(|(u, _, _), _| u != uri);
-    }
-}
-
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish_non_exhaustive()
@@ -442,7 +359,6 @@ impl Backend {
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -2194,7 +2110,6 @@ impl LanguageServer for Backend {
                 DocumentState::with_version(params.text_document.text, dialect, version),
             );
             drop(docs);
-            self.hover_cache.lock().await.invalidate_uri(&uri);
             self.semantic_tokens_cache.lock().await.remove(&uri);
             self.workspace_index
                 .lock()
@@ -2242,7 +2157,6 @@ impl LanguageServer for Backend {
             // for this URI so subsequent requests return answers
             // against the freshly-edited source rather than stale
             // pre-edit results.
-            self.hover_cache.lock().await.invalidate_uri(&uri);
             // `S-semantic-tokens-rich` delta: drop the cached
             // token snapshot so the next `semanticTokens/full/delta`
             // returns a fresh full result instead of an empty edit
@@ -2303,7 +2217,6 @@ impl LanguageServer for Backend {
         {
             let _gate = self.document_analysis_gate.lock().await;
             self.documents.lock().await.remove(uri);
-            self.hover_cache.lock().await.invalidate_uri(uri);
             self.semantic_tokens_cache.lock().await.remove(uri);
             self.workspace_index
                 .lock()
@@ -3831,27 +3744,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
-        // `S-hover-sync11`: consult the LRU(256) result cache
-        // first.  Cache hits return the previous hover for
-        // `(uri, line, character)` directly without re-running
-        // the provider.  The cache is invalidated by URI in
-        // `did_change` / `did_close`, so the stored entry is
-        // always pinned to the source text the editor last sent.
-        let cache_key = (uri.clone(), pos.line, pos.character);
-        match self.hover_cache.lock().await.get(&cache_key) {
-            HoverLookup::HitEmpty => return Ok(None),
-            HoverLookup::Hit(h) => return Ok(Some(lift_hover(h))),
-            HoverLookup::Miss => {}
-        }
-        // Cache miss: run the provider.  Consults the cached
-        // analysis from `did_open` / `did_change`; the
-        // `analysis_for` helper falls back to a fresh
-        // `analyser.analyse(...)` when the publisher hasn't
-        // populated the cache yet.  Worker-offload via
+        // Run the provider over the memoised `file_analysis` query (no separate
+        // hover result cache — walking the cached analysis is cheap, and the
+        // query graph already avoids re-analysing).  Worker-offload via
         // `spawn_blocking` keeps the LSP event loop responsive.
-        // SYNC11's debounce + `[timing] hover` debug logs are
-        // documented but not yet wired — they need an upgraded
-        // logging layer beyond the bare `Client::log_message`.
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
@@ -3871,7 +3767,6 @@ impl LanguageServer for Backend {
             message: format!("hover worker panicked: {err}").into(),
             data: None,
         })?;
-        self.hover_cache.lock().await.put(cache_key, result.clone());
         Ok(result.map(lift_hover))
     }
 }
@@ -5400,7 +5295,6 @@ mod tests {
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -5856,69 +5750,6 @@ mod tests {
         let got = out.len();
         std::fs::remove_dir_all(&root).ok();
         assert_eq!(got, 3);
-    }
-
-    #[test]
-    fn hover_cache_round_trips_an_entry() {
-        let mut cache = HoverCache::default();
-        let uri = Url::parse("file:///x.tcl").unwrap();
-        let key = (uri.clone(), 0, 5);
-        // Miss before insertion.
-        assert!(matches!(cache.get(&key), HoverLookup::Miss));
-        // Insert and read back.
-        let h = tcl_lsp_core::hover::Hover {
-            value: "demo".to_owned(),
-            kind: tcl_lsp_core::hover::HoverKind::Markdown,
-        };
-        cache.put(key.clone(), Some(h.clone()));
-        match cache.get(&key) {
-            HoverLookup::Hit(got) => assert_eq!(got.value, "demo"),
-            other => panic!("expected Hit, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn hover_cache_records_empty_hovers() {
-        let mut cache = HoverCache::default();
-        let uri = Url::parse("file:///x.tcl").unwrap();
-        let key = (uri, 0, 5);
-        cache.put(key.clone(), None);
-        // An empty hover is distinct from a miss.
-        assert!(matches!(cache.get(&key), HoverLookup::HitEmpty));
-    }
-
-    #[test]
-    fn hover_cache_invalidates_by_uri() {
-        let mut cache = HoverCache::default();
-        let uri_a = Url::parse("file:///a.tcl").unwrap();
-        let uri_b = Url::parse("file:///b.tcl").unwrap();
-        let h = tcl_lsp_core::hover::Hover {
-            value: "x".to_owned(),
-            kind: tcl_lsp_core::hover::HoverKind::Markdown,
-        };
-        cache.put((uri_a.clone(), 0, 0), Some(h.clone()));
-        cache.put((uri_b.clone(), 0, 0), Some(h));
-        cache.invalidate_uri(&uri_a);
-        assert!(matches!(cache.get(&(uri_a, 0, 0)), HoverLookup::Miss));
-        assert!(matches!(cache.get(&(uri_b, 0, 0)), HoverLookup::Hit(_)));
-    }
-
-    #[test]
-    fn hover_cache_caps_at_256_entries() {
-        let mut cache = HoverCache::default();
-        let uri = Url::parse("file:///x.tcl").unwrap();
-        let h = tcl_lsp_core::hover::Hover {
-            value: "x".to_owned(),
-            kind: tcl_lsp_core::hover::HoverKind::Markdown,
-        };
-        for i in 0..300 {
-            cache.put((uri.clone(), 0, i), Some(h.clone()));
-        }
-        assert_eq!(cache.entries.len(), HoverCache::CAP);
-        // Earliest insertions were evicted.
-        assert!(matches!(cache.get(&(uri.clone(), 0, 0)), HoverLookup::Miss,));
-        // Most-recent insertions survive.
-        assert!(matches!(cache.get(&(uri, 0, 299)), HoverLookup::Hit(_),));
     }
 
     #[tokio::test]
