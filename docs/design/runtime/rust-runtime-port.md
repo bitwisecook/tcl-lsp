@@ -1728,6 +1728,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `definitionnamespace` (TIP 524) define subcommand + semantics | **129 / 168** | 39 (0 timeout) | **11672 / 20532** |
 | + TclOO metaclasses (`meta create` → class, synthetic `oo::class` ctor, `isa metaclass`) | **129 / 168** | 39 (0 timeout) | **11679 / 20532** |
 | + TclOO `info object`/`class call` + `self call` + TIP 500 same-object private visibility | **129 / 168** | 39 (0 timeout) | **11680 / 20532** |
+| + TclOO `oo::copy` clones the class facet (class cloning) | **129 / 168** | 39 (0 timeout) | **11689 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1858,6 +1859,14 @@ visibility: a private method is reachable by an external dispatch (`[self]
 priv`) that originates from within the same object, so `oo_invoke` relaxes the
 export check when the calling frame belongs to the target object. `oo.test`
 138 → 139.
+
+The 2026-06-13 **`oo::copy` class cloning** chunk (**+9 tests, zero
+regressions**) — `oo::copy` now clones a source's *class* facet (methods,
+superclasses, declared variables, mixins, filters) as well as its object
+facet, so copying a class yields a working class whose instances run the
+cloned methods. Previously a class copy was a half-object: `bar create …`
+failed mid-test and leaked the source name, cascading "command already exists"
+failures across the `oo-15.*` cloning block. `oo.test` 139 → 148.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2495,7 +2504,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11680/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11689/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +

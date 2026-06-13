@@ -354,6 +354,9 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             format!("::oo::Obj{n}").into_bytes()
         }
     };
+    // If the source is also a class, clone the class definition too, so the
+    // copy is a working class (TclOO copies both the object and class facets).
+    let src_cls = interp.oo.borrow().classes.get(&src).cloned();
     let var_ns = interp.ensure_namespace(&dst);
     let creation_id = interp.oo_next_id();
     interp.oo.borrow_mut().objects.insert(
@@ -369,6 +372,9 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             filters: src_obj.filters,
         },
     );
+    if let Some(cls) = src_cls {
+        interp.oo.borrow_mut().classes.insert(dst.clone(), cls);
+    }
     interp.ns_register(&dst, Command::OoObject(dst.clone()));
     interp.set_result(obj::new_string_bytes(&dst));
     Code::Ok
@@ -2811,6 +2817,26 @@ mod tests {
                 i.eval_str(b"oo::define oo::object { definitionnamespace ::nd }"),
                 Code::Error,
             );
+        });
+    }
+
+    #[test]
+    fn oo_copy_clones_classes() {
+        leak_free(|i| {
+            // `oo::copy` of a class clones the class facet, so the copy is a
+            // working class whose instances run the cloned methods.
+            ok(
+                i,
+                b"oo::class create foo { method testme {} { return [self class] } }",
+            );
+            ok(i, b"oo::copy foo bar");
+            assert_eq!(ok(i, b"[bar new] testme"), b"::bar");
+            // Cloned superclasses + declared variables come across too.
+            ok(i, b"oo::class create AC");
+            ok(i, b"oo::class create Foo { superclass AC; variable a b c }");
+            ok(i, b"oo::copy Foo Bar");
+            assert_eq!(ok(i, b"info class variable Bar"), b"a b c");
+            assert_eq!(ok(i, b"info class superclasses Bar"), b"::AC");
         });
     }
 
