@@ -54,6 +54,10 @@ struct Class {
     /// Names explicitly `export`ed — overrides the default-unexported built-in
     /// methods (`eval`/`variable`/`varname`/…) so they become publicly callable.
     exported: BTreeSet<Vec<u8>>,
+    /// TIP 500 *private* methods (`private method`/`method -private`): a subset
+    /// of the unexported methods that are additionally hidden from
+    /// `info methods -private` and from subclasses' `my` dispatch.
+    private: BTreeSet<Vec<u8>>,
     /// Filter method names applied to instances' method calls (`filter`).
     filters: Vec<Vec<u8>>,
     /// The namespace in which this class's *instances* are defined
@@ -84,8 +88,16 @@ struct Object {
     unexported: BTreeSet<Vec<u8>>,
     /// Explicitly `export`ed names (see `Class::exported`).
     exported: BTreeSet<Vec<u8>>,
+    /// TIP 500 private methods (see `Class::private`).
+    private: BTreeSet<Vec<u8>>,
     /// Per-object filter method names (`oo::objdefine filter`).
     filters: Vec<Vec<u8>>,
+    /// Per-object declared instance variables (`oo::objdefine variable`).
+    variables: Vec<Vec<u8>>,
+    /// Set once the destructor chain has started, so teardown via `destroy`,
+    /// `rename obj {}` and `namespace delete` does not re-run it (C's
+    /// `DESTRUCTOR_CALLED`).
+    destroyed: bool,
 }
 
 /// One step of a method-call chain: the provider (object or class FQN) and the
@@ -381,7 +393,10 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             mixins: src_obj.mixins,
             unexported: src_obj.unexported,
             exported: src_obj.exported,
+            private: src_obj.private,
             filters: src_obj.filters,
+            variables: src_obj.variables,
+            destroyed: false,
         },
     );
     if let Some(cls) = src_cls {
@@ -404,36 +419,68 @@ fn def_target(interp: &mut Interp) -> Result<DefTarget, Code> {
     }
 }
 
-/// Install `method` into the current definition target (class or object).
-fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
-    let private = interp.oo.borrow().private_depth > 0;
-    install_method_vis(interp, name, m, private)
+/// A method's declared visibility.
+#[derive(Clone, Copy, PartialEq)]
+enum MethodVis {
+    /// Callable externally (a lowercase name or `-export`).
+    Public,
+    /// Hidden from external calls but listed by `info methods -private`
+    /// (a non-lowercase name or `-unexport`).
+    Unexported,
+    /// TIP 500 private (`-private`/`private` block): hidden everywhere.
+    Private,
 }
 
-/// Install a method; `private` marks it unexported (callable only via `my`).
-fn install_method_vis(interp: &mut Interp, name: Vec<u8>, m: Method, private: bool) -> Code {
+/// Install `method` into the current definition target (class or object) with
+/// the default visibility for its name (or `private` block).
+fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
+    let vis = default_vis(interp, &name);
+    install_method_vis(interp, name, m, vis)
+}
+
+/// Default visibility for a method name in the current definition context.
+fn default_vis(interp: &Interp, name: &[u8]) -> MethodVis {
+    if interp.oo.borrow().private_depth > 0 {
+        MethodVis::Private
+    } else if exported_by_default(name) {
+        MethodVis::Public
+    } else {
+        MethodVis::Unexported
+    }
+}
+
+fn install_method_vis(interp: &mut Interp, name: Vec<u8>, m: Method, vis: MethodVis) -> Code {
+    let apply = |methods: &mut BTreeMap<Vec<u8>, Method>,
+                 unexp: &mut BTreeSet<Vec<u8>>,
+                 priv_set: &mut BTreeSet<Vec<u8>>| {
+        methods.insert(name.clone(), m);
+        match vis {
+            MethodVis::Public => {
+                unexp.remove(&name);
+                priv_set.remove(&name);
+            }
+            MethodVis::Unexported => {
+                unexp.insert(name.clone());
+                priv_set.remove(&name);
+            }
+            MethodVis::Private => {
+                unexp.insert(name.clone());
+                priv_set.insert(name.clone());
+            }
+        }
+    };
     let ok = match def_target(interp) {
         Ok(DefTarget::Class(c)) => {
             let mut oo = interp.oo.borrow_mut();
             oo.classes.get_mut(&c).is_some_and(|cl| {
-                cl.methods.insert(name.clone(), m);
-                if private {
-                    cl.unexported.insert(name);
-                } else {
-                    cl.unexported.remove(&name);
-                }
+                apply(&mut cl.methods, &mut cl.unexported, &mut cl.private);
                 true
             })
         }
         Ok(DefTarget::Object(o)) => {
             let mut oo = interp.oo.borrow_mut();
             oo.objects.get_mut(&o).is_some_and(|ob| {
-                ob.methods.insert(name.clone(), m);
-                if private {
-                    ob.unexported.insert(name);
-                } else {
-                    ob.unexported.remove(&name);
-                }
+                apply(&mut ob.methods, &mut ob.unexported, &mut ob.private);
                 true
             })
         }
@@ -557,6 +604,10 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Err(c) => return c,
     };
+    // The root classes' class may not be changed.
+    if obj == b"::oo::object" || obj == b"::oo::class" {
+        return err(interp, b"may not modify the class of the root object class");
+    }
     let new_cls = interp.fqn_for(&obj_bytes(argv[1]));
     if !interp.oo.borrow().objects.contains_key(&new_cls) {
         return not_object(interp, &obj_bytes(argv[1]));
@@ -566,8 +617,35 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         m.extend_from_slice(b" does not refer to a class");
         return err(interp, &m);
     }
+    // An object may not become an instance of itself.
+    if new_cls == obj {
+        return err(
+            interp,
+            b"may not change classes into an instance of themselves",
+        );
+    }
+    // Changing the class can turn a plain object into a class (its new class is
+    // `oo::class` or a metaclass) or back; keep the class-map membership in sync
+    // so it gains/loses `create`/`new` and class introspection.
+    let becomes_class = interp
+        .mro(&new_cls)
+        .iter()
+        .any(|c| c.as_slice() == b"::oo::class");
     if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&obj) {
         ob.class = new_cls;
+    }
+    if becomes_class {
+        if !interp.oo.borrow().classes.contains_key(&obj) {
+            interp.oo.borrow_mut().classes.insert(
+                obj.clone(),
+                Class {
+                    supers: vec![b"::oo::object".to_vec()],
+                    ..Class::default()
+                },
+            );
+        }
+    } else {
+        interp.oo.borrow_mut().classes.remove(&obj);
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -637,13 +715,21 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // `method name ?-export|-private? args body` (the visibility flag is TIP 500).
-    let (priv_flag, rest): (Option<bool>, &[*mut TclObj]) = match argv.get(2).map(|&a| obj_bytes(a))
-    {
-        Some(f) if f == b"-private" => (Some(true), &argv[3..]),
-        Some(f) if f == b"-export" => (Some(false), &argv[3..]),
-        _ => (None, &argv[2..]),
-    };
+    // `method name ?-export|-unexport|-private? args body` (TIP 500 flags).
+    let name = obj_bytes(argv[1]);
+    let (flag_vis, rest): (Option<MethodVis>, &[*mut TclObj]) =
+        match argv.get(2).map(|&a| obj_bytes(a)) {
+            Some(f) if f == b"-private" => (Some(MethodVis::Private), &argv[3..]),
+            Some(f) if f == b"-export" => (Some(MethodVis::Public), &argv[3..]),
+            Some(f) if f == b"-unexport" => (Some(MethodVis::Unexported), &argv[3..]),
+            Some(f) if f.starts_with(b"-") => {
+                let mut m = b"bad export flag \"".to_vec();
+                m.extend_from_slice(&f);
+                m.extend_from_slice(b"\": must be -export, -private, or -unexport");
+                return err(interp, &m);
+            }
+            _ => (None, &argv[2..]),
+        };
     if rest.len() != 2 {
         return wrong_args(interp, b"method name ?option? args body");
     }
@@ -651,16 +737,22 @@ fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return err(interp, &e),
     };
-    let private = priv_flag.unwrap_or_else(|| interp.oo.borrow().private_depth > 0);
+    let vis = flag_vis.unwrap_or_else(|| default_vis(interp, &name));
     install_method_vis(
         interp,
-        obj_bytes(argv[1]),
+        name,
         Method::Body {
             params,
             body: obj_bytes(rest[1]),
         },
-        private,
+        vis,
     )
+}
+
+/// A method/forward is exported by default only when its name begins with an
+/// ASCII lowercase letter (TclOO's naming convention).
+fn exported_by_default(name: &[u8]) -> bool {
+    name.first().is_some_and(u8::is_ascii_lowercase)
 }
 
 /// `forward name cmdPrefix ?arg ...?` — a method that calls a command prefix.
@@ -725,11 +817,10 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(DefTarget::Object(_)) => return err(interp, b"superclass is only for classes"),
         Err(code) => return code,
     };
-    let supers: Vec<Vec<u8>> = argv[1..]
-        .iter()
-        .map(|&a| interp.fqn_for(&obj_bytes(a)))
-        .collect();
-    for s in &supers {
+    let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let (op, vals) = slot_op_split(&raw);
+    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
+    for s in &resolved {
         if !interp.oo.borrow().classes.contains_key(s) {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(s);
@@ -737,49 +828,153 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return err(interp, &m);
         }
     }
+    let current = interp
+        .oo
+        .borrow()
+        .classes
+        .get(&class)
+        .map(|c| c.supers.clone())
+        .unwrap_or_default();
+    let mut new = slot_apply(&op, &current, &resolved);
+    // A class may be a direct superclass at most once.
+    if has_duplicate(&new) {
+        return err(interp, b"class should only be a direct superclass once");
+    }
+    // A class may not (transitively) be its own superclass.
+    if new.iter().any(|s| s == &class) || self_reachable(interp, &class, &new) {
+        return err(interp, b"attempt to form circular dependency graph");
+    }
+    if new.is_empty() {
+        new = vec![b"::oo::object".to_vec()];
+    }
     interp
         .oo
         .borrow_mut()
         .classes
         .get_mut(&class)
         .unwrap()
-        .supers = if supers.is_empty() {
-        vec![b"::oo::object".to_vec()]
-    } else {
-        supers
-    };
+        .supers = new;
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+/// Whether `class` is reachable through the proposed superclass list (a cycle).
+fn self_reachable(interp: &Interp, class: &[u8], supers: &[Vec<u8>]) -> bool {
+    let mut stack: Vec<Vec<u8>> = supers.to_vec();
+    let mut seen: Vec<Vec<u8>> = Vec::new();
+    while let Some(s) = stack.pop() {
+        if s == class {
+            return true;
+        }
+        if seen.contains(&s) {
+            continue;
+        }
+        seen.push(s.clone());
+        if let Some(cl) = interp.oo.borrow().classes.get(&s) {
+            stack.extend(cl.supers.clone());
+        }
+    }
+    false
+}
+
+/// A TIP 380 slot operation (`superclass`/`mixin`/`variable`/`filter` accept
+/// these instead of a bare value list).
+enum SlotOp {
+    Set,
+    Append,
+    Prepend,
+    Remove,
+    AppendIfNew,
+    Clear,
+}
+
+/// Split a slot command's args into `(operation, values)`: a leading `-set`/
+/// `-append`/… selects the op; anything else defaults to `-set` over all args.
+fn slot_op_split(args: &[Vec<u8>]) -> (SlotOp, &[Vec<u8>]) {
+    match args.first().map(|a| a.as_slice()) {
+        Some(b"-set") => (SlotOp::Set, &args[1..]),
+        Some(b"-append") => (SlotOp::Append, &args[1..]),
+        Some(b"-prepend") => (SlotOp::Prepend, &args[1..]),
+        Some(b"-remove") => (SlotOp::Remove, &args[1..]),
+        Some(b"-appendifnew") => (SlotOp::AppendIfNew, &args[1..]),
+        Some(b"-clear") => (SlotOp::Clear, &[]),
+        _ => (SlotOp::Set, args),
+    }
+}
+
+/// Apply a slot op to the current list, yielding the new list.
+fn slot_apply(op: &SlotOp, current: &[Vec<u8>], values: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    match op {
+        SlotOp::Set => values.to_vec(),
+        SlotOp::Clear => Vec::new(),
+        SlotOp::Append => current.iter().chain(values).cloned().collect(),
+        SlotOp::Prepend => values.iter().chain(current).cloned().collect(),
+        SlotOp::Remove => current
+            .iter()
+            .filter(|c| !values.contains(c))
+            .cloned()
+            .collect(),
+        SlotOp::AppendIfNew => {
+            let mut v = current.to_vec();
+            for x in values {
+                if !v.contains(x) {
+                    v.push(x.clone());
+                }
+            }
+            v
+        }
+    }
 }
 
 /// `mixin ?class ...?` — set the mixins of the current class/object.
 /// `filter ?methodName ...?` — set the filter methods on the def target (class
 /// or object). Filters wrap every public method call on instances.
 fn def_filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let filters: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    match def_target(interp) {
-        Ok(DefTarget::Class(c)) => {
+    let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let (op, vals) = slot_op_split(&raw);
+    let target = match def_target(interp) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let current = match &target {
+        DefTarget::Class(c) => interp
+            .oo
+            .borrow()
+            .classes
+            .get(c)
+            .map(|cl| cl.filters.clone())
+            .unwrap_or_default(),
+        DefTarget::Object(o) => interp
+            .oo
+            .borrow()
+            .objects
+            .get(o)
+            .map(|ob| ob.filters.clone())
+            .unwrap_or_default(),
+    };
+    let filters = slot_apply(&op, &current, vals);
+    match target {
+        DefTarget::Class(c) => {
             if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&c) {
                 cl.filters = filters;
             }
         }
-        Ok(DefTarget::Object(o)) => {
+        DefTarget::Object(o) => {
             if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&o) {
                 ob.filters = filters;
             }
         }
-        Err(code) => return code,
     }
     interp.set_result_bytes(b"");
     Code::Ok
 }
 
 fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mixins: Vec<Vec<u8>> = argv[1..]
-        .iter()
-        .map(|&a| interp.fqn_for(&obj_bytes(a)))
-        .collect();
-    for mx in &mixins {
+    let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let (op, vals) = slot_op_split(&raw);
+    // Resolve each value to a class FQN and validate it is a class.
+    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
+    for mx in &resolved {
         if !interp.oo.borrow().classes.contains_key(mx) {
             let mut m = b"\"".to_vec();
             m.extend_from_slice(mx);
@@ -787,17 +982,55 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return err(interp, &m);
         }
     }
-    match def_target(interp) {
-        Ok(DefTarget::Class(c)) => {
-            interp.oo.borrow_mut().classes.get_mut(&c).unwrap().mixins = mixins
+    let target = match def_target(interp) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    // A class may not mix itself in.
+    if let DefTarget::Class(c) = &target {
+        if resolved.iter().any(|mx| mx == c) {
+            return err(interp, b"may not mix a class into itself");
         }
-        Ok(DefTarget::Object(o)) => {
-            interp.oo.borrow_mut().objects.get_mut(&o).unwrap().mixins = mixins
+    }
+    let current = match &target {
+        DefTarget::Class(c) => interp
+            .oo
+            .borrow()
+            .classes
+            .get(c)
+            .map(|cl| cl.mixins.clone()),
+        DefTarget::Object(o) => interp
+            .oo
+            .borrow()
+            .objects
+            .get(o)
+            .map(|ob| ob.mixins.clone()),
+    }
+    .unwrap_or_default();
+    let new = slot_apply(&op, &current, &resolved);
+    // A class may be a direct mixin at most once.
+    if has_duplicate(&new) {
+        return err(interp, b"class should only be a direct mixin once");
+    }
+    match target {
+        DefTarget::Class(c) => {
+            if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&c) {
+                cl.mixins = new;
+            }
         }
-        Err(code) => return code,
+        DefTarget::Object(o) => {
+            if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&o) {
+                ob.mixins = new;
+            }
+        }
     }
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+/// Whether `list` contains a duplicate element.
+fn has_duplicate(list: &[Vec<u8>]) -> bool {
+    list.iter().enumerate().any(|(i, x)| list[..i].contains(x))
 }
 
 fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -806,19 +1039,40 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return crate::cmd_var::variable(interp, argv);
     }
     let names: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    // A declared variable name must be a plain scalar: no namespace separator,
+    // no array element.
+    for n in &names {
+        if n.windows(2).any(|w| w == b"::") {
+            let mut m = b"invalid declared variable name \"".to_vec();
+            m.extend_from_slice(n);
+            m.extend_from_slice(b"\": must not contain namespace separators");
+            return err(interp, &m);
+        }
+        if n.contains(&b'(') || n.last() == Some(&b')') {
+            let mut m = b"invalid declared variable name \"".to_vec();
+            m.extend_from_slice(n);
+            m.extend_from_slice(b"\": must not refer to an array element");
+            return err(interp, &m);
+        }
+    }
+    let push_unique = |dst: &mut Vec<Vec<u8>>, names: Vec<Vec<u8>>| {
+        for n in names {
+            if !dst.contains(&n) {
+                dst.push(n);
+            }
+        }
+    };
     match def_target(interp) {
         Ok(DefTarget::Class(c)) => {
             let mut oo = interp.oo.borrow_mut();
-            let cl = oo.classes.get_mut(&c).unwrap();
-            for n in names {
-                if !cl.variables.contains(&n) {
-                    cl.variables.push(n);
-                }
+            push_unique(&mut oo.classes.get_mut(&c).unwrap().variables, names);
+        }
+        Ok(DefTarget::Object(o)) => {
+            let mut oo = interp.oo.borrow_mut();
+            if let Some(ob) = oo.objects.get_mut(&o) {
+                push_unique(&mut ob.variables, names);
             }
         }
-        // Per-object `variable` declarations are not tracked separately yet;
-        // accept them (they behave like locals).
-        Ok(DefTarget::Object(_)) => {}
         Err(code) => return code,
     }
     interp.set_result_bytes(b"");
@@ -1224,7 +1478,7 @@ fn info_sub_resolve<'a>(
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"info object subcommand objName ?arg ...?");
+        return wrong_args(interp, b"info object subcommand ?arg ...?");
     }
     let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_OBJECT_SUBS) {
         Ok(s) => s,
@@ -1297,7 +1551,9 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(if yes { b"1" } else { b"0" });
             Code::Ok
         }
-        b"vars" | b"variables" => {
+        // `vars` lists *set* instance variables (glob-filtered); `variables`
+        // lists the object's *declared* variables (the `variable` slot).
+        b"vars" => {
             let ns = interp.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
             let Some(ns) = ns else {
                 return not_object(interp, &obj_bytes(argv[3]));
@@ -1307,16 +1563,79 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             set_list(interp, &names);
             Code::Ok
         }
-        b"methods" => {
-            let names: Option<Vec<Vec<u8>>> = interp
+        b"variables" => {
+            let v = interp
                 .oo
                 .borrow()
                 .objects
                 .get(&obj)
-                .map(|o| o.methods.keys().cloned().collect());
-            let Some(mut names) = names else {
+                .map(|o| o.variables.clone());
+            match v {
+                Some(v) => {
+                    set_list(interp, &v);
+                    Code::Ok
+                }
+                None => not_object(interp, &obj_bytes(argv[3])),
+            }
+        }
+        b"methods" => {
+            if !interp.oo.borrow().objects.contains_key(&obj) {
                 return not_object(interp, &obj_bytes(argv[3]));
+            }
+            let all = argv[4..].iter().any(|&a| obj_bytes(a) == b"-all");
+            let private = argv[4..].iter().any(|&a| obj_bytes(a) == b"-private");
+            let mut names: Vec<Vec<u8>> = Vec::new();
+            // The object's own methods, plus (with `-all`) the whole chain.
+            let chain = if all {
+                interp.method_chain(&obj)
+            } else {
+                vec![obj.clone()]
             };
+            for p in &chain {
+                let is_object = p.as_slice() == obj;
+                let oo = interp.oo.borrow();
+                let entry = if is_object {
+                    oo.objects
+                        .get(p)
+                        .map(|o| (&o.methods, &o.unexported, &o.private))
+                } else {
+                    oo.classes
+                        .get(p)
+                        .map(|c| (&c.methods, &c.unexported, &c.private))
+                };
+                if let Some((methods, unexp, priv_set)) = entry {
+                    for n in methods.keys() {
+                        let show = if private {
+                            !priv_set.contains(n)
+                        } else {
+                            !unexp.contains(n)
+                        };
+                        if show && !names.contains(n) {
+                            names.push(n.clone());
+                        }
+                    }
+                }
+            }
+            // `-all` also surfaces the inherited `oo::object` built-in methods,
+            // honouring any `export`/`unexport` applied to them.
+            if all {
+                for b in [
+                    b"<cloned>".as_slice(),
+                    b"destroy",
+                    b"eval",
+                    b"unknown",
+                    b"variable",
+                    b"varname",
+                ] {
+                    let (exp, unexp, priv_) = interp.method_visibility_flags(&obj, b);
+                    // `destroy` is exported by default; the rest are unexported.
+                    let eff_unexp = !exp && (unexp || b != b"destroy");
+                    let show = if private { !priv_ } else { !eff_unexp };
+                    if show && !names.iter().any(|n| n == b) {
+                        names.push(b.to_vec());
+                    }
+                }
+            }
             names.sort();
             set_list(interp, &names);
             Code::Ok
@@ -1574,7 +1893,7 @@ fn call_chain_elem(interp: &Interp, provider: &[u8], method: &[u8], is_object: b
 /// `info class subcommand class ?arg?`.
 pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"info class subcommand className ?arg ...?");
+        return wrong_args(interp, b"info class subcommand ?arg ...?");
     }
     let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_CLASS_SUBS) {
         Ok(s) => s,
@@ -1650,7 +1969,14 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             for c in &chain {
                 if let Some(cl) = interp.oo.borrow().classes.get(c) {
                     for n in cl.methods.keys() {
-                        if (private || !cl.unexported.contains(n)) && !names.contains(n) {
+                        // `-private` lists unexported methods too, but never the
+                        // TIP-500 private ones; the default lists exported only.
+                        let show = if private {
+                            !cl.private.contains(n)
+                        } else {
+                            !cl.unexported.contains(n)
+                        };
+                        if show && !names.contains(n) {
                             names.push(n.clone());
                         }
                     }
@@ -1729,13 +2055,24 @@ fn not_object(interp: &mut Interp, name: &[u8]) -> Code {
 
 /// `{params} body` as a 2-element list (for `info class constructor`).
 fn list_params_body(params: &[Param], body: &[u8]) -> Vec<u8> {
-    let mut spec = Vec::new();
-    for (i, p) in params.iter().enumerate() {
-        if i > 0 {
-            spec.push(b' ');
-        }
-        spec.extend_from_slice(&p.name);
-    }
+    // The argument spec is a list whose elements are either a bare parameter
+    // name or a `{name default}` pair — so `{a {b c} args}` round-trips.
+    let param_objs: Vec<*mut TclObj> = params
+        .iter()
+        .map(|p| match &p.default {
+            Some(d) => {
+                let pair = [obj::new_string_bytes(&p.name), obj::new_string_bytes(d)];
+                let l = list::new_list_obj(&pair);
+                let s = obj_bytes(l);
+                crate::interp::drop_fresh(l);
+                obj::new_string_bytes(&s)
+            }
+            None => obj::new_string_bytes(&p.name),
+        })
+        .collect();
+    let plist = list::new_list_obj(&param_objs);
+    let spec = obj_bytes(plist);
+    crate::interp::drop_fresh(plist);
     let elems = [obj::new_string_bytes(&spec), obj::new_string_bytes(body)];
     let l = list::new_list_obj(&elems); // rc 0, owns its (now rc-1) elements
     let out = obj_bytes(l);
@@ -1757,18 +2094,52 @@ impl Interp {
     /// {}`): keep the OO registry in sync so the name frees up / follows the
     /// command. Tcl ties an object's lifetime to its command.
     pub(crate) fn oo_command_renamed(&mut self, old_fqn: &[u8], new_fqn: Option<&[u8]>) {
-        let mut oo = self.oo.borrow_mut();
-        // A class is registered in *both* maps (a class is also an object), so
-        // move/remove from both to avoid a dangling half-entry.
-        let obj = oo.objects.remove(old_fqn);
-        let cls = oo.classes.remove(old_fqn);
-        if let Some(nf) = new_fqn {
-            if let Some(o) = obj {
-                oo.objects.insert(nf.to_vec(), o);
+        match new_fqn {
+            // Rename: the object/class (and its `my`) follow to the new name.
+            Some(nf) => {
+                let mut oo = self.oo.borrow_mut();
+                // A class is registered in *both* maps (classes-as-objects), so
+                // move from both to avoid a dangling half-entry.
+                let obj = oo.objects.remove(old_fqn);
+                let cls = oo.classes.remove(old_fqn);
+                if let Some(o) = obj {
+                    oo.objects.insert(nf.to_vec(), o);
+                }
+                if let Some(c) = cls {
+                    oo.classes.insert(nf.to_vec(), c);
+                }
             }
-            if let Some(c) = cls {
-                oo.classes.insert(nf.to_vec(), c);
+            // Deletion (`rename obj {}`): C ties the object's lifetime to its
+            // command, so the destructor fires before the registry entry goes.
+            None => {
+                if self.oo.borrow().classes.contains_key(old_fqn) {
+                    self.oo_destroy_class(old_fqn);
+                } else if self.oo.borrow().objects.contains_key(old_fqn) {
+                    self.oo_destroy(old_fqn);
+                }
             }
+        }
+    }
+
+    /// Destroy every OO object whose instance-variable namespace lies within the
+    /// namespace `ns` (or a descendant) — invoked just before `namespace delete`
+    /// clears it, so destructors run with the namespace still intact.
+    pub(crate) fn oo_namespace_deleted(&mut self, ns: NsId) {
+        if self.oo_is_empty() {
+            return;
+        }
+        let ids: std::collections::HashSet<NsId> =
+            self.namespaces().descendant_ids(ns).into_iter().collect();
+        let victims: Vec<Vec<u8>> = self
+            .oo
+            .borrow()
+            .objects
+            .iter()
+            .filter(|(_, o)| ids.contains(&o.var_ns))
+            .map(|(k, _)| k.clone())
+            .collect();
+        for v in victims {
+            self.oo_destroy(&v);
         }
     }
 
@@ -1779,11 +2150,13 @@ impl Interp {
     }
 
     /// Create class `fqn` (running its optional definition script).
-    fn oo_make_class(&mut self, fqn: &[u8], script: Option<&[u8]>) -> Code {
+    fn oo_make_class(&mut self, fqn: &[u8], display: &[u8], script: Option<&[u8]>) -> Code {
         if self.oo.borrow().classes.contains_key(fqn) || self.oo.borrow().objects.contains_key(fqn)
         {
-            let mut m = b"can't create class \"".to_vec();
-            m.extend_from_slice(fqn);
+            // C reports `object` (creation funnels through object creation) and
+            // the name *as written*, not the resolved FQN.
+            let mut m = b"can't create object \"".to_vec();
+            m.extend_from_slice(display);
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
@@ -1902,7 +2275,7 @@ impl Interp {
                 }
             };
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-                Some(b"new") if !is_meta && new_ok => self.oo_new(fqn, None, &argv[2..]),
+                Some(b"new") if !is_meta && new_ok => self.oo_new(fqn, None, b"", &argv[2..]),
                 Some(b"createWithNamespace") if cwn_ok => {
                     if argv.len() < 4 {
                         let mut u = obj_bytes(argv[0]);
@@ -1925,7 +2298,7 @@ impl Interp {
                         return self.error(&m);
                     }
                     let ns = self.fqn_for(&ns_raw);
-                    self.oo_new_ns(fqn, Some(name), Some(ns), &argv[4..])
+                    self.oo_new_ns(fqn, Some(name), &raw, Some(ns), &argv[4..])
                 }
                 Some(b"create") if cre_ok => {
                     if argv.len() < 3 {
@@ -1939,9 +2312,13 @@ impl Interp {
                     }
                     let name = self.fqn_for(&raw);
                     if is_meta {
-                        self.oo_make_class(&name, argv.get(3).map(|&a| obj_bytes(a)).as_deref())
+                        self.oo_make_class(
+                            &name,
+                            &raw,
+                            argv.get(3).map(|&a| obj_bytes(a)).as_deref(),
+                        )
                     } else {
-                        self.oo_new(fqn, Some(name), &argv[3..])
+                        self.oo_new(fqn, Some(name), &raw, &argv[3..])
                     }
                 }
                 Some(b"destroy") => {
@@ -1979,16 +2356,24 @@ impl Interp {
         }
     }
 
-    fn oo_new(&mut self, class: &[u8], name: Option<Vec<u8>>, args: &[*mut TclObj]) -> Code {
-        self.oo_new_ns(class, name, None, args)
+    fn oo_new(
+        &mut self,
+        class: &[u8],
+        name: Option<Vec<u8>>,
+        display: &[u8],
+        args: &[*mut TclObj],
+    ) -> Code {
+        self.oo_new_ns(class, name, display, None, args)
     }
 
     /// `oo_new` with an optional explicit instance-variable namespace
     /// (`createWithNamespace`); `None` defaults to the object's own name.
+    /// `display` is the object name *as written* (for the dup error).
     fn oo_new_ns(
         &mut self,
         class: &[u8],
         name: Option<Vec<u8>>,
+        display: &[u8],
         ns_override: Option<Vec<u8>>,
         args: &[*mut TclObj],
     ) -> Code {
@@ -2001,7 +2386,7 @@ impl Interp {
             || self.oo.borrow().classes.contains_key(&fqn)
         {
             let mut m = b"can't create object \"".to_vec();
-            m.extend_from_slice(&fqn);
+            m.extend_from_slice(display);
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
@@ -2087,12 +2472,20 @@ impl Interp {
             .is_some_and(|f| f.object.as_slice() == obj);
         let enforce = external && !caller_is_self;
         let providers = self.method_chain(obj);
-        // The target-method steps: every provider that defines `method`.
+        // An `export` of the method anywhere in the chain (e.g. on the object)
+        // makes every step callable, overriding a class-level unexport.
+        let exported_anywhere = self.method_exported(obj, method);
+        // The target-method steps: every provider that defines `method`. For an
+        // external call, skip steps the provider unexports (unless overridden by
+        // an export) — so a public override still runs while a private one is
+        // skipped.
         let mut steps: Vec<CallStep> = providers
             .iter()
             .filter(|p| {
                 self.oo_has_method(p, method, p.as_slice() == obj)
-                    && !(enforce && self.method_unexported(p, method, p.as_slice() == obj))
+                    && !(enforce
+                        && !exported_anywhere
+                        && self.method_unexported(p, method, p.as_slice() == obj))
             })
             .map(|p| CallStep {
                 provider: p.clone(),
@@ -2104,7 +2497,7 @@ impl Interp {
             // method table; they are unexported by default (reachable internally
             // via `my`), but a public call reaches them too once explicitly
             // `export`ed.
-            if !external || self.method_exported(obj, method) {
+            if !external || exported_anywhere {
                 if let Some(code) = self.oo_builtin_method(obj, method, args) {
                     return code;
                 }
@@ -2307,6 +2700,31 @@ impl Interp {
         })
     }
 
+    /// `(exported, unexported, private)` membership for `method` aggregated over
+    /// `obj`'s whole method chain — used to resolve a built-in method's effective
+    /// visibility for `info object methods -all`.
+    fn method_visibility_flags(&self, obj: &[u8], method: &[u8]) -> (bool, bool, bool) {
+        let (mut exp, mut unexp, mut priv_) = (false, false, false);
+        for p in self.method_chain(obj) {
+            let oo = self.oo.borrow();
+            let sets = if p.as_slice() == obj {
+                oo.objects
+                    .get(&p)
+                    .map(|o| (&o.exported, &o.unexported, &o.private))
+            } else {
+                oo.classes
+                    .get(&p)
+                    .map(|c| (&c.exported, &c.unexported, &c.private))
+            };
+            if let Some((e, u, pr)) = sets {
+                exp |= e.contains(method);
+                unexp |= u.contains(method);
+                priv_ |= pr.contains(method);
+            }
+        }
+        (exp, unexp, priv_)
+    }
+
     fn method_unexported(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
         if is_object {
             self.oo
@@ -2354,6 +2772,17 @@ impl Interp {
                 .classes
                 .get(&prov)
                 .and_then(|c| c.constructor.clone())
+        } else if method == b"<destructor>" {
+            // A destructor chain step: the body lives in `classes[prov]`.
+            self.oo
+                .borrow()
+                .classes
+                .get(&prov)
+                .and_then(|c| c.destructor.clone())
+                .map(|body| Method::Body {
+                    params: Vec::new(),
+                    body,
+                })
         } else if is_object {
             self.oo
                 .borrow()
@@ -2408,10 +2837,17 @@ impl Interp {
             m.extend_from_slice(b"\" has been deleted");
             return self.error(&m);
         };
-        // The declared instance variables visible to the method: union over the
-        // object's full class hierarchy (independent of the call chain, which a
-        // filter may have reordered).
+        // The declared instance variables visible to the method: the object's
+        // own declarations plus the union over its full class hierarchy
+        // (independent of the call chain, which a filter may have reordered).
         let mut vars: Vec<Vec<u8>> = Vec::new();
+        if let Some(o) = self.oo.borrow().objects.get(obj) {
+            for v in &o.variables {
+                if !vars.contains(v) {
+                    vars.push(v.clone());
+                }
+            }
+        }
         for c in self.method_chain(obj) {
             if let Some(cl) = self.oo.borrow().classes.get(&c) {
                 for v in &cl.variables {
@@ -2451,51 +2887,58 @@ impl Interp {
     }
 
     fn oo_destroy(&mut self, obj: &[u8]) {
-        let class = self.oo.borrow().objects.get(obj).map(|o| o.class.clone());
-        if let Some(class) = class {
-            let mro = self.mro(&class);
-            for c in &mro {
-                let dtor = self
-                    .oo
+        // Re-entrancy guard (C's DESTRUCTOR_CALLED): run the destructor at most
+        // once even if `destroy`/`rename {}`/`namespace delete` all reach here.
+        let state = self.oo.borrow().objects.get(obj).map(|o| o.destroyed);
+        match state {
+            None => return, // not an object (or already fully removed)
+            Some(false) => {
+                if let Some(o) = self.oo.borrow_mut().objects.get_mut(obj) {
+                    o.destroyed = true;
+                }
+                self.oo_run_destructors(obj);
+            }
+            Some(true) => {} // destructor already running/ran — fall through to cleanup
+        }
+        // Cleanup: drop the registry entries (a metaclass instance is in both
+        // maps), the command, the per-object `my`/`myclass`, and the object's
+        // own variable namespace (C deletes the instance namespace).
+        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
+        self.oo.borrow_mut().objects.remove(obj);
+        self.oo.borrow_mut().classes.remove(obj);
+        self.delete_command(obj);
+        if let Some(ns) = var_ns {
+            self.delete_namespace_by_id(ns);
+        }
+    }
+
+    /// Run the object's destructor chain (every class in the MRO that declares a
+    /// `destructor`, most-derived first, with `next` chaining), with the object
+    /// still intact so the body's `my`/variables resolve.
+    fn oo_run_destructors(&mut self, obj: &[u8]) {
+        let Some(class) = self.oo.borrow().objects.get(obj).map(|o| o.class.clone()) else {
+            return;
+        };
+        let chain: Vec<CallStep> = self
+            .mro(&class)
+            .into_iter()
+            .filter(|c| {
+                self.oo
                     .borrow()
                     .classes
                     .get(c)
-                    .and_then(|c| c.destructor.clone());
-                let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
-                if let (Some(body), Some(var_ns)) = (dtor, var_ns) {
-                    self.oo.borrow_mut().call_stack.push(OoFrame {
-                        object: obj.to_vec(),
-                        chain: vec![CallStep {
-                            provider: c.clone(),
-                            method: b"<destructor>".to_vec(),
-                        }],
-                        index: 0,
-                        target: b"<destructor>".to_vec(),
-                    });
-                    let _ = self.run_proc(
-                        &[],
-                        &body,
-                        var_ns,
-                        &[],
-                        b"<destructor>",
-                        CallMeta {
-                            err: ProcFrame::Proc(b"<destructor>"),
-                            fqn: None,
-                            source: None,
-                            body_line_base: 0,
-                            link_vars: &[],
-                        },
-                    );
-                    self.oo.borrow_mut().call_stack.pop();
-                    break;
-                }
-            }
+                    .is_some_and(|cl| cl.destructor.is_some())
+            })
+            .map(|c| CallStep {
+                provider: c,
+                method: b"<destructor>".to_vec(),
+            })
+            .collect();
+        if !chain.is_empty() {
+            // A destructor error is reported as a background error, not
+            // propagated (C's AfterNRDestructor).
+            let _ = self.oo_run(obj, chain, 0, b"<destructor>", &[]);
         }
-        self.oo.borrow_mut().objects.remove(obj);
-        // A metaclass instance is also registered as a class; drop both entries
-        // so the name frees up cleanly.
-        self.oo.borrow_mut().classes.remove(obj);
-        self.delete_command(obj);
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
@@ -2536,20 +2979,73 @@ impl Interp {
     /// The method-resolution order for `class`: a preorder walk of the class and
     /// its superclasses, each class appearing once.
     fn mro(&self, class: &[u8]) -> Vec<Vec<u8>> {
-        let mut out: Vec<Vec<u8>> = Vec::new();
-        self.mro_visit(class, &mut out);
-        out
+        let mut guard: Vec<Vec<u8>> = Vec::new();
+        self.c3_linearize(class, &mut guard)
     }
 
-    fn mro_visit(&self, class: &[u8], out: &mut Vec<Vec<u8>>) {
-        if out.iter().any(|c| c == class) {
-            return;
+    /// C3 linearization of `class` (the class then its superclasses, each once,
+    /// in C3 order — so a diamond `D(B C)`/`B(A)`/`C(A)` yields `[D B C A]`,
+    /// deferring `A` until after both `B` and `C`). `guard` breaks cycles in a
+    /// malformed hierarchy (falling back to a preorder remainder).
+    fn c3_linearize(&self, class: &[u8], guard: &mut Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+        if guard.iter().any(|c| c == class) {
+            return vec![class.to_vec()];
         }
-        out.push(class.to_vec());
-        if let Some(c) = self.oo.borrow().classes.get(class) {
-            let supers = c.supers.clone();
-            for s in &supers {
-                self.mro_visit(s, out);
+        guard.push(class.to_vec());
+        let supers = self
+            .oo
+            .borrow()
+            .classes
+            .get(class)
+            .map(|c| c.supers.clone())
+            .unwrap_or_default();
+        let result = if supers.is_empty() {
+            vec![class.to_vec()]
+        } else {
+            let mut seqs: Vec<Vec<Vec<u8>>> =
+                supers.iter().map(|s| self.c3_linearize(s, guard)).collect();
+            seqs.push(supers.clone());
+            let mut out = vec![class.to_vec()];
+            out.extend(c3_merge(seqs));
+            out
+        };
+        guard.pop();
+        result
+    }
+}
+
+/// The C3 merge: repeatedly take the head of the first sequence that does not
+/// appear in the *tail* of any sequence, removing it from all. On an
+/// inconsistent hierarchy (no valid head), append the remaining heads in order
+/// (degraded, rather than looping).
+fn c3_merge(mut seqs: Vec<Vec<Vec<u8>>>) -> Vec<Vec<u8>> {
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    loop {
+        seqs.retain(|s| !s.is_empty());
+        if seqs.is_empty() {
+            return out;
+        }
+        // A good head is the first sequence's head that is not in any tail.
+        let head = seqs.iter().find_map(|s| {
+            let h = &s[0];
+            let in_tail = seqs
+                .iter()
+                .any(|t| t.len() > 1 && t[1..].iter().any(|x| x == h));
+            if in_tail {
+                None
+            } else {
+                Some(h.clone())
+            }
+        });
+        let head = match head {
+            Some(h) => h,
+            // Inconsistent: break the deadlock with the first available head.
+            None => seqs[0][0].clone(),
+        };
+        out.push(head.clone());
+        for s in &mut seqs {
+            if s.first() == Some(&head) {
+                s.remove(0);
             }
         }
     }
@@ -2870,6 +3366,48 @@ mod tests {
             assert_eq!(
                 i.eval_str(b"oo::define oo::object { definitionnamespace ::nd }"),
                 Code::Error,
+            );
+        });
+    }
+
+    #[test]
+    fn destructors_fire_on_rename_destroy_and_namespace_delete() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"oo::class create cls { destructor { lappend ::result died } }",
+            );
+            // `obj destroy`
+            ok(i, b"set ::result {}; cls create a; a destroy");
+            assert_eq!(ok(i, b"set ::result"), b"died");
+            // `rename obj {}`
+            ok(i, b"set ::result {}; cls create b; rename b {}");
+            assert_eq!(ok(i, b"set ::result"), b"died");
+            // `namespace delete <object-namespace>`
+            ok(
+                i,
+                b"set ::result {}; cls create c; namespace delete [info object namespace c]",
+            );
+            assert_eq!(ok(i, b"set ::result"), b"died");
+            // Re-entrancy guard: a destructor that re-destroys the object runs once.
+            ok(
+                i,
+                b"oo::class create g { destructor { lappend ::result x; catch {[self] destroy} } }",
+            );
+            ok(i, b"set ::result {}; g create o; o destroy");
+            assert_eq!(ok(i, b"set ::result"), b"x");
+            // A2: the dup-name error uses the as-written name and `object`.
+            ok(i, b"oo::object create foo");
+            assert_eq!(i.eval_str(b"oo::object create foo"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't create object \"foo\": command already exists with that name"
+            );
+            ok(i, b"oo::class create K");
+            assert_eq!(i.eval_str(b"oo::class create K"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't create object \"K\": command already exists with that name"
             );
         });
     }

@@ -481,10 +481,21 @@ impl Interp {
                 }
             }
         }
-        let outcome = self
+        let existed = old_fqn.is_some();
+        let raw = self
             .namespaces
             .borrow_mut()
             .rename(self.current_ns.get(), old, new);
+        // A delete-trace callback may itself delete the command (e.g. by
+        // deleting the object's namespace). C captured the command token before
+        // the callback, so the deletion still succeeds — treat "existed at
+        // entry, gone now, `new` empty" as a normal delete (cleanup is
+        // idempotent) rather than reporting "command doesn't exist".
+        let outcome = if existed && matches!(raw, RenameOutcome::NoSuchCommand) && new.is_empty() {
+            RenameOutcome::Deleted
+        } else {
+            raw
+        };
         if let Some(of) = old_fqn {
             let oo_live = !self.oo_is_empty();
             match outcome {
@@ -1340,6 +1351,19 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .ensure_namespace(self.current_ns.get(), name)
+    }
+
+    /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
+    /// when the object is destroyed.
+    pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        self.namespaces.borrow_mut().delete_namespace_by_id(ns);
+    }
+
+    /// Resolve a (relative/absolute) namespace name to its id, or `None`.
+    pub(crate) fn find_namespace_id(&self, name: &[u8]) -> Option<NsId> {
+        self.namespaces
+            .borrow()
+            .find_namespace(self.current_ns.get(), name)
     }
 
     // -- introspection (`info` / `array`) -------------------------------------

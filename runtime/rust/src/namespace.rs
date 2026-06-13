@@ -428,13 +428,35 @@ impl Namespaces {
         let Some(ns) = self.find_namespace(current, qualified) else {
             return false;
         };
+        self.delete_namespace_by_id(ns);
+        true
+    }
+
+    /// Delete the namespace `ns` (and its subtree), unlinking it from its parent.
+    /// Deleting the global namespace clears its contents but keeps the node
+    /// (it has no parent to unlink from) — matching `namespace delete ::`.
+    pub fn delete_namespace_by_id(&mut self, ns: NsId) {
         self.delete_subtree(ns);
         // Unlink from the parent so the name no longer resolves.
         if let Some(parent) = self.arena[ns].parent {
             let name = std::mem::take(&mut self.arena[ns].name);
             self.arena[parent].children.remove(&name);
         }
-        true
+    }
+
+    /// `ns` and all of its descendant namespace ids (for destroying every OO
+    /// object whose instance namespace lies in a namespace being deleted).
+    #[must_use]
+    pub fn descendant_ids(&self, ns: NsId) -> Vec<NsId> {
+        let mut out = vec![ns];
+        let mut i = 0;
+        while i < out.len() {
+            for child in self.children(out[i]) {
+                out.push(child);
+            }
+            i += 1;
+        }
+        out
     }
 
     /// Recursively clear a namespace and its descendants: dropping the `VarTable`

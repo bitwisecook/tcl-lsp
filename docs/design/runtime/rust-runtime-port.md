@@ -1730,6 +1730,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `info object`/`class call` + `self call` + TIP 500 same-object private visibility | **129 / 168** | 39 (0 timeout) | **11680 / 20532** |
 | + TclOO `oo::copy` clones the class facet (class cloning) | **129 / 168** | 39 (0 timeout) | **11689 / 20532** |
 | + TclOO `createWithNamespace` + `oo::copy ?targetNamespace?` | **129 / 168** | 39 (0 timeout) | **11693 / 20532** |
+| + TclOO destructors (rename/namespace-delete), C3 MRO, slot ops, class-change, private/unexport, var-decl | **129 / 168** | 39 (0 timeout) | **11735 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1876,6 +1877,33 @@ createWithNamespace`) creates an object whose instance-variable namespace is the
 named one, erroring if it already exists. `oo::copy` gained the third
 `?targetNamespace?` argument (and an empty target name auto-generates), with the
 corrected `wrong # args` usage. `oo.test` 148 → 152.
+
+The 2026-06-13 **TclOO lifecycle + inheritance + visibility** push (**+40 tests
+over phases A–E, zero regressions**, `oo.test` 152 → 192):
+- **Destructors & teardown** — the full destructor chain (MRO order, `next`)
+  now fires on `obj destroy`, `rename obj {}` *and* `namespace delete
+  <object-namespace>` (a new `oo_namespace_deleted` hook), guarded against
+  re-entrancy (`DESTRUCTOR_CALLED`); a destroyed object frees its instance
+  namespace and both registry maps. The `can't create` message now uses the
+  name as written. `oo.test` 152 → 163.
+- **Variable declarations** — per-object `variable` decls, the `::`/array name
+  errors, and `info object variables` (declared) split from `vars` (set).
+- **C3 linearization** — replaced the preorder MRO with proper C3 (a diamond
+  `D(B C)`/`A` linearizes to `[D B C A]`).
+- **Slot operations** — `superclass`/`mixin`/`variable`/`filter` accept the TIP
+  380 ops `-set`/`-append`/`-prepend`/`-remove`/`-appendifnew`/`-clear`, with
+  class-name resolution, the self-mixin / uniqueness / circular-dependency
+  errors.
+- **Class change** — `oo::objdefine X class C` moves an object between the
+  object/class maps (non-class↔class), with the root-class and self-instance
+  errors.
+- **Visibility** — a method is exported by default only if its name starts with
+  a lowercase letter (else unexported); `-export`/`-unexport`/`-private` flags;
+  an `export` anywhere in the chain overrides a class-level unexport; TIP 500
+  `private` methods are a distinct set (hidden from `info methods -private`,
+  unlike merely-unexported ones). Introspection: `info class/object` no-arg
+  usage, `definition` argument spec with defaults, `methods -all/-private`
+  including the inherited `oo::object` built-ins.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2513,7 +2541,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11693/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11735/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +

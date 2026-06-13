@@ -82,15 +82,20 @@ fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// children, commands, and variables). A missing namespace is an error; with no
 /// names it is a no-op. Mirrors C's `NamespaceDeleteCmd` (`tclNamesp.c`).
 fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let cur = interp.current_ns();
     for &a in &argv[2..] {
         let name = obj_bytes(a);
-        if !interp.namespaces_mut().delete_namespace(cur, &name) {
+        // An object lives in its own namespace: deleting that namespace destroys
+        // the object (running its destructor while the namespace is still
+        // intact), matching C's `ObjectNamespaceDeleted`.
+        let Some(ns_id) = interp.find_namespace_id(&name) else {
             let mut m = b"unknown namespace \"".to_vec();
             m.extend_from_slice(&name);
             m.extend_from_slice(b"\" in namespace delete command");
             return interp.set_error(&m);
-        }
+        };
+        interp.oo_namespace_deleted(ns_id);
+        let cur = interp.current_ns();
+        interp.namespaces_mut().delete_namespace(cur, &name);
     }
     interp.set_result_bytes(b"");
     Code::Ok
