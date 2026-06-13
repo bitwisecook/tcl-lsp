@@ -89,14 +89,13 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
     RelatedFullDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
-    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
@@ -200,12 +199,6 @@ pub struct Backend {
     /// = false`). Threaded into every analyser build so the disabled
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
-    /// Per-URI semantic-tokens delta cache.  Records the last
-    /// `result_id` and packed token stream we returned for
-    /// each document so `semanticTokens/full/delta` can short-
-    /// circuit when nothing changed.  Invalidated on
-    /// `did_change` / `did_close`.
-    semantic_tokens_cache: Mutex<HashMap<Url, SemanticTokensEntry>>,
     /// Cross-document proc / class definition index, maintained
     /// incrementally as documents open / change / close.  Lets
     /// completion enumerate procs from sibling files and
@@ -314,19 +307,6 @@ impl FeatureToggles {
     }
 }
 
-/// Cached semantic-tokens result keyed on the URI.
-#[derive(Debug, Clone)]
-struct SemanticTokensEntry {
-    /// `result_id` returned to the client; bumped on every
-    /// recompute so clients can request deltas against the
-    /// stored snapshot.
-    result_id: String,
-    /// Packed `(deltaLine, deltaCol, length, type, modifiers)`
-    /// stream — same shape `tcl_lsp_core::semantic_tokens`
-    /// emits.
-    data: Vec<u32>,
-}
-
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish_non_exhaustive()
@@ -359,7 +339,6 @@ impl Backend {
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
@@ -446,6 +425,22 @@ impl Backend {
         let snapshot = self.db.lock().await.clone();
         tokio::task::spawn_blocking(move || {
             salsa::Cancelled::catch(|| tcl_lsp_db::file_analysis(&snapshot, file, config)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Run the salsa `semantic_tokens` query for `uri` on a worker thread.
+    /// `None` when the input is absent or a concurrent edit cancels the read.
+    async fn db_semantic_tokens(
+        &self,
+        uri: &Url,
+    ) -> Option<tcl_lsp_core::semantic_tokens::SemanticTokens> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::semantic_tokens(&snapshot, file)).ok()
         })
         .await
         .ok()
@@ -2110,7 +2105,6 @@ impl LanguageServer for Backend {
                 DocumentState::with_version(params.text_document.text, dialect, version),
             );
             drop(docs);
-            self.semantic_tokens_cache.lock().await.remove(&uri);
             self.workspace_index
                 .lock()
                 .await
@@ -2161,7 +2155,6 @@ impl LanguageServer for Backend {
             // token snapshot so the next `semanticTokens/full/delta`
             // returns a fresh full result instead of an empty edit
             // list against an outdated baseline.
-            self.semantic_tokens_cache.lock().await.remove(&uri);
             // The per-document analysis is no longer cached on the server — it
             // lives in the query database, invalidated by `db_set_source`
             // (called below) bumping the `SourceFile` input.
@@ -2217,7 +2210,6 @@ impl LanguageServer for Backend {
         {
             let _gate = self.document_analysis_gate.lock().await;
             self.documents.lock().await.remove(uri);
-            self.semantic_tokens_cache.lock().await.remove(uri);
             self.workspace_index
                 .lock()
                 .await
@@ -2906,19 +2898,18 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        // `S-semantic-tokens-rich`: real classification.  The
-        // packed integer stream is 5 ints per token
-        // `[deltaLine, deltaCol, length, type, modifiers]`.
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
+        // `S-semantic-tokens-rich`: real classification, served from the
+        // memoised `semantic_tokens` query (packed integer stream, 5 ints per
+        // token `[deltaLine, deltaCol, length, type, modifiers]`).  The
+        // cold/cancelled fallback computes directly.
+        let core_data = match self.db_semantic_tokens(&uri).await {
+            Some(tokens) => tokens.data,
+            None => {
+                let registry = self.registry_for_dialect(&doc.dialect).await;
+                core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+            }
+        };
         let result_id = next_semantic_tokens_id();
-        self.semantic_tokens_cache.lock().await.insert(
-            uri,
-            SemanticTokensEntry {
-                result_id: result_id.clone(),
-                data: core_data.clone(),
-            },
-        );
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
             result_id: Some(result_id),
             data: lift_semantic_token_data(&core_data),
@@ -2933,51 +2924,21 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let previous_result_id = params.previous_result_id;
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let new_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
-        let new_result_id = next_semantic_tokens_id();
-
-        // Compare against the cached snapshot.  When the client's
-        // `previous_result_id` matches the stream we last handed
-        // out for this URI, return the minimal token-aligned edit
-        // that turns the cached stream into the new one (an empty
-        // edit list when nothing changed).  When the ids don't
-        // line up (stale / unknown previous result) fall back to a
-        // fresh full token set, which the LSP spec accepts.
-        let mut cache = self.semantic_tokens_cache.lock().await;
-        let prev_match = cache
-            .get(&uri)
-            .filter(|entry| entry.result_id == previous_result_id)
-            .map(|entry| entry.data.clone());
-        cache.insert(
-            uri,
-            SemanticTokensEntry {
-                result_id: new_result_id.clone(),
-                data: new_data.clone(),
-            },
-        );
-        drop(cache);
-        if let Some(prev_data) = prev_match {
-            let edits = match core_semantic_tokens::diff(&prev_data, &new_data) {
-                None => Vec::new(),
-                Some(edit) => vec![SemanticTokensEdit {
-                    start: edit.start,
-                    delete_count: edit.delete_count,
-                    data: Some(lift_semantic_token_data(&edit.data)),
-                }],
-            };
-            return Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
-                SemanticTokensDelta {
-                    result_id: Some(new_result_id),
-                    edits,
-                },
-            )));
-        }
+        // The server no longer keeps a per-URI token snapshot to diff against
+        // (that hand-invalidated cache is gone).  A `full/delta` request is
+        // answered with the full token set from the memoised query — the LSP
+        // spec accepts `Tokens` in place of `TokensDelta`.
+        let core_data = match self.db_semantic_tokens(&uri).await {
+            Some(tokens) => tokens.data,
+            None => {
+                let registry = self.registry_for_dialect(&doc.dialect).await;
+                core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+            }
+        };
         Ok(Some(SemanticTokensFullDeltaResult::Tokens(
             LspSemanticTokens {
-                result_id: Some(new_result_id),
-                data: lift_semantic_token_data(&new_data),
+                result_id: Some(next_semantic_tokens_id()),
+                data: lift_semantic_token_data(&core_data),
             },
         )))
     }
@@ -5295,7 +5256,6 @@ mod tests {
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
