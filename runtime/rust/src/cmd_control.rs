@@ -1,5 +1,5 @@
 //! Control flow (toward executing scripts) — `if` / `while` / `for` / `foreach`
-//! plus `break` / `continue`.
+//! / `lmap` plus `break` / `continue`.
 //!
 //! Bodies evaluate through the eval loop ([`Interp::eval_str`]); a body that
 //! completes with `break`/`continue` is caught by the enclosing loop, while
@@ -21,6 +21,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"break", break_cmd);
     interp.register_builtin(b"continue", continue_cmd);
     interp.register_builtin(b"foreach", foreach);
+    interp.register_builtin(b"lmap", lmap);
     // `if`/`while`/`for` test Tcl expressions → need the numeric tower.
     #[cfg(have_tommath)]
     {
@@ -172,14 +173,37 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- foreach ---------------------------------------------------------------
+// -- foreach / lmap --------------------------------------------------------
 
 /// `foreach varList list ?varList list ...? body` — iterate one or more
 /// (var-list, value-list) groups in parallel, padding exhausted lists with `""`.
 fn foreach(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // [foreach] + N×(varlist, list) pairs + body ⇒ an even arg count ≥ 4.
+    each_loop(interp, argv, false)
+}
+
+/// `lmap varList list ?varList list ...? body` — `foreach` that collects each
+/// (non-`continue`) body result into a list and returns it. `break` ends the
+/// loop and returns the list accumulated so far. Mirrors C's `EachloopCmd`
+/// (`tclCmdAH.c`) with `TCL_EACH_COLLECT`.
+fn lmap(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    each_loop(interp, argv, true)
+}
+
+/// Shared `foreach`/`lmap` engine. With `collect`, each successful body result
+/// is appended to a result list (the `lmap` return value); without, the result
+/// is the empty string (`foreach`). The two differ only in result collection
+/// and the body-frame command name — exactly as C factors them through one
+/// `EachloopCmd`.
+fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
+    let name: &[u8] = if collect { b"lmap" } else { b"foreach" };
+    // [cmd] + N×(varlist, list) pairs + body ⇒ an even arg count ≥ 4.
     if argv.len() < 4 || argv.len() % 2 != 0 {
-        return wrong_args(interp, b"foreach varList list ?varList list ...? command");
+        let usage: &[u8] = if collect {
+            b"lmap varList list ?varList list ...? command"
+        } else {
+            b"foreach varList list ?varList list ...? command"
+        };
+        return wrong_args(interp, usage);
     }
     let body = obj_bytes(argv[argv.len() - 1]);
 
@@ -195,7 +219,9 @@ fn foreach(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(e) => return interp.set_error(e.message()),
         };
         if vars.is_empty() {
-            return interp.set_error(b"foreach varlist is empty");
+            let mut m = name.to_vec();
+            m.extend_from_slice(b" varlist is empty");
+            return interp.set_error(&m);
         }
         let vals = match crate::parse::split_list(&obj_bytes(pair[1])) {
             Ok(v) => v,
@@ -205,6 +231,9 @@ fn foreach(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         groups.push((vars, vals));
     }
 
+    // Collected body results (bytes; rematerialised into the result list at the
+    // end). Only populated for `lmap`.
+    let mut collected: Vec<Vec<u8>> = Vec::new();
     for it in 0..iterations {
         for (vars, vals) in &groups {
             for (k, var) in vars.iter().enumerate() {
@@ -217,25 +246,36 @@ fn foreach(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         match interp.eval_str(&body) {
-            Code::Ok | Code::Continue => {}
+            Code::Ok => {
+                if collect {
+                    collected.push(obj_bytes(interp.get_obj_result()));
+                }
+            }
+            Code::Continue => {} // skip collection, keep looping
             Code::Break => break,
             Code::Error => {
-                // `("foreach" body line N)` — only at top level. Tcl inlines
-                // `foreach` when it compiles the enclosing script (a proc body),
-                // so no body-frame appears there; an uncompiled top-level
-                // `foreach` runs its command form, which does add the frame.
-                // (`if`/`while`/`for` are always inlined → never a frame.) A
+                // `("<cmd>" body line N)` — only at top level. Tcl inlines
+                // `foreach`/`lmap` when it compiles the enclosing script (a proc
+                // body), so no body-frame appears there; an uncompiled top-level
+                // form runs its command form, which does add the frame. A
                 // tree-walker has no bytecode, so `!in_proc()` approximates the
                 // compilation boundary — matches tclsh 9.0 for both cases.
                 if !interp.in_proc() {
-                    interp.append_body_frame(b"foreach");
+                    interp.append_body_frame(name);
                 }
                 return Code::Error;
             }
             other => return other,
         }
     }
-    interp.set_result_bytes(b"");
+    if collect {
+        // Rematerialise into a list; `new_list_obj` takes a +1 on each fresh
+        // (rc-0) element, so the list owns them — no `drop_fresh` here.
+        let objs: Vec<*mut TclObj> = collected.iter().map(|b| new_string(b)).collect();
+        interp.set_result(crate::list::new_list_obj(&objs));
+    } else {
+        interp.set_result_bytes(b"");
+    }
     Code::Ok
 }
 
@@ -344,6 +384,32 @@ mod tests {
                 ),
                 b"1x 2y z "
             );
+        });
+    }
+
+    #[test]
+    fn lmap_collects_results() {
+        leak_free(|i| {
+            // Single-var collect.
+            assert_eq!(run(i, b"lmap x {a b c} {string toupper $x}"), b"A B C");
+            // Multi-var per iteration → one element per iteration.
+            assert_eq!(run(i, b"lmap {a b} {1 2 3 4} {list $a $b}"), b"{1 2} {3 4}");
+            // Parallel lists pad with "".
+            assert_eq!(
+                run(i, b"lmap a {1 2} b {x y z} {list $a $b}"),
+                b"{1 x} {2 y} {{} z}"
+            );
+            // `continue` skips collection; `break` ends with the list so far.
+            assert_eq!(
+                run(i, b"lmap x {1 2 3 4} {if {$x % 2 == 0} continue; set x}"),
+                b"1 3"
+            );
+            assert_eq!(
+                run(i, b"lmap x {1 2 3 4} {if {$x == 3} break; set x}"),
+                b"1 2"
+            );
+            // Empty body → one empty element per iteration.
+            assert_eq!(run(i, b"lmap x {1 2 3} {}"), b"{} {} {}");
         });
     }
 }

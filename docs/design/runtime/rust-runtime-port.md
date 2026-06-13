@@ -1703,8 +1703,9 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + cross-interp aliases | 122 / 168 | 45 | 8546 / 18775 |
 | + auto-load fixes + re-entrant Safe Base | **124 / 168** | 43 (+1 timeout) | **8654 / 18939** |
 | + `ledit` + three-way var-read-miss error | **124 / 168** | 43 (+1 timeout) | **10448 / 18939** |
+| + `lmap` + empty-script result reset | **125 / 168** | 43 (0 timeout) | **10566 / 19027** |
 
-The 2026-06-13 increment (**+1794 tests, 45.7% → 55.2%**, zero regressions):
+The 2026-06-13 increments (**+1912 tests, 45.7% → 55.5%**, zero regressions):
 
 - **`ledit listVar first last ?element ...?`** (`cmd_list.rs`) — the Tcl 8.7/9.0
   in-place `lreplace` on a list *variable*. Shares `lreplace`'s index/clamp/
@@ -1721,6 +1722,16 @@ The 2026-06-13 increment (**+1794 tests, 45.7% → 55.2%**, zero regressions):
   such element in array` (previously wrongly `no such variable`), and a wholly
   missing variable is `no such variable`. Lifted `set.test`/`set-old.test`/
   `trace.test` (+6 beyond `ledit`).
+- **`lmap varList list ?varList list ...? body`** (`cmd_control.rs`) — `foreach`
+  that collects each non-`continue` body result into a list (refactored `foreach`
+  into a shared `each_loop(collect)` engine, mirroring C's one `EachloopCmd`,
+  `tclCmdAH.c`). `lmap.test` **0 → 57 / 66**.
+- **empty-script result reset** (`interp.rs::eval_script`) — a script with no
+  commands (empty / whitespace / comments only) now resets the result to `""`, as
+  C's `Tcl_EvalEx` does; previously a stale prior result leaked through (surfaced
+  by an `lmap` body of `{}`, also affects empty proc bodies / `eval {}`). Rippled
+  +6 `uplevel.test`, recovered `for.test` from a timeout (+51), +1 each to
+  `if`/`compile`/`execute`/`namespace-old`.
 
 Cumulative: **+36 files** now run to a tcltest summary, errored-before-summary
 **81 → 45**, **+2974 tests pass**, and **zero panics** (the passed *count*
@@ -1950,9 +1961,12 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
-### SYNC inbound — 2026-06-13 (`ledit` + var-read-miss; audit re-baseline)
+### SYNC inbound — 2026-06-13 (`ledit`/`lmap` + var-read-miss + eval-reset; audit re-baseline)
 
-Chunk: `ledit` + the three-way variable-read-miss error (scoreboard above).
+Chunks: `ledit`, `lmap`, the three-way variable-read-miss error, and the
+empty-script result reset (scoreboard above). `lmap` was written against C's
+shared `EachloopCmd` (`tclCmdAH.c`, `TCL_EACH_COLLECT`) — `foreach` refactored to
+the same engine; the empty-script reset matches `Tcl_EvalEx` (`tclBasic.c`).
 
 - **Derived from C, cross-checked vs the Zig oracle.** `ledit` was written
   against C's `Tcl_LeditObjCmd` (`tmp/tcl9.0.3/generic/tclCmdIL.c`) and the
@@ -2115,9 +2129,9 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **10448/18939**, the 2026-06-13 `ledit` + var-read-miss increment landed the
-    list-command surface that `lreplace.test`/`set*.test` exercise). Run the
-    **unmodified** pure-Tcl
+    **10566/19027**, the 2026-06-13 `ledit`/`lmap` + var-read-miss + empty-script
+    reset increments landed the list/loop-command surface that `lreplace.test`/
+    `lmap.test`/`set*.test` exercise). Run the **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return

@@ -1444,6 +1444,14 @@ impl Interp {
         }
         let mut last = Code::Ok;
         let commands = parse::parse_script(src);
+        if commands.is_empty() {
+            // A script with no commands (empty / whitespace / comments only)
+            // evaluates to the empty result — `Tcl_EvalEx` resets the result at
+            // entry, and with nothing to set it the result is empty. Without this
+            // a stale prior result leaks through (e.g. an empty proc body, `eval
+            // {}`, or an `lmap`/`foreach` body that produces nothing).
+            self.set_result_bytes(b"");
+        }
         for cmd in &commands {
             last = self.eval_command(src, cmd, owns_frame);
             if last != Code::Ok {
