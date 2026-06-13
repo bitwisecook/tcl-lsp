@@ -336,8 +336,11 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `oo::copy srcObject ?targetObject?` — clone an object (its class + per-object
 /// methods/mixins).
 fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 || argv.len() > 3 {
-        return wrong_args(interp, b"oo::copy sourceName ?targetName?");
+    if argv.len() < 2 || argv.len() > 4 {
+        return wrong_args(
+            interp,
+            b"oo::copy sourceName ?targetName? ?targetNamespace?",
+        );
     }
     let src = interp.fqn_for(&obj_bytes(argv[1]));
     let Some(src_obj) = interp.oo.borrow().objects.get(&src).cloned() else {
@@ -346,9 +349,10 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         m.extend_from_slice(b"\" does not refer to an object");
         return err(interp, &m);
     };
-    let dst = match argv.get(2) {
-        Some(&a) => interp.fqn_for(&obj_bytes(a)),
-        None => {
+    // An empty (or omitted) target name auto-generates an anonymous name.
+    let dst = match argv.get(2).map(|&a| obj_bytes(a)) {
+        Some(ref n) if !n.is_empty() => interp.fqn_for(n),
+        _ => {
             let n = interp.oo.borrow().counter;
             interp.oo.borrow_mut().counter += 1;
             format!("::oo::Obj{n}").into_bytes()
@@ -357,7 +361,15 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // If the source is also a class, clone the class definition too, so the
     // copy is a working class (TclOO copies both the object and class facets).
     let src_cls = interp.oo.borrow().classes.get(&src).cloned();
-    let var_ns = interp.ensure_namespace(&dst);
+    // An explicit target namespace becomes the copy's instance-variable
+    // namespace; otherwise it defaults to the object's own name.
+    let var_ns = match argv.get(3).map(|&a| obj_bytes(a)) {
+        Some(ref ns) if !ns.is_empty() => {
+            let ns = interp.fqn_for(ns);
+            interp.ensure_namespace(&ns)
+        }
+        _ => interp.ensure_namespace(&dst),
+    };
     let creation_id = interp.oo_next_id();
     interp.oo.borrow_mut().objects.insert(
         dst.clone(),
@@ -1876,18 +1888,45 @@ impl Interp {
             // A class may `unexport` its own `create`/`new` (e.g. a metaclass
             // that wants a custom factory); then those names are plain unknown
             // methods, not the built-in instantiation forms.
-            let (cre_ok, new_ok) = {
+            // `createWithNamespace` is a class built-in that is *unexported* by
+            // default (TclOO); it works only once `self export`ed.
+            let (cre_ok, new_ok, cwn_ok) = {
                 let oo = self.oo.borrow();
                 match oo.objects.get(fqn) {
                     Some(o) => (
                         !o.unexported.contains(b"create".as_slice()),
                         !o.unexported.contains(b"new".as_slice()),
+                        o.exported.contains(b"createWithNamespace".as_slice()),
                     ),
-                    None => (true, true),
+                    None => (true, true, false),
                 }
             };
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
                 Some(b"new") if !is_meta && new_ok => self.oo_new(fqn, None, &argv[2..]),
+                Some(b"createWithNamespace") if cwn_ok => {
+                    if argv.len() < 4 {
+                        let mut u = obj_bytes(argv[0]);
+                        u.extend_from_slice(
+                            b" createWithNamespace objectName namespaceName ?arg ...?",
+                        );
+                        return wrong_args(self, &u);
+                    }
+                    let raw = obj_bytes(argv[2]);
+                    if raw.is_empty() {
+                        return self.error(b"object name must not be empty");
+                    }
+                    let name = self.fqn_for(&raw);
+                    let ns_raw = obj_bytes(argv[3]);
+                    // The namespace is *created*; an existing one is an error.
+                    if self.resolve_namespace_name(&ns_raw).is_some() {
+                        let mut m = b"can't create namespace \"".to_vec();
+                        m.extend_from_slice(&ns_raw);
+                        m.extend_from_slice(b"\": already exists");
+                        return self.error(&m);
+                    }
+                    let ns = self.fqn_for(&ns_raw);
+                    self.oo_new_ns(fqn, Some(name), Some(ns), &argv[4..])
+                }
                 Some(b"create") if cre_ok => {
                     if argv.len() < 3 {
                         let mut u = obj_bytes(argv[0]);
@@ -1941,6 +1980,18 @@ impl Interp {
     }
 
     fn oo_new(&mut self, class: &[u8], name: Option<Vec<u8>>, args: &[*mut TclObj]) -> Code {
+        self.oo_new_ns(class, name, None, args)
+    }
+
+    /// `oo_new` with an optional explicit instance-variable namespace
+    /// (`createWithNamespace`); `None` defaults to the object's own name.
+    fn oo_new_ns(
+        &mut self,
+        class: &[u8],
+        name: Option<Vec<u8>>,
+        ns_override: Option<Vec<u8>>,
+        args: &[*mut TclObj],
+    ) -> Code {
         let fqn = name.unwrap_or_else(|| {
             let n = format!("::oo::Obj{}", self.oo.borrow().counter);
             self.oo.borrow_mut().counter += 1;
@@ -1954,7 +2005,10 @@ impl Interp {
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
-        let var_ns = self.ensure_namespace(&fqn);
+        let var_ns = match ns_override {
+            Some(ns) => self.ensure_namespace(&ns),
+            None => self.ensure_namespace(&fqn),
+        };
         let creation_id = self.oo_next_id();
         self.oo.borrow_mut().objects.insert(
             fqn.clone(),
@@ -2817,6 +2871,33 @@ mod tests {
                 i.eval_str(b"oo::define oo::object { definitionnamespace ::nd }"),
                 Code::Error,
             );
+        });
+    }
+
+    #[test]
+    fn create_with_namespace_and_copy_targetns() {
+        leak_free(|i| {
+            // `createWithNamespace` is unexported by default; once exported it
+            // creates the object in a fresh (must-not-exist) namespace.
+            ok(i, b"oo::class create AC");
+            assert_eq!(
+                i.eval_str(b"AC createWithNamespace inst ::ns1"),
+                Code::Error
+            );
+            ok(i, b"oo::objdefine AC export createWithNamespace");
+            ok(i, b"AC createWithNamespace inst ::ns1");
+            assert_eq!(ok(i, b"info object namespace inst"), b"::ns1");
+            // An already-existing namespace is rejected.
+            ok(i, b"namespace eval ::taken {}");
+            assert_eq!(
+                i.eval_str(b"AC createWithNamespace inst2 ::taken"),
+                Code::Error
+            );
+            // `oo::copy src tgt targetNamespace` places the copy's vars there.
+            ok(i, b"oo::class create C { method m {} {} }");
+            ok(i, b"C create src");
+            ok(i, b"oo::copy src dst ::dstns");
+            assert_eq!(ok(i, b"info object namespace dst"), b"::dstns");
         });
     }
 
