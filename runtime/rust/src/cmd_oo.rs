@@ -1391,6 +1391,11 @@ impl Interp {
         let mut name = fqn.to_vec();
         name.extend_from_slice(b"::my");
         self.ns_register(&name, Command::Builtin(my_cmd));
+        // `myclass` (TIP 478): a per-object command dispatching on the object's
+        // class, for invoking class-side (`self method`) methods.
+        let mut mc = fqn.to_vec();
+        mc.extend_from_slice(b"::myclass");
+        self.ns_register(&mc, Command::Builtin(myclass_cmd));
     }
 
     /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`
@@ -1540,6 +1545,32 @@ fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let method = obj_bytes(argv[1]);
     interp.oo_invoke(&object, &method, &argv[2..], false)
+}
+
+fn myclass_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"myclass methodName ?arg ...?");
+    }
+    // The current object's class (which can morph), invoked internally.
+    let class = interp
+        .oo
+        .borrow()
+        .call_stack
+        .last()
+        .map(|f| f.object.clone())
+        .and_then(|o| {
+            interp
+                .oo
+                .borrow()
+                .objects
+                .get(&o)
+                .map(|ob| ob.class.clone())
+        });
+    let Some(class) = class else {
+        return err(interp, b"myclass may only be called from inside a method");
+    };
+    let method = obj_bytes(argv[1]);
+    interp.oo_invoke(&class, &method, &argv[2..], false)
 }
 
 fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -2837,6 +2868,30 @@ impl Interp {
         chain
     }
 
+    /// If `word` (a forward's command name) names a command in `obj`'s instance
+    /// namespace (e.g. the per-object `my`/`myclass`), return its fully-qualified
+    /// form so it resolves while the command still runs in the caller's context;
+    /// otherwise return `word` unchanged (resolves globally).
+    fn qualify_in_object_ns(&self, obj: &[u8], word: &[u8]) -> Vec<u8> {
+        if word.starts_with(b"::") {
+            return word.to_vec();
+        }
+        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
+        if let Some(ns) = var_ns {
+            // Only a command defined *directly* in the object namespace (the
+            // per-object `my`/`myclass`) gets qualified — not one merely visible
+            // via the global fallback (which must keep its caller-context vars).
+            let in_ns = self.namespaces().command_names(ns).contains(&word);
+            if in_ns {
+                let mut qn = self.namespaces().qualified_name(ns);
+                qn.extend_from_slice(b"::");
+                qn.extend_from_slice(word);
+                return qn;
+            }
+        }
+        word.to_vec()
+    }
+
     /// Whether the provider `prov` (object FQN or class FQN) defines `method`
     /// (or a constructor, when `ctor`).
     /// Whether provider `prov` defines `method`. Resolution is positional: the
@@ -3006,9 +3061,17 @@ impl Interp {
         // forwarded `my`/`self` still works).
         if let Method::Forward { prefix } = &m {
             let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + args.len());
-            // Each element owns a +1 (released in the `decr` loop below).
-            for p in prefix {
-                let o = obj::new_string_bytes(p);
+            // The forwarded command resolves in the object's namespace, so a bare
+            // `my`/`myclass` works; but the command then *runs* in the caller's
+            // context (variables resolve there). Achieve both by qualifying the
+            // first word with the object namespace only when it resolves there.
+            for (i, p) in prefix.iter().enumerate() {
+                let word = if i == 0 {
+                    self.qualify_in_object_ns(obj, p)
+                } else {
+                    p.clone()
+                };
+                let o = obj::new_string_bytes(&word);
                 unsafe { obj::incr_ref_count(o) };
                 new_argv.push(o);
             }
