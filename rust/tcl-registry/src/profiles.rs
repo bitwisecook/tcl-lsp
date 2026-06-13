@@ -10,7 +10,7 @@
 // readability.
 #![allow(clippy::too_many_lines)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Metadata for an F5 profile type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,6 +136,40 @@ impl ProfileRegistry {
     #[must_use]
     pub fn namespace_count(&self) -> usize {
         self.namespaces.len()
+    }
+
+    /// `profiles` plus all transitive [`ProfileSpec::requires`] parents,
+    /// uppercased.  Mirrors Python `expand_profile_stack`.
+    #[must_use]
+    pub fn expand_profile_stack(&self, profiles: &[&str]) -> HashSet<String> {
+        let mut expanded: HashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
+        let mut pending: Vec<String> = expanded.iter().cloned().collect();
+        while let Some(cur) = pending.pop() {
+            if let Some(spec) = self.get_profile(&cur) {
+                for req in spec.requires {
+                    let name = req.to_uppercase();
+                    if expanded.insert(name.clone()) {
+                        pending.push(name);
+                    }
+                }
+            }
+        }
+        expanded
+    }
+
+    /// True when `active`'s expanded profile stack satisfies any one of the
+    /// `required` profiles (OR semantics).  Mirrors Python
+    /// `profile_stack_satisfies`.
+    #[must_use]
+    pub fn stack_satisfies(&self, required: &[&str], active: &[&str]) -> bool {
+        if required.is_empty() {
+            return true;
+        }
+        let active_expanded = self.expand_profile_stack(active);
+        required.iter().any(|candidate| {
+            self.expand_profile_stack(std::slice::from_ref(candidate))
+                .is_subset(&active_expanded)
+        })
     }
 }
 

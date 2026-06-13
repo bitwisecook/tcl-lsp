@@ -1324,24 +1324,24 @@ impl Backend {
             .to_owned();
         let events = tcl_registry::events::EventRegistry::build();
         let known = !event.is_empty() && events.is_known(&event);
-        let (count, sample, deprecated) = if known {
+        let (count, sample) = if known {
             let registry = self.registry_for_dialect("f5-irules").await;
-            let mut names: Vec<&str> = registry
-                .command_names()
-                .filter(|&n| {
-                    registry.get(n).is_some_and(|s| {
-                        s.event_requires.is_some() && !s.excluded_events.iter().any(|&e| event == e)
-                    })
-                })
-                .collect();
-            names.sort_unstable();
+            let profiles = tcl_registry::profiles::ProfileRegistry::build();
+            // Mirror Python `_build_event_set`: every f5-irules command valid
+            // in the event, not just those that carry `event_requires`.
+            let names = registry.valid_irules_commands_for_event(&event, &events, &profiles);
             let count = names.len();
             let sample: Vec<String> = names.into_iter().take(80).map(str::to_owned).collect();
-            let deprecated = events.get_props(&event).is_some_and(|p| p.deprecated);
-            (count, sample, deprecated)
+            (count, sample)
         } else {
-            (0, Vec::new(), false)
+            (0, Vec::new())
         };
+        // The contract derives `deprecated` from the `when` event-completion
+        // detail (`get_event_detail`), which never contains the word — so the
+        // describe-event surface always reports false, deliberately *not*
+        // `EventProps.deprecated` (the orthogonal F5 deprecation fact).  See
+        // `server/commands.py::on_describe_irule_event`.
+        let deprecated = false;
         Ok(Some(serde_json::json!({
             "event": event,
             "known": known,

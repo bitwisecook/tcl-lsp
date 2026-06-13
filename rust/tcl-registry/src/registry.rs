@@ -226,6 +226,49 @@ impl CommandRegistry {
         })
     }
 
+    /// Return the sorted names of every f5-irules command valid in `event`.
+    ///
+    /// Mirrors the valid-command set of Python
+    /// `CommandRegistry._build_event_set` (`commands_for_event`): a command
+    /// is valid when it supports the iRules dialect, the event is not in its
+    /// `excluded_events`, and either it carries no `event_requires` or the
+    /// event's [`crate::events::EventProps`] satisfy them.  Returns an empty
+    /// vector for an unknown event.
+    #[must_use]
+    pub fn valid_irules_commands_for_event<'a>(
+        &'a self,
+        event: &str,
+        events: &crate::events::EventRegistry,
+        profiles: &crate::profiles::ProfileRegistry,
+    ) -> Vec<&'a str> {
+        let Some(props) = events.get_props(event) else {
+            return Vec::new();
+        };
+        let mut names: Vec<&str> = self
+            .by_name
+            .iter()
+            .filter_map(|(name, specs)| {
+                // Best spec for the dialect — reversed so curated overrides
+                // win, matching `get_for_dialect` / Python's `get`.
+                let spec = specs
+                    .iter()
+                    .rev()
+                    .find(|s| s.supports_dialect(DialectSet::IRULES))?;
+                if spec.excluded_events.contains(&event) {
+                    return None;
+                }
+                if let Some(req) = spec.event_requires.as_ref() {
+                    if !crate::events::event_satisfies(props, req, event, profiles) {
+                        return None;
+                    }
+                }
+                Some(name.as_str())
+            })
+            .collect();
+        names.sort_unstable();
+        names
+    }
+
     /// Return all command specs whose traits include `t`.
     #[must_use]
     pub fn commands_with_trait(&self, t: Traits) -> Vec<&str> {

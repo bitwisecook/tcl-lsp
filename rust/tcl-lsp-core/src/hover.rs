@@ -365,89 +365,14 @@ fn valid_events(requires: &tcl_registry::events::EventRequires) -> Vec<String> {
         .all_event_names()
         .into_iter()
         .filter(|name| {
-            event_reg
-                .get_props(name)
-                .is_some_and(|p| event_satisfies(p, requires, name, &profile_reg))
+            event_reg.get_props(name).is_some_and(|p| {
+                tcl_registry::events::event_satisfies(p, requires, name, &profile_reg)
+            })
         })
         .map(ToOwned::to_owned)
         .collect();
     out.sort_unstable();
     out
-}
-
-/// True when an event's `EventProps` satisfy a command's `EventRequires`.
-/// Mirrors `event_satisfies`.
-fn event_satisfies(
-    props: &tcl_registry::events::EventProps,
-    requires: &tcl_registry::events::EventRequires,
-    event_name: &str,
-    profile_reg: &tcl_registry::profiles::ProfileRegistry,
-) -> bool {
-    if requires.init_only {
-        return event_name == "RULE_INIT";
-    }
-    if requires.also_in.contains(&event_name) {
-        return true;
-    }
-    if requires.flow && !props.flow {
-        return false;
-    }
-    if requires.client_side && !props.client_side {
-        return false;
-    }
-    if requires.server_side && !props.server_side {
-        return false;
-    }
-    if let Some(t) = requires.transport {
-        if !props.transport.contains(&t) {
-            return false;
-        }
-    }
-    if !requires.profiles.is_empty()
-        && !profile_stack_satisfies(requires.profiles, props.implied_profiles, profile_reg)
-    {
-        return false;
-    }
-    true
-}
-
-/// True when `active`'s expanded profile stack satisfies any one of the
-/// `required` profiles (OR semantics).  Mirrors `profile_stack_satisfies`.
-fn profile_stack_satisfies(
-    required: &[&str],
-    active: &[&str],
-    profile_reg: &tcl_registry::profiles::ProfileRegistry,
-) -> bool {
-    if required.is_empty() {
-        return true;
-    }
-    let active_expanded = expand_profile_stack(active, profile_reg);
-    required.iter().any(|candidate| {
-        expand_profile_stack(std::slice::from_ref(candidate), profile_reg)
-            .is_subset(&active_expanded)
-    })
-}
-
-/// `profiles` plus all transitive `ProfileSpec.requires` parents
-/// (uppercased).  Mirrors `expand_profile_stack`.
-fn expand_profile_stack(
-    profiles: &[&str],
-    profile_reg: &tcl_registry::profiles::ProfileRegistry,
-) -> std::collections::HashSet<String> {
-    let mut expanded: std::collections::HashSet<String> =
-        profiles.iter().map(|p| p.to_uppercase()).collect();
-    let mut pending: Vec<String> = expanded.iter().cloned().collect();
-    while let Some(cur) = pending.pop() {
-        if let Some(spec) = profile_reg.get_profile(&cur) {
-            for req in spec.requires {
-                let name = req.to_uppercase();
-                if expanded.insert(name.clone()) {
-                    pending.push(name);
-                }
-            }
-        }
-    }
-    expanded
 }
 
 /// Render a hover snippet for a `cmd subcommand` pair when
@@ -2675,7 +2600,7 @@ mod tests {
     #[test]
     fn expand_profile_stack_includes_parents() {
         let reg = tcl_registry::profiles::ProfileRegistry::build();
-        let stack = expand_profile_stack(&["HTTP"], &reg);
+        let stack = reg.expand_profile_stack(&["HTTP"]);
         assert!(stack.contains("HTTP"), "{stack:?}");
         assert!(stack.contains("TCP"), "HTTP should require TCP: {stack:?}");
     }
