@@ -2105,6 +2105,14 @@ impl Interp {
         if let Some(cmd) = resolved {
             return self.invoke(cmd, argv);
         }
+        // Inside an `oo::define`/`oo::objdefine` body, an unresolved leading word
+        // may be a definition subcommand (an abbreviation, or one without a
+        // global builtin); resolve it as C's define ensemble would.
+        if self.in_oo_define() {
+            if let Some(code) = self.oo_define_command(&name, argv) {
+                return code;
+            }
+        }
         // Command miss: dispatch through `unknown <name> <args…>` if it exists
         // (and we're not already resolving `unknown` itself).
         if name != b"unknown" {

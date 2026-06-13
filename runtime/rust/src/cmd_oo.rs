@@ -411,6 +411,117 @@ fn def_private(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     code
 }
 
+/// `deletemethod name ?name ...?` — remove method(s) from the current target.
+fn def_deletemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"deletemethod name ?name ...?");
+    }
+    let target = match def_target(interp) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    for &a in &argv[1..] {
+        let name = obj_bytes(a);
+        let removed = {
+            let mut oo = interp.oo.borrow_mut();
+            match &target {
+                DefTarget::Class(c) => oo.classes.get_mut(c).is_some_and(|cl| {
+                    cl.unexported.remove(&name);
+                    cl.methods.remove(&name).is_some()
+                }),
+                DefTarget::Object(o) => oo.objects.get_mut(o).is_some_and(|ob| {
+                    ob.unexported.remove(&name);
+                    ob.methods.remove(&name).is_some()
+                }),
+            }
+        };
+        if !removed {
+            let mut m = b"method ".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b" does not exist");
+            return err(interp, &m);
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// `renamemethod oldName newName` — rename a method on the current target.
+fn def_renamemethod(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"renamemethod oldName newName");
+    }
+    let from = obj_bytes(argv[1]);
+    let to = obj_bytes(argv[2]);
+    let target = match def_target(interp) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let renamed = {
+        let mut oo = interp.oo.borrow_mut();
+        match &target {
+            DefTarget::Class(c) => oo.classes.get_mut(c).is_some_and(|cl| {
+                if let Some(m) = cl.methods.remove(&from) {
+                    cl.methods.insert(to.clone(), m);
+                    if cl.unexported.remove(&from) {
+                        cl.unexported.insert(to.clone());
+                    }
+                    true
+                } else {
+                    false
+                }
+            }),
+            DefTarget::Object(o) => oo.objects.get_mut(o).is_some_and(|ob| {
+                if let Some(m) = ob.methods.remove(&from) {
+                    ob.methods.insert(to.clone(), m);
+                    if ob.unexported.remove(&from) {
+                        ob.unexported.insert(to.clone());
+                    }
+                    true
+                } else {
+                    false
+                }
+            }),
+        }
+    };
+    if !renamed {
+        let mut m = b"method ".to_vec();
+        m.extend_from_slice(&from);
+        m.extend_from_slice(b" does not exist");
+        return err(interp, &m);
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// `class className` (objdefine only) — change the object's class.
+fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 2 {
+        return wrong_args(interp, b"class className");
+    }
+    let obj = match def_target(interp) {
+        Ok(DefTarget::Object(o)) => o,
+        Ok(DefTarget::Class(_)) => {
+            return err(interp, b"attempt to misuse class as object");
+        }
+        Err(c) => return c,
+    };
+    let new_cls = interp.fqn_for(&obj_bytes(argv[1]));
+    if !interp.oo.borrow().objects.contains_key(&new_cls) {
+        return not_object(interp, &obj_bytes(argv[1]));
+    }
+    if !interp.oo.borrow().classes.contains_key(&new_cls) {
+        let mut m = obj_bytes(argv[1]);
+        m.extend_from_slice(b" does not refer to a class");
+        return err(interp, &m);
+    }
+    if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&obj) {
+        ob.class = new_cls;
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
 fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `method name ?-export|-private? args body` (the visibility flag is TIP 500).
     let (priv_flag, rest): (Option<bool>, &[*mut TclObj]) = match argv.get(2).map(|&a| obj_bytes(a))
@@ -663,7 +774,13 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .borrow_mut()
                 .def_stack
                 .push(DefTarget::Object(tfqn));
-            let code = interp.dispatch(&argv[1..]);
+            // `self { script }` runs a definition body; `self subcmd …` is one
+            // directive — mirror `oo_run_def`'s script-vs-subcommand split.
+            let code = if argv.len() == 2 {
+                interp.eval_str(&obj_bytes(argv[1]))
+            } else {
+                interp.dispatch(&argv[1..])
+            };
             interp.oo.borrow_mut().def_stack.pop();
             return code;
         }
@@ -715,11 +832,92 @@ impl Interp {
         self.ns_register(&name, Command::Builtin(my_cmd));
     }
 
+    /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`
+    /// body (so `dispatch` should try definition-subcommand resolution on a miss).
+    pub(crate) fn in_oo_define(&self) -> bool {
+        !self.oo.borrow().def_stack.is_empty()
+    }
+
     /// Allocate the next monotonic object creation ID.
     fn oo_next_id(&self) -> u64 {
         let mut oo = self.oo.borrow_mut();
         oo.next_id += 1;
         oo.next_id
+    }
+
+    /// Resolve an unknown command inside an `oo::define`/`oo::objdefine` body as
+    /// a definition subcommand, matching C's ensemble: an exact name or a unique
+    /// prefix (`super` → `superclass`, `forw` → `forward`). Returns `None` when
+    /// the name is not a (unique) define subcommand, so dispatch falls through to
+    /// the normal `unknown`/`invalid command name` path (an ambiguous prefix like
+    /// `m` is likewise left for that error). The full-name subcommands are also
+    /// registered globally, so this only fires for abbreviations and the
+    /// subcommands without a global builtin (`class`/`deletemethod`/
+    /// `renamemethod`).
+    pub(crate) fn oo_define_command(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Option<Code> {
+        const CLASS_CMDS: &[&[u8]] = &[
+            b"constructor",
+            b"deletemethod",
+            b"destructor",
+            b"export",
+            b"filter",
+            b"forward",
+            b"method",
+            b"mixin",
+            b"private",
+            b"renamemethod",
+            b"self",
+            b"superclass",
+            b"unexport",
+            b"variable",
+        ];
+        const OBJ_CMDS: &[&[u8]] = &[
+            b"class",
+            b"deletemethod",
+            b"export",
+            b"filter",
+            b"forward",
+            b"method",
+            b"mixin",
+            b"private",
+            b"renamemethod",
+            b"self",
+            b"unexport",
+            b"variable",
+        ];
+        let is_object = matches!(
+            self.oo.borrow().def_stack.last(),
+            Some(DefTarget::Object(_))
+        );
+        let cands: &[&[u8]] = if is_object { OBJ_CMDS } else { CLASS_CMDS };
+        // Exact name wins; otherwise a unique prefix (ambiguous → not resolved).
+        let full: &[u8] = if let Some(c) = cands.iter().find(|c| **c == name) {
+            c
+        } else {
+            let mut it = cands.iter().filter(|c| c.starts_with(name));
+            match (it.next(), it.next()) {
+                (Some(c), None) => c,
+                _ => return None,
+            }
+        };
+        Some(match full {
+            b"method" => def_method(self, argv),
+            b"constructor" => def_constructor(self, argv),
+            b"destructor" => def_destructor(self, argv),
+            b"superclass" => def_superclass(self, argv),
+            b"variable" => def_variable(self, argv),
+            b"export" => def_export(self, argv, true),
+            b"unexport" => def_export(self, argv, false),
+            b"mixin" => def_mixin(self, argv),
+            b"forward" => def_forward(self, argv),
+            b"filter" => def_filter(self, argv),
+            b"private" => def_private(self, argv),
+            b"self" => self_cmd(self, argv),
+            b"deletemethod" => def_deletemethod(self, argv),
+            b"renamemethod" => def_renamemethod(self, argv),
+            b"class" => def_class(self, argv),
+            _ => return None,
+        })
     }
 }
 
@@ -1881,6 +2079,36 @@ mod tests {
             );
             // A non-object reports an error (without surrounding quotes).
             assert_eq!(i.eval_str(b"info object creationid nosuch"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn define_subcommand_abbrev_and_extras() {
+        leak_free(|i| {
+            // Abbreviated definition subcommands (unique prefixes).
+            ok(i, b"oo::class create A");
+            ok(i, b"oo::class create C { meth foo {} {return X} }");
+            assert_eq!(ok(i, b"[C new] foo"), b"X");
+            ok(i, b"oo::define C { super A }");
+            assert_eq!(ok(i, b"info class superclasses C"), b"::A");
+            // An ambiguous prefix is not a define subcommand.
+            assert_eq!(i.eval_str(b"oo::define C { m foo {} {} }"), Code::Error);
+            // deletemethod / renamemethod.
+            ok(
+                i,
+                b"oo::class create D { method foo {} {return F}; method bar {} {return B} }",
+            );
+            ok(i, b"oo::define D deletemethod foo");
+            assert_eq!(i.eval_str(b"[D new] foo"), Code::Error);
+            ok(i, b"oo::define D renamemethod bar baz");
+            assert_eq!(ok(i, b"[D new] baz"), b"B");
+            assert_eq!(i.eval_str(b"oo::define D deletemethod nope"), Code::Error);
+            // objdefine class — change an object's class.
+            ok(i, b"oo::class create P { method m {} {return P} }");
+            ok(i, b"oo::class create Q { method m {} {return Q} }");
+            ok(i, b"set o [P new]");
+            ok(i, b"oo::objdefine $o class Q");
+            assert_eq!(ok(i, b"$o m"), b"Q");
         });
     }
 

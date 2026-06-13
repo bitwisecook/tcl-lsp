@@ -1721,6 +1721,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `oo::object`/`oo::class` as real objects (uniform dispatch) | **128 / 168** | 40 (0 timeout) | **11576 / 19027** |
 | + TclOO object built-ins (`my variable`/`varname`/`eval`) | **128 / 168** | 40 (0 timeout) | **11584 / 19027** |
 | + TclOO `info object creationid` / `info class definitionnamespace` | **128 / 168** | 40 (0 timeout) | **11602 / 19027** |
+| + TclOO define-subcommand abbreviation + `class`/`deletemethod`/`renamemethod` | **128 / 168** | 40 (0 timeout) | **11616 / 19027** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1792,6 +1793,12 @@ zero regressions**, `oo.test` 56 → 71):
    quotes for the not-an-object case, resolving the object before the class as
    C does) across `oo::define`/`oo::objdefine`/`info object`/`info class`.
    (`oo.test` 83 → 101, sweep 11584 → 11602).
+7. **define-subcommand surface** — definition bodies now resolve an unknown
+   leading word as C's define ensemble does: an exact name or a unique prefix
+   (`super` → `superclass`, `forw` → `forward`, `meth` → `method`; an ambiguous
+   prefix like `m` stays an error). Adds the `deletemethod`/`renamemethod` and
+   (objdefine) `class` subcommands, and fixes `self { script }` in a definition
+   to evaluate the body. (`oo.test` 101 → 115, sweep 11602 → 11616).
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2429,9 +2436,9 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11602/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11616/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
-    list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 101, the
+    list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 115, the
     2026-06-13 `ledit`/`lmap`/`lseq` +
     var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
