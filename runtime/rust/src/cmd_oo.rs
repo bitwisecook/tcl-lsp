@@ -660,6 +660,16 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(obj::new_string_bytes(&name));
             Code::Ok
         }
+        b"mixins" => {
+            let mx = interp.oo.borrow().objects.get(&obj).map(|o| o.mixins.clone());
+            match mx {
+                Some(m) => {
+                    set_list(interp, &m);
+                    Code::Ok
+                }
+                None => not_object(interp, &obj_bytes(argv[3])),
+            }
+        }
         other => {
             let mut m = b"unknown info object subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -686,6 +696,16 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"superclasses" => {
             let s = interp.oo.borrow().classes[&cls].supers.clone();
             set_list(interp, &s);
+            Code::Ok
+        }
+        b"mixins" => {
+            let m = interp.oo.borrow().classes[&cls].mixins.clone();
+            set_list(interp, &m);
+            Code::Ok
+        }
+        b"variables" | b"variable" => {
+            let v = interp.oo.borrow().classes[&cls].variables.clone();
+            set_list(interp, &v);
             Code::Ok
         }
         b"instances" => {
