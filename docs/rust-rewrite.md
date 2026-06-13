@@ -10554,3 +10554,34 @@ layout was reorganised so the suites name their backend.
 Gates: `make test-py` green (16615 passed); `make test-lsp-e2e-rust` green
 (511 passed / 1 skipped); battery (rust) 403/0; default-mode `lsp_e2e`
 (no env vars) resolves to the native server and passes 511/1.
+
+## SYNC-JUN13-4 — PR #595 Codex review fixes
+
+* **VS Code default fallback (P1)**: with the `serverKind` schema default now
+  `"rust"`, `config.get("serverKind", "")` returned `"rust"` even when the user
+  never set it, so the missing-binary path treated the default as an *explicit*
+  Rust request and errored instead of falling back to Python. Fixed: use
+  `config.inspect()` and read only the user/workspace/folder values, so an
+  unset `serverKind` is distinguishable from an explicit one.
+* **`try` handler exception edges (P2)**: the Rust discriminator keyed on
+  "does the body contain an explicit throw?", but Python keys on "does the body
+  have a normal fall-through?" (`body_terminal`). They diverge for a body that
+  both throws *and* falls through (`if {$c} {error e}; set y 2`): the handler
+  can be entered by an abnormal completion at any point, so `y` is only
+  maybe-defined. Rewrote to mirror Python — discriminate on `body_tail.is_none()`
+  and track a `last_terminal_block` for the no-explicit-throw fallback.
+* **Bare `$ns::cmd` (P2)**: `parse_namespaced_ensemble` split the *bare*
+  `$prefix::tail` form, suppressing W307 when `<prefix>::tail` resolved to a
+  known command. But Tcl lexes `$ns::run` as a single variable `ns::run` — only
+  the *braced* `${ns}::tail` composes a command path (Python's
+  `is_namespaced_ensemble` only fires after a `${…}` close brace). Restricted
+  the parser to the braced form; bare `$ns::run` now fires W307, matching Python.
+* **Optimiser disables in diagnostics (P2)**: `tclLsp.optimiser.enabled=false`
+  and per-code `tclLsp.optimiser.O1xx=false` were parsed/holdable but never
+  folded into the diagnostics path (only the profile was). Now the master switch
+  and per-code overrides gate every O-code, including the ones emitted by
+  `run_all_checks` (e.g. the constant-branch `O100`), mirroring Python's
+  `optimiser_enabled` + `disabled_optimisations`.
+
+Battery (rust) 403/0; `make test-lsp-e2e-rust` 511/1; `cargo test`/`clippy`
+clean.

@@ -484,6 +484,63 @@ impl CfgBuilder {
 
     // ── try ───────────────────────────────────────────────────────
 
+    /// Record the analysis-only exception edges into a `try` handler block,
+    /// mirroring Python `_lower_try`:
+    ///
+    /// * `on ok` runs only after the body completes normally → source = body
+    ///   tail (the body's exit versions).
+    /// * a body with *no* normal fall-through (it unconditionally throws /
+    ///   returns) reaches the handler only from its explicit throw points (at
+    ///   their throw-time versions), falling back to the terminal block when the
+    ///   body terminated without an explicit `error`/`throw`.
+    /// * a body that *can* fall through may complete abnormally at any point, so
+    ///   a body-set var is only *maybe* defined → merge the pre-`try` state
+    ///   (version-0) with the body-exit state.
+    fn push_try_handler_exception_edges(
+        &mut self,
+        handler: &crate::ir::TryHandler,
+        handler_block: &str,
+        block_name: &str,
+        body_tail: Option<&str>,
+        body_throw_blocks: &[String],
+        body_terminal: Option<&str>,
+    ) {
+        if !self.faithful_exceptions {
+            return;
+        }
+        let is_on_ok = handler.kind == "on" && handler.match_arg == "ok";
+        if is_on_ok {
+            if let Some(tail) = body_tail {
+                self.exception_edges
+                    .push((tail.to_owned(), handler_block.to_owned()));
+            }
+        } else if body_tail.is_none() {
+            let mut throw_sources: Vec<String> = Vec::new();
+            for tb in body_throw_blocks {
+                if !throw_sources.contains(tb) {
+                    throw_sources.push(tb.clone());
+                }
+            }
+            if throw_sources.is_empty() {
+                if let Some(terminal) = body_terminal {
+                    throw_sources.push(terminal.to_owned());
+                }
+            }
+            for src in throw_sources {
+                self.exception_edges.push((src, handler_block.to_owned()));
+            }
+        } else {
+            self.exception_edges
+                .push((block_name.to_owned(), handler_block.to_owned()));
+            if let Some(tail) = body_tail {
+                if tail != block_name {
+                    self.exception_edges
+                        .push((tail.to_owned(), handler_block.to_owned()));
+                }
+            }
+        }
+    }
+
     /// Flatten `Statement::Try` into body → handlers → finally → end CFG.
     pub(super) fn lower_try(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Try {
@@ -519,6 +576,11 @@ impl CfgBuilder {
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
         let body_tail = self.lower_script(body, &body_block);
+        // Capture the body's terminating block *before* the handler bodies are
+        // lowered below (each overwrites `last_terminal_block`).  Used to source
+        // an on-error edge from a body that ended without an explicit
+        // `error`/`throw` (a bare `return`). Mirrors Python `_lower_try`.
+        let body_terminal = self.last_terminal_block.take();
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
         if let Some(tail) = &body_tail {
@@ -531,45 +593,17 @@ impl CfgBuilder {
             self.ensure_goto(block_name, &handler_block, Some(*span));
 
             // `block_name` already gotos `try_body` (single successor), so a
-            // real terminator edge can't reach the handler.  Record a throw
-            // edge instead — SSA uses it as an extra phi predecessor and SCCP
-            // as a reachability edge (analysis builds only).  `on ok` runs
-            // only after the body completes normally, so it observes the
-            // body's *exit* versions (source = body tail).  Every other
-            // handler runs on an abnormal completion that can occur at any
-            // point, so a body-set var is *maybe* defined: merge the
-            // pre-`try` state (version-0) with the body-exit state.  Mirrors
-            // Python `_lower_try`.
-            if self.faithful_exceptions {
-                let is_on_ok = handler.kind == "on" && handler.match_arg == "ok";
-                if is_on_ok {
-                    if let Some(tail) = &body_tail {
-                        self.exception_edges
-                            .push((tail.clone(), handler_block.clone()));
-                    }
-                } else if body_throw_blocks.is_empty() {
-                    // No explicit `error`/`throw`: a sub-command may raise at
-                    // any point, so a body-set var is *maybe* defined — merge
-                    // the pre-`try` state (version-0) with the body-exit state.
-                    self.exception_edges
-                        .push((block_name.to_owned(), handler_block.clone()));
-                    if let Some(tail) = &body_tail {
-                        if tail != block_name {
-                            self.exception_edges
-                                .push((tail.clone(), handler_block.clone()));
-                        }
-                    }
-                } else {
-                    // Source the on-error edge from each explicit throw point
-                    // at its throw-time versions: a var set before the only
-                    // throw is defined in the handler; a var unset on an
-                    // earlier conditional throw stays maybe-undef via the merge.
-                    for tb in &body_throw_blocks {
-                        self.exception_edges
-                            .push((tb.clone(), handler_block.clone()));
-                    }
-                }
-            }
+            // real terminator edge can't reach the handler. Record throw edges
+            // instead (SSA phi predecessors + SCCP reachability, analysis builds
+            // only) via the helper below.
+            self.push_try_handler_exception_edges(
+                handler,
+                &handler_block,
+                block_name,
+                body_tail.as_deref(),
+                &body_throw_blocks,
+                body_terminal.as_deref(),
+            );
 
             let mut var_defs = Vec::new();
             if let Some(vn) = &handler.var_name {

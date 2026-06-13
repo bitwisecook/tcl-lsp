@@ -520,9 +520,21 @@ export async function activate(context: ExtensionContext) {
   // from the Rust workspace) or "python" (the packaged/uv reference server).
   // Env vars override config so the e2e / VS Code test harnesses can pick a
   // backend without writing workspace settings: TCL_LSP_SERVER_KIND=python|rust
-  // and TCL_LSP_SERVER_BIN=/path/to/tcl-lsp-server.  An empty value means the
-  // user expressed no preference, so the native backend is the default.
-  const explicitKind = (process.env.TCL_LSP_SERVER_KIND || config.get<string>("serverKind", ""))
+  // and TCL_LSP_SERVER_BIN=/path/to/tcl-lsp-server.
+  //
+  // We must distinguish "user explicitly chose a backend" from "left at the
+  // default".  `config.get("serverKind")` folds in the package.json schema
+  // default ("rust"), so it can't tell them apart — use `inspect()` and look
+  // only at values the user actually set.  When nothing is set, Rust is the
+  // default but a missing binary falls back to Python (see below); an explicit
+  // "rust" with no binary is a hard error.
+  const inspected = config.inspect<string>("serverKind");
+  const userConfiguredKind =
+    inspected?.workspaceFolderValue ??
+    inspected?.workspaceValue ??
+    inspected?.globalValue ??
+    "";
+  const explicitKind = (process.env.TCL_LSP_SERVER_KIND || userConfiguredKind)
     .trim()
     .toLowerCase();
   const serverKind = explicitKind || "rust";

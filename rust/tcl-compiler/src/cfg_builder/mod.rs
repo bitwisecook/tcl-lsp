@@ -67,6 +67,13 @@ pub(crate) struct CfgBuilder {
     /// body-set var is defined at a later throw. Mirrors Python's
     /// `_throw_blocks`.
     throw_blocks: Option<Vec<String>>,
+    /// The block where the most recent `lower_script` call's straight-line
+    /// control finally terminated, when that script had no normal
+    /// fall-through (e.g. a trailing `return` / `error`). `None` when the
+    /// script fell through. `lower_try` reads this to source an on-error
+    /// edge from a body that terminated without an explicit `error`/`throw`
+    /// (a bare `return`). Mirrors Python's `_last_terminal_block`.
+    last_terminal_block: Option<String>,
 }
 
 impl CfgBuilder {
@@ -91,6 +98,7 @@ impl CfgBuilder {
             exception_edges: Vec::new(),
             faithful_exceptions: false,
             throw_blocks: None,
+            last_terminal_block: None,
         }
     }
 
@@ -513,10 +521,15 @@ impl CfgBuilder {
 
         // No fall-through when the main path terminated (a trailing orphan
         // holding dead code is unreachable, not a fall-through edge) or the
-        // final block is itself terminated.
+        // final block is itself terminated.  When there is no fall-through,
+        // record the terminating block so `lower_try` can source an on-error
+        // edge from a body that ended without an explicit `error`/`throw`.
+        // Mirrors Python's `_last_terminal_block`.
         if main_terminated || self.block_mut(&current).terminator.is_some() {
+            self.last_terminal_block = Some(current);
             None
         } else {
+            self.last_terminal_block = None;
             Some(current)
         }
     }

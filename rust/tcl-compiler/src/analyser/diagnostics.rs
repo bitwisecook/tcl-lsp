@@ -99,12 +99,17 @@ fn source_slice(source: &str, span: tcl_lexer::Span) -> Option<String> {
     }
 }
 
-/// Parse a namespaced-ensemble dispatch head `${prefix}::tail` or
-/// `$prefix::tail` from the source slice at `span`, returning
-/// `(prefix_var_name, tail)`.  Returns `None` when the head isn't this shape
-/// (e.g. a plain `$var`, an array element, or a `[cmd]::tail` substitution).
-/// Mirrors the `is_namespaced_ensemble` detection + tail scan in
-/// `_diag_var_command.py`.
+/// Parse a namespaced-ensemble dispatch head `${prefix}::tail` from the source
+/// slice at `span`, returning `(prefix_var_name, tail)`.  Returns `None` when
+/// the head isn't this shape.
+///
+/// Only the **braced** form composes a command path.  A bare `$prefix::tail`
+/// is lexed by Tcl as a *single* variable named `prefix::tail` (the runtime
+/// reads that variable — it is not `$prefix` followed by a literal `::tail`),
+/// so it must NOT be treated as ensemble dispatch.  Mirrors
+/// `_diag_var_command.py`'s `is_namespaced_ensemble`, whose check only fires
+/// after a `${…}` closing brace (the bare VAR token already swallows the
+/// `::tail`, so the character after it is never `::`).
 fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(String, String)> {
     let start = span.start() as usize;
     let end = (span.end() as usize).min(source.len());
@@ -112,19 +117,12 @@ fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(Str
         return None;
     }
     let head = &source[start..end];
-    let rest = head.strip_prefix('$')?;
-    // `${prefix}::tail` (brace form) or `$prefix::tail` (bare form).
-    let (prefix, after) = if let Some(braced) = rest.strip_prefix('{') {
-        let close = braced.find('}')?;
-        (&braced[..close], &braced[close + 1..])
-    } else {
-        let sep = rest.find("::")?;
-        (&rest[..sep], &rest[sep..])
-    };
+    let braced = head.strip_prefix("${")?;
+    let close = braced.find('}')?;
+    let (prefix, after) = (&braced[..close], &braced[close + 1..]);
     let tail = after.strip_prefix("::")?;
-    // A bare-form prefix must be a plain variable name (no `(` array index,
-    // no embedded `::` before the separator we split on); the brace form is
-    // already delimited.  Both prefix and tail must be non-empty.
+    // Both prefix and tail must be non-empty; a `${arr(key)}` array element is
+    // not an ensemble prefix.
     if prefix.is_empty() || tail.is_empty() || prefix.contains('(') {
         return None;
     }
@@ -10082,6 +10080,44 @@ mod tests {
                 .iter()
                 .any(|d| d.code == "W210" && d.message.contains("'a'")),
             "W210 expected for read after unset; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn try_handler_edge_merges_pretry_when_body_falls_through() {
+        // A body that *can* fall through normally but also contains an
+        // explicit throw (`if {$c} { error e }; set y 2`) reaches the handler
+        // by an abnormal completion at *any* point, so `y` is only *maybe*
+        // defined — W210 must still fire on the handler's `$y` read. Sourcing
+        // the on-error edge only from the explicit-throw block (after `set y 2`
+        // failed to run) would wrongly suppress it. Mirrors Python `_lower_try`.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(
+            "proc f {c} {\n try {\n  if {$c} { error e }\n  set y 2\n } on error {} {\n  puts $y\n }\n}\n",
+        );
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            "W210 expected for handler read of maybe-undef y; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn try_handler_edge_suppressed_when_var_set_before_sole_throw() {
+        // `set x 1; error boom` — the body has no normal fall-through and `x`
+        // is set before the sole throw, so the handler sees `x` defined; no
+        // W210. Mirrors Python (and tclsh 9.0.3, which reads x == 1 here).
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(
+            "proc f {} {\n try {\n  set x 1\n  error boom\n } on error {} {\n  puts $x\n }\n}\n",
+        );
+        assert!(
+            !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+            "W210 must not fire when x is set before the sole throw; got {:?}",
             a.result.diagnostics,
         );
     }

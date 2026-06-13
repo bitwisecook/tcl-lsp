@@ -241,6 +241,12 @@ pub struct Backend {
     /// [`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]
     /// (`readability`).
     optimiser_profile: Mutex<tcl_compiler::optimiser::profiles::OptimisationProfile>,
+    /// Per-code optimiser overrides (`tclLsp.optimiser.<CODE>` = bool): a code
+    /// mapped to `true` is force-*enabled* (removed from the profile's disabled
+    /// set), `false` is force-*disabled* (added). Layered on top of the
+    /// profile-derived set, mirroring Python's per-code `disabled_optimisations`
+    /// adjustment in `settings.py`.
+    optimiser_code_overrides: Mutex<HashMap<String, bool>>,
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
@@ -436,6 +442,7 @@ impl Backend {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
+            optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
         }
     }
@@ -1571,6 +1578,20 @@ impl Backend {
             *self.optimiser_profile.lock().await =
                 tcl_compiler::optimiser::profiles::OptimisationProfile::parse(profile);
         }
+        // Per-code overrides: any `optimiser.<CODE>` boolean other than the
+        // `enabled` / `profile` keys force-enables (true) or force-disables
+        // (false) that O-code on top of the profile. Mirrors Python `settings.py`.
+        if let Some(opt) = cfg.get("optimiser").and_then(serde_json::Value::as_object) {
+            let mut overrides = self.optimiser_code_overrides.lock().await;
+            for (key, val) in opt {
+                if key == "enabled" || key == "profile" {
+                    continue;
+                }
+                if let Some(b) = val.as_bool() {
+                    overrides.insert(key.clone(), b);
+                }
+            }
+        }
         if let Some(len) = cfg
             .get("formatting")
             .and_then(|f| f.get("lineLength"))
@@ -1840,9 +1861,29 @@ impl Backend {
         let line_count = text.lines().count();
         let registry = self.registry_for_dialect(&dialect).await;
         let (disabled, na_mode) = self.analyser_config().await;
-        let opt_disabled = tcl_compiler::optimiser::profiles::profile_to_disabled(
-            *self.optimiser_profile.lock().await,
-        );
+        // The optimiser O-codes the diagnostics path must suppress: the active
+        // profile's disabled categories, then per-code user overrides applied on
+        // top (`tclLsp.optimiser.O111=false` adds, `=true` removes). The master
+        // `tclLsp.optimiser.enabled=false` switch suppresses every O-code.
+        // Mirrors Python's `disabled_optimisations` + `optimiser_enabled`.
+        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        let opt_disabled: std::collections::HashSet<String> = {
+            let mut set: std::collections::HashSet<String> =
+                tcl_compiler::optimiser::profiles::profile_to_disabled(
+                    *self.optimiser_profile.lock().await,
+                )
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
+                if *enabled {
+                    set.remove(code);
+                } else {
+                    set.insert(code.clone());
+                }
+            }
+            set
+        };
         let result = tokio::task::spawn_blocking(move || {
             let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
             let analysis = analyser.analyse(&text, &dialect).clone();
@@ -1851,6 +1892,7 @@ impl Backend {
                 &text,
                 &registry,
                 &dialect,
+                optimiser_enabled,
                 &opt_disabled,
             ));
             // GAP-C1 strip 2: source-style pass (W111 / W112 / W115
@@ -4150,7 +4192,8 @@ fn lift_compiler_diagnostics(
     text: &str,
     registry: &CommandRegistry,
     dialect: &str,
-    disabled_optimisations: &std::collections::HashSet<&'static str>,
+    optimiser_enabled: bool,
+    disabled_optimisations: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
@@ -4172,7 +4215,18 @@ fn lift_compiler_diagnostics(
         tcl_lexer::LexerConfig::for_dialect(dialect),
     )
     .with_interprocedural(registry, dialect_opt);
+    // An optimiser O-code (`O1xx`) is gated by the `tclLsp.optimiser.enabled`
+    // master switch and the profile + per-code `disabled_optimisations` set,
+    // wherever it is emitted (some — e.g. the constant-branch `O100` — come
+    // from `run_all_checks` rather than `optimise_with_dialect`). Mirrors
+    // Python, whose `optimiser_enabled` gate covers every O-code.
+    let optimiser_suppressed = |code: &str| {
+        code.starts_with('O') && (!optimiser_enabled || disabled_optimisations.contains(code))
+    };
     for d in run_all_checks(&cu, registry, dialect_opt) {
+        if optimiser_suppressed(&d.code) {
+            continue;
+        }
         out.push(tower_lsp::lsp_types::Diagnostic {
             range: lift_span(text, &line_index, d.span),
             severity: Some(match d.severity {
@@ -4192,11 +4246,17 @@ fn lift_compiler_diagnostics(
 
     // Optimiser O-codes — actionable + hint-only rewrites, surfaced
     // as HINT-severity suggestions (the editor renders the code-action
-    // fix from the diagnostic; the fix plumbing itself is GAP-C3).
-    for o in optimise_with_dialect(text, registry, dialect_opt) {
-        // Profile gate: the active optimisation profile disables whole
-        // O-code categories (the default `readability` profile surfaces
-        // only readability rewrites). Mirrors the Python server's
+    // fix from the diagnostic; the fix plumbing itself is GAP-C3). The
+    // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
+    // block, mirroring Python's `if optimiser_enabled:` gate.
+    for o in optimise_with_dialect(text, registry, dialect_opt)
+        .into_iter()
+        .filter(|_| optimiser_enabled)
+    {
+        // Profile + per-code gate: the active profile disables whole O-code
+        // categories (the default `readability` profile surfaces only
+        // readability rewrites) and per-code `tclLsp.optimiser.O1xx=false`
+        // overrides add to that. Mirrors the Python server's
         // `disabled_optimisations` filter.
         if disabled_optimisations.contains(o.code.as_str()) {
             continue;
@@ -4670,7 +4730,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let diags =
-            lift_compiler_diagnostics(src, &registry, "", &std::collections::HashSet::new());
+            lift_compiler_diagnostics(src, &registry, "", true, &std::collections::HashSet::new());
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
@@ -4681,6 +4741,30 @@ mod tests {
         );
         // Every lifted diagnostic carries the shared source tag.
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
+    }
+
+    #[test]
+    fn lift_compiler_diagnostics_honours_optimiser_master_switch_and_per_code() {
+        let registry = CommandRegistry::build_default();
+        let src = "if {1} { set x 1 } else { set y 2 }\n";
+        let is_o100 = |d: &tower_lsp::lsp_types::Diagnostic| matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100");
+        // Master switch off: no optimiser O-codes at all (compiler checks still run).
+        let off =
+            lift_compiler_diagnostics(src, &registry, "", false, &std::collections::HashSet::new());
+        assert!(
+            !off.iter().any(is_o100),
+            "O100 must be suppressed when the optimiser master switch is off: {:?}",
+            off.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+        // Per-code disable: O100 specifically suppressed even with the optimiser on.
+        let mut disabled = std::collections::HashSet::new();
+        disabled.insert("O100".to_string());
+        let per_code = lift_compiler_diagnostics(src, &registry, "", true, &disabled);
+        assert!(
+            !per_code.iter().any(is_o100),
+            "O100 must be suppressed when disabled per-code: {:?}",
+            per_code.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
     }
 
     /// An iRules taint flow (`HTTP::uri` → `HTTP::respond`) is an
@@ -4695,6 +4779,7 @@ mod tests {
             src,
             &registry,
             "f5-irules",
+            true,
             &std::collections::HashSet::new(),
         );
         assert!(
@@ -5213,6 +5298,7 @@ mod tests {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
+            optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
         }
     }
