@@ -1708,6 +1708,17 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `trace` command/execution/step + lifecycle | **125 / 168** | 43 (0 timeout) | **10818 / 19027** |
 | + `lset` (list-element set in a variable) | **126 / 168** | 42 (0 timeout) | **10870 / 19027** |
 | + `lsort` options (`-stride`/`-index`/`-dictionary`/`-command`/`-indices`) | **128 / 168** | 40 (0 timeout) | **11116 / 19027** |
+| + `lsearch` options (`-sorted`/`-index`/`-stride`/`-regexp`/`-subindices`/…) | **128 / 168** | 40 (0 timeout) | **11216 / 19027** |
+
+The 2026-06-13 **`lsearch`-options** increment (**+100 tests, zero
+regressions**) — completed `lsearch` from the `-exact`/`-glob`/`-nocase`/`-all`/
+`-not`/`-inline` subset to the full `Tcl_LsearchObjCmd`: the `-sorted` binary
+search (+`-bisect`, `-increasing`/`-decreasing`), datatypes `-ascii`/
+`-dictionary`/`-integer`/`-real` (numeric elements validated lazily, as C does),
+`-regexp` (via the runtime regex engine), `-index` (nested key), `-stride`
+(+leading-`-index` group offset), `-start`, and `-subindices`. Shares
+`dictionary_compare`/`select_by_index`/`index_spec` with `lsort`. Byte-identical
+to `tclsh9.0`. `lsearch.test` 30 → 130.
 
 The 2026-06-13 **`lsort`-options** increment (**+246 tests, zero regressions**)
 — completed `lsort` from the `-ascii`/`-integer`/`-real`/`-nocase`/`-unique`
@@ -2045,6 +2056,17 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`lsearch` option completion)
+
+`lsearch` (`cmd_list.rs`) completed to the full `Tcl_LsearchObjCmd`: `-sorted`
+binary search (`-bisect`, `-increasing`/`-decreasing`), `-ascii`/`-dictionary`/
+`-integer`/`-real` datatypes (elements validated lazily during the scan, per C),
+`-regexp` (runtime regex engine), `-index`/`-stride` (with the leading-`-index`
+group offset), `-start`, `-subindices` — added to the existing exact/glob/
+nocase/all/not/inline. Shares `dictionary_compare`/`select_by_index`/`index_spec`
+with `lsort`. No Zig fix back-ported (mirror `8150eca`); byte-checked against
+`tclsh9.0`. `lsearch.test` 30 → 130; sweep **11116 → 11216**, zero regressions.
+
 ### SYNC inbound — 2026-06-13 (`lsort` option completion)
 
 `lsort` (`cmd_list.rs`) completed to the full `Tcl_LsortObjCmd` switch set —
@@ -2277,12 +2299,13 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11116/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11216/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`
-    49 → 195, `lset` unblocked `reg.test`/`lsetComp.test`, and the full
-    `lsort` option set took `error.test` 123 → 261 and `cmdIL.test` 48 → 125).
+    49 → 195, `lset` unblocked `reg.test`/`lsetComp.test`, the full
+    `lsort` option set took `error.test` 123 → 261 and `cmdIL.test` 48 → 125,
+    and the full `lsearch` option set took `lsearch.test` 30 → 130).
     Run the **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
