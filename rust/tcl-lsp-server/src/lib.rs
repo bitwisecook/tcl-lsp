@@ -250,6 +250,18 @@ pub struct Backend {
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
+    /// Incremental query database (salsa 0.26) — the single memoised store of
+    /// derived facts that is replacing the hand-maintained caches above.  The
+    /// `db` handle is the write side (set inputs); reads clone it onto a
+    /// worker thread and catch `salsa::Cancelled` when a newer edit supersedes
+    /// the request.
+    db: Mutex<tcl_lsp_db::TclDatabase>,
+    /// Per-URI salsa `SourceFile` input handles — the input-of-record the
+    /// query graph reads.  Kept current by `did_open` / `did_change`.
+    db_files: Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>,
+    /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
+    /// mode); `set_*` on `workspace/didChangeConfiguration`.
+    db_config: Mutex<tcl_lsp_db::AnalyserConfig>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -425,6 +437,8 @@ impl Backend {
     /// providers when the document store has no override.
     #[must_use]
     pub fn new(client: Client) -> Self {
+        let db = tcl_lsp_db::TclDatabase::default();
+        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
         Self {
             client,
             documents: Mutex::new(HashMap::new()),
@@ -444,7 +458,71 @@ impl Backend {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            db: Mutex::new(db),
+            db_files: Mutex::new(HashMap::new()),
+            db_config: Mutex::new(db_config),
         }
+    }
+
+    /// Create or update the salsa `SourceFile` input for `uri`.  Called by
+    /// `did_open` / `did_change` so the query graph always reads current text.
+    /// Lock order is always `db` then `db_files`.
+    async fn db_set_source(&self, uri: &Url, text: String, dialect: String) {
+        use salsa::Setter as _;
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        if let Some(&file) = files.get(uri) {
+            file.set_text(&mut *db).to(text);
+            file.set_dialect(&mut *db).to(dialect);
+        } else {
+            let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect);
+            files.insert(uri.clone(), file);
+        }
+    }
+
+    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).
+    async fn db_remove_source(&self, uri: &Url) {
+        self.db_files.lock().await.remove(uri);
+    }
+
+    /// Mirror the editor analyser config (disabled diagnostics + non-ASCII
+    /// mode) onto the salsa `AnalyserConfig` input.  The disabled set is
+    /// sorted so the input value is stable (a `HashSet` iteration order change
+    /// must not look like an edit to salsa).
+    async fn sync_db_config(&self) {
+        use salsa::Setter as _;
+        let mut disabled: Vec<String> = self
+            .disabled_diagnostics
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect();
+        disabled.sort();
+        let mode = *self.non_ascii_mode.lock().await;
+        let config = *self.db_config.lock().await;
+        let mut db = self.db.lock().await;
+        config.set_disabled_diagnostics(&mut *db).to(disabled);
+        config.set_non_ascii_mode(&mut *db).to(mode);
+    }
+
+    /// Run the salsa `document_symbols` query for `uri` on a worker thread,
+    /// reading the current `SourceFile` input.  Returns `None` when the input
+    /// is absent or a concurrent edit cancels the read, so the caller can fall
+    /// back to a direct computation (behaviour preserved).
+    async fn db_document_symbols(
+        &self,
+        uri: &Url,
+    ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = *self.db_config.lock().await;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&snapshot, file, config)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
     }
 
     /// Read the cached `AnalysisResult` for `uri` if one
@@ -1613,6 +1691,9 @@ impl Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
+        // Mirror the applied analyser knobs onto the salsa config input so the
+        // query graph recomputes against the latest settings.
+        self.sync_db_config().await;
     }
 
     /// Whether the named `tclLsp.features.*` provider is enabled.
@@ -2108,6 +2189,8 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             (0, Some(version))
         };
+        self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
+            .await;
         self.publish_analyser_diagnostics(uri, text, dialect_for_diags, revision, version)
             .await;
     }
@@ -2165,6 +2248,8 @@ impl LanguageServer for Backend {
                 .remove_document(uri.as_str());
             (text, dialect, revision, version)
         };
+        self.db_set_source(&uri, text.clone(), dialect.clone())
+            .await;
         self.publish_analyser_diagnostics(uri, text, dialect, revision, version)
             .await;
     }
@@ -2224,6 +2309,7 @@ impl LanguageServer for Backend {
                 .publish_diagnostics(uri.clone(), Vec::new(), None)
                 .await;
         }
+        self.db_remove_source(uri).await;
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
         // the on-disk index, so cross-document definition /
@@ -2268,10 +2354,13 @@ impl LanguageServer for Backend {
         // ever carries an empty `name` (#534).
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
             core_bigip::document_symbols(&doc.text)
+        } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
+            // Served from the salsa query graph (memoised; reuses the tracked
+            // file_analysis instead of re-running the full analyser).
+            symbols
         } else {
-            // Reuse the cached per-document analysis instead of re-running the
-            // full analyser on every request (the dominant documentSymbol cost
-            // on large files).
+            // Cold / cancelled fallback: compute directly so the request never
+            // returns empty due to a concurrent edit (behaviour preserved).
             let analysis = self
                 .analysis_for(
                     &params.text_document.uri,
@@ -5291,6 +5380,8 @@ mod tests {
     /// fresh `Backend` with reset state.
     fn test_backend() -> Backend {
         let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+        let db = tcl_lsp_db::TclDatabase::default();
+        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
         Backend {
             client: service.inner().client.clone(),
             documents: Mutex::new(HashMap::new()),
@@ -5310,6 +5401,9 @@ mod tests {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            db: Mutex::new(db),
+            db_files: Mutex::new(HashMap::new()),
+            db_config: Mutex::new(db_config),
         }
     }
 
