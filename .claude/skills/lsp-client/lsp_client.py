@@ -1034,7 +1034,7 @@ def cmd_optimize(client: LspClient, uri: str, content: str) -> None:
     result = client.send_request(
         "workspace/executeCommand",
         {
-            "command": "tcl-lsp.optimizeDocument",
+            "command": "tcl-lsp.optimiseDocument",
             "arguments": [uri],
         },
     )

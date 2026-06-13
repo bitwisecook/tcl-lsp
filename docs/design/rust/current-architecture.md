@@ -22,10 +22,17 @@
    +---------------+   +---------------+   +-----------------+
    | tcl-compiler  |   | tcl-lsp-core  |   | tcl-lsp-server  |
    |  IR/CFG/SSA   |   | folding,      |   | tower-lsp       |
-   |  analyses,    |   | symbols,      |   | binary +        |
-   |  codegen      |   | diagnostics   |   | folding +       |
-   |               |   |               |   | document symbols|
+   |  analyses,    |   | symbols,      |   | binary; holds   |
+   |  codegen      |   | diagnostics   |   | the query db    |
+   |               |   |               |   | + async diags   |
    +---------------+   +---------------+   +-----------------+
+            ^                  ^                 |
+            |                  |                 v
+            +---------+--------+        +-----------------+
+                      |                 |  tcl-lsp-db     |  salsa 0.26 query
+                      +-----------------|  inputs +       |  database (incremental
+                                        |  tracked queries|  analysis foundation)
+                                        +-----------------+
                           ^
                           |
                   +--------------+
@@ -160,6 +167,47 @@ New LSP features land in `tcl-lsp-core`; any Python-facing wiring
 lives in a thin per-feature `*_binding.rs` file under
 `tcl-lsp-py/src/features/` that re-exports via `#[pyfunction]`.
 
+## LSP server runtime — query database + async diagnostics
+
+The native server (`tcl-lsp-server`) is no longer a bag of hand-maintained
+caches. Its runtime state is:
+
+- **`tcl-lsp-db` (salsa 0.26) query database.** `Backend` holds an
+  `Arc<Mutex<TclDatabase>>`. Inputs: per-URI `SourceFile { text, dialect }` and
+  a shared `AnalyserConfig { disabled_diagnostics, non_ascii_mode }`. Tracked
+  queries wrap the existing sync providers: `file_analysis` (→
+  `Arc<AnalysisResult>`), `document_symbols`, `semantic_tokens`, `folding_ranges`.
+  The static command registry is carried as a durable field on the db (read via
+  the `TclDb` trait), not a salsa input, so queries needn't make
+  `CommandRegistry: PartialEq`. `AnalysisResult` derives `PartialEq` for salsa's
+  no-unsafe `Update`/early-cutoff (the workspace forbids `unsafe`).
+- **Caches eliminated.** The former `analyses`, `hover_cache`,
+  `semantic_tokens_cache`, and `dialect_registries` maps are gone — replaced by
+  the query graph + the durable registry. `did_open`/`did_change` set the
+  `SourceFile` input once (the single invalidation point); reads clone the db
+  handle onto a `spawn_blocking` worker and catch `salsa::Cancelled`. Only
+  `workspace_index` (cross-document aggregate + disk scan) remains a manual
+  structure for now.
+- **Diagnostics are async + debounced.** `did_open`/`did_change` call
+  `schedule_diagnostics`, which spawns the work after a 50 ms debounce (a burst
+  of edits collapses to one run via a per-URI generation check) and returns
+  immediately — the message loop is never blocked on analysis. The diagnostics
+  path computes its base analysis with a *direct* `Analyser::analyse` (not the
+  salsa query) on a blocking worker: salsa's `set_text` takes global write
+  exclusivity, so a diagnostic read-handle held across the uncancellable analyse
+  would block the next edit's write and stall worker threads. Interactive read
+  handlers still use the memoised queries.
+- **Shared CompilationUnit.** `lift_compiler_diagnostics` builds one
+  `CompilationUnit` and runs both `run_all_checks` and `optimiser::optimise_unit`
+  over it (no double lowering).
+
+Measured impact (practcl.tcl, 8463 lines): post-edit interactive latency
+~1080 ms → **1–20 ms** (async diagnostics); documentSymbol across a 119-file
+corpus ~8.2 s → **43 ms** (Python → memoised Rust); diagnostics ~1.4 s → ~1.3 s
+(shared CU). The remaining ~1 s diagnostic cost is the whole-file analyser walk,
+which **per-item incremental analysis** targets — see
+[`incremental-analysis.md`](incremental-analysis.md).
+
 ## Where to add a new fact
 
 | Fact | Home |
@@ -174,6 +222,15 @@ lives in a thin per-feature `*_binding.rs` file under
 
 ## Related
 
+- [`lsp-performance.md`](lsp-performance.md) — measured Python-vs-Rust results,
+  the optimisations shipped, and how to reproduce every number.
+- [`incremental-analysis.md`](incremental-analysis.md) — the per-item
+  incremental-analysis design, query graph, cascade, and staged plan.
+- [`incremental-analysis-experiments.md`](incremental-analysis-experiments.md) —
+  corpus, every Phase-0 experiment, discoveries, results snapshot, and the
+  reasoning behind the plan.
+- [`target-architecture.md`](target-architecture.md) — the zero-copy /
+  single-parse / MVCC destination (salsa engine decision recorded).
 - [`docs/rust-rewrite.md`](../../rust-rewrite.md) — chunking
   strategy, principles, chunk log.
 - [`docs/kcs/kcs-qa-rust-shim-env-vars.md`](../../kcs/kcs-qa-rust-shim-env-vars.md) —
