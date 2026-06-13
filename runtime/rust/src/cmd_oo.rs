@@ -30,11 +30,17 @@ use crate::list;
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
 
-/// A method: a normal body, or a `forward` to a command prefix.
+/// A native method handler `(interp, object, args) -> Code`, invoked without a
+/// Tcl call frame (so `info level` inside any method it calls is unchanged) —
+/// used for the `::oo::Slot` operations.
+type NativeMethod = fn(&mut Interp, &[u8], &[*mut TclObj]) -> Code;
+
+/// A method: a normal body, a `forward` to a command prefix, or a native handler.
 #[derive(Clone)]
 enum Method {
     Body { params: Vec<Param>, body: Vec<u8> },
     Forward { prefix: Vec<Vec<u8>> },
+    Builtin(NativeMethod),
 }
 
 /// A class definition.
@@ -219,12 +225,61 @@ pub fn install(interp: &mut Interp) {
         interp.ns_register(fqn, Command::OoObject(fqn.to_vec()));
         interp.oo_register_my(fqn);
     }
+    // `oo::object` has a built-in (unexported) `unknown` method — the standard
+    // "unknown method" error, and the terminus of the `unknown` call chain.
+    if let Some(c) = interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(b"::oo::object".as_slice())
+    {
+        c.methods
+            .insert(b"unknown".to_vec(), Method::Builtin(oo_object_unknown));
+        c.unexported.insert(b"unknown".to_vec());
+    }
     let _ =
         interp.eval_str(b"namespace eval ::oo {variable version 1.3.1; variable patchlevel 1.3.1}");
     // The definition namespaces exist as real namespaces (TIP 524 lets user
     // code put them on a `namespace path`); the actual definition subcommands
     // are resolved by the global builtins + the define-context fallback.
     let _ = interp.eval_str(b"namespace eval ::oo::define {}; namespace eval ::oo::objdefine {}");
+    install_slot_class(interp);
+}
+
+/// Define `::oo::Slot` (TIP 380): the overridable `Get`/`Set`/`Resolve` and the
+/// `unknown`-driven defaulting are pure Tcl; the `-set`/`-append`/… operations
+/// are native so they add no call frame (the `info level` the ops observe
+/// matches C). The default operation is `-append` (subclasses override it).
+fn install_slot_class(interp: &mut Interp) {
+    let _ = interp.eval_str(
+        b"oo::class create ::oo::Slot {\n\
+            method Get {} { return {} }\n\
+            method Set list { return }\n\
+            method Resolve x { return $x }\n\
+            method --default-operation args { my -append {*}$args }\n\
+            method unknown args { my --default-operation {*}$args }\n\
+            unexport Get Set Resolve --default-operation unknown\n\
+          }",
+    );
+    // Inject the native list operations as methods on the class.
+    let ops: &[(&[u8], NativeMethod)] = &[
+        (b"-set", slot_m_set),
+        (b"-append", slot_m_append),
+        (b"-prepend", slot_m_prepend),
+        (b"-remove", slot_m_remove),
+        (b"-appendifnew", slot_m_appendifnew),
+        (b"-clear", slot_m_clear),
+    ];
+    if let Some(cl) = interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(b"::oo::Slot".as_slice())
+    {
+        for (name, f) in ops {
+            cl.methods.insert(name.to_vec(), Method::Builtin(*f));
+        }
+    }
 }
 
 fn err(interp: &mut Interp, msg: &[u8]) -> Code {
@@ -924,6 +979,117 @@ fn slot_apply(op: &SlotOp, current: &[Vec<u8>], values: &[Vec<u8>]) -> Vec<Vec<u
             v
         }
     }
+}
+
+// -- the `::oo::Slot` class (TIP 380) ----------------------------------------
+//
+// The public operations are *native* methods so they add no Tcl call frame:
+// the overridable `Get`/`Set`/`Resolve` they invoke therefore run at the same
+// `info level` the C implementation reports.
+
+/// Invoke `obj`'s `method` with byte-string `args` (internally, so private
+/// `Get`/`Set`/`Resolve` are reachable), returning its result bytes.
+fn slot_call(
+    interp: &mut Interp,
+    obj: &[u8],
+    method: &[u8],
+    args: &[Vec<u8>],
+) -> Result<Vec<u8>, Code> {
+    let argv: Vec<*mut TclObj> = args.iter().map(|a| obj::new_string_bytes(a)).collect();
+    for &a in &argv {
+        unsafe { obj::incr_ref_count(a) };
+    }
+    let code = interp.oo_invoke(obj, method, &argv, false);
+    for &a in &argv {
+        unsafe { obj::decr_ref_count(a) };
+    }
+    if code == Code::Ok {
+        Ok(interp.result_bytes())
+    } else {
+        Err(code)
+    }
+}
+
+/// Parse a Tcl list string into its elements.
+fn parse_list(s: &[u8]) -> Vec<Vec<u8>> {
+    let o = obj::new_string_bytes(s);
+    unsafe { obj::incr_ref_count(o) };
+    let out = match list::list_elements(o) {
+        Ok(elems) => elems.iter().map(|&e| obj_bytes(e)).collect(),
+        Err(_) => Vec::new(),
+    };
+    unsafe { obj::decr_ref_count(o) };
+    out
+}
+
+/// Build a Tcl list string from elements.
+fn build_list(elems: &[Vec<u8>]) -> Vec<u8> {
+    let objs: Vec<*mut TclObj> = elems.iter().map(|e| obj::new_string_bytes(e)).collect();
+    let l = list::new_list_obj(&objs);
+    let s = obj_bytes(l);
+    crate::interp::drop_fresh(l);
+    s
+}
+
+/// Run a slot operation: `Resolve` each arg, `Get` the current list (except for
+/// `-set`/`-clear`), apply the op, then `Set` the result.
+fn slot_run_op(interp: &mut Interp, obj: &[u8], op: &SlotOp, args: &[*mut TclObj]) -> Code {
+    let new = match op {
+        SlotOp::Clear => Vec::new(),
+        _ => {
+            // Resolve each argument in turn.
+            let mut resolved: Vec<Vec<u8>> = Vec::with_capacity(args.len());
+            for &a in args {
+                match slot_call(interp, obj, b"Resolve", &[obj_bytes(a)]) {
+                    Ok(r) => resolved.push(r),
+                    Err(c) => return c,
+                }
+            }
+            if matches!(op, SlotOp::Set) {
+                resolved
+            } else {
+                let cur = match slot_call(interp, obj, b"Get", &[]) {
+                    Ok(r) => parse_list(&r),
+                    Err(c) => return c,
+                };
+                slot_apply(op, &cur, &resolved)
+            }
+        }
+    };
+    match slot_call(interp, obj, b"Set", &[build_list(&new)]) {
+        Ok(_) => {
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        Err(c) => c,
+    }
+}
+
+fn slot_m_set(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+    slot_run_op(i, o, &SlotOp::Set, a)
+}
+fn slot_m_append(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+    slot_run_op(i, o, &SlotOp::Append, a)
+}
+fn slot_m_prepend(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+    slot_run_op(i, o, &SlotOp::Prepend, a)
+}
+fn slot_m_remove(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+    slot_run_op(i, o, &SlotOp::Remove, a)
+}
+fn slot_m_appendifnew(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+    slot_run_op(i, o, &SlotOp::AppendIfNew, a)
+}
+fn slot_m_clear(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+    slot_run_op(i, o, &SlotOp::Clear, a)
+}
+
+/// `oo::object`'s built-in `unknown` method: the standard "unknown method"
+/// error. It is the end of the `unknown` call chain, so a user `unknown` that
+/// does `next` lands here. `args[0]` is the originally-requested method name.
+fn oo_object_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+    let method = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
+    interp.oo_unknown_method(obj, &method)
 }
 
 /// `mixin ?class ...?` — set the mixins of the current class/object.
@@ -1802,7 +1968,7 @@ fn info_methodtype(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class:
         }
     };
     match m {
-        Some(Method::Body { .. }) => {
+        Some(Method::Body { .. } | Method::Builtin(_)) => {
             interp.set_result_bytes(b"method");
             Code::Ok
         }
@@ -2502,6 +2668,28 @@ impl Interp {
                     return code;
                 }
             }
+            // A user-defined `unknown` method handles the miss (the method name
+            // is prepended to the args), e.g. `oo::Slot`'s default-operation.
+            if method != b"unknown"
+                && providers
+                    .iter()
+                    .any(|p| self.oo_has_method(p, b"unknown", p.as_slice() == obj))
+            {
+                let head = obj::new_string_bytes(method);
+                unsafe { obj::incr_ref_count(head) };
+                let mut uargs: Vec<*mut TclObj> = vec![head];
+                for &a in args {
+                    unsafe { obj::incr_ref_count(a) };
+                    uargs.push(a);
+                }
+                // `unknown` is itself usually unexported, so dispatch it
+                // internally (it is the object's own fallback handler).
+                let code = self.oo_invoke(obj, b"unknown", &uargs, false);
+                for a in uargs {
+                    unsafe { obj::decr_ref_count(a) };
+                }
+                return code;
+            }
             return self.oo_unknown_method(obj, method);
         }
         // Filters wrap an *external* (public) call: prepend each active filter
@@ -2799,6 +2987,20 @@ impl Interp {
         let Some(m) = m else {
             return self.error(b"no such method");
         };
+
+        // A native method runs without a Tcl call frame (the OO context frame is
+        // already pushed by the caller for `self`/`my`).
+        if let Method::Builtin(f) = m {
+            self.oo.borrow_mut().call_stack.push(OoFrame {
+                object: obj.to_vec(),
+                chain,
+                index,
+                target: target.to_vec(),
+            });
+            let code = f(self, obj, args);
+            self.oo.borrow_mut().call_stack.pop();
+            return code;
+        }
 
         // A forward: build `prefix + args` and dispatch (with the OO context so a
         // forwarded `my`/`self` still works).
@@ -3331,6 +3533,37 @@ mod tests {
             ok(i, b"meta destroy");
             assert_eq!(i.eval_str(b"instance1 create x"), Code::Error);
             ok(i, b"oo::class create instance1");
+        });
+    }
+
+    #[test]
+    fn oo_slot_base_class() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"oo::class create SampleSlot {\n\
+                    superclass oo::Slot\n\
+                    constructor {} { variable contents {a b c} }\n\
+                    method contents {} { variable contents; return $contents }\n\
+                    method Get {} { variable contents; return $contents }\n\
+                    method Set {lst} { variable contents $lst; return }\n\
+                    method Resolve {x} { return $x }\n\
+                }",
+            );
+            ok(i, b"SampleSlot create s");
+            ok(i, b"s -append g h");
+            assert_eq!(ok(i, b"s contents"), b"a b c g h");
+            ok(i, b"s -set d e");
+            assert_eq!(ok(i, b"s contents"), b"d e");
+            ok(i, b"s -prepend x");
+            assert_eq!(ok(i, b"s contents"), b"x d e");
+            ok(i, b"s -remove d");
+            assert_eq!(ok(i, b"s contents"), b"x e");
+            ok(i, b"s -clear");
+            assert_eq!(ok(i, b"s contents"), b"");
+            // Defaulting: a bare value goes through `unknown` → -append.
+            ok(i, b"s p q");
+            assert_eq!(ok(i, b"s contents"), b"p q");
         });
     }
 
