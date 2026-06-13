@@ -10,13 +10,31 @@
 >   leaves every *preceding* item byte-identical in 345/349 files. The **4
 >   exceptions are all global-variable diagnostics** (W210 read-before-set /
 >   W211 set-but-unused) that span procs — a real, narrow cross-item class.
-> - **Implication.** The per-item firewall is sound for ~99% of edits, but
->   **global-variable usage is a cross-item fact**: W210/W211 must read a
->   `global_var_usage(file)` aggregate (so a body edit that changes a global's
->   read/write set cascades to the relevant diagnostics), or those files fall
->   back to a full rebuild. Either way **correctness is guaranteed by the
->   fuzzer + full-rebuild fallback** below — item-locality is a *perf* heuristic,
->   not the correctness contract.
+> - **E2 — GO (100%).** Prepending K blank lines and un-shifting every fact by
+>   K reproduces the original `AnalysisResult` for 598/598 corpus files — the
+>   analyser is fully offset-shift-invariant, so per-item facts produced at
+>   offset 0 rebase exactly. (Validates the slice-2 relative-offset model.)
+> - **E6 — GO.** On practcl: CompilationUnit build ~118 ms / 115 procs ≈ 1 ms
+>   per proc; the interproc `pure`/effects fixpoint is only ~10.6 ms; per-proc
+>   lattice recompute + interproc cascade is cheap.
+> - **E7 — GO.** `optimise_with_dialect` rebuilds its own CU+interproc (~129 ms
+>   redundant); sharing one CompilationUnit with `run_all_checks` recovers it.
+> - **E5 — FOUND A GAP (the fuzzer works).** The differential fuzzer
+>   (`tests/differential_incremental.rs`, `incremental == fresh` under random
+>   edits) shows `analyse_incremental` diverges from `analyse`. Root cause: even
+>   *unedited*, `analyse(src) != analyse_commands(src, segment(src), true)` —
+>   **`all_procs` match, but the diagnostic sets differ**. So the existing
+>   pre-segmented entry point is not diagnostic-equivalent to `analyse`. The
+>   structural analysis is already incremental-sound; the per-item build's job is
+>   to make **diagnostic emission byte-identical to `analyse`**, with the fuzzer
+>   as the gate and the full-rebuild fallback for anything it can't match.
+> - **Implication / decision.** The per-item firewall is sound for ~99% of
+>   edits, but **global-variable usage is a cross-item fact** (W210/W211 on
+>   globals span procs). **Decision: detect cross-proc global-var flow and fall
+>   back to a full rebuild for those files** (~1%) rather than model a
+>   `global_var_usage` aggregate — simpler, and correctness is unconditional via
+>   the fallback. Item-locality is a *perf* heuristic; the correctness contract
+>   is the **fuzzer + full-rebuild fallback** below.
 
 > Design for making the Tcl analyser incremental at *item* granularity, so a
 > keystroke inside one proc recomputes that proc, not the whole file. Grounded

@@ -177,4 +177,143 @@ fn main() {
     for e in &examples {
         println!("{e}");
     }
+
+    e2_offset_invariance(&files, dialect);
+    e6_e7_lattice_costs(&root, dialect);
+}
+
+/// E2: the whole analyser is offset-shift-invariant — prepend K blank lines and
+/// every fact must reappear shifted by exactly K bytes / K lines. Validates that
+/// per-item facts can be produced at offset 0 and rebased.
+fn e2_offset_invariance(files: &[PathBuf], dialect: &str) {
+    const K: u32 = 10; // blank lines; 1 byte each
+    let (mut tested, mut ok, mut bad) = (0usize, 0usize, 0usize);
+    let mut examples: Vec<String> = Vec::new();
+    for path in files {
+        let Ok(src) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        if src.len() > 250_000 || src.is_empty() {
+            continue;
+        }
+        let r0 = analyse(&src, dialect);
+        let src2 = format!("{}{}", "\n".repeat(K as usize), src);
+        let r1 = analyse(&src2, dialect);
+        tested += 1;
+        // proc spans, un-shifted, must match
+        let procs0: std::collections::BTreeSet<_> = r0
+            .all_procs
+            .values()
+            .map(|p| {
+                (
+                    p.qualified_name.clone(),
+                    p.name_span.start(),
+                    p.body_span.start(),
+                    p.body_span.end(),
+                )
+            })
+            .collect();
+        let procs1: std::collections::BTreeSet<_> = r1
+            .all_procs
+            .values()
+            .map(|p| {
+                (
+                    p.qualified_name.clone(),
+                    p.name_span.start().saturating_sub(K),
+                    p.body_span.start().saturating_sub(K),
+                    p.body_span.end().saturating_sub(K),
+                )
+            })
+            .collect();
+        // diagnostics (code, start), un-shifted
+        let d0: std::collections::BTreeSet<_> = r0
+            .diagnostics
+            .iter()
+            .map(|d| (d.code.clone(), d.span.start()))
+            .collect();
+        let d1: std::collections::BTreeSet<_> = r1
+            .diagnostics
+            .iter()
+            .map(|d| (d.code.clone(), d.span.start().saturating_sub(K)))
+            .collect();
+        if procs0 == procs1 && d0 == d1 {
+            ok += 1;
+        } else {
+            bad += 1;
+            if examples.len() < 6 {
+                let dd: Vec<_> = d1.symmetric_difference(&d0).take(3).collect();
+                examples.push(format!(
+                    "  SHIFT-DIFF {}: procs_eq={} diag_delta={:?}",
+                    path.file_name().unwrap().to_string_lossy(),
+                    procs0 == procs1,
+                    dd
+                ));
+            }
+        }
+    }
+    println!("\n== E2 offset-invariance (prepend {K} blank lines, un-shift, compare) ==");
+    println!(
+        "  tested {tested}: {ok} invariant, {bad} differ ({:.1}% invariant)",
+        100.0 * ok as f64 / tested.max(1) as f64
+    );
+    for e in &examples {
+        println!("{e}");
+    }
+}
+
+/// E6/E7: CompilationUnit + interproc + optimiser costs (the lattice layer), and
+/// the redundant-build saving a shared CompilationUnit would recover.
+fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
+    use tcl_compiler::compilation_unit::CompilationUnit;
+    use tcl_compiler::compiler_checks::run_all_checks;
+    use tcl_compiler::optimiser::optimise_with_dialect;
+    let practcl = root.join("tcllib-2.0/modules/practcl/practcl.tcl");
+    let Ok(src) = std::fs::read_to_string(&practcl) else {
+        return;
+    };
+    let mut reg = tcl_registry::CommandRegistry::build_default();
+    if let Some(d) = tcl_registry::dialects::DialectSet::parse(dialect) {
+        reg.load_dialect(d);
+    }
+    let n = 3;
+    let time = |f: &dyn Fn()| {
+        f();
+        let s = Instant::now();
+        for _ in 0..n {
+            f();
+        }
+        s.elapsed().as_secs_f64() * 1000.0 / n as f64
+    };
+    let cfg = LexerConfig::for_dialect(dialect);
+    let t_cu = time(&|| {
+        let _ = CompilationUnit::build_for_with_config(&src, &reg, false, cfg);
+    });
+    let t_cu_ip = time(&|| {
+        let _ = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
+            .with_interprocedural(&reg, Some(dialect));
+    });
+    let t_checks = time(&|| {
+        let cu = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
+            .with_interprocedural(&reg, Some(dialect));
+        let _ = run_all_checks(&cu, &reg, Some(dialect));
+    });
+    let t_opt = time(&|| {
+        let _ = optimise_with_dialect(&src, &reg, Some(dialect));
+    });
+    let nprocs = CompilationUnit::build_for_with_config(&src, &reg, false, cfg)
+        .procedures
+        .len();
+    println!("\n== E6 lattice costs (practcl, {nprocs} procs) ==");
+    println!("  CompilationUnit build:        {t_cu:7.1} ms");
+    println!(
+        "  + with_interprocedural:       {t_cu_ip:7.1} ms  (interproc {:.1} ms)",
+        t_cu_ip - t_cu
+    );
+    println!("  + run_all_checks:             {t_checks:7.1} ms");
+    println!("  optimise_with_dialect:        {t_opt:7.1} ms  (rebuilds its own CU+interproc)");
+    println!(
+        "== E7 shared-CompilationUnit saving ~= redundant CU+interproc build = {:.1} ms => {}",
+        t_cu_ip,
+        if t_cu_ip > 30.0 { "GO" } else { "marginal" }
+    );
 }
