@@ -108,6 +108,9 @@ pub struct OoState {
     counter: usize,
     def_stack: Vec<DefTarget>,
     call_stack: Vec<OoFrame>,
+    /// Non-zero while inside a `private` definition modifier — methods defined
+    /// then are marked unexported (callable only via `my`).
+    private_depth: usize,
 }
 
 /// Register the `oo::*` commands and the definition / context commands.
@@ -128,6 +131,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"mixin", def_mixin);
     interp.register_builtin(b"forward", def_forward);
     interp.register_builtin(b"filter", def_filter);
+    interp.register_builtin(b"private", def_private);
     // Method-context commands. `my` is created *per object* (in each object's
     // namespace) like C TclOO — never global — so a test's `rename ::my {}`
     // can't break it. `self`/`next` resolve via the call stack.
@@ -163,11 +167,49 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-fn unknown_method(interp: &mut Interp, m: &[u8]) -> Code {
-    let mut msg = b"unknown method \"".to_vec();
-    msg.extend_from_slice(m);
-    msg.extend_from_slice(b"\": must be a supported method");
-    interp.set_error(&msg)
+impl Interp {
+    /// `unknown method "X": must be <public methods + built-ins>` — the C TclOO
+    /// error, listing the callable methods (sorted, `a, b or c` style).
+    fn oo_unknown_method(&mut self, obj: &[u8], requested: &[u8]) -> Code {
+        let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
+        if self.oo.borrow().classes.contains_key(obj) {
+            // A class object responds to the class built-ins.
+            names.insert(b"create".to_vec());
+            names.insert(b"new".to_vec());
+        }
+        names.insert(b"destroy".to_vec());
+        for p in self.method_chain(obj) {
+            let is_object = p == obj;
+            let oo = self.oo.borrow();
+            let (methods, unexp): (Vec<Vec<u8>>, &BTreeSet<Vec<u8>>) = if is_object {
+                match oo.objects.get(&p) {
+                    Some(o) => (o.methods.keys().cloned().collect(), &o.unexported),
+                    None => continue,
+                }
+            } else {
+                match oo.classes.get(&p) {
+                    Some(c) => (c.methods.keys().cloned().collect(), &c.unexported),
+                    None => continue,
+                }
+            };
+            for m in methods {
+                if !unexp.contains(&m) {
+                    names.insert(m);
+                }
+            }
+        }
+        let names: Vec<Vec<u8>> = names.into_iter().collect();
+        let mut msg = b"unknown method \"".to_vec();
+        msg.extend_from_slice(requested);
+        msg.extend_from_slice(b"\": must be ");
+        for (i, n) in names.iter().enumerate() {
+            if i > 0 {
+                msg.extend_from_slice(if i == names.len() - 1 { b" or " } else { b", " });
+            }
+            msg.extend_from_slice(n);
+        }
+        self.error(&msg)
+    }
 }
 
 // -- oo::class / oo::object / oo::define / oo::objdefine ---------------------
@@ -284,20 +326,36 @@ fn def_target(interp: &mut Interp) -> Result<DefTarget, Code> {
 
 /// Install `method` into the current definition target (class or object).
 fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
+    let private = interp.oo.borrow().private_depth > 0;
+    install_method_vis(interp, name, m, private)
+}
+
+/// Install a method; `private` marks it unexported (callable only via `my`).
+fn install_method_vis(interp: &mut Interp, name: Vec<u8>, m: Method, private: bool) -> Code {
     let ok = match def_target(interp) {
         Ok(DefTarget::Class(c)) => {
             let mut oo = interp.oo.borrow_mut();
-            oo.classes
-                .get_mut(&c)
-                .map(|cl| cl.methods.insert(name, m))
-                .is_some()
+            oo.classes.get_mut(&c).is_some_and(|cl| {
+                cl.methods.insert(name.clone(), m);
+                if private {
+                    cl.unexported.insert(name);
+                } else {
+                    cl.unexported.remove(&name);
+                }
+                true
+            })
         }
         Ok(DefTarget::Object(o)) => {
             let mut oo = interp.oo.borrow_mut();
-            oo.objects
-                .get_mut(&o)
-                .map(|ob| ob.methods.insert(name, m))
-                .is_some()
+            oo.objects.get_mut(&o).is_some_and(|ob| {
+                ob.methods.insert(name.clone(), m);
+                if private {
+                    ob.unexported.insert(name);
+                } else {
+                    ob.unexported.remove(&name);
+                }
+                true
+            })
         }
         Err(code) => return code,
     };
@@ -308,21 +366,46 @@ fn install_method(interp: &mut Interp, name: Vec<u8>, m: Method) -> Code {
     Code::Ok
 }
 
-fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(interp, b"method name args body");
+/// `private cmd ?arg ...?` / `private { script }` — a definition modifier that
+/// marks the methods/variables it defines as private (`my`-only). TIP 500.
+fn def_private(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"private cmd ?arg ...?");
     }
-    let params = match crate::cmd_proc::parse_params(&obj_bytes(argv[2])) {
+    interp.oo.borrow_mut().private_depth += 1;
+    let code = if argv.len() == 2 {
+        interp.eval_str(&obj_bytes(argv[1]))
+    } else {
+        interp.dispatch(&argv[1..])
+    };
+    interp.oo.borrow_mut().private_depth -= 1;
+    code
+}
+
+fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // `method name ?-export|-private? args body` (the visibility flag is TIP 500).
+    let (priv_flag, rest): (Option<bool>, &[*mut TclObj]) = match argv.get(2).map(|&a| obj_bytes(a))
+    {
+        Some(f) if f == b"-private" => (Some(true), &argv[3..]),
+        Some(f) if f == b"-export" => (Some(false), &argv[3..]),
+        _ => (None, &argv[2..]),
+    };
+    if rest.len() != 2 {
+        return wrong_args(interp, b"method name ?option? args body");
+    }
+    let params = match crate::cmd_proc::parse_params(&obj_bytes(rest[0])) {
         Ok(p) => p,
         Err(e) => return err(interp, &e),
     };
-    install_method(
+    let private = priv_flag.unwrap_or_else(|| interp.oo.borrow().private_depth > 0);
+    install_method_vis(
         interp,
         obj_bytes(argv[1]),
         Method::Body {
             params,
-            body: obj_bytes(argv[3]),
+            body: obj_bytes(rest[1]),
         },
+        private,
     )
 }
 
@@ -1081,7 +1164,7 @@ impl Interp {
             })
             .collect();
         if steps.is_empty() {
-            return unknown_method(self, method);
+            return self.oo_unknown_method(obj, method);
         }
         // Filters wrap an *external* (public) call: prepend each active filter
         // method as its own step (resolved to the provider defining it).

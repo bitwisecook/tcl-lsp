@@ -1715,6 +1715,9 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + OO object-lifetime sync on `rename`/delete | **128 / 168** | 40 (0 timeout) | **11536 / 19027** |
 | + TclOO classes-as-objects (`oo::define … self`, class methods) | **128 / 168** | 40 (0 timeout) | **11542 / 19027** |
 | + TclOO call-chain refactor + `filter`s + `info` oo subcommands | **128 / 168** | 40 (0 timeout) | **11546 / 19027** |
+| + TclOO class-destroy cascades to subclasses | **128 / 168** | 40 (0 timeout) | **11557 / 19027** |
+| + TclOO per-object `my` (not global) | **128 / 168** | 40 (0 timeout) | **11561 / 19027** |
+| + TclOO `private` methods + `unknown` method-list message | **128 / 168** | 40 (0 timeout) | **11572 / 19027** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1743,6 +1746,25 @@ could panic a later method dispatch (now a clean `object … has been deleted`).
 The bulk of `oo.test` remains the TclOO **meta-protocol** (filters, private
 methods, `my`/`self` subcommands, classes-as-objects, full C3 linearisation) —
 the deferred 3-file blocker.
+
+The 2026-06-13 **TclOO meta-protocol** chunks (**+13 tests over three commits,
+zero regressions**, `oo.test` 56 → 71):
+1. **class-destroy cascade** — `oo_destroy_class` now recursively destroys
+   subclasses (classes listing this one as a superclass or mixin) before its
+   instances, matching `TclOO`'s "a class's epoch invalidates its dependants";
+   without it the dominant `oo.test` cleanup-cascade left half-deleted classes
+   that could not be recreated (`oo.test` 45 → 56, sweep 11546 → 11557).
+2. **per-object `my`** — C `TclOO` creates `my` in each *object's* namespace,
+   not globally; the tests' cleanup idiom `catch {rename ::my {}}` previously
+   deleted our single global `my` and broke every later object. `my` is now
+   registered as `<fqn>::my` per object (`oo.test` 56 → 60, sweep 11557 →
+   11561).
+3. **`private` + `unknown` method list** — the `private` define-subcommand and
+   `method -private`/`-export` flags mark a method unexported (`o secret` →
+   unknown, `my secret` → works), and an unknown method now emits the C
+   `unknown method "X": must be a, b or destroy` enumeration (sorted, non-Oxford
+   join; classes also list `create`/`new`). Byte-identical to `tclsh9.0`
+   (`oo.test` 60 → 71, sweep 11561 → 11572).
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2380,7 +2402,10 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11546/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11572/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
+    destroy cascade, per-object `my`, `private` methods + `unknown` method
+    list) took `oo.test` 45 → 71, the 2026-06-13 `ledit`/`lmap`/`lseq` +
+    var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`
