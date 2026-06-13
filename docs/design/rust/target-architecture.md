@@ -1,5 +1,26 @@
 # Target architecture — zero-copy, single-parse, incremental, MVCC
 
+> **Status (foundational phase landed).** Decision **D2** is resolved to
+> **A — `salsa`** (0.26). The incremental query database lives in the new
+> `rust/tcl-lsp-db` crate: inputs `SourceFile` / `AnalyserConfig`, tracked
+> queries `file_analysis` / `document_symbols` / `semantic_tokens` /
+> `folding_ranges`, and the static command registry carried as a durable
+> field (read via the `TclDb` trait, not a salsa input). `AnalysisResult`
+> derives `PartialEq` so salsa's no-unsafe `Update` fallback gives early
+> cutoff (the workspace forbids `unsafe`). The server (`Backend`) holds the
+> db; reads clone the handle onto a worker and catch `salsa::Cancelled`
+> (Layer 5 read path), writes set inputs. Four of the five hand-maintained
+> server caches — `analyses`, `hover_cache`, `semantic_tokens_cache`,
+> `dialect_registries` — are **deleted**, their invalidation replaced by the
+> single `SourceFile` input bump. **Still to do** (tracked here): the
+> cross-document `workspace_index` → a cross-file query (with the disk-scan
+> path folded into lazily-created inputs), removal of the residual
+> `document_analysis_gate` that the index still needs, and the per-item
+> firewall (`item_tree` + per-body `item_analysis`) that turns per-keystroke
+> work from O(file) into O(edited item) — `file_analysis` is coarse
+> (whole-file) for now, so the cascade's cheapness (firewall + per-item)
+> is not yet realised.
+
 > Forward-looking companion to
 > [`current-architecture.md`](current-architecture.md). Records the
 > architectural destination the Rust workspace is converging on, set by
