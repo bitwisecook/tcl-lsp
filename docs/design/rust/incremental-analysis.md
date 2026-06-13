@@ -1,5 +1,12 @@
 # Incremental analysis — per-item walk with cascade invalidation
 
+> Companions: the full experiment lab notebook (corpus, every experiment,
+> discoveries, and the reasoning that produced this plan) is in
+> [`incremental-analysis-experiments.md`](incremental-analysis-experiments.md);
+> the shipped perf work and measurements are in
+> [`lsp-performance.md`](lsp-performance.md); the runtime model in
+> [`current-architecture.md`](current-architecture.md).
+
 > **Phase-0 experiment findings** (`rust/tcl-compiler/examples/incr_experiments.rs`,
 > over tcl8.6 + tcllib corpus):
 > - **E3 — GO.** On practcl.tcl the per-proc *walk* is ~82% of `analyse`
@@ -187,3 +194,54 @@ existing `analyse_incremental` guard), fall back to a full walk.
 `cargo test --workspace` (incl. differential corpus), `make test-lsp-e2e-rust`,
 and `scripts/dev/bench_lsp_backends.py` heavy-edit (target: single-proc edit on
 practcl.tcl from ~1 s to low-ms).
+
+## Implementation status
+
+| Piece | State |
+|---|---|
+| salsa query DB (`tcl-lsp-db`): inputs + `file_analysis`/`document_symbols`/`semantic_tokens`/`folding_ranges` | **shipped** |
+| Server caches → queries (`analyses`/`hover`/`semantic_tokens`/`dialect_registries` deleted) | **shipped** |
+| Async + debounced diagnostics (heavy-edit fix) | **shipped** |
+| Shared CompilationUnit (E7) — `optimiser::optimise_unit` | **shipped** |
+| Phase-0 experiments E1–E8 + differential fuzzer + cascade prototype | **shipped** (this doc's findings) |
+| Slice 1 — `item_tree`/`item_sig`/`file_decls` | **not started** (the build) |
+| Slice 2 — relative-offset item body analysis | not started (the bulk) |
+| Slice 3 — memoise `item_analysis` (the perf win) | not started |
+| Slice 4 — per-item lattices + `interproc` cascade | not started |
+| Slice 5 — cancellation-aware walk; retire the diagnostics detour + gate | not started |
+
+## How to run the experiments
+
+- **E1/E2/E3/E6/E7** (item-locality, offset-invariance, cost split, lattice
+  costs, shared-CU saving): `cargo run --release -p tcl-compiler --example
+  incr_experiments` (reads the `tmp/` corpus).
+- **E4/E8** (salsa early-cutoff + cascade breadth): `cargo test -p tcl-lsp-db
+  --test early_cutoff`.
+- **E5** (the differential fuzzer, `incremental == fresh`): `cargo test -p
+  tcl-compiler --test differential_incremental -- --ignored` (corpus-gated,
+  slow). Currently surfaces the pre-existing `analyse` vs `analyse_commands`
+  diagnostic inconsistency — slice 2 must close it; this test is the gate.
+
+## Slice-1 execution notes (for whoever picks it up)
+
+The non-trivial part of `item_tree` is reproducing the analyser's
+**namespace-qualified** item detection without divergence. The detection lives
+in the stateful scope walk:
+
+- `handle_proc_command` (`analyser/handlers.rs:292`): `name = args[0]`,
+  body span = `arg_tokens[2].span`, qualified via
+  `namespace_from_scope_path(scope_path)` + `qualify(ns, name)`
+  (`handlers.rs:65`, currently `pub(super)` — expose it).
+- `handle_namespace_eval_command` (`handlers.rs:477`) creates the child scope
+  whose path drives qualification; `oo::class create` /`oo::define`
+  (`handlers.rs:1154,1229`) for classes/methods; `interp alias` /`namespace
+  ensemble` for the alias/ensemble sets in `file_decls`.
+- Bodies can define **nested/global procs** (E1's perf-file finding) — the
+  extractor must recurse into bodies, and a body edit that adds/removes a nested
+  def is a *signature* change (cascade), not a pure body edit.
+
+The safest path is to derive `item_tree` from the **CST** the analyser already
+builds (so detection can't diverge), gated by a corpus test asserting
+`file_decls`'s proc/class/alias/ensemble set equals the current
+`AnalysisResult.all_procs`/`all_classes`/`command_aliases`/ensembles. Do not
+ship slice 1 until that test is green across the corpus.
