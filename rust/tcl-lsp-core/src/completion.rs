@@ -1,0 +1,1849 @@
+//! Completion provider — Rust port of
+//! `lsp/features/completion.py`.
+//!
+//! Wires the LSP completion surface for the three Tcl
+//! completion contexts the analyser surfaces today:
+//!
+//! * **Variable completion** — when the cursor sits immediately
+//!   after `$` (or inside a `${name}` braced reference), suggest
+//!   every variable name visible in the global scope.
+//! * **Proc-name completion** — at any other cursor position,
+//!   suggest every user-defined `proc` name that the analyser
+//!   recorded for the document.
+//! * **Built-in command completion** — at the same cursor
+//!   contexts as proc-name completion, also suggest every
+//!   command registered in the caller-provided
+//!   [`tcl_registry::CommandRegistry`].  This is part of the
+//!   `S-completion-rich` follow-up; the caller (server)
+//!   threads its already-built per-dialect registry through.
+//!   When no registry is provided, the completion surface
+//!   degrades cleanly to the minimal port's proc-only set.
+//!
+//! Subcommand-scoped argument-value completion has landed:
+//! when a subcommand declares `arg_values` for a positional
+//! slot (e.g. `string is <class>`), the matching character
+//! classes complete at that argument with `EnumValue` kind.
+//!
+//! Workspace-wide proc enumeration has landed: when the caller
+//! threads a [`crate::workspace_index::WorkspaceIndex`], procs
+//! defined in *other* analysed documents surface in the
+//! command/proc-completion fallback (deduped by label against
+//! the local set, sorted after local procs / built-ins via a
+//! `C0_…` sort key, detail tagged `(workspace)`).
+//!
+//! What is *still deferred* (planned as further
+//! `S-completion-rich` follow-ups):
+//!
+//! * Command-level (non-subcommand) argument-value completion
+//!   for the remaining registry-driven cases.
+//! * Dialect-specific arg rules beyond the trait-driven
+//!   patterns now landed: any command carrying
+//!   `Traits::IS_EVENT_HANDLER` triggers event-name completion
+//!   at word-index 1 (iRules `when EVENT`), and any command
+//!   carrying `Traits::INVOKES_USER_PROC` surfaces user-defined
+//!   proc names at word-index 1 (iRules `call PROC_NAME`).
+//! * Workspace-wide proc / RULE_INIT-var enumeration, usage-bucket
+//!   sort-text computation, and the `_proc_signature_str` rendering
+//!   for proc-completion details.
+//!
+//! Cache + `spawn_blocking` + cached-analysis read-out (analogous
+//! to `S-hover-sync11`) ride on top of this provider in
+//! `tcl-lsp-server::Backend::completion`; this module is the
+//! pure-CPU computation, no I/O, no async.
+
+use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
+use tcl_registry::CommandRegistry;
+
+use crate::definition::utf16_col_to_char_col;
+
+/// LSP completion-item kind for our surface.  Keep narrow —
+/// extend when richer completion lands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CompletionKind {
+    /// Tcl variable.
+    Variable,
+    /// User-defined proc.
+    #[default]
+    Function,
+    /// Enumerable argument value (e.g. a `string is <class>`
+    /// character class).
+    EnumValue,
+    /// A context-aware code snippet (GAP-A9).
+    Snippet,
+}
+
+/// A single completion suggestion.
+///
+/// Mirrors the subset of `lsprotocol.types.CompletionItem` we
+/// emit today: label, insert-text, kind, and an optional
+/// detail line.  The detail is what the editor shows in the
+/// right-hand column of the completion list (typically a
+/// parameter-list summary for procs).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CompletionItem {
+    /// Label shown in the completion list — for variables,
+    /// `$name` / `${name}`; for procs, the proc's qualified or
+    /// simple name.
+    pub label: String,
+    /// Text to insert when the item is accepted.
+    pub insert_text: String,
+    /// LSP completion kind.
+    pub kind: CompletionKind,
+    /// Optional detail text — typically a parameter-list
+    /// summary for procs / a synopsis line for built-in
+    /// commands.  `None` for items without extra detail.
+    pub detail: Option<String>,
+    /// Optional sort key.  When `Some`, the editor uses this
+    /// string instead of the label for ordering completion
+    /// results.  `S-completion-rich`'s usage-bucket scheme:
+    /// `A<tier><usage>_<name>` for user procs, `B<usage>_<name>`
+    /// for built-in commands.  Lower buckets sort first.
+    pub sort_text: Option<String>,
+    /// When `true`, `insert_text` is a VS Code snippet (tabstops
+    /// `${1:…}` / `$0`) and the server emits
+    /// `InsertTextFormat.Snippet` (GAP-A9).  Plain items leave it
+    /// `false`.
+    pub is_snippet: bool,
+    /// Optional `filterText` — what the editor matches the typed
+    /// prefix against (snippets filter on their `tcl-…` prefix,
+    /// not their human label).  `None` falls back to the label.
+    pub filter_text: Option<String>,
+    /// Optional explicit replacement edit.  When `Some`, the editor
+    /// applies `new_text` over the given single-line range (UTF-16
+    /// columns on the cursor line) verbatim instead of its own
+    /// word-based replacement — required so a `$`/`-` prefix isn't
+    /// duplicated or dropped on accept (var / switch / array
+    /// completion).
+    pub text_edit: Option<CompletionEdit>,
+    /// Optional documentation (rendered in the editor's completion
+    /// detail pane).  Distinct from `detail` (the one-line synopsis):
+    /// switches carry their option help here, built-in commands their
+    /// summary.  `None` for items with no extra docs.
+    pub documentation: Option<String>,
+}
+
+/// A single-line replacement edit attached to a [`CompletionItem`].
+/// `start_char` / `end_char` are UTF-16 columns on the cursor's line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionEdit {
+    /// Inclusive start column (UTF-16) of the replaced range.
+    pub start_char: u32,
+    /// Exclusive end column (UTF-16) of the replaced range.
+    pub end_char: u32,
+    /// Replacement text.
+    pub new_text: String,
+}
+
+/// `true` when `$name` lexes as a single bare variable token (so it
+/// needs no `${…}` braces).  Mirrors `shared/naming.py::is_bare_var_name`
+/// / the lexer's `_parse_var` rule: one or more `::`-separated segments
+/// of alnum / `_`, with an optional leading `::`.
+fn is_bare_var_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let s = name.strip_prefix("::").unwrap_or(name);
+    if s.is_empty() {
+        return false;
+    }
+    s.split("::")
+        .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_'))
+}
+
+/// Convert a codepoint column on `line_text` to a UTF-16 column (for
+/// LSP ranges).  The inverse of [`utf16_col_to_char_col`].
+fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
+    line_text
+        .chars()
+        .take(char_col)
+        .map(|c| u32::try_from(c.len_utf16()).unwrap_or(1))
+        .sum()
+}
+
+/// Compute completions for a position in `source`.
+///
+/// `analysis` is the pre-computed analyser result; the caller
+/// (server) is expected to cache it.  `registry`, when `Some`,
+/// extends proc-name completion with built-in command names —
+/// every command registered in the caller's dialect-aware
+/// registry surfaces at the same cursor contexts.  Returns an
+/// empty vector when there is no useful suggestion (delimiter
+/// run, EOF, etc.).
+///
+/// The trigger contexts checked in order:
+///
+/// 1. **Variable trigger** (`$prefix` / `${prefix}`) — short-
+///    circuits to global-scope variable names.
+/// 2. **Switch completion** — when the partial starts with `-`
+///    and the surrounding command's spec declares matching
+///    options.  Requires `registry`.
+/// 3. **Subcommand completion** — when the cursor is at word
+///    index 1 (i.e. the first argument of a command) and the
+///    surrounding command's spec declares subcommands.
+///    Requires `registry`.
+/// 4. **Command + proc completion** — default fallback:
+///    user-defined procs from `analysis.all_procs`, plus all
+///    built-in commands the `registry` knows about.
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
+    dialect: &str,
+) -> Vec<CompletionItem> {
+    if let Some((trigger, partial)) = variable_trigger(source, line, character) {
+        return variable_completions(
+            source,
+            line,
+            character,
+            &analysis.global_scope,
+            &partial,
+            trigger,
+        );
+    }
+    let partial = word_partial_at_position(source, line, character);
+
+    // Context-aware completions — switch + subcommand + event-name.
+    // All three require the caller-provided registry to look up
+    // the surrounding command's spec.  Without a registry we
+    // can't tell which switches / subcommands / events are valid,
+    // so fall through to plain command + proc completion.
+    if let Some(registry) = registry {
+        if let Some((cmd, word_idx)) = command_context_on_line(source, line, character) {
+            if let Some(spec) = registry.get(&cmd) {
+                // Switch completion fires when the identifier
+                // partial is preceded by a literal `-` on the
+                // line.  `word_partial_at_position` stops at the
+                // dash (it's not an identifier char), so detect
+                // the dash here and rebuild the switch partial.
+                if let Some(switch_partial) =
+                    switch_partial_at_position(source, line, character, &partial)
+                {
+                    if !spec.options.is_empty() {
+                        // Replacement range spans the `-partial` already typed
+                        // (dash column → cursor) so the dash isn't duplicated.
+                        let line_text = source.split('\n').nth(line as usize).unwrap_or("");
+                        let cursor_col = utf16_col_to_char_col(line_text, character)
+                            .min(line_text.chars().count());
+                        let dash_col = cursor_col.saturating_sub(switch_partial.chars().count());
+                        let edit = (
+                            char_col_to_utf16(line_text, dash_col),
+                            char_col_to_utf16(line_text, cursor_col),
+                        );
+                        return switch_completions(spec, &switch_partial, edit);
+                    }
+                }
+                // iRules `when EVENT { body }`: when the cursor is
+                // typing the first argument of an event-handler
+                // command, enumerate the known event names from the
+                // shared event registry.
+                if word_idx == 1 && spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER) {
+                    return event_name_completions(&partial);
+                }
+                // iRules `call PROC_NAME ?ARGS?`: when the cursor
+                // is typing the first argument of an
+                // `INVOKES_USER_PROC` command (today only `call`
+                // in iRules), surface user-defined proc names —
+                // and only those, not built-in commands.
+                if word_idx == 1
+                    && spec
+                        .traits
+                        .contains(tcl_registry::Traits::INVOKES_USER_PROC)
+                {
+                    let usage = document_usage_counts(analysis);
+                    return proc_completions(analysis, &partial, &usage);
+                }
+                if word_idx == 1 && !spec.subcommands.is_empty() {
+                    return subcommand_completions(spec, &partial);
+                }
+                // Subcommand argument-value completion — e.g.
+                // `string is <class>`.  When the cursor is at
+                // word-index ≥ 2 of a command whose subcommand
+                // (the word at index 1) declares enumerable
+                // values for that sub-arg position, list them.
+                if word_idx >= 2 {
+                    if let Some(sub_name) = nth_word_on_line(source, line, 1) {
+                        if let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name) {
+                            let sub_arg_idx = u8::try_from(word_idx - 2).unwrap_or(u8::MAX);
+                            let values = sub.arg_values_at(sub_arg_idx);
+                            if !values.is_empty() {
+                                return arg_value_completions(values, &partial);
+                            }
+                        }
+                    }
+                }
+                // Command-level positional arg-value completion — the
+                // bareword value sets declared directly on the command
+                // (not a subcommand).  Covers iRules `when EVENT timing
+                // enable|disable` and `HTTP::respond <status>
+                // content|noserver|version`.  The argument index is the
+                // 0-based position after the command name (`word_idx - 1`).
+                if word_idx >= 1 {
+                    let arg_idx = u8::try_from(word_idx - 1).unwrap_or(u8::MAX);
+                    let mut values = spec.arg_values_at(arg_idx);
+                    // `when`'s keyword tail carries an enumerable value
+                    // slot only after the `timing` keyword (the `priority`
+                    // keyword takes a numeric argument).  Mirror
+                    // completion.py::_when_argument_values — even-index
+                    // value slots are gated on the preceding literal being
+                    // `timing`.
+                    if spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
+                        && arg_idx >= 2
+                        && nth_word_on_line(source, line, word_idx - 1).as_deref() != Some("timing")
+                    {
+                        values = &[];
+                    }
+                    if !values.is_empty() {
+                        return arg_value_completions(values, &partial);
+                    }
+                }
+            }
+        }
+    }
+
+    let usage = document_usage_counts(analysis);
+    let mut items = proc_completions(analysis, &partial, &usage);
+    if let Some(registry) = registry {
+        items.extend(builtin_completions(registry, &partial, &usage));
+    }
+    // Workspace-wide proc enumeration: surface procs defined in
+    // *other* analysed documents that aren't already in the
+    // result.  Deduped by label against the current set so the
+    // current document's procs (already present above) and
+    // any same-named workspace proc don't double up.
+    if let Some(index) = workspace {
+        let present: std::collections::HashSet<String> =
+            items.iter().map(|i| i.label.clone()).collect();
+        let mut ws: Vec<&crate::workspace_index::WorkspaceProc> =
+            index.procs_matching(&partial, "");
+        // Stable, name-sorted order so cross-doc results don't
+        // jitter between requests.
+        ws.sort_unstable_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+        let mut seen_ws: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for proc in ws {
+            if present.contains(&proc.name) || !seen_ws.insert(proc.name.clone()) {
+                continue;
+            }
+            items.push(CompletionItem {
+                label: proc.name.clone(),
+                insert_text: proc.qualified_name.clone(),
+                kind: CompletionKind::Function,
+                detail: Some(workspace_proc_detail(proc)),
+                // Sort cross-document procs after local procs
+                // (`A…`) and built-ins (`B…`): `C0_<name>`.
+                sort_text: Some(format!("C0_{}", proc.name)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            });
+        }
+    }
+
+    // GAP-A9: context-aware snippet templates (`tcl-proc`, `tcl-if`,
+    // …).  Only the command-position fallback reaches here (the
+    // variable / switch / subcommand contexts returned earlier), so
+    // snippets never pollute `$var` or `-option` completion.  Their
+    // `Z0_…` sort key keeps them below real symbols, and the prefix
+    // filter means they only surface once the user types `tcl-…`.
+    let scope_vars: Vec<String> = analysis.global_scope.variables.keys().cloned().collect();
+    let snippet_partial = snippet_partial_at_position(source, line, character);
+    // `current_event` / `file_events` drive the iRules event templates'
+    // top-level guard and duplicate-event decline.  Only `f5-irules`
+    // carries those templates, so skip the segmentation otherwise.
+    let (current_event, file_events) = if dialect == "f5-irules" {
+        (
+            crate::irules_context::find_enclosing_when_event(source, line, dialect),
+            crate::irules_context::scan_file_events(source, dialect),
+        )
+    } else {
+        (None, Vec::new())
+    };
+    items.extend(crate::snippets::snippet_completions(
+        &crate::snippets::SnippetContext {
+            dialect,
+            indent_unit: "    ",
+            scope_vars: &scope_vars,
+            partial: &snippet_partial,
+            current_event: current_event.as_deref(),
+            file_events: &file_events,
+        },
+    ));
+    items
+}
+
+/// Detail line for a workspace (cross-document) proc
+/// completion — a param-count summary plus a marker so the
+/// user can tell it comes from another file.
+fn workspace_proc_detail(proc: &crate::workspace_index::WorkspaceProc) -> String {
+    let params = if proc.param_count == 1 {
+        "1 param".to_string()
+    } else {
+        format!("{} params", proc.param_count)
+    };
+    format!("{params} (workspace)")
+}
+
+/// Variable-trigger detection — `$prefix` or `${prefix}`.
+///
+/// Returns `Some((trigger_kind, partial))` where `trigger_kind`
+/// is `'$'` for plain `$` triggers and `'{'` for `${name}`
+/// braced triggers.  Returns `None` when the cursor is not in
+/// a variable-completion context.
+///
+/// Walks left from the cursor over identifier-continuation
+/// characters (alphanumeric, `_`, `:`), then checks whether the
+/// character preceding that run forms a recognised trigger:
+/// `$` for plain triggers, `${` for braced triggers.
+fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, String)> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+
+    // Run of identifier-continuation chars immediately before the cursor —
+    // that is the partial.  `(` is included so an array reference (`$arr(na`)
+    // is captured whole; the array branch in `variable_completions` then
+    // splits on it.
+    let mut start = col;
+    while start > 0
+        && (chars[start - 1].is_alphanumeric()
+            || chars[start - 1] == '_'
+            || chars[start - 1] == ':'
+            || chars[start - 1] == '(')
+    {
+        start -= 1;
+    }
+    let partial: String = chars[start..col].iter().collect();
+
+    // What sits immediately before the partial run?
+    if start == 0 {
+        return None;
+    }
+    if chars[start - 1] == '$' {
+        return Some(('$', partial));
+    }
+    if start >= 2 && chars[start - 2] == '$' && chars[start - 1] == '{' {
+        return Some(('{', partial));
+    }
+    None
+}
+
+/// Word-partial extraction for proc-name completion.
+///
+/// Returns the run of identifier-like chars immediately to the
+/// left of the cursor (the "partial" the user has typed so far).
+fn word_partial_at_position(source: &str, line: u32, character: u32) -> String {
+    let Some(line_text) = source.split('\n').nth(line as usize) else {
+        return String::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let mut start = col;
+    while start > 0
+        && (chars[start - 1].is_alphanumeric()
+            || chars[start - 1] == '_'
+            || chars[start - 1] == ':')
+    {
+        start -= 1;
+    }
+    chars[start..col].iter().collect()
+}
+
+/// Like [`word_partial_at_position`] but also treats `-` as a word
+/// character, so a `tcl-…` snippet prefix is captured whole (GAP-A9).
+fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> String {
+    let Some(line_text) = source.split('\n').nth(line as usize) else {
+        return String::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let mut start = col;
+    while start > 0 && (chars[start - 1].is_alphanumeric() || matches!(chars[start - 1], '_' | '-'))
+    {
+        start -= 1;
+    }
+    chars[start..col].iter().collect()
+}
+
+/// `true` when offering `$<name>` / `${<name>}` would round-trip back to
+/// the runtime variable — i.e. the raw scope key carries no `}` / `\` /
+/// newline that the brace parser couldn't reproduce.  Conservative port of
+/// `completion.py::_var_is_substitutable` (the full backslash analysis isn't
+/// needed: a name with a `\` or `}` is dropped from the suggestion set, which
+/// is what the `omits_unsubstitutable_brace_names` case requires).
+fn var_is_substitutable(name: &str) -> bool {
+    !name.contains('}') && !name.contains('\\') && !name.contains('\n')
+}
+
+#[allow(clippy::too_many_lines)]
+fn variable_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    scope: &Scope,
+    partial: &str,
+    trigger: char,
+) -> Vec<CompletionItem> {
+    let line_text = source.split('\n').nth(line as usize).unwrap_or("");
+    let chars: Vec<char> = line_text.chars().collect();
+    let line_len = chars.len();
+    let cursor_col = utf16_col_to_char_col(line_text, character).min(line_len);
+
+    // Locate the `$` that opens this reference (scan left from the cursor).
+    let dollar = chars[..cursor_col].iter().rposition(|&c| c == '$');
+    let has_open_brace =
+        trigger == '{' || dollar.is_some_and(|d| d + 1 < line_len && chars[d + 1] == '{');
+
+    // Scan forward to the end of the existing reference so the edit replaces
+    // the whole token (mirrors completion.py: brace form tracks `{}` depth and
+    // `\X` pairs; bare form takes alnum / `_` / `::`).
+    let mut end = cursor_col;
+    if has_open_brace {
+        let mut depth: i32 = 0;
+        while end < line_len {
+            match chars[end] {
+                '}' if depth == 0 => {
+                    end += 1;
+                    break;
+                }
+                '{' => {
+                    depth += 1;
+                    end += 1;
+                }
+                '}' => {
+                    depth -= 1;
+                    end += 1;
+                }
+                '\\' => {
+                    end += 1;
+                    if end < line_len {
+                        end += 1;
+                    }
+                }
+                _ => end += 1,
+            }
+        }
+    } else {
+        while end < line_len {
+            let ch = chars[end];
+            if ch.is_alphanumeric() || ch == '_' {
+                end += 1;
+            } else if ch == ':' && end + 1 < line_len && chars[end + 1] == ':' {
+                end += 2;
+            } else {
+                break;
+            }
+        }
+    }
+    let edit_start = dollar.map(|d| char_col_to_utf16(line_text, d));
+    let edit_end = char_col_to_utf16(line_text, end);
+
+    let byte_offset = crate::definition::byte_offset_at(source, line, character);
+
+    // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
+    // indices of `arr` as `$arr(index)`.  Mirrors completion.py's `(` branch.
+    if let Some(paren) = partial.find('(') {
+        let arr_name = partial[..paren].trim_start_matches('{');
+        let elem_prefix = &partial[paren + 1..];
+        if let Some(arr_def) =
+            crate::definition::lookup_var_in_scope_chain(scope, byte_offset, arr_name)
+        {
+            if !arr_def.array_indices.is_empty() && is_bare_var_name(arr_name) {
+                // Extend the replace range to swallow an existing `)`.
+                let mut arr_end = end;
+                let line_chars: Vec<char> = line_text.chars().collect();
+                while arr_end < line_chars.len() && line_chars[arr_end] != ')' {
+                    arr_end += 1;
+                }
+                if arr_end < line_chars.len() && line_chars[arr_end] == ')' {
+                    arr_end += 1;
+                }
+                let arr_edit_end = char_col_to_utf16(line_text, arr_end);
+                let mut items = Vec::new();
+                for elem in &arr_def.array_indices {
+                    if elem.is_empty() || elem.contains(')') {
+                        continue;
+                    }
+                    if !elem_prefix.is_empty() && !elem.starts_with(elem_prefix) {
+                        continue;
+                    }
+                    let new_text = format!("${arr_name}({elem})");
+                    let text_edit = edit_start.map(|start_char| CompletionEdit {
+                        start_char,
+                        end_char: arr_edit_end,
+                        new_text: new_text.clone(),
+                    });
+                    items.push(CompletionItem {
+                        label: format!("${arr_name}({elem})"),
+                        insert_text: new_text,
+                        kind: CompletionKind::Variable,
+                        detail: None,
+                        sort_text: None,
+                        is_snippet: false,
+                        filter_text: None,
+                        text_edit,
+                        documentation: None,
+                    });
+                }
+                items.sort_by(|a, b| a.label.cmp(&b.label));
+                return items;
+            }
+        }
+        return Vec::new();
+    }
+
+    // Scope-aware: union of variables visible at the cursor (innermost scope
+    // first, then enclosing scopes up to the global root).
+    let mut names: Vec<String> = crate::definition::visible_variable_names(scope, byte_offset)
+        .into_iter()
+        .filter(|n| n.starts_with(partial) && var_is_substitutable(n))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+
+    let mut items = Vec::new();
+    for name in names {
+        // Force the `${…}` form when the user already typed `${`, or when the
+        // bare `$name` syntax can't carry the name (hyphens, dots, …).
+        let use_brace = has_open_brace || !is_bare_var_name(&name);
+        let new_text = if use_brace {
+            format!("${{{name}}}")
+        } else {
+            format!("${name}")
+        };
+        let text_edit = edit_start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: edit_end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label: format!("${name}"),
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: None,
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
+
+    // Cross-namespace candidates — variables in *other* namespaces, offered in
+    // fully-qualified `::ns::var` form (vars in the cursor's own namespace
+    // chain are already above as bare names).  Mirrors completion.py.
+    let mut seen: std::collections::HashSet<String> =
+        items.iter().map(|i| i.label.clone()).collect();
+    let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
+    let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
+    qnames.sort_unstable();
+    qnames.dedup();
+    for qname in qnames {
+        if !qname.starts_with(partial) || !var_is_substitutable(&qname) {
+            continue;
+        }
+        let label = format!("${qname}");
+        if !seen.insert(label.clone()) {
+            continue;
+        }
+        let use_brace = has_open_brace || !is_bare_var_name(&qname);
+        let new_text = if use_brace {
+            format!("${{{qname}}}")
+        } else {
+            format!("${qname}")
+        };
+        let text_edit = edit_start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: edit_end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label,
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: Some("namespace variable".to_string()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
+    items
+}
+
+/// Determine the surrounding command's name and the cursor's
+/// word index on the current line.  Returns `(command,
+/// word_index)` where `word_index` is the 0-based position of
+/// the cursor (0 = typing the command name, 1 = typing the
+/// first argument, etc.).
+///
+/// **Single-line context only.**  Continuation lines, embedded
+/// `[…]` / `{…}` token nesting, and `;` command separators are
+/// deferred to the same multi-line-aware machinery
+/// `S-signature-help-rich` will eventually land — see
+/// `core/parsing/find_command_context_*` for the Python
+/// reference.  The single-line approach covers the common
+/// editor cases (cursor on the same logical line as the
+/// command head) and shares its shape with the single-line
+/// helper in [`crate::signature_help`].
+fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(String, usize)> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let prefix: String = chars[..col].iter().collect();
+
+    // Tokenise on whitespace.  The first token is the command;
+    // the count of subsequent tokens (adjusted for whether the
+    // cursor sits mid-token) gives the word index.
+    let tokens: Vec<&str> = prefix.split_whitespace().collect();
+    if tokens.is_empty() {
+        return None;
+    }
+    let command = tokens[0].to_owned();
+
+    // If the prefix ends with whitespace the cursor is *between*
+    // tokens — at the start of a fresh word.  Otherwise the
+    // cursor is inside the last token.
+    let ends_in_space = prefix.ends_with(|c: char| c.is_whitespace());
+    let word_index = if ends_in_space {
+        tokens.len()
+    } else {
+        tokens.len().saturating_sub(1)
+    };
+    Some((command, word_index))
+}
+
+/// Detect a `-switch` partial at the cursor.  Returns
+/// `Some(switch_partial)` (including the leading dash) when
+/// the character immediately preceding the identifier run
+/// before the cursor is a `-`; returns `None` otherwise.
+///
+/// `partial` is the identifier-only partial computed by
+/// [`word_partial_at_position`]; the helper reconstructs the
+/// switch-aware partial by prepending the dash without
+/// re-walking the line.
+fn switch_partial_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    partial: &str,
+) -> Option<String> {
+    let line_text = source.split('\n').nth(line as usize)?;
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let start = col.checked_sub(partial.chars().count())?;
+    if start == 0 {
+        return None;
+    }
+    if chars[start - 1] != '-' {
+        return None;
+    }
+    Some(format!("-{partial}"))
+}
+
+fn switch_completions(
+    spec: &tcl_registry::CommandSpec,
+    partial: &str,
+    edit: (u32, u32),
+) -> Vec<CompletionItem> {
+    let mut opts: Vec<_> = spec
+        .options
+        .iter()
+        .filter(|opt| partial.is_empty() || opt.name.starts_with(partial))
+        .collect();
+    opts.sort_unstable_by_key(|opt| opt.name);
+    opts.into_iter()
+        .map(|opt| {
+            let doc = (!opt.detail.is_empty()).then(|| opt.detail.to_owned());
+            CompletionItem {
+                label: opt.name.to_owned(),
+                insert_text: opt.name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: doc.clone(),
+                documentation: doc,
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: Some(CompletionEdit {
+                    start_char: edit.0,
+                    end_char: edit.1,
+                    new_text: opt.name.to_owned(),
+                }),
+            }
+        })
+        .collect()
+}
+
+/// Compute iRules event-name completions for `when EVENT { body }`.
+/// Returns one [`CompletionItem`] per event registered in the
+/// shared [`tcl_registry::events::EventRegistry`] whose name starts
+/// with `partial` (case-sensitive — event names are all-uppercase
+/// snake-case by convention).
+///
+/// The registry is built once per call.  `EventRegistry::build`
+/// materialises a small static table at runtime; for completion
+/// (one call per user keystroke at a `when ` site) that's
+/// negligible.  Threading a cached registry through the public
+/// `completions()` signature would force every caller to plumb it
+/// even when iRules isn't in scope, so we keep it local instead.
+fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
+    let reg = tcl_registry::events::EventRegistry::build();
+    let mut names: Vec<&str> = reg
+        .all_event_names()
+        .into_iter()
+        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .collect();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| {
+            // Describe the event from its registry props (sides / transport /
+            // implied profiles) so the item carries documentation.
+            let doc = reg.get_props(name).map(|p| {
+                let mut parts = vec![format!("F5 iRules event `{name}`")];
+                if !p.implied_profiles.is_empty() {
+                    parts.push(format!("Profiles: {}", p.implied_profiles.join(", ")));
+                }
+                if p.deprecated {
+                    parts.push("Deprecated".to_string());
+                }
+                parts.join("\n\n")
+            });
+            CompletionItem {
+                label: name.to_owned(),
+                insert_text: name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: Some("F5 iRules event".to_string()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: doc.or_else(|| Some(format!("F5 iRules event `{name}`"))),
+            }
+        })
+        .collect()
+}
+
+fn subcommand_completions(spec: &tcl_registry::CommandSpec, partial: &str) -> Vec<CompletionItem> {
+    let mut names: Vec<&str> = spec
+        .subcommands
+        .iter()
+        .map(|sub| sub.name)
+        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .collect();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| CompletionItem {
+            label: name.to_owned(),
+            insert_text: name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: None,
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        })
+        .collect()
+}
+
+/// Return the `n`-th whitespace-delimited word on `line` of
+/// `source` (0-based), if present.  Used to recover the
+/// subcommand keyword (word index 1) for argument-value
+/// completion.
+fn nth_word_on_line(source: &str, line: u32, n: usize) -> Option<String> {
+    source
+        .split('\n')
+        .nth(line as usize)?
+        .split_whitespace()
+        .nth(n)
+        .map(str::to_owned)
+}
+
+/// Build completions for a fixed set of enumerable argument
+/// values (e.g. `string is <class>`), filtered by `partial`.
+fn arg_value_completions(values: &[tcl_registry::ArgValue], partial: &str) -> Vec<CompletionItem> {
+    let mut items: Vec<CompletionItem> = values
+        .iter()
+        .filter(|v| partial.is_empty() || v.value.starts_with(partial))
+        .map(|v| CompletionItem {
+            label: v.value.to_owned(),
+            insert_text: v.value.to_owned(),
+            kind: CompletionKind::EnumValue,
+            detail: (!v.detail.is_empty()).then(|| v.detail.to_owned()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        })
+        .collect();
+    items.sort_unstable_by(|a, b| a.label.cmp(&b.label));
+    items
+}
+
+/// Math operators that the registry registers as commands
+/// (Tcl 9's `tcl::mathop` exposes them as commands) but that
+/// don't make sense as completion items at a command position.
+/// Mirrors the same filter applied in
+/// `lsp/features/completion.py::426-428`.
+const SKIP_BUILTIN_NAMES: &[&str] = &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="];
+
+/// Map a usage count to its sort bucket (lower is better).
+/// Mirrors `_usage_bucket` in `lsp/features/completion.py`.
+fn usage_bucket(count: usize) -> u8 {
+    match count {
+        c if c >= 50 => 0,
+        c if c >= 20 => 1,
+        c if c >= 8 => 2,
+        c if c >= 3 => 3,
+        c if c >= 1 => 4,
+        _ => 5,
+    }
+}
+
+/// Build a `HashMap<command_name, usage_count>` from the
+/// analyser's per-document `command_invocations`.  Used as a
+/// best-effort proxy for the Python provider's
+/// workspace-wide usage counts until a workspace index lands.
+fn document_usage_counts(analysis: &AnalysisResult) -> std::collections::HashMap<String, usize> {
+    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for inv in &analysis.command_invocations {
+        *counts.entry(inv.name.clone()).or_insert(0) += 1;
+        if let Some(q) = inv.resolved_qualified_name.as_deref() {
+            if q != inv.name {
+                *counts.entry(q.to_owned()).or_insert(0) += 1;
+            }
+        }
+    }
+    counts
+}
+
+fn builtin_sort_text(name: &str, usage: usize) -> String {
+    // `B<usage>_<name>` — built-ins sort after user procs (`A…`)
+    // but before any item with no `sort_text`.  The two-digit
+    // bucket prevents lexicographic confusion between 1 and 10.
+    let rank = usage_bucket(usage);
+    format!("B{rank:02}_{name}")
+}
+
+fn builtin_completions(
+    registry: &CommandRegistry,
+    partial: &str,
+    usage: &std::collections::HashMap<String, usize>,
+) -> Vec<CompletionItem> {
+    let mut names: Vec<&str> = registry
+        .command_names()
+        .filter(|n| partial.is_empty() || n.starts_with(partial))
+        .filter(|n| !SKIP_BUILTIN_NAMES.iter().any(|skip| skip == n))
+        .collect();
+    names.sort_unstable();
+    names
+        .into_iter()
+        .map(|name| {
+            let count = usage.get(name).copied().unwrap_or(0);
+            let spec = registry.get(name);
+            CompletionItem {
+                label: name.to_owned(),
+                insert_text: name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: spec.map(command_detail),
+                sort_text: Some(builtin_sort_text(name, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: spec
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned()),
+            }
+        })
+        .collect()
+}
+
+/// Completion-detail provenance string for a built-in command:
+/// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Mirrors
+/// `lsp/features/completion.py::_command_detail` (tcllib takes
+/// precedence over a plain `required_package`).
+fn command_detail(spec: &tcl_registry::CommandSpec) -> String {
+    if let Some(pkg) = spec.tcllib_package {
+        format!("tcllib ({pkg})")
+    } else if let Some(pkg) = spec.required_package {
+        if pkg == "Tk" {
+            "Tk".to_string()
+        } else {
+            format!("stdlib ({pkg})")
+        }
+    } else {
+        "built-in".to_string()
+    }
+}
+
+/// Render a parameter-list summary for a proc completion's
+/// `detail` field.  Mirrors Python's `_proc_signature_str`.
+/// Returns `"(no args)"` for paramless procs, otherwise a
+/// space-separated list with `{name default}` for optional
+/// params.
+fn proc_signature_str(proc_def: &ProcDef) -> String {
+    if proc_def.params.is_empty() {
+        return "(no args)".to_string();
+    }
+    proc_def
+        .params
+        .iter()
+        .map(|p| {
+            if p.has_default {
+                let default = p.default_value.as_deref().unwrap_or("");
+                format!("{{{} {}}}", p.name, default)
+            } else {
+                p.name.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn proc_sort_text(name: &str, usage: usize) -> String {
+    // `A<tier><usage>_<name>` — `tier = 0` reserved for
+    // single-document user procs (the current minimal port);
+    // `tier = 1` opens up once workspace-index lands and
+    // we differentiate same-file procs from workspace ones.
+    let rank = usage_bucket(usage);
+    format!("A0{rank:02}_{name}")
+}
+
+fn proc_completions(
+    analysis: &AnalysisResult,
+    partial: &str,
+    usage: &std::collections::HashMap<String, usize>,
+) -> Vec<CompletionItem> {
+    let mut items = Vec::new();
+    let mut names: Vec<(&str, &ProcDef)> = analysis
+        .all_procs
+        .iter()
+        .filter_map(|(qname, proc_def)| {
+            // Match either the simple name or the qualified
+            // name — the user may have typed the leading `::`.
+            if proc_def.name.starts_with(partial) || qname.starts_with(partial) {
+                Some((qname.as_str(), proc_def))
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort_unstable_by_key(|(qname, _)| *qname);
+    for (qname, proc_def) in names {
+        let count = usage
+            .get(proc_def.name.as_str())
+            .copied()
+            .max(usage.get(qname).copied())
+            .unwrap_or(0);
+        items.push(CompletionItem {
+            label: proc_def.name.clone(),
+            insert_text: qname.to_owned(),
+            kind: CompletionKind::Function,
+            detail: Some(proc_signature_str(proc_def)),
+            sort_text: Some(proc_sort_text(&proc_def.name, count)),
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        });
+    }
+    items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn analyse(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn dollar_trigger_at_eol_returns_partial() {
+        let (trigger, partial) = variable_trigger("set x $", 0, 7).unwrap();
+        assert_eq!(trigger, '$');
+        assert_eq!(partial, "");
+    }
+
+    #[test]
+    fn dollar_trigger_with_partial_name() {
+        let (trigger, partial) = variable_trigger("set y $foo", 0, 10).unwrap();
+        assert_eq!(trigger, '$');
+        assert_eq!(partial, "foo");
+    }
+
+    #[test]
+    fn brace_trigger_recognised() {
+        let (trigger, partial) = variable_trigger("set y ${ba", 0, 10).unwrap();
+        assert_eq!(trigger, '{');
+        assert_eq!(partial, "ba");
+    }
+
+    #[test]
+    fn space_resets_trigger_context() {
+        // The `$` is followed by a space + new identifier — no
+        // variable trigger active at the cursor.
+        assert!(variable_trigger("set $ ab", 0, 8).is_none());
+    }
+
+    #[test]
+    fn variable_completion_lists_globals_alphabetically() {
+        let src = "set apple 1\nset banana 2\nset $\n";
+        let analysis = analyse(src);
+        // Cursor after `$` on the third line.
+        let items = completions(src, 2, 5, &analysis, None, None, "tcl8.6");
+        assert!(!items.is_empty(), "expected variable completions");
+        assert_eq!(items[0].kind, CompletionKind::Variable);
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Alphabetical order.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+        assert!(labels.contains(&"$apple"));
+        assert!(labels.contains(&"$banana"));
+    }
+
+    #[test]
+    fn variable_completion_filters_by_partial() {
+        let src = "set apple 1\nset banana 2\nset $b\n";
+        let analysis = analyse(src);
+        let items = completions(src, 2, 6, &analysis, None, None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["$banana"]);
+    }
+
+    #[test]
+    fn proc_completion_lists_user_defined_procs() {
+        let src = "proc greet {} {}\nproc shout {} {}\ng\n";
+        let analysis = analyse(src);
+        // Cursor right after `g` on third line.
+        let items = completions(src, 2, 1, &analysis, None, None, "tcl8.6");
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(items[0].kind, CompletionKind::Function);
+        assert_eq!(items[0].label, "greet");
+    }
+
+    // -- S-completion-rich: usage-bucket sort-text --------------------
+
+    #[test]
+    fn usage_bucket_buckets_per_python_thresholds() {
+        // Exhaustive bucket table parity with
+        // `lsp/features/completion.py::_usage_bucket`.
+        assert_eq!(usage_bucket(0), 5);
+        assert_eq!(usage_bucket(1), 4);
+        assert_eq!(usage_bucket(2), 4);
+        assert_eq!(usage_bucket(3), 3);
+        assert_eq!(usage_bucket(7), 3);
+        assert_eq!(usage_bucket(8), 2);
+        assert_eq!(usage_bucket(19), 2);
+        assert_eq!(usage_bucket(20), 1);
+        assert_eq!(usage_bucket(49), 1);
+        assert_eq!(usage_bucket(50), 0);
+        assert_eq!(usage_bucket(1000), 0);
+    }
+
+    #[test]
+    fn proc_sort_text_has_lower_bucket_for_used_procs() {
+        // Three calls to `greet` and zero calls to `shout`.
+        // The completion-list partial is empty (cursor on
+        // line 6 col 0), so both procs surface — `greet` in
+        // bucket 3 (≥3 calls) and `shout` in bucket 5 (no
+        // calls).
+        let src = "proc greet {} {}\nproc shout {} {}\ngreet\ngreet\ngreet\n\n";
+        let analysis = analyse(src);
+        let items = completions(src, 5, 0, &analysis, None, None, "tcl8.6");
+        let greet = items
+            .iter()
+            .find(|i| i.label == "greet")
+            .unwrap_or_else(|| panic!("greet missing from {items:?}"));
+        let greet_sort = greet.sort_text.as_deref().unwrap_or("");
+        assert!(
+            greet_sort.starts_with("A003_"),
+            "greet sort_text {greet_sort:?} should land in bucket 3",
+        );
+        let shout = items
+            .iter()
+            .find(|i| i.label == "shout")
+            .unwrap_or_else(|| panic!("shout missing from {items:?}"));
+        let shout_sort = shout.sort_text.as_deref().unwrap_or("");
+        assert!(
+            shout_sort.starts_with("A005_"),
+            "shout sort_text {shout_sort:?} should land in bucket 5",
+        );
+        // Lower bucket sorts first.
+        assert!(greet_sort < shout_sort);
+    }
+
+    #[test]
+    fn empty_partial_lists_all_procs() {
+        let src = "proc alpha {} {}\nproc beta {} {}\n\n";
+        let analysis = analyse(src);
+        let items = completions(src, 2, 0, &analysis, None, None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"alpha"));
+        assert!(labels.contains(&"beta"));
+    }
+
+    // -- S-completion-rich: built-in command completion --------------
+    //
+    // Tests pin the contract that a non-`None` registry parameter
+    // extends proc-name completion with every command the
+    // registry knows about, filtered by the partial typed at the
+    // cursor.
+
+    #[test]
+    fn builtin_completion_lists_registry_commands_at_command_position() {
+        // No user-defined procs, partial `pu` → `puts` (and any
+        // other registered command beginning with `pu`) should
+        // surface.
+        let src = "pu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 2, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"puts"),
+            "expected `puts` from registry; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn builtin_completion_detail_shows_provenance() {
+        // A core built-in shows `built-in`; a stdlib command shows its
+        // `stdlib (PKG)` provenance from the registry `required_package`.
+        let src = "pu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 2, &analysis, Some(&registry), None, "tcl8.6");
+        let puts = items.iter().find(|i| i.label == "puts").expect("puts");
+        assert_eq!(puts.detail.as_deref(), Some("built-in"), "{puts:?}");
+
+        // `http::geturl` is a stdlib command requiring the `http` package.
+        let src = "http::ge\n";
+        let analysis = analyse(src);
+        let items = completions(src, 0, 8, &analysis, Some(&registry), None, "tcl8.6");
+        if let Some(geturl) = items.iter().find(|i| i.label == "http::geturl") {
+            assert_eq!(
+                geturl.detail.as_deref(),
+                Some("stdlib (http)"),
+                "{geturl:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn command_detail_formats_each_provenance() {
+        use tcl_registry::CommandRegistry;
+        let reg = CommandRegistry::build_default();
+        // built-in: no package.
+        assert_eq!(command_detail(reg.get("puts").unwrap()), "built-in");
+        // stdlib: required_package set.
+        if let Some(spec) = reg.get("http::geturl") {
+            assert_eq!(command_detail(spec), "stdlib (http)");
+        }
+    }
+
+    #[test]
+    fn builtin_completion_filters_by_partial() {
+        // Partial `whi` should yield `while` but not unrelated
+        // commands like `puts`.
+        let src = "whi\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 3, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"while"),
+            "expected `while`; got {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"puts"),
+            "should NOT contain `puts` for partial `whi`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn builtin_completion_skips_math_operators() {
+        // The registry registers `+` / `-` / `*` / etc. as
+        // commands (Tcl 9 `tcl::mathop`), but they don't make
+        // sense as completion items at a command position.
+        let src = "+\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 1, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for op in &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="] {
+            assert!(
+                !labels.contains(op),
+                "math operator `{op}` should be filtered out; got {labels:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_completion_none_registry_keeps_minimal_behaviour() {
+        // Passing `None` for the registry must not regress the
+        // minimal port's behaviour — proc-name completion alone.
+        let src = "proc helper {} {}\nhe\n";
+        let analysis = analyse(src);
+        let items_no_registry = completions(src, 1, 2, &analysis, None, None, "tcl8.6");
+        let labels_no_registry: Vec<&str> =
+            items_no_registry.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels_no_registry.contains(&"helper"),
+            "expected `helper` proc; got {labels_no_registry:?}",
+        );
+        // No registry commands surface without the registry.
+        assert_eq!(items_no_registry.len(), 1, "{items_no_registry:?}");
+    }
+
+    #[test]
+    fn builtin_completion_merges_procs_and_registry() {
+        // Both a user-defined proc and built-in commands should
+        // surface when both apply.
+        let src = "proc parade {} {}\npar\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 3, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"parade"),
+            "expected user proc `parade`; got {labels:?}",
+        );
+        // `parray` is a stdlib command starting with `par`.
+        assert!(
+            labels.contains(&"parray"),
+            "expected built-in `parray`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn builtin_completion_skipped_inside_variable_trigger() {
+        // Variable trigger (`$par`) must take precedence and
+        // suppress built-in command completions even when a
+        // registry is supplied.  Mirrors the
+        // `variable_completions` short-circuit at the top of
+        // `completions`.
+        let src = "set apple 1\nset $par\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 8, &analysis, Some(&registry), None, "tcl8.6");
+        // Only variable completions allowed here.
+        for it in &items {
+            assert_eq!(
+                it.kind,
+                CompletionKind::Variable,
+                "variable trigger should suppress built-ins; got {it:?}",
+            );
+        }
+    }
+
+    // -- S-completion-rich: subcommand completion --------------------
+    //
+    // When the cursor sits at word-index 1 of a known command
+    // whose spec declares non-empty `subcommands`, the
+    // completion surface lists subcommand names (not user procs
+    // or unrelated built-ins).
+
+    #[test]
+    fn subcommand_completion_surfaces_subcommands_at_word_index_1() {
+        // `string l` — partial `l`, cursor at word-index 1 of
+        // `string`.  The registry declares many `string`
+        // subcommands; expect `length` and similar `l*` ones.
+        let src = "string l\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 8, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"length"),
+            "expected `length` subcommand; got {labels:?}",
+        );
+        // No proc / unrelated commands should leak through.
+        assert!(
+            !labels.contains(&"puts"),
+            "subcommand context should not include `puts`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_completion_lists_all_subcommands_with_empty_partial() {
+        // `string ` (cursor just past the space) — empty partial,
+        // word-index 1 of `string`.  Should list every `string`
+        // subcommand, alphabetically.
+        let src = "string \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // `string` has at minimum `length`, `match`, `range`,
+        // `tolower`, `toupper` across all dialects.
+        assert!(labels.contains(&"length"), "{labels:?}");
+        assert!(labels.contains(&"match"), "{labels:?}");
+        // Should be sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted, "expected sorted subcommands");
+    }
+
+    #[test]
+    fn subcommand_completion_falls_through_when_word_index_not_1() {
+        // `string length f` — cursor at word-index 2 (after
+        // `length` argument).  Subcommand completion should NOT
+        // fire; we fall through to command + proc completion
+        // (which would surface built-ins like `foreach`,
+        // `format`, etc.).
+        let src = "string length f\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 15, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Some f-prefixed command should surface (foreach,
+        // format, file…), confirming we fell through.
+        assert!(
+            labels.iter().any(|l| l.starts_with('f')),
+            "expected at least one f-prefixed command via fallback; got {labels:?}",
+        );
+        // String's `length` subcommand should NOT be in the
+        // result — we're past word-index 1.
+        assert!(
+            !labels.contains(&"length"),
+            "should not surface `length` subcommand at word-index 2; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_completion_skipped_when_command_has_no_subcommands() {
+        // `puts hel` — `puts` declares no subcommands, so we
+        // should fall through to command + proc completion (and
+        // ideally find no commands starting with `hel`).
+        let src = "proc helper {} {}\nputs hel\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 8, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // The user proc `helper` should surface (fallback path).
+        assert!(
+            labels.contains(&"helper"),
+            "expected `helper` proc via fallback; got {labels:?}",
+        );
+    }
+
+    // -- S-completion-rich: switch completion ------------------------
+    //
+    // When the partial starts with `-` and the surrounding
+    // command's spec declares matching options, the completion
+    // surface lists option names (not subcommands or built-ins).
+
+    #[test]
+    fn switch_completion_surfaces_options_for_dash_partial() {
+        // `lsearch -n` — partial `-n`.  The `lsearch` spec
+        // declares many `-...` options; expect at least one
+        // starting with `-n` (`-nocase`).
+        let src = "lsearch -n\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 10, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.iter().any(|l| l.starts_with("-n")),
+            "expected at least one `-n*` switch; got {labels:?}",
+        );
+        // No unrelated commands / procs.
+        assert!(
+            !labels.iter().any(|l| !l.starts_with('-')),
+            "all switch-completion items must start with '-'; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_lists_all_options_for_bare_dash() {
+        // `lsearch -` — partial `-`, every option should
+        // surface.
+        let src = "lsearch -\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 9, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Every result must start with `-`.
+        for l in &labels {
+            assert!(l.starts_with('-'), "non-switch in result: {l}");
+        }
+        // Sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+    }
+
+    // -- S-completion-rich: iRules event-name completion -------------
+    //
+    // When the cursor sits at word-index 1 of an event-handler
+    // command (the `when` iRules keyword carries
+    // `Traits::IS_EVENT_HANDLER`), the completion surface lists
+    // event names from the shared `EventRegistry`.
+
+    fn irules_registry() -> CommandRegistry {
+        let mut r = CommandRegistry::build_default();
+        r.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        r
+    }
+
+    #[test]
+    fn event_completion_surfaces_when_handler_first_arg() {
+        // `when HT` inside iRules — should list every event
+        // starting with `HT` (HTTP_REQUEST, HTTP_RESPONSE, …).
+        let src = "when HT\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"HTTP_REQUEST"),
+            "expected `HTTP_REQUEST`; got {labels:?}",
+        );
+        assert!(
+            labels.iter().all(|l| l.starts_with("HT")),
+            "all results should start with `HT`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_marks_detail_as_irules_event() {
+        let src = "when CL\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None, "tcl8.6");
+        assert!(
+            items
+                .iter()
+                .all(|i| i.detail.as_deref() == Some("F5 iRules event")),
+            "every event completion should be labelled as an iRules event; got {items:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_does_not_fire_in_plain_tcl_dialect() {
+        // The default registry doesn't carry the `when` spec —
+        // completion should fall through to plain command + proc
+        // completion (which won't surface `HTTP_REQUEST`).
+        let src = "when HT\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 7, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"HTTP_REQUEST"),
+            "event completion should not fire outside iRules; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_skipped_at_word_index_other_than_1() {
+        // `when HTTP_REQUEST f` — word-index 2 (after the event
+        // name).  Event completion must not fire.
+        let src = "when HTTP_REQUEST f\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 0, 19, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.iter().any(|l| l.contains("HTTP_REQUEST")),
+            "event completion should not fire at word-index 2; got {labels:?}",
+        );
+    }
+
+    // -- S-completion-rich: iRules `call PROC_NAME` -----------------
+    //
+    // When the cursor sits at word-index 1 of a command carrying
+    // `Traits::INVOKES_USER_PROC` (today only the iRules `call`
+    // command), the completion surface lists user-defined proc
+    // names and excludes built-in commands.
+
+    #[test]
+    fn call_completion_surfaces_user_procs_at_word_index_1() {
+        // Two user procs starting with `he`, plus one that
+        // doesn't.  Built-in `puts` starts with `p` so won't
+        // surface against `he` either way — but we use it as
+        // additional cover.
+        let src = "proc helper {} {}\nproc help_inner {} {}\nproc unrelated {} {}\ncall he\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 3, 7, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"helper") && labels.contains(&"help_inner"),
+            "expected user procs `helper` and `help_inner`; got {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"unrelated"),
+            "should filter on partial `he`; got {labels:?}",
+        );
+        // Every result must be a user proc — built-in commands
+        // are excluded from the `call` context.
+        for it in &items {
+            assert_eq!(
+                it.kind,
+                CompletionKind::Function,
+                "every call-completion item should be a Function; got {it:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn call_completion_does_not_fire_in_plain_tcl_dialect() {
+        // Plain Tcl registry has no `call` spec — completion
+        // should fall through to built-in + proc completion.
+        let src = "proc helper {} {}\ncall help\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 1, 9, &analysis, Some(&registry), None, "tcl8.6");
+        // The user proc still appears via the fallback path.
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"helper"),
+            "fallback should still surface `helper`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn call_completion_excludes_builtin_commands() {
+        // Built-in `puts` starts with `p`.  In a `call p`
+        // context, the completion list should contain user
+        // procs starting with `p` but never `puts`.
+        let src = "proc parade {} {}\ncall p\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 1, 6, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"parade"), "{labels:?}");
+        assert!(
+            !labels.contains(&"puts"),
+            "`puts` is a built-in; should not surface in `call` context: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn call_completion_skipped_at_word_index_other_than_1() {
+        // `call helper extra` — word-index 2.  Completion
+        // should fall through to plain command + proc
+        // completion (built-ins included).
+        let src = "proc helper {} {}\ncall helper e\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(src, 1, 14, &analysis, Some(&registry), None, "tcl8.6");
+        // Plain fallback fires — any e-prefixed builtin
+        // (`eval`, `exec`, `expr`, `error`…) should surface.
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.iter().any(|l| l.starts_with('e') && *l != "helper"),
+            "fallback should surface some e-prefixed built-in at word-index 2; got {labels:?}",
+        );
+    }
+
+    // -- S-completion-rich: subcommand argument-value completion ----
+
+    #[test]
+    fn string_is_completes_character_classes() {
+        // `string is a` — cursor at the class arg (word 2);
+        // expect the `a*` classes (alnum, alpha, ascii).
+        let src = "string is a\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 11, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"alnum"), "{labels:?}");
+        assert!(labels.contains(&"alpha"), "{labels:?}");
+        assert!(labels.contains(&"ascii"), "{labels:?}");
+        // Every result is an enum value, not a proc / command.
+        for it in &items {
+            assert_eq!(it.kind, CompletionKind::EnumValue, "{it:?}");
+        }
+        // Non-`a` classes filtered out.
+        assert!(!labels.contains(&"digit"), "{labels:?}");
+    }
+
+    #[test]
+    fn string_is_lists_all_classes_with_empty_partial() {
+        // `string is ` — cursor just past the space, empty
+        // partial → all 22 character classes.
+        let src = "string is \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 10, &analysis, Some(&registry), None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"boolean"), "{labels:?}");
+        assert!(labels.contains(&"wordchar"), "{labels:?}");
+        assert!(
+            labels.len() >= 20,
+            "expected the full class set; got {labels:?}"
+        );
+        // Sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+    }
+
+    #[test]
+    fn string_is_class_detail_is_surfaced() {
+        let src = "string is alnum\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 15, &analysis, Some(&registry), None, "tcl8.6");
+        let alnum = items.iter().find(|i| i.label == "alnum").expect("alnum");
+        assert!(
+            alnum
+                .detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("alphabet or digit"),
+            "{alnum:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_without_arg_values_falls_through() {
+        // `string length x` — `length` has no arg_values, so
+        // word-index 2 falls through to plain completion (no
+        // enum-value items).
+        let src = "string length x\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(src, 0, 15, &analysis, Some(&registry), None, "tcl8.6");
+        assert!(
+            items.iter().all(|i| i.kind != CompletionKind::EnumValue),
+            "no enum-value completions expected; got {items:?}",
+        );
+    }
+
+    // -- workspace-index: cross-document proc completion ------------
+
+    #[test]
+    fn workspace_procs_surface_in_completion() {
+        use crate::workspace_index::WorkspaceIndex;
+        // Current doc defines `local_proc`; a sibling doc
+        // defines `shared_helper`.  Completing `s` should
+        // surface the cross-document proc.
+        let cur_src = "proc local_proc {} {}\ns\n";
+        let cur = analyse(cur_src);
+        let other = analyse("proc shared_helper {} {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///cur.tcl", &cur),
+            ("file:///other.tcl", &other),
+        ]);
+        let items = completions(cur_src, 1, 1, &cur, None, Some(&index), "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"shared_helper"),
+            "expected cross-doc proc; got {labels:?}",
+        );
+        // It's tagged as a workspace proc in the detail.
+        let helper = items.iter().find(|i| i.label == "shared_helper").unwrap();
+        assert!(
+            helper.detail.as_deref().unwrap_or("").contains("workspace"),
+            "{helper:?}",
+        );
+        assert!(helper.sort_text.as_deref().unwrap_or("").starts_with("C0_"));
+    }
+
+    #[test]
+    fn workspace_procs_do_not_duplicate_local_procs() {
+        use crate::workspace_index::WorkspaceIndex;
+        // Both the current doc and the index contain `greet`.
+        // The result must list `greet` once (the local entry).
+        let cur_src = "proc greet {} {}\ngr\n";
+        let cur = analyse(cur_src);
+        let index = WorkspaceIndex::from_documents([("file:///cur.tcl", &cur)]);
+        let items = completions(cur_src, 1, 2, &cur, None, Some(&index), "tcl8.6");
+        let count = items.iter().filter(|i| i.label == "greet").count();
+        assert_eq!(count, 1, "{items:?}");
+    }
+
+    #[test]
+    fn workspace_none_keeps_single_doc_behaviour() {
+        let cur_src = "proc greet {} {}\ngr\n";
+        let cur = analyse(cur_src);
+        let items = completions(cur_src, 1, 2, &cur, None, None, "tcl8.6");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"], "{labels:?}");
+    }
+
+    /// iRule event snippet labels surfaced at a cursor.
+    fn irule_snippet_labels(src: &str, line: u32, character: u32, dialect: &str) -> Vec<String> {
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        completions(
+            src,
+            line,
+            character,
+            &analysis,
+            Some(&registry),
+            None,
+            dialect,
+        )
+        .into_iter()
+        .filter(|i| i.label.starts_with("iRule"))
+        .map(|i| i.label)
+        .collect()
+    }
+
+    #[test]
+    fn irules_event_snippets_surface_at_top_level() {
+        // `irule` partial at a top-level command position in the iRules
+        // dialect offers every event template.
+        let labels = irule_snippet_labels("irule", 0, 5, "f5-irules");
+        assert!(
+            labels.iter().any(|l| l == "iRule RULE_INIT"),
+            "expected RULE_INIT; got {labels:?}",
+        );
+        assert!(
+            labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+            "expected HTTP_REQUEST; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_snippets_decline_for_already_declared_event() {
+        // `when RULE_INIT { }` already declared → the RULE_INIT template
+        // drops out, but other event templates remain.
+        let src = "when RULE_INIT {\n}\nirule";
+        let labels = irule_snippet_labels(src, 2, 5, "f5-irules");
+        assert!(
+            !labels.iter().any(|l| l == "iRule RULE_INIT"),
+            "RULE_INIT already declared, should decline; got {labels:?}",
+        );
+        assert!(
+            labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+            "HTTP_REQUEST not declared, should remain; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_event_snippets_suppressed_inside_when_body() {
+        // Cursor inside a `when HTTP_REQUEST { }` body → the top-level
+        // guard suppresses every event template.
+        let src = "when HTTP_REQUEST {\n    irule\n}\n";
+        let labels = irule_snippet_labels(src, 1, 9, "f5-irules");
+        assert!(
+            labels.is_empty(),
+            "event templates must not offer inside a when block; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_snippets_hidden_in_plain_tcl_dialect() {
+        // Same source, but the `tcl8.6` dialect carries no iRule
+        // templates at all.
+        let labels = irule_snippet_labels("irule", 0, 5, "tcl8.6");
+        assert!(labels.is_empty(), "got {labels:?}");
+    }
+}

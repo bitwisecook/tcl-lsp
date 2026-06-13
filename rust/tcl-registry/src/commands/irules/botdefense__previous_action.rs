@@ -1,0 +1,39 @@
+//! `BOTDEFENSE::previous_action` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "BOTDEFENSE::previous_action",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+hover: Some(HoverSnippet {
+            summary: "Returns the Device ID of the client, as retrieved from the request.",
+            synopsis: &["BOTDEFENSE::previous_action"],
+            snippet: "Returns the action taken by the previous request; this is applicable if the current request is a follow-up to a challenge.",
+            source: "https://clouddocs.f5.com/api/irules/BOTDEFENSE__previous_action.html",
+            examples: "# EXAMPLE: Log the previous action.\nwhen BOTDEFENSE_REQUEST {\n    set log \"botdefense previous action is\"\n    append log \" [BOTDEFENSE::previous_action]\"\n    HSL::send $hsl $log\n}",
+            return_value: "The values are the same values as in the BOTDEFENSE::action command, or the value \"undetermined\" if this is not a follow-up to a challenge.",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["BOTDEFENSE"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::previous_action" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::AsmState,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Client,
+            },
+        ],
+        ..CommandSpec::DEFAULT
+    }
+}

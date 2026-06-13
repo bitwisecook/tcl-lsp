@@ -1,0 +1,27 @@
+//! `math::statistics::lillieforsFit` command.
+use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "math::statistics::lillieforsFit values",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "math::statistics::lillieforsFit",
+        traits: Traits::PURE,
+        dialects: Some(DialectSet::ALL_TCL),
+        arity: Arity::exact(1),
+        hover: Some(HoverSnippet {
+            summary: "Lilliefors goodness-of-fit test.",
+            synopsis: &["math::statistics::lillieforsFit values"],
+            snippet: "",
+            source: "tcllib math::statistics package",
+            examples: "",
+            return_value: "",
+        }),
+        forms: FORMS,
+        tcllib_package: Some("math::statistics"),
+        required_package: Some("math::statistics"),
+        ..CommandSpec::DEFAULT
+    }
+}

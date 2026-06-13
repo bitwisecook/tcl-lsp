@@ -404,6 +404,31 @@ function hasServerBundle(dir: string): boolean {
   );
 }
 
+// Locate the native Rust `tcl-lsp-server` binary for serverKind="rust".
+// Honours an explicit path first (config `tclLsp.rustServerPath` or the
+// `TCL_LSP_SERVER_BIN` env var), then probes `target/{release,debug}/` under
+// the project root (resolved like the Python server dir) so a plain
+// `cargo build -p tcl-lsp-server` in a checkout is picked up automatically.
+function resolveRustServer(
+  configuredBin: string,
+  configuredServerPath: string,
+  extensionPath: string,
+): string | undefined {
+  const explicit = configuredBin.trim();
+  if (explicit) {
+    return existsSync(explicit) ? explicit : undefined;
+  }
+  const root = resolveServerDir(configuredServerPath, extensionPath);
+  const exe = process.platform === "win32" ? "tcl-lsp-server.exe" : "tcl-lsp-server";
+  for (const profile of ["release", "debug"]) {
+    const candidate = path.join(root, "target", profile, exe);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function resolveServerDir(configuredPath: string, extensionPath: string): string {
   const configured = configuredPath.trim();
   if (configured) {
@@ -489,58 +514,116 @@ export async function activate(context: ExtensionContext) {
   const config = workspace.getConfiguration("tclLsp");
   const configuredServerPath = config.get<string>("serverPath", "");
 
-  let serverOptions: ServerOptions;
+  let serverOptions: ServerOptions | undefined;
 
-  // Dev mode: explicit serverPath or running from a git checkout.
-  const serverDir = resolveServerDir(configuredServerPath, context.extensionPath);
-  if (configuredServerPath || hasServerBundle(serverDir)) {
-    if (!hasServerBundle(serverDir)) {
-      window.showErrorMessage(
-        `Unable to locate Tcl server bundle under '${serverDir}'. Set 'tclLsp.serverPath' to the tcl-lsp project root.`,
-      );
-    }
-    ch.appendLine(`Dev mode: using uv in ${serverDir}`);
-    serverOptions = {
-      command: "uv",
-      args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "server"],
-      options: { cwd: serverDir },
-    };
-  } else {
-    // VSIX mode: use bundled .pyz with discovered Python.
-    const pyzPath = path.join(context.extensionPath, "tcl-lsp-server.pyz");
-    if (!existsSync(pyzPath)) {
-      window.showErrorMessage(
-        "Tcl LSP: bundled server (tcl-lsp-server.pyz) not found. Reinstall the extension or set tclLsp.serverPath.",
-      );
-      return;
-    }
+  // Backend selection: "rust" (default, the native `tcl-lsp-server` binary
+  // from the Rust workspace) or "python" (the packaged/uv reference server).
+  // Env vars override config so the e2e / VS Code test harnesses can pick a
+  // backend without writing workspace settings: TCL_LSP_SERVER_KIND=python|rust
+  // and TCL_LSP_SERVER_BIN=/path/to/tcl-lsp-server.
+  //
+  // We must distinguish "user explicitly chose a backend" from "left at the
+  // default".  `config.get("serverKind")` folds in the package.json schema
+  // default ("rust"), so it can't tell them apart — use `inspect()` and look
+  // only at values the user actually set.  When nothing is set, Rust is the
+  // default but a missing binary falls back to Python (see below); an explicit
+  // "rust" with no binary is a hard error.
+  const inspected = config.inspect<string>("serverKind");
+  const userConfiguredKind =
+    inspected?.workspaceFolderValue ??
+    inspected?.workspaceValue ??
+    inspected?.globalValue ??
+    "";
+  const explicitKind = (process.env.TCL_LSP_SERVER_KIND || userConfiguredKind)
+    .trim()
+    .toLowerCase();
+  const serverKind = explicitKind || "rust";
 
-    const configuredPython = config.get<string>("pythonPath", "auto");
-    const pythonStart = Date.now();
-    const python = await resolvePython(configuredPython);
-    ch.appendLine(`[timing] Python discovery: ${Date.now() - pythonStart}ms`);
-    if (!python) {
-      const installGuide =
-        "https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite";
-      const msg =
-        configuredPython && configuredPython !== "auto"
-          ? `Tcl LSP: configured Python '${configuredPython}' not found or below 3.10.`
-          : "Tcl LSP: Python 3.10+ is required but was not found. " +
-            "The VSIX bundles all Python dependencies, but a Python interpreter must be installed on your system.";
-      const action = await window.showErrorMessage(msg, "Install Python", "Open Guide");
-      if (action === "Install Python") {
-        env.openExternal(Uri.parse("https://www.python.org/downloads/"));
-      } else if (action === "Open Guide") {
-        env.openExternal(Uri.parse(installGuide));
+  if (serverKind === "rust" || serverKind === "native") {
+    const rustBin = resolveRustServer(
+      process.env.TCL_LSP_SERVER_BIN || config.get<string>("rustServerPath", ""),
+      configuredServerPath,
+      context.extensionPath,
+    );
+    if (!rustBin) {
+      // When the user *explicitly* asked for the native backend, surface the
+      // missing-binary error.  When Rust is merely the default (no explicit
+      // preference), fall back to the Python server so the extension still
+      // works out of the box without a built binary.
+      if (explicitKind === "rust" || explicitKind === "native") {
+        window.showErrorMessage(
+          "Tcl LSP: serverKind is 'rust' but no native tcl-lsp-server binary was found. " +
+            "Build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
+            "or set 'tclLsp.rustServerPath'.",
+        );
+        return;
       }
-      return;
+      ch.appendLine(
+        "No native tcl-lsp-server binary found; falling back to the Python server. " +
+          "Build it with `make rust-server` for the native backend.",
+      );
+    } else {
+      ch.appendLine(`Rust mode: using native server ${rustBin}`);
+      serverOptions = {
+        command: rustBin,
+        args: [],
+        options: { cwd: path.dirname(rustBin) },
+      };
     }
+  }
 
-    serverOptions = {
-      command: python.path,
-      args: [pyzPath],
-      options: { cwd: context.extensionPath },
-    };
+  if (!serverOptions) {
+    // Dev mode: explicit serverPath or running from a git checkout.
+    const serverDir = resolveServerDir(configuredServerPath, context.extensionPath);
+    if (configuredServerPath || hasServerBundle(serverDir)) {
+      if (!hasServerBundle(serverDir)) {
+        window.showErrorMessage(
+          `Unable to locate Tcl server bundle under '${serverDir}'. Set 'tclLsp.serverPath' to the tcl-lsp project root.`,
+        );
+      }
+      ch.appendLine(`Dev mode: using uv in ${serverDir}`);
+      serverOptions = {
+        command: "uv",
+        args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "server"],
+        options: { cwd: serverDir },
+      };
+    } else {
+      // VSIX mode: use bundled .pyz with discovered Python.
+      const pyzPath = path.join(context.extensionPath, "tcl-lsp-server.pyz");
+      if (!existsSync(pyzPath)) {
+        window.showErrorMessage(
+          "Tcl LSP: bundled server (tcl-lsp-server.pyz) not found. Reinstall the extension or set tclLsp.serverPath.",
+        );
+        return;
+      }
+
+      const configuredPython = config.get<string>("pythonPath", "auto");
+      const pythonStart = Date.now();
+      const python = await resolvePython(configuredPython);
+      ch.appendLine(`[timing] Python discovery: ${Date.now() - pythonStart}ms`);
+      if (!python) {
+        const installGuide =
+          "https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL.md#python-prerequisite";
+        const msg =
+          configuredPython && configuredPython !== "auto"
+            ? `Tcl LSP: configured Python '${configuredPython}' not found or below 3.10.`
+            : "Tcl LSP: Python 3.10+ is required but was not found. " +
+              "The VSIX bundles all Python dependencies, but a Python interpreter must be installed on your system.";
+        const action = await window.showErrorMessage(msg, "Install Python", "Open Guide");
+        if (action === "Install Python") {
+          env.openExternal(Uri.parse("https://www.python.org/downloads/"));
+        } else if (action === "Open Guide") {
+          env.openExternal(Uri.parse(installGuide));
+        }
+        return;
+      }
+
+      serverOptions = {
+        command: python.path,
+        args: [pyzPath],
+        options: { cwd: context.extensionPath },
+      };
+    }
   }
 
   const clientOptions: LanguageClientOptions = {
@@ -594,6 +677,12 @@ export async function activate(context: ExtensionContext) {
       },
     },
   };
+
+  if (!serverOptions) {
+    // Every backend branch above either assigns serverOptions or returns; this
+    // guard makes that invariant explicit for the type checker.
+    return;
+  }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
 

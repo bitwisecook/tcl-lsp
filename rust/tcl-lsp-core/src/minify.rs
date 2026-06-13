@@ -1,0 +1,3275 @@
+//! Tcl code minifier — Rust port of `core/minifier/minifier.py`.
+//!
+//! Pure function: source in, minified source out.  The **default
+//! tier** ([`minify_tcl`]) is complete and preserves semantic
+//! equivalence by:
+//!
+//! 1. Stripping all comments.
+//! 2. Collapsing inter-command whitespace to `;`.
+//! 3. Collapsing intra-command whitespace to single spaces.
+//! 4. Recursively minifying braced body arguments (and `[…]`
+//!    command substitutions).
+//! 5. Preserving string literals verbatim, dropping redundant
+//!    double quotes when safe.
+//! 6. Compressing whitespace inside `expr` bodies and applying
+//!    AST-level shrinking (comparison inversion, De Morgan,
+//!    double-negation) when it shortens the expression.
+//! 7. Replacing `${var}` with `$var` when safe.
+//! 8. Minifying `switch` braced case-list bodies individually.
+//! 9. Deduplicating repeated dynamic templates (`[subst $alias]`).
+//! 10. Abbreviating ensemble subcommands for fixed-ensemble
+//!     dialects (`f5-irules` / `f5-iapps` / `f5-bigip`).
+//!
+//! Note: the expression tokeniser adds a catch-all so no character
+//! is dropped — the Python reference's `_EXPR_TOKEN` regex silently
+//! drops unmatched characters (e.g. commas in `atan2($a,$b)` and
+//! braces in `$x ni {a b}`), corrupting those expressions; this
+//! port preserves them.
+//!
+//! The **`compact_names` tier** ([`minify_tcl_compact`]) renames
+//! proc-local variables, parameters, and proc names to short
+//! identifiers and returns a [`SymbolMap`].  It relies on the
+//! analyser tracking `$var` references inside `[…]` command
+//! substitutions and braced `expr` bodies (added alongside this
+//! tier) so a rename never rewrites a declaration without its body
+//! references.  Scopes containing a dynamic-barrier command (e.g.
+//! `upvar`) are left untouched; `isolated` also compacts the global
+//! scope.  Static array-member keys (`arr(member)`) are compacted
+//! too, skipping arrays whose members look user-input-derived.
+//!
+//! The **`aggressive` tier** ([`minify_tcl_aggressive`]) applies the
+//! compiler's optimiser rewrites, compacts names, aliases repeated
+//! commands / arguments / quoted-string substrings (the last via a
+//! suffix array), then minifies whitespace, returning a
+//! [`MinifyResult`].  The aliasing generators are seeded with every
+//! compacted short name so a `$alias` can never shadow a proc-local
+//! compacted variable — a collision-safe improvement on the Python
+//! reference.
+//!
+//! [`unminify_error`] translates compacted names in an error
+//! message back to the originals via a [`SymbolMap`] (round-tripped
+//! through [`SymbolMap::format`] / [`SymbolMap::parse`]).  Both the
+//! `tcl-lsp.minifyDocument` and `tcl-lsp.unminifyError`
+//! `workspace/executeCommand` handlers are wired in the server.
+//!
+//! SCCP static-substring folding (Python's phase 1.5,
+//! [`fold_static_substrings`]) replaces `$var` interpolations inside
+//! quoted strings with the literal the compiler's SCCP pass proves
+//! them to be (integer / string constants), taint-guarded.
+//! `unminify_error` also remaps minified line references back to
+//! original lines ([`remap_line_references`]) when both sources are
+//! supplied.
+//!
+//! **Still deferred** within static-substring folding: compile-time
+//! evaluation of pure command substitutions (`[string …]` /
+//! `[format …]` / `[expr …]`), boolean / float constants, and the
+//! follow-up dead-`set` elimination (leaving the now-unused `set` is
+//! harmless, just larger).
+
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
+
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind};
+use tcl_compiler::analyses::{ConstValue, LatticeValue};
+use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+use tcl_compiler::expr_ast::render_expr;
+use tcl_compiler::ir::Statement;
+use tcl_compiler::ssa::Version;
+use tcl_compiler::taint::{TaintColour, TaintLattice};
+use tcl_compiler::{parse_expr, BinOp, ExprNode, UnaryOp};
+use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_registry::{ArgRole, CommandRegistry, Traits};
+
+/// One argument accumulated while parsing a command.
+struct Arg {
+    tokens: Vec<Token>,
+    is_braced: bool,
+    is_quoted: bool,
+}
+
+/// Map of original names to compacted names, grouped by scope.
+/// Mirrors Python's `SymbolMap` (the fields the landed tiers
+/// populate).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SymbolMap {
+    /// Per-scope `{original_var: short}` maps, keyed by scope label.
+    pub variables: BTreeMap<String, BTreeMap<String, String>>,
+    /// `{original_proc: short}`.
+    pub procs: BTreeMap<String, String>,
+    /// Per-array `{original_member: short}` maps.
+    pub array_members: BTreeMap<String, BTreeMap<String, String>>,
+    /// `{original_command: alias_var}` (aggressive tier).
+    pub command_aliases: BTreeMap<String, String>,
+    /// `{original_argument: alias_var}` (aggressive tier).
+    pub argument_aliases: BTreeMap<String, String>,
+    /// `{original_literal: alias_var}` (aggressive tier).
+    pub string_aliases: BTreeMap<String, String>,
+    /// `{original_dynamic_string: folded_static_value}` (aggressive
+    /// tier, SCCP static-substring folding).
+    pub static_folds: BTreeMap<String, String>,
+}
+
+impl SymbolMap {
+    /// Human-readable symbol map.  Mirrors `SymbolMap.format`.
+    #[must_use]
+    pub fn format(&self) -> String {
+        let mut lines: Vec<String> = Vec::new();
+        if !self.procs.is_empty() {
+            lines.push("# Procs".to_owned());
+            for (original, short) in &self.procs {
+                lines.push(format!("  {short} <- {original}"));
+            }
+        }
+        for (scope_name, var_map) in &self.variables {
+            lines.push(format!("# Variables in {scope_name}"));
+            let mut entries: Vec<(&String, &String)> = var_map.iter().collect();
+            entries.sort_by(|a, b| a.1.cmp(b.1));
+            for (original, short) in entries {
+                lines.push(format!("  {short} <- {original}"));
+            }
+        }
+        for (array_name, member_map) in &self.array_members {
+            lines.push(format!("# Array members of {array_name}"));
+            let mut entries: Vec<(&String, &String)> = member_map.iter().collect();
+            entries.sort_by(|a, b| a.1.cmp(b.1));
+            for (original, short) in entries {
+                lines.push(format!("  {short} <- {original}"));
+            }
+        }
+        if !self.command_aliases.is_empty() {
+            lines.push("# Command aliases".to_owned());
+            for (original, alias) in &self.command_aliases {
+                lines.push(format!("  ${alias} <- {original}"));
+            }
+        }
+        if !self.argument_aliases.is_empty() {
+            lines.push("# Argument aliases".to_owned());
+            for (original, alias) in &self.argument_aliases {
+                lines.push(format!("  ${alias} <- {original}"));
+            }
+        }
+        if !self.string_aliases.is_empty() {
+            lines.push("# String literal aliases".to_owned());
+            let mut entries: Vec<(&String, &String)> = self.string_aliases.iter().collect();
+            entries.sort_by(|a, b| a.1.cmp(b.1));
+            for (original, alias) in entries {
+                lines.push(format!("  ${alias} <- {original:?}"));
+            }
+        }
+        if !self.static_folds.is_empty() {
+            lines.push("# Static substring folds (SCCP)".to_owned());
+            for (original, folded) in &self.static_folds {
+                lines.push(format!("  {folded:?} <- {original:?}"));
+            }
+        }
+        lines.join("\n")
+    }
+
+    /// Reverse lookup: compacted name → original.  Variables also
+    /// get a `scope:short` → `scope:original` entry; the bare entry
+    /// keeps the first scope seen.  Mirrors `SymbolMap.reverse`.
+    #[must_use]
+    pub fn reverse(&self) -> BTreeMap<String, String> {
+        let mut rev: BTreeMap<String, String> = BTreeMap::new();
+        for (original, short) in &self.procs {
+            rev.entry(short.clone()).or_insert_with(|| original.clone());
+        }
+        for (scope, var_map) in &self.variables {
+            for (original, short) in var_map {
+                rev.insert(format!("{scope}:{short}"), format!("{scope}:{original}"));
+                rev.entry(short.clone()).or_insert_with(|| original.clone());
+            }
+        }
+        for member_map in self.array_members.values() {
+            for (original, short) in member_map {
+                rev.entry(short.clone()).or_insert_with(|| original.clone());
+            }
+        }
+        for aliases in [
+            &self.command_aliases,
+            &self.argument_aliases,
+            &self.string_aliases,
+        ] {
+            for (original, alias) in aliases {
+                rev.entry(alias.clone()).or_insert_with(|| original.clone());
+            }
+        }
+        rev
+    }
+
+    /// Parse a symbol map from the [`Self::format`] text.  Mirrors
+    /// `SymbolMap.parse` (the sections the landed tiers emit).
+    #[must_use]
+    pub fn parse(text: &str) -> Self {
+        let mut sm = SymbolMap::default();
+        let mut section = "";
+        let mut section_name = String::new();
+        for line in text.lines() {
+            let stripped = line.trim();
+            if stripped.is_empty() {
+                continue;
+            }
+            if let Some(rest) = stripped.strip_prefix("# Variables in ") {
+                section = "variables";
+                section_name.clear();
+                section_name.push_str(rest);
+                continue;
+            }
+            if let Some(rest) = stripped.strip_prefix("# Array members of ") {
+                section = "array_members";
+                section_name.clear();
+                section_name.push_str(rest);
+                continue;
+            }
+            if stripped.starts_with("# Procs") {
+                section = "procs";
+                continue;
+            }
+            if stripped.starts_with('#') {
+                section = "";
+                continue;
+            }
+            // Entry line: `short <- original`.
+            let Some((short, original)) = stripped.split_once(" <- ") else {
+                continue;
+            };
+            let (short, original) = (short.trim().to_owned(), original.trim().to_owned());
+            match section {
+                "procs" => {
+                    sm.procs.insert(original, short);
+                }
+                "variables" => {
+                    sm.variables
+                        .entry(section_name.clone())
+                        .or_default()
+                        .insert(original, short);
+                }
+                "array_members" => {
+                    sm.array_members
+                        .entry(section_name.clone())
+                        .or_default()
+                        .insert(original, short);
+                }
+                _ => {}
+            }
+        }
+        sm
+    }
+}
+
+/// Translate a Tcl / iRule error message from minified names back
+/// to the originals using `symbol_map`.  Replaces `$short` and
+/// `"short"` occurrences.  Mirrors the name-translation half of
+/// `unminify_error` (the source-correlated line remapping is a
+/// follow-up).
+#[must_use]
+pub fn unminify_error(error_message: &str, symbol_map: &SymbolMap) -> String {
+    let rev = symbol_map.reverse();
+    if rev.is_empty() {
+        return error_message.to_owned();
+    }
+    let bytes = error_message.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        let c = bytes[i];
+        // `$short` variable reference.
+        if c == b'$' {
+            let start = i + 1;
+            let mut j = start;
+            while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            if j > start {
+                let ident = &error_message[start..j];
+                if let Some(orig) = rev.get(ident) {
+                    out.push('$');
+                    out.push_str(orig);
+                    i = j;
+                    continue;
+                }
+            }
+            out.push('$');
+            i += 1;
+            continue;
+        }
+        // `"short"` quoted identifier.
+        if c == b'"' {
+            let start = i + 1;
+            let mut j = start;
+            while j < n && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            if j < n && bytes[j] == b'"' && j > start {
+                let ident = &error_message[start..j];
+                if let Some(orig) = rev.get(ident) {
+                    out.push('"');
+                    out.push_str(orig);
+                    out.push('"');
+                    i = j + 1;
+                    continue;
+                }
+            }
+            out.push('"');
+            i += 1;
+            continue;
+        }
+        let ch_len = utf8_len(c);
+        out.push_str(&error_message[i..i + ch_len]);
+        i += ch_len;
+    }
+    out
+}
+
+/// Remap `line N` / `(procedure "X" line N)` references in `message`
+/// from minified positions to approximate original lines, using the
+/// proportional heuristic from `_remap_line_references`.  Single
+/// pass (no double-application).
+#[must_use]
+pub fn remap_line_references(
+    message: &str,
+    minified_source: &str,
+    original_source: &str,
+) -> String {
+    let min_commands = minified_source.matches(';').count() + 1;
+    let orig_non_empty: Vec<usize> = original_source
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| {
+            let t = l.trim();
+            !t.is_empty() && !t.starts_with('#')
+        })
+        .map(|(i, _)| i + 1)
+        .collect();
+    if orig_non_empty.is_empty() {
+        return message.to_owned();
+    }
+    let map_line = |line_no: usize| -> Option<usize> {
+        if line_no > min_commands {
+            return None;
+        }
+        // Integer proportional map: (line_no-1)/(min_commands-1) of the
+        // non-empty original lines.
+        let denom = min_commands.saturating_sub(1).max(1);
+        let last = orig_non_empty.len() - 1;
+        let idx = ((line_no - 1) * last / denom).min(last);
+        Some(orig_non_empty[idx])
+    };
+
+    let bytes = message.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        // `(procedure "NAME" line N)` form.
+        if message[i..].starts_with("(procedure \"") {
+            if let Some(rewritten) = try_remap_procline(&message[i..], &map_line) {
+                out.push_str(&rewritten.0);
+                i += rewritten.1;
+                continue;
+            }
+        }
+        // Standalone `line N` (word-bounded).
+        if message[i..].starts_with("line ") && (i == 0 || !is_word_byte(Some(bytes[i - 1]))) {
+            if let Some((rewritten, consumed)) = try_remap_line(&message[i..], &map_line) {
+                out.push_str(&rewritten);
+                i += consumed;
+                continue;
+            }
+        }
+        let ch_len = utf8_len(bytes[i]);
+        out.push_str(&message[i..i + ch_len]);
+        i += ch_len;
+    }
+    out
+}
+
+/// Parse a leading `line N` (digits, then a word boundary) and remap
+/// it.  Returns `(replacement, bytes_consumed)`.
+fn try_remap_line(s: &str, map_line: &impl Fn(usize) -> Option<usize>) -> Option<(String, usize)> {
+    let rest = s.strip_prefix("line ")?;
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let after = rest.as_bytes().get(digits.len()).copied();
+    if is_word_byte(after) {
+        return None;
+    }
+    let line_no: usize = digits.parse().ok()?;
+    if line_no == 1 {
+        // Line 1 of minified code = whole script; not useful.
+        return None;
+    }
+    let orig = map_line(line_no)?;
+    let consumed = "line ".len() + digits.len();
+    Some((format!("line {orig} (minified line {line_no})"), consumed))
+}
+
+/// Parse a leading `(procedure "NAME" line N)` and remap the line.
+fn try_remap_procline(
+    s: &str,
+    map_line: &impl Fn(usize) -> Option<usize>,
+) -> Option<(String, usize)> {
+    let rest = s.strip_prefix("(procedure \"")?;
+    let name_end = rest.find('"')?;
+    let name = &rest[..name_end];
+    let tail = &rest[name_end + 1..];
+    let tail = tail.strip_prefix(" line ")?;
+    let digits: String = tail.chars().take_while(char::is_ascii_digit).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let rest_after = &tail[digits.len()..];
+    let close = rest_after.strip_prefix(')')?;
+    let _ = close;
+    let line_no: usize = digits.parse().ok()?;
+    let orig = map_line(line_no)?;
+    let consumed = s.len() - rest_after.len() + 1; // up to and including ')'
+    Some((
+        format!("(procedure \"{name}\" line {orig}, minified line {line_no})"),
+        consumed,
+    ))
+}
+
+/// Full result from aggressive minification.  Mirrors Python's
+/// `MinifyResult`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MinifyResult {
+    /// The minified source.
+    pub source: String,
+    /// Compaction symbol map.
+    pub symbol_map: SymbolMap,
+    /// Number of optimiser rewrites applied.
+    pub optimisations_applied: usize,
+    /// Length of the original source (bytes).
+    pub original_length: usize,
+}
+
+impl MinifyResult {
+    /// Length of the minified source.
+    #[must_use]
+    pub fn minified_length(&self) -> usize {
+        self.source.len()
+    }
+
+    /// Percentage size reduction versus the original.
+    #[must_use]
+    pub fn savings_pct(&self) -> f64 {
+        if self.original_length == 0 {
+            return 0.0;
+        }
+        let min = f64::from(u32::try_from(self.source.len()).unwrap_or(u32::MAX));
+        let orig = f64::from(u32::try_from(self.original_length).unwrap_or(u32::MAX));
+        (1.0 - min / orig) * 100.0
+    }
+}
+
+/// Minify a Tcl source string for the given dialect (default tier).
+#[must_use]
+pub fn minify_tcl(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    minify_body(source, dialect, registry)
+}
+
+/// Aggressive minification: apply the compiler's optimiser
+/// rewrites, compact names, alias repeated commands / arguments /
+/// string substrings, then minify whitespace.  Returns a
+/// [`MinifyResult`].  Mirrors `minify_tcl(..., aggressive=True)`.
+///
+/// The aliasing phases seed their generators with every compacted
+/// short name so a `$alias` can never collide with a (possibly
+/// proc-local) compacted variable — a collision-safe improvement on
+/// the Python reference.  Deferred: SCCP static-substring folding
+/// (phase 1.5).
+#[must_use]
+pub fn minify_tcl_aggressive(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+) -> MinifyResult {
+    let original_length = source.len();
+
+    // Phase 1: apply the optimiser's semantic-preserving rewrites.
+    let optimisations =
+        tcl_compiler::optimiser::optimise_with_dialect(source, registry, Some(dialect));
+    let opt_count = optimisations.iter().filter(|o| !o.hint_only).count();
+    let opt_edits: Vec<Edit> = optimisations
+        .iter()
+        .filter(|o| !o.hint_only)
+        .map(|o| {
+            (
+                o.span.start() as usize,
+                (o.span.end() - o.span.start()) as usize,
+                o.replacement.clone(),
+            )
+        })
+        .collect();
+    let optimised = apply_edits(source, opt_edits);
+
+    // Phase 1.5: static-substring folding (SCCP-proven constants).
+    let (folded, fold_count, static_folds) = fold_static_substrings(&optimised, dialect, registry);
+
+    // Phase 2: compact names.
+    let (renamed, mut symbol_map) = compact_names(&folded, dialect, isolated, registry);
+    symbol_map.static_folds = static_folds;
+
+    // Phases 2.5–2.7: aliasing.  Seed claimed names with every
+    // compacted short so aliases never shadow a local variable.
+    let mut claimed_names = collect_symbol_shorts(&symbol_map);
+    let (renamed, cmd_aliases) =
+        alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
+    symbol_map.command_aliases = cmd_aliases;
+    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, &mut claimed_names);
+    symbol_map.argument_aliases = arg_aliases;
+    let (renamed, str_aliases) = alias_string_literals(&renamed, &mut claimed_names);
+    symbol_map.string_aliases = str_aliases;
+
+    // Phase 3: minify whitespace.
+    let minified = minify_body(&renamed, dialect, registry);
+
+    MinifyResult {
+        source: minified,
+        symbol_map,
+        optimisations_applied: opt_count + fold_count,
+        original_length,
+    }
+}
+
+/// Minify with local-name compaction: rename proc-local variables,
+/// parameters, and proc names to short identifiers, then run the
+/// default minifier.  Returns the minified source plus a
+/// [`SymbolMap`].  Mirrors `minify_tcl(..., compact_names=True)`.
+///
+/// `isolated` also compacts global-scope variables (safe for
+/// self-contained scripts like iRules event handlers).
+#[must_use]
+pub fn minify_tcl_compact(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+) -> (String, SymbolMap) {
+    let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
+    let minified = minify_body(&renamed, dialect, registry);
+    (minified, symbol_map)
+}
+
+/// Minify a Tcl script body (top-level or inside braces).
+fn minify_body(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let sm = SourceMap::new(source);
+    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+        return source.to_owned();
+    };
+
+    let commands = parse_commands(source, &tokens);
+    if commands.is_empty() {
+        return String::new();
+    }
+
+    // Render each command, abbreviating ensemble subcommands.
+    let mut rendered: Vec<Vec<String>> = Vec::with_capacity(commands.len());
+    for cmd_args in &commands {
+        let mut arg_strs = render_command(&sm, cmd_args, dialect, registry);
+        if arg_strs.len() >= 2 {
+            arg_strs[1] = abbreviated_subcommand(&arg_strs[0], &arg_strs[1], dialect);
+        }
+        rendered.push(arg_strs);
+    }
+
+    // Template deduplication (subst aliasing) of repeated dynamic
+    // quoted args.
+    let (template_map, rendered) = dedup_templates(rendered);
+
+    let is_irules = tcl_registry::prelude::DialectSet::is_irules_dialect(Some(dialect));
+    let mut parts: Vec<String> = Vec::new();
+    for (content, alias) in &template_map {
+        parts.push(format!("set {alias} {{{content}}}"));
+    }
+    for arg_strs in &rendered {
+        if is_irules && arg_strs.len() > 1 {
+            // In iRules, `}{` is a valid word boundary — omit the
+            // space between adjacent braced args to save bytes.
+            let mut piece = arg_strs[0].clone();
+            for w in arg_strs.windows(2) {
+                let (prev, cur) = (&w[0], &w[1]);
+                if prev.ends_with('}') && cur.starts_with('{') {
+                    piece.push_str(cur);
+                } else {
+                    piece.push(' ');
+                    piece.push_str(cur);
+                }
+            }
+            parts.push(piece);
+        } else {
+            parts.push(arg_strs.join(" "));
+        }
+    }
+    parts.join(";")
+}
+
+/// Lazy generator of short identifier names: `a`, `b`, …, `z`,
+/// `aa`, `ab`, …  Mirrors `core/common/text_edits.py::name_generator`.
+struct NameGenerator {
+    indices: Vec<usize>,
+}
+
+impl NameGenerator {
+    fn new() -> Self {
+        Self { indices: vec![0] }
+    }
+
+    fn next_name(&mut self) -> String {
+        let name: String = self
+            .indices
+            .iter()
+            .map(|&i| (b'a' + u8::try_from(i).unwrap_or(0)) as char)
+            .collect();
+        self.advance();
+        name
+    }
+
+    fn advance(&mut self) {
+        let mut pos = self.indices.len();
+        loop {
+            if pos == 0 {
+                // All positions wrapped — grow the length.
+                self.indices = vec![0; self.indices.len() + 1];
+                return;
+            }
+            pos -= 1;
+            if self.indices[pos] + 1 < 26 {
+                self.indices[pos] += 1;
+                return;
+            }
+            self.indices[pos] = 0;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Local-name compaction (compact_names tier)
+// ---------------------------------------------------------------------------
+
+/// A text edit: replace `length` bytes at `offset` with `text`.
+type Edit = (usize, usize, String);
+
+/// Apply non-overlapping `(offset, length, new_text)` edits in
+/// reverse offset order, deduplicating identical `(offset, length)`
+/// pairs.  Mirrors `core/common/text_edits.py::apply_edits`.
+fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
+    if edits.is_empty() {
+        return source.to_owned();
+    }
+    edits.sort_by_key(|edit| std::cmp::Reverse(edit.0));
+    let mut seen: HashSet<(usize, usize)> = HashSet::new();
+    let mut result = source.to_owned();
+    for (offset, length, new_text) in edits {
+        if !seen.insert((offset, length)) {
+            continue;
+        }
+        if offset + length <= result.len() {
+            result.replace_range(offset..offset + length, &new_text);
+        }
+    }
+    result
+}
+
+/// Scope label: `::` for the root, then `parent::child`.
+fn child_scope_label(parent_label: &str, child_name: &str) -> String {
+    if parent_label == "::" {
+        format!("::{child_name}")
+    } else {
+        format!("{parent_label}::{child_name}")
+    }
+}
+
+/// Deepest scope label whose body span contains `offset`.  Mirrors
+/// `_scope_label_at_line` (byte-offset based).
+fn scope_label_at_offset(
+    scope: &Scope,
+    offset: u32,
+    prefix: &str,
+    include_global: bool,
+) -> Option<String> {
+    for child in &scope.children {
+        let label = child_scope_label(prefix, &child.name);
+        if let Some(body) = child.body_span {
+            if body.start() <= offset && offset <= body.end() {
+                if let Some(deeper) = scope_label_at_offset(child, offset, &label, include_global) {
+                    return Some(deeper);
+                }
+                return Some(label);
+            }
+        }
+    }
+    match scope.kind {
+        ScopeKind::Proc => Some(prefix.to_owned()),
+        ScopeKind::Global if include_global => Some(prefix.to_owned()),
+        _ => None,
+    }
+}
+
+/// Scope labels containing a dynamic-barrier command — renaming
+/// inside them is unsafe.  Mirrors `_find_barrier_scopes`.
+fn find_barrier_scopes(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    include_global: bool,
+) -> HashSet<String> {
+    let barrier_cmds: HashSet<&str> = registry
+        .commands_with_trait(Traits::CREATES_DYNAMIC_BARRIER)
+        .into_iter()
+        .collect();
+    let mut out = HashSet::new();
+    for inv in &analysis.command_invocations {
+        if barrier_cmds.contains(inv.name.as_str()) {
+            if let Some(label) = scope_label_at_offset(
+                &analysis.global_scope,
+                inv.range.start(),
+                "::",
+                include_global,
+            ) {
+                out.insert(label);
+            }
+        }
+    }
+    out
+}
+
+/// Next short name avoiding existing and claimed names.  Mirrors
+/// `_next_unused_name`.
+fn next_unused_name(
+    gen: &mut NameGenerator,
+    existing: &HashSet<String>,
+    claimed: &HashSet<String>,
+) -> Option<String> {
+    for _ in 0..1000 {
+        let short = gen.next_name();
+        if !existing.contains(&short) && !claimed.contains(&short) {
+            return Some(short);
+        }
+    }
+    None
+}
+
+/// Rename parameter names within the proc's parameter-list region.
+/// Mirrors `_rename_params_in_list`.
+fn rename_params_in_list(
+    source: &str,
+    proc_def: &ProcDef,
+    var_map: &BTreeMap<String, String>,
+    edits: &mut Vec<Edit>,
+) {
+    let search_start = proc_def.name_span.end() as usize;
+    let search_end = proc_def.body_span.start() as usize;
+    if search_start > search_end || search_end > source.len() {
+        return;
+    }
+    let region = &source.as_bytes()[search_start..search_end];
+    for param in &proc_def.params {
+        let Some(short) = var_map.get(&param.name) else {
+            continue;
+        };
+        let pat = param.name.as_bytes();
+        if pat.is_empty() {
+            continue;
+        }
+        let mut i = 0;
+        while i + pat.len() <= region.len() {
+            if &region[i..i + pat.len()] == pat
+                && !(i > 0 && is_word_byte(Some(region[i - 1])))
+                && !is_word_byte(region.get(i + pat.len()).copied())
+            {
+                edits.push((search_start + i, pat.len(), short.clone()));
+                i += pat.len();
+            } else {
+                i += 1;
+            }
+        }
+    }
+}
+
+/// Whether `b` is `[A-Za-z0-9_]`.
+fn is_word_byte(b: Option<u8>) -> bool {
+    matches!(b, Some(c) if c.is_ascii_alphanumeric() || c == b'_')
+}
+
+/// Byte-span slice of `source`.
+fn slice(source: &str, span: Span) -> &str {
+    let (s, e) = (span.start() as usize, span.end() as usize);
+    if s <= e && e <= source.len() {
+        &source[s..e]
+    } else {
+        ""
+    }
+}
+
+/// Call sites of the proc `name` / `qualified_name`.  Mirrors the
+/// inlined `find_proc_call_sites`.
+fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
+    let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+    let mut out = Vec::new();
+    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    for inv in &analysis.command_invocations {
+        let matches = match &inv.resolved_qualified_name {
+            Some(resolved) => resolved == qualified_name,
+            None => inv.name == name || inv.name == qualified_name || inv.name == qn_no_prefix,
+        };
+        if matches && seen.insert((inv.range.start(), inv.range.end())) {
+            out.push(inv.range);
+        }
+    }
+    out
+}
+
+/// Compact proc-local (and, when `isolated`, global) variable,
+/// parameter, and proc names.  Mirrors `_compact_names`; returns
+/// `(renamed_source, symbol_map)`.
+fn compact_names(
+    source: &str,
+    dialect: &str,
+    isolated: bool,
+    registry: &CommandRegistry,
+) -> (String, SymbolMap) {
+    let analysis = Analyser::new().analyse(source, dialect).clone();
+    let mut symbol_map = SymbolMap::default();
+    let mut edits: Vec<Edit> = Vec::new();
+
+    let barrier_scopes = find_barrier_scopes(&analysis, registry, isolated);
+    let builtin_names: HashSet<&str> = registry.command_names().collect();
+
+    process_scope(
+        source,
+        &analysis,
+        &analysis.global_scope,
+        "::",
+        isolated,
+        &barrier_scopes,
+        &mut symbol_map,
+        &mut edits,
+    );
+
+    // Proc renaming.
+    let mut proc_gen = NameGenerator::new();
+    let mut used_proc_names: HashSet<String> = HashSet::new();
+    let mut proc_keys: Vec<&String> = analysis.all_procs.keys().collect();
+    proc_keys.sort();
+    for qname in proc_keys {
+        let proc_def = &analysis.all_procs[qname];
+        let name = &proc_def.name;
+        if name.len() <= 1 || name.contains("::") {
+            continue;
+        }
+        let mut short = proc_gen.next_name();
+        while builtin_names.contains(short.as_str()) || used_proc_names.contains(&short) {
+            short = proc_gen.next_name();
+        }
+        if short.len() >= name.len() {
+            continue;
+        }
+        used_proc_names.insert(short.clone());
+
+        let r = proc_def.name_span;
+        let actual = slice(source, r);
+        let def_key = (r.start() as usize, actual.len());
+        if actual == *name {
+            edits.push((r.start() as usize, actual.len(), short.clone()));
+        }
+        for call in find_proc_call_sites(name, &proc_def.qualified_name, &analysis) {
+            let call_text = slice(source, call);
+            let key = (call.start() as usize, call_text.len());
+            if key != def_key && call_text == *name {
+                edits.push((call.start() as usize, call_text.len(), short.clone()));
+            }
+        }
+        symbol_map.procs.insert(name.clone(), short);
+    }
+
+    // Static array-member compaction (global across scopes).
+    let array_members = compact_array_members(source, &mut edits);
+    if !array_members.is_empty() {
+        symbol_map.array_members = array_members;
+    }
+
+    let result = apply_edits(source, edits);
+    (result, symbol_map)
+}
+
+/// Compact static array-member names (`arr(member)` → `arr(x)`).
+/// Mirrors `_compact_array_members`; renames are global across
+/// scopes and skip arrays whose members look user-input-derived.
+fn compact_array_members(
+    source: &str,
+    edits: &mut Vec<Edit>,
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    let array_uses = collect_array_uses(source);
+    let mut result = BTreeMap::new();
+    for (arr, members) in &array_uses {
+        if members.keys().any(|m| is_unsafe_member(m)) {
+            continue;
+        }
+        let mut gen = NameGenerator::new();
+        let mut member_map: BTreeMap<String, String> = BTreeMap::new();
+        let existing: HashSet<String> = members.keys().cloned().collect();
+        for member in members.keys() {
+            let claimed: HashSet<String> = member_map.values().cloned().collect();
+            let Some(short) = next_unused_name(&mut gen, &existing, &claimed) else {
+                continue;
+            };
+            if short.len() >= member.len() {
+                continue;
+            }
+            for &off in &members[member] {
+                edits.push((off, member.len(), short.clone()));
+            }
+            member_map.insert(member.clone(), short);
+        }
+        if !member_map.is_empty() {
+            result.insert(arr.clone(), member_map);
+        }
+    }
+    result
+}
+
+/// Recursively scan for `arr(member)` references, descending into
+/// braced and command-substitution tokens.  Mirrors
+/// `_scan_array_tokens`; returns `arr -> member -> [offsets]`.
+fn collect_array_uses(top_source: &str) -> BTreeMap<String, BTreeMap<String, Vec<usize>>> {
+    let mut uses: BTreeMap<String, BTreeMap<String, Vec<usize>>> = BTreeMap::new();
+    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        let mut prev_type = TokenType::Eol;
+        let mut in_quoted = false;
+        for tok in &tokens {
+            match tok.kind {
+                TokenType::Eof => break,
+                TokenType::Sep | TokenType::Eol => {
+                    prev_type = tok.kind;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Str => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 4 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    prev_type = TokenType::Str;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Cmd => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 4 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    prev_type = TokenType::Cmd;
+                    continue;
+                }
+                _ => {}
+            }
+            if matches!(prev_type, TokenType::Sep | TokenType::Eol) {
+                let abs = (base + tok.span.start()) as usize;
+                in_quoted = top_source.as_bytes().get(abs) == Some(&b'"');
+            }
+            prev_type = tok.kind;
+            if in_quoted && tok.kind == TokenType::Esc {
+                continue;
+            }
+            if !matches!(tok.kind, TokenType::Esc | TokenType::Var) {
+                continue;
+            }
+            let ttext = sm.token_text(*tok);
+            let Some((arr, member)) = parse_array_member(ttext) else {
+                continue;
+            };
+            if member.chars().count() <= 1 || arr.contains("::") {
+                continue;
+            }
+            let text_start = if tok.kind == TokenType::Var {
+                base + tok.span.start() + 1
+            } else {
+                base + tok.span.start()
+            };
+            let member_offset = text_start as usize + arr.len() + 1;
+            uses.entry(arr.to_owned())
+                .or_default()
+                .entry(member.to_owned())
+                .or_default()
+                .push(member_offset);
+        }
+    }
+    uses
+}
+
+/// Parse `arr(member)` token text into `(arr, member)`.  Mirrors
+/// `_ARRAY_MEMBER_RE`: `arr` is `[\w:]+`, `member` excludes `)`,
+/// `$`, `[`.
+fn parse_array_member(text: &str) -> Option<(&str, &str)> {
+    let inner = text.strip_suffix(')')?;
+    let lparen = inner.find('(')?;
+    let arr = &inner[..lparen];
+    let member = &inner[lparen + 1..];
+    if arr.is_empty() || member.is_empty() {
+        return None;
+    }
+    if !arr
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
+    {
+        return None;
+    }
+    if member.chars().any(|c| c == ')' || c == '$' || c == '[') {
+        return None;
+    }
+    Some((arr, member))
+}
+
+/// Whether an array-member name looks user-input-derived (and so
+/// must not be renamed).  Mirrors `_UNSAFE_MEMBER_PATTERN`.
+fn is_unsafe_member(member: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        "uri", "url", "path", "header", "cookie", "query", "param", "filename", "request", "input",
+        "form", "method", "remote", "client", "addr", "password", "auth", "token", "session",
+    ];
+    let lower = member.to_ascii_lowercase();
+    PREFIXES.iter().any(|p| {
+        lower
+            .strip_prefix(p)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('_'))
+    })
+}
+
+/// Recursively rename variables (and params) in a scope, mirroring
+/// `_process_scope`.
+#[allow(clippy::too_many_arguments)]
+fn process_scope(
+    source: &str,
+    analysis: &AnalysisResult,
+    scope: &Scope,
+    scope_label: &str,
+    isolated: bool,
+    barrier_scopes: &HashSet<String>,
+    symbol_map: &mut SymbolMap,
+    edits: &mut Vec<Edit>,
+) {
+    let rename_scope = (scope.kind == ScopeKind::Proc
+        || (isolated && scope.kind == ScopeKind::Global))
+        && !barrier_scopes.contains(scope_label);
+
+    if rename_scope {
+        let proc_def = if scope.kind == ScopeKind::Proc {
+            analysis.all_procs.values().find(|pd| pd.name == scope.name)
+        } else {
+            None
+        };
+        let param_names: HashSet<&str> = proc_def
+            .map(|pd| pd.params.iter().map(|p| p.name.as_str()).collect())
+            .unwrap_or_default();
+
+        let mut var_gen = NameGenerator::new();
+        let existing: HashSet<String> = scope.variables.keys().cloned().collect();
+        let mut var_map: BTreeMap<String, String> = BTreeMap::new();
+
+        let mut var_names: Vec<&String> = scope.variables.keys().collect();
+        var_names.sort();
+        for var_name in var_names {
+            let var_def = &scope.variables[var_name];
+            if var_name.len() <= 1 || var_name.contains("::") {
+                continue;
+            }
+            let claimed: HashSet<String> = var_map.values().cloned().collect();
+            let Some(short) = next_unused_name(&mut var_gen, &existing, &claimed) else {
+                continue;
+            };
+            if short.len() >= var_name.len() {
+                continue;
+            }
+            let is_param = param_names.contains(var_name.as_str());
+
+            // Definition site (non-params only — param defs point at
+            // the proc-name token).
+            if !is_param {
+                let r = var_def.definition_span;
+                if slice(source, r) == *var_name {
+                    edits.push((r.start() as usize, var_name.len(), short.clone()));
+                }
+            }
+            // Reference sites (`$var`): skip the `$`.
+            for &reference in &var_def.references {
+                let ref_text = slice(source, reference);
+                if let Some(rest) = ref_text.strip_prefix('$') {
+                    if rest == var_name {
+                        edits.push((
+                            reference.start() as usize + 1,
+                            var_name.len(),
+                            short.clone(),
+                        ));
+                    }
+                }
+            }
+            var_map.insert(var_name.clone(), short);
+        }
+
+        if let Some(pd) = proc_def {
+            if !var_map.is_empty() {
+                rename_params_in_list(source, pd, &var_map, edits);
+            }
+        }
+        if !var_map.is_empty() {
+            symbol_map.variables.insert(scope_label.to_owned(), var_map);
+        }
+    }
+
+    for child in &scope.children {
+        let label = child_scope_label(scope_label, &child.name);
+        process_scope(
+            source,
+            analysis,
+            child,
+            &label,
+            isolated,
+            barrier_scopes,
+            symbol_map,
+            edits,
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Aggressive-tier aliasing (command / argument / string-literal)
+// ---------------------------------------------------------------------------
+
+/// Control-flow keywords that must stay literal (body/expr index
+/// detection checks them by value).  Mirrors `_CONTROL_FLOW_KEYWORDS`.
+const CONTROL_FLOW_KEYWORDS: &[&str] = &["else", "elseif", "then", "on", "trap", "finally"];
+
+/// Every compacted short name across the symbol map, so aggressive
+/// aliases avoid colliding with a (possibly proc-local) compacted
+/// name — a `$alias` used in command position must not resolve to a
+/// local variable.  This is the collision-safe seed the Python
+/// reference lacks.
+fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
+    let mut out = HashSet::new();
+    out.extend(sm.procs.values().cloned());
+    for m in sm.variables.values() {
+        out.extend(m.values().cloned());
+    }
+    for m in sm.array_members.values() {
+        out.extend(m.values().cloned());
+    }
+    out
+}
+
+/// Shared cost-benefit + apply for command / argument aliasing:
+/// each name used ≥ 2 times becomes `$alias` with a `set alias name`
+/// preamble when that saves bytes.  `used` accumulates claimed alias
+/// names across phases.
+fn alias_by_uses(
+    source: &str,
+    order: &[String],
+    uses: &HashMap<String, Vec<usize>>,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    if order.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+    let mut cands = order.to_vec();
+    cands.sort_by(|a, b| {
+        let (ka, kb) = (uses[a].len() * a.len(), uses[b].len() * b.len());
+        kb.cmp(&ka).then_with(|| {
+            order
+                .iter()
+                .position(|x| x == a)
+                .cmp(&order.iter().position(|x| x == b))
+        })
+    });
+    let mut gen = NameGenerator::new();
+    let mut aliases: Vec<(String, String)> = Vec::new();
+    for name in &cands {
+        let count = uses[name].len();
+        if count < 2 {
+            continue;
+        }
+        let mut alias = gen.next_name();
+        while claimed.contains(&alias) {
+            alias = gen.next_name();
+        }
+        let original_cost = count * name.len();
+        let preamble_cost = 4 + alias.len() + 1 + name.len() + 1;
+        let aliased_cost = preamble_cost + count * (alias.len() + 1);
+        if aliased_cost >= original_cost {
+            continue;
+        }
+        claimed.insert(alias.clone());
+        aliases.push((name.clone(), alias));
+    }
+    if aliases.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut preamble = String::new();
+    let mut map = BTreeMap::new();
+    for (name, alias) in &aliases {
+        let _ = writeln!(preamble, "set {alias} {name}");
+        for &off in &uses[name] {
+            edits.push((off, name.len(), format!("${alias}")));
+        }
+        map.insert(name.clone(), alias.clone());
+    }
+    let body = apply_edits(source, edits);
+    (format!("{preamble}{body}"), map)
+}
+
+/// Phase 2.5: alias repeated long command names (`HTTP::uri` → `$a`).
+/// Mirrors `_alias_repeated_commands`.
+fn alias_repeated_commands(
+    source: &str,
+    dialect: &str,
+    claimed: &mut HashSet<String>,
+    registry: &CommandRegistry,
+) -> (String, BTreeMap<String, String>) {
+    let analysis = Analyser::new().analyse(source, dialect).clone();
+    let mut order: Vec<String> = Vec::new();
+    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
+    for inv in &analysis.command_invocations {
+        let name = &inv.name;
+        if name.len() <= 2 || registry.is_byte_compiled(name) {
+            continue;
+        }
+        uses.entry(name.clone())
+            .or_insert_with(|| {
+                order.push(name.clone());
+                Vec::new()
+            })
+            .push(inv.range.start() as usize);
+    }
+    alias_by_uses(source, &order, &uses, claimed)
+}
+
+/// Phase 2.6: alias repeated literal arguments (`-normalized` → `$a`).
+/// Mirrors `_alias_repeated_arguments` + `_scan_argument_tokens`.
+fn alias_repeated_arguments(
+    source: &str,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    let mut order: Vec<String> = Vec::new();
+    let mut uses: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        let mut is_command_word = true;
+        let mut in_quoted = false;
+        for tok in &tokens {
+            match tok.kind {
+                TokenType::Eof => break,
+                TokenType::Eol => {
+                    is_command_word = true;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Sep => {
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Str => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 3 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Cmd => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 3 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    continue;
+                }
+                _ => {}
+            }
+            if is_command_word {
+                is_command_word = false;
+                continue;
+            }
+            if tok.kind != TokenType::Esc {
+                in_quoted = false;
+                continue;
+            }
+            let abs_off = (base + tok.span.start()) as usize;
+            if source.as_bytes().get(abs_off) == Some(&b'"') {
+                in_quoted = true;
+            }
+            if in_quoted {
+                continue;
+            }
+            let val = sm.token_text(*tok);
+            if val.len() < 3
+                || val.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';'])
+                || CONTROL_FLOW_KEYWORDS.contains(&val)
+            {
+                continue;
+            }
+            uses.entry(val.to_owned())
+                .or_insert_with(|| {
+                    order.push(val.to_owned());
+                    Vec::new()
+                })
+                .push(abs_off);
+        }
+    }
+    alias_by_uses(source, &order, &uses, claimed)
+}
+
+/// Build a suffix array for `text` (naive sort of byte suffixes).
+/// Mirrors `core/common/suffix_array.py::build_suffix_array`.
+fn build_suffix_array(text: &[u8]) -> Vec<usize> {
+    let mut sa: Vec<usize> = (0..text.len()).collect();
+    sa.sort_by(|&a, &b| text[a..].cmp(&text[b..]));
+    sa
+}
+
+/// Kasai's LCP array from a suffix array.  Mirrors
+/// `build_lcp_array`.
+fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
+    let n = text.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut rank = vec![0usize; n];
+    for (i, &s) in sa.iter().enumerate() {
+        rank[s] = i;
+    }
+    let mut lcp = vec![0usize; n];
+    let mut k = 0usize;
+    for i in 0..n {
+        if rank[i] == n - 1 {
+            k = 0;
+            continue;
+        }
+        let j = sa[rank[i] + 1];
+        while i + k < n && j + k < n && text[i + k] == text[j + k] {
+            k += 1;
+        }
+        lcp[rank[i]] = k;
+        k = k.saturating_sub(1);
+    }
+    lcp
+}
+
+/// Find repeated substrings (≥ 3 bytes, ≥ 2 sentinel-free
+/// occurrences) across the quoted-string segments of `source`,
+/// returning `substring -> source byte offsets`.  Steps 1–5 of
+/// `_alias_string_literals`.
+fn string_alias_candidates(source: &str) -> BTreeMap<Vec<u8>, Vec<usize>> {
+    let segments = collect_string_literals(source);
+    if segments.is_empty() {
+        return BTreeMap::new();
+    }
+    // Concatenate segments with a `\0` sentinel; map concat byte →
+    // source byte offset (`usize::MAX` for sentinels).
+    let mut concat: Vec<u8> = Vec::new();
+    let mut concat_to_src: Vec<usize> = Vec::new();
+    for &(src_offset, ref seg) in &segments {
+        for (j, b) in seg.bytes().enumerate() {
+            concat.push(b);
+            concat_to_src.push(src_offset + j);
+        }
+        concat.push(0);
+        concat_to_src.push(usize::MAX);
+    }
+
+    let sa = build_suffix_array(&concat);
+    let lcp = build_lcp_array(&concat, &sa);
+    let min_len = 3;
+
+    let mut candidates: HashSet<Vec<u8>> = HashSet::new();
+    for i in 0..sa.len().saturating_sub(1) {
+        if lcp[i] < min_len {
+            continue;
+        }
+        let (p1, p2) = (sa[i], sa[i + 1]);
+        if concat_to_src[p1] == usize::MAX || concat_to_src[p2] == usize::MAX {
+            continue;
+        }
+        let mut actual = 0;
+        for k in 0..lcp[i] {
+            if p1 + k >= concat_to_src.len()
+                || p2 + k >= concat_to_src.len()
+                || concat_to_src[p1 + k] == usize::MAX
+                || concat_to_src[p2 + k] == usize::MAX
+            {
+                break;
+            }
+            actual = k + 1;
+        }
+        if actual >= min_len {
+            candidates.insert(concat[p1..p1 + actual].to_vec());
+        }
+    }
+
+    let mut occ: BTreeMap<Vec<u8>, Vec<usize>> = BTreeMap::new();
+    for sub in &candidates {
+        let mut offsets = Vec::new();
+        let mut start = 0;
+        while let Some(idx) = find_subslice(&concat, sub, start) {
+            if !(0..sub.len()).any(|k| concat_to_src[idx + k] == usize::MAX) {
+                offsets.push(concat_to_src[idx]);
+            }
+            start = idx + 1;
+        }
+        if offsets.len() >= 2 {
+            occ.insert(sub.clone(), offsets);
+        }
+    }
+    occ
+}
+
+/// Phase 2.7: alias repeated substrings inside double-quoted
+/// strings.  Mirrors `_alias_string_literals` (+ `_collect_string_literals`).
+fn alias_string_literals(
+    source: &str,
+    claimed: &mut HashSet<String>,
+) -> (String, BTreeMap<String, String>) {
+    let occ = string_alias_candidates(source);
+    if occ.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+
+    // Step 6: score, then greedily select non-overlapping aliases.
+    let mut scored: Vec<(usize, Vec<u8>, Vec<usize>)> = Vec::new();
+    for (sub, offsets) in &occ {
+        let count = offsets.len();
+        let original_cost = count * sub.len();
+        let preamble_cost = 4 + 1 + 1 + 1 + sub.len() + 1 + 1;
+        let aliased_cost = preamble_cost + count * 2;
+        let savings = original_cost.saturating_sub(aliased_cost);
+        if savings > 0 {
+            scored.push((savings, sub.clone(), offsets.clone()));
+        }
+    }
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.len().cmp(&a.1.len())));
+
+    let src_bytes = source.as_bytes();
+    let mut gen = NameGenerator::new();
+    let mut claimed_bytes: HashSet<usize> = HashSet::new();
+    let mut aliases: Vec<(Vec<u8>, String, Vec<usize>)> = Vec::new();
+    for (_, sub, offsets) in scored {
+        if !braces_balanced(&sub) {
+            continue;
+        }
+        let free: Vec<usize> = offsets
+            .iter()
+            .copied()
+            .filter(|&off| !(off..off + sub.len()).any(|p| claimed_bytes.contains(&p)))
+            .collect();
+        if free.len() < 2 {
+            continue;
+        }
+        let mut alias = gen.next_name();
+        while claimed.contains(&alias) {
+            alias = gen.next_name();
+        }
+        let count = free.len();
+        let original_cost = count * sub.len();
+        let preamble_cost = 4 + alias.len() + 1 + 1 + sub.len() + 1 + 1;
+        let mut aliased_cost = preamble_cost;
+        for &off in &free {
+            let end = off + sub.len();
+            if is_word_byte(src_bytes.get(end).copied()) {
+                aliased_cost += alias.len() + 3;
+            } else {
+                aliased_cost += alias.len() + 1;
+            }
+        }
+        if aliased_cost >= original_cost {
+            continue;
+        }
+        claimed.insert(alias.clone());
+        for &off in &free {
+            for p in off..off + sub.len() {
+                claimed_bytes.insert(p);
+            }
+        }
+        aliases.push((sub, alias, free));
+    }
+    if aliases.is_empty() {
+        return (source.to_owned(), BTreeMap::new());
+    }
+
+    // Step 7: build preamble + edits.
+    let mut preamble = String::new();
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut map = BTreeMap::new();
+    for (sub, alias, offsets) in &aliases {
+        let sub_str = String::from_utf8_lossy(sub).into_owned();
+        let _ = writeln!(preamble, "set {alias} {{{sub_str}}}");
+        for &off in offsets {
+            let end = off + sub.len();
+            let replacement = if is_word_byte(src_bytes.get(end).copied()) {
+                format!("${{{alias}}}")
+            } else {
+                format!("${alias}")
+            };
+            edits.push((off, sub.len(), replacement));
+        }
+        map.insert(sub_str, alias.clone());
+    }
+    let body = apply_edits(source, edits);
+    (format!("{preamble}{body}"), map)
+}
+
+/// Collect `(abs_offset, text)` of `ESC` segments inside
+/// double-quoted strings, descending into braced / command-subst
+/// tokens.  Mirrors `_collect_string_literals`.
+fn collect_string_literals(top_source: &str) -> Vec<(usize, String)> {
+    let mut segments: Vec<(usize, String)> = Vec::new();
+    let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
+    while let Some((text, base)) = stack.pop() {
+        let sm = SourceMap::new(&text);
+        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+            continue;
+        };
+        let mut is_command_word = true;
+        let mut in_quoted = false;
+        for tok in &tokens {
+            match tok.kind {
+                TokenType::Eof => break,
+                TokenType::Eol => {
+                    is_command_word = true;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Sep => {
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Str => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 2 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    in_quoted = false;
+                    continue;
+                }
+                TokenType::Cmd => {
+                    let inner = sm.token_text(*tok);
+                    if inner.len() >= 2 {
+                        stack.push((inner.to_owned(), base + tok.span.start() + 1));
+                    }
+                    is_command_word = false;
+                    continue;
+                }
+                _ => {}
+            }
+            let mut abs_off = (base + tok.span.start()) as usize;
+            if is_command_word {
+                is_command_word = false;
+                in_quoted = false;
+                continue;
+            }
+            if !in_quoted && top_source.as_bytes().get(abs_off) == Some(&b'"') {
+                in_quoted = true;
+                abs_off += 1;
+            }
+            if in_quoted && tok.kind == TokenType::Esc {
+                let inner = sm.token_text(*tok);
+                if inner.len() >= 2 {
+                    segments.push((abs_off, inner.to_owned()));
+                }
+            }
+            if !matches!(tok.kind, TokenType::Esc | TokenType::Var | TokenType::Cmd) {
+                in_quoted = false;
+            }
+        }
+    }
+    segments
+}
+
+/// Whether `s` has equal numbers of `{` and `}` bytes.
+fn braces_balanced(s: &[u8]) -> bool {
+    let mut balance: i64 = 0;
+    for &c in s {
+        match c {
+            b'{' => balance += 1,
+            b'}' => balance -= 1,
+            _ => {}
+        }
+    }
+    balance == 0
+}
+
+/// Whether braces in `s` are properly nested (depth never negative,
+/// ends at zero).  Mirrors `_braces_balanced`.
+fn braces_nested(s: &str) -> bool {
+    let mut depth: i64 = 0;
+    for c in s.bytes() {
+        match c {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
+/// First index ≥ `from` where `needle` occurs in `haystack`.
+fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+    if needle.is_empty() || from + needle.len() > haystack.len() {
+        return None;
+    }
+    (from..=haystack.len() - needle.len()).find(|&i| &haystack[i..i + needle.len()] == needle)
+}
+
+// ---------------------------------------------------------------------------
+// Static-substring folding (aggressive phase 1.5)
+// ---------------------------------------------------------------------------
+
+/// Taint colours that prove a fixed-form value, so folding stays
+/// safe even when the underlying value is tainted.
+fn safe_taint_colours() -> TaintColour {
+    TaintColour::IP_ADDRESS
+        | TaintColour::PORT
+        | TaintColour::FQDN
+        | TaintColour::LIST_CANONICAL
+        | TaintColour::REGEX_LITERAL
+}
+
+/// Replace dynamic quoted strings with their static values where the
+/// compiler's SCCP pass proves every `$var` substitution is a
+/// compile-time constant and no unsanitised tainted value is
+/// involved.  A safe subset of Python's `fold_static_substrings`:
+/// folds `$var` interpolations resolving to integer / string
+/// constants; bails on command substitutions (`[…]`) and on
+/// boolean / float constants.  Returns `(folded_source, fold_count,
+/// fold_map)`.
+fn fold_static_substrings(
+    source: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> (String, usize, BTreeMap<String, String>) {
+    let cu = CompilationUnit::build_for(source, registry, false);
+    let _ = dialect;
+    let mut edits: Vec<Edit> = Vec::new();
+    let mut fold_map: BTreeMap<String, String> = BTreeMap::new();
+
+    let mut scopes: Vec<&FunctionUnit> = vec![&cu.top_level];
+    scopes.extend(cu.procedures.values());
+    for fu in scopes {
+        collect_folds_for_scope(source, fu, &mut edits, &mut fold_map);
+    }
+    if edits.is_empty() {
+        return (source.to_owned(), 0, fold_map);
+    }
+    // Deduplicate by (offset, length).
+    let mut seen: HashSet<(usize, usize)> = HashSet::new();
+    let mut unique: Vec<Edit> = Vec::new();
+    for e in edits {
+        if seen.insert((e.0, e.1)) {
+            unique.push(e);
+        }
+    }
+    let fold_count = unique.len();
+    let result = apply_edits(source, unique);
+    (result, fold_count, fold_map)
+}
+
+/// Collect static-fold edits for one function scope.
+fn collect_folds_for_scope(
+    source: &str,
+    fu: &FunctionUnit,
+    edits: &mut Vec<Edit>,
+    fold_map: &mut BTreeMap<String, String>,
+) {
+    for (block_name, block) in &fu.cfg.blocks {
+        let Some(ssa_block) = fu.ssa.blocks.get(block_name) else {
+            continue;
+        };
+        if !fu.sccp.executable_blocks.contains(block_name) {
+            continue;
+        }
+        let mut block_vars: HashMap<String, Version> = ssa_block.entry_versions.clone();
+        for (stmt_idx, stmt) in block.statements.iter().enumerate() {
+            let Some(ssa_stmt) = ssa_block.statements.get(stmt_idx) else {
+                continue;
+            };
+            let mut uses = block_vars.clone();
+            for (name, ver) in &ssa_stmt.uses {
+                uses.insert(name.clone(), *ver);
+            }
+            match stmt {
+                Statement::AssignValue {
+                    span,
+                    value,
+                    value_needs_backsubst: true,
+                    ..
+                } if value.contains('$') || value.contains('[') => {
+                    try_fold_region(source, *span, value, &uses, fu, edits, fold_map);
+                }
+                Statement::Call {
+                    tokens: Some(toks), ..
+                } => {
+                    for i in 1..toks.argv.len() {
+                        let arg_off = toks.argv[i].start() as usize;
+                        if source.as_bytes().get(arg_off) != Some(&b'"') {
+                            continue;
+                        }
+                        let content = &toks.argv_texts[i];
+                        if !(content.contains('$') || content.contains('[')) {
+                            continue;
+                        }
+                        if let Some(folded) = fold_string_via_sccp(content, &uses, &fu.sccp.values)
+                        {
+                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints) {
+                                continue;
+                            }
+                            if let Some(close) = find_close_quote(source, arg_off + 1) {
+                                edits.push((
+                                    arg_off,
+                                    close - arg_off + 1,
+                                    build_replacement(&folded),
+                                ));
+                                fold_map.insert(content.clone(), folded);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            for (name, ver) in &ssa_stmt.defs {
+                block_vars.insert(name.clone(), *ver);
+            }
+        }
+    }
+}
+
+/// Fold the quoted string inside the `span` region of an
+/// `AssignValue` (`set x "…"`).
+fn try_fold_region(
+    source: &str,
+    span: Span,
+    value: &str,
+    uses: &HashMap<String, Version>,
+    fu: &FunctionUnit,
+    edits: &mut Vec<Edit>,
+    fold_map: &mut BTreeMap<String, String>,
+) {
+    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values) else {
+        return;
+    };
+    if has_unsafe_tainted_inputs(value, uses, &fu.taints) {
+        return;
+    }
+    let (start, end) = (span.start() as usize, span.end() as usize);
+    let region = &source[start..end.min(source.len())];
+    let Some(q) = region.find('"') else {
+        return;
+    };
+    let abs_start = start + q;
+    let Some(close) = find_close_quote(source, abs_start + 1) else {
+        return;
+    };
+    let inner = &source[abs_start + 1..close];
+    if !(inner.contains('$') || inner.contains('[')) {
+        return;
+    }
+    edits.push((abs_start, close - abs_start + 1, build_replacement(&folded)));
+    fold_map.insert(inner.to_owned(), folded);
+}
+
+/// Resolve a quoted-string body to a static value via SCCP, or
+/// `None` when any substitution is non-constant.  `$var` only;
+/// command substitutions (`[…]`) bail out.
+fn fold_string_via_sccp(
+    content: &str,
+    uses: &HashMap<String, Version>,
+    values: &HashMap<(String, Version), LatticeValue>,
+) -> Option<String> {
+    let bytes = content.as_bytes();
+    let n = bytes.len();
+    let mut out = String::new();
+    let mut has_dynamic = false;
+    let mut pos = 0;
+    while pos < n {
+        match bytes[pos] {
+            b'$' => {
+                let (end, name) = parse_var_ref(content, pos);
+                let name = name?;
+                let ver = uses.get(name).copied().unwrap_or(0);
+                if ver == 0 {
+                    return None;
+                }
+                let lv = values.get(&(name.to_owned(), ver))?;
+                let LatticeValue::Const(cv) = lv else {
+                    return None;
+                };
+                out.push_str(&const_to_string(cv)?);
+                has_dynamic = true;
+                pos = end;
+            }
+            b'[' => return None, // command substitution — deferred.
+            b'\\' if pos + 1 < n => {
+                match bytes[pos + 1] {
+                    b'n' => out.push('\n'),
+                    b't' => out.push('\t'),
+                    b'r' => out.push('\r'),
+                    _ => out.push_str(&content[pos + 1..pos + 1 + utf8_len(bytes[pos + 1])]),
+                }
+                pos += 1 + utf8_len(bytes[pos + 1]);
+            }
+            _ => {
+                let len = utf8_len(bytes[pos]);
+                out.push_str(&content[pos..pos + len]);
+                pos += len;
+            }
+        }
+    }
+    if has_dynamic {
+        Some(out)
+    } else {
+        None
+    }
+}
+
+/// Render an integer / string SCCP constant; `None` for boolean /
+/// float (rendering is ambiguous, so folding bails for safety).
+fn const_to_string(cv: &ConstValue) -> Option<String> {
+    match cv {
+        ConstValue::Int(n) => Some(n.to_string()),
+        ConstValue::String(s) => Some(s.clone()),
+        ConstValue::Bool(_) | ConstValue::Float(_) => None,
+    }
+}
+
+/// Whether any `$var` in `content` is tainted without a
+/// fixed-form mitigation colour.  Mirrors `_has_unsafe_tainted_inputs`.
+fn has_unsafe_tainted_inputs(
+    content: &str,
+    uses: &HashMap<String, Version>,
+    taints: &HashMap<(String, Version), TaintLattice>,
+) -> bool {
+    let safe = safe_taint_colours();
+    let mut pos = 0;
+    let bytes = content.as_bytes();
+    while pos < bytes.len() {
+        if bytes[pos] == b'$' {
+            let (end, name) = parse_var_ref(content, pos);
+            if let Some(name) = name {
+                let ver = uses.get(name).copied().unwrap_or(0);
+                if ver > 0 {
+                    if let Some(t) = taints.get(&(name.to_owned(), ver)) {
+                        if t.is_tainted() && !t.colours.intersects(safe) {
+                            return true;
+                        }
+                    }
+                }
+                pos = end;
+            } else {
+                pos += 1;
+            }
+        } else {
+            pos += 1;
+        }
+    }
+    false
+}
+
+/// Parse a `$var` / `${var}` reference at `pos`, returning
+/// `(end, name)`.  Rejects array (`$a(i)`) and namespaced
+/// (`$a::b`) forms.  Mirrors `_parse_var_ref`.
+fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
+    let bytes = text.as_bytes();
+    if pos >= bytes.len() || bytes[pos] != b'$' {
+        return (pos + 1, None);
+    }
+    let start = pos + 1;
+    if start >= bytes.len() {
+        return (start, None);
+    }
+    if bytes[start] == b'{' {
+        return match text[start + 1..].find('}') {
+            Some(rel) => {
+                let close = start + 1 + rel;
+                (close + 1, Some(&text[start + 1..close]))
+            }
+            None => (start, None),
+        };
+    }
+    let mut end = start;
+    while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+        end += 1;
+    }
+    if end == start {
+        return (start, None);
+    }
+    if end < bytes.len() {
+        if bytes[end] == b'(' {
+            return (start, None);
+        }
+        if bytes[end] == b':' && end + 1 < bytes.len() && bytes[end + 1] == b':' {
+            return (start, None);
+        }
+    }
+    (end, Some(&text[start..end]))
+}
+
+/// Find the closing `"` from `start`, skipping `\`-escapes and
+/// `[…]` command substitutions.  Mirrors `_find_close_quote`.
+fn find_close_quote(source: &str, start: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut pos = start;
+    while pos < bytes.len() {
+        match bytes[pos] {
+            b'"' => return Some(pos),
+            b'\\' => pos += 2,
+            b'[' => {
+                let mut depth = 1;
+                pos += 1;
+                while pos < bytes.len() && depth > 0 {
+                    match bytes[pos] {
+                        b'[' => depth += 1,
+                        b']' => depth -= 1,
+                        b'\\' => pos += 1,
+                        _ => {}
+                    }
+                    pos += 1;
+                }
+            }
+            _ => pos += 1,
+        }
+    }
+    None
+}
+
+/// Build a replacement token for a folded static string: bare when
+/// no quoting is needed, braced when safe, else escaped double
+/// quotes.  Mirrors `_build_replacement`.
+fn build_replacement(folded: &str) -> String {
+    let needs_quoting = folded.is_empty()
+        || folded.contains([' ', '\t', '\n', '"', '{', '}', '[', ']', '$', '\\', ';']);
+    if !needs_quoting {
+        return folded.to_owned();
+    }
+    if !folded.contains('\\') && braces_nested(folded) {
+        return format!("{{{folded}}}");
+    }
+    let escaped = folded
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('$', "\\$")
+        .replace('[', "\\[");
+    format!("\"{escaped}\"")
+}
+
+/// Return the abbreviated subcommand text when safe for `dialect`.
+/// Mirrors `_abbreviated_subcommand`.
+fn abbreviated_subcommand(command_name: &str, subcommand_name: &str, dialect: &str) -> String {
+    if !tcl_registry::prelude::DialectSet::has_fixed_ensembles(Some(dialect)) {
+        return subcommand_name.to_owned();
+    }
+    subcommand_abbreviation(command_name, subcommand_name)
+        .unwrap_or(subcommand_name)
+        .to_owned()
+}
+
+/// Shortest unambiguous abbreviation for `sub` of ensemble
+/// `command`, or `None`.  Mirrors `_SUBCMD_ABBREVIATIONS` (only the
+/// entries strictly shorter than the full subcommand are kept).
+fn subcommand_abbreviation(command: &str, sub: &str) -> Option<&'static str> {
+    let table: &[(&str, &str)] = match command {
+        "string" => &[
+            ("bytelength", "b"),
+            ("cat", "ca"),
+            ("compare", "co"),
+            ("equal", "e"),
+            ("first", "f"),
+            ("index", "in"),
+            ("last", "la"),
+            ("length", "le"),
+            ("match", "mat"),
+            ("range", "ra"),
+            ("repeat", "repe"),
+            ("replace", "repl"),
+            ("reverse", "rev"),
+            ("tolower", "tol"),
+            ("totitle", "tot"),
+            ("toupper", "tou"),
+            ("trimleft", "triml"),
+            ("trimright", "trimr"),
+            ("wordend", "worde"),
+            ("wordstart", "words"),
+        ],
+        "info" => &[
+            ("args", "a"),
+            ("body", "b"),
+            ("cmdcount", "cm"),
+            ("commands", "comm"),
+            ("complete", "comp"),
+            ("default", "d"),
+            ("exists", "e"),
+            ("frame", "fr"),
+            ("functions", "fu"),
+            ("globals", "g"),
+            ("hostname", "h"),
+            ("level", "le"),
+            ("library", "li"),
+            ("loaded", "loa"),
+            ("locals", "loc"),
+            ("nameofexecutable", "n"),
+            ("patchlevel", "pa"),
+            ("procs", "pr"),
+            ("script", "sc"),
+            ("sharedlibextension", "sh"),
+            ("tclversion", "t"),
+        ],
+        "clock" => &[
+            ("add", "a"),
+            ("clicks", "c"),
+            ("format", "f"),
+            ("microseconds", "mic"),
+            ("milliseconds", "mil"),
+            ("scan", "sc"),
+            ("seconds", "se"),
+        ],
+        _ => return None,
+    };
+    table
+        .iter()
+        .find(|(full, _)| *full == sub)
+        .map(|(_, abbr)| *abbr)
+}
+
+/// Replace repeated dynamic quoted args with `[subst $alias]` and a
+/// shared `set alias {content}` preamble.  Mirrors
+/// `_dedup_templates`; returns the ordered `(content, alias)`
+/// preamble pairs plus the rewritten commands.
+fn dedup_templates(rendered: Vec<Vec<String>>) -> (Vec<(String, String)>, Vec<Vec<String>>) {
+    // content -> use sites, preserving first-seen order.
+    let mut order: Vec<String> = Vec::new();
+    let mut uses: std::collections::HashMap<String, Vec<(usize, usize)>> =
+        std::collections::HashMap::new();
+    for (ci, args) in rendered.iter().enumerate() {
+        for (ai, s) in args.iter().enumerate() {
+            if !(s.starts_with('"') && s.ends_with('"') && s.len() >= 2) {
+                continue;
+            }
+            let content = &s[1..s.len() - 1];
+            if !content.contains('$') && !content.contains('[') {
+                continue;
+            }
+            if content.len() < 10 {
+                continue;
+            }
+            if content.matches('{').count() != content.matches('}').count() {
+                continue;
+            }
+            let key = content.to_owned();
+            uses.entry(key.clone()).or_insert_with(|| {
+                order.push(key.clone());
+                Vec::new()
+            });
+            uses.get_mut(&key).expect("inserted").push((ci, ai));
+        }
+    }
+    if order.is_empty() {
+        return (Vec::new(), rendered);
+    }
+
+    // Names already referenced as $var, so aliases don't shadow them.
+    let mut used_names = collect_used_var_names(&rendered);
+
+    // Process candidates by descending count * content-length.
+    let mut candidates = order.clone();
+    candidates.sort_by(|a, b| {
+        let ka = uses[a].len() * a.len();
+        let kb = uses[b].len() * b.len();
+        kb.cmp(&ka).then_with(|| {
+            // Stable on first-seen order for ties.
+            order
+                .iter()
+                .position(|x| x == a)
+                .cmp(&order.iter().position(|x| x == b))
+        })
+    });
+
+    let mut gen = NameGenerator::new();
+    let mut template_map: Vec<(String, String)> = Vec::new();
+    for content in &candidates {
+        let count = uses[content].len();
+        if count < 2 {
+            continue;
+        }
+        let mut alias = gen.next_name();
+        while used_names.contains(&alias) {
+            alias = gen.next_name();
+        }
+        let original_cost = count * (content.len() + 2);
+        let preamble_cost = 4 + alias.len() + 1 + 1 + content.len() + 1 + 1;
+        let subst_ref = format!("[subst ${alias}]");
+        let aliased_cost = preamble_cost + count * subst_ref.len();
+        if aliased_cost >= original_cost {
+            continue;
+        }
+        if content.contains(&format!("${alias}")) || content.contains(&format!("${{{alias}}}")) {
+            continue;
+        }
+        template_map.push((content.clone(), alias.clone()));
+        used_names.insert(alias);
+    }
+    if template_map.is_empty() {
+        return (Vec::new(), rendered);
+    }
+
+    // Apply replacements.
+    let mut result = rendered;
+    for (content, alias) in &template_map {
+        let subst_ref = format!("[subst ${alias}]");
+        for &(ci, ai) in &uses[content] {
+            result[ci][ai].clone_from(&subst_ref);
+        }
+    }
+    (template_map, result)
+}
+
+/// Names referenced as `$var` / `${var}` anywhere in the rendered
+/// commands.  Mirrors the `_used_var_re` scan in `_dedup_templates`.
+fn collect_used_var_names(rendered: &[Vec<String>]) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for args in rendered {
+        for s in args {
+            let bytes = s.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'$' {
+                    let mut j = i + 1;
+                    if j < bytes.len() && bytes[j] == b'{' {
+                        j += 1;
+                    }
+                    let start = j;
+                    while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_')
+                    {
+                        j += 1;
+                    }
+                    if j > start {
+                        out.insert(s[start..j].to_owned());
+                    }
+                    i = j;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Group a token stream into commands (lists of arguments),
+/// dropping comments and whitespace.
+fn parse_commands(source: &str, tokens: &[Token]) -> Vec<Vec<Arg>> {
+    let mut commands: Vec<Vec<Arg>> = Vec::new();
+    let mut current: Vec<Arg> = Vec::new();
+    let mut prev_type = TokenType::Eol;
+
+    for &tok in tokens {
+        match tok.kind {
+            TokenType::Eof => break,
+            TokenType::Comment => continue,
+            TokenType::Sep => {
+                prev_type = TokenType::Sep;
+                continue;
+            }
+            TokenType::Eol => {
+                if !current.is_empty() {
+                    commands.push(std::mem::take(&mut current));
+                }
+                prev_type = TokenType::Eol;
+                continue;
+            }
+            _ => {}
+        }
+
+        let is_start = matches!(prev_type, TokenType::Sep | TokenType::Eol);
+        let detected_quoted =
+            is_start && source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
+
+        if is_start || current.is_empty() {
+            current.push(Arg {
+                tokens: vec![tok],
+                is_braced: tok.kind == TokenType::Str,
+                is_quoted: detected_quoted,
+            });
+        } else {
+            current.last_mut().expect("non-empty").tokens.push(tok);
+        }
+        prev_type = tok.kind;
+    }
+    if !current.is_empty() {
+        commands.push(current);
+    }
+    commands
+}
+
+/// Render one command's arguments to their minified string forms.
+fn render_command(
+    sm: &SourceMap,
+    cmd_args: &[Arg],
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> Vec<String> {
+    let cmd_name = cmd_args
+        .first()
+        .map(|a| token_text(sm, a))
+        .unwrap_or_default();
+    let post: Vec<String> = cmd_args.iter().skip(1).map(|a| token_text(sm, a)).collect();
+    let post_refs: Vec<&str> = post.iter().map(String::as_str).collect();
+
+    let body_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Body);
+    let expr_indices = role_indices(registry, &cmd_name, &post_refs, ArgRole::Expr);
+    let is_case_list = cmd_name == "switch" && is_switch_case_list_form(&post_refs);
+
+    let mut out: Vec<String> = Vec::with_capacity(cmd_args.len());
+    for (i, arg) in cmd_args.iter().enumerate() {
+        let single_braced = arg.is_braced && arg.tokens.len() == 1;
+        if body_indices.contains(&i) && single_braced {
+            let inner = sm.token_text(arg.tokens[0]);
+            let minified = if is_case_list {
+                minify_switch_case_list(inner, dialect, registry)
+            } else {
+                minify_body(inner, dialect, registry)
+            };
+            out.push(format!("{{{minified}}}"));
+        } else if expr_indices.contains(&i) && single_braced {
+            let inner = sm.token_text(arg.tokens[0]);
+            out.push(format!("{{{}}}", compress_expr(inner, dialect, registry)));
+        } else {
+            out.push(reconstruct_arg(sm, arg, dialect, registry));
+        }
+    }
+    out
+}
+
+/// Registry role indices, offset by 1 for the command-name slot.
+fn role_indices(
+    registry: &CommandRegistry,
+    name: &str,
+    post_args: &[&str],
+    role: ArgRole,
+) -> Vec<usize> {
+    if name.is_empty() {
+        return Vec::new();
+    }
+    registry
+        .arg_indices_for_role(name, post_args, role)
+        .into_iter()
+        .map(|i| i + 1)
+        .collect()
+}
+
+/// Text of an argument's first token (Python's `_token_text`).
+fn token_text(sm: &SourceMap, arg: &Arg) -> String {
+    arg.tokens
+        .first()
+        .map(|&t| sm.token_text(t).to_owned())
+        .unwrap_or_default()
+}
+
+/// First character a token will render as.  Mirrors
+/// `_first_rendered_char`.
+fn first_rendered_char(sm: &SourceMap, tok: Token) -> Option<char> {
+    match tok.kind {
+        TokenType::Str | TokenType::Expand => Some('{'),
+        TokenType::Cmd => Some('['),
+        TokenType::Var => Some('$'),
+        _ => sm.token_text(tok).chars().next(),
+    }
+}
+
+/// Rebuild source text from a single token, re-adding delimiters
+/// and recursively minifying `[…]` substitutions.  Mirrors
+/// `_reconstruct_raw`.
+fn reconstruct_raw(
+    sm: &SourceMap,
+    tok: Token,
+    next_tok: Option<Token>,
+    dialect: &str,
+    registry: &CommandRegistry,
+) -> String {
+    match tok.kind {
+        TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
+        TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), dialect, registry)),
+        TokenType::Var => {
+            // Inside a quoted string, keep `${var}` when the next
+            // token would otherwise extend the variable name.
+            if let Some(next) = next_tok {
+                if let Some(c) = first_rendered_char(sm, next) {
+                    if c.is_alphanumeric() || c == '_' {
+                        return format!("${{{}}}", sm.token_text(tok));
+                    }
+                }
+            }
+            format!("${}", sm.token_text(tok))
+        }
+        TokenType::Expand => "{*}".to_owned(),
+        _ => sm.token_text(tok).to_owned(),
+    }
+}
+
+/// Characters that would change semantics if they appear unquoted.
+const NEEDS_QUOTING: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}', ';', '"', '\0'];
+
+/// Whether a quoted argument can safely drop its double quotes.
+/// Mirrors `_can_strip_quotes`.
+fn can_strip_quotes(raw: &str) -> bool {
+    if raw.is_empty() {
+        return false;
+    }
+    let first = raw.chars().next().unwrap();
+    if matches!(first, '"' | '{' | '#') {
+        return false;
+    }
+    if raw == "{*}" {
+        return false;
+    }
+    if raw.chars().any(|c| NEEDS_QUOTING.contains(&c)) {
+        return false;
+    }
+    // Any `{` / `}` outside `${var}` references blocks stripping.
+    let stripped = strip_braced_var_refs(raw);
+    !(stripped.contains('{') || stripped.contains('}'))
+}
+
+/// Remove `${…}` references from `raw` so the residual brace check
+/// in [`can_strip_quotes`] only sees bare braces.
+fn strip_braced_var_refs(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        if bytes[i] == b'$' && i + 1 < n && bytes[i + 1] == b'{' {
+            if let Some(close) = raw[i + 2..].find('}') {
+                i = i + 2 + close + 1;
+                continue;
+            }
+        }
+        let ch_len = utf8_len(bytes[i]);
+        out.push_str(&raw[i..i + ch_len]);
+        i += ch_len;
+    }
+    out
+}
+
+/// Byte length of the UTF-8 char whose lead byte is `b`.
+fn utf8_len(b: u8) -> usize {
+    if b < 0x80 {
+        1
+    } else if b >> 5 == 0b110 {
+        2
+    } else if b >> 4 == 0b1110 {
+        3
+    } else {
+        4
+    }
+}
+
+/// Rebuild the source text of an argument from its tokens.
+/// Mirrors `_reconstruct_arg`.
+fn reconstruct_arg(sm: &SourceMap, arg: &Arg, dialect: &str, registry: &CommandRegistry) -> String {
+    let mut raw = String::new();
+    for (idx, &tok) in arg.tokens.iter().enumerate() {
+        let next = if arg.is_quoted {
+            arg.tokens.get(idx + 1).copied()
+        } else {
+            None
+        };
+        raw.push_str(&reconstruct_raw(sm, tok, next, dialect, registry));
+    }
+    if arg.is_quoted && !can_strip_quotes(&raw) {
+        format!("\"{raw}\"")
+    } else {
+        raw
+    }
+}
+
+// ---------------------------------------------------------------------------
+// switch case-list handling
+// ---------------------------------------------------------------------------
+
+/// Whether the post-name args use the braced case-list form (a
+/// single trailing word after any leading options).  Mirrors
+/// `is_switch_case_list_form`.
+fn is_switch_case_list_form(args: &[&str]) -> bool {
+    let i = skip_switch_options(args);
+    i < args.len() && i == args.len() - 1
+}
+
+/// Skip leading `switch` option words and the match-value arg,
+/// returning the index of the first case-list element.  Mirrors
+/// `_skip_switch_options` (options, then one value arg).
+fn skip_switch_options(args: &[&str]) -> usize {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i];
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            // `-matchvar` / `-indexvar` consume a following value.
+            if matches!(a, "-matchvar" | "-indexvar") {
+                i += 1;
+            }
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    // Skip the match-value argument itself.
+    if i < args.len() {
+        i += 1;
+    }
+    i
+}
+
+/// Minify the content of a `switch` braced case list, recursively
+/// minifying each braced body.  Mirrors `_minify_switch_case_list`.
+fn minify_switch_case_list(source: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let sm = SourceMap::new(source);
+    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+        return source.to_owned();
+    };
+    // Segment into words (pattern / body), grouping multi-token words.
+    // `is_braced` marks a `{…}` word (re-wrapped via `reconstruct_raw`);
+    // `is_quoted` marks a `"…"` word — its delimiters are stripped by the
+    // lexer (the inner content lexes as `Esc`/`Var`/`Cmd` tokens), so the
+    // reconstructed raw must be re-quoted or a multi-word pattern like
+    // `"c d"` collapses to two bare words and breaks the case list (#540).
+    let mut words: Vec<(String, bool, bool, Token)> = Vec::new(); // (raw, is_braced, is_quoted, first_tok)
+    let mut prev_type = TokenType::Eol;
+    for tok in tokens {
+        match tok.kind {
+            TokenType::Eof => break,
+            TokenType::Sep | TokenType::Eol | TokenType::Comment => {
+                prev_type = tok.kind;
+                continue;
+            }
+            _ => {}
+        }
+        let raw = reconstruct_raw(&sm, tok, None, dialect, registry);
+        if matches!(
+            prev_type,
+            TokenType::Sep | TokenType::Eol | TokenType::Comment
+        ) || words.is_empty()
+        {
+            // A word is quoted when its first token opens on a `"` in the
+            // source (the lexer stores the opener via `content_offset`).
+            let is_quoted = source.as_bytes().get(tok.span.start() as usize) == Some(&b'"');
+            words.push((raw, tok.kind == TokenType::Str, is_quoted, tok));
+        } else {
+            words.last_mut().expect("non-empty").0.push_str(&raw);
+        }
+        prev_type = tok.kind;
+    }
+
+    // Render a pattern/body word, preserving its original delimiters so it
+    // stays a single Tcl word when re-emitted.
+    let render_word = |raw: &str, is_braced: bool, is_quoted: bool| -> String {
+        if is_braced {
+            format!("{{{raw}}}")
+        } else if is_quoted {
+            format!("\"{raw}\"")
+        } else {
+            raw.to_owned()
+        }
+    };
+
+    let mut parts: Vec<String> = Vec::new();
+    let mut idx = 0;
+    while idx + 1 < words.len() {
+        let (pat_raw, pat_braced, pat_quoted, _) = &words[idx];
+        // `reconstruct_raw` already re-wraps a braced `Str` pattern, so only
+        // re-quote here (avoid double-bracing).
+        let pattern = render_word(pat_raw, false, *pat_quoted && !*pat_braced);
+        let (body_raw, body_braced, body_quoted, body_tok) = &words[idx + 1];
+        let body_inner = sm.token_text(*body_tok);
+        if body_inner == "-" && *body_raw == "-" {
+            parts.push(format!("{pattern} -"));
+        } else if *body_braced {
+            let minified = minify_body(body_inner, dialect, registry);
+            parts.push(format!("{pattern} {{{minified}}}"));
+        } else if *body_quoted {
+            parts.push(format!("{pattern} \"{body_raw}\""));
+        } else {
+            parts.push(format!("{pattern} {body_raw}"));
+        }
+        idx += 2;
+    }
+    parts.join(" ")
+}
+
+// ---------------------------------------------------------------------------
+// expr whitespace compression
+// ---------------------------------------------------------------------------
+
+/// One token of an `expr` body for whitespace compression.
+enum ExprTok {
+    /// A `[…]` command substitution (already minified).
+    Cmd(String),
+    /// Any other token (string, var, word, operator, punctuation).
+    Other(String),
+    /// A run of whitespace.
+    Space,
+}
+
+/// Remove unnecessary whitespace inside an `expr` body, keeping
+/// spaces only around word-operators and between adjacent word
+/// tokens.  Mirrors `_strip_expr_whitespace` (no AST shrinking).
+fn strip_expr_whitespace(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let toks = tokenise_expr(text, dialect, registry);
+    let rendered: Vec<String> = toks
+        .iter()
+        .filter_map(|t| match t {
+            ExprTok::Space => None,
+            ExprTok::Cmd(s) | ExprTok::Other(s) => Some(s.clone()),
+        })
+        .collect();
+    if rendered.is_empty() {
+        return text.to_owned();
+    }
+    let mut out = String::new();
+    out.push_str(&rendered[0]);
+    for w in rendered.windows(2) {
+        let (prev, cur) = (&w[0], &w[1]);
+        if is_word_op(prev) || is_word_op(cur) || (is_word_token(prev) && is_word_token(cur)) {
+            out.push(' ');
+        }
+        out.push_str(cur);
+    }
+    out
+}
+
+/// Compress and shrink an `expr` body: strip whitespace, then try
+/// AST transforms (De Morgan / comparison inversion / double
+/// negation) and keep whichever is shorter.  Mirrors
+/// `_compress_expr`.
+fn compress_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let compressed = strip_expr_whitespace(text, dialect, registry);
+    let shrunk = shrink_expr_ast(&compressed, dialect, registry);
+    if shrunk.len() < compressed.len() {
+        shrunk
+    } else {
+        compressed
+    }
+}
+
+/// AST-based expression shrinking.  Mirrors `_shrink_expr_ast`.
+fn shrink_expr_ast(text: &str, dialect: &str, registry: &CommandRegistry) -> String {
+    let node = parse_expr(text, Some(dialect));
+    if matches!(node, ExprNode::Raw { .. }) {
+        return text.to_owned();
+    }
+    let shrunk = shrink_node(&node);
+    if shrunk == node {
+        return text.to_owned();
+    }
+    let rendered = render_expr(&shrunk);
+    strip_expr_whitespace(&rendered, dialect, registry)
+}
+
+/// The logical complement of a comparison / membership operator,
+/// or `None` when it has none.  Mirrors `_COMPARISON_INVERSION`.
+fn comparison_inversion(op: BinOp) -> Option<BinOp> {
+    Some(match op {
+        BinOp::Eq => BinOp::Ne,
+        BinOp::Ne => BinOp::Eq,
+        BinOp::Lt => BinOp::Ge,
+        BinOp::Ge => BinOp::Lt,
+        BinOp::Gt => BinOp::Le,
+        BinOp::Le => BinOp::Gt,
+        BinOp::StrEq => BinOp::StrNe,
+        BinOp::StrNe => BinOp::StrEq,
+        BinOp::In => BinOp::Ni,
+        BinOp::Ni => BinOp::In,
+        BinOp::StrLt => BinOp::StrGe,
+        BinOp::StrGe => BinOp::StrLt,
+        BinOp::StrGt => BinOp::StrLe,
+        BinOp::StrLe => BinOp::StrGt,
+        _ => return None,
+    })
+}
+
+/// Build a `!operand` node.
+fn negate(operand: ExprNode) -> ExprNode {
+    ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand: Box::new(operand),
+    }
+}
+
+/// Pick `candidate` over `original` when its rendering is shorter.
+fn pick_shorter(candidate: ExprNode, original: &ExprNode) -> ExprNode {
+    if render_expr(&candidate).len() < render_expr(original).len() {
+        candidate
+    } else {
+        original.clone()
+    }
+}
+
+/// Recursively try size-reducing transforms on an expression node.
+/// Mirrors `_shrink_node`.
+fn shrink_node(node: &ExprNode) -> ExprNode {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => shrink_not(node, operand),
+        ExprNode::Binary { op, left, right }
+            if matches!(op, BinOp::Or | BinOp::WordOr) && both_negations(left, right) =>
+        {
+            // De Morgan reverse: !a || !b → !(a && b) (if shorter).
+            let (a, b) = (unwrap_not(left), unwrap_not(right));
+            let dual = if *op == BinOp::Or {
+                BinOp::And
+            } else {
+                BinOp::WordAnd
+            };
+            let combined = negate(ExprNode::Binary {
+                op: dual,
+                left: Box::new(shrink_node(a)),
+                right: Box::new(shrink_node(b)),
+            });
+            pick_shorter(combined, node)
+        }
+        ExprNode::Binary { op, left, right }
+            if matches!(op, BinOp::And | BinOp::WordAnd) && both_negations(left, right) =>
+        {
+            // De Morgan reverse: !a && !b → !(a || b) (if shorter).
+            let (a, b) = (unwrap_not(left), unwrap_not(right));
+            let dual = if *op == BinOp::And {
+                BinOp::Or
+            } else {
+                BinOp::WordOr
+            };
+            let combined = negate(ExprNode::Binary {
+                op: dual,
+                left: Box::new(shrink_node(a)),
+                right: Box::new(shrink_node(b)),
+            });
+            pick_shorter(combined, node)
+        }
+        ExprNode::Binary { op, left, right } => {
+            let new_left = shrink_node(left);
+            let new_right = shrink_node(right);
+            ExprNode::Binary {
+                op: *op,
+                left: Box::new(new_left),
+                right: Box::new(new_right),
+            }
+        }
+        ExprNode::Unary { op, operand } => ExprNode::Unary {
+            op: *op,
+            operand: Box::new(shrink_node(operand)),
+        },
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => ExprNode::Ternary {
+            condition: Box::new(shrink_node(condition)),
+            true_branch: Box::new(shrink_node(true_branch)),
+            false_branch: Box::new(shrink_node(false_branch)),
+        },
+        other => other.clone(),
+    }
+}
+
+/// Whether both operands are `!`-negations.
+fn both_negations(left: &ExprNode, right: &ExprNode) -> bool {
+    matches!(
+        left,
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    ) && matches!(
+        right,
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            ..
+        }
+    )
+}
+
+/// The operand of a `!`-negation (caller guarantees the shape).
+fn unwrap_not(node: &ExprNode) -> &ExprNode {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => operand,
+        _ => node,
+    }
+}
+
+/// Handle the `!`-prefixed shrink cases (double negation,
+/// comparison inversion, De Morgan forward), falling back to a
+/// generic operand recurse.
+fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
+    // Double negation: !!x → x.
+    if let ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand: inner,
+    } = operand
+    {
+        return shrink_node(inner);
+    }
+    if let ExprNode::Binary { op, left, right } = operand {
+        // Comparison inversion: !($a == $b) → $a != $b.
+        if let Some(inv) = comparison_inversion(*op) {
+            let inverted = ExprNode::Binary {
+                op: inv,
+                left: Box::new(shrink_node(left)),
+                right: Box::new(shrink_node(right)),
+            };
+            return pick_shorter(inverted, node);
+        }
+        // De Morgan forward.
+        if matches!(op, BinOp::And | BinOp::WordAnd | BinOp::Or | BinOp::WordOr) {
+            let neg_l = negate(shrink_node(left));
+            let neg_r = negate(shrink_node(right));
+            let dual = match op {
+                BinOp::And => BinOp::Or,
+                BinOp::WordAnd => BinOp::WordOr,
+                BinOp::Or => BinOp::And,
+                _ => BinOp::WordAnd,
+            };
+            let demorgan = ExprNode::Binary {
+                op: dual,
+                left: Box::new(shrink_node(&neg_l)),
+                right: Box::new(shrink_node(&neg_r)),
+            };
+            return pick_shorter(demorgan, node);
+        }
+    }
+    // Generic recurse into the operand.
+    negate(shrink_node(operand))
+}
+
+/// Tokenise an `expr` body, mirroring the `_EXPR_TOKEN` alternation
+/// (with a catch-all so no character is dropped — safer than the
+/// Python reference, which silently drops unmatched characters).
+fn tokenise_expr(text: &str, dialect: &str, registry: &CommandRegistry) -> Vec<ExprTok> {
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < n {
+        let c = bytes[i];
+        if c.is_ascii_whitespace() {
+            let start = i;
+            while i < n && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            let _ = start;
+            out.push(ExprTok::Space);
+        } else if c == b'"' {
+            let start = i;
+            i += 1;
+            while i < n {
+                if bytes[i] == b'\\' && i + 1 < n {
+                    i += 2;
+                    continue;
+                }
+                if bytes[i] == b'"' {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            out.push(ExprTok::Other(text[start..i].to_owned()));
+        } else if c == b'[' {
+            let start = i;
+            i += 1;
+            let mut depth = 1;
+            while i < n && depth > 0 {
+                match bytes[i] {
+                    b'[' => depth += 1,
+                    b']' => depth -= 1,
+                    _ => {}
+                }
+                i += 1;
+            }
+            let inner = &text[start + 1..i.saturating_sub(1).max(start + 1)];
+            out.push(ExprTok::Cmd(format!(
+                "[{}]",
+                minify_body(inner, dialect, registry)
+            )));
+        } else if c == b'$' {
+            let start = i;
+            i += 1;
+            while i < n
+                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b':')
+            {
+                i += 1;
+            }
+            out.push(ExprTok::Other(text[start..i].to_owned()));
+        } else if c.is_ascii_alphanumeric() || c == b'.' || c == b'_' {
+            let start = i;
+            while i < n
+                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'_')
+            {
+                i += 1;
+            }
+            out.push(ExprTok::Other(text[start..i].to_owned()));
+        } else if is_expr_op_byte(c) {
+            let start = i;
+            while i < n && is_expr_op_byte(bytes[i]) {
+                i += 1;
+            }
+            out.push(ExprTok::Other(text[start..i].to_owned()));
+        } else {
+            // Catch-all single char (`(`, `)`, `,`, etc.).
+            let ch_len = utf8_len(c);
+            out.push(ExprTok::Other(text[i..i + ch_len].to_owned()));
+            i += ch_len;
+        }
+    }
+    out
+}
+
+/// Whether `b` is a byte that forms a symbolic `expr` operator.
+fn is_expr_op_byte(b: u8) -> bool {
+    matches!(
+        b,
+        b'+' | b'-'
+            | b'*'
+            | b'/'
+            | b'%'
+            | b'<'
+            | b'>'
+            | b'='
+            | b'!'
+            | b'&'
+            | b'|'
+            | b'^'
+            | b'?'
+            | b':'
+            | b'~'
+    )
+}
+
+/// Whether `tok` is a Tcl expr word-operator needing surrounding
+/// whitespace (`eq`, `ne`, `in`, `ni`).
+fn is_word_op(tok: &str) -> bool {
+    matches!(tok, "eq" | "ne" | "in" | "ni")
+}
+
+/// Whether `tok` is a "word" (identifier / number / variable /
+/// string / command-substitution).  Mirrors `_is_word_token`.
+fn is_word_token(tok: &str) -> bool {
+    let Some(c) = tok.chars().next() else {
+        return false;
+    };
+    c == '$' || c == '"' || c == '[' || c.is_alphanumeric() || c == '_'
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn min(src: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl(src, "tcl8.6", &registry)
+    }
+
+    fn check(input: &str, expected: &str) {
+        let got = min(input);
+        assert_eq!(
+            got, expected,
+            "\ninput:    {input:?}\ngot:      {got:?}\nexpected: {expected:?}"
+        );
+    }
+
+    #[test]
+    fn strips_comments() {
+        check("# a comment\nputs hi\n", "puts hi");
+    }
+
+    fn min_dialect(src: &str, dialect: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl(src, dialect, &registry)
+    }
+
+    fn min_compact(src: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl_compact(src, "tcl8.6", false, &registry).0
+    }
+
+    #[test]
+    fn compact_renames_proc_local_vars_and_params() {
+        // `greet`→`a`, param `name`→`b`, local `message`→`a`.
+        assert_eq!(
+            min_compact(
+                "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n"
+            ),
+            "proc a {b} {set a \"hi $b\";return $a}",
+        );
+    }
+
+    #[test]
+    fn compact_renames_refs_inside_expr_and_command_subst() {
+        // The `$value` ref lives inside `[expr {...}]`; it must be
+        // renamed in lock-step with the param declaration (relies on
+        // the analyser tracking expr/command-subst references).
+        assert_eq!(
+            min_compact(
+                "proc helper {value} {\n    return [expr {$value * 2}]\n}\nproc main {} {\n    set result [helper 21]\n    puts $result\n}\n"
+            ),
+            "proc a {a} {return [expr {$a*2}]};proc b {} {set a [a 21];puts $a}",
+        );
+    }
+
+    #[test]
+    fn compact_returns_symbol_map() {
+        let registry = CommandRegistry::build_default();
+        let (_, sym) = minify_tcl_compact(
+            "proc greet {name} {\n    return $name\n}\n",
+            "tcl8.6",
+            false,
+            &registry,
+        );
+        assert_eq!(sym.procs.get("greet").map(String::as_str), Some("a"));
+        assert!(sym
+            .variables
+            .values()
+            .any(|m| m.get("name").map(String::as_str) == Some("a")));
+    }
+
+    #[test]
+    fn compact_isolated_renames_global_vars() {
+        let registry = CommandRegistry::build_default();
+        let (out, _) = minify_tcl_compact(
+            "set globalvar 1\nputs $globalvar\n",
+            "tcl8.6",
+            true,
+            &registry,
+        );
+        assert_eq!(out, "set a 1;puts $a");
+    }
+
+    #[test]
+    fn unminify_error_round_trips_via_symbol_map() {
+        let registry = CommandRegistry::build_default();
+        let (_, sym) = minify_tcl_compact(
+            "proc greet {name} {\n    return $name\n}\n",
+            "tcl8.6",
+            false,
+            &registry,
+        );
+        // Procs win the bare-name reverse entry, so `a` -> `greet`.
+        assert_eq!(
+            unminify_error("can't read \"a\": no such variable", &sym),
+            "can't read \"greet\": no such variable",
+        );
+        assert_eq!(
+            unminify_error("invalid command name \"a\"", &sym),
+            "invalid command name \"greet\"",
+        );
+    }
+
+    #[test]
+    fn remap_line_references_maps_proportionally() {
+        let orig = "proc f {} {\n    set x 1\n    set y 2\n    set z 3\n}\n";
+        let mini = "proc f {} {set x 1;set y 2;set z 3}";
+        // min_commands = 3; line 2 -> proportional original line 3.
+        assert_eq!(
+            remap_line_references("error at line 2", mini, orig),
+            "error at line 3 (minified line 2)",
+        );
+    }
+
+    #[test]
+    fn remap_line_references_procline_single_pass() {
+        let orig = "proc f {} {\n    set x 1\n    set y 2\n    set z 3\n}\n";
+        let mini = "proc f {} {set x 1;set y 2;set z 3}";
+        // Single pass (no Python double-application): line 3 -> 5.
+        assert_eq!(
+            remap_line_references("(procedure \"f\" line 3)", mini, orig),
+            "(procedure \"f\" line 5, minified line 3)",
+        );
+    }
+
+    #[test]
+    fn unminify_error_parse_round_trip() {
+        let mut sym = SymbolMap::default();
+        sym.procs.insert("greet".to_owned(), "a".to_owned());
+        let text = sym.format();
+        let parsed = SymbolMap::parse(&text);
+        assert_eq!(parsed.procs.get("greet").map(String::as_str), Some("a"));
+        assert_eq!(
+            unminify_error("calling $a now", &parsed),
+            "calling $greet now"
+        );
+    }
+
+    fn agg(src: &str) -> String {
+        let registry = CommandRegistry::build_default();
+        minify_tcl_aggressive(src, "tcl8.6", false, &registry).source
+    }
+
+    #[test]
+    fn static_fold_folds_sccp_constant_interpolation() {
+        let registry = CommandRegistry::build_default();
+        // `$x` is a proven integer constant; fold `"n=$x"` -> `n=5`.
+        let (out, count, map) =
+            fold_static_substrings("set x 5\nputs \"n=$x\"\n", "tcl8.6", &registry);
+        assert_eq!(out, "set x 5\nputs n=5\n");
+        assert_eq!(count, 1);
+        assert!(map.values().any(|v| v == "n=5"), "{map:?}");
+    }
+
+    #[test]
+    fn static_fold_skips_non_constant() {
+        let registry = CommandRegistry::build_default();
+        // `[HTTP::uri]` is dynamic — nothing folds.
+        let (out, count, _) =
+            fold_static_substrings("set u [HTTP::uri]\nputs \"got $u\"\n", "tcl8.6", &registry);
+        assert_eq!(count, 0);
+        assert!(out.contains("$u"));
+    }
+
+    #[test]
+    fn aggressive_aliases_repeated_commands() {
+        assert_eq!(
+            agg("mylongcommand a\nmylongcommand b\nmylongcommand c\n"),
+            "set a mylongcommand;$a a;$a b;$a c",
+        );
+    }
+
+    #[test]
+    fn aggressive_aliases_repeated_arguments() {
+        assert_eq!(
+            agg("foo --somelongflag\nbar --somelongflag\nbaz --somelongflag\n"),
+            "set a --somelongflag;foo $a;bar $a;baz $a",
+        );
+    }
+
+    #[test]
+    fn aggressive_aliases_string_substrings() {
+        assert_eq!(
+            agg("puts \"the quick brown fox jumps\"\nputs \"the quick brown fox runs\"\n"),
+            "set a {the quick brown fox };puts ${a}jumps;puts ${a}runs",
+        );
+    }
+
+    #[test]
+    fn aggressive_aliases_avoid_compacted_local_collisions() {
+        // `handler`->`a`, `request`->`a` (proc-local); the command
+        // alias must skip `a` and use `b`, else `$a` in command
+        // position would resolve to the local param.
+        assert_eq!(
+            agg("proc handler {request} {\n    mylongcmd $request\n    mylongcmd $request\n    mylongcmd $request\n}\n"),
+            "set b mylongcmd;proc a {a} {$b $a;$b $a;$b $a}",
+        );
+    }
+
+    #[test]
+    fn aggressive_runs_optimise_compact_minify() {
+        let registry = CommandRegistry::build_default();
+        let src = "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n";
+        let res = minify_tcl_aggressive(src, "tcl8.6", false, &registry);
+        // With no applicable optimisations this equals the compact tier.
+        assert_eq!(res.source, "proc a {b} {set a \"hi $b\";return $a}");
+        assert_eq!(res.original_length, src.len());
+        assert_eq!(res.minified_length(), res.source.len());
+        assert!(res.savings_pct() > 0.0);
+    }
+
+    #[test]
+    fn compact_renames_static_array_members() {
+        assert_eq!(
+            min_compact("proc f {} {\n    set config(database) 1\n    set config(timeout) 2\n    puts $config(database)$config(timeout)\n}\n"),
+            "proc f {} {set config(a) 1;set config(b) 2;puts $config(a)$config(b)}",
+        );
+    }
+
+    #[test]
+    fn compact_skips_user_input_array_members() {
+        // `uri` looks user-input-derived — leave the array alone.
+        assert_eq!(
+            min_compact("proc f {} {\n    set config(uri) 1\n    puts $config(uri)\n}\n"),
+            "proc f {} {set config(uri) 1;puts $config(uri)}",
+        );
+    }
+
+    #[test]
+    fn compact_non_isolated_keeps_global_vars() {
+        assert_eq!(
+            min_compact("set globalvar 1\nputs $globalvar\n"),
+            "set globalvar 1;puts $globalvar"
+        );
+    }
+
+    #[test]
+    fn dedup_repeated_dynamic_templates() {
+        check(
+            "puts \"value is $longvariablename here\"\nputs \"value is $longvariablename here\"\n",
+            "set a {value is $longvariablename here};puts [subst $a];puts [subst $a]",
+        );
+    }
+
+    #[test]
+    fn abbreviates_ensemble_subcommand_in_irules() {
+        assert_eq!(
+            min_dialect("string length $x\n", "f5-irules"),
+            "string le $x"
+        );
+        assert_eq!(min_dialect("info exists $x\n", "f5-irules"), "info e $x");
+    }
+
+    #[test]
+    fn no_subcommand_abbreviation_in_plain_tcl() {
+        assert_eq!(
+            min_dialect("string length $x\n", "tcl8.6"),
+            "string length $x"
+        );
+    }
+
+    #[test]
+    fn expr_comparison_inversion() {
+        check("if {!($a == $b)} {puts x}\n", "if {$a!=$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_de_morgan_forward() {
+        check("if {!($a && $b)} {puts x}\n", "if {!$a||!$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_de_morgan_reverse() {
+        check("if {!$a || !$b} {puts x}\n", "if {!$a||!$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_double_negation() {
+        check("if {!!$x} {puts x}\n", "if {$x} {puts x}");
+    }
+
+    #[test]
+    fn expr_no_change_when_already_minimal() {
+        check("if {$a < $b} {puts x}\n", "if {$a<$b} {puts x}");
+    }
+
+    #[test]
+    fn expr_shrink_nested_in_command_subst() {
+        check(
+            "set y [expr {!($a==1 && $b==2)}]\n",
+            "set y [expr {$a!=1||$b!=2}]",
+        );
+    }
+
+    #[test]
+    fn collapses_commands_to_semicolons() {
+        check("set x 1\nset y 2\n", "set x 1;set y 2");
+    }
+
+    #[test]
+    fn collapses_intra_command_whitespace() {
+        check("set    x     1\n", "set x 1");
+    }
+
+    #[test]
+    fn recurses_into_proc_body() {
+        check(
+            "proc f {} {\n    # c\n    set x 1\n}\n",
+            "proc f {} {set x 1}",
+        );
+    }
+
+    #[test]
+    fn recurses_into_command_substitution() {
+        check("set y [ expr {1 + 2} ]\n", "set y [expr {1+2}]");
+    }
+
+    #[test]
+    fn strips_redundant_quotes() {
+        check("puts \"hello\"\n", "puts hello");
+    }
+
+    #[test]
+    fn keeps_quotes_when_needed() {
+        check("puts \"hello world\"\n", "puts \"hello world\"");
+    }
+
+    #[test]
+    fn compresses_expr_whitespace() {
+        check("if {$a == 1} {\n    puts hi\n}\n", "if {$a==1} {puts hi}");
+    }
+
+    #[test]
+    fn keeps_word_operator_spacing() {
+        check(
+            "if {$a eq $b} {\n    puts hi\n}\n",
+            "if {$a eq $b} {puts hi}",
+        );
+    }
+
+    #[test]
+    fn minifies_switch_case_bodies() {
+        check(
+            "switch $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}\n",
+            "switch $x {a {puts 1} b {puts 2}}",
+        );
+    }
+
+    #[test]
+    fn switch_fallthrough_preserved() {
+        check(
+            "switch $x {\n    a -\n    b {\n        puts 2\n    }\n}\n",
+            "switch $x {a - b {puts 2}}",
+        );
+    }
+
+    #[test]
+    fn switch_braced_and_quoted_multiword_patterns_keep_delimiters() {
+        // Issue #540: a braced `{a b}` / quoted `"c d"` pattern must keep its
+        // delimiters so the case list stays balanced and re-parses as one word
+        // per pattern.  Dropping the quotes turned `"c d"` into two bare words.
+        check(
+            "switch $x {\n  {a b} { puts one }\n  \"c d\" { puts two }\n  default { puts def }\n}\n",
+            "switch $x {{a b} {puts one} \"c d\" {puts two} default {puts def}}",
+        );
+    }
+
+    #[test]
+    fn nested_body_recursion() {
+        check(
+            "proc f {} {\n    if {$x} {\n        set y 1\n    }\n}\n",
+            "proc f {} {if {$x} {set y 1}}",
+        );
+    }
+
+    #[test]
+    fn empty_source_minifies_to_empty() {
+        check("\n\n# only a comment\n", "");
+    }
+}

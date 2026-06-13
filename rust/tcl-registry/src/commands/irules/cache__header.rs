@@ -1,0 +1,40 @@
+//! `CACHE::header` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "CACHE::header",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+hover: Some(HoverSnippet {
+            summary: "Get/modify the content of an header related to an object stored in the RAM Cache.",
+            synopsis: &["CACHE::header ('exists' | 'remove' | 'value') HEADER_NAME", "CACHE::header ('insert' | 'replace') HEADER_NAME HEADER_VALUE"],
+            snippet: "The command is used to gather or modify the content of a header stored\nin the cache.\n\nCACHE::header <name>\n\n     * Get the content of the requested header\n\nCACHE::header insert <name> <value>\n\n     * Add the header with the specified value to the list of headers sent to the\n       client when delivering an object from the cache.\n\nCACHE::header remove <name>\n\n     * Remove the header with the specified name.\n\nCACHE::header replace <name> <value>\n\n     * Replace the header with the specified value.\n\nCACHE::header value <name>\n\n     * Return the header value for the specified header name.",
+            source: "https://clouddocs.f5.com/api/irules/CACHE__header.html",
+            examples: "when CACHE_UPDATE {\n    # cached object's headers manipulation\n    # modifications will be seen whenever the object is served from cache\n    CACHE::header replace Server Big-IP-Server\n}",
+            return_value: "",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["CACHE"],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "CACHE::header ('exists' | 'remove' | 'value') HEADER_NAME" },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::StreamProfile,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
+        taint_source: Some(TaintColour::TAINTED),
+        ..CommandSpec::DEFAULT
+    }
+}

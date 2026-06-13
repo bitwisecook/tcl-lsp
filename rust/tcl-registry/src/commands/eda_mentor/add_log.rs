@@ -1,0 +1,21 @@
+//! `add_log` command.
+use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "add log ?-r? signal_list",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "add_log",
+        dialects: Some(DialectSet::MENTOR),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet::brief(
+            "Log signals for waveform viewing (add log).",
+            &["add log ?-r? signal_list"],
+            "F5",
+        )),
+        forms: FORMS,
+        ..CommandSpec::DEFAULT
+    }
+}

@@ -31,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import weakref
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -44,8 +45,8 @@ BUILD_INFO = ROOT / "shared" / "_build_info.py"
 # selects which:
 #   * ``python`` (default) — the packaged ``tcl-lsp-server-<v>.pyz`` run under
 #     the current interpreter (the shipped Python LSP server).
-#   * ``rust``             — the native ``tcl-lsp-server`` binary, run directly
-#     over stdio.
+#   * ``rust``             — the native ``tcl-lsp-server`` binary from the Rust
+#     workspace, run directly over stdio.
 #
 # In ``rust`` mode the binary is located via ``TCL_LSP_SERVER_BIN`` (explicit
 # path) or discovered at ``target/{release,debug}/tcl-lsp-server`` under the
@@ -55,9 +56,23 @@ BUILD_INFO = ROOT / "shared" / "_build_info.py"
 
 
 def server_kind() -> str:
-    """Return the selected LSP backend: ``"python"`` (default) or ``"rust"``."""
-    kind = os.environ.get("TCL_LSP_SERVER_KIND", "python").strip().lower()
-    return "rust" if kind in {"rust", "native"} else "python"
+    """Return the selected LSP backend: ``"rust"`` (default) or ``"python"``.
+
+    The native Rust server is the out-of-the-box backend.  Selection rules
+    (mirroring the ``tcl-lsp`` launcher and the VS Code extension):
+
+    * ``TCL_LSP_SERVER_KIND=python`` → the Python reference server.
+    * ``TCL_LSP_SERVER_KIND=rust`` / ``native`` → the native server
+      (the caller is then responsible for it being built).
+    * unset → the native server when a binary is available, otherwise the
+      Python reference server, so a bare checkout still runs out of the box.
+    """
+    raw = os.environ.get("TCL_LSP_SERVER_KIND", "").strip().lower()
+    if raw == "python":
+        return "python"
+    if raw in {"rust", "native"}:
+        return "rust"
+    return "rust" if native_server_bin() is not None else "python"
 
 
 def native_server_bin() -> Path | None:
@@ -124,6 +139,27 @@ class LspError(AssertionError):
     """Raised when the server returns a JSON-RPC error to a request."""
 
 
+#: Every constructed :class:`LspServerClient` registers itself here so a
+#: function-scoped teardown fixture can close the documents each test opened
+#: on whichever server(s) it actually used.  A ``WeakSet`` keeps shut-down
+#: servers from lingering.  Without this the session-scoped servers accumulate
+#: every test's documents, and workspace-wide providers (cross-document
+#: references, workspace symbols) then surface one test's buffer in another's
+#: results — an order-dependent leak.
+_LIVE_CLIENTS: "weakref.WeakSet[LspServerClient]" = weakref.WeakSet()
+
+
+def close_all_documents_on_live_servers() -> None:
+    """Close every still-open document on every live server.
+
+    Called from a function-scoped autouse fixture after each test so the
+    long-lived shared servers start every test with no foreign documents
+    open.  Best-effort: a server whose process has already exited is skipped.
+    """
+    for client in list(_LIVE_CLIENTS):
+        client.close_all_documents()
+
+
 class LspServerClient:
     """Manage a language-server subprocess and talk LSP JSON-RPC to it."""
 
@@ -160,6 +196,11 @@ class LspServerClient:
         #: ``serverInfo`` from the initialize result, populated by initialize().
         self.server_info: dict | None = None
         self.initialize_result: dict | None = None
+        #: URIs currently opened (``didOpen`` without a matching ``didClose``),
+        #: so per-test teardown can close them and keep the shared server from
+        #: accumulating one test's documents into the next test's results.
+        self._open_uris: set[str] = set()
+        _LIVE_CLIENTS.add(self)
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -271,6 +312,7 @@ class LspServerClient:
                 }
             },
         )
+        self._open_uris.add(uri)
 
     def change_document(
         self,
@@ -300,6 +342,22 @@ class LspServerClient:
 
     def close_document(self, uri: str) -> None:
         self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+        self._open_uris.discard(uri)
+
+    def close_all_documents(self) -> None:
+        """Send ``didClose`` for every still-open document on this server.
+
+        Best-effort: if the server process has already exited (or any send
+        fails during teardown) the remaining URIs are simply dropped — the
+        process is going away regardless.
+        """
+        if self._proc is None or self._proc.poll() is not None:
+            self._open_uris.clear()
+            return
+        for uri in list(self._open_uris):
+            with contextlib.suppress(Exception):
+                self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+        self._open_uris.clear()
 
     def open_ready(
         self,

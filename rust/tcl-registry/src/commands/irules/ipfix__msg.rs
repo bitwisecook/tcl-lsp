@@ -1,0 +1,32 @@
+//! `IPFIX::msg` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "IPFIX::msg",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+hover: Some(HoverSnippet {
+            summary: "IPFIX::msg Provides the ability to create, delete and set values in an IPFIX message that can then be used to send IPFIX message based on processing in the iRule.",
+            synopsis: &["IPFIX::msg ((create IPFIX_TEMPLATE) |"],
+            snippet: "Provides the ability to create, delete and set data values in an IPFIX\nmessage based on the provided IPFIX_TEMPLATE.",
+            source: "https://clouddocs.f5.com/api/irules/IPFIX__msg.html",
+            examples: "when RULE_INIT {\n    set static::http_track_dest \"\"\n    set static::http_track_tmplt \"\"\n}",
+            return_value: "IPFIX::msg create returns an IPFIX_MESSAGE object that is used by the IPFIX::msg set|delete and IPFIX::destination send commands.",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "IPFIX::msg <subcommand> ?options? args..." },
+        ],
+        options: &[
+            OptionSpec { name: "-pos", takes_value: true, value_hint: "IPFIX_POS", detail: "Position index for duplicate field types.", dialects: None },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::NetworkIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Both,
+            },
+        ],
+        ..CommandSpec::DEFAULT
+    }
+}

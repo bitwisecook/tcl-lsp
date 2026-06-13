@@ -1,0 +1,34 @@
+//! `call` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "call",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(1),
+        traits: Traits::INVOKES_USER_PROC,
+hover: Some(HoverSnippet {
+            summary: "Calls an iRule procedure.",
+            synopsis: &["call ?-debug? <proc_name> ?arg ...?"],
+            snippet: "iRule procedures:\n    - Are similar to procedures, functions, subroutines from other languages\n    - Allow for reuse of common code\n        - Reference the same code from multiple locations, but only define it in one place\n        - Simplifies code maintenance\n    - Allow you to augment the predefined iRule commands\n\nProcedures are defined with the proc statement. This must be done\noutside of any event. Procedures can be defined within an iRule\nassigned to a virtual server or in a separate iRule not assigned to\nany virtual server.\n\nCall a local proc (defined in the same iRule) without a namespace prefix:\n    call my_proc $args\n\nTo reference a proc in another iRule in the same partition, prefix with\nthe iRule name:\n    call other_rule::my_proc $args\n\nTo reference a proc in another partition:\n    call /other_partition/other_rule::procname args",
+            source: "https://clouddocs.f5.com/api/irules/call.html",
+            examples: "when RULE_INIT {\n    # Call a proc which returns no values\n    call proc_rule::printArguments one two three\n\n    # Save the return value of a proc\n    set return_values [call proc_rule::returnArguments one two three]\n}",
+            return_value: "Returns the value(s) that return (if any).",
+        }),
+        forms: &[
+            FormSpec { kind: FormKind::Default, synopsis: "call ?-debug? <proc_name> ?arg ...?" },
+        ],
+        options: &[
+            OptionSpec { name: "-debug", takes_value: false, value_hint: "", detail: "Enable debug mode.", dialects: None },
+        ],
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::ProcDefinition,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::Global,
+            },
+        ],
+        arg_roles: &[(0, ArgRole::Name)],
+        ..CommandSpec::DEFAULT
+    }
+}

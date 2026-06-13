@@ -1,0 +1,4 @@
+# Floating stable toolchain. See docs/rust-rewrite.md for rationale.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

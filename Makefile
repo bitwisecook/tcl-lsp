@@ -161,7 +161,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust rust-server test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -277,26 +277,13 @@ lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
 format: format-py format-ts ## Format Python and TypeScript code
 
-test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (PyO3 surfaces + tooling; excludes lsp_e2e, VM tcltest, fuzz campaigns)
 	@echo "==> Running Python tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
-
-rust-server: ## Build the native Rust LSP server (PROFILE=release|debug) if a Rust workspace is present
-	@set -eu; \
-	if [ ! -f "$(ROOT)Cargo.toml" ]; then \
-		echo "==> No top-level Cargo.toml (native server lives on the rust branch) — nothing to build"; \
-		exit 0; \
-	fi; \
-	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
-	fi; \
-	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
-	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
-	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py --ignore=tests/lsp_e2e
 
 test-lsp-e2e: $(UV_STAMP) ensure-python-test-deps $(ZIPAPP_LSP) ## Run the backend-neutral lsp_e2e suite against the Python server
 	@echo "==> Running lsp_e2e against the Python server"
-	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
 
 test-lsp-e2e-rust: $(UV_STAMP) ensure-python-test-deps ## Run the lsp_e2e suite against the native Rust server (TCL_LSP_SERVER_BIN or target/{release,debug})
 	@set -eu; \
@@ -518,7 +505,7 @@ _prep-pr-smoke: smoke-zipapps smoke-vsix
 # wire surface.
 _ci-fast-pytest: $(UV_STAMP) $(ZIPAPP_LSP)
 	@echo "==> Running LSP end-to-end pytest subset"
-	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
 		tests/lsp_e2e/ \
 		tests/test_server_commands.py \
 		tests/test_server_config.py \
@@ -549,7 +536,7 @@ prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck
 # Optional Rust test step.  Cargo tests run only if a workspace exists at the
 # repo root (some branches add Rust code beyond the Zed extension); otherwise
 # this is a no-op.  Set SKIP_TEST_RUST=1 to skip explicitly.
-test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (skip with SKIP_TEST_RUST=1)
+test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
 		echo "==> SKIP_TEST_RUST set — skipping Rust tests"; \
@@ -566,6 +553,45 @@ test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (ski
 	fi; \
 	echo "==> Running Rust workspace tests"; \
 	cd $(ROOT) && cargo test --workspace --all-features
+	@echo "==> Building the native server + running lsp_e2e against it"
+	$(MAKE) rust-server
+	$(MAKE) test-lsp-e2e-rust
+
+# Build the native Rust LSP server binary (target/release/tcl-lsp-server).
+# This is the server the test harnesses drive when TCL_LSP_SERVER_KIND=rust
+# (lsp_e2e) or tclLsp.serverKind="rust" (VS Code).  Release by default for
+# usable latency; pass PROFILE=debug for a faster build (see PROFILE above).
+rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
+
+# Opt-in: run the VS Code extension integration tests against the NATIVE Rust
+# server.  Mirrors `test-ext` but exports TCL_LSP_SERVER_KIND=rust + the binary
+# path so the extension launches the native server (extension.ts
+# resolveRustServer()).  Failures are expected during parity work; the bar is
+# that the suite terminates with a pass/fail report (no indefinite hang).
+test-ext-rust: rust-server ## Run VS Code extension tests against the native Rust server (TCL_LSP_SERVER_KIND=rust)
+	@set -eu; \
+	"$(MAKE)" compile ensure-vscode-test-deps; \
+	echo "==> Running VS Code extension tests against the native Rust server"; \
+	export TCL_LSP_SERVER_KIND=rust; \
+	export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+		if command -v xvfb-run >/dev/null 2>&1; then \
+			echo "==> No DISPLAY detected; running under xvfb-run"; \
+			cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" test; \
+		else \
+			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; \
+			exit 1; \
+		fi; \
+	else \
+		cd "$(EXT_DIR)" && "$(NPM)" test; \
+	fi
 
 ## Pre-push gate: full lint + typecheck across every language (Python, TS,
 ## Zig, Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.

@@ -97,7 +97,7 @@ to the project environment with no per-shell `source .venv/bin/activate`.
 | Zig              | 0.16.0        | `/opt/zig-0.16.0/`              | `/usr/local/bin/zig`      |
 | Wasmtime         | v43.0.1       | `/opt/wasmtime-43.0.1/`         | `/usr/local/bin/wasmtime` |
 | Binaryen         | v123          | `/opt/binaryen-123/`            | `/usr/local/bin/wasm-merge`, `/usr/local/bin/wasm-opt` |
-| rustup + Rust    | stable 1.95.0 | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
+| rustup + Rust    | floating `stable` (currently 1.96.0) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
 | Tcl 8.4 source   | 8.4.20        | `tmp/tcl8.4.20/`                | —                         |
 | Tcl 8.5 source   | 8.5.19        | `tmp/tcl8.5.19/`                | —                         |
 | Tcl 8.6 source   | 8.6.16        | `tmp/tcl8.6.16/`                | —                         |
@@ -126,8 +126,9 @@ Notes on the fetched sources:
 
 To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)
-(`ZIG_VERSION`, `WASMTIME_VERSION`, `BINARYEN_VERSION`, `RUST_VERSION`, `TCLLIB_TAG` /
-`TCLLIB_VERSION`) and, for Tcl, the version/tag maps in
+(`ZIG_VERSION`, `WASMTIME_VERSION`, `BINARYEN_VERSION`, `TCLLIB_TAG` /
+`TCLLIB_VERSION`; Rust tracks the floating `stable` channel via
+`RUST_TOOLCHAIN` and needs no version bump) and, for Tcl, the version/tag maps in
 [`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`](.claude/skills/fetch-tcl-source/fetch_tcl_source.sh).
 For Zig, refresh `expected_sha` in the hook to match the new x86_64-linux
 tarball's SHA-256 from `https://ziglang.org/download/index.json`.

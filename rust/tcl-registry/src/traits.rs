@@ -1,0 +1,219 @@
+//! Behavioural trait flags for commands.
+//!
+//! Each bit replaces one `bool` field from the Python `CommandSpec`.
+//! Consumers query traits via `spec.traits.contains(Traits::CONTROL_FLOW)`
+//! instead of matching on command name strings.
+
+use bitflags::bitflags;
+
+bitflags! {
+    /// Declarative behavioural traits for a command.
+    ///
+    /// Packed into a single `u64` — compact storage, fast intersection
+    /// and containment queries on a single spec. Whole-registry
+    /// trait-membership queries
+    /// ([`crate::registry::CommandRegistry::commands_with_trait`])
+    /// scan the spec table in O(N) today; a precomputed trait index
+    /// is a future optimisation.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct Traits: u64 {
+        // Control flow
+        /// Command is a control-flow construct (`if`, `for`, `while`, `switch`).
+        const CONTROL_FLOW              = 1 << 0;
+        /// Language keyword for semantic token classification.
+        const LANGUAGE_KEYWORD          = 1 << 1;
+        /// First expression argument is in boolean context (`if`, `while`, `for`).
+        const HAS_BOOLEAN_COND          = 1 << 2;
+        /// Unconditionally terminates the current block (`error`, `return`, `exit`).
+        const TERMINATES_BLOCK          = 1 << 3;
+
+        // Loop/body structure
+        /// Contains a loop body (`for`, `while`, `foreach`).
+        const HAS_LOOP_BODY             = 1 << 4;
+        /// Forbid inlining body arguments.
+        const NEVER_INLINE_BODY         = 1 << 5;
+        /// CFG header with list-expression args evaluated once (`foreach`, `lmap`).
+        const LOOP_LIST_HEADER          = 1 << 6;
+
+        // Purity and optimisation
+        /// Side-effect-free command.
+        const PURE                      = 1 << 7;
+        /// Candidate for common subexpression elimination.
+        const CSE_CANDIDATE             = 1 << 8;
+        /// Pure evaluation (`expr` — side-effect-free when braced).
+        const PURE_EVALUATION           = 1 << 9;
+
+        // Variable semantics
+        /// Defines a procedure (`proc`).
+        const DEFINES_PROCEDURE         = 1 << 10;
+        /// Destroys/removes a variable (`unset`).
+        const DESTROYS_VARIABLE         = 1 << 11;
+        /// Reads the target variable before writing (`incr`, `append`, `lappend`).
+        const READS_BEFORE_WRITE        = 1 << 12;
+        /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
+        const CREATES_SCOPE_ALIAS       = 1 << 13;
+        /// Creates a runtime control-flow barrier (`eval`, `uplevel`, `upvar`).
+        const CREATES_BARRIER           = 1 << 14;
+
+        // Analysis check dispatch
+        /// Evaluates code dynamically (`eval`, `uplevel`).
+        const EVALUATES_CODE            = 1 << 15;
+        /// Performs backslash/variable substitution (`subst`).
+        const PERFORMS_SUBSTITUTION      = 1 << 16;
+        /// Opens a channel (`open`).
+        const OPENS_CHANNEL             = 1 << 17;
+        /// Sources a file (`source`).
+        const SOURCES_FILE              = 1 << 18;
+        /// Has a switch body (`switch`).
+        const HAS_SWITCH_BODY           = 1 << 19;
+        /// String/list confusion risk (`append`).
+        const STRING_LIST_CONFUSION     = 1 << 20;
+        /// Configures a channel (`fconfigure`, `chan configure`).
+        const CONFIGURES_CHANNEL        = 1 << 21;
+        /// Has `interp eval` subcommand.
+        const HAS_INTERP_EVAL           = 1 << 22;
+        /// Has destructive operations (`file delete`, `namespace delete`).
+        const HAS_DESTRUCTIVE_OPS       = 1 << 23;
+        /// iRules event handler (`when`).
+        const IS_EVENT_HANDLER          = 1 << 24;
+        /// Returns unnormalised HTTP path/URI/query.
+        const UNNORMALISED_HTTP_GETTER  = 1 << 25;
+
+        // Output/value traits
+        /// Returns a filesystem path (`pwd`, `file join`).
+        const RETURNS_PATH              = 1 << 26;
+        /// Performs unescaping/decoding (`subst`, `URI::decode`).
+        const IS_UNESCAPE              = 1 << 27;
+        /// Produces a canonical Tcl list (`list`, `concat`).
+        const PRODUCES_CANONICAL_LIST   = 1 << 28;
+
+        // Safety
+        /// Inherently dangerous command.
+        const UNSAFE                    = 1 << 29;
+        /// Warn about option injection without `--` terminator.
+        const WARN_WITHOUT_TERMINATOR   = 1 << 30;
+        /// Password option command.
+        const PASSWORD_OPTION           = 1 << 31;
+
+        // iRules-specific
+        /// Side-switching command (`clientside`/`serverside`).
+        const IS_SIDE_SWITCH            = 1 << 32;
+        /// Must appear at iRules top level (`proc`, `when`, `timing`).
+        const IRULES_TOP_LEVEL_ONLY     = 1 << 33;
+        /// TclOO metaclass (`oo::class`, `oo::abstract`).
+        const IS_OO_METACLASS           = 1 << 34;
+
+        // Codegen/diagram
+        /// Included in diagram extraction.
+        const DIAGRAM_ACTION            = 1 << 35;
+        /// Needs `startCommand` bytecode instruction.
+        const NEEDS_START_CMD           = 1 << 36;
+
+        // Taint
+        /// Command is a taint sink (absorbs tainted data).
+        const TAINT_SINK                = 1 << 37;
+        /// Command returns attacker-controlled data
+        /// (`gets`, `read`, `exec`, `socket`, …).
+        const TAINT_SOURCE              = 1 << 38;
+        /// Command operates on attacker-controlled iRules data
+        /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
+        /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
+        const IRULES_DATA_GETTER        = 1 << 39;
+
+        /// SYNC5: Creates a runtime scope-alias barrier whose VarWrite
+        /// args are vararg lists (`global x y z`, `variable a b c`,
+        /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
+        /// handles the per-arg list; SSA must not produce partial
+        /// defs from `arg_roles[0]`.  Mirrors Python's
+        /// `creates_dynamic_barrier` field set by `f87bc090`.
+        const CREATES_DYNAMIC_BARRIER   = 1 << 40;
+
+        /// Command invokes a user-defined Tcl procedure named by
+        /// its first argument.  Set on the iRules `call` command
+        /// (`call PROC_NAME ?ARGS?`).  Used by the LSP completion
+        /// provider to surface user-proc names — and only those,
+        /// not built-in commands — at word-index 1.
+        const INVOKES_USER_PROC         = 1 << 41;
+
+        /// Core Tcl built-in that the bytecode compiler special-cases
+        /// (or that is otherwise load-bearing as a literal command
+        /// word).  Re-invoking such a command through a `$var`
+        /// command alias would defeat byte-compilation or change
+        /// semantics, so the minifier never rewrites these heads to
+        /// `$alias`.  Single source of truth for the minifier's
+        /// former `_BUILTIN_SKIP` list; query via
+        /// [`crate::registry::CommandRegistry::is_byte_compiled`].
+        const BYTE_COMPILED             = 1 << 42;
+
+        /// Command head incidentally matches the
+        /// `HEAD NAME BRACED BRACED` four-token shape but is **not** a
+        /// proc-factory wrapper, so the signature scanner must not
+        /// treat it as one.  Single source of truth for the analyser's
+        /// former `_FACTORY_SKIP_HEADS` list (registered heads only;
+        /// non-command heads like `method` / `itcl::class` are handled
+        /// by a small residual set in the scanner).
+        const NOT_PROC_FACTORY          = 1 << 43;
+
+        /// Command whose codegen always lowers to a dedicated runtime
+        /// helper (or to a structured IR node) and never falls back to
+        /// the interpreter — so a call to it needs no runtime frame in
+        /// the callee.  The var-escape analysis treats only these as
+        /// frame-free.  Single source of truth for the former
+        /// `_FRAMELESS_RUNTIME_COMMANDS` allow-list.  Keep audited:
+        /// stamping a command that secretly eval-falls-back would
+        /// break eval-inside-proc semantics in escape-free procs.
+        const FRAMELESS_RUNTIME         = 1 << 44;
+
+        /// First argument is a variable *name* (read / write / modify),
+        /// not a value — `set` / `incr` / `append` / `lappend` / `unset`.
+        /// The var-escape analysis uses this to detect dynamic-name forms
+        /// (`set $n value`). Single source of truth for the former
+        /// `NAME_FIRST_COMMANDS` allow-list.
+        const FIRST_ARG_VARNAME         = 1 << 45;
+
+        /// A `VarRead`-role argument names the *whole* array, not a single
+        /// element (`array` / `parray`), so a write to any element is
+        /// observed by the read. Single source of truth for the former
+        /// `WHOLE_ARRAY_COMMANDS` allow-list.
+        const WHOLE_ARRAY_ARG           = 1 << 46;
+
+        /// Executes a body through the interpreter, opening a
+        /// name-resolution channel back into the local frame — `eval` /
+        /// `uplevel` / `apply` / `source` / `namespace` / `interp`. The
+        /// var-escape slot resolver treats a frame reached this way as
+        /// hash-backed. Single source of truth for the former
+        /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
+        /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
+        /// of these carry.)
+        const DYNAMIC_EVAL_BODY         = 1 << 47;
+
+        /// (Subcommand) introspects program state by variable *name* —
+        /// `info exists|vars|locals|args|default`. The var-escape slot
+        /// resolver treats the named variable as ineligible for a slot.
+        /// Single source of truth for the former
+        /// `INFO_INTROSPECTING_SUBCMDS` list.
+        const INTROSPECTS_BY_NAME       = 1 << 48;
+
+        /// (Subcommand) targets a variable by *name* —
+        /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
+        /// var-escape slot resolver. Single source of truth for the former
+        /// `TRACE_NAME_TARGETING` list.
+        const TARGETS_VARIABLE_BY_NAME  = 1 << 49;
+
+        /// Aliases / reads / writes variables through the frame's *hash
+        /// bucket* by name (`upvar` / `global` / `variable` / `lassign` /
+        /// `lset` / `regexp` / `regsub` / `scan` / `binary` / `vwait` /
+        /// `tkwait`), so a named variable it touches cannot live in an
+        /// indexed slot. Single source of truth for the former
+        /// `FRAME_HASH_BUILTINS` list.
+        const FRAME_HASH_BUILTIN        = 1 << 50;
+
+        /// A Tcl auto-loading / library proc that user code is expected to
+        /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
+        /// `tcl_findLibrary`, the `tcl_*Word*` helpers, …), so redefining
+        /// it must not fire the W113 "overrides a built-in" warning.
+        /// Single source of truth for the former
+        /// `OVERRIDABLE_LIBRARY_PROCS` list.
+        const OVERRIDABLE_LIBRARY_PROC  = 1 << 51;
+    }
+}

@@ -1,0 +1,207 @@
+//! `array` — the array-variable ensemble (toward running tcltest; used ~30×).
+//! C ref `tclVar.c` (`Tcl_ArrayObjCmd`). Operates on the array variables the
+//! frame/namespace var tables already hold (`a(key)`).
+//!
+//! Implemented: `set`/`get`/`names`/`exists`/`size`/`unset`. (`statistics`,
+//! `nextelement`/`startsearch` searches, `-exact`/`-regexp` name modes follow.)
+//!
+//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
+use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
+use crate::list;
+use crate::obj::TclObj;
+use crate::parse::split_list;
+
+/// Register `array`.
+pub fn install(interp: &mut Interp) {
+    interp.register_builtin(b"array", array_cmd);
+}
+
+fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
+    let mut m = b"wrong # args: should be \"".to_vec();
+    m.extend_from_slice(usage);
+    m.push(b'"');
+    interp.set_error(&m)
+}
+
+fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return wrong_args(interp, b"array subcommand arrayName ?arg ...?");
+    }
+    let name = obj_bytes(argv[2]);
+    match obj_bytes(argv[1]).as_slice() {
+        b"exists" => {
+            interp.set_result_bytes(if interp.var_is_array(&name) {
+                b"1"
+            } else {
+                b"0"
+            });
+            Code::Ok
+        }
+        b"size" => {
+            let n = interp.array_names(&name).map_or(0, |k| k.len());
+            interp.set_result_bytes(n.to_string().as_bytes());
+            Code::Ok
+        }
+        b"names" => array_names(interp, argv, &name),
+        b"get" => array_get(interp, argv, &name),
+        b"set" => array_set(interp, argv, &name),
+        b"unset" => array_unset(interp, argv, &name),
+        other => {
+            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            m.extend_from_slice(other);
+            m.extend_from_slice(b"\": must be exists, get, names, set, size, or unset");
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `array names arrayName ?pattern?` — element names (glob-filtered).
+fn array_names(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
+    if argv.len() > 4 {
+        return wrong_args(interp, b"array names arrayName ?pattern?");
+    }
+    let pattern = argv.get(3).map(|&a| obj_bytes(a));
+    let keys = interp.array_names(name).unwrap_or_default();
+    let objs: Vec<*mut TclObj> = keys
+        .iter()
+        .filter(|k| pattern.as_deref().map_or(true, |p| glob_match(p, k)))
+        .map(|k| new_string(k))
+        .collect();
+    interp.set_result(list::new_list_obj(&objs));
+    Code::Ok
+}
+
+/// `array get arrayName ?pattern?` — flat `key value …` list.
+fn array_get(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
+    if argv.len() > 4 {
+        return wrong_args(interp, b"array get arrayName ?pattern?");
+    }
+    let pattern = argv.get(3).map(|&a| obj_bytes(a));
+    let keys = interp.array_names(name).unwrap_or_default();
+    let mut objs: Vec<*mut TclObj> = Vec::with_capacity(keys.len() * 2);
+    for k in &keys {
+        if pattern.as_deref().is_some_and(|p| !glob_match(p, k)) {
+            continue;
+        }
+        let Some(v) = interp.var_get_elem(name, k) else {
+            continue;
+        };
+        objs.push(new_string(k)); // fresh key (rc 0)
+        objs.push(v); // borrowed value
+    }
+    interp.set_result(list::new_list_obj(&objs)); // retains keys + values
+    Code::Ok
+}
+
+/// `array set arrayName {key value …}` — store each pair as an element.
+fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(interp, b"array set arrayName list");
+    }
+    let kvs = match split_list(&obj_bytes(argv[3])) {
+        Ok(v) => v,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    if kvs.len() % 2 != 0 {
+        return interp.set_error(b"list must have an even number of elements");
+    }
+    for pair in kvs.chunks_exact(2) {
+        let v = new_string(&pair[1]); // rc 0; var_set_elem retains
+        if let Err(e) = interp.var_set_elem(name, &pair[0], v) {
+            drop_fresh(v);
+            return crate::builtins::var_error(interp, name, e);
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// `array unset arrayName ?pattern?` — remove matching elements, or the whole
+/// array when no pattern is given.
+fn array_unset(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
+    if argv.len() > 4 {
+        return wrong_args(interp, b"array unset arrayName ?pattern?");
+    }
+    match argv.get(3).map(|&a| obj_bytes(a)) {
+        None => {
+            interp.var_unset(name); // whole array (ignore "didn't exist")
+        }
+        Some(pattern) => {
+            for k in interp.array_names(name).unwrap_or_default() {
+                if glob_match(&pattern, &k) {
+                    interp.var_unset_elem(name, &k);
+                }
+            }
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+fn glob_match(pat: &[u8], name: &[u8]) -> bool {
+    match (core::str::from_utf8(pat), core::str::from_utf8(name)) {
+        (Ok(p), Ok(n)) => tcl_syntax::glob::string_match(p, n),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::counters;
+    use crate::interp::{Code, Interp};
+
+    fn leak_free(body: impl FnOnce(&mut Interp)) {
+        counters::reset();
+        {
+            let mut interp = Interp::new();
+            body(&mut interp);
+        }
+        assert_eq!(
+            counters::finalize(),
+            0,
+            "residual: {} objs, {} bufs",
+            counters::live_objs(),
+            counters::live_bufs()
+        );
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    fn run(i: &mut Interp, src: &[u8]) -> Vec<u8> {
+        assert_eq!(
+            i.eval_str(src),
+            Code::Ok,
+            "eval {:?}",
+            String::from_utf8_lossy(src)
+        );
+        i.result_bytes()
+    }
+
+    #[test]
+    fn array_set_get_names_size() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"array exists a"), b"0");
+            run(i, b"array set a {x 1 y 2 z 3}");
+            assert_eq!(run(i, b"array exists a"), b"1");
+            assert_eq!(run(i, b"array size a"), b"3");
+            assert_eq!(run(i, b"array names a"), b"x y z"); // sorted (BTreeMap)
+            assert_eq!(run(i, b"array names a {[xy]}"), b"x y");
+            assert_eq!(run(i, b"set a(y)"), b"2");
+            // array get is a flat key/value list (sorted by key).
+            assert_eq!(run(i, b"array get a"), b"x 1 y 2 z 3");
+            i.eval_str(b"unset a");
+        });
+    }
+
+    #[test]
+    fn array_unset() {
+        leak_free(|i| {
+            run(i, b"array set a {x 1 y 2 z 3}");
+            run(i, b"array unset a y");
+            assert_eq!(run(i, b"array names a"), b"x z");
+            run(i, b"array unset a"); // whole array
+            assert_eq!(run(i, b"array exists a"), b"0");
+        });
+    }
+}

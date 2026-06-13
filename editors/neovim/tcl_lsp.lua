@@ -6,8 +6,12 @@
 -- For older Neovim or nvim-lspconfig, see README.md.
 
 return {
-  cmd = { 'uv', 'run', '--directory', '/path/to/tcl-lsp', '--no-dev', 'python', '-m', 'server' },
-  -- Alternative: use the standalone zipapp (no uv required):
+  -- Native Rust server (default). Build it with `make rust-server` (or
+  -- `cargo build -p tcl-lsp-server`) and point at the binary:
+  cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },
+  -- Python reference server (opt-out) — requires uv:
+  -- cmd = { 'uv', 'run', '--directory', '/path/to/tcl-lsp', '--no-dev', 'python', '-m', 'server' },
+  -- ...or the standalone zipapp (no uv required):
   -- cmd = { 'python3', '/path/to/tcl-lsp-server.pyz' },
 
   filetypes = { 'tcl', 'tcl-apl' },
