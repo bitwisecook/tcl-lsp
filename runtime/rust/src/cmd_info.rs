@@ -76,8 +76,20 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match sub {
         b"exists" => info_exists(interp, argv),
-        b"commands" => info_commands(interp, argv),
-        b"procs" => set_list(interp, argv, Interp::visible_proc_names),
+        b"commands" => set_list_qualified(
+            interp,
+            argv,
+            b"info commands ?pattern?",
+            Interp::commands_in_namespace,
+            Interp::visible_command_names,
+        ),
+        b"procs" => set_list_qualified(
+            interp,
+            argv,
+            b"info procs ?pattern?",
+            Interp::procs_in_namespace,
+            Interp::visible_proc_names,
+        ),
         b"vars" => set_list(interp, argv, Interp::visible_var_names),
         b"globals" => set_list(interp, argv, Interp::global_var_names),
         b"locals" => set_list(interp, argv, Interp::local_var_names),
@@ -197,12 +209,18 @@ fn set_list(interp: &mut Interp, argv: &[*mut TclObj], names: fn(&Interp) -> Vec
     set_filtered(interp, list, pattern.as_deref())
 }
 
-/// `info commands ?pattern?` — a namespace-qualified pattern (`::ns::glob`)
-/// lists that namespace's commands (re-qualified); otherwise the visible
-/// commands of the current + global namespaces.
-fn info_commands(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+/// `info commands|procs|vars ?pattern?` — a namespace-qualified pattern
+/// (`::ns::glob`) lists the matching names *in that namespace* (re-qualified);
+/// an unqualified pattern filters the names visible from the current scope.
+fn set_list_qualified(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    usage: &[u8],
+    in_namespace: fn(&Interp, &[u8]) -> Vec<Vec<u8>>,
+    visible: fn(&Interp) -> Vec<Vec<u8>>,
+) -> Code {
     if argv.len() > 3 {
-        return wrong_args(interp, b"info commands ?pattern?");
+        return wrong_args(interp, usage);
     }
     let pattern = argv.get(2).map(|&a| obj_bytes(a));
     // Find the last `::` so a qualified pattern splits into (prefix, tail glob).
@@ -212,7 +230,7 @@ fn info_commands(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .map(|i| (&p[..i], &p[i + 2..]))
     });
     if let Some((prefix, tail)) = split {
-        let names = interp.commands_in_namespace(prefix);
+        let names = in_namespace(interp, prefix);
         let objs: Vec<*mut TclObj> = names
             .iter()
             .filter(|n| glob_match(tail, n))
@@ -227,7 +245,7 @@ fn info_commands(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.set_result(l);
         return Code::Ok;
     }
-    let list = interp.visible_command_names();
+    let list = visible(interp);
     set_filtered(interp, list, pattern.as_deref())
 }
 

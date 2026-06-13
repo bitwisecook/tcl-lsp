@@ -1724,6 +1724,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO define-subcommand abbreviation + `class`/`deletemethod`/`renamemethod` | **128 / 168** | 40 (0 timeout) | **11616 / 19027** |
 | + TclOO `export` of built-ins + `info object`/`info class` abbreviation & subcommands | **128 / 168** | 40 (0 timeout) | **11624 / 19027** |
 | + `info commands` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11662 / 20532** |
+| + `info procs` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11665 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1816,6 +1817,12 @@ re-qualifying the results (the C behaviour); an unqualified pattern keeps the
 current+global visible-command listing. This unblocked **apply.test** (0 → 21,
 it errored at setup), **safe.test** (52 → 61), `namespace-old.test` (+3),
 `info.test`/`oo.test`/`tm.test`/`safe-stock.test`; sweep **11624 → 11662**.
+The same qualified-pattern handling was then extended to **`info procs`**
+(`info.test` +3 more, sweep **11662 → 11665**, zero regressions). It was *not*
+applied to `info vars`: there it regressed `safe.test` (the safe package's
+`info vars ::safe::S*` state probes legitimately expose teardown residue our
+safe implementation leaves), so `info vars` keeps the visible-scope listing for
+now.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2453,7 +2460,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11662/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11665/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +
