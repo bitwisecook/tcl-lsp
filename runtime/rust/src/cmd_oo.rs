@@ -51,6 +51,9 @@ struct Class {
     mixins: Vec<Vec<u8>>,
     /// Methods marked non-exported (callable only via `my`).
     unexported: BTreeSet<Vec<u8>>,
+    /// Names explicitly `export`ed — overrides the default-unexported built-in
+    /// methods (`eval`/`variable`/`varname`/…) so they become publicly callable.
+    exported: BTreeSet<Vec<u8>>,
     /// Filter method names applied to instances' method calls (`filter`).
     filters: Vec<Vec<u8>>,
     /// The namespace in which this class's *instances* are defined
@@ -74,6 +77,8 @@ struct Object {
     /// Per-object mixins.
     mixins: Vec<Vec<u8>>,
     unexported: BTreeSet<Vec<u8>>,
+    /// Explicitly `export`ed names (see `Class::exported`).
+    exported: BTreeSet<Vec<u8>>,
     /// Per-object filter method names (`oo::objdefine filter`).
     filters: Vec<Vec<u8>>,
 }
@@ -227,24 +232,33 @@ impl Interp {
         if !destroy_hidden {
             names.insert(b"destroy".to_vec());
         }
+        // Collect the public method names (declared methods minus unexported)
+        // plus explicitly-exported names (e.g. a promoted built-in like `eval`)
+        // from each provider in the chain.
+        fn collect(
+            methods: &BTreeMap<Vec<u8>, Method>,
+            unexp: &BTreeSet<Vec<u8>>,
+            exp: &BTreeSet<Vec<u8>>,
+            names: &mut BTreeSet<Vec<u8>>,
+        ) {
+            for m in methods.keys() {
+                if !unexp.contains(m) {
+                    names.insert(m.clone());
+                }
+            }
+            for m in exp {
+                names.insert(m.clone());
+            }
+        }
         for p in self.method_chain(obj) {
             let is_object = p == obj;
             let oo = self.oo.borrow();
-            let (methods, unexp): (Vec<Vec<u8>>, &BTreeSet<Vec<u8>>) = if is_object {
-                match oo.objects.get(&p) {
-                    Some(o) => (o.methods.keys().cloned().collect(), &o.unexported),
-                    None => continue,
+            if is_object {
+                if let Some(o) = oo.objects.get(&p) {
+                    collect(&o.methods, &o.unexported, &o.exported, &mut names);
                 }
-            } else {
-                match oo.classes.get(&p) {
-                    Some(c) => (c.methods.keys().cloned().collect(), &c.unexported),
-                    None => continue,
-                }
-            };
-            for m in methods {
-                if !unexp.contains(&m) {
-                    names.insert(m);
-                }
+            } else if let Some(c) = oo.classes.get(&p) {
+                collect(&c.methods, &c.unexported, &c.exported, &mut names);
             }
         }
         let names: Vec<Vec<u8>> = names.into_iter().collect();
@@ -333,6 +347,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             methods: src_obj.methods,
             mixins: src_obj.mixins,
             unexported: src_obj.unexported,
+            exported: src_obj.exported,
             filters: src_obj.filters,
         },
     );
@@ -712,32 +727,34 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `export`/`unexport name ...` — set method visibility on the current target.
+/// Tracks both the `unexported` set (a method hidden from public dispatch) and
+/// the `exported` set (a default-unexported built-in promoted to public).
 fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
     let names: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let set = |s: &mut BTreeSet<Vec<u8>>| {
+    let apply = |unexp: &mut BTreeSet<Vec<u8>>, exp: &mut BTreeSet<Vec<u8>>| {
         for n in &names {
             if export {
-                s.remove(n);
+                unexp.remove(n);
+                exp.insert(n.clone());
             } else {
-                s.insert(n.clone());
+                exp.remove(n);
+                unexp.insert(n.clone());
             }
         }
     };
     match def_target(interp) {
-        Ok(DefTarget::Class(c)) => set(&mut interp
-            .oo
-            .borrow_mut()
-            .classes
-            .get_mut(&c)
-            .unwrap()
-            .unexported),
-        Ok(DefTarget::Object(o)) => set(&mut interp
-            .oo
-            .borrow_mut()
-            .objects
-            .get_mut(&o)
-            .unwrap()
-            .unexported),
+        Ok(DefTarget::Class(c)) => {
+            let mut oo = interp.oo.borrow_mut();
+            if let Some(cl) = oo.classes.get_mut(&c) {
+                apply(&mut cl.unexported, &mut cl.exported);
+            }
+        }
+        Ok(DefTarget::Object(o)) => {
+            let mut oo = interp.oo.borrow_mut();
+            if let Some(ob) = oo.objects.get_mut(&o) {
+                apply(&mut ob.unexported, &mut ob.exported);
+            }
+        }
         Err(code) => return code,
     }
     interp.set_result_bytes(b"");
@@ -965,19 +982,96 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- info object / info class (called from cmd_info) -------------------------
 
+/// Canonical `info object`/`info class` subcommands (in C's listing order, used
+/// for prefix resolution and the `unknown or ambiguous subcommand` message).
+const INFO_OBJECT_SUBS: &[&[u8]] = &[
+    b"call",
+    b"class",
+    b"creationid",
+    b"definition",
+    b"filters",
+    b"forward",
+    b"isa",
+    b"methods",
+    b"methodtype",
+    b"mixins",
+    b"namespace",
+    b"properties",
+    b"variables",
+    b"vars",
+];
+const INFO_CLASS_SUBS: &[&[u8]] = &[
+    b"call",
+    b"constructor",
+    b"definition",
+    b"definitionnamespace",
+    b"destructor",
+    b"filters",
+    b"forward",
+    b"instances",
+    b"methods",
+    b"methodtype",
+    b"mixins",
+    b"properties",
+    b"subclasses",
+    b"superclasses",
+    b"variables",
+];
+
+/// Resolve a (possibly abbreviated) `info object`/`info class` subcommand to its
+/// canonical name — exact name or unique prefix, matching the C ensemble. On a
+/// miss or an ambiguous prefix, set the `unknown or ambiguous subcommand` error.
+fn info_sub_resolve<'a>(
+    interp: &mut Interp,
+    sub: &[u8],
+    cands: &'a [&'a [u8]],
+) -> Result<&'a [u8], Code> {
+    if let Some(c) = cands.iter().find(|c| **c == sub) {
+        return Ok(c);
+    }
+    let mut it = cands.iter().filter(|c| c.starts_with(sub));
+    if let (Some(c), None) = (it.next(), it.next()) {
+        return Ok(c);
+    }
+    let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+    m.extend_from_slice(sub);
+    m.extend_from_slice(b"\": must be ");
+    for (i, c) in cands.iter().enumerate() {
+        if i > 0 {
+            // Tcl ensemble style: ", or " before the last of 3+, " or " for 2.
+            m.extend_from_slice(if i == cands.len() - 1 {
+                if cands.len() == 2 {
+                    b" or " as &[u8]
+                } else {
+                    b", or "
+                }
+            } else {
+                b", "
+            });
+        }
+        m.extend_from_slice(c);
+    }
+    Err(interp.set_error(&m))
+}
+
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // `creationid` has its own arg-count message and must be checked before the
-    // generic gate (it errors at 0 *or* 2+ object names).
-    if argv.len() >= 3 && obj_bytes(argv[2]) == b"creationid" && argv.len() != 4 {
+    if argv.len() < 3 {
+        return wrong_args(interp, b"info object subcommand objName ?arg ...?");
+    }
+    let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_OBJECT_SUBS) {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    // `creationid` has its own arg-count message (it errors at 0 *or* 2+ names).
+    if sub == b"creationid" && argv.len() != 4 {
         return wrong_args(interp, b"info object creationid objName");
     }
     if argv.len() < 4 {
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
     }
-    let sub = obj_bytes(argv[2]);
     let obj = interp.fqn_for(&obj_bytes(argv[3]));
-    match sub.as_slice() {
+    match sub {
         b"class" => {
             let class = interp
                 .oo
@@ -1076,8 +1170,27 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => not_object(interp, &obj_bytes(argv[3])),
             }
         }
+        b"filters" => {
+            let f = interp
+                .oo
+                .borrow()
+                .objects
+                .get(&obj)
+                .map(|o| o.filters.clone());
+            match f {
+                Some(f) => {
+                    set_list(interp, &f);
+                    Code::Ok
+                }
+                None => not_object(interp, &obj_bytes(argv[3])),
+            }
+        }
+        b"forward" => info_forward(interp, &obj, argv, false),
+        b"definition" => info_definition(interp, &obj, argv, false),
+        b"methodtype" => info_methodtype(interp, &obj, argv, false),
+        // `call`/`properties` are not yet modelled.
         other => {
-            let mut m = b"unknown info object subcommand \"".to_vec();
+            let mut m = b"unsupported info object subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.push(b'"');
             err(interp, &m)
@@ -1085,12 +1198,133 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+/// `info object|class forward objName methodName` — the forward prefix list.
+fn info_forward(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+    if argv.len() != 5 {
+        let u: &[u8] = if class {
+            b"info class forward className methodName"
+        } else {
+            b"info object forward objName methodName"
+        };
+        return wrong_args(interp, u);
+    }
+    let name = obj_bytes(argv[4]);
+    let m = {
+        let oo = interp.oo.borrow();
+        if class {
+            oo.classes
+                .get(fqn)
+                .and_then(|c| c.methods.get(&name).cloned())
+        } else {
+            oo.objects
+                .get(fqn)
+                .and_then(|o| o.methods.get(&name).cloned())
+        }
+    };
+    match m {
+        Some(Method::Forward { prefix }) => {
+            set_list(interp, &prefix);
+            Code::Ok
+        }
+        Some(_) => err(
+            interp,
+            b"prefix argument list not available for this kind of method",
+        ),
+        None => unknown_method_named(interp, &name),
+    }
+}
+
+/// `info object|class definition fqn methodName` — `{params} {body}`.
+fn info_definition(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+    if argv.len() != 5 {
+        let u: &[u8] = if class {
+            b"info class definition className methodName"
+        } else {
+            b"info object definition objName methodName"
+        };
+        return wrong_args(interp, u);
+    }
+    let name = obj_bytes(argv[4]);
+    let m = {
+        let oo = interp.oo.borrow();
+        if class {
+            oo.classes
+                .get(fqn)
+                .and_then(|c| c.methods.get(&name).cloned())
+        } else {
+            oo.objects
+                .get(fqn)
+                .and_then(|o| o.methods.get(&name).cloned())
+        }
+    };
+    match m {
+        Some(Method::Body { params, body }) => {
+            let out = list_params_body(&params, &body);
+            interp.set_result(obj::new_string_bytes(&out));
+            Code::Ok
+        }
+        Some(_) => err(interp, b"definition not available for this kind of method"),
+        None => unknown_method_named(interp, &name),
+    }
+}
+
+/// `info object|class methodtype fqn methodName` — `method` or `forward`.
+fn info_methodtype(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+    if argv.len() != 5 {
+        let u: &[u8] = if class {
+            b"info class methodtype className methodName"
+        } else {
+            b"info object methodtype objName methodName"
+        };
+        return wrong_args(interp, u);
+    }
+    let name = obj_bytes(argv[4]);
+    let m = {
+        let oo = interp.oo.borrow();
+        if class {
+            oo.classes
+                .get(fqn)
+                .and_then(|c| c.methods.get(&name).cloned())
+        } else {
+            oo.objects
+                .get(fqn)
+                .and_then(|o| o.methods.get(&name).cloned())
+        }
+    };
+    match m {
+        Some(Method::Body { .. }) => {
+            interp.set_result_bytes(b"method");
+            Code::Ok
+        }
+        Some(Method::Forward { .. }) => {
+            interp.set_result_bytes(b"forward");
+            Code::Ok
+        }
+        None => unknown_method_named(interp, &name),
+    }
+}
+
+/// The `unknown method "X"` error (no method-list suffix — used by the `info`
+/// introspection subcommands that name a specific method).
+fn unknown_method_named(interp: &mut Interp, name: &[u8]) -> Code {
+    let mut m = b"unknown method \"".to_vec();
+    m.extend_from_slice(name);
+    m.push(b'"');
+    interp.set_error(&m)
+}
+
 /// `info class subcommand class ?arg?`.
 pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 3 {
+        return wrong_args(interp, b"info class subcommand className ?arg ...?");
+    }
+    let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_CLASS_SUBS) {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
     if argv.len() < 4 {
         return wrong_args(interp, b"info class subcommand className ?arg ...?");
     }
-    let sub = obj_bytes(argv[2]);
     let cls = interp.fqn_for(&obj_bytes(argv[3]));
     // C (`TclOOGetClassFromObj`) resolves the object first: a non-object name
     // reports `X does not refer to an object` (no quotes); an object that is
@@ -1104,7 +1338,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         m.extend_from_slice(b"\" is not a class");
         return err(interp, &m);
     }
-    match sub.as_slice() {
+    match sub {
         b"superclasses" => {
             let s = interp.oo.borrow().classes[&cls].supers.clone();
             set_list(interp, &s);
@@ -1216,8 +1450,17 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(&ns.unwrap_or_default());
             Code::Ok
         }
+        b"filters" => {
+            let f = interp.oo.borrow().classes[&cls].filters.clone();
+            set_list(interp, &f);
+            Code::Ok
+        }
+        b"forward" => info_forward(interp, &cls, argv, true),
+        b"definition" => info_definition(interp, &cls, argv, true),
+        b"methodtype" => info_methodtype(interp, &cls, argv, true),
+        // `call`/`properties` are not yet modelled.
         other => {
-            let mut m = b"unknown info class subcommand \"".to_vec();
+            let mut m = b"unsupported info class subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.push(b'"');
             err(interp, &m)
@@ -1488,11 +1731,11 @@ impl Interp {
             })
             .collect();
         if steps.is_empty() {
-            // The unexported object built-ins (`variable`/`varname`/`eval`) are
-            // not in any method table; they are reachable only internally (via
-            // `my`), so an external call still falls through to the unknown-
-            // method error.
-            if !external {
+            // The object built-ins (`variable`/`varname`/`eval`) are not in any
+            // method table; they are unexported by default (reachable internally
+            // via `my`), but a public call reaches them too once explicitly
+            // `export`ed.
+            if !external || self.method_exported(obj, method) {
                 if let Some(code) = self.oo_builtin_method(obj, method, args) {
                     return code;
                 }
@@ -1675,6 +1918,24 @@ impl Interp {
             .classes
             .get(prov)
             .is_some_and(|c| c.constructor.is_some())
+    }
+
+    /// Whether `method` was explicitly `export`ed anywhere in `obj`'s method
+    /// chain (the object itself or any class in its MRO) — promotes a default-
+    /// unexported built-in (`eval`/`variable`/`varname`) to public.
+    fn method_exported(&self, obj: &[u8], method: &[u8]) -> bool {
+        self.method_chain(obj).iter().any(|p| {
+            let oo = self.oo.borrow();
+            if p.as_slice() == obj {
+                oo.objects
+                    .get(p)
+                    .is_some_and(|o| o.exported.contains(method))
+            } else {
+                oo.classes
+                    .get(p)
+                    .is_some_and(|c| c.exported.contains(method))
+            }
+        })
     }
 
     fn method_unexported(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
@@ -2041,6 +2302,9 @@ mod tests {
             assert_eq!(ok(i, b"$o e"), b"9");
             // Built-ins are unexported: an external call is an unknown method.
             assert_eq!(i.eval_str(b"$o variable x"), Code::Error);
+            // ... but `export` promotes a built-in to a public method.
+            ok(i, b"oo::class create E { export eval }; set e [E new]");
+            assert_eq!(ok(i, b"$e eval {expr 3+4}"), b"7");
             // `variable` rejects a namespace-qualified name.
             assert_eq!(
                 i.eval_str(b"oo::class create D {method z {} {my variable a::b}}; [D new] z"),
@@ -2109,6 +2373,28 @@ mod tests {
             ok(i, b"set o [P new]");
             ok(i, b"oo::objdefine $o class Q");
             assert_eq!(ok(i, b"$o m"), b"Q");
+        });
+    }
+
+    #[test]
+    fn info_class_introspection_and_abbrev() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"oo::class create C { method foo {a b} {return x}; forward fwd ::tcl::mathop::+ 1; filter foo }",
+            );
+            assert_eq!(ok(i, b"info class methodtype C foo"), b"method");
+            assert_eq!(ok(i, b"info class methodtype C fwd"), b"forward");
+            assert_eq!(ok(i, b"info class definition C foo"), b"{a b} {return x}");
+            assert_eq!(ok(i, b"info class forward C fwd"), b"::tcl::mathop::+ 1");
+            assert_eq!(ok(i, b"info class filters C"), b"foo");
+            // Abbreviated subcommand (unique prefix).
+            assert_eq!(ok(i, b"info class methodt C foo"), b"method");
+            // Ambiguous / unknown subcommand errors.
+            assert_eq!(i.eval_str(b"info class gorp C"), Code::Error);
+            assert_eq!(i.eval_str(b"info class methodtype C nope"), Code::Error);
+            // `forward` on a non-forward method.
+            assert_eq!(i.eval_str(b"info class forward C foo"), Code::Error);
         });
     }
 
