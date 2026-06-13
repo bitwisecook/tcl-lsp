@@ -34,6 +34,8 @@ pub fn install(interp: &mut Interp) {
     #[cfg(have_tommath)]
     crate::cmd_mathop::install(interp);
     crate::cmd_list::install(interp);
+    #[cfg(have_tommath)]
+    crate::cmd_lseq::install(interp);
     crate::cmd_dict::install(interp);
     crate::cmd_string::install(interp);
     crate::cmd_alias::install(interp);
@@ -96,16 +98,11 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     Code::Ok
                 }
                 None => {
-                    // A scalar read of an array name is "variable is array", not
-                    // "no such variable" (the array-vs-scalar distinction Tcl
-                    // reports — matches `var_error(IsArray)`).
-                    let mut msg = b"can't read \"".to_vec();
-                    msg.extend_from_slice(&name);
-                    if elem.is_none() && interp.var_is_array(&base) {
-                        msg.extend_from_slice(b"\": variable is array");
-                    } else {
-                        msg.extend_from_slice(b"\": no such variable");
-                    }
+                    // The C three-way distinction (`tclVar.c`): scalar read of an
+                    // array ("variable is array"), missing element of an existing
+                    // array ("no such element in array"), or wholly missing
+                    // variable ("no such variable").
+                    let msg = interp.read_miss_msg(&base, elem.as_deref());
                     interp.set_error(&msg)
                 }
             }
@@ -525,9 +522,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         match obj {
             Some(o) => Ok(crate::expr::Owned::retain(o)),
             None => {
-                let mut m = b"can't read \"".to_vec();
-                m.extend_from_slice(name.as_bytes());
-                m.extend_from_slice(b"\": no such variable");
+                let m = self.interp.read_miss_msg(&base, elem.as_deref());
                 Err(crate::expr::ExprError(m))
             }
         }
@@ -599,6 +594,29 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // trace at the inner command — preserve it (no `expr` frame).
         Err(_) if propagated => Code::Error,
         Err(e) => interp.set_error(&e.0),
+    }
+}
+
+/// Evaluate `src` as a Tcl expression, returning the result object (owned — the
+/// caller holds a `+1` and must release it) or the error `Code` (interp result =
+/// message). Used where an argument "may be a valid expression" — e.g. `lseq`'s
+/// numeric arguments (`SequenceIdentifyArgument`).
+#[cfg(have_tommath)]
+pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclObj, Code> {
+    let Ok(s) = core::str::from_utf8(src) else {
+        return Err(interp.set_error(b"expr operand is not valid UTF-8"));
+    };
+    let node = tcl_syntax::expr::parse_expr(s, None);
+    let mut ctx = InterpExprCtx {
+        interp: &mut *interp,
+        propagated: false,
+    };
+    let result = crate::expr::eval_expr(&node, &mut ctx);
+    let propagated = ctx.propagated;
+    match result {
+        Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
+        Err(_) if propagated => Err(Code::Error),
+        Err(e) => Err(interp.set_error(&e.0)),
     }
 }
 

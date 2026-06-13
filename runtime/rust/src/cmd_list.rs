@@ -1,7 +1,7 @@
 //! List commands (T1.6) — `list` / `llength` / `lindex` / `lappend` / `lrange`
 //! / `lreverse` / `concat` / `join` / `split` / `lassign`, over the [`crate::list`]
-//! value type. (`lsort`/`lsearch`/`lset`/`linsert`/`lreplace`/`lrepeat` follow,
-//! once string match/comparison lands.)
+//! value type. (`lsort`/`lsearch`/`lset`/`linsert`/`lreplace`/`ledit`/`lrepeat`
+//! follow, once string match/comparison lands.)
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -25,6 +25,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"lrepeat", lrepeat);
     interp.register_builtin(b"linsert", linsert);
     interp.register_builtin(b"lreplace", lreplace);
+    interp.register_builtin(b"ledit", ledit);
     interp.register_builtin(b"lsearch", lsearch);
     interp.register_builtin(b"lsort", lsort);
 }
@@ -509,6 +510,66 @@ fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `ledit listVar first last ?element ...?` — the in-place `lreplace` on a list
+/// *variable* (Tcl 8.7/9.0). Reads `listVar`, replaces the `[first,last]` range
+/// with the new elements, stores the result back into the variable, and returns
+/// the new list value. Mirrors `Tcl_LeditObjCmd` (`tclCmdIL.c`): the variable
+/// must already exist (a read miss is `can't read ...: no such variable`), the
+/// index clamping is identical to `lreplace`, and `listVar` may name an array
+/// element (`a(k)`), addressed like `set`/`lappend`.
+fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(interp, b"ledit listVar first last ?element ...?");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = crate::frame::split_array_ref(&name);
+    let cur = match &elem {
+        Some(k) => interp.var_get_elem(&base, k),
+        None => interp.var_get(&base),
+    };
+    let Some(listobj) = cur else {
+        // C reads via `Tcl_ObjGetVar2(..., TCL_LEAVE_ERR_MSG)`: a missing
+        // variable is a read error, with the C three-way distinction
+        // (variable-is-array / no-such-element / no-such-variable).
+        let msg = interp.read_miss_msg(&base, elem.as_deref());
+        return interp.set_error(&msg);
+    };
+    let elems = match list::list_elements(listobj) {
+        Ok(v) => v,
+        Err(e) => return bad_list(interp, e),
+    };
+    let len = elems.len();
+    let Some(first) = index_spec(&obj_bytes(argv[2]), len) else {
+        return bad_index(interp, &obj_bytes(argv[2]));
+    };
+    let Some(last) = index_spec(&obj_bytes(argv[3]), len) else {
+        return bad_index(interp, &obj_bytes(argv[3]));
+    };
+    let lo = first.max(0).min(len as isize) as usize;
+    let hi = ((last + 1).max(0) as usize).clamp(lo, len);
+    let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len());
+    out.extend_from_slice(&elems[..lo]);
+    out.extend_from_slice(&argv[4..]);
+    out.extend_from_slice(&elems[hi..]);
+    // Build the new list first (retains every element), *then* store it: the
+    // store releases the old value, but the elements survive because the new
+    // list now holds its own refs. `new_list_obj` is rc 0; `var_set*` retains it.
+    let newlist = list::new_list_obj(&out);
+    let stored = match &elem {
+        Some(k) => interp.var_set_elem(&base, k, newlist),
+        None => interp.var_set(&base, newlist),
+    };
+    if stored.is_err() {
+        drop_fresh(newlist);
+        let mut m = b"can't set \"".to_vec();
+        m.extend_from_slice(&name);
+        m.extend_from_slice(b"\": variable is array");
+        return interp.set_error(&m);
+    }
+    interp.set_result(newlist);
+    Code::Ok
+}
+
 /// `lsearch ?-exact|-glob? ?-nocase? ?-all? ?-not? ?-inline? list pattern`.
 fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let (mut glob, mut nocase, mut all, mut not, mut inline) = (true, false, false, false, false);
@@ -738,6 +799,74 @@ mod tests {
         assert_eq!(ok(b"lreplace {a b c d} 1 2"), b"a d");
         assert_eq!(ok(b"lreplace {a b c} end end Z"), b"a b Z");
         assert_eq!(ok(b"lreplace {a b c} 1 0 X"), b"a X b c"); // first>last → insert
+    }
+
+    #[test]
+    fn ledit_replaces_in_place() {
+        // Returns the new value *and* updates the variable in place.
+        assert_eq!(ok(b"set l {1 2 3 4 5}; ledit l 1 1 a"), b"1 a 3 4 5");
+        assert_eq!(ok(b"set l {1 2 3 4 5}; ledit l 1 1 a; set l"), b"1 a 3 4 5");
+        assert_eq!(ok(b"set l {1 2 3 4 5}; ledit l 1 3; set l"), b"1 5");
+        assert_eq!(ok(b"set l {1 2 3}; ledit l 1 0 x y; set l"), b"1 x y 2 3"); // first>last
+        assert_eq!(ok(b"set l {a b c d}; ledit l end-1 end Z"), b"a b Z");
+        assert_eq!(ok(b"set l {a b}; ledit l end+1 end+1 c"), b"a b c"); // append
+                                                                         // Array-element addressing, like `lappend a(k)`.
+        assert_eq!(
+            ok(b"set a(k) {1 2 3}; ledit a(k) 0 0 X; set a(k)"),
+            b"X 2 3"
+        );
+        // COW: a shared value isn't mutated through the alias.
+        assert_eq!(
+            ok(b"set l {a b c}; set m $l; ledit l 0 0 X; list $l $m"),
+            b"{X b c} {a b c}"
+        );
+    }
+
+    #[test]
+    fn ledit_errors() {
+        let (c, b) = run(b"ledit l 0");
+        assert_eq!(c, Code::Error);
+        assert_eq!(
+            b,
+            b"wrong # args: should be \"ledit listVar first last ?element ...?\""
+        );
+        // A wholly missing variable is a read error (C's TCL_LEAVE_ERR_MSG).
+        let (c, b) = run(b"ledit nope 0 0 x");
+        assert_eq!(c, Code::Error);
+        assert_eq!(b, b"can't read \"nope\": no such variable");
+        // Missing element of an existing array → "no such element in array".
+        let (c, b) = run(b"set arr(y) y; ledit arr(x) 0 0 z");
+        assert_eq!(c, Code::Error);
+        assert_eq!(b, b"can't read \"arr(x)\": no such element in array");
+    }
+
+    #[test]
+    fn var_read_miss_three_way() {
+        // The C `tclVar.c` distinction, shared by `set`/`ledit`/`expr $var`.
+        let (c, b) = run(b"set nope");
+        assert_eq!(
+            (c, b),
+            (
+                Code::Error,
+                b"can't read \"nope\": no such variable".to_vec()
+            )
+        );
+        let (c, b) = run(b"set arr(y) y; set arr");
+        assert_eq!(
+            (c, b),
+            (
+                Code::Error,
+                b"can't read \"arr\": variable is array".to_vec()
+            )
+        );
+        let (c, b) = run(b"set arr(y) y; set arr(x)");
+        assert_eq!(
+            (c, b),
+            (
+                Code::Error,
+                b"can't read \"arr(x)\": no such element in array".to_vec()
+            )
+        );
     }
 
     #[test]

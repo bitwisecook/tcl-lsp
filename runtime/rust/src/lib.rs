@@ -50,6 +50,9 @@ pub mod cmd_format;
 pub mod cmd_fs;
 pub mod cmd_info;
 pub mod cmd_list;
+// `lseq` arithmetic-series generator; needs the numeric tower (doubles / expr).
+#[cfg(have_tommath)]
+pub mod cmd_lseq;
 // `::tcl::mathfunc::*` / `::tcl::mathop::*` commands; need the numeric tower.
 #[cfg(have_tommath)]
 pub mod cmd_mathfunc;
