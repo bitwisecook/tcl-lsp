@@ -1415,6 +1415,27 @@ impl Interp {
         v
     }
 
+    /// Simple command names in the namespace named `qualifier` (absolute or
+    /// relative to the current namespace), or empty if it does not exist — for
+    /// a namespace-qualified `info commands ::ns::pattern`.
+    pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        // An empty qualifier (a leading `::pattern`) addresses the global ns.
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v: Vec<Vec<u8>> = ns.command_names(id).iter().map(|s| s.to_vec()).collect();
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Proc names visible from the current namespace (`info procs`).
     pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();

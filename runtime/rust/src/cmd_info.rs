@@ -76,7 +76,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match sub {
         b"exists" => info_exists(interp, argv),
-        b"commands" => set_list(interp, argv, Interp::visible_command_names),
+        b"commands" => info_commands(interp, argv),
         b"procs" => set_list(interp, argv, Interp::visible_proc_names),
         b"vars" => set_list(interp, argv, Interp::visible_var_names),
         b"globals" => set_list(interp, argv, Interp::global_var_names),
@@ -194,6 +194,40 @@ fn set_list(interp: &mut Interp, argv: &[*mut TclObj], names: fn(&Interp) -> Vec
     }
     let pattern = argv.get(2).map(|&a| obj_bytes(a));
     let list = names(interp);
+    set_filtered(interp, list, pattern.as_deref())
+}
+
+/// `info commands ?pattern?` — a namespace-qualified pattern (`::ns::glob`)
+/// lists that namespace's commands (re-qualified); otherwise the visible
+/// commands of the current + global namespaces.
+fn info_commands(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, b"info commands ?pattern?");
+    }
+    let pattern = argv.get(2).map(|&a| obj_bytes(a));
+    // Find the last `::` so a qualified pattern splits into (prefix, tail glob).
+    let split = pattern.as_deref().and_then(|p| {
+        p.windows(2)
+            .rposition(|w| w == b"::")
+            .map(|i| (&p[..i], &p[i + 2..]))
+    });
+    if let Some((prefix, tail)) = split {
+        let names = interp.commands_in_namespace(prefix);
+        let objs: Vec<*mut TclObj> = names
+            .iter()
+            .filter(|n| glob_match(tail, n))
+            .map(|n| {
+                let mut full = prefix.to_vec();
+                full.extend_from_slice(b"::");
+                full.extend_from_slice(n);
+                new_string(&full)
+            })
+            .collect();
+        let l = list::new_list_obj(&objs);
+        interp.set_result(l);
+        return Code::Ok;
+    }
+    let list = interp.visible_command_names();
     set_filtered(interp, list, pattern.as_deref())
 }
 
@@ -462,6 +496,27 @@ mod tests {
             String::from_utf8_lossy(src)
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn info_commands_qualified_pattern() {
+        leak_free(|i| {
+            run(
+                i,
+                b"namespace eval ::myns { proc aaa {} {}; proc abb {} {}; proc zzz {} {} }",
+            );
+            // A namespace-qualified glob lists that namespace's commands,
+            // re-qualified, sorted.
+            assert_eq!(
+                run(i, b"lsort [info commands ::myns::a*]"),
+                b"::myns::aaa ::myns::abb"
+            );
+            assert_eq!(run(i, b"info commands ::myns::zzz"), b"::myns::zzz");
+            // A non-existent namespace yields nothing.
+            assert_eq!(run(i, b"info commands ::nope::*"), b"");
+            // An unqualified pattern still works (global builtin present).
+            assert_eq!(run(i, b"info commands ::set"), b"::set");
+        });
     }
 
     #[test]

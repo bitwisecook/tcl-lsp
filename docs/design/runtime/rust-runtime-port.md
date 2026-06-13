@@ -1723,6 +1723,7 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `info object creationid` / `info class definitionnamespace` | **128 / 168** | 40 (0 timeout) | **11602 / 19027** |
 | + TclOO define-subcommand abbreviation + `class`/`deletemethod`/`renamemethod` | **128 / 168** | 40 (0 timeout) | **11616 / 19027** |
 | + TclOO `export` of built-ins + `info object`/`info class` abbreviation & subcommands | **128 / 168** | 40 (0 timeout) | **11624 / 19027** |
+| + `info commands` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11662 / 20532** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1807,6 +1808,14 @@ zero regressions**, `oo.test` 56 → 71):
    ambiguous subcommand "X": must be …` message; added the `forward`/`filters`/
    `definition`/`methodtype` subcommands (`call`/`properties` still deferred).
    (`oo.test` 115 → 123, sweep 11616 → 11624).
+
+The 2026-06-13 **`info commands` namespace-qualified patterns** fix (**+38
+tests, zero regressions**) — `info commands ::ns::glob` now resolves the
+namespace qualifier, lists that namespace's commands and matches the tail glob,
+re-qualifying the results (the C behaviour); an unqualified pattern keeps the
+current+global visible-command listing. This unblocked **apply.test** (0 → 21,
+it errored at setup), **safe.test** (52 → 61), `namespace-old.test` (+3),
+`info.test`/`oo.test`/`tm.test`/`safe-stock.test`; sweep **11624 → 11662**.
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2444,7 +2453,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11624/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11662/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
     list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
     2026-06-13 `ledit`/`lmap`/`lseq` +
