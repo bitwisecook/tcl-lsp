@@ -2269,7 +2269,17 @@ impl LanguageServer for Backend {
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
             core_bigip::document_symbols(&doc.text)
         } else {
-            core_symbols::document_symbols(&doc.text, &doc.dialect)
+            // Reuse the cached per-document analysis instead of re-running the
+            // full analyser on every request (the dominant documentSymbol cost
+            // on large files).
+            let analysis = self
+                .analysis_for(
+                    &params.text_document.uri,
+                    doc.text.clone(),
+                    doc.dialect.clone(),
+                )
+                .await;
+            core_symbols::document_symbols_from_analysis(&doc.text, &analysis)
         };
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
