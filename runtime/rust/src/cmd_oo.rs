@@ -2689,6 +2689,29 @@ impl Interp {
                 method: method.to_vec(),
             })
             .collect();
+        // TIP 500: a private method is scoped to its declaring class. When the
+        // call originates inside a method of class C (`my m`), C's own private
+        // `m` shadows any public override further down the chain — move it to
+        // the front of the chain.
+        if !external {
+            let caller_class = self
+                .oo
+                .borrow()
+                .call_stack
+                .last()
+                .and_then(|f| f.chain.get(f.index).map(|s| s.provider.clone()));
+            if let Some(c) = caller_class {
+                let is_obj = c.as_slice() == obj;
+                if self.oo_has_method(&c, method, is_obj)
+                    && self.method_is_private(&c, method, is_obj)
+                {
+                    if let Some(pos) = steps.iter().position(|s| s.provider == c) {
+                        let s = steps.remove(pos);
+                        steps.insert(0, s);
+                    }
+                }
+            }
+        }
         if steps.is_empty() {
             // The object built-ins (`variable`/`varname`/`eval`) are not in any
             // method table; they are unexported by default (reachable internally
@@ -2966,6 +2989,24 @@ impl Interp {
             }
         }
         (exp, unexp, priv_)
+    }
+
+    /// Whether `method` is a TIP 500 *private* method of `prov` (a subset of its
+    /// unexported methods — scoped to `prov`'s own methods).
+    fn method_is_private(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
+        if is_object {
+            self.oo
+                .borrow()
+                .objects
+                .get(prov)
+                .is_some_and(|o| o.private.contains(method))
+        } else {
+            self.oo
+                .borrow()
+                .classes
+                .get(prov)
+                .is_some_and(|c| c.private.contains(method))
+        }
     }
 
     fn method_unexported(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
