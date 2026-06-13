@@ -1714,6 +1714,16 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `info cmdtype`/`cmdcount`/`functions`/`loaded` | **128 / 168** | 40 (0 timeout) | **11534 / 19027** |
 | + OO object-lifetime sync on `rename`/delete | **128 / 168** | 40 (0 timeout) | **11536 / 19027** |
 | + TclOO classes-as-objects (`oo::define … self`, class methods) | **128 / 168** | 40 (0 timeout) | **11542 / 19027** |
+| + TclOO call-chain refactor + `filter`s + `info` oo subcommands | **128 / 168** | 40 (0 timeout) | **11546 / 19027** |
+
+The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
+regressions**) — refactored the method-call chain to a list of `(provider,
+method)` steps (object-vs-class resolution by identity, not position), which is
+behaviour-preserving and lets **filters** be modelled as steps whose method is
+the filter name, prepended ahead of the target-method steps with `next`
+advancing through the chain. Added the `filter` define-subcommand (class +
+objdefine), `self target`, and the `info object mixins` / `info class
+mixins`/`variables` introspection. `oo.test` 41 → 45.
 
 The 2026-06-13 **TclOO classes-as-objects** chunk (**+6 tests, zero
 regressions**) — a class is now also registered as an object, so `oo::define C
@@ -2370,7 +2380,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11542/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11546/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`

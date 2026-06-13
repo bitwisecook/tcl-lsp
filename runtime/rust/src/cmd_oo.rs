@@ -6,15 +6,19 @@
 //! per-object methods/mixins), class/object `mixin`s, `export`/`unexport`
 //! visibility, `oo::copy`, method dispatch over a linearised chain (object →
 //! object mixins → class mixins → class MRO), the method-context commands
-//! `self`/`my`/`next`, and `info object`/`info class` introspection.
+//! `self`/`my`/`next`, `filter`s, classes-as-objects (`self` class methods), and
+//! `info object`/`info class` introspection.
 //!
-//! Each object/class is a command (`Command::OoObject`); each object's instance
-//! variables live in a private namespace, auto-linked into a method frame from
-//! the class's `variable` declarations (reusing the proc machinery via
-//! [`Interp::run_proc`] with `CallMeta::link_vars`).
+//! The call chain is a list of [`CallStep`]s (`provider`, `method`); filters are
+//! steps whose method is the filter name, prepended ahead of the target-method
+//! steps, with `next` advancing through the chain. Each object/class is a
+//! command (`Command::OoObject`); each object's instance variables live in a
+//! private namespace, auto-linked into a method frame from the class's
+//! `variable` declarations (reusing the proc machinery via [`Interp::run_proc`]
+//! with `CallMeta::link_vars`).
 //!
-//! Deferred: filters, private methods/variables (8.7+), the full C3 mixin
-//! linearisation, and `oo::define`'s rarer subcommands.
+//! Deferred: private methods/variables (8.7+), the full C3 mixin linearisation,
+//! and `oo::define`'s rarer subcommands / internal introspection.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -47,6 +51,8 @@ struct Class {
     mixins: Vec<Vec<u8>>,
     /// Methods marked non-exported (callable only via `my`).
     unexported: BTreeSet<Vec<u8>>,
+    /// Filter method names applied to instances' method calls (`filter`).
+    filters: Vec<Vec<u8>>,
 }
 
 /// An object instance.
@@ -61,17 +67,30 @@ struct Object {
     /// Per-object mixins.
     mixins: Vec<Vec<u8>>,
     unexported: BTreeSet<Vec<u8>>,
+    /// Per-object filter method names (`oo::objdefine filter`).
+    filters: Vec<Vec<u8>>,
+}
+
+/// One step of a method-call chain: the provider (object or class FQN) and the
+/// method name to run there. Filters appear as steps whose `method` is the
+/// filter's name, ahead of the steps for the actually-invoked method.
+#[derive(Clone)]
+struct CallStep {
+    provider: Vec<u8>,
+    method: Vec<u8>,
 }
 
 /// One active method invocation (for `self` / `my` / `next`).
 struct OoFrame {
     object: Vec<u8>,
-    /// The method-resolution chain (object FQN, then mixin/class FQNs).
-    chain: Vec<Vec<u8>>,
-    /// Index into `chain` of the provider whose method is currently running.
+    /// The full call chain (filter steps, then the target-method steps).
+    chain: Vec<CallStep>,
+    /// Index into `chain` of the step currently running.
     index: usize,
-    /// The method name (or empty for a constructor).
-    method: Vec<u8>,
+    /// The originally-invoked method (the filters' target; empty for a
+    /// constructor). `self method` reports the *current* step's method; `self
+    /// target` reports this.
+    target: Vec<u8>,
 }
 
 /// A definition target: a class (`oo::define`) or an object (`oo::objdefine`).
@@ -108,6 +127,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"unexport", |i, a| def_export(i, a, false));
     interp.register_builtin(b"mixin", def_mixin);
     interp.register_builtin(b"forward", def_forward);
+    interp.register_builtin(b"filter", def_filter);
     // Method-context commands.
     interp.register_builtin(b"self", self_cmd);
     interp.register_builtin(b"my", my_cmd);
@@ -241,6 +261,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             methods: src_obj.methods,
             mixins: src_obj.mixins,
             unexported: src_obj.unexported,
+            filters: src_obj.filters,
         },
     );
     interp.ns_register(&dst, Command::OoObject(dst.clone()));
@@ -394,6 +415,27 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `mixin ?class ...?` — set the mixins of the current class/object.
+/// `filter ?methodName ...?` — set the filter methods on the def target (class
+/// or object). Filters wrap every public method call on instances.
+fn def_filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let filters: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    match def_target(interp) {
+        Ok(DefTarget::Class(c)) => {
+            if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&c) {
+                cl.filters = filters;
+            }
+        }
+        Ok(DefTarget::Object(o)) => {
+            if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&o) {
+                ob.filters = filters;
+            }
+        }
+        Err(code) => return code,
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
 fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mixins: Vec<Vec<u8>> = argv[1..]
         .iter()
@@ -482,13 +524,15 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
 
 fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
+        let step = frame.chain.get(frame.index);
         (
             frame.object.clone(),
-            frame.chain.get(frame.index).cloned().unwrap_or_default(),
-            frame.method.clone(),
+            step.map(|s| s.provider.clone()).unwrap_or_default(),
+            step.map(|s| s.method.clone()).unwrap_or_default(),
+            frame.target.clone(),
         )
     });
-    let Some((object, class, method)) = ctx else {
+    let Some((object, class, method, target)) = ctx else {
         // Define-context `self`: inside an `oo::define`/`oo::class create` body,
         // `self ?subcmd …?` applies objdefine-style directives to the object
         // being defined (the classes-as-objects model). `self` alone returns it.
@@ -523,6 +567,23 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .unwrap_or_default();
             interp.set_result(obj::new_string_bytes(&name));
         }
+        // `self target` — the actual (filtered) method as a `{class method}`
+        // pair: the provider/method of the first non-filter step.
+        Some(b"target") => {
+            let pair = interp.oo.borrow().call_stack.last().and_then(|f| {
+                f.chain
+                    .iter()
+                    .find(|s| s.method == target)
+                    .map(|s| (s.provider.clone(), s.method.clone()))
+            });
+            match pair {
+                Some((p, m)) => {
+                    let objs = [obj::new_string_bytes(&p), obj::new_string_bytes(&m)];
+                    interp.set_result(crate::list::new_list_obj(&objs));
+                }
+                None => interp.set_result_bytes(b""),
+            }
+        }
         Some(other) => {
             let mut m = b"unsupported self subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -556,29 +617,22 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             frame.object.clone(),
             frame.chain.clone(),
             frame.index,
-            frame.method.clone(),
+            frame.target.clone(),
         )
     });
-    let Some((object, chain, index, method)) = ctx else {
+    let Some((object, chain, index, target)) = ctx else {
         return err(interp, b"next may only be called from inside a method");
     };
-    let is_ctor = method.is_empty();
-    // `next` always continues into the class chain (j >= 1), so look up class
-    // (instance) methods / constructors there.
-    let next = (index + 1..chain.len()).find(|&j| {
-        if is_ctor {
-            interp.class_has_ctor(&chain[j])
-        } else {
-            interp.oo_has_method(&chain[j], &method, false)
-        }
-    });
-    match next {
-        Some(j) => interp.oo_call(&object, chain, j, &method, &argv[1..]),
-        None if is_ctor => {
-            interp.set_result_bytes(b"");
-            Code::Ok
-        }
-        None => err(interp, b"no next method implementation"),
+    // The chain is pre-built (filters then the method steps), so `next` simply
+    // advances to the following step.
+    if index + 1 < chain.len() {
+        interp.oo_run(&object, chain, index + 1, &target, &argv[1..])
+    } else if target.is_empty() {
+        // Past the last constructor in the chain — a no-op (C's default).
+        interp.set_result_bytes(b"");
+        Code::Ok
+    } else {
+        err(interp, b"no next method implementation")
     }
 }
 
@@ -661,7 +715,12 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"mixins" => {
-            let mx = interp.oo.borrow().objects.get(&obj).map(|o| o.mixins.clone());
+            let mx = interp
+                .oo
+                .borrow()
+                .objects
+                .get(&obj)
+                .map(|o| o.mixins.clone());
             match mx {
                 Some(m) => {
                     set_list(interp, &m);
@@ -960,17 +1019,19 @@ impl Interp {
         self.ns_register(&fqn, Command::OoObject(fqn.clone()));
 
         let mro = self.mro(class);
-        if let Some(j) = mro.iter().position(|c| {
-            self.oo
-                .borrow()
-                .classes
-                .get(c)
-                .is_some_and(|c| c.constructor.is_some())
-        }) {
+        if mro.iter().any(|c| self.class_has_ctor(c)) {
             // Constructor dispatch runs along the *class* MRO (objects can't
-            // define constructors), with the object as `self`.
-            let chain = mro;
-            let code = self.oo_call(&fqn, chain, j, b"", args);
+            // define constructors), with the object as `self`. The chain is the
+            // constructor-providing classes in MRO order (so `next` chains).
+            let chain: Vec<CallStep> = mro
+                .iter()
+                .filter(|c| self.class_has_ctor(c))
+                .map(|c| CallStep {
+                    provider: c.clone(),
+                    method: Vec::new(),
+                })
+                .collect();
+            let code = self.oo_run(&fqn, chain, 0, b"", args);
             if code == Code::Error {
                 self.oo.borrow_mut().objects.remove(&fqn);
                 self.delete_command(&fqn);
@@ -994,15 +1055,67 @@ impl Interp {
         if !self.oo.borrow().objects.contains_key(obj) {
             return self.invalid_command(obj);
         }
-        let chain = self.method_chain(obj);
-        let found = (0..chain.len()).find(|&i| {
-            self.oo_has_method(&chain[i], method, i == 0)
-                && !(external && self.method_unexported(&chain[i], method, i == 0))
-        });
-        match found {
-            Some(j) => self.oo_call(obj, chain, j, method, args),
-            None => unknown_method(self, method),
+        let providers = self.method_chain(obj);
+        // The target-method steps: every provider that defines `method`.
+        let mut steps: Vec<CallStep> = providers
+            .iter()
+            .filter(|p| {
+                self.oo_has_method(p, method, p.as_slice() == obj)
+                    && !(external && self.method_unexported(p, method, p.as_slice() == obj))
+            })
+            .map(|p| CallStep {
+                provider: p.clone(),
+                method: method.to_vec(),
+            })
+            .collect();
+        if steps.is_empty() {
+            return unknown_method(self, method);
         }
+        // Filters wrap an *external* (public) call: prepend each active filter
+        // method as its own step (resolved to the provider defining it).
+        if external {
+            let filters = self.active_filters(obj, &providers);
+            let mut chain: Vec<CallStep> = filters;
+            chain.append(&mut steps);
+            return self.oo_run(obj, chain, 0, method, args);
+        }
+        self.oo_run(obj, steps, 0, method, args)
+    }
+
+    /// The active filter steps for `obj` (object filters, then class filters
+    /// along the MRO), each resolved to the chain provider defining it.
+    fn active_filters(&self, obj: &[u8], providers: &[Vec<u8>]) -> Vec<CallStep> {
+        let mut names: Vec<Vec<u8>> = Vec::new();
+        let add = |n: &Vec<u8>, names: &mut Vec<Vec<u8>>| {
+            if !names.contains(n) {
+                names.push(n.clone());
+            }
+        };
+        if let Some(o) = self.oo.borrow().objects.get(obj) {
+            for f in &o.filters {
+                add(f, &mut names);
+            }
+        }
+        for p in providers {
+            if let Some(c) = self.oo.borrow().classes.get(p) {
+                for f in &c.filters {
+                    add(f, &mut names);
+                }
+            }
+        }
+        // Resolve each filter name to the first provider defining it as a method.
+        names
+            .iter()
+            .filter_map(|fname| {
+                providers
+                    .iter()
+                    .find(|p| self.oo_has_method(p, fname, p.as_slice() == obj))
+                    .map(|p| CallStep {
+                        provider: p.clone(),
+                        method: fname.clone(),
+                    })
+            })
+            .collect()
     }
 
     /// The method-resolution chain for `obj`: the object's own methods, then its
@@ -1084,37 +1197,38 @@ impl Interp {
         }
     }
 
-    /// Run the method (or constructor when `method` is empty) provided by
-    /// `chain[index]` on `obj`.
-    fn oo_call(
+    /// Run the call-chain step at `index` on `obj`. `target` is the originally
+    /// invoked method (empty for a constructor), recorded for `self target`.
+    fn oo_run(
         &mut self,
         obj: &[u8],
-        chain: Vec<Vec<u8>>,
+        chain: Vec<CallStep>,
         index: usize,
-        method: &[u8],
+        target: &[u8],
         args: &[*mut TclObj],
     ) -> Code {
-        let prov = chain[index].clone();
+        let prov = chain[index].provider.clone();
+        let method = chain[index].method.clone();
+        // Object-vs-class resolution is by identity (a class is in both maps).
+        let is_object = prov == obj;
         let m = if method.is_empty() {
             self.oo
                 .borrow()
                 .classes
                 .get(&prov)
                 .and_then(|c| c.constructor.clone())
-        } else if index == 0 {
-            // The object's own (per-object / class-object) methods.
+        } else if is_object {
             self.oo
                 .borrow()
                 .objects
                 .get(&prov)
-                .and_then(|o| o.methods.get(method).cloned())
+                .and_then(|o| o.methods.get(&method).cloned())
         } else {
-            // A class in the chain → its instance methods.
             self.oo
                 .borrow()
                 .classes
                 .get(&prov)
-                .and_then(|c| c.methods.get(method).cloned())
+                .and_then(|c| c.methods.get(&method).cloned())
         };
         let Some(m) = m else {
             return self.error(b"no such method");
@@ -1138,7 +1252,7 @@ impl Interp {
                 object: obj.to_vec(),
                 chain,
                 index,
-                method: method.to_vec(),
+                target: target.to_vec(),
             });
             let code = self.dispatch(&new_argv);
             self.oo.borrow_mut().call_stack.pop();
@@ -1158,10 +1272,11 @@ impl Interp {
             return self.error(&m);
         };
         // The declared instance variables visible to the method: union over the
-        // chain's classes.
+        // object's full class hierarchy (independent of the call chain, which a
+        // filter may have reordered).
         let mut vars: Vec<Vec<u8>> = Vec::new();
-        for c in &chain {
-            if let Some(cl) = self.oo.borrow().classes.get(c) {
+        for c in self.method_chain(obj) {
+            if let Some(cl) = self.oo.borrow().classes.get(&c) {
                 for v in &cl.variables {
                     if !vars.contains(v) {
                         vars.push(v.clone());
@@ -1172,13 +1287,13 @@ impl Interp {
         let name = if method.is_empty() {
             b"<constructor>".to_vec()
         } else {
-            method.to_vec()
+            method.clone()
         };
         self.oo.borrow_mut().call_stack.push(OoFrame {
             object: obj.to_vec(),
             chain,
             index,
-            method: method.to_vec(),
+            target: target.to_vec(),
         });
         let code = self.run_proc(
             &params,
@@ -1213,9 +1328,12 @@ impl Interp {
                 if let (Some(body), Some(var_ns)) = (dtor, var_ns) {
                     self.oo.borrow_mut().call_stack.push(OoFrame {
                         object: obj.to_vec(),
-                        chain: mro.clone(),
+                        chain: vec![CallStep {
+                            provider: c.clone(),
+                            method: b"<destructor>".to_vec(),
+                        }],
                         index: 0,
-                        method: b"<destructor>".to_vec(),
+                        target: b"<destructor>".to_vec(),
                     });
                     let _ = self.run_proc(
                         &[],
@@ -1304,6 +1422,26 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn filters_wrap_method_calls() {
+        leak_free(|i| {
+            ok(i, b"set ::r {}");
+            ok(i, b"oo::class create C");
+            ok(
+                i,
+                b"oo::define C method foo args {global r; lappend r foo; return done}",
+            );
+            ok(i, b"oo::define C method log args {global r; lappend r [self method]; return [next {*}$args]}");
+            ok(i, b"oo::define C filter log");
+            ok(i, b"C create o");
+            // The filter runs first (self method = the filter name), then `next`
+            // reaches the real method.
+            assert_eq!(ok(i, b"o foo"), b"done");
+            assert_eq!(ok(i, b"set ::r"), b"log foo");
+            i.eval_str(b"C destroy; unset -nocomplain ::r");
+        });
     }
 
     #[test]
