@@ -1653,6 +1653,16 @@ impl Interp {
         fqn
     }
 
+    /// The canonical FQN `name` resolves to (full resolution order), or `None`
+    /// if no such command — for `trace add|remove|info command|execution`, which
+    /// must address the same binding `dispatch` hits and error
+    /// `invalid command name` on a miss.
+    pub(crate) fn resolve_cmd_fqn(&self, name: &[u8]) -> Option<Vec<u8>> {
+        self.namespaces
+            .borrow()
+            .resolve_fqn(self.current_ns.get(), name)
+    }
+
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
     /// child is addressable like the `interp` ensemble restricted to it.
     fn dispatch_child(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
@@ -2287,6 +2297,16 @@ impl Interp {
     /// The `invalid command name "X"` error (the resolver miss; `unknown` later).
     pub(crate) fn invalid_command(&mut self, name: &[u8]) -> Code {
         let mut msg = b"invalid command name \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.push(b'"');
+        self.error(&msg)
+    }
+
+    /// C's `Tcl_FindCommand` + `TCL_LEAVE_ERR_MSG` miss (`unknown command "X"`,
+    /// `tclNamesp.c`) — distinct from `invalid_command`'s `invalid command
+    /// name`. Used by `trace add|remove|info command|execution`.
+    pub(crate) fn unknown_command(&mut self, name: &[u8]) -> Code {
+        let mut msg = b"unknown command \"".to_vec();
         msg.extend_from_slice(name);
         msg.push(b'"');
         self.error(&msg)

@@ -119,6 +119,21 @@ impl Namespaces {
             .map(|(ns, simple)| self.arena[ns].commands[&simple].clone())
     }
 
+    /// The canonical fully-qualified name a (relative/absolute) command `name`
+    /// resolves to, following the full resolution order — or `None` if no such
+    /// command exists. Used to key command/execution traces so they address the
+    /// same binding `resolve` (and `rename`/`delete`) hit.
+    #[must_use]
+    pub fn resolve_fqn(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        self.home_of(current, name).map(|(ns, simple)| {
+            let q = self.qualified_name(ns);
+            let mut fqn = if q == b"::" { Vec::new() } else { q };
+            fqn.extend_from_slice(b"::");
+            fqn.extend_from_slice(&simple);
+            fqn
+        })
+    }
+
     /// Sorted command names in namespace `ns` (`info commands`).
     #[must_use]
     pub fn command_names(&self, ns: NsId) -> Vec<&[u8]> {
