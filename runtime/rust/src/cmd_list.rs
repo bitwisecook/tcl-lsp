@@ -775,84 +775,454 @@ fn elem_matches(glob: bool, nocase: bool, pat: &[u8], elem: &[u8]) -> bool {
 }
 
 /// `lsort ?-ascii|-integer|-real? ?-nocase? ?-increasing|-decreasing? ?-unique?
-/// list` — sort the list elements.
-fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    #[derive(Clone, Copy, PartialEq)]
-    enum Kind {
-        Ascii,
-        Integer,
-        Real,
+#[derive(Clone, Copy, PartialEq)]
+enum SortMode {
+    Ascii,
+    Dictionary,
+    Integer,
+    Real,
+    Command,
+}
+
+/// Parse a Tcl integer (decimal, or `0x`/`0o`/`0b` radix, optional sign) into an
+/// `i128` for `-integer` sort keys. `None` if not an integer.
+fn parse_wide(b: &[u8]) -> Option<i128> {
+    let s = core::str::from_utf8(b).ok()?.trim();
+    let (neg, body) = match s.strip_prefix('-') {
+        Some(r) => (true, r),
+        None => (false, s.strip_prefix('+').unwrap_or(s)),
+    };
+    if body.is_empty() {
+        return None;
     }
-    let (mut kind, mut nocase, mut decreasing, mut unique) = (Kind::Ascii, false, false, false);
-    let mut i = 1;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-ascii" => kind = Kind::Ascii,
-            b"-integer" => kind = Kind::Integer,
-            b"-real" => kind = Kind::Real,
-            b"-nocase" => nocase = true,
-            b"-increasing" => decreasing = false,
-            b"-decreasing" => decreasing = true,
-            b"-unique" => unique = true,
-            b"--" => {
-                i += 1;
-                break;
+    let v: i128 = if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
+        i128::from_str_radix(h, 16).ok()?
+    } else if let Some(o) = body.strip_prefix("0o").or_else(|| body.strip_prefix("0O")) {
+        i128::from_str_radix(o, 8).ok()?
+    } else if let Some(bb) = body.strip_prefix("0b").or_else(|| body.strip_prefix("0B")) {
+        i128::from_str_radix(bb, 2).ok()?
+    } else {
+        body.parse::<i128>().ok()?
+    };
+    Some(if neg { -v } else { v })
+}
+
+/// Parse a Tcl floating-point value for `-real` sort keys.
+fn parse_real(b: &[u8]) -> Option<f64> {
+    core::str::from_utf8(b).ok()?.trim().parse::<f64>().ok()
+}
+
+/// Dictionary comparison (`lsort -dictionary`): case-insensitive, with embedded
+/// decimal runs compared as numbers; a run with more leading zeros sorts later
+/// only as a secondary tiebreak. Ported from C's `DictionaryCompare`.
+fn dictionary_compare(left: &[u8], right: &[u8]) -> core::cmp::Ordering {
+    use core::cmp::Ordering;
+    let (mut li, mut ri) = (0usize, 0usize);
+    let mut secondary: i64 = 0;
+    loop {
+        let l_is_digit = left.get(li).is_some_and(u8::is_ascii_digit);
+        let r_is_digit = right.get(ri).is_some_and(u8::is_ascii_digit);
+        if l_is_digit && r_is_digit {
+            // Skip and tally leading zeros (more zeros → later, as a secondary).
+            let mut zeros: i64 = 0;
+            while left.get(li) == Some(&b'0') && left.get(li + 1).is_some_and(u8::is_ascii_digit) {
+                li += 1;
+                zeros += 1;
             }
-            opt if opt.starts_with(b"-") => {
+            while right.get(ri) == Some(&b'0') && right.get(ri + 1).is_some_and(u8::is_ascii_digit)
+            {
+                ri += 1;
+                zeros -= 1;
+            }
+            if secondary == 0 {
+                secondary = zeros;
+            }
+            // Compare the digit runs by length, then by value.
+            let mut diff: i64 = 0;
+            loop {
+                if diff == 0 {
+                    diff = left.get(li).map_or(0, |&c| c as i64)
+                        - right.get(ri).map_or(0, |&c| c as i64);
+                }
+                li += 1;
+                ri += 1;
+                let ld = left.get(li).is_some_and(u8::is_ascii_digit);
+                let rd = right.get(ri).is_some_and(u8::is_ascii_digit);
+                if !rd {
+                    if ld {
+                        return Ordering::Greater;
+                    }
+                    if diff != 0 {
+                        return diff.cmp(&0);
+                    }
+                    break;
+                } else if !ld {
+                    return Ordering::Less;
+                }
+            }
+            continue;
+        }
+        match (left.get(li).copied(), right.get(ri).copied()) {
+            (Some(l), Some(r)) => {
+                let (ll, rl) = (l.to_ascii_lowercase(), r.to_ascii_lowercase());
+                if ll != rl {
+                    return ll.cmp(&rl);
+                }
+                if secondary == 0 && l != r {
+                    secondary = (l as i64) - (r as i64);
+                }
+                li += 1;
+                ri += 1;
+            }
+            (l, r) => {
+                let diff = l.map_or(0i64, |c| c as i64) - r.map_or(0i64, |c| c as i64);
+                if diff != 0 {
+                    return diff.cmp(&0);
+                }
+                return secondary.cmp(&0);
+            }
+        }
+    }
+}
+
+/// Compare two sort-key objects under a non-command `mode`.
+fn lsort_key_cmp(
+    mode: SortMode,
+    nocase: bool,
+    a: *mut TclObj,
+    b: *mut TclObj,
+) -> core::cmp::Ordering {
+    use core::cmp::Ordering;
+    let (ab, bb) = (obj_bytes(a), obj_bytes(b));
+    match mode {
+        SortMode::Dictionary => dictionary_compare(&ab, &bb),
+        SortMode::Integer => parse_wide(&ab)
+            .unwrap_or(0)
+            .cmp(&parse_wide(&bb).unwrap_or(0)),
+        SortMode::Real => parse_real(&ab)
+            .unwrap_or(0.0)
+            .partial_cmp(&parse_real(&bb).unwrap_or(0.0))
+            .unwrap_or(Ordering::Equal),
+        _ => {
+            if nocase {
+                ab.to_ascii_lowercase().cmp(&bb.to_ascii_lowercase())
+            } else {
+                ab.cmp(&bb)
+            }
+        }
+    }
+}
+
+/// Drill into `obj` by the (nested) `path` of index specs (`lsort -index`).
+/// Errors `element X missing from sublist "..."` on an out-of-range step
+/// (C's `SelectObjFromSublist`).
+fn select_by_index(
+    interp: &mut Interp,
+    obj: *mut TclObj,
+    path: &[Vec<u8>],
+) -> Result<*mut TclObj, Code> {
+    let mut cur = obj;
+    for spec in path {
+        let n = match list::list_length(cur) {
+            Ok(n) => n,
+            Err(e) => return Err(bad_list(interp, e)),
+        };
+        let idx = match index_spec(spec, n) {
+            Some(i) => i,
+            None => return Err(bad_index(interp, spec)),
+        };
+        if idx < 0 || idx as usize >= n {
+            let mut m = b"element ".to_vec();
+            m.extend_from_slice(spec);
+            m.extend_from_slice(b" missing from sublist \"");
+            m.extend_from_slice(&obj_bytes(cur));
+            m.push(b'"');
+            return Err(interp.set_error(&m));
+        }
+        cur = match list::list_index(cur, idx as usize) {
+            Ok(Some(e)) => e,
+            _ => return Ok(cur),
+        };
+    }
+    Ok(cur)
+}
+
+/// `"-X" option must be followed by <what>` (C's missing-value errors).
+fn lsort_needs_value(interp: &mut Interp, opt: &[u8], what: &[u8]) -> Code {
+    let mut m = b"\"".to_vec();
+    m.extend_from_slice(opt);
+    m.extend_from_slice(b"\" option must be followed by ");
+    m.extend_from_slice(what);
+    interp.set_error(&m)
+}
+
+/// `lsort ?-option value ...? list` — sort the list (`Tcl_LsortObjCmd`).
+fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let n = argv.len();
+    if n < 2 {
+        return wrong_args(interp, b"lsort ?-option value ...? list");
+    }
+    let (mut mode, mut nocase, mut increasing, mut unique, mut indices_out) =
+        (SortMode::Ascii, false, true, false, false);
+    let mut group = 1usize;
+    let mut index_path: Vec<Vec<u8>> = Vec::new();
+    let mut cmd_prefix: Option<*mut TclObj> = None;
+    // All args before the final one (the list) are options (or option values).
+    let mut i = 1;
+    while i < n - 1 {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-ascii" => mode = SortMode::Ascii,
+            b"-dictionary" => mode = SortMode::Dictionary,
+            b"-integer" => mode = SortMode::Integer,
+            b"-real" => mode = SortMode::Real,
+            b"-nocase" => nocase = true,
+            b"-increasing" => increasing = true,
+            b"-decreasing" => increasing = false,
+            b"-unique" => unique = true,
+            b"-indices" => indices_out = true,
+            b"-index" => {
+                if i == n - 2 {
+                    return lsort_needs_value(interp, b"-index", b"list index");
+                }
+                index_path = match crate::parse::split_list(&obj_bytes(argv[i + 1])) {
+                    Ok(p) => p,
+                    Err(e) => return interp.set_error(e.message()),
+                };
+                i += 1;
+            }
+            b"-stride" => {
+                if i == n - 2 {
+                    return lsort_needs_value(interp, b"-stride", b"stride length");
+                }
+                match parse_wide(&obj_bytes(argv[i + 1])) {
+                    Some(w) if w >= 2 => group = w as usize,
+                    Some(_) => return interp.set_error(b"stride length must be at least 2"),
+                    None => return not_integer(interp, &obj_bytes(argv[i + 1])),
+                }
+                i += 1;
+            }
+            b"-command" => {
+                if i == n - 2 {
+                    return lsort_needs_value(interp, b"-command", b"comparison command");
+                }
+                mode = SortMode::Command;
+                cmd_prefix = Some(argv[i + 1]);
+                i += 1;
+            }
+            other => {
                 let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(opt);
-                m.extend_from_slice(b"\": must be -ascii, -decreasing, -increasing, -integer, -nocase, -real, or -unique");
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique");
                 return interp.set_error(&m);
             }
-            _ => break,
         }
         i += 1;
     }
-    if argv.len() - i != 1 {
-        return wrong_args(interp, b"lsort ?-option ...? list");
-    }
-    let elems = match list::list_elements(argv[i]) {
+
+    let elems = match list::list_elements(argv[n - 1]) {
         Ok(v) => v,
         Err(e) => return bad_list(interp, e),
     };
-    // Decorate each element with its sort key.
-    let mut items: Vec<(*mut TclObj, Vec<u8>)> = elems.iter().map(|&e| (e, obj_bytes(e))).collect();
-    let cmp = |a: &(*mut TclObj, Vec<u8>), b: &(*mut TclObj, Vec<u8>)| -> core::cmp::Ordering {
-        use core::cmp::Ordering;
-        match kind {
-            Kind::Ascii => {
-                if nocase {
-                    a.1.to_ascii_lowercase().cmp(&b.1.to_ascii_lowercase())
-                } else {
-                    a.1.cmp(&b.1)
+    let len = elems.len();
+    if len == 0 {
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+
+    // -stride groups the flat list; the leading -index value (default 0) picks
+    // the key element within each group, the rest of the path applies within it.
+    let mut group_offset = 0usize;
+    let mut key_path: &[Vec<u8>] = &index_path;
+    if group > 1 {
+        if len % group != 0 {
+            return interp.set_error(b"list size must be a multiple of the stride length");
+        }
+        if !index_path.is_empty() {
+            match index_spec(&index_path[0], group) {
+                Some(o) if o >= 0 && (o as usize) < group => group_offset = o as usize,
+                _ => {
+                    return interp.set_error(
+                        b"when used with \"-stride\", the leading \"-index\" value must be within the group",
+                    )
                 }
             }
-            Kind::Integer => parse_isize(&a.1)
-                .unwrap_or(0)
-                .cmp(&parse_isize(&b.1).unwrap_or(0)),
-            Kind::Real => {
-                let fa = core::str::from_utf8(&a.1)
-                    .ok()
-                    .and_then(|s| s.trim().parse::<f64>().ok())
-                    .unwrap_or(0.0);
-                let fb = core::str::from_utf8(&b.1)
-                    .ok()
-                    .and_then(|s| s.trim().parse::<f64>().ok())
-                    .unwrap_or(0.0);
-                fa.partial_cmp(&fb).unwrap_or(Ordering::Equal)
+            key_path = &index_path[1..];
+        }
+    }
+    let logical = len / group;
+
+    // Decorate each logical element with the object its sort key comes from.
+    let mut items: Vec<(usize, *mut TclObj)> = Vec::with_capacity(logical);
+    for l in 0..logical {
+        let base = l * group;
+        let key_obj = match select_by_index(interp, elems[base + group_offset], key_path) {
+            Ok(o) => o,
+            Err(c) => return c,
+        };
+        items.push((base, key_obj));
+    }
+
+    if mode == SortMode::Command {
+        let prefix = cmd_prefix.expect("set with Command mode");
+        if let Err(c) = lsort_command(interp, &mut items, prefix, increasing) {
+            return c;
+        }
+    } else {
+        // Validate numeric keys up front (Tcl errors on the first non-number).
+        if mode == SortMode::Integer {
+            if let Some((_, k)) = items
+                .iter()
+                .find(|(_, k)| parse_wide(&obj_bytes(*k)).is_none())
+            {
+                return not_integer(interp, &obj_bytes(*k));
+            }
+        } else if mode == SortMode::Real {
+            if let Some((_, k)) = items
+                .iter()
+                .find(|(_, k)| parse_real(&obj_bytes(*k)).is_none())
+            {
+                let mut m = b"expected floating-point number but got \"".to_vec();
+                m.extend_from_slice(&obj_bytes(*k));
+                m.push(b'"');
+                return interp.set_error(&m);
             }
         }
-    };
-    items.sort_by(cmp);
-    if decreasing {
-        items.reverse();
+        items.sort_by(|a, b| {
+            let ord = lsort_key_cmp(mode, nocase, a.1, b.1);
+            if increasing {
+                ord
+            } else {
+                ord.reverse()
+            }
+        });
     }
+
     if unique {
-        items.dedup_by(|a, b| a.1 == b.1);
+        let eq_mode = if mode == SortMode::Command {
+            SortMode::Ascii
+        } else {
+            mode
+        };
+        items.dedup_by(|a, b| lsort_key_cmp(eq_mode, nocase, a.1, b.1).is_eq());
     }
-    let out: Vec<*mut TclObj> = items.iter().map(|(e, _)| *e).collect();
+
+    // Build the result: -indices yields positions; -stride emits whole groups.
+    let mut out: Vec<*mut TclObj> = Vec::with_capacity(logical * group);
+    let mut fresh: Vec<*mut TclObj> = Vec::new();
+    for (base, _) in &items {
+        for j in 0..group {
+            if indices_out {
+                let o = obj::new_wide_int_obj((base + j) as i64);
+                fresh.push(o);
+                out.push(o);
+            } else {
+                out.push(elems[base + j]);
+            }
+        }
+    }
     set_list(interp, &out);
+    for o in fresh {
+        drop_fresh(o);
+    }
     Code::Ok
+}
+
+/// `-command` sort: a stable merge sort whose comparator evaluates the user
+/// command prefix with the two elements and reads its integer result. Reentrant
+/// (the comparator runs arbitrary Tcl), so a plain `sort_by` won't do.
+fn lsort_command(
+    interp: &mut Interp,
+    items: &mut [(usize, *mut TclObj)],
+    prefix: *mut TclObj,
+    increasing: bool,
+) -> Result<(), Code> {
+    // Pre-split the command prefix into its words once.
+    let words = match list::list_elements(prefix) {
+        Ok(v) => v.iter().map(|&w| obj_bytes(w)).collect::<Vec<_>>(),
+        Err(e) => return Err(bad_list(interp, e)),
+    };
+    let mut buf = items.to_vec();
+    merge_sort_cmd(interp, &mut buf, &words, increasing)?;
+    items.copy_from_slice(&buf);
+    Ok(())
+}
+
+fn merge_sort_cmd(
+    interp: &mut Interp,
+    a: &mut [(usize, *mut TclObj)],
+    words: &[Vec<u8>],
+    increasing: bool,
+) -> Result<(), Code> {
+    let n = a.len();
+    if n <= 1 {
+        return Ok(());
+    }
+    let mid = n / 2;
+    let mut left: Vec<_> = a[..mid].to_vec();
+    let mut right: Vec<_> = a[mid..].to_vec();
+    merge_sort_cmd(interp, &mut left, words, increasing)?;
+    merge_sort_cmd(interp, &mut right, words, increasing)?;
+    let (mut li, mut ri, mut k) = (0usize, 0usize, 0usize);
+    while li < left.len() && ri < right.len() {
+        // Stable: take from left unless right strictly precedes it.
+        let ord = lsort_cmd_compare(interp, words, left[li].1, right[ri].1)?;
+        let take_left = if increasing { ord <= 0 } else { ord >= 0 };
+        if take_left {
+            a[k] = left[li];
+            li += 1;
+        } else {
+            a[k] = right[ri];
+            ri += 1;
+        }
+        k += 1;
+    }
+    while li < left.len() {
+        a[k] = left[li];
+        li += 1;
+        k += 1;
+    }
+    while ri < right.len() {
+        a[k] = right[ri];
+        ri += 1;
+        k += 1;
+    }
+    Ok(())
+}
+
+/// Evaluate `<prefix words...> a b` and read its integer result (the `-command`
+/// comparator). Returns the sign as an `i32`.
+fn lsort_cmd_compare(
+    interp: &mut Interp,
+    words: &[Vec<u8>],
+    a: *mut TclObj,
+    b: *mut TclObj,
+) -> Result<i32, Code> {
+    use crate::interp::new_string;
+    let mut call: Vec<*mut TclObj> = Vec::with_capacity(words.len() + 2);
+    for w in words {
+        call.push(new_string(w));
+    }
+    call.push(a);
+    call.push(b);
+    for &o in &call {
+        unsafe { obj::incr_ref_count(o) };
+    }
+    let code = interp.dispatch(&call);
+    let result = interp.result_bytes();
+    for &o in &call {
+        unsafe { obj::decr_ref_count(o) };
+    }
+    if code != Code::Ok {
+        return Err(code);
+    }
+    match parse_wide(&result) {
+        Some(v) => Ok(v.signum() as i32),
+        None => {
+            let mut m = b"-command comparison script returned non-integer result: ".to_vec();
+            m.extend_from_slice(&result);
+            Err(interp.set_error(&m))
+        }
+    }
 }
 
 fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
@@ -1068,6 +1438,52 @@ mod tests {
         assert_eq!(ok(b"lsort -integer {10 2 33 4}"), b"2 4 10 33");
         assert_eq!(ok(b"lsort -unique {b a a c}"), b"a b c");
         assert_eq!(ok(b"lsort -nocase {B a C}"), b"a B C");
+        // -stride groups; the key defaults to the group's first element.
+        assert_eq!(ok(b"lsort -stride 2 {c 3 a 1 b 2}"), b"a 1 b 2 c 3");
+        assert_eq!(
+            ok(b"lsort -stride 2 -index 1 {c 3 a 1 b 2}"),
+            b"a 1 b 2 c 3"
+        );
+        // -index drills into each element.
+        assert_eq!(ok(b"lsort -index 0 {{b 2} {a 1}}"), b"{a 1} {b 2}");
+        assert_eq!(ok(b"lsort -index 1 {{b 1} {a 2}}"), b"{b 1} {a 2}");
+        // -dictionary: embedded numbers compared numerically, case-insensitive.
+        assert_eq!(ok(b"lsort -dictionary {x10 x9 x1}"), b"x1 x9 x10");
+        // -indices returns positions; -real; -command.
+        assert_eq!(ok(b"lsort -indices {c a b}"), b"1 2 0");
+        assert_eq!(ok(b"lsort -real {1.5 0.2 3}"), b"0.2 1.5 3");
+        assert_eq!(
+            ok(b"lsort -command {apply {{a b} {expr {$a - $b}}}} {3 1 2}"),
+            b"1 2 3"
+        );
+    }
+
+    #[test]
+    fn lsort_errors() {
+        assert_eq!(
+            err(b"lsort -stride 1 {a b}"),
+            b"stride length must be at least 2"
+        );
+        assert_eq!(
+            err(b"lsort -stride 2 {a b c}"),
+            b"list size must be a multiple of the stride length"
+        );
+        assert_eq!(
+            err(b"lsort -integer {a b}"),
+            b"expected integer but got \"a\""
+        );
+        assert_eq!(
+            err(b"lsort -real {a b}"),
+            b"expected floating-point number but got \"a\""
+        );
+        assert_eq!(
+            err(b"lsort -index 5 {{a b}}"),
+            b"element 5 missing from sublist \"a b\""
+        );
+        assert_eq!(
+            err(b"lsort -bogus {a}"),
+            b"bad option \"-bogus\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique"
+        );
     }
 
     #[test]

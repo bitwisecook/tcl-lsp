@@ -1707,6 +1707,21 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `lseq` (arithmetic-series generator) | **125 / 168** | 43 (0 timeout) | **10660 / 19027** |
 | + `trace` command/execution/step + lifecycle | **125 / 168** | 43 (0 timeout) | **10818 / 19027** |
 | + `lset` (list-element set in a variable) | **126 / 168** | 42 (0 timeout) | **10870 / 19027** |
+| + `lsort` options (`-stride`/`-index`/`-dictionary`/`-command`/`-indices`) | **128 / 168** | 40 (0 timeout) | **11116 / 19027** |
+
+The 2026-06-13 **`lsort`-options** increment (**+246 tests, zero regressions**)
+— completed `lsort` from the `-ascii`/`-integer`/`-real`/`-nocase`/`-unique`
+subset to the full `Tcl_LsortObjCmd` switch set: `-dictionary` (ported
+`DictionaryCompare` — case-insensitive, embedded decimals compared numerically,
+leading-zero secondary tiebreak), `-index` (drill into each element by a nested
+path, `SelectObjFromSublist`), `-stride` (group the flat list; the leading
+`-index` value, default 0, picks the key element within each group and the rest
+of the path applies inside it; output regroups), `-indices` (return positions),
+and `-command` (a stable merge sort whose comparator evals the user prefix —
+reentrant, so not a plain `sort_by`). Byte-identical to `tclsh9.0` incl. all the
+`stride length`/`multiple of the stride`/`within the group`/`missing from
+sublist` error strings. `error.test` 123 → 261 (its `lsort -stride 2` errorcode-
+normalising `customMatch`), `cmdIL.test` 48 → 125, `lsearch.test` 0 → 30.
 
 The 2026-06-13 **`lset`** increment (**+52 tests, zero regressions**) — the
 in-variable nested list-element set (`Tcl_LsetObjCmd`/`TclLsetList`/
@@ -2030,6 +2045,21 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`lsort` option completion)
+
+`lsort` (`cmd_list.rs`) completed to the full `Tcl_LsortObjCmd` switch set —
+`-dictionary`/`-index`/`-indices`/`-stride`/`-command` added to the existing
+`-ascii`/`-integer`/`-real`/`-nocase`/`-increasing`/`-decreasing`/`-unique`.
+`DictionaryCompare` is ported verbatim; the decorate-sort-output structure
+mirrors C (logical elements keyed by `SelectObjFromSublist`, `-stride` grouping
+with a leading-`-index` group offset, regrouped output). `-command` is a stable
+merge sort whose comparator dispatches the user prefix (reentrant — `sort_by`
+cannot host an interp-evaluating, fallible comparator). Numeric keys are
+validated up front so the non-command comparators stay infallible. No Zig fix
+back-ported (mirror `8150eca`); byte-checked against `tclsh9.0`. `error.test`
+123 → 261, `cmdIL.test` 48 → 125, `lsearch.test` 0 → 30; sweep
+**10870 → 11116**, zero regressions.
+
 ### SYNC inbound — 2026-06-13 (`lset`)
 
 `lset` (`cmd_list.rs`), the in-variable nested list-element set, ported from C's
@@ -2247,12 +2277,13 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **10870/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11116/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`
-    49 → 195, and `lset` unblocked `reg.test`/`lsetComp.test`). Run the
-    **unmodified** pure-Tcl
+    49 → 195, `lset` unblocked `reg.test`/`lsetComp.test`, and the full
+    `lsort` option set took `error.test` 123 → 261 and `cmdIL.test` 48 → 125).
+    Run the **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return
