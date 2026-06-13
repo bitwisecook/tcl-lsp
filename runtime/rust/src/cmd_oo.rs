@@ -53,6 +53,10 @@ struct Class {
     unexported: BTreeSet<Vec<u8>>,
     /// Filter method names applied to instances' method calls (`filter`).
     filters: Vec<Vec<u8>>,
+    /// The namespace in which this class's *instances* are defined
+    /// (`definitionnamespace`, TIP 524); `info class definitionnamespace
+    /// … -instance`. `None` → the empty default.
+    def_ns: Option<Vec<u8>>,
 }
 
 /// An object instance.
@@ -62,6 +66,9 @@ struct Object {
     class: Vec<u8>,
     /// The namespace holding this object's instance variables.
     var_ns: NsId,
+    /// A unique, monotonic creation identifier (`info object creationid`),
+    /// stable across rename.
+    creation_id: u64,
     /// Per-object methods (`oo::objdefine method`).
     methods: BTreeMap<Vec<u8>, Method>,
     /// Per-object mixins.
@@ -106,6 +113,8 @@ pub struct OoState {
     classes: BTreeMap<Vec<u8>, Class>,
     objects: BTreeMap<Vec<u8>, Object>,
     counter: usize,
+    /// Monotonic source of object creation IDs (`info object creationid`).
+    next_id: u64,
     def_stack: Vec<DefTarget>,
     call_stack: Vec<OoFrame>,
     /// Non-zero while inside a `private` definition modifier — methods defined
@@ -152,13 +161,27 @@ pub fn install(interp: &mut Interp) {
             ..Class::default()
         },
     );
+    // `oo::object`'s instance-definition namespace (TIP 524, `-instance`) is
+    // `::oo::objdefine` — defining any object (via `oo::objdefine`) runs there.
+    // (`oo::class`'s `-class` namespace, `::oo::define`, is handled in the
+    // `definitionnamespace` introspection.)
+    if let Some(c) = interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(b"::oo::object".as_slice())
+    {
+        c.def_ns = Some(b"::oo::objdefine".to_vec());
+    }
     for fqn in [b"::oo::object".as_slice(), b"::oo::class".as_slice()] {
         let var_ns = interp.ensure_namespace(fqn);
+        let creation_id = interp.oo_next_id();
         interp.oo.borrow_mut().objects.insert(
             fqn.to_vec(),
             Object {
                 class: b"::oo::class".to_vec(),
                 var_ns,
+                creation_id,
                 ..Object::default()
             },
         );
@@ -253,10 +276,14 @@ fn oo_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"oo::define target ?arg ...?");
     }
     let fqn = interp.fqn_for(&obj_bytes(argv[1]));
+    // C resolves the object first (`Tcl_GetObjectFromObj`): a name that is not
+    // an object at all reports differently from an object that is not a class.
+    if !interp.oo.borrow().objects.contains_key(&fqn) {
+        return not_object(interp, &obj_bytes(argv[1]));
+    }
     if !interp.oo.borrow().classes.contains_key(&fqn) {
-        let mut m = b"\"".to_vec();
-        m.extend_from_slice(&obj_bytes(argv[1]));
-        m.extend_from_slice(b"\" does not refer to a class");
+        let mut m = obj_bytes(argv[1]);
+        m.extend_from_slice(b" does not refer to a class");
         return err(interp, &m);
     }
     interp.oo_run_def(DefTarget::Class(fqn), argv)
@@ -269,10 +296,7 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let fqn = interp.fqn_for(&obj_bytes(argv[1]));
     if !interp.oo.borrow().objects.contains_key(&fqn) {
-        let mut m = b"\"".to_vec();
-        m.extend_from_slice(&obj_bytes(argv[1]));
-        m.extend_from_slice(b"\" does not refer to an object");
-        return err(interp, &m);
+        return not_object(interp, &obj_bytes(argv[1]));
     }
     interp.oo_run_def(DefTarget::Object(fqn), argv)
 }
@@ -299,11 +323,13 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     };
     let var_ns = interp.ensure_namespace(&dst);
+    let creation_id = interp.oo_next_id();
     interp.oo.borrow_mut().objects.insert(
         dst.clone(),
         Object {
             class: src_obj.class,
             var_ns,
+            creation_id,
             methods: src_obj.methods,
             mixins: src_obj.mixins,
             unexported: src_obj.unexported,
@@ -688,6 +714,13 @@ impl Interp {
         name.extend_from_slice(b"::my");
         self.ns_register(&name, Command::Builtin(my_cmd));
     }
+
+    /// Allocate the next monotonic object creation ID.
+    fn oo_next_id(&self) -> u64 {
+        let mut oo = self.oo.borrow_mut();
+        oo.next_id += 1;
+        oo.next_id
+    }
 }
 
 fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -736,6 +769,11 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // `creationid` has its own arg-count message and must be checked before the
+    // generic gate (it errors at 0 *or* 2+ object names).
+    if argv.len() >= 3 && obj_bytes(argv[2]) == b"creationid" && argv.len() != 4 {
+        return wrong_args(interp, b"info object creationid objName");
+    }
     if argv.len() < 4 {
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
     }
@@ -825,6 +863,21 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => not_object(interp, &obj_bytes(argv[3])),
             }
         }
+        b"creationid" => {
+            // Exactly one object name; the prior `argv.len() < 4` gate already
+            // rejected the no-name case, but this also rejects extra args.
+            if argv.len() != 4 {
+                return wrong_args(interp, b"info object creationid objName");
+            }
+            let id = interp.oo.borrow().objects.get(&obj).map(|o| o.creation_id);
+            match id {
+                Some(id) => {
+                    interp.set_result_bytes(id.to_string().as_bytes());
+                    Code::Ok
+                }
+                None => not_object(interp, &obj_bytes(argv[3])),
+            }
+        }
         other => {
             let mut m = b"unknown info object subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -841,6 +894,12 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let sub = obj_bytes(argv[2]);
     let cls = interp.fqn_for(&obj_bytes(argv[3]));
+    // C (`TclOOGetClassFromObj`) resolves the object first: a non-object name
+    // reports `X does not refer to an object` (no quotes); an object that is
+    // not a class reports `"X" is not a class`.
+    if !interp.oo.borrow().objects.contains_key(&cls) {
+        return not_object(interp, &obj_bytes(argv[3]));
+    }
     if !interp.oo.borrow().classes.contains_key(&cls) {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[3]));
@@ -927,6 +986,38 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(obj::new_string_bytes(&body));
             Code::Ok
         }
+        b"definitionnamespace" => {
+            // `info class definitionnamespace className ?kind?` (TIP 524).
+            if argv.len() > 5 {
+                return wrong_args(interp, b"info class definitionnamespace className ?kind?");
+            }
+            let kind = if argv.len() == 5 {
+                obj_bytes(argv[4])
+            } else {
+                b"-class".to_vec()
+            };
+            let ns = match kind.as_slice() {
+                // The namespace used to define this class itself. Only the root
+                // metaclass `oo::class` carries the built-in `::oo::define`.
+                b"-class" => {
+                    if cls == b"::oo::class" {
+                        Some(b"::oo::define".to_vec())
+                    } else {
+                        None
+                    }
+                }
+                // The namespace used to define this class's instances.
+                b"-instance" => interp.oo.borrow().classes[&cls].def_ns.clone(),
+                _ => {
+                    let mut m = b"bad kind \"".to_vec();
+                    m.extend_from_slice(&kind);
+                    m.extend_from_slice(b"\": must be -class or -instance");
+                    return err(interp, &m);
+                }
+            };
+            interp.set_result_bytes(&ns.unwrap_or_default());
+            Code::Ok
+        }
         other => {
             let mut m = b"unknown info class subcommand \"".to_vec();
             m.extend_from_slice(other);
@@ -937,9 +1028,9 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn not_object(interp: &mut Interp, name: &[u8]) -> Code {
-    let mut m = b"\"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\" does not refer to an object");
+    // C (`Tcl_GetObjectFromObj`) reports without surrounding quotes.
+    let mut m = name.to_vec();
+    m.extend_from_slice(b" does not refer to an object");
     interp.set_error(&m)
 }
 
@@ -1014,11 +1105,13 @@ impl Interp {
         // carry its own methods (`oo::define … self method`) — the TclOO
         // classes-as-objects model.
         let var_ns = self.ensure_namespace(fqn);
+        let creation_id = self.oo_next_id();
         self.oo.borrow_mut().objects.insert(
             fqn.to_vec(),
             Object {
                 class: b"::oo::class".to_vec(),
                 var_ns,
+                creation_id,
                 ..Object::default()
             },
         );
@@ -1132,11 +1225,13 @@ impl Interp {
             return self.error(&m);
         }
         let var_ns = self.ensure_namespace(&fqn);
+        let creation_id = self.oo_next_id();
         self.oo.borrow_mut().objects.insert(
             fqn.clone(),
             Object {
                 class: class.to_vec(),
                 var_ns,
+                creation_id,
                 ..Object::default()
             },
         );
@@ -1195,6 +1290,15 @@ impl Interp {
             })
             .collect();
         if steps.is_empty() {
+            // The unexported object built-ins (`variable`/`varname`/`eval`) are
+            // not in any method table; they are reachable only internally (via
+            // `my`), so an external call still falls through to the unknown-
+            // method error.
+            if !external {
+                if let Some(code) = self.oo_builtin_method(obj, method, args) {
+                    return code;
+                }
+            }
             return self.oo_unknown_method(obj, method);
         }
         // Filters wrap an *external* (public) call: prepend each active filter
@@ -1206,6 +1310,74 @@ impl Interp {
             return self.oo_run(obj, chain, 0, method, args);
         }
         self.oo_run(obj, steps, 0, method, args)
+    }
+
+    /// The unexported object built-in methods (`variable`/`varname`/`eval`),
+    /// defined on `oo::object` in C (`tclOOBasic.c`) and callable only via
+    /// `my`. Returns `None` when `method` is not one of them (so the caller
+    /// falls through to the unknown-method error).
+    fn oo_builtin_method(
+        &mut self,
+        obj: &[u8],
+        method: &[u8],
+        args: &[*mut TclObj],
+    ) -> Option<Code> {
+        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns)?;
+        match method {
+            // Link each named instance variable into the calling method frame.
+            b"variable" => {
+                for &a in args {
+                    let name = obj_bytes(a);
+                    if name.windows(2).any(|w| w == b"::") {
+                        let mut m = b"variable name \"".to_vec();
+                        m.extend_from_slice(&name);
+                        m.extend_from_slice(b"\" illegal: must not contain namespace separator");
+                        return Some(self.error(&m));
+                    }
+                    self.make_variable(var_ns, &name);
+                }
+                self.set_result_bytes(b"");
+                Some(Code::Ok)
+            }
+            // The fully-qualified name of one of the object's variables.
+            b"varname" => {
+                if args.len() != 1 {
+                    return Some(wrong_args(self, b"my varname varName"));
+                }
+                let mut full = self.namespaces().qualified_name(var_ns);
+                full.extend_from_slice(b"::");
+                full.extend_from_slice(&obj_bytes(args[0]));
+                self.set_result(obj::new_string_bytes(&full));
+                Some(Code::Ok)
+            }
+            // Evaluate a script in the object's namespace (concatenating multiple
+            // arguments with spaces, as `Tcl_ConcatObj` does).
+            b"eval" => {
+                if args.is_empty() {
+                    return Some(wrong_args(self, b"my eval arg ?arg ...?"));
+                }
+                let script = if args.len() == 1 {
+                    obj_bytes(args[0])
+                } else {
+                    let mut out: Vec<u8> = Vec::new();
+                    for &a in args {
+                        let b = obj_bytes(a);
+                        let Some(start) = b.iter().position(|&c| !c.is_ascii_whitespace()) else {
+                            continue;
+                        };
+                        let end = b.iter().rposition(|&c| !c.is_ascii_whitespace()).unwrap() + 1;
+                        if !out.is_empty() {
+                            out.push(b' ');
+                        }
+                        out.extend_from_slice(&b[start..end]);
+                    }
+                    out
+                };
+                let ns_name = self.namespaces().qualified_name(var_ns);
+                Some(self.ns_eval(&ns_name, &script))
+            }
+            _ => None,
+        }
     }
 
     /// The active filter steps for `obj` (object filters, then class filters
@@ -1649,6 +1821,66 @@ mod tests {
             assert_eq!(ok(i, b"bessie speak"), b"I say moo");
             ok(i, b"bessie destroy");
             assert_eq!(i.eval_str(b"bessie speak"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn object_builtin_variable_varname_eval() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"oo::class create C {
+                    method s {v} { my variable x; set x $v }
+                    method g {} { my variable x; return $x }
+                    method vn {} { my varname x }
+                    method e {} { my eval {set y 9; return $y} }
+                }",
+            );
+            ok(i, b"set o [C new]");
+            ok(i, b"$o s hi");
+            assert_eq!(ok(i, b"$o g"), b"hi");
+            assert_eq!(ok(i, b"$o vn"), b"::oo::Obj0::x");
+            assert_eq!(ok(i, b"$o e"), b"9");
+            // Built-ins are unexported: an external call is an unknown method.
+            assert_eq!(i.eval_str(b"$o variable x"), Code::Error);
+            // `variable` rejects a namespace-qualified name.
+            assert_eq!(
+                i.eval_str(b"oo::class create D {method z {} {my variable a::b}}; [D new] z"),
+                Code::Error,
+            );
+        });
+    }
+
+    #[test]
+    fn object_creationid_and_definitionnamespace() {
+        leak_free(|i| {
+            ok(i, b"oo::class create cls");
+            // Distinct objects get distinct creation IDs.
+            let a = ok(i, b"info object creationid [cls new]");
+            let b = ok(i, b"info object creationid [cls new]");
+            assert_ne!(a, b);
+            // The ID is stable across rename.
+            ok(
+                i,
+                b"set o [cls new]; set id [info object creationid $o]; rename $o gorp",
+            );
+            assert_eq!(ok(i, b"info object creationid gorp"), ok(i, b"set id"));
+            // TIP 524 definition-namespace introspection (built-in defaults).
+            assert_eq!(
+                ok(i, b"info class definitionnamespace oo::object -instance"),
+                b"::oo::objdefine"
+            );
+            assert_eq!(ok(i, b"info class definitionnamespace oo::object"), b"");
+            assert_eq!(
+                ok(i, b"info class definitionnamespace oo::class -class"),
+                b"::oo::define"
+            );
+            assert_eq!(
+                ok(i, b"info class definitionnamespace oo::class -instance"),
+                b""
+            );
+            // A non-object reports an error (without surrounding quotes).
+            assert_eq!(i.eval_str(b"info object creationid nosuch"), Code::Error);
         });
     }
 

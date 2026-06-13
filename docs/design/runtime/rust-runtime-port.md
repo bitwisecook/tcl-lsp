@@ -1719,6 +1719,8 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO per-object `my` (not global) | **128 / 168** | 40 (0 timeout) | **11561 / 19027** |
 | + TclOO `private` methods + `unknown` method-list message | **128 / 168** | 40 (0 timeout) | **11572 / 19027** |
 | + TclOO `oo::object`/`oo::class` as real objects (uniform dispatch) | **128 / 168** | 40 (0 timeout) | **11576 / 19027** |
+| + TclOO object built-ins (`my variable`/`varname`/`eval`) | **128 / 168** | 40 (0 timeout) | **11584 / 19027** |
+| + TclOO `info object creationid` / `info class definitionnamespace` | **128 / 168** | 40 (0 timeout) | **11602 / 19027** |
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
@@ -1777,6 +1779,19 @@ zero regressions**, `oo.test` 56 → 71):
    reports `object "X" has no visible methods`; construction with no constructor
    silently ignores extra args (matching `tclsh9.0`). (`oo.test` 71 → 75, sweep
    11572 → 11576).
+5. **object built-in methods** — the unexported `oo::object` methods `variable`
+   (link instance variables into the calling method frame, rejecting `::`-
+   qualified names), `varname` (the fully-qualified instance-variable name) and
+   `eval` (evaluate a script in the object's namespace), reachable only via
+   `my`. (`oo.test` 75 → 83, sweep 11576 → 11584).
+6. **`creationid` / `definitionnamespace` introspection** — `info object
+   creationid` (a unique, monotonic per-object ID stable across rename) and
+   `info class definitionnamespace … ?-class|-instance?` (TIP 524; the built-in
+   `::oo::define`/`::oo::objdefine` defaults). Also corrected the
+   `does not refer to an object`/`is not a class` messages (no surrounding
+   quotes for the not-an-object case, resolving the object before the class as
+   C does) across `oo::define`/`oo::objdefine`/`info object`/`info class`.
+   (`oo.test` 83 → 101, sweep 11584 → 11602).
 
 The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
 `info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
@@ -2414,9 +2429,9 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11576/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
+    **11602/19027**, the 2026-06-13 TclOO meta-protocol increments (class-
     destroy cascade, per-object `my`, `private` methods + `unknown` method
-    list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 75, the
+    list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 101, the
     2026-06-13 `ledit`/`lmap`/`lseq` +
     var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
