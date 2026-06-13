@@ -1,5 +1,23 @@
 # Incremental analysis — per-item walk with cascade invalidation
 
+> **Phase-0 experiment findings** (`rust/tcl-compiler/examples/incr_experiments.rs`,
+> over tcl8.6 + tcllib corpus):
+> - **E3 — GO.** On practcl.tcl the per-proc *walk* is ~82% of `analyse`
+>   (~785 ms) and the cross-item *tail* (W123/arity/interproc) is ~18%
+>   (~167 ms). Per-item recompute attacks the dominant 82%; the unavoidable
+>   per-edit aggregate floor is ~167 ms (itself incrementalisable later).
+> - **E1 — 98.9% item-local.** Inserting a benign comment in the last proc
+>   leaves every *preceding* item byte-identical in 345/349 files. The **4
+>   exceptions are all global-variable diagnostics** (W210 read-before-set /
+>   W211 set-but-unused) that span procs — a real, narrow cross-item class.
+> - **Implication.** The per-item firewall is sound for ~99% of edits, but
+>   **global-variable usage is a cross-item fact**: W210/W211 must read a
+>   `global_var_usage(file)` aggregate (so a body edit that changes a global's
+>   read/write set cascades to the relevant diagnostics), or those files fall
+>   back to a full rebuild. Either way **correctness is guaranteed by the
+>   fuzzer + full-rebuild fallback** below — item-locality is a *perf* heuristic,
+>   not the correctness contract.
+
 > Design for making the Tcl analyser incremental at *item* granularity, so a
 > keystroke inside one proc recomputes that proc, not the whole file. Grounded
 > in two data-flow audits (analyser walk; IR/lattice pipeline). Companion to
