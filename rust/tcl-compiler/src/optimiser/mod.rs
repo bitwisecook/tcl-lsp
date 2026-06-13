@@ -46,7 +46,8 @@ pub mod tail_call;
 pub mod unused_procs;
 
 pub use manager::{
-    apply_optimisations, optimise, optimise_raw, optimise_source_multipass, optimise_with_dialect,
+    apply_optimisations, optimise, optimise_raw, optimise_source_multipass, optimise_unit,
+    optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};
