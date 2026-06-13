@@ -37,6 +37,7 @@ pub mod confusables_table;
 pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
+pub mod item_tree;
 pub mod mro;
 pub mod oo;
 pub mod param_traits;
@@ -49,6 +50,7 @@ pub mod types;
 pub mod utils;
 
 pub use class_hierarchy::{build_class_hierarchy, ClassHierarchy};
+pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
 pub use mro::{build_mro_map, tcloo_linearise, MroError};
 pub use snapshot::AnalyserSnapshot;
 pub use state::{Analyser, NonAsciiMode};

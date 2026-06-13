@@ -1,0 +1,99 @@
+//! Slice-1 corpus gate: `file_decls` must equal the analyser's own declaration
+//! sets (`all_procs` / `all_classes` / `command_aliases` / `ensemble_namespaces`)
+//! over the real-world `tmp/` corpus.
+//!
+//! In slice 1 the `item_tree` query is anchored to `Analyser::analyse`, so this
+//! holds by construction — but the test is the **permanent guard** that bites
+//! when slices 2–3 swap `item_tree` onto a cheap, independent CST extractor.
+//! Any divergence between that extractor and `analyse` shows up here as a
+//! per-file proc/class/alias/ensemble set mismatch. Corpus-gated (`--ignored`),
+//! mirroring `tcl-compiler`'s `differential_incremental`.
+
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+
+use tcl_compiler::analyser::{Analyser, ItemTree};
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
+    if out.len() >= cap {
+        return;
+    }
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            gather(&p, out, cap);
+        } else if p.extension().is_some_and(|x| x == "tcl") {
+            out.push(p);
+            if out.len() >= cap {
+                return;
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "corpus gate; run explicitly with --ignored (needs tmp/ trees)"]
+fn file_decls_match_analyse_over_corpus() {
+    let dialect = "tcl8.6";
+    let mut files = Vec::new();
+    for v in [
+        "tcl8.4.20/library",
+        "tcl8.5.19/library",
+        "tcl8.6.16/library",
+        "tcl9.0.3/library",
+        "tcllib-2.0/modules",
+    ] {
+        gather(&repo_root().join("tmp").join(v), &mut files, 1500);
+    }
+
+    let mut checked = 0usize;
+    let mut mismatches: Vec<String> = Vec::new();
+    for path in &files {
+        let Ok(src) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        if src.len() > 400_000 {
+            continue;
+        }
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(&src, dialect);
+        let decls = ItemTree::from_analysis(&result, &analyser.ensemble_namespaces).file_decls();
+
+        let want_procs: BTreeSet<String> = result.all_procs.keys().cloned().collect();
+        let want_classes: BTreeSet<String> = result.all_classes.keys().cloned().collect();
+        let want_aliases: BTreeSet<String> = result.command_aliases.keys().cloned().collect();
+        let want_ensembles: BTreeSet<String> =
+            analyser.ensemble_namespaces.iter().cloned().collect();
+        checked += 1;
+
+        let name = path.file_name().unwrap().to_string_lossy();
+        let mut report = |field: &str, got: &BTreeSet<String>, want: &BTreeSet<String>| {
+            if got != want && mismatches.len() < 20 {
+                let only_got: Vec<_> = got.difference(want).take(4).cloned().collect();
+                let only_want: Vec<_> = want.difference(got).take(4).cloned().collect();
+                mismatches.push(format!(
+                    "{name} {field}: only_decls={only_got:?} only_analyse={only_want:?}"
+                ));
+            }
+        };
+        report("procs", &decls.procs, &want_procs);
+        report("classes", &decls.classes, &want_classes);
+        report("aliases", &decls.aliases, &want_aliases);
+        report("ensembles", &decls.ensembles, &want_ensembles);
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "file_decls != analyse decl sets in {} files / {checked} checked:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+    eprintln!("slice-1 gate: {checked} files, file_decls == analyse decl sets");
+}
