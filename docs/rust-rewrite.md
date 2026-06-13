@@ -10484,3 +10484,32 @@ The last battery gap (`test_TP_S101_per_iteration_mixed_intrep_thrash`):
 
 Battery (rust backend): **403 passed / 0 failed**. `cargo test --workspace
 --all-features` green; `cargo clippy --workspace --all-targets` clean.
+
+## SYNC-JUN13-2 — midword-quote bracket recovery (last e2e failure)
+
+`test_midword_delimiter_still_recovers`: `set x [foo abc"\nproc … {} {}`
+left the tail `proc` unrecovered (absent from document symbols).
+
+* **Root cause**: both the Rust *and* Python lexers toggle the
+  command-substitution `in_quotes` counter on **every** `"` at `blevel == 0`
+  (faithful to each other — the structural-index faithfulness battery pins
+  this). A mid-word `"` (`abc"`) therefore opens a phantom quoted run that
+  swallows the rest of the document. The E201 recovery already derived a
+  ghost `]` at the right offset (before `proc`), but the re-lex ignored it:
+  `parse_command`'s `]` arm is gated on `!in_quotes`, so the ghost was eaten
+  as quoted text and the bracket stayed open to EOF.
+* **Fix** (`tcl-lexer/src/lexer.rs`): a recovery **ghost** `]` now closes the
+  command unconditionally — it is checked at the top of the `parse_command`
+  loop, before the quote/brace guards. A ghost is a deliberate recovery
+  insertion already vetoed from inert (brace / escape / `${…}`) positions
+  when derived, so it is always a sound structural closer. This touches only
+  the `with_ghosts` re-lex path; the no-ghost structural-index faithfulness
+  test is unaffected (still green over its 8000-case corpus).
+* Python recovers the same tail via its fix-less scan-to-next partial-command
+  path (it emits E201-no-fix + E200); the Rust GAP-A1 ghost mechanism reaches
+  the same observable outcome (the `proc` symbol) via the already-derived
+  E201-with-fix.
+
+`make test-lsp-e2e-rust`: **511 passed / 1 skipped / 0 failed**. Battery
+(rust backend): **403 / 0**. `cargo test --workspace --all-features` green;
+`cargo clippy --workspace --all-targets` clean.
