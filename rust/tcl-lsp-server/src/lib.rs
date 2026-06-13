@@ -200,13 +200,6 @@ pub struct Backend {
     /// = false`). Threaded into every analyser build so the disabled
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
-    /// Cached `AnalysisResult` per document, populated by
-    /// `did_open` / `did_change` and consumed by request
-    /// handlers that previously re-analysed on every call.
-    /// `S-async-diagnostics` cached-analysis surface — once
-    /// this entry exists, request handlers consult it before
-    /// falling back to a fresh `analyser.analyse(...)`.
-    analyses: Mutex<HashMap<Url, tcl_compiler::analyser::AnalysisResult>>,
     /// `S-hover-sync11`: LRU(256) cache of hover responses
     /// keyed on `(uri, line, character)`.  Invalidated per
     /// URI on `did_change` / `did_close` so stale answers
@@ -449,7 +442,6 @@ impl Backend {
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
@@ -525,14 +517,32 @@ impl Backend {
         .flatten()
     }
 
-    /// Read the cached `AnalysisResult` for `uri` if one
-    /// exists.  Returns a clone so the caller can run on a
-    /// `spawn_blocking` worker without holding the mutex.
-    /// Falls back to `None` when no cache entry exists; the
-    /// caller is expected to compute a fresh analysis in
-    /// that case.
+    /// Run the salsa `file_analysis` query for `uri` on a worker thread,
+    /// reading the current `SourceFile` input.  Returns `None` when the input
+    /// is absent or a concurrent edit cancels the read.  The returned `Arc`
+    /// shares the memoised analysis (no deep clone of `AnalysisResult`).
+    async fn db_file_analysis(
+        &self,
+        uri: &Url,
+    ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = *self.db_config.lock().await;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::file_analysis(&snapshot, file, config)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Read the memoised `AnalysisResult` for `uri` from the query database, if
+    /// the document has a `SourceFile` input.  Returns an owned clone so the
+    /// caller can move it into a `spawn_blocking` worker.  `None` when there is
+    /// no input (the caller analyses fresh) or a concurrent edit cancelled the
+    /// read.
     async fn cached_analysis(&self, uri: &Url) -> Option<tcl_compiler::analyser::AnalysisResult> {
-        self.analyses.lock().await.get(uri).cloned()
+        self.db_file_analysis(uri).await.map(|a| (*a).clone())
     }
 
     /// Resolve an analysis for the document.  Consults the
@@ -1941,7 +1951,10 @@ impl Backend {
         let uri_str = uri.to_string();
         let line_count = text.lines().count();
         let registry = self.registry_for_dialect(&dialect).await;
-        let (disabled, na_mode) = self.analyser_config().await;
+        // Only the disabled-codes set is needed here now (the base analysis,
+        // which honours the non-ASCII mode, comes from the query database via
+        // `analysis_for`); the source-style lift still filters on `disabled`.
+        let (disabled, _na_mode) = self.analyser_config().await;
         // The optimiser O-codes the diagnostics path must suppress: the active
         // profile's disabled categories, then per-code user overrides applied on
         // top (`tclLsp.optimiser.O111=false` adds, `=true` removes). The master
@@ -1965,9 +1978,13 @@ impl Backend {
             }
             set
         };
+        // Base analysis comes from the salsa query graph (memoised and shared
+        // with the read handlers — one analyse per revision, not one here plus
+        // one per feature).  The diagnostic *lifts* (analyser + optimiser /
+        // compiler checks + source-style) run on a worker over that analysis.
+        let analysis = self.analysis_for(&uri, text.clone(), dialect.clone()).await;
+        let analysis_for_index = analysis.clone();
         let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
-            let analysis = analyser.analyse(&text, &dialect).clone();
             let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
             diagnostics.extend(lift_compiler_diagnostics(
                 &text,
@@ -1984,11 +2001,11 @@ impl Backend {
                 &analysis.suppressed_lines,
                 &disabled,
             ));
-            (analysis, diagnostics)
+            diagnostics
         })
         .await;
         match result {
-            Ok((analysis, diags)) => {
+            Ok(diags) => {
                 {
                     let _gate = self.document_analysis_gate.lock().await;
                     let is_current = {
@@ -1998,18 +2015,15 @@ impl Backend {
                     if !is_current {
                         return;
                     }
-                    // Cache the analysis so the per-method
-                    // handlers don't have to re-run it on every
-                    // request.
+                    // Refresh the cross-document workspace index for this URI
+                    // (remove stale entries, then re-add the fresh
+                    // definitions).  The per-document analysis itself is no
+                    // longer cached here — it lives in the query database.
                     {
-                        // Refresh the cross-document workspace index
-                        // for this URI (remove stale entries, then
-                        // re-add the fresh definitions).
                         let mut index = self.workspace_index.lock().await;
                         index.remove_document(uri.as_str());
-                        index.add_document(uri.as_str(), &analysis);
+                        index.add_document(uri.as_str(), &analysis_for_index);
                     }
-                    self.analyses.lock().await.insert(uri.clone(), analysis);
                 }
                 // The LSP version is attached to normal analyser
                 // diagnostics, so clients can discard this publish if a
@@ -2182,7 +2196,6 @@ impl LanguageServer for Backend {
             drop(docs);
             self.hover_cache.lock().await.invalidate_uri(&uri);
             self.semantic_tokens_cache.lock().await.remove(&uri);
-            self.analyses.lock().await.remove(&uri);
             self.workspace_index
                 .lock()
                 .await
@@ -2235,13 +2248,9 @@ impl LanguageServer for Backend {
             // returns a fresh full result instead of an empty edit
             // list against an outdated baseline.
             self.semantic_tokens_cache.lock().await.remove(&uri);
-            // Evict the stale `AnalysisResult` so any request that
-            // arrives before `publish_analyser_diagnostics` finishes
-            // re-running the analyser falls through to a fresh
-            // run via `analysis_for` rather than serving pre-edit
-            // results (PR #454 Codex review P1).  `publish_*` will
-            // reinsert the fresh entry when it completes.
-            self.analyses.lock().await.remove(&uri);
+            // The per-document analysis is no longer cached on the server — it
+            // lives in the query database, invalidated by `db_set_source`
+            // (called below) bumping the `SourceFile` input.
             self.workspace_index
                 .lock()
                 .await
@@ -2294,7 +2303,6 @@ impl LanguageServer for Backend {
         {
             let _gate = self.document_analysis_gate.lock().await;
             self.documents.lock().await.remove(uri);
-            self.analyses.lock().await.remove(uri);
             self.hover_cache.lock().await.invalidate_uri(uri);
             self.semantic_tokens_cache.lock().await.remove(uri);
             self.workspace_index
@@ -5392,7 +5400,6 @@ mod tests {
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            analyses: Mutex::new(HashMap::new()),
             hover_cache: Mutex::new(HoverCache::default()),
             semantic_tokens_cache: Mutex::new(HashMap::new()),
             workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
@@ -5416,6 +5423,11 @@ mod tests {
 
         let mut analyser = Analyser::new();
         let current_analysis = analyser.analyse(current_src, "tcl8.6").clone();
+        // The current document is at revision 2; its analysis lives in the
+        // query database (set via the SourceFile input) and the workspace index.
+        backend
+            .db_set_source(&uri, current_src.to_owned(), "tcl8.6".to_owned())
+            .await;
         {
             let _gate = backend.document_analysis_gate.lock().await;
             let mut doc =
@@ -5423,17 +5435,13 @@ mod tests {
             doc.revision = 2;
             backend.documents.lock().await.insert(uri.clone(), doc);
             backend
-                .analyses
-                .lock()
-                .await
-                .insert(uri.clone(), current_analysis.clone());
-            backend
                 .workspace_index
                 .lock()
                 .await
                 .add_document(uri.as_str(), &current_analysis);
         }
 
+        // A stale worker (revision 1) must not overwrite state for revision 2.
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -5444,13 +5452,12 @@ mod tests {
             )
             .await;
 
+        // The query database still reflects the current document (its input was
+        // never changed to the stale text).
         let analysis = backend
-            .analyses
-            .lock()
+            .cached_analysis(&uri)
             .await
-            .get(&uri)
-            .cloned()
-            .expect("current analysis remains cached");
+            .expect("current analysis available from the query database");
         assert!(analysis.all_procs.contains_key("::current"));
         assert!(!analysis.all_procs.contains_key("::stale"));
 
