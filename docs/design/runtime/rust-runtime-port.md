@@ -1709,6 +1709,14 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `lset` (list-element set in a variable) | **126 / 168** | 42 (0 timeout) | **10870 / 19027** |
 | + `lsort` options (`-stride`/`-index`/`-dictionary`/`-command`/`-indices`) | **128 / 168** | 40 (0 timeout) | **11116 / 19027** |
 | + `lsearch` options (`-sorted`/`-index`/`-stride`/`-regexp`/`-subindices`/…) | **128 / 168** | 40 (0 timeout) | **11216 / 19027** |
+| + `string` insert/replace/wordstart/wordend/compare-opts/is-dict + `tcl::prefix` | **128 / 168** | 40 (0 timeout) | **11408 / 19027** |
+
+The 2026-06-13 **`string`-surface** increment (**+192 tests, zero regressions**)
+— `string insert`/`replace`/`wordstart`/`wordend` subcommands, `-nocase`/`-length`
+on `string compare`/`equal`, the `dict` class and class-named usage for `string
+is`, the `::tcl::string::insert` direct command, and the `tcl::prefix
+match`/`all`/`longest` command (`tclIndexObj.c`). Byte-identical to `tclsh9.0`.
+`string.test` 372 → 552.
 
 The 2026-06-13 **`lsearch`-options** increment (**+100 tests, zero
 regressions**) — completed `lsearch` from the `-exact`/`-glob`/`-nocase`/`-all`/
@@ -2056,6 +2064,17 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`string` surface + `tcl::prefix`)
+
+`cmd_string.rs`: added the `string insert`/`replace`/`wordstart`/`wordend`
+subcommands (`StringInsertCmd`/`StringRplcCmd`/`StringStartCmd`/`StringEndCmd`,
+incl. `string insert`'s `end == length` append base and the single-non-word-char
+word rule), `-nocase`/`-length` on `string compare`/`equal`, the `dict` class +
+class-named wrong-args for `string is`, the `::tcl::string::insert` direct
+command, and `tcl::prefix match`/`all`/`longest` (`tclIndexObj.c`). No Zig fix
+back-ported (mirror `8150eca`); byte-checked against `tclsh9.0`. `string.test`
+372 → 552; sweep **11216 → 11408**, zero regressions.
+
 ### SYNC inbound — 2026-06-13 (`lsearch` option completion)
 
 `lsearch` (`cmd_list.rs`) completed to the full `Tcl_LsearchObjCmd`: `-sorted`
@@ -2299,7 +2318,7 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **11216/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11408/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
     `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
     `trace` command/execution/step + lifecycle increment took `trace.test`

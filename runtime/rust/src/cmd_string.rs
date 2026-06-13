@@ -11,13 +11,18 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
 /// Register `append` + the `string` ensemble.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"append", append);
     interp.register_builtin(b"string", string_cmd);
+    // `::tcl::string::insert` is the real command the `string insert` ensemble
+    // maps to; some tests invoke it directly.
+    interp.register_builtin(b"::tcl::string::insert", tcl_string_insert);
+    // `tcl::prefix` — prefix matching against a table (`tclIndexObj.c`).
+    interp.register_builtin(b"::tcl::prefix", tcl_prefix);
 }
 
 // -- append ----------------------------------------------------------------
@@ -91,10 +96,14 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"match" => str_match(interp, argv),
         b"map" => str_map(interp, argv),
         b"is" => str_is(interp, argv),
+        b"replace" => str_replace(interp, argv),
+        b"insert" => str_insert(interp, argv),
+        b"wordstart" => str_word(interp, argv, true),
+        b"wordend" => str_word(interp, argv, false),
         _ => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(&sub);
-            m.extend_from_slice(b"\"");
+            m.extend_from_slice(b"\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart");
             interp.set_error(&m)
         }
     }
@@ -154,26 +163,391 @@ fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-fn str_equal(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(interp, b"string equal string1 string2");
+/// `string replace string first last ?newstring?` — replace the character range
+/// `[first,last]` with `newstring` (or delete it). Out-of-range / `first>last`
+/// returns the string unchanged (`StringRplcCmd`).
+fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 5 && argv.len() != 6 {
+        return wrong_args(interp, b"string replace string first last ?string?");
     }
-    let eq = obj_bytes(argv[2]) == obj_bytes(argv[3]);
-    interp.set_result_bytes(if eq { b"1" } else { b"0" });
+    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
+        .chars()
+        .collect();
+    let n = chars.len();
+    let first = match index_spec(&obj_bytes(argv[3]), n) {
+        Some(i) => i,
+        None => return bad_index(interp, &obj_bytes(argv[3])),
+    };
+    let last = match index_spec(&obj_bytes(argv[4]), n) {
+        Some(i) => i,
+        None => return bad_index(interp, &obj_bytes(argv[4])),
+    };
+    let lo = first.max(0) as usize;
+    let hi = last.min(n as isize - 1);
+    if first > last || first >= n as isize || last < 0 || lo > n {
+        // No replacement — return the original string unchanged.
+        interp.set_result(argv[2]);
+        return Code::Ok;
+    }
+    let hi = hi as usize; // inclusive end, guaranteed >= lo here
+    let mut out: String = chars[..lo].iter().collect();
+    if argv.len() == 6 {
+        out.push_str(&String::from_utf8_lossy(&obj_bytes(argv[5])));
+    }
+    out.extend(&chars[hi + 1..]);
+    interp.set_result_bytes(out.as_bytes());
     Code::Ok
 }
 
-fn str_compare(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(interp, b"string compare string1 string2");
+/// `string insert string index insertString` — insert before character `index`
+/// (`index == end`/`>= length` appends). `StringInsertCmd`.
+fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 5 {
+        return wrong_args(interp, b"string insert string index insertString");
     }
-    let c = match obj_bytes(argv[2]).cmp(&obj_bytes(argv[3])) {
-        std::cmp::Ordering::Less => -1,
-        std::cmp::Ordering::Equal => 0,
-        std::cmp::Ordering::Greater => 1,
+    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
+        .chars()
+        .collect();
+    let n = chars.len();
+    // `string insert` uses `end == length` (append), unlike most index commands.
+    let idx = match index_spec(&obj_bytes(argv[3]), n + 1) {
+        Some(i) => i.max(0).min(n as isize) as usize,
+        None => return bad_index(interp, &obj_bytes(argv[3])),
     };
-    interp.set_result(obj::new_wide_int_obj(c));
+    let mut out: String = chars[..idx].iter().collect();
+    out.push_str(&String::from_utf8_lossy(&obj_bytes(argv[4])));
+    out.extend(&chars[idx..]);
+    interp.set_result_bytes(out.as_bytes());
     Code::Ok
+}
+
+/// `::tcl::string::insert string index insertString` — the command the `string
+/// insert` ensemble maps to (called directly by some tests). Reuses `str_insert`
+/// by re-aligning argv to the `string insert …` shape.
+fn tcl_string_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(interp, b"tcl::string::insert string index insertString");
+    }
+    let shifted = [argv[0], argv[0], argv[1], argv[2], argv[3]];
+    str_insert(interp, &shifted)
+}
+
+/// Render an option set as Tcl's `a, b, or c` / `a or b` / `a` enumeration.
+fn enum_must_be(items: &[Vec<u8>]) -> Vec<u8> {
+    let mut m = Vec::new();
+    for (i, it) in items.iter().enumerate() {
+        if i > 0 {
+            if items.len() > 2 {
+                m.extend_from_slice(b", ");
+            } else {
+                m.push(b' ');
+            }
+            if i == items.len() - 1 {
+                m.extend_from_slice(b"or ");
+            }
+        }
+        m.extend_from_slice(it);
+    }
+    m
+}
+
+/// `tcl::prefix match|all|longest …` — prefix matching against a table
+/// (`Tcl_PrefixMatchObjCmd` / `Tcl_PrefixAllObjCmd` / `Tcl_PrefixLongestObjCmd`).
+fn tcl_prefix(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return wrong_args(interp, b"tcl::prefix subcommand ?arg ...?");
+    }
+    match obj_bytes(argv[1]).as_slice() {
+        b"match" => tcl_prefix_match(interp, argv),
+        b"all" => tcl_prefix_all(interp, argv),
+        b"longest" => tcl_prefix_longest(interp, argv),
+        other => {
+            let subs: Vec<Vec<u8>> = [b"all".as_ref(), b"longest", b"match"]
+                .iter()
+                .map(|s| s.to_vec())
+                .collect();
+            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            m.extend_from_slice(other);
+            m.extend_from_slice(b"\": must be ");
+            m.extend_from_slice(&enum_must_be(&subs));
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// The table elements with `s` as a (string) prefix.
+fn prefix_matches(table: &[Vec<u8>], s: &[u8], exact: bool) -> Vec<usize> {
+    table
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| {
+            if exact {
+                e.as_slice() == s
+            } else {
+                e.starts_with(s)
+            }
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // tcl::prefix match ?options? table string
+    let mut exact = false;
+    let mut message: Vec<u8> = b"option".to_vec();
+    let mut error_opts: Option<Vec<u8>> = None; // Some("") ⇒ return "" instead of erroring
+    let mut i = 2;
+    while i + 2 < argv.len() {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-exact" => {
+                exact = true;
+                i += 1;
+            }
+            b"-message" if i + 1 < argv.len() - 2 => {
+                message = obj_bytes(argv[i + 1]);
+                i += 2;
+            }
+            b"-error" if i + 1 < argv.len() - 2 => {
+                error_opts = Some(obj_bytes(argv[i + 1]));
+                i += 2;
+            }
+            opt => {
+                let mut m = b"bad option \"".to_vec();
+                m.extend_from_slice(opt);
+                m.extend_from_slice(b"\": must be -error, -exact, or -message");
+                return interp.set_error(&m);
+            }
+        }
+    }
+    if argv.len() - i != 2 {
+        return wrong_args(interp, b"tcl::prefix match ?options? table string");
+    }
+    let table = match crate::parse::split_list(&obj_bytes(argv[i])) {
+        Ok(t) => t,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    let s = obj_bytes(argv[i + 1]);
+    let hits = prefix_matches(&table, &s, exact);
+    // Exact match always wins even if it is also a prefix of others.
+    if let Some(&h) = hits.iter().find(|&&h| table[h] == s) {
+        interp.set_result(new_string(&table[h]));
+        return Code::Ok;
+    }
+    if hits.len() == 1 {
+        interp.set_result(new_string(&table[hits[0]]));
+        return Code::Ok;
+    }
+    // No unique match: error (or return "" if -error {} was given).
+    if let Some(opts) = &error_opts {
+        if opts.is_empty() {
+            interp.set_result_bytes(b"");
+            return Code::Ok;
+        }
+    }
+    let verb: &[u8] = if hits.is_empty() {
+        b"bad "
+    } else {
+        b"ambiguous "
+    };
+    let mut m = verb.to_vec();
+    m.extend_from_slice(&message);
+    m.extend_from_slice(b" \"");
+    m.extend_from_slice(&s);
+    if table.is_empty() {
+        // Empty table: "no valid options" (pluralised message).
+        m.extend_from_slice(b"\": no valid ");
+        m.extend_from_slice(&message);
+        m.push(b's');
+    } else {
+        m.extend_from_slice(b"\": must be ");
+        m.extend_from_slice(&enum_must_be(&table));
+    }
+    interp.set_error(&m)
+}
+
+fn tcl_prefix_all(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(interp, b"tcl::prefix all table string");
+    }
+    let table = match crate::parse::split_list(&obj_bytes(argv[2])) {
+        Ok(t) => t,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    let s = obj_bytes(argv[3]);
+    let objs: Vec<*mut TclObj> = table
+        .iter()
+        .filter(|e| e.starts_with(&s))
+        .map(|e| new_string(e))
+        .collect();
+    interp.set_result(crate::list::new_list_obj(&objs));
+    for &o in &objs {
+        drop_fresh(o);
+    }
+    Code::Ok
+}
+
+fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(interp, b"tcl::prefix longest table string");
+    }
+    let table = match crate::parse::split_list(&obj_bytes(argv[2])) {
+        Ok(t) => t,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    let s = obj_bytes(argv[3]);
+    let hits: Vec<&Vec<u8>> = table.iter().filter(|e| e.starts_with(&s)).collect();
+    // Longest common prefix of all matching elements (at least `s`).
+    let mut longest: Vec<u8> = match hits.first() {
+        Some(f) => (*f).clone(),
+        None => {
+            interp.set_result_bytes(b"");
+            return Code::Ok;
+        }
+    };
+    for e in &hits[1..] {
+        let common = longest
+            .iter()
+            .zip(e.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+        longest.truncate(common);
+    }
+    interp.set_result_bytes(&longest);
+    Code::Ok
+}
+
+/// `string wordstart|wordend string charIndex` — the bounds of the word
+/// containing `charIndex` (`StringStartCmd`/`StringEndCmd`). A word is a maximal
+/// run of word-characters, or a single non-word character.
+fn str_word(interp: &mut Interp, argv: &[*mut TclObj], start: bool) -> Code {
+    if argv.len() != 4 {
+        return wrong_args(
+            interp,
+            if start {
+                b"string wordstart string index"
+            } else {
+                b"string wordend string index"
+            },
+        );
+    }
+    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
+        .chars()
+        .collect();
+    let n = chars.len();
+    let index = match index_spec(&obj_bytes(argv[3]), n) {
+        Some(i) => i,
+        None => return bad_index(interp, &obj_bytes(argv[3])),
+    };
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let result: usize = if start {
+        if n == 0 {
+            0
+        } else {
+            let i = index.min(n as isize - 1);
+            if i <= 0 {
+                0
+            } else {
+                let i = i as usize;
+                if !is_word(chars[i]) {
+                    i
+                } else {
+                    let mut j = i;
+                    while j > 0 && is_word(chars[j - 1]) {
+                        j -= 1;
+                    }
+                    j
+                }
+            }
+        }
+    } else {
+        let i = index.max(0);
+        if i >= n as isize {
+            n
+        } else {
+            let i = i as usize;
+            let mut cur = i;
+            while cur < n && is_word(chars[cur]) {
+                cur += 1;
+            }
+            if cur == i {
+                cur + 1
+            } else {
+                cur
+            }
+        }
+    };
+    interp.set_result(obj::new_wide_int_obj(result as i64));
+    Code::Ok
+}
+
+/// Shared `string equal`/`string compare` engine: `?-nocase? ?-length int?
+/// string1 string2`. `-length` limits the comparison to the first N characters.
+fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> Code {
+    let usage: &[u8] = if equal {
+        b"string equal ?-nocase? ?-length int? string1 string2"
+    } else {
+        b"string compare ?-nocase? ?-length int? string1 string2"
+    };
+    if argv.len() < 4 {
+        return wrong_args(interp, usage);
+    }
+    let mut nocase = false;
+    let mut length: Option<usize> = None;
+    // Options occupy everything before the trailing two strings.
+    let mut i = 2;
+    while i < argv.len() - 2 {
+        match obj_bytes(argv[i]).as_slice() {
+            b"-nocase" => {
+                nocase = true;
+                i += 1;
+            }
+            b"-length" => {
+                match parse_isize(&obj_bytes(argv[i + 1])) {
+                    Some(n) => length = Some(n.max(0) as usize),
+                    None => return not_integer(interp, &obj_bytes(argv[i + 1])),
+                }
+                i += 2;
+            }
+            _ => return wrong_args(interp, usage),
+        }
+    }
+    if argv.len() - i != 2 {
+        return wrong_args(interp, usage);
+    }
+    let mut a: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[i]))
+        .chars()
+        .collect();
+    let mut b: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[i + 1]))
+        .chars()
+        .collect();
+    if nocase {
+        a = a.iter().flat_map(|c| c.to_lowercase()).collect();
+        b = b.iter().flat_map(|c| c.to_lowercase()).collect();
+    }
+    if let Some(n) = length {
+        a.truncate(n);
+        b.truncate(n);
+    }
+    let ord = a.cmp(&b);
+    if equal {
+        interp.set_result_bytes(if ord.is_eq() { b"1" } else { b"0" });
+    } else {
+        let c = match ord {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        };
+        interp.set_result(obj::new_wide_int_obj(c));
+    }
+    Code::Ok
+}
+
+fn str_equal(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    str_compare_equal(interp, argv, true)
+}
+
+fn str_compare(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    str_compare_equal(interp, argv, false)
 }
 
 fn str_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -470,6 +844,7 @@ const IS_CLASSES: &[&[u8]] = &[
     b"ascii",
     b"boolean",
     b"control",
+    b"dict",
     b"digit",
     b"double",
     b"entier",
@@ -493,34 +868,48 @@ const IS_CLASSES: &[&[u8]] = &[
 /// Empty input is a class member unless `-strict`.
 fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"string is class ?-strict? ?-failindex var? str";
-    if argv.len() < 4 {
+    // Bad arg count uses the generic "class"; an option error past a valid class
+    // names the class (C's `Tcl_WrongNumArgs(interp, 2, …)`).
+    if argv.len() < 4 || argv.len() > 7 {
         return wrong_args(interp, USAGE);
     }
     let class = obj_bytes(argv[2]);
     if !IS_CLASSES.contains(&class.as_slice()) {
         let mut m = b"bad class \"".to_vec();
         m.extend_from_slice(&class);
-        m.extend_from_slice(b"\": must be alnum, alpha, ascii, boolean, control, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit");
+        m.extend_from_slice(b"\": must be alnum, alpha, ascii, boolean, control, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit");
         return interp.set_error(&m);
     }
+    let class_usage = || {
+        let mut m = b"string is ".to_vec();
+        m.extend_from_slice(&class);
+        m.extend_from_slice(b" ?-strict? ?-failindex var? str");
+        m
+    };
 
     let last = argv.len() - 1;
     let mut strict = false;
     let mut failvar: Option<Vec<u8>> = None;
     let mut k = 3;
     while k < last {
-        match obj_bytes(argv[k]).as_slice() {
-            b"-strict" => k += 1,
-            b"-failindex" if k + 1 < last => {
-                failvar = Some(obj_bytes(argv[k + 1]));
-                k += 2;
+        let opt = obj_bytes(argv[k]);
+        // Options match by unambiguous prefix (C's `Tcl_GetIndexFromObj`).
+        if !opt.is_empty() && b"-strict".starts_with(opt.as_slice()) {
+            k += 1;
+        } else if !opt.is_empty() && b"-failindex".starts_with(opt.as_slice()) {
+            if k + 1 >= last {
+                return wrong_args(interp, &class_usage());
             }
-            _ => return wrong_args(interp, USAGE),
+            failvar = Some(obj_bytes(argv[k + 1]));
+            k += 2;
+        } else {
+            return wrong_args(interp, &class_usage());
         }
     }
     // `-strict` may appear after `-failindex`; rescan for it (order-free).
     for &a in &argv[3..last] {
-        if obj_bytes(a) == b"-strict" {
+        let o = obj_bytes(a);
+        if !o.is_empty() && b"-strict".starts_with(o.as_slice()) {
             strict = true;
         }
     }
@@ -536,6 +925,10 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"double" => whole(is_tcl_double(&chars), &chars),
             b"boolean" | b"true" | b"false" => whole(is_tcl_boolean(&chars, &class), &chars),
             b"list" => whole(crate::parse::split_list(&s).is_ok(), &chars),
+            b"dict" => whole(
+                crate::parse::split_list(&s).is_ok_and(|l| l.len() % 2 == 0),
+                &chars,
+            ),
             _ => {
                 // Per-character class: first failing char index.
                 match chars.iter().position(|&c| !char_class_ok(&class, c)) {
@@ -807,6 +1200,43 @@ mod tests {
         assert_eq!(ok(b"string is double 1.5"), b"1");
         // -failindex reports the first failing character index.
         assert_eq!(ok(b"string is alpha -failindex pos ab2c; set pos"), b"2");
+        assert_eq!(ok(b"string is dict {a 1 b 2}"), b"1");
+        assert_eq!(ok(b"string is dict {a 1 b}"), b"0");
+    }
+
+    #[test]
+    fn string_compare_equal_options() {
+        assert_eq!(ok(b"string compare -nocase ABC abc"), b"0");
+        assert_eq!(ok(b"string compare -length 2 abcx abcy"), b"0");
+        assert_eq!(ok(b"string equal -nocase ABC abc"), b"1");
+        assert_eq!(ok(b"string equal -length 2 abxx abyy"), b"1");
+    }
+
+    #[test]
+    fn string_replace_insert_word() {
+        assert_eq!(ok(b"string replace abcde 1 3 XY"), b"aXYe");
+        assert_eq!(ok(b"string replace abcde 1 3"), b"ae");
+        assert_eq!(ok(b"string replace abcde 2 1 X"), b"abcde"); // first>last → no-op
+        assert_eq!(ok(b"string insert abcde 2 XY"), b"abXYcde");
+        assert_eq!(ok(b"string insert abcde end X"), b"abcdeX"); // end == append
+        assert_eq!(ok(b"tcl::string::insert 0123 2 _"), b"01_23");
+        assert_eq!(ok(b"string wordstart {abc def} 5"), b"4");
+        assert_eq!(ok(b"string wordend {abc def} 1"), b"3");
+        assert_eq!(ok(b"string wordend ab.cd 2"), b"3"); // single non-word char
+    }
+
+    #[test]
+    fn tcl_prefix() {
+        assert_eq!(
+            ok(b"tcl::prefix match {apple apricot banana} app"),
+            b"apple"
+        );
+        assert_eq!(
+            ok(b"tcl::prefix all {apple apricot banana} ap"),
+            b"apple apricot"
+        );
+        assert_eq!(ok(b"tcl::prefix longest {apple apricot banana} ap"), b"ap");
+        assert_eq!(ok(b"tcl::prefix match -error {} {apple apricot} xy"), b"");
     }
 
     #[test]
