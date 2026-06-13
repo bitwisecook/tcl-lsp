@@ -13,8 +13,12 @@ A language server for Tcl with multi-editor support.
   <img src="docs/screenshots/tcl-lsp-demo.gif" alt="tcl-lsp in action" width="820">
 </p>
 
-The server is written in Python using [pygls](https://github.com/openlawlibrary/pygls)
-and communicates over stdio, making it compatible with any LSP client.
+The server ships as a native Rust binary (`tcl-lsp-server`) — the default,
+out-of-the-box backend — with a Python reference implementation (built on
+[pygls](https://github.com/openlawlibrary/pygls)) available as an opt-out.
+Both speak LSP over stdio, so they work with any LSP client. Set
+`TCL_LSP_SERVER_KIND=python` (or the editor's `serverKind` setting) to run the
+Python server instead.
 
 ## Editor support
 
@@ -38,9 +42,14 @@ and communicates over stdio, making it compatible with any LSP client.
 | [Sublime Text](editors/sublime-text/) | Full package (.sublime-package) | Package Control or manual install | Works standalone (syntax + snippets) without LSP; enhanced with LSP package |
 | [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, IntelliJ IDEA 2024.1+ |
 
-All editors connect to the same Python LSP server over stdio.  The server can
-be invoked from source (`uv run python -m server`) or as a standalone zipapp
-(`python3 tcl-lsp-server.pyz`).
+All editors connect to the same LSP server over stdio. By default this is the
+native Rust binary `tcl-lsp-server` (build it with `make rust-server`, or
+`cargo build -p tcl-lsp-server`). To opt back into the Python reference server,
+set `TCL_LSP_SERVER_KIND=python`; it can be invoked from source
+(`uv run python -m server`) or as a standalone zipapp
+(`python3 tcl-lsp-server.pyz`). The `tcl-lsp` console script launches the
+native binary when one is available and otherwise falls back to the Python
+server.
 
 **Also documented in [INSTALL-editors.md](INSTALL-editors.md):**
 
@@ -85,7 +94,9 @@ with nvim-lspconfig (0.8+) or a manual `FileType` autocommand.
 ```lua
 -- ~/.config/nvim/server/tcl_lsp.lua  (Neovim 0.11+)
 return {
-  cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
+  -- Native Rust server (default); build with `make rust-server`.
+  cmd = { "/path/to/tcl-lsp/target/release/tcl-lsp-server" },
+  -- Python opt-out: cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
   filetypes = { "tcl" },
   settings = {
     tclLsp = {
@@ -117,10 +128,11 @@ Install: see [INSTALL-editors.md](INSTALL-editors.md#zed).
 Works with the built-in **eglot** client (Emacs 29+) or **lsp-mode**.
 
 ```elisp
-;; eglot (Emacs 29+)
+;; eglot (Emacs 29+).  Native Rust server (default); build with
+;; `make rust-server`.  Python opt-out: ("python3" "/path/to/tcl-lsp-server.pyz")
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("python3" "/path/to/tcl-lsp-server.pyz"))))
+               '(tcl-mode . ("/path/to/tcl-lsp/target/release/tcl-lsp-server"))))
 (add-hook 'tcl-mode-hook #'eglot-ensure)
 
 ;; Settings
@@ -134,9 +146,13 @@ Works with the built-in **eglot** client (Emacs 29+) or **lsp-mode**.
 Minimal TOML configuration in `~/.config/helix/languages.toml`.
 
 ```toml
+# Native Rust server (default); build with `make rust-server`.
 [language-server.tcl-lsp]
-command = "python3"
-args = ["/path/to/tcl-lsp-server.pyz"]
+command = "/path/to/tcl-lsp/target/release/tcl-lsp-server"
+args = []
+# Python opt-out:
+#   command = "python3"
+#   args = ["/path/to/tcl-lsp-server.pyz"]
 
 [language-server.tcl-lsp.config.tclLsp]
 dialect = "tcl8.6"

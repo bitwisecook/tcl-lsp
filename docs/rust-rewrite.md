@@ -10513,3 +10513,44 @@ left the tail `proc` unrecovered (absent from document symbols).
 `make test-lsp-e2e-rust`: **511 passed / 1 skipped / 0 failed**. Battery
 (rust backend): **403 / 0**. `cargo test --workspace --all-features` green;
 `cargo clippy --workspace --all-targets` clean.
+
+## SYNC-JUN13-3 — Pillar C: native Rust server is now the default backend
+
+The native Rust `tcl-lsp-server` is the out-of-the-box backend; the Python
+reference server is an explicit opt-out (`TCL_LSP_SERVER_KIND=python`, or an
+editor's `serverKind` setting). Per the user's direction ("we're trying to
+replace the Python; the lsp-e2e tests are there to help Rust"), the test
+layout was reorganised so the suites name their backend.
+
+* **Backend selector** (`tests/lsp_e2e/harness.py:server_kind`): unset →
+  native when a binary is available, else Python (a bare checkout still runs);
+  `TCL_LSP_SERVER_KIND=rust`/`native` forces native; `=python` forces Python.
+  This mirrors the launcher and VS Code fallback semantics exactly.
+* **`tcl-lsp` console-script launcher** (new `server/launcher.py`, wired in
+  `pyproject.toml`): resolves the native binary (`TCL_LSP_SERVER_BIN`, then
+  `PATH`, then `target/{release,debug}/`) and `os.execv`s it; falls back to the
+  in-process Python server when none is found; `=python` forces Python; an
+  explicit `=rust` with no binary errors out. *Switchover decision*: the
+  console script stays a thin Python shim (so binary-less `pip install`s keep
+  working) that prefers native — the smallest sound change, no wheel-packaging
+  of platform binaries required.
+* **Test layout**: `make test-py` now *excludes* `tests/lsp_e2e` (it covers the
+  PyO3 surfaces + tooling); `make test-rust` runs the cargo workspace tests and
+  then builds the native server and drives the `lsp_e2e` suite against it
+  (`rust-server` + `test-lsp-e2e-rust`). `make test-lsp-e2e` (Python reference)
+  and the `ci-fast` e2e subset are pinned to `TCL_LSP_SERVER_KIND=python` so
+  the Python reference is still exercised deterministically.
+* **Editors**: VS Code `serverKind` defaults to `rust` with a graceful Python
+  fallback when no native binary is found (only an *explicit* `rust` errors);
+  the Neovim/Emacs/Helix config snippets default to the native binary with the
+  Python invocation kept as a documented opt-out. The `.claude` `lsp_client`
+  CLI default flipped to `rust`. README + editor READMEs updated.
+  *Deferred* (compiled / framework-driven, not buildable in this environment):
+  the Zed (Rust/WASM) and JetBrains (Kotlin) extensions and the Sublime LSP
+  plugin still launch the bundled Python `.pyz`; flipping those to a native
+  default + bundling per-platform binaries is a packaging/CI task tracked
+  separately.
+
+Gates: `make test-py` green (16615 passed); `make test-lsp-e2e-rust` green
+(511 passed / 1 skipped); battery (rust) 403/0; default-mode `lsp_e2e`
+(no env vars) resolves to the native server and passes 511/1.

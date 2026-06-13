@@ -56,9 +56,23 @@ BUILD_INFO = ROOT / "shared" / "_build_info.py"
 
 
 def server_kind() -> str:
-    """Return the selected LSP backend: ``"python"`` (default) or ``"rust"``."""
-    kind = os.environ.get("TCL_LSP_SERVER_KIND", "python").strip().lower()
-    return "rust" if kind in {"rust", "native"} else "python"
+    """Return the selected LSP backend: ``"rust"`` (default) or ``"python"``.
+
+    The native Rust server is the out-of-the-box backend.  Selection rules
+    (mirroring the ``tcl-lsp`` launcher and the VS Code extension):
+
+    * ``TCL_LSP_SERVER_KIND=python`` → the Python reference server.
+    * ``TCL_LSP_SERVER_KIND=rust`` / ``native`` → the native server
+      (the caller is then responsible for it being built).
+    * unset → the native server when a binary is available, otherwise the
+      Python reference server, so a bare checkout still runs out of the box.
+    """
+    raw = os.environ.get("TCL_LSP_SERVER_KIND", "").strip().lower()
+    if raw == "python":
+        return "python"
+    if raw in {"rust", "native"}:
+        return "rust"
+    return "rust" if native_server_bin() is not None else "python"
 
 
 def native_server_bin() -> Path | None:

@@ -277,13 +277,13 @@ lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
 format: format-py format-ts ## Format Python and TypeScript code
 
-test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (PyO3 surfaces + tooling; excludes lsp_e2e, VM tcltest, fuzz campaigns)
 	@echo "==> Running Python tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py --ignore=tests/lsp_e2e
 
 test-lsp-e2e: $(UV_STAMP) ensure-python-test-deps $(ZIPAPP_LSP) ## Run the backend-neutral lsp_e2e suite against the Python server
 	@echo "==> Running lsp_e2e against the Python server"
-	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
 
 test-lsp-e2e-rust: $(UV_STAMP) ensure-python-test-deps ## Run the lsp_e2e suite against the native Rust server (TCL_LSP_SERVER_BIN or target/{release,debug})
 	@set -eu; \
@@ -505,7 +505,7 @@ _prep-pr-smoke: smoke-zipapps smoke-vsix
 # wire surface.
 _ci-fast-pytest: $(UV_STAMP) $(ZIPAPP_LSP)
 	@echo "==> Running LSP end-to-end pytest subset"
-	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
 		tests/lsp_e2e/ \
 		tests/test_server_commands.py \
 		tests/test_server_config.py \
@@ -536,7 +536,7 @@ prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck
 # Optional Rust test step.  Cargo tests run only if a workspace exists at the
 # repo root (some branches add Rust code beyond the Zed extension); otherwise
 # this is a no-op.  Set SKIP_TEST_RUST=1 to skip explicitly.
-test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (skip with SKIP_TEST_RUST=1)
+test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
 		echo "==> SKIP_TEST_RUST set — skipping Rust tests"; \
@@ -553,6 +553,9 @@ test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (ski
 	fi; \
 	echo "==> Running Rust workspace tests"; \
 	cd $(ROOT) && cargo test --workspace --all-features
+	@echo "==> Building the native server + running lsp_e2e against it"
+	$(MAKE) rust-server
+	$(MAKE) test-lsp-e2e-rust
 
 # Build the native Rust LSP server binary (target/release/tcl-lsp-server).
 # This is the server the test harnesses drive when TCL_LSP_SERVER_KIND=rust

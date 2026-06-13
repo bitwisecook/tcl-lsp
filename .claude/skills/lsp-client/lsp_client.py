@@ -1421,8 +1421,8 @@ examples:
     parser.add_argument(
         "--server",
         choices=["python", "rust"],
-        default=os.environ.get("TCL_LSP_SERVER_KIND", "python"),
-        help="Which LSP backend to drive: the Python server (default) or the native Rust binary.",
+        default=os.environ.get("TCL_LSP_SERVER_KIND", "rust"),
+        help="Which LSP backend to drive: the native Rust binary (default) or the Python server.",
     )
     parser.add_argument(
         "--server-bin",
