@@ -1029,6 +1029,122 @@ impl Interp {
         }
     }
 
+    /// Fire `enter` execution traces on `fqn` (creation order), invoking each as
+    /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
+    /// non-OK — the command is then aborted with that code and the callback's
+    /// result (C's `TclEvalObjvInternal`: `traceCode != TCL_OK ⇒ return`).
+    fn fire_exec_enter(&mut self, fqn: &[u8], cmd_word: &[u8]) -> Option<Code> {
+        use crate::cmd_trace::ops;
+        // C fires `enter` newest-first (the trace list is prepended; the loop
+        // walks it head→tail). Our Vec pushes newest-last, so iterate reversed.
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .rev()
+            .filter(|t| t.name == fqn && (t.ops & ops::ENTER) != 0)
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return None;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        self.traces.borrow_mut().exec_firing += 1;
+        let mut abort: Option<Code> = None;
+        for cmd in cmds {
+            let args = crate::list::new_list_obj(&[new_string(cmd_word), new_string(b"enter")]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let c = self.eval_str(&line);
+            if c != Code::Ok {
+                // The callback's result becomes the command's result; abort.
+                abort = Some(c);
+                break;
+            }
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+        if abort.is_some() {
+            // Drop the preserved result; the callback's result stands.
+            unsafe { obj::decr_ref_count(saved) };
+        } else {
+            unsafe {
+                obj::decr_ref_count(self.result.get());
+                self.result.set(saved);
+            }
+        }
+        abort
+    }
+
+    /// Fire `leave` execution traces on `fqn` (reverse creation order), invoking
+    /// each as `<prefix> {cmd args} <code> <result> leave`. A leave-trace non-OK
+    /// code overrides the command's result/code (C's `TEOV_RunLeaveTraces`).
+    fn fire_exec_leave(&mut self, fqn: &[u8], cmd_word: &[u8], code: Code) -> Code {
+        use crate::cmd_trace::ops;
+        // C fires `leave` oldest-first (reverse-scan of the prepended list). Our
+        // Vec pushes newest-last, so iterate forward.
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .filter(|t| t.name == fqn && (t.ops & ops::LEAVE) != 0)
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return code;
+        }
+        // Save the command's result once; restore it after the callbacks (C's
+        // single Tcl_SaveInterpState/RestoreInterpState around the loop). The
+        // result is NOT restored *between* callbacks: each leave callback's
+        // `<result>` element is the live result, so a callback that changes the
+        // result is observed by the next one.
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        let code_str = code.as_int().to_string().into_bytes();
+
+        self.traces.borrow_mut().exec_firing += 1;
+        let mut override_code: Option<Code> = None;
+        for cmd in cmds {
+            let result_bytes = obj_bytes(self.result.get());
+            let args = crate::list::new_list_obj(&[
+                new_string(cmd_word),
+                new_string(&code_str),
+                new_string(&result_bytes),
+                new_string(b"leave"),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let c = self.eval_str(&line);
+            if c != Code::Ok {
+                override_code = Some(c);
+                break;
+            }
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+
+        match override_code {
+            // A leave-trace error/return overrides; the callback's result stands.
+            Some(c) => {
+                unsafe { obj::decr_ref_count(saved) };
+                c
+            }
+            // Restore the command's own result and code.
+            None => {
+                unsafe {
+                    obj::decr_ref_count(self.result.get());
+                    self.result.set(saved);
+                }
+                code
+            }
+        }
+    }
+
     /// Move every command/execution trace on `old_fqn` to `new_fqn` (the trace
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
@@ -1673,6 +1789,56 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        // Fast path: no command/execution traces, or we're already inside a
+        // trace callback (C's INTERP_TRACE_IN_PROGRESS) — original dispatch.
+        let traced = {
+            let t = self.traces.borrow();
+            !t.cmd_traces.is_empty() && t.exec_firing == 0
+        };
+        if !traced {
+            return self.dispatch_inner(argv);
+        }
+        self.dispatch_traced(argv)
+    }
+
+    /// Slow path: the command may carry execution (enter/leave) traces. Mirrors
+    /// C's `TclEvalObjvInternal` enter/leave-trace wrapping.
+    fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
+        use crate::cmd_trace::ops;
+        let name = obj_bytes(argv[0]);
+        let fqn = self.resolve_cmd_fqn(&name);
+        let has_enter_leave = match &fqn {
+            Some(f) => self
+                .traces
+                .borrow()
+                .cmd_traces
+                .iter()
+                .any(|t| t.name == *f && (t.ops & (ops::ENTER | ops::LEAVE)) != 0),
+            None => false,
+        };
+        if !has_enter_leave {
+            return self.dispatch_inner(argv);
+        }
+        let fqn = fqn.expect("Some checked above");
+        // The `{cmd arg ...}` word: argv rendered as a single list element (C's
+        // `TraceExecutionProc` builds it via per-arg `DStringAppendElement`).
+        let cmd_word = {
+            let lst = crate::list::new_list_obj(argv);
+            let bytes = obj_bytes(lst);
+            drop_fresh(lst);
+            bytes
+        };
+        // enter (creation order). An enter-trace non-OK code aborts the command.
+        if let Some(code) = self.fire_exec_enter(&fqn, &cmd_word) {
+            return code;
+        }
+        let code = self.dispatch_inner(argv);
+        // leave (reverse creation order), with `<code> <result>`.
+        self.fire_exec_leave(&fqn, &cmd_word, code)
+    }
+
+    /// The original resolve→invoke→unknown dispatch (trace-free).
+    fn dispatch_inner(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
         let resolved = self
             .namespaces

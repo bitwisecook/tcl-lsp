@@ -580,4 +580,57 @@ mod tests {
             assert_eq!(ok(i, b"rename q {}"), b"");
         });
     }
+
+    #[test]
+    fn exec_trace_enter_leave_fire() {
+        leak_free(|i| {
+            ok(i, b"set log {}");
+            ok(i, b"proc cb {args} {global log; lappend log $args}");
+            ok(i, b"proc foo {a b} {return $a-$b}");
+            ok(i, b"trace add execution foo {enter leave} cb");
+            assert_eq!(ok(i, b"foo x y"), b"x-y");
+            // enter: {cmd args} enter ; leave: {cmd args} code result leave.
+            assert_eq!(
+                ok(i, b"set log"),
+                &b"{{foo x y} enter} {{foo x y} 0 x-y leave}"[..]
+            );
+            i.eval_str(b"unset -nocomplain log");
+        });
+    }
+
+    #[test]
+    fn exec_trace_order_and_live_result() {
+        leak_free(|i| {
+            ok(i, b"set log {}");
+            ok(i, b"proc cb {args} {global log; lappend log $args}");
+            ok(i, b"proc baz {} {return R}");
+            ok(i, b"trace add execution baz {enter leave} {cb 1}");
+            ok(i, b"trace add execution baz {enter leave} {cb 2}");
+            ok(i, b"baz");
+            // enter newest-first (2,1); leave oldest-first (1,2); the 2nd leave
+            // sees the 1st leave callback's result (live, not preserved).
+            assert_eq!(
+                ok(i, b"set log"),
+                &b"{2 baz enter} {1 baz enter} {1 baz 0 R leave} {2 baz 0 {{2 baz enter} {1 baz enter} {1 baz 0 R leave}} leave}"[..]
+            );
+            i.eval_str(b"unset -nocomplain log");
+        });
+    }
+
+    #[test]
+    fn exec_trace_enter_error_aborts_leave_error_overrides() {
+        leak_free(|i| {
+            ok(i, b"proc bar {} {return ok}");
+            ok(i, b"proc deny {args} {error NOPE}");
+            ok(i, b"trace add execution bar enter deny");
+            assert_eq!(err(i, b"bar"), b"NOPE");
+            ok(i, b"trace remove execution bar enter deny");
+            // Command runs again cleanly once the enter trace is gone.
+            assert_eq!(ok(i, b"bar"), b"ok");
+            // A leave-trace error overrides the command's result/code.
+            ok(i, b"proc boom {args} {error OVERRIDE}");
+            ok(i, b"trace add execution bar leave boom");
+            assert_eq!(err(i, b"bar"), b"OVERRIDE");
+        });
+    }
 }
