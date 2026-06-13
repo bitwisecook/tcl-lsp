@@ -10455,3 +10455,32 @@ metadata into the registry as the single source of truth.
 
 Battery: `402 passed / 1 failed` (only the pre-existing S101 intrep-thrash
 gap remains). `make test-lsp-e2e-rust` unaffected.
+
+## SYNC-JUN13 — S101 foreach-variable per-iteration intrep thrash
+
+The last battery gap (`test_TP_S101_per_iteration_mixed_intrep_thrash`):
+`foreach x $l { set b [lindex $x 0] }` did not fire S101 in Rust.
+
+* **Root cause** (not a missing pass — a missing *dispatch* arm): a
+  `foreach` element variable is already typed `String` in Rust (the
+  `foreach` spec carries `return_type = String`, and `evaluate_type_def`
+  types the loop-var def via `return_type_for_command`, exactly like
+  Python's `_return_type_for_command("foreach", …)`). The shimmer detector
+  only failed to *check* the use, because `set b [lindex $x 0]` lowers to a
+  `Statement::AssignValue` whose value is a `[cmd …]` substitution, and
+  `check_statement` handled only `Statement::Call` / `Statement::Incr`.
+  Python's `_find_use_site_shimmers` has an explicit `IRAssignValue` arm
+  (parse the command substitution, run `_check_args_for_shimmer`).
+* **Fix** (`shimmer/use_site.rs`): factored the `Call` arg-shimmer body into
+  `check_invocation` and added a `Statement::AssignValue` arm that parses the
+  value as a command substitution and runs the same check — a faithful port
+  of Python's dispatch. Also ported Python's per-block `already_coerced`
+  ledger so a second use coercing the same `(var, ver)` to the same intrep in
+  one block is not double-counted.
+* **Reverted** an earlier exploratory `find_loop_intrep_thrash` use-vs-use
+  pass — it was the wrong model (Python is type-lattice driven; the
+  `String→List` conflict here is between the inferred type and one use, not
+  between two uses).
+
+Battery (rust backend): **403 passed / 0 failed**. `cargo test --workspace
+--all-features` green; `cargo clippy --workspace --all-targets` clean.

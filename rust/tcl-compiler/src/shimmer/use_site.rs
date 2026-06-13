@@ -61,6 +61,11 @@ pub(crate) fn find_use_site_shimmers(
             continue;
         };
         let in_loop = loop_blocks.contains(&block_name);
+        // Per-block coercion ledger: once a use coerces `(var, ver)` to a
+        // target intrep, the runtime representation has already changed, so a
+        // later use to the *same* target in the same block is not a second
+        // shimmer. Mirrors Python `shimmer.py`'s `already_coerced`.
+        let mut already_coerced: HashSet<(String, u32, TclType)> = HashSet::new();
         for ss in &ssa_block.statements {
             check_statement(
                 &ss.statement,
@@ -70,6 +75,7 @@ pub(crate) fn find_use_site_shimmers(
                 in_loop,
                 &def_map,
                 values,
+                &mut already_coerced,
                 &mut out,
             );
         }
@@ -103,6 +109,86 @@ fn value_is_int_literal_string(value: Option<&LatticeValue>) -> bool {
     }
 }
 
+/// Check one command invocation's arguments for an intrep mismatch
+/// against the variables' known types. Used for both a top-level
+/// [`Statement::Call`] and a `[cmd …]` substitution lifted out of a
+/// [`Statement::AssignValue`] value (`set b [lindex $x 0]`), mirroring
+/// Python `shimmer.py`'s `_check_args_for_shimmer` dispatch over
+/// `IRCall` and `IRAssignValue`.
+#[allow(clippy::too_many_arguments)]
+fn check_invocation(
+    command: &str,
+    args: &[String],
+    span: Span,
+    uses: &HashMap<String, u32>,
+    types: &HashMap<ValueKey, TypeLattice>,
+    registry: &CommandRegistry,
+    in_loop: bool,
+    def_map: &HashMap<ValueKey, Span>,
+    already_coerced: &mut HashSet<(String, u32, TclType)>,
+    out: &mut Vec<ShimmerWarning>,
+) {
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    for (i, word) in args.iter().enumerate() {
+        let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) else {
+            continue;
+        };
+        // Only flag pure variable references — complex words may produce
+        // the right type via their own evaluation.
+        let stripped = word.trim();
+        if !is_pure_var_ref(stripped) {
+            continue;
+        }
+        let var = normalise_var_name(stripped).to_owned();
+        let Some(&ver) = uses.get(&var) else { continue };
+        if ver == 0 {
+            continue;
+        }
+        let lattice = types
+            .get(&(var.clone(), ver))
+            .cloned()
+            .unwrap_or_else(TypeLattice::unknown);
+        if lattice.kind != TypeKind::Known {
+            continue;
+        }
+        let Some(current) = lattice.tcl_type else {
+            continue;
+        };
+        if current == expected || is_numeric_compatible(current, expected) {
+            continue;
+        }
+        // A prior use in this block already coerced `(var, ver)` to this
+        // intrep — the runtime representation has already changed, so this
+        // is not a second shimmer.
+        let coercion_key = (var.clone(), ver, expected);
+        if !already_coerced.insert(coercion_key) {
+            continue;
+        }
+        let related: Vec<(Span, String)> = def_map
+            .get(&(var.clone(), ver))
+            .map(|&sp| vec![(sp, "value defined here".to_owned())])
+            .unwrap_or_default();
+        let code = if in_loop { "S101" } else { "S100" }.to_owned();
+        out.push(ShimmerWarning {
+            span,
+            variable: var.clone(),
+            from_type: current,
+            to_type: expected,
+            command: command.to_owned(),
+            in_loop,
+            code: code.clone(),
+            message: format!(
+                "{code}: variable '{var}' has {from} intrep \
+                 but '{cmd}' expects {to} at arg {i}",
+                from = type_name(current),
+                cmd = command,
+                to = type_name(expected),
+            ),
+            related,
+        });
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn check_statement(
     stmt: &Statement,
@@ -112,61 +198,45 @@ fn check_statement(
     in_loop: bool,
     def_map: &HashMap<ValueKey, Span>,
     values: &HashMap<ValueKey, LatticeValue>,
+    already_coerced: &mut HashSet<(String, u32, TclType)>,
     out: &mut Vec<ShimmerWarning>,
 ) {
     match stmt {
         Statement::Call { command, args, .. } => {
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            for (i, word) in args.iter().enumerate() {
-                let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) else {
-                    continue;
-                };
-                // Only flag pure variable references — complex words may produce
-                // the right type via their own evaluation.
-                let stripped = word.trim();
-                if !is_pure_var_ref(stripped) {
-                    continue;
-                }
-                let var = normalise_var_name(stripped).to_owned();
-                let Some(&ver) = uses.get(&var) else { continue };
-                if ver == 0 {
-                    continue;
-                }
-                let lattice = types
-                    .get(&(var.clone(), ver))
-                    .cloned()
-                    .unwrap_or_else(TypeLattice::unknown);
-                if lattice.kind != TypeKind::Known {
-                    continue;
-                }
-                let Some(current) = lattice.tcl_type else {
-                    continue;
-                };
-                if is_numeric_compatible(current, expected) {
-                    continue;
-                }
-                let related: Vec<(Span, String)> = def_map
-                    .get(&(var.clone(), ver))
-                    .map(|&sp| vec![(sp, "value defined here".to_owned())])
-                    .unwrap_or_default();
-                let code = if in_loop { "S101" } else { "S100" }.to_owned();
-                out.push(ShimmerWarning {
-                    span: stmt.span(),
-                    variable: var.clone(),
-                    from_type: current,
-                    to_type: expected,
-                    command: command.clone(),
+            check_invocation(
+                command,
+                args,
+                stmt.span(),
+                uses,
+                types,
+                registry,
+                in_loop,
+                def_map,
+                already_coerced,
+                out,
+            );
+        }
+
+        // A command substitution lifted into an assignment value
+        // (`set b [lindex $x 0]`) reads its arguments just like a direct
+        // call. Mirrors Python `shimmer.py`'s `IRAssignValue` arm, which
+        // parses the value and runs the same arg-shimmer check.
+        Statement::AssignValue { value, .. } => {
+            if let Some((command, args)) =
+                crate::value_shapes::parse_command_substitution(value.trim())
+            {
+                check_invocation(
+                    &command,
+                    &args,
+                    stmt.span(),
+                    uses,
+                    types,
+                    registry,
                     in_loop,
-                    code: code.clone(),
-                    message: format!(
-                        "{code}: variable '{var}' has {from} intrep \
-                         but '{cmd}' expects {to} at arg {i}",
-                        from = type_name(current),
-                        cmd = command,
-                        to = type_name(expected),
-                    ),
-                    related,
-                });
+                    def_map,
+                    already_coerced,
+                    out,
+                );
             }
         }
 
@@ -319,6 +389,35 @@ mod tests {
         );
         assert_eq!(w.unwrap().from_type, TclType::Int);
         assert_eq!(w.unwrap().to_type, TclType::List);
+    }
+
+    /// A `foreach` element variable is typed String (list elements
+    /// stringify); using it as a list intrep inside the loop body via a
+    /// `[lindex $x 0]` command substitution re-thunks each iteration —
+    /// per-iteration shimmer (S101). The substitution lives in an
+    /// `AssignValue` value, so this exercises the `AssignValue` arm.
+    #[test]
+    fn shimmer_detected_for_foreach_var_used_as_list_in_cmd_sub() {
+        let src = "proc f {l} {\n    foreach x $l {\n        set b [lindex $x 0]\n    }\n}\n";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = find_use_site_shimmers(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            &registry(),
+            &fu.sccp.values,
+        );
+        let w = warnings.iter().find(|w| w.command == "lindex");
+        assert!(
+            w.is_some(),
+            "expected lindex S101 for foreach var, got: {warnings:?}"
+        );
+        let w = w.unwrap();
+        assert_eq!(w.code, "S101");
+        assert_eq!(w.from_type, TclType::String);
+        assert_eq!(w.to_type, TclType::List);
     }
 
     /// Variables with Unknown type do not produce false-positive shimmers.
