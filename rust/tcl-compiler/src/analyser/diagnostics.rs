@@ -8122,6 +8122,27 @@ file; this call falls through to the 'unknown' handler."
             deduped.push(d);
         }
         self.result.diagnostics = deduped;
+
+        // Canonical, deterministic order. The post-walk emitters
+        // (`emit_variable_usage_diagnostics` etc.) iterate the scope tree's
+        // `HashMap`s, whose per-instance iteration order is non-deterministic —
+        // so emission order varied run-to-run and, critically, between
+        // `analyse` and `analyse_commands` (the per-item incremental path).
+        // That non-determinism was the E5 differential gap (the multiset always
+        // matched; only the `Vec` order differed). Sorting by source position
+        // here makes the output deterministic and path-independent — required
+        // for `incremental == fresh`, and a saner source-ordered contract for
+        // the LSP. Dedupe above guarantees `(code, start, end, message,
+        // severity)` is unique, so this key is a total order (no ties).
+        self.result.diagnostics.sort_by(|a, b| {
+            a.span
+                .start()
+                .cmp(&b.span.start())
+                .then(a.span.end().cmp(&b.span.end()))
+                .then_with(|| a.code.cmp(&b.code))
+                .then_with(|| a.severity.as_str().cmp(b.severity.as_str()))
+                .then_with(|| a.message.cmp(&b.message))
+        });
     }
 
     /// Filter out diagnostics whose codes are in
