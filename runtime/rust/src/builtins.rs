@@ -69,10 +69,26 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 }
 
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+    // A write-trace error: wrap the trace's own message (stashed in pending_err)
+    // as `can't set "name": <msg>` (C's TclObjVarErrMsg).
+    if e == VarError::TraceError {
+        let reason = interp
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        let mut msg = b"can't set \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": ");
+        msg.extend_from_slice(&reason);
+        return interp.set_error(&msg);
+    }
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
+        VarError::TraceError => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
@@ -88,6 +104,11 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         2 => {
             let name = obj_bytes(argv[1]);
             let (base, elem) = split_array_ref(&name);
+            // A read trace fires before the read (C's Tcl_ObjGetVar2); a trace
+            // error fails the read with `can't read "name": <msg>`.
+            if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
+                return c;
+            }
             let val = match &elem {
                 Some(k) => interp.var_get_elem(&base, k),
                 None => interp.var_get(&base),

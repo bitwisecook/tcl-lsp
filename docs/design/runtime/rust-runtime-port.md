@@ -1705,8 +1705,48 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `ledit` + three-way var-read-miss error | **124 / 168** | 43 (+1 timeout) | **10448 / 18939** |
 | + `lmap` + empty-script result reset | **125 / 168** | 43 (0 timeout) | **10566 / 19027** |
 | + `lseq` (arithmetic-series generator) | **125 / 168** | 43 (0 timeout) | **10660 / 19027** |
+| + `trace` command/execution/step + lifecycle | **125 / 168** | 43 (0 timeout) | **10818 / 19027** |
 
-The 2026-06-13 increments (**+2006 tests, 45.7% → 56.0%**, zero regressions):
+The 2026-06-13 **`trace`** increment (**+158 tests, 56.0% → 56.9%**, zero
+regressions) — `trace.test` **49 → 195** (the rest are
+`tcl::test`/`testcmdtrace` C-tier commands, the `after`/`update` event loop, and
+`const`, all out of this command's scope):
+
+- **command + execution traces** (`cmd_trace.rs`, `tclTrace.c`'s
+  `Tcl_TraceObjCmd` + the three type helpers): `trace add|remove|info
+  command|execution`. Command traces (`rename`/`delete`) fire from
+  `rename_command` *before* the table mutation as `command oldName newName
+  rename` / `command oldName {} delete`, following a renamed command and dying
+  on delete (`Interp::fire_cmd_trace`). Execution `enter`/`leave` wrap the
+  dispatch chokepoint (`dispatch → dispatch_traced → dispatch_inner`):
+  enter newest-first, leave oldest-first, `<prefix> {cmd args} [<code>
+  <result>] <op>`, with enter-error abort and leave-error override; the result
+  is saved once and restored after the callbacks but live between them (C's
+  single `SaveInterpState`/`RestoreInterpState`). Keyed by resolved FQN
+  (`resolve_cmd_fqn`); registry is a `CmdTrace` Vec with a `TraceOps` bitset.
+- **step traces** (`enterstep`/`leavestep`): a command carrying step ops
+  installs a `StepActive` on entry (deduped against recursion so only the
+  outermost installs); while any is live, every executed command fires
+  enterstep (reverse) before and leavestep (forward) after — matching C's
+  interp-trace order (interp enter before per-command enter; per-command leave
+  before interp leave). Byte-identical to `tclsh9.0` on the recursive-factorial
+  and nested-error step scenarios.
+- **variable-trace error propagation** (`fire_var_trace` → `pending_err`): a
+  `read`/`write` callback error now fails the access with `can't read|set
+  "name": <msg>` (C's `TclObjCallVarTraces` + `TclObjVarErrMsg`); `unset`/`array`
+  errors stay swallowed. Write routes through a new unit `VarError::TraceError`
+  (keeps `VarError` `Copy`; the ~40 `var_error` callers propagate unchanged);
+  read routes through `fire_read_trace` at the `$var` and `set name` chokepoints.
+- **trace lifecycle** (matches C; prevents unbounded accumulation that otherwise
+  poisoned later tests into exponential step output): redefining a command
+  (`proc`) deletes the old one — fire its `delete` command-traces and drop all
+  its traces (`Tcl_CreateObjCommand` replace); unsetting a variable drops its
+  variable traces; and a **proc-local** variable's traces die when the call
+  frame pops (`VarTrace::frame_level` + `clear_frame_var_traces`, C frees a
+  local var's trace list at frame teardown).
+
+The earlier 2026-06-13 increments (**+2006 tests, 45.7% → 56.0%**, zero
+regressions):
 
 - **`ledit listVar first last ?element ...?`** (`cmd_list.rs`) — the Tcl 8.7/9.0
   in-place `lreplace` on a list *variable*. Shares `lreplace`'s index/clamp/
@@ -1976,6 +2016,40 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`trace` command/execution/step + lifecycle + var-trace error propagation)
+
+Completes the `trace` command beyond the prior variable-only subset, derived
+from C's `tclTrace.c` (`Tcl_TraceObjCmd` + `TraceExecutionObjCmd`/
+`TraceCommandObjCmd`/`TraceExecutionProc`/`TclCheckExecutionTraces`/
+`TclCheckInterpTraces`) and `tclBasic.c` (`TclEvalObjvInternal` enter/leave,
+`TclRenameCommand`) + `tclVar.c` (`TclObjVarErrMsg`). Five gated chunks:
+command-trace registration/info → command-trace firing → execution enter/leave
+→ step traces + redefine/unset/frame lifecycle → variable-trace error
+propagation. `trace.test` **49 → 195**; sweep **10660 → 10818**, zero
+regressions (a transient var.test regression from exposing a pre-existing
+local-variable-trace leak was fixed by tying frame-local traces to their call
+frame).
+
+- **Verbatim against C, byte-checked vs `tclsh9.0`.** Every new form — the
+  `bad option`/`bad operation[ list]`/`unknown command "X"` errors, the
+  enter/leave/step callback strings and their newest-first/oldest-first/
+  reverse/forward ordering, the live-result-between-callbacks leak, the
+  `can't read|set "name": <msg>` propagation — was confirmed identical to
+  `tclsh9.0`, including the recursive-`factorial` and nested-`bar`-error step
+  scenarios (`trace-23.2`, `trace-28.2`).
+- **No Zig behavioural fix back-ported.** `runtime/zig/` has no `trace`
+  command-family module (variable-trace firing only); the port follows C's
+  control flow directly. Mirror anchor unchanged (`8150eca`).
+- **Representation note.** Three sibling registries on `TraceTable` (variable
+  `Vec`, command/execution `CmdTrace` `Vec` keyed by FQN with a `TraceOps`
+  `u8` bitset, live-step `StepActive` `Vec`) rather than one unified enum vec —
+  the kinds fire from disjoint chokepoints and the hot dispatch path early-outs
+  on `cmd_traces.is_empty()`. Step-trace lifetime is bracketed by the call
+  stack (install on the step-traced command's `dispatch_traced` entry, dedup by
+  owner+prefix for recursion, pop on exit) rather than C's explicit
+  `startLevel`/`startCmd` interp-trace, which the single-threaded `Rc`/`RefCell`
+  model makes unnecessary.
+
 ### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
 Chunks: `ledit`, `lmap`, `lseq`, the three-way variable-read-miss error, and
@@ -2146,9 +2220,11 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **10660/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **10818/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
-    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise). Run the **unmodified** pure-Tcl
+    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, and the
+    `trace` command/execution/step + lifecycle increment took `trace.test`
+    49 → 195). Run the **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return

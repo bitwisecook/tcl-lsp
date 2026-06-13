@@ -877,18 +877,23 @@ impl Interp {
 
     /// `set name value` — the cell takes a **+1** on `obj`.
     pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
-        let r = crate::vars::set(
+        crate::vars::set(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
             obj,
-        );
-        if r.is_ok() && !self.traces.borrow().traces.is_empty() {
+        )?;
+        if !self.traces.borrow().traces.is_empty() {
             let (base, elem) = crate::frame::split_array_ref(name);
-            self.fire_var_trace(&base, elem.as_deref(), b"write");
+            if self.fire_var_trace(&base, elem.as_deref(), b"write") {
+                // A write trace errored: the value is set, but the command
+                // fails (C's TclObjCallVarTraces). `var_error` wraps the
+                // message from `pending_err` as `can't set "name": <msg>`.
+                return Err(VarError::TraceError);
+            }
         }
-        r
+        Ok(())
     }
 
     /// `set name(key) value`.
@@ -898,29 +903,78 @@ impl Interp {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
-        let r = crate::vars::set_elem(
+        crate::vars::set_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
             key,
             obj,
-        );
-        if r.is_ok() && !self.traces.borrow().traces.is_empty() {
-            self.fire_var_trace(name, Some(key), b"write");
+        )?;
+        if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(name, Some(key), b"write")
+        {
+            return Err(VarError::TraceError);
         }
-        r
+        Ok(())
+    }
+
+    /// The call-frame level a variable trace on `base` should be tied to, so it
+    /// dies with the frame (C frees a local var's trace list at frame teardown).
+    /// `Some(level)` for an unqualified name resolving frame-local in a proc;
+    /// `None` (persistent) for qualified / global / `global`-or-`upvar`-linked
+    /// names, which outlive the frame.
+    pub(crate) fn local_trace_level(&self, base: &[u8]) -> Option<usize> {
+        if tcl_syntax::naming::is_qualified(base) {
+            return None;
+        }
+        let frames = self.frames.borrow();
+        let level = frames.current_level();
+        if level == 0 || !frames.in_proc() || frames.current_is_link(base) {
+            return None;
+        }
+        Some(level)
+    }
+
+    /// Drop every variable trace tied to call-frame `level` (the frame is being
+    /// popped; its local variables and their traces go away).
+    pub(crate) fn clear_frame_var_traces(&self, level: usize) {
+        let mut t = self.traces.borrow_mut();
+        if t.traces.iter().any(|v| v.frame_level == Some(level)) {
+            t.traces.retain(|v| v.frame_level != Some(level));
+        }
     }
 
     /// Fire a read trace for `name` before a read (the `&mut` chokepoints that
-    /// resolve `$var` call this).
-    pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) {
+    /// resolve `$var` call this). Returns `Some(Code::Error)` — with the interp
+    /// result set to `can't read "name": <msg>` — if a read trace callback
+    /// errored (C's `TclObjCallVarTraces` propagation); else `None`.
+    pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) -> Option<Code> {
         if self.traces.borrow().traces.is_empty() {
-            return;
+            return None;
         }
         let (base, elem) = crate::frame::split_array_ref(name);
         let key = key.or(elem.as_deref());
-        self.fire_var_trace(&base, key, b"read");
+        if !self.fire_var_trace(&base, key, b"read") {
+            return None;
+        }
+        let msg = self
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        // Display name: `base` or `base(key)`.
+        let mut display = base.clone();
+        if let Some(k) = key {
+            display.push(b'(');
+            display.extend_from_slice(k);
+            display.push(b')');
+        }
+        let mut m = b"can't read \"".to_vec();
+        m.extend_from_slice(&display);
+        m.extend_from_slice(b"\": ");
+        m.extend_from_slice(&msg);
+        Some(self.set_error(&m))
     }
 
     /// `unset name` — returns whether it existed.
@@ -970,11 +1024,15 @@ impl Interp {
 
     /// Invoke every variable trace matching `(base, elem, op)`, as
     /// `command base element op`. Re-entrant firing is suppressed (the `firing`
-    /// guard) and callback errors are swallowed; the interp result is preserved
-    /// across the callbacks (the triggering operation owns the result).
-    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) {
+    /// guard); the interp result is preserved across the callbacks (the
+    /// triggering operation owns the result). For `read`/`write` ops a callback
+    /// error is **propagated**: the message is stashed in `pending_err` and the
+    /// function returns `true` (the access then fails; C's `TclCallVarTraces`).
+    /// `unset`/`array` errors are ignored (C does too). Returns whether a
+    /// read/write callback errored.
+    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
         if self.traces.borrow().firing > 0 {
-            return;
+            return false;
         }
         let cmds: Vec<Vec<u8>> = self
             .traces
@@ -985,13 +1043,15 @@ impl Interp {
             .map(|t| t.command.clone())
             .collect();
         if cmds.is_empty() {
-            return;
+            return false;
         }
+        let propagate = op == b"read" || op == b"write";
         // Preserve the result object across the callbacks.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
         self.traces.borrow_mut().firing += 1;
+        let mut errored = false;
         for cmd in cmds {
             // Append `base element op` as properly-quoted trailing words.
             let args = crate::list::new_list_obj(&[
@@ -1003,7 +1063,15 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            let _ = self.eval_str(&line);
+            let code = self.eval_str(&line);
+            if propagate && code == Code::Error {
+                // Capture the callback's error message; stop firing (C aborts
+                // the trace chain on the first error).
+                let msg = self.result_bytes();
+                self.traces.borrow_mut().pending_err = Some(msg);
+                errored = true;
+                break;
+            }
         }
         self.traces.borrow_mut().firing -= 1;
 
@@ -1012,6 +1080,7 @@ impl Interp {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
+        errored
     }
 
     /// Fire matching command traces (`rename`/`delete`) as `command oldName
@@ -2575,7 +2644,12 @@ impl Interp {
             line: 1,
         };
         let code = self.eval_framed(body, proc_frame);
+        // The frame's local variables (and any traces on them) die with it.
+        let proc_level = self.frames.borrow().current_level();
         self.frames.borrow_mut().pop();
+        if !self.traces.borrow().traces.is_empty() {
+            self.clear_frame_var_traces(proc_level);
+        }
         self.current_ns.set(saved_ns);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
@@ -2775,7 +2849,9 @@ impl Interp {
                                 Some(p) => Some(self.subst_index(p)?),
                                 None => None,
                             };
-                            self.fire_read_trace(v.name, index.as_deref());
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
                             let obj = match index.as_deref() {
                                 Some(key) => self.var_get_elem(v.name, key),
                                 None => self.var_get(v.name),
@@ -2816,7 +2892,9 @@ impl Interp {
                                 Some(parts) => Some(self.subst_index(parts)?),
                                 None => None,
                             };
-                            self.fire_read_trace(v.name, index.as_deref());
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
                             match self.read_var(v.name, index.as_deref()) {
                                 Some(bytes) => buf.extend_from_slice(&bytes),
                                 None => return Err(self.no_such_variable(v.name, index.as_deref())),
@@ -2864,7 +2942,9 @@ impl Interp {
                         Some(p) => Some(self.subst_index(p)?),
                         None => None,
                     };
-                    self.fire_read_trace(v.name, index.as_deref());
+                    if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                        return Err(c);
+                    }
                     match self.read_var(v.name, index.as_deref()) {
                         Some(bytes) => out.extend_from_slice(&bytes),
                         None => return Err(self.no_such_variable(v.name, index.as_deref())),

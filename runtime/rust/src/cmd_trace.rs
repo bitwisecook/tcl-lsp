@@ -39,6 +39,11 @@ pub struct VarTrace {
     pub ops: Vec<Vec<u8>>,
     /// The command prefix invoked when the trace fires.
     pub command: Vec<u8>,
+    /// For a trace on a **proc-local** variable, the call-frame level it lives
+    /// at — the trace dies when that frame is popped (C frees the local var's
+    /// trace list at frame teardown). `None` for global/namespace/qualified
+    /// traces, which persist.
+    pub frame_level: Option<usize>,
 }
 
 /// The operations a command/execution trace fires on, as a bitset (mirrors C's
@@ -101,6 +106,10 @@ pub struct TraceTable {
     /// firing so a callback that renames/invokes the traced command doesn't
     /// recurse.
     pub exec_firing: usize,
+    /// The error message a read/write variable-trace callback left, captured so
+    /// the variable access can fail with `can't read/set "name": <msg>` (C's
+    /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
+    pub pending_err: Option<Vec<u8>>,
 }
 
 /// Whether `t` fires for a `(base, elem)` access doing operation `op`.
@@ -390,12 +399,14 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
     let command = obj_bytes(argv[5]);
     if is_add {
         let (base, elem) = split_array_ref(&name);
+        let frame_level = interp.local_trace_level(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
             name,
             base,
             elem,
             ops,
             command,
+            frame_level,
         });
     } else {
         let pos = interp
@@ -704,6 +715,42 @@ mod tests {
             assert_eq!(ok(i, b"trace info command foo"), b"");
             assert_eq!(ok(i, b"trace info execution foo"), b"");
             i.eval_str(b"unset -nocomplain log");
+        });
+    }
+
+    #[test]
+    fn write_trace_error_propagates() {
+        leak_free(|i| {
+            ok(i, b"unset -nocomplain z");
+            ok(
+                i,
+                b"trace add variable z write {unset z; error {memory corruption};#}",
+            );
+            // The set fails with the trace's message; C's TclObjCallVarTraces.
+            assert_eq!(err(i, b"set z 1"), b"can't set \"z\": memory corruption");
+            i.eval_str(b"unset -nocomplain z");
+        });
+    }
+
+    #[test]
+    fn read_trace_error_propagates() {
+        leak_free(|i| {
+            ok(i, b"set w 5");
+            ok(i, b"trace add variable w read {error boom;#}");
+            // Both the `$w` and `set w` read forms fail with `can't read`.
+            assert_eq!(err(i, b"set w"), b"can't read \"w\": boom");
+            assert_eq!(err(i, b"set q $w"), b"can't read \"w\": boom");
+            i.eval_str(b"unset -nocomplain w q");
+        });
+    }
+
+    #[test]
+    fn unset_trace_error_is_ignored() {
+        leak_free(|i| {
+            ok(i, b"set v 1");
+            ok(i, b"trace add variable v unset {error boom;#}");
+            // Unset-trace errors are swallowed (C ignores them).
+            assert_eq!(ok(i, b"unset v"), b"");
         });
     }
 

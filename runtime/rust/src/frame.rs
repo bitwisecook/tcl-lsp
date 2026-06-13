@@ -96,6 +96,11 @@ pub enum VarError {
     /// *create* path raises this; reads/unsets of the same name report
     /// `no such variable` instead.
     NoSuchNamespace,
+    /// A write trace's callback errored: the set fails with `can't set "name":
+    /// <msg>`, the trace message carried out-of-band in `TraceTable::pending_err`
+    /// (kept unit so `VarError` stays `Copy`; the `var_error` callers propagate
+    /// it unchanged).
+    TraceError,
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +339,16 @@ impl FrameStack {
     pub fn in_proc(&self) -> bool {
         self.index_of_level(self.active_level)
             .is_some_and(|i| self.frames[i].is_proc)
+    }
+
+    /// Whether `name` is bound to a link (`global`/`upvar`/`variable`) in the
+    /// active frame — used to decide if a variable trace on an unqualified name
+    /// is frame-local (it is not when the name links to an outer variable, which
+    /// outlives this frame).
+    pub(crate) fn current_is_link(&self, name: &[u8]) -> bool {
+        self.index_of_level(self.active_level)
+            .and_then(|i| self.frames[i].table.cell(name))
+            .is_some_and(|c| matches!(c, Var::Link(_)))
     }
 
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
