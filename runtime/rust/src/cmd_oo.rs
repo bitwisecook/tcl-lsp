@@ -943,7 +943,10 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(code) => return code,
     };
     let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let (op, vals) = slot_op_split(&raw);
+    let (op, vals) = match slot_op_split(&raw, SlotOp::Set) {
+        Ok(x) => x,
+        Err(m) => return err(interp, &m),
+    };
     let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
     // C resolves each via Tcl_GetObjectFromObj (→ `X does not refer to an
     // object`, as-written) then requires it be a class (→ `only a class can be
@@ -1016,18 +1019,28 @@ enum SlotOp {
     Clear,
 }
 
-/// Split a slot command's args into `(operation, values)`: a leading `-set`/
-/// `-append`/… selects the op; anything else defaults to `-set` over all args.
-fn slot_op_split(args: &[Vec<u8>]) -> (SlotOp, &[Vec<u8>]) {
-    match args.first().map(|a| a.as_slice()) {
+/// Split a slot command's args into `(operation, values)`: a leading
+/// `-set`/`-append`/… selects the op; any other leading `-flag` is an unknown
+/// slot operation (`Err` with the C unknown-method message); a non-`-` first
+/// arg uses the slot's `default` operation over all args.
+fn slot_op_split(args: &[Vec<u8>], default: SlotOp) -> Result<(SlotOp, &[Vec<u8>]), Vec<u8>> {
+    Ok(match args.first().map(|a| a.as_slice()) {
         Some(b"-set") => (SlotOp::Set, &args[1..]),
         Some(b"-append") => (SlotOp::Append, &args[1..]),
         Some(b"-prepend") => (SlotOp::Prepend, &args[1..]),
         Some(b"-remove") => (SlotOp::Remove, &args[1..]),
         Some(b"-appendifnew") => (SlotOp::AppendIfNew, &args[1..]),
         Some(b"-clear") => (SlotOp::Clear, &[]),
-        _ => (SlotOp::Set, args),
-    }
+        Some(op) if op.first() == Some(&b'-') => {
+            let mut m = b"unknown method \"".to_vec();
+            m.extend_from_slice(op);
+            m.extend_from_slice(
+                b"\": must be -append, -appendifnew, -clear, -prepend, -remove or -set",
+            );
+            return Err(m);
+        }
+        _ => (default, args),
+    })
 }
 
 /// Apply a slot op to the current list, yielding the new list.
@@ -1170,7 +1183,12 @@ fn oo_object_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> C
 /// or object). Filters wrap every public method call on instances.
 fn def_filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let (op, vals) = slot_op_split(&raw);
+    // The `filter` slot's default operation is `-append` (its DeclaredSlot
+    // defOp is NULL, so it inherits the base Slot default).
+    let (op, vals) = match slot_op_split(&raw, SlotOp::Append) {
+        Ok(x) => x,
+        Err(m) => return err(interp, &m),
+    };
     let target = match def_target(interp) {
         Ok(t) => t,
         Err(c) => return c,
@@ -1210,7 +1228,10 @@ fn def_filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let (op, vals) = slot_op_split(&raw);
+    let (op, vals) = match slot_op_split(&raw, SlotOp::Set) {
+        Ok(x) => x,
+        Err(m) => return err(interp, &m),
+    };
     // Resolve each value to a class FQN and validate it (C: `X does not refer
     // to an object`, as-written, then `may only mix in classes`).
     let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
@@ -1278,10 +1299,16 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if interp.oo.borrow().def_stack.is_empty() {
         return crate::cmd_var::variable(interp, argv);
     }
-    let names: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    // The `variable` slot's default operation is `-append` (its DeclaredSlot
+    // defOp is NULL, so it inherits the base Slot default).
+    let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let (op, names) = match slot_op_split(&raw, SlotOp::Append) {
+        Ok(x) => x,
+        Err(m) => return err(interp, &m),
+    };
     // A declared variable name must be a plain scalar: no namespace separator,
     // no array element.
-    for n in &names {
+    for n in names {
         if n.windows(2).any(|w| w == b"::") {
             let mut m = b"invalid declared variable name \"".to_vec();
             m.extend_from_slice(n);
@@ -1295,25 +1322,49 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return err(interp, &m);
         }
     }
-    let push_unique = |dst: &mut Vec<Vec<u8>>, names: Vec<Vec<u8>>| {
-        for n in names {
-            if !dst.contains(&n) {
-                dst.push(n);
-            }
-        }
-    };
-    match def_target(interp) {
-        Ok(DefTarget::Class(c)) => {
-            let mut oo = interp.oo.borrow_mut();
-            push_unique(&mut oo.classes.get_mut(&c).unwrap().variables, names);
-        }
-        Ok(DefTarget::Object(o)) => {
-            let mut oo = interp.oo.borrow_mut();
-            if let Some(ob) = oo.objects.get_mut(&o) {
-                push_unique(&mut ob.variables, names);
-            }
-        }
+    let target = match def_target(interp) {
+        Ok(t) => t,
         Err(code) => return code,
+    };
+    let current = match &target {
+        DefTarget::Class(c) => interp
+            .oo
+            .borrow()
+            .classes
+            .get(c)
+            .map(|cl| cl.variables.clone())
+            .unwrap_or_default(),
+        DefTarget::Object(o) => interp
+            .oo
+            .borrow()
+            .objects
+            .get(o)
+            .map(|ob| ob.variables.clone())
+            .unwrap_or_default(),
+    };
+    // De-duplicate the appended result (a variable is declared once), mirroring
+    // C's uniquifying Set.
+    let mut applied = slot_apply(&op, &current, names);
+    let mut seen: Vec<Vec<u8>> = Vec::with_capacity(applied.len());
+    applied.retain(|n| {
+        if seen.contains(n) {
+            false
+        } else {
+            seen.push(n.clone());
+            true
+        }
+    });
+    match target {
+        DefTarget::Class(c) => {
+            if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&c) {
+                cl.variables = applied;
+            }
+        }
+        DefTarget::Object(o) => {
+            if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&o) {
+                ob.variables = applied;
+            }
+        }
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -3682,6 +3733,34 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn variable_slot_operations() {
+        leak_free(|i| {
+            // `variable` accumulates by default (-append), uniquely.
+            ok(i, b"oo::class create A { variable a; variable b }");
+            assert_eq!(ok(i, b"lsort [info class variables A]"), b"a b");
+            // `-clear` empties; a following declaration starts fresh (oo-27.16).
+            ok(
+                i,
+                b"oo::class create B { variable x; variable -clear; variable y }",
+            );
+            assert_eq!(ok(i, b"info class variables B"), b"y");
+            // `-set` replaces (oo-27.17).
+            ok(i, b"oo::class create C { variable x; variable -set y }");
+            assert_eq!(ok(i, b"info class variables C"), b"y");
+            // An unknown slot op errors with the C unknown-method message
+            // (oo-27.18).
+            assert_eq!(
+                i.eval_str(b"oo::class create D { variable -? y }"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown method \"-?\": must be -append, -appendifnew, -clear, -prepend, -remove or -set"
+            );
         });
     }
 
