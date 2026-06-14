@@ -3010,6 +3010,14 @@ impl Interp {
                         m.extend_from_slice(b"\" illegal: must not contain namespace separator");
                         return Some(self.error(&m));
                     }
+                    // An array-element name is rejected (C: `can't define "X":
+                    // name refers to an element in an array`).
+                    if name.last() == Some(&b')') && name.contains(&b'(') {
+                        let mut m = b"can't define \"".to_vec();
+                        m.extend_from_slice(&name);
+                        m.extend_from_slice(b"\": name refers to an element in an array");
+                        return Some(self.error(&m));
+                    }
                     self.make_variable(var_ns, &name);
                 }
                 self.set_result_bytes(b"");
@@ -3733,6 +3741,22 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn my_variable_rejects_array_element() {
+        leak_free(|i| {
+            ok(
+                i,
+                b"oo::class create C { method bar {} { my variable a(b) } }",
+            );
+            ok(i, b"C create o");
+            assert_eq!(i.eval_str(b"o bar"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't define \"a(b)\": name refers to an element in an array"
+            );
         });
     }
 
