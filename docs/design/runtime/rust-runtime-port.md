@@ -1735,7 +1735,19 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `myclass` command + forward resolves `my`/`myclass` in object ns | **129 / 168** | 39 (0 timeout) | **11751 / 20532** |
 | + TclOO TIP 500 private-method class scoping (`my m` prefers declaring class) | **129 / 168** | 39 (0 timeout) | **11753 / 20532** |
 | + TclOO definition-script errorInfo frame (`(in definition script for …)`) | **129 / 168** | 39 (0 timeout) | **11757 / 20532** |
-| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 343 / 388** |
+| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 350 / 388** |
+
+The 2026-06-14 (cont.) **forward/trace/varname** chunks (**+7 more, zero
+regressions**, `oo.test` 343 → 350):
+- **Ensemble rewrite for forward `wrong # args`** (oo-6.14/6.16): a forward
+  chain records the original invocation words; the eventual method's wrong-args
+  reports the call as written (interp-wide `ensemble_rewrite`, C's
+  `TclInitRewriteEnsemble` / `Tcl_WrongNumArgs` rewrite).
+- **Namespace-scoped variable traces** (oo-19.2, oo-20.7/20.13/20.14): a trace
+  is tagged with its variable's resolved home namespace (through
+  global/variable/upvar links) and fires only for that variable — no cross-test
+  pollution; trace.test holds at 199.
+- **`varname` follows links** to the real variable's FQN (oo-19.5).
 
 The 2026-06-14 **TclOO long-tail** chunks (**+22 `oo.test` over a session, zero
 regressions per step**, `oo.test` 321 → 343) — each read against the Tcl 9 C
@@ -1772,10 +1784,15 @@ source and byte-verified:
   -scope`** filtering (oo-39.12); **empty superclass** defaults to `oo::class`
   for a metaclass (oo-35.2); redundant `::` runs collapse in OO names.
 
-Deferred (documented as future work — each a sizeable cross-cutting subsystem):
-the interp-wide **ensemble-rewrite** for `wrong # args` (oo-6.14/16–20, 2.7/2.8,
-15.9 — it must rewrite even a builtin's message, e.g. `string length` in
-oo-6.18, so it can't be OO-local); running `oo::define` **script bodies in the
+Deferred (documented as future work — each a sizeable cross-cutting subsystem;
+the core ensemble-rewrite now exists and handles OO forward chains, but the
+remaining `wrong # args` cases need it threaded into more dispatchers):
+the **ensemble-rewrite for non-OO ensembles** (oo-6.17 namespace-ensemble
+`-parameters`, oo-6.18 the builtin `string length` message, oo-2.7/2.8 the
+namespace-ensemble + constructor path, oo-15.9 `<cloned>` naming); the
+**FILTER_HANDLING** model so filters wrap `my` calls but not within a filter
+(oo-12.7/12.8/14.7 — an internal-call attempt regressed oo-12.5/12.6); running
+`oo::define` **script bodies in the
 `::oo::define` namespace** (C's frame model — oo-7.4/7.5/7.9/34.1; attempted,
 regressed 22 across private vars / TIP 524 / myclass, reverted, and a narrower
 subcommand-precedence attempt regressed oo-18.x); **`Var::Undefined` ghosts** so
