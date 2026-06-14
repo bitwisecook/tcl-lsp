@@ -2886,6 +2886,12 @@ impl Interp {
                 self.delete_command(&fqn);
                 return Code::Error;
             }
+            // A constructor that destroys its own object (`[self] destroy`)
+            // leaves nothing to return: `new`/`create` fails (oo-30.1/30.2,
+            // Bug 2903011).
+            if !self.oo.borrow().objects.contains_key(&fqn) {
+                return self.error(b"object deleted in constructor");
+            }
         }
         // With no constructor in the MRO, extra construction arguments are
         // silently ignored (matching tclsh9.0 — the default constructor is a
@@ -2970,6 +2976,16 @@ impl Interp {
             }
         }
         if steps.is_empty() {
+            // `destroy` is a built-in (overridable) method on every object; with
+            // no user override in the chain it tears the object down. Reachable
+            // both externally (`$obj destroy`) and internally (`my destroy`).
+            if method == b"destroy" {
+                let code = self.oo_destroy(obj);
+                if code == Code::Ok {
+                    self.set_result_bytes(b"");
+                }
+                return code;
+            }
             // The object built-ins (`variable`/`varname`/`eval`) are not in any
             // method table; they are unexported by default (reachable internally
             // via `my`), but a public call reaches them too once explicitly
@@ -3811,6 +3827,23 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn object_deleted_in_constructor() {
+        leak_free(|i| {
+            // Destroying the object in its constructor makes `new`/`create` fail
+            // (oo-30.1/30.2, Bug 2903011), via `[self] destroy` or `my destroy`.
+            ok(
+                i,
+                b"oo::class create cls { constructor {} {[self] destroy} }",
+            );
+            assert_eq!(i.eval_str(b"cls new"), Code::Error);
+            assert_eq!(i.result_bytes(), b"object deleted in constructor");
+            ok(i, b"oo::class create cls2 { constructor {} {my destroy} }");
+            assert_eq!(i.eval_str(b"cls2 create foo"), Code::Error);
+            assert_eq!(i.result_bytes(), b"object deleted in constructor");
         });
     }
 
