@@ -160,6 +160,11 @@ pub struct OoState {
     /// prepends it so the message names the whole original command, as C's
     /// ensemble rewrite does. `None` inside a `{ … }` definition body.
     def_rewrite: Option<Vec<u8>>,
+    /// The caller's context scope (declaring class/object of the running method)
+    /// for an in-progress unknown-method miss, captured at the original
+    /// invocation so the `unknown`-handler frame does not mask it. Lets the
+    /// unknown-method error list the in-scope private methods (TIP 500).
+    unknown_scope: Option<Vec<u8>>,
 }
 
 /// Register the `oo::*` commands and the definition / context commands.
@@ -353,15 +358,27 @@ impl Interp {
                 names.insert(m.clone());
             }
         }
+        // A private method named is visible (and so listed) only from its own
+        // declaring scope — the scope captured at the original invocation (the
+        // `unknown` handler's own frame must not mask it; TIP 500). From
+        // non-method code there is no scope, so none are listed.
+        let caller_scope: Option<Vec<u8>> = self.oo.borrow().unknown_scope.clone();
         for p in self.method_chain(obj) {
             let is_object = p == obj;
+            let in_scope = caller_scope.as_deref() == Some(p.as_slice());
             let oo = self.oo.borrow();
             if is_object {
                 if let Some(o) = oo.objects.get(&p) {
                     collect(&o.methods, &o.unexported, &o.exported, &mut names);
+                    if in_scope {
+                        names.extend(o.private.iter().cloned());
+                    }
                 }
             } else if let Some(c) = oo.classes.get(&p) {
                 collect(&c.methods, &c.unexported, &c.exported, &mut names);
+                if in_scope {
+                    names.extend(c.private.iter().cloned());
+                }
             }
         }
         let names: Vec<Vec<u8>> = names.into_iter().collect();
@@ -2748,6 +2765,19 @@ impl Interp {
         // An `export` of the method anywhere in the chain (e.g. on the object)
         // makes every step callable, overriding a class-level unexport.
         let exported_anywhere = self.method_exported(obj, method);
+        // TIP 500: a TRUE_PRIVATE method is scoped to its declaring class/object.
+        // The general call chain skips private methods (C's
+        // `AddSimpleClassChainToCallContext`: `if (!IS_PRIVATE(mPtr))`); a
+        // private step is added only when the caller's context scope — the
+        // declaring entity of the currently-running method — is that same
+        // provider. From non-method (external) code there is no scope, so all
+        // private methods are invisible.
+        let caller_scope: Option<Vec<u8>> = self
+            .oo
+            .borrow()
+            .call_stack
+            .last()
+            .and_then(|f| f.chain.get(f.index).map(|s| s.provider.clone()));
         // The target-method steps: every provider that defines `method`. For an
         // external call, skip steps the provider unexports (unless overridden by
         // an export) — so a public override still runs while a private one is
@@ -2755,28 +2785,25 @@ impl Interp {
         let mut steps: Vec<CallStep> = providers
             .iter()
             .filter(|p| {
-                self.oo_has_method(p, method, p.as_slice() == obj)
-                    && !(enforce
-                        && !exported_anywhere
-                        && self.method_unexported(p, method, p.as_slice() == obj))
+                let is_obj = p.as_slice() == obj;
+                if !self.oo_has_method(p, method, is_obj) {
+                    return false;
+                }
+                // A private method is in scope only from its own declarer.
+                if self.method_is_private(p, method, is_obj) {
+                    return caller_scope.as_deref() == Some(p.as_slice());
+                }
+                !(enforce && !exported_anywhere && self.method_unexported(p, method, is_obj))
             })
             .map(|p| CallStep {
                 provider: p.clone(),
                 method: method.to_vec(),
             })
             .collect();
-        // TIP 500: a private method is scoped to its declaring class. When the
-        // call originates inside a method of class C (`my m`), C's own private
-        // `m` shadows any public override further down the chain — move it to
-        // the front of the chain.
+        // A caller-scope private shadows any public override further down the
+        // chain, so move it to the front (it is the most-specific step).
         if !external {
-            let caller_class = self
-                .oo
-                .borrow()
-                .call_stack
-                .last()
-                .and_then(|f| f.chain.get(f.index).map(|s| s.provider.clone()));
-            if let Some(c) = caller_class {
+            if let Some(c) = caller_scope.clone() {
                 let is_obj = c.as_slice() == obj;
                 if self.oo_has_method(&c, method, is_obj)
                     && self.method_is_private(&c, method, is_obj)
@@ -2798,9 +2825,16 @@ impl Interp {
                     return code;
                 }
             }
+            // Record the originating scope for the unknown-method error so the
+            // `unknown` handler's own frame does not mask it (restored after).
+            let saved_scope = self
+                .oo
+                .borrow_mut()
+                .unknown_scope
+                .replace(caller_scope.clone().unwrap_or_default());
             // A user-defined `unknown` method handles the miss (the method name
             // is prepended to the args), e.g. `oo::Slot`'s default-operation.
-            if method != b"unknown"
+            let code = if method != b"unknown"
                 && providers
                     .iter()
                     .any(|p| self.oo_has_method(p, b"unknown", p.as_slice() == obj))
@@ -2818,9 +2852,12 @@ impl Interp {
                 for a in uargs {
                     unsafe { obj::decr_ref_count(a) };
                 }
-                return code;
-            }
-            return self.oo_unknown_method(obj, method);
+                code
+            } else {
+                self.oo_unknown_method(obj, method)
+            };
+            self.oo.borrow_mut().unknown_scope = saved_scope;
+            return code;
         }
         // Filters wrap an *external* (public) call: prepend each active filter
         // method as its own step (resolved to the provider defining it).
@@ -3880,6 +3917,43 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"can't create object \"K\": command already exists with that name"
+            );
+        });
+    }
+
+    #[test]
+    fn private_method_scope_and_unknown_listing() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            // A class's private method is invisible to a different scope's `my`
+            // call: the object's private `step` does not shadow the class's
+            // public `step` when the caller is a class method (oo-39.4/39.5).
+            ok(
+                i,
+                b"oo::class create clsA { superclass parent; variable x; \
+                  constructor {} {set x 1}; method act {} {my step; return}; \
+                  method step {} {incr x}; method x {} {return $x} }",
+            );
+            ok(i, b"clsA create obj; obj act");
+            assert_eq!(ok(i, b"obj x"), b"2");
+            ok(
+                i,
+                b"oo::objdefine obj { variable x; private { method step {} {incr x 2} } }",
+            );
+            ok(i, b"obj act"); // class act -> class step (public), not obj private
+            assert_eq!(ok(i, b"obj x"), b"3");
+            // The unknown-method error lists in-scope private methods (oo-39.6).
+            ok(
+                i,
+                b"oo::class create cls { superclass parent; variable x; \
+                  constructor {val} {set x $val}; private method x {} {return $x}; \
+                  method equal {other} {expr {$x == [$other y]}} }",
+            );
+            ok(i, b"cls create a 1; cls create b 2");
+            assert_eq!(i.eval_str(b"a equal b"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown method \"y\": must be destroy, equal or x"
             );
         });
     }
