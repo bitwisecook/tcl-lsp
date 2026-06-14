@@ -326,24 +326,37 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"dict filter dictionary script {keyVarName valueVarName} filterScript",
                 );
             }
+            // The two variable names are parsed as a *list*: a malformed list
+            // surfaces the list parse error verbatim (dict-17.20), then a count
+            // other than two is the dict-filter syntax error (dict-17.19).
             let vars = match crate::parse::split_list(&obj_bytes(argv[4])) {
-                Ok(v) if v.len() == 2 => v,
-                _ => {
-                    return interp
-                        .set_error(b"must have exactly two variable names for dict filter script")
-                }
+                Ok(v) => v,
+                Err(e) => return interp.set_error(e.message()),
             };
+            if vars.len() != 2 {
+                return interp.error_with_code(
+                    b"must have exactly two variable names",
+                    b"TCL SYNTAX dict filter",
+                );
+            }
             let body = obj_bytes(argv[5]);
             for (k, v) in pairs {
                 if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
                     return interp.set_error(b"couldn't set dict filter variable");
                 }
-                let code = interp.eval_str(&body);
-                if code == Code::Error {
-                    return Code::Error;
-                }
-                if is_true(&obj_bytes(interp.get_obj_result())) {
-                    kept.push((k, v));
+                // The body's completion code drives the loop (C's `DictFilterCmd`
+                // script case): OK ⇒ keep iff its result is true; CONTINUE ⇒ skip;
+                // BREAK ⇒ stop, return what's kept; ERROR / RETURN / other ⇒
+                // propagate the code (and result) out of `dict filter`.
+                match interp.eval_str(&body) {
+                    Code::Ok => {
+                        if is_true(&obj_bytes(interp.get_obj_result())) {
+                            kept.push((k, v));
+                        }
+                    }
+                    Code::Continue => {}
+                    Code::Break => break,
+                    other => return other,
                 }
             }
         }
@@ -639,7 +652,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 6 || argv.len() % 2 != 0 {
         return wrong_args(
             interp,
-            b"dict update varName key varName ?key varName ...? body",
+            b"dict update dictVarName key varName ?key varName ...? script",
         );
     }
     let dict_var = obj_bytes(argv[2]);
@@ -693,11 +706,11 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     code
 }
 
-/// `dict with dictVar ?key ...? body` — map every key of the (sub-)dict to a
+/// `dict with dictVarName ?key ...? script` — map every key of the (sub-)dict to a
 /// local var, run body, write the vars back. Supports a leading key path.
 fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict with dictVar ?key ...? body");
+        return wrong_args(interp, b"dict with dictVarName ?key ...? script");
     }
     let dict_var = obj_bytes(argv[2]);
     let body = obj_bytes(argv[argv.len() - 1]);

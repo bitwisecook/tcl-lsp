@@ -2641,6 +2641,14 @@ fixes, both from C (`tclDictObj.c`/`tclUtil.c`):
   `tclUtil.c`'s `FindElement` with the `dict`/`DICTIONARY` type strings (the list
   splitter stays untouched), feeding `error_with_code` (dict-4.13–4.17 + the
   `…a` error-code variants).
+- **`dict filter … script` completion-code handling + var-list parse** — the
+  body's code now drives the loop (`DictFilterCmd`): `OK` keeps iff the result is
+  true, `continue` skips, `break` stops (returning what's kept), and
+  `error`/`return`/other propagate out (dict-17.16). The two variable names are
+  parsed as a list, so a malformed list surfaces its own message (dict-17.20)
+  and a wrong count is `must have exactly two variable names` (`TCL SYNTAX dict
+  filter`, dict-17.19). `dict with`/`dict update` usage strings matched to C
+  (`dictVarName`/`script`). dict.test reaches 315/373.
 
 ### Outstanding
 
