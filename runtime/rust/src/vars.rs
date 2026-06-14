@@ -128,6 +128,83 @@ fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) 
     Resolved::Place(place)
 }
 
+/// The namespace a (possibly linked) variable ultimately lives in — `Some(ns)`
+/// if `name` resolves (following `global`/`variable`/`upvar` links) to a
+/// namespace variable, `None` if it lives in a proc-call frame. Used to scope
+/// variable traces to the concrete variable they were registered on.
+pub(crate) fn home_namespace(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Option<NsId> {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) => match p.home {
+            VarHome::Namespace(id) => Some(id),
+            VarHome::Frame(_) => None,
+        },
+        Resolved::NoNamespace => None,
+    }
+}
+
+/// The fully-qualified name `name` ultimately resolves to, following
+/// `global`/`variable`/`upvar`/`namespace upvar` links to the target variable
+/// (and array element). `Some("::ns::var")` / `Some("::ns::arr(elem)")` for a
+/// namespace target; `None` if it resolves to a proc-frame local. Used by the
+/// `varname` object method, which reports the real variable a link points at.
+pub(crate) fn resolved_full_name(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    base_ns: NsId,
+    name: &[u8],
+) -> Option<Vec<u8>> {
+    // Resolve as a variable of `base_ns` (the object's namespace), *not* the
+    // current proc frame — `varname` reports the object's variable regardless of
+    // where it is called from. Then follow links to the real target.
+    let (home, key) = if is_qualified(name) {
+        match ns.var_home(base_ns, name) {
+            Some((id, simple)) => (VarHome::Namespace(id), simple),
+            None => return None,
+        }
+    } else {
+        (VarHome::Namespace(base_ns), name.to_vec())
+    };
+    let mut place = Place {
+        home,
+        name: key,
+        elem: None,
+    };
+    for _ in 0..LINK_LIMIT {
+        let link = match table(frames, ns, place.home).and_then(|t| t.cell(&place.name)) {
+            Some(Var::Link(l)) => l.clone(),
+            _ => break,
+        };
+        let elem = match (place.elem.take(), link.elem) {
+            (None, e) => e,
+            (outer @ Some(_), _) => outer,
+        };
+        place = Place {
+            home: link.home,
+            name: link.name,
+            elem,
+        };
+    }
+    let VarHome::Namespace(id) = place.home else {
+        return None;
+    };
+    let mut fqn = ns.qualified_name(id);
+    if id != GLOBAL {
+        fqn.extend_from_slice(b"::"); // global's qualified name is already `::`
+    }
+    fqn.extend_from_slice(&place.name);
+    if let Some(elem) = &place.elem {
+        fqn.push(b'(');
+        fqn.extend_from_slice(elem);
+        fqn.push(b')');
+    }
+    Some(fqn)
+}
+
 // -- the public coordinator API (mirrors the old FrameStack surface) ---------
 
 /// `set name value` — write through links to wherever `name` resolves. The cell
@@ -352,14 +429,28 @@ pub(crate) fn make_variable(
     target_ns: NsId,
     tail: &[u8],
 ) {
+    make_variable_mapped(frames, ns, current_ns, target_ns, tail, tail);
+}
+
+/// Like [`make_variable`] but links the local name `local` to a differently-
+/// named namespace variable `target` in `target_ns` (TIP 500 private instance
+/// variables, whose storage name is mangled per declaring class).
+pub(crate) fn make_variable_mapped(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    target_ns: NsId,
+    local: &[u8],
+    target: &[u8],
+) {
     link_local(
         frames,
         ns,
         current_ns,
-        tail,
+        local,
         Link {
             home: VarHome::Namespace(target_ns),
-            name: tail.to_vec(),
+            name: target.to_vec(),
             elem: None,
         },
     );

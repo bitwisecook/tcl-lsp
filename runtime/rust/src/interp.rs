@@ -68,6 +68,23 @@ pub(crate) enum ProcFrame<'a> {
     /// `(lambda term "LAMBDA" line N)` — an `apply` lambda. `LAMBDA` is the whole
     /// lambda-expression string (`{params body ?ns?}`, i.e. `argv[1]`).
     Lambda(&'a [u8]),
+    /// A TclOO method body (`CommonMethErrorHandler`, `tclOOMethod.c`):
+    /// `(KIND "OWNER" method "NAME" line N)`, or `(KIND "OWNER" constructor|
+    /// destructor line N)`. `kind` is `object`/`class` per the declaring entity,
+    /// `owner` is that entity's name, and `what` selects the method/ctor/dtor.
+    Method {
+        kind: &'a [u8],
+        owner: &'a [u8],
+        what: MethodFrameWhat<'a>,
+    },
+}
+
+/// What a TclOO method-body error frame names: a method (`method "NAME"`) or a
+/// constructor/destructor (a bare keyword).
+pub(crate) enum MethodFrameWhat<'a> {
+    Named(&'a [u8]),
+    Constructor,
+    Destructor,
 }
 
 /// What a proc/lambda call contributes to the diagnostic stacks: the errorInfo
@@ -83,9 +100,32 @@ pub(crate) struct CallMeta<'a> {
     /// The body's `info frame` line base (file-absolute for a source-defined
     /// proc, 0 otherwise).
     pub body_line_base: u32,
-    /// Variable names to pre-link into the call frame from its namespace (a
-    /// TclOO method's declared instance variables); empty for procs/lambdas.
-    pub link_vars: &'a [Vec<u8>],
+    /// `(local, target)` instance-variable links to pre-install into the call
+    /// frame: the method's declared variables, where `target` is the namespace
+    /// storage name (== `local` for public vars, a mangled name for TIP 500
+    /// private vars). Empty for procs/lambdas.
+    pub link_vars: &'a [(Vec<u8>, Vec<u8>)],
+    /// Return a body-level `break`/`continue` as the raw `Code` instead of the
+    /// `invoked "break" outside of a loop` error. Set for TIP 558 property
+    /// accessor methods, whose `configure` caller maps the loop codes to its
+    /// own diagnostics.
+    pub keep_loop_codes: bool,
+    /// Run the body at the *current* call-frame level rather than pushing a new
+    /// one (it still gets its own locals). Set for a TclOO method reached via
+    /// `next`: every method in a single call chain shares the level of the
+    /// original invocation, so `info level` / `upvar` / `uplevel` see through
+    /// the chain to the original caller (C's call-chain execution).
+    pub same_level: bool,
+    /// The command prefix to use in a `wrong # args` message instead of
+    /// `usage_called` (which still names the `info level` words). For a TclOO
+    /// method this is the invoking `obj method` (or a forward's rewritten
+    /// original invocation); `None` keeps `usage_called`.
+    pub usage_prefix: Option<Vec<u8>>,
+    /// The exact words to record for `info level N` of this frame, when they
+    /// differ from the default `usage_called` + supplied args. Set for a TclOO
+    /// constructor (the `create`/`new` invocation, e.g. `oo::object create foo`)
+    /// so `info level 0` reflects the instantiation, not `<constructor>`.
+    pub level_words: Option<Vec<Vec<u8>>>,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -122,6 +162,11 @@ struct CmdFrame {
     /// reported source line (the `line` key).
     cmd: Vec<u8>,
     line: u32,
+    /// TclOO method context for `info frame`: `(method-name, declarer-kind,
+    /// declarer-name)` where kind is `class`/`object`. Present for a method
+    /// body, where C reports `method`/`class`|`object` instead of `proc`.
+    /// `method-name` is empty for a constructor/destructor.
+    oo: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
 }
 
 /// A `CmdFrame`'s location type (`info frame`'s `type` key).
@@ -157,6 +202,7 @@ impl CmdFrame {
             line_base: 0,
             cmd: Vec::new(),
             line: 1,
+            oo: None,
         }
     }
 }
@@ -182,14 +228,19 @@ fn line_of(src: &[u8], offset: usize) -> u32 {
         .count() as u32
 }
 
+/// Count the newlines in `s` (the line delta between two source offsets).
+fn count_newlines(s: &[u8]) -> u32 {
+    s.iter().filter(|&&b| b == b'\n').count() as u32
+}
+
 /// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
 /// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
 /// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
 /// `MakeProcError`, `proc-call-and-stack-traces.md` §1.5), not at the throw, and
 /// published to the `::errorInfo`/`::errorCode` globals when the error is caught
 /// or reaches the outermost eval.
-#[derive(Default)]
-struct ExceptionState {
+#[derive(Default, Clone)]
+pub(crate) struct ExceptionState {
     /// The accumulating `errorInfo`. `None` until the first frame is appended
     /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
     /// from within` and seeds the buffer from the result message.
@@ -202,6 +253,51 @@ struct ExceptionState {
     /// `ERR_ALREADY_LOGGED`: the current command has already been logged deeper
     /// in the same script, so its enclosing command must not re-log it.
     already_logged: bool,
+}
+
+/// A coroutine's saved execution context: the per-flow interpreter state that
+/// is swapped in while the coroutine runs and swapped back out when it yields
+/// (`cmd_coro` / [`Interp::swap_coro_ctx`]). Shared definitions (namespaces,
+/// commands, classes, channels) are *not* here — coroutines share them.
+pub(crate) struct CoroContext {
+    frames: FrameStack,
+    cmd_frames: Vec<CmdFrame>,
+    current_ns: NsId,
+    recursion_depth: usize,
+    script_stack: Vec<Vec<u8>>,
+    return_code: Code,
+    return_level: usize,
+    exc: ExceptionState,
+    arg_lines: Vec<u32>,
+    eval_depth: usize,
+    oo: crate::cmd_oo::OoExec,
+}
+
+impl CoroContext {
+    /// A fresh context for a new coroutine: an empty call/`info frame` stack
+    /// running in `ns` (the namespace `coroutine` was invoked from, so the body
+    /// resolves commands there), with default return/error/OO state.
+    pub(crate) fn fresh(ns: NsId) -> CoroContext {
+        CoroContext {
+            frames: FrameStack::new(),
+            cmd_frames: Vec::new(),
+            current_ns: ns,
+            recursion_depth: 0,
+            script_stack: Vec::new(),
+            return_code: Code::Ok,
+            return_level: 1,
+            exc: ExceptionState::default(),
+            arg_lines: Vec::new(),
+            eval_depth: 0,
+            oo: crate::cmd_oo::OoExec::default(),
+        }
+    }
+
+    /// A throwaway context used only as a temporary placeholder while the real
+    /// one is swapped (immediately overwritten).
+    fn placeholder() -> CoroContext {
+        CoroContext::fresh(GLOBAL)
+    }
 }
 
 /// A registered command. `Builtin` and the `Alias` redirect today; `Proc {
@@ -285,6 +381,7 @@ pub struct Param {
 
 /// A compiled `proc` definition: its parameters, body script, and the namespace
 /// it was defined in (which becomes the current namespace while it runs).
+#[derive(Clone)]
 pub struct ProcDef {
     pub params: Vec<Param>,
     pub body: Vec<u8>,
@@ -394,12 +491,48 @@ pub struct InterpState {
     pub(crate) oo: RefCell<crate::cmd_oo::OoState>,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
     cmd_frames: RefCell<Vec<CmdFrame>>,
+    /// TIP 280 argument lines of the command currently being dispatched: each
+    /// word's file-absolute source line. A body-defining command reads its body
+    /// word's line to stamp the body's source provenance (so a method/proc body
+    /// reports file-relative `info frame` lines). Set per command just before
+    /// dispatch; consumers must read it before re-entering the eval loop.
+    arg_lines: RefCell<Vec<u32>>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
     /// accumulate.
     eval_depth: Cell<usize>,
+    /// Count of commands dispatched (`info cmdcount`).
+    cmd_count: Cell<u64>,
+    /// The `interp bgerror` handler command prefix (a Tcl list). Empty means the
+    /// default. A background error (e.g. a destructor failing during implicit
+    /// teardown) is reported to it: `{*}$handler $message $options`.
+    bgerror: RefCell<Vec<u8>>,
+    /// Queued background errors `(message, options)`, drained by `update` (Tcl
+    /// defers them to the event loop rather than firing at the error site).
+    bg_queue: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
+    /// The event loop's pending timer + idle events (`after`/`vwait`/`update`).
+    events: RefCell<crate::cmd_event::EventQueue>,
+    /// Live coroutines (`coroutine`/`yield`), keyed by command name. Each holds
+    /// the coroutine's saved execution context (swapped in/out on resume/yield)
+    /// and the handoff channels to its worker thread (`cmd_coro`).
+    coros: RefCell<std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>,
+    /// The active ensemble-rewrite, if any (C's `iPtr->ensembleRewrite`): the
+    /// original command words a forward / ensemble / constructor dispatch
+    /// replaced, so a downstream `wrong # args` can report the call as the user
+    /// wrote it. `removed` is how many leading words of `source` map to the
+    /// rewritten prefix. Set at the root dispatch, cleared when it returns.
+    ensemble_rewrite: RefCell<Option<EnsembleRewrite>>,
     result: Cell<*mut TclObj>,
+}
+
+/// An ensemble-rewrite record (see `InterpState::ensemble_rewrite`).
+#[derive(Clone)]
+pub(crate) struct EnsembleRewrite {
+    /// The original command words (e.g. `foo test 1 2 3`).
+    pub source: Vec<Vec<u8>>,
+    /// How many leading `source` words the rewritten prefix stands in for.
+    pub removed: usize,
 }
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -433,7 +566,14 @@ impl Interp {
             pending_delete: Cell::new(false),
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
+            arg_lines: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
+            cmd_count: Cell::new(0),
+            bgerror: RefCell::new(Vec::new()),
+            bg_queue: RefCell::new(Vec::new()),
+            events: RefCell::new(crate::cmd_event::EventQueue::default()),
+            coros: RefCell::new(std::collections::BTreeMap::new()),
+            ensemble_rewrite: RefCell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -464,9 +604,63 @@ impl Interp {
     /// `rename old new` (or `rename old ""` to delete), relative to the current
     /// namespace. Drives the one command table; see [`Namespaces::rename`].
     pub(crate) fn rename_command(&mut self, old: &[u8], new: &[u8]) -> RenameOutcome {
-        self.namespaces
+        // Command traces fire *before* the table mutation (C's TclRenameCommand:
+        // the command still exists under its old name during the callback), with
+        // the fully-qualified old and new names.
+        let old_fqn = self.resolve_cmd_fqn(old);
+        if let Some(of) = &old_fqn {
+            if !self.traces.borrow().cmd_traces.is_empty() {
+                if new.is_empty() {
+                    self.fire_cmd_trace(of, b"", crate::cmd_trace::ops::DELETE);
+                } else {
+                    let nf = self.fqn_for(new);
+                    self.fire_cmd_trace(of, &nf, crate::cmd_trace::ops::RENAME);
+                }
+            }
+        }
+        let existed = old_fqn.is_some();
+        // Deleting a suspended coroutine's command tears down its worker first.
+        if new.is_empty() {
+            if let Some(of) = &old_fqn {
+                crate::cmd_coro::on_command_deleted(self, of);
+            }
+        }
+        let raw = self
+            .namespaces
             .borrow_mut()
-            .rename(self.current_ns.get(), old, new)
+            .rename(self.current_ns.get(), old, new);
+        // A delete-trace callback may itself delete the command (e.g. by
+        // deleting the object's namespace). C captured the command token before
+        // the callback, so the deletion still succeeds — treat "existed at
+        // entry, gone now, `new` empty" as a normal delete (cleanup is
+        // idempotent) rather than reporting "command doesn't exist".
+        let outcome = if existed && matches!(raw, RenameOutcome::NoSuchCommand) && new.is_empty() {
+            RenameOutcome::Deleted
+        } else {
+            raw
+        };
+        if let Some(of) = old_fqn {
+            let oo_live = !self.oo_is_empty();
+            match outcome {
+                // The trace list (and any OO object) follows to the new name.
+                RenameOutcome::Renamed => {
+                    let nf = self.fqn_for(new);
+                    self.move_cmd_traces(&of, &nf);
+                    if oo_live {
+                        self.oo_command_renamed(&of, Some(&nf));
+                    }
+                }
+                // The command is gone; its traces and OO registry entry go too.
+                RenameOutcome::Deleted => {
+                    self.remove_cmd_traces(&of);
+                    if oo_live {
+                        self.oo_command_renamed(&of, None);
+                    }
+                }
+                RenameOutcome::NoSuchCommand => {}
+            }
+        }
+        outcome
     }
 
     /// Install an `interp alias` redirect named `name` → `target ?prefix...?`.
@@ -508,6 +702,8 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
+        // If `name` is a suspended coroutine, terminate its worker first.
+        crate::cmd_coro::on_command_deleted(self, name);
         self.namespaces
             .borrow_mut()
             .delete(self.current_ns.get(), name)
@@ -576,19 +772,62 @@ impl Interp {
             params,
             body,
             ns,
-            fqn,
+            fqn: fqn.clone(),
             source,
             body_line_base,
         });
+        // Redefining a command deletes the old one: fire its delete command
+        // traces and drop all its traces (C's Tcl_CreateObjCommand replacing an
+        // existing command). Keyed by the FQN we are about to bind.
+        self.on_command_replaced(&fqn);
         self.namespaces
             .borrow_mut()
             .bind(ns, &tail, Command::Proc(def));
+    }
+
+    /// A command at `fqn` is being replaced or deleted: fire its `delete`
+    /// command traces, then drop every command/execution trace on it (the
+    /// command — and its trace list — go away). No-op when it has no traces.
+    fn on_command_replaced(&mut self, fqn: &[u8]) {
+        if self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .all(|t| t.name != fqn)
+        {
+            return;
+        }
+        self.fire_cmd_trace(fqn, b"", crate::cmd_trace::ops::DELETE);
+        self.remove_cmd_traces(fqn);
     }
 
     /// The reported `line` of the command currently executing at the top of the
     /// `info frame` stack (for fixing a source-defined proc's body line base).
     fn current_cmd_line(&self) -> u32 {
         self.cmd_frames.borrow().last().map_or(1, |f| f.line)
+    }
+
+    /// The file-absolute source line of argument `idx` of the command currently
+    /// being dispatched (TIP 280); falls back to the command line. Read by a
+    /// body-defining command for its body word.
+    pub(crate) fn arg_line(&self, idx: usize) -> u32 {
+        let lines = self.arg_lines.borrow();
+        lines
+            .get(idx)
+            .copied()
+            .unwrap_or_else(|| self.current_cmd_line())
+    }
+
+    /// Snapshot / restore the current argument lines (TIP 280) — used when a
+    /// command re-dispatches a sub-slice of its own words (e.g. the
+    /// single-command `oo::define <target> <sub> …` form), so the dispatched
+    /// subcommand's body word is found at the right index.
+    pub(crate) fn arg_lines_snapshot(&self) -> Vec<u32> {
+        self.arg_lines.borrow().clone()
+    }
+    pub(crate) fn set_arg_lines(&self, lines: Vec<u32>) {
+        *self.arg_lines.borrow_mut() = lines;
     }
 
     /// Whether `name` resolves to an ensemble command (`namespace ensemble
@@ -610,6 +849,31 @@ impl Interp {
     /// The current namespace (the eval context) — for the `namespace` builtin.
     pub(crate) fn current_ns(&self) -> NsId {
         self.current_ns.get()
+    }
+
+    /// Begin an ensemble-rewrite (a forward / ensemble / constructor replacing
+    /// the original command words). Returns `true` if this is the *root* rewrite
+    /// (no rewrite was active) — the caller must `clear_ensemble_rewrite` when
+    /// its dispatch returns. A nested rewrite is ignored (the root's `source` is
+    /// what `wrong # args` reports), matching the common case of C's
+    /// `TclInitRewriteEnsemble` chaining.
+    pub(crate) fn begin_ensemble_rewrite(&self, source: Vec<Vec<u8>>, removed: usize) -> bool {
+        let mut rw = self.ensemble_rewrite.borrow_mut();
+        if rw.is_some() {
+            return false;
+        }
+        *rw = Some(EnsembleRewrite { source, removed });
+        true
+    }
+
+    /// Clear the active ensemble-rewrite (paired with a root `begin_…`).
+    pub(crate) fn clear_ensemble_rewrite(&self) {
+        *self.ensemble_rewrite.borrow_mut() = None;
+    }
+
+    /// The active ensemble-rewrite, if any.
+    pub(crate) fn ensemble_rewrite(&self) -> Option<EnsembleRewrite> {
+        self.ensemble_rewrite.borrow().clone()
     }
 
     /// The namespace tree (read) — for the `namespace` builtin's queries. The
@@ -744,6 +1008,33 @@ impl Interp {
             .unwrap_or_default()
     }
 
+    /// The file currently being sourced, as a shared handle (`None` at the top
+    /// level) — for stamping a definition/method body's source provenance.
+    pub(crate) fn current_source_file(&self) -> Option<Rc<[u8]>> {
+        self.script_stack
+            .borrow()
+            .last()
+            .map(|f| Rc::from(f.as_slice()))
+    }
+
+    /// Evaluate a TclOO definition body. With `src = Some((file, line_base))`
+    /// (the body was defined while sourcing a file) it runs in a `type source`
+    /// frame, so its commands — and the method bodies they define — report
+    /// file-absolute `info frame` lines (TIP 280). Otherwise it runs inline.
+    pub(crate) fn eval_def_body(&mut self, body: &[u8], src: Option<(Rc<[u8]>, u32)>) -> Code {
+        match src {
+            Some((file, line_base)) => {
+                let mut frame = self.inherited_cmd_frame();
+                frame.kind = FrameKind::Source;
+                frame.file = Some(file);
+                frame.line_base = line_base;
+                frame.oo = None;
+                self.eval_framed(body, frame)
+            }
+            None => self.eval_str(body),
+        }
+    }
+
     /// `uplevel`: evaluate `script` in the variable scope **and** namespace of
     /// frame `target_level` (the Zig oracle's "restore caller ns + frame depth
     /// together" discovery), then restore. Transparent — the body's completion
@@ -828,18 +1119,23 @@ impl Interp {
 
     /// `set name value` — the cell takes a **+1** on `obj`.
     pub(crate) fn var_set(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
-        let r = crate::vars::set(
+        crate::vars::set(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
             obj,
-        );
-        if r.is_ok() && !self.traces.borrow().traces.is_empty() {
+        )?;
+        if !self.traces.borrow().traces.is_empty() {
             let (base, elem) = crate::frame::split_array_ref(name);
-            self.fire_var_trace(&base, elem.as_deref(), b"write");
+            if self.fire_var_trace(&base, elem.as_deref(), b"write") {
+                // A write trace errored: the value is set, but the command
+                // fails (C's TclObjCallVarTraces). `var_error` wraps the
+                // message from `pending_err` as `can't set "name": <msg>`.
+                return Err(VarError::TraceError);
+            }
         }
-        r
+        Ok(())
     }
 
     /// `set name(key) value`.
@@ -849,29 +1145,103 @@ impl Interp {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
-        let r = crate::vars::set_elem(
+        crate::vars::set_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
             key,
             obj,
-        );
-        if r.is_ok() && !self.traces.borrow().traces.is_empty() {
-            self.fire_var_trace(name, Some(key), b"write");
+        )?;
+        if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(name, Some(key), b"write")
+        {
+            return Err(VarError::TraceError);
         }
-        r
+        Ok(())
+    }
+
+    /// The call-frame level a variable trace on `base` should be tied to, so it
+    /// dies with the frame (C frees a local var's trace list at frame teardown).
+    /// `Some(level)` for an unqualified name resolving frame-local in a proc;
+    /// `None` (persistent) for qualified / global / `global`-or-`upvar`-linked
+    /// names, which outlive the frame.
+    /// The home namespace a variable trace on `base` is scoped to — `Some(ns)`
+    /// for a trace on a namespace variable (registered at namespace/global scope,
+    /// or a qualified name), so it fires only for that namespace's variable and
+    /// dies with the namespace; `None` for a proc-local trace, which matches by
+    /// raw name. Used at both trace-add and trace-fire time so they agree.
+    /// The fully-qualified name `name` (resolved from namespace `base_ns`,
+    /// following links) ultimately points at — for the `varname` object method.
+    pub(crate) fn resolved_var_full_name(&self, base_ns: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        crate::vars::resolved_full_name(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            base_ns,
+            name,
+        )
+    }
+
+    pub(crate) fn trace_var_ns(&self, base: &[u8]) -> Option<NsId> {
+        crate::vars::home_namespace(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            base,
+        )
+    }
+
+    pub(crate) fn local_trace_level(&self, base: &[u8]) -> Option<usize> {
+        if tcl_syntax::naming::is_qualified(base) {
+            return None;
+        }
+        let frames = self.frames.borrow();
+        let level = frames.current_level();
+        if level == 0 || !frames.in_proc() || frames.current_is_link(base) {
+            return None;
+        }
+        Some(level)
+    }
+
+    /// Drop every variable trace tied to call-frame `level` (the frame is being
+    /// popped; its local variables and their traces go away).
+    pub(crate) fn clear_frame_var_traces(&self, level: usize) {
+        let mut t = self.traces.borrow_mut();
+        if t.traces.iter().any(|v| v.frame_level == Some(level)) {
+            t.traces.retain(|v| v.frame_level != Some(level));
+        }
     }
 
     /// Fire a read trace for `name` before a read (the `&mut` chokepoints that
-    /// resolve `$var` call this).
-    pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) {
+    /// resolve `$var` call this). Returns `Some(Code::Error)` — with the interp
+    /// result set to `can't read "name": <msg>` — if a read trace callback
+    /// errored (C's `TclObjCallVarTraces` propagation); else `None`.
+    pub(crate) fn fire_read_trace(&mut self, name: &[u8], key: Option<&[u8]>) -> Option<Code> {
         if self.traces.borrow().traces.is_empty() {
-            return;
+            return None;
         }
         let (base, elem) = crate::frame::split_array_ref(name);
         let key = key.or(elem.as_deref());
-        self.fire_var_trace(&base, key, b"read");
+        if !self.fire_var_trace(&base, key, b"read") {
+            return None;
+        }
+        let msg = self
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        // Display name: `base` or `base(key)`.
+        let mut display = base.clone();
+        if let Some(k) = key {
+            display.push(b'(');
+            display.extend_from_slice(k);
+            display.push(b')');
+        }
+        let mut m = b"can't read \"".to_vec();
+        m.extend_from_slice(&display);
+        m.extend_from_slice(b"\": ");
+        m.extend_from_slice(&msg);
+        Some(self.set_error(&m))
     }
 
     /// `unset name` — returns whether it existed.
@@ -885,6 +1255,16 @@ impl Interp {
         if existed && !self.traces.borrow().traces.is_empty() {
             let (base, elem) = crate::frame::split_array_ref(name);
             self.fire_var_trace(&base, elem.as_deref(), b"unset");
+            // The variable (and its traces) go away — drop every trace on it
+            // (C frees the Var's trace list on unset). Element unset drops only
+            // that element's traces (whole-variable traces survive).
+            let mut t = self.traces.borrow_mut();
+            match elem {
+                Some(e) => t
+                    .traces
+                    .retain(|v| !(v.base == base && v.elem.as_deref() == Some(e.as_slice()))),
+                None => t.traces.retain(|v| v.base != base),
+            }
         }
         existed
     }
@@ -900,34 +1280,46 @@ impl Interp {
         );
         if existed && !self.traces.borrow().traces.is_empty() {
             self.fire_var_trace(name, Some(key), b"unset");
+            // Drop this element's traces (whole-array traces survive).
+            self.traces
+                .borrow_mut()
+                .traces
+                .retain(|v| !(v.base == name && v.elem.as_deref() == Some(key)));
         }
         existed
     }
 
     /// Invoke every variable trace matching `(base, elem, op)`, as
     /// `command base element op`. Re-entrant firing is suppressed (the `firing`
-    /// guard) and callback errors are swallowed; the interp result is preserved
-    /// across the callbacks (the triggering operation owns the result).
-    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) {
+    /// guard); the interp result is preserved across the callbacks (the
+    /// triggering operation owns the result). For `read`/`write` ops a callback
+    /// error is **propagated**: the message is stashed in `pending_err` and the
+    /// function returns `true` (the access then fails; C's `TclCallVarTraces`).
+    /// `unset`/`array` errors are ignored (C does too). Returns whether a
+    /// read/write callback errored.
+    fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
         if self.traces.borrow().firing > 0 {
-            return;
+            return false;
         }
+        let access_ns = self.trace_var_ns(base);
         let cmds: Vec<Vec<u8>> = self
             .traces
             .borrow()
             .traces
             .iter()
-            .filter(|t| crate::cmd_trace::matches(t, base, elem, op))
+            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns))
             .map(|t| t.command.clone())
             .collect();
         if cmds.is_empty() {
-            return;
+            return false;
         }
+        let propagate = op == b"read" || op == b"write";
         // Preserve the result object across the callbacks.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
         self.traces.borrow_mut().firing += 1;
+        let mut errored = false;
         for cmd in cmds {
             // Append `base element op` as properly-quoted trailing words.
             let args = crate::list::new_list_obj(&[
@@ -939,7 +1331,15 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            let _ = self.eval_str(&line);
+            let code = self.eval_str(&line);
+            if propagate && code == Code::Error {
+                // Capture the callback's error message; stop firing (C aborts
+                // the trace chain on the first error).
+                let msg = self.result_bytes();
+                self.traces.borrow_mut().pending_err = Some(msg);
+                errored = true;
+                break;
+            }
         }
         self.traces.borrow_mut().firing -= 1;
 
@@ -948,6 +1348,193 @@ impl Interp {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
+        errored
+    }
+
+    /// Fire matching command traces (`rename`/`delete`) as `command oldName
+    /// newName op` (C's `TraceCommandProc`). `new_fqn` is empty for a delete.
+    /// Callback errors are **ignored** (C: "We ignore errors in these traced
+    /// commands"). Re-entrant firing is suppressed (`exec_firing`); the interp
+    /// result is preserved across the callbacks.
+    fn fire_cmd_trace(&mut self, old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
+        if self.traces.borrow().exec_firing > 0 {
+            return;
+        }
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return;
+        }
+        let op: &[u8] = if op_bit == crate::cmd_trace::ops::RENAME {
+            b"rename"
+        } else {
+            b"delete"
+        };
+        // Preserve the result object across the callbacks.
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+
+        self.traces.borrow_mut().exec_firing += 1;
+        for cmd in cmds {
+            // Append `oldName newName op` as properly-quoted list elements.
+            let args = crate::list::new_list_obj(&[
+                new_string(old_fqn),
+                new_string(new_fqn),
+                new_string(op),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+
+        unsafe {
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
+        }
+    }
+
+    /// Fire `enter` execution traces on `fqn` (creation order), invoking each as
+    /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
+    /// non-OK — the command is then aborted with that code and the callback's
+    /// result (C's `TclEvalObjvInternal`: `traceCode != TCL_OK ⇒ return`).
+    fn fire_exec_enter(&mut self, fqn: &[u8], cmd_word: &[u8]) -> Option<Code> {
+        use crate::cmd_trace::ops;
+        // C fires `enter` newest-first (the trace list is prepended; the loop
+        // walks it head→tail). Our Vec pushes newest-last, so iterate reversed.
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .rev()
+            .filter(|t| t.name == fqn && (t.ops & ops::ENTER) != 0)
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return None;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        self.traces.borrow_mut().exec_firing += 1;
+        let mut abort: Option<Code> = None;
+        for cmd in cmds {
+            let args = crate::list::new_list_obj(&[new_string(cmd_word), new_string(b"enter")]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let c = self.eval_str(&line);
+            if c != Code::Ok {
+                // The callback's result becomes the command's result; abort.
+                abort = Some(c);
+                break;
+            }
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+        if abort.is_some() {
+            // Drop the preserved result; the callback's result stands.
+            unsafe { obj::decr_ref_count(saved) };
+        } else {
+            unsafe {
+                obj::decr_ref_count(self.result.get());
+                self.result.set(saved);
+            }
+        }
+        abort
+    }
+
+    /// Fire `leave` execution traces on `fqn` (reverse creation order), invoking
+    /// each as `<prefix> {cmd args} <code> <result> leave`. A leave-trace non-OK
+    /// code overrides the command's result/code (C's `TEOV_RunLeaveTraces`).
+    fn fire_exec_leave(&mut self, fqn: &[u8], cmd_word: &[u8], code: Code) -> Code {
+        use crate::cmd_trace::ops;
+        // C fires `leave` oldest-first (reverse-scan of the prepended list). Our
+        // Vec pushes newest-last, so iterate forward.
+        let cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .cmd_traces
+            .iter()
+            .filter(|t| t.name == fqn && (t.ops & ops::LEAVE) != 0)
+            .map(|t| t.command.clone())
+            .collect();
+        if cmds.is_empty() {
+            return code;
+        }
+        // Save the command's result once; restore it after the callbacks (C's
+        // single Tcl_SaveInterpState/RestoreInterpState around the loop). The
+        // result is NOT restored *between* callbacks: each leave callback's
+        // `<result>` element is the live result, so a callback that changes the
+        // result is observed by the next one.
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        let code_str = code.as_int().to_string().into_bytes();
+
+        self.traces.borrow_mut().exec_firing += 1;
+        let mut override_code: Option<Code> = None;
+        for cmd in cmds {
+            let result_bytes = obj_bytes(self.result.get());
+            let args = crate::list::new_list_obj(&[
+                new_string(cmd_word),
+                new_string(&code_str),
+                new_string(&result_bytes),
+                new_string(b"leave"),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let c = self.eval_str(&line);
+            if c != Code::Ok {
+                override_code = Some(c);
+                break;
+            }
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+
+        match override_code {
+            // A leave-trace error/return overrides; the callback's result stands.
+            Some(c) => {
+                unsafe { obj::decr_ref_count(saved) };
+                c
+            }
+            // Restore the command's own result and code.
+            None => {
+                unsafe {
+                    obj::decr_ref_count(self.result.get());
+                    self.result.set(saved);
+                }
+                code
+            }
+        }
+    }
+
+    /// Move every command/execution trace on `old_fqn` to `new_fqn` (the trace
+    /// follows a renamed command, as C keeps the trace list on the moving
+    /// `Command`).
+    fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+        for t in self.traces.borrow_mut().cmd_traces.iter_mut() {
+            if t.name == old_fqn {
+                t.name = new_fqn.to_vec();
+            }
+        }
+    }
+
+    /// Drop every command/execution trace on `fqn` (the command is gone).
+    fn remove_cmd_traces(&mut self, fqn: &[u8]) {
+        self.traces
+            .borrow_mut()
+            .cmd_traces
+            .retain(|t| t.name != fqn);
     }
 
     /// Whether `name` resolves to an array variable (`set a` array-vs-scalar
@@ -994,12 +1581,125 @@ impl Interp {
         );
     }
 
+    /// Link local name `local` to `target_ns::target` (TIP 500 private instance
+    /// variables, whose storage name is mangled per declaring class).
+    pub(crate) fn make_variable_mapped(&mut self, target_ns: NsId, local: &[u8], target: &[u8]) {
+        crate::vars::make_variable_mapped(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            target_ns,
+            local,
+            target,
+        );
+    }
+
+    /// The fully-qualified name of an existing namespace `name` (absolute or
+    /// relative to the current namespace), or `None` if it does not exist —
+    /// for `definitionnamespace`, which requires the namespace to exist.
+    pub(crate) fn resolve_namespace_name(&self, name: &[u8]) -> Option<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let id = ns.find_namespace(self.current_ns.get(), name)?;
+        Some(ns.qualified_name(id))
+    }
+
     /// Resolve (creating if needed) a namespace by name, relative to the current
     /// namespace — for `apply`'s optional namespace term.
     pub(crate) fn ensure_namespace(&mut self, name: &[u8]) -> NsId {
         self.namespaces
             .borrow_mut()
             .ensure_namespace(self.current_ns.get(), name)
+    }
+
+    /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
+    /// when the object is destroyed.
+    pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        // Variables in the namespace (and its descendants) are about to be
+        // unset; fire their unset traces. Names are built while the namespace
+        // still exists, then the namespace is torn down, then the callbacks run
+        // — so a callback sees the namespace already gone (C's order; oo-11.8).
+        let victims = self.take_ns_unset_traces(ns);
+        self.namespaces.borrow_mut().delete_namespace_by_id(ns);
+        self.fire_unset_callbacks(victims);
+    }
+
+    /// Remove and return the `(fullName, command)` of every *unset* variable
+    /// trace registered on a namespace variable in `ns` or a descendant (so it
+    /// can be fired as the namespace is deleted).
+    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+        if self.traces.borrow().traces.iter().all(|t| t.ns.is_none()) {
+            return Vec::new();
+        }
+        let ids: std::collections::HashSet<NsId> = self
+            .namespaces
+            .borrow()
+            .descendant_ids(ns)
+            .into_iter()
+            .collect();
+        let mut victims = Vec::new();
+        let mut traces = self.traces.borrow_mut();
+        let ns_ref = self.namespaces.borrow();
+        traces.traces.retain(|t| {
+            let hit =
+                t.ns.is_some_and(|n| ids.contains(&n) && t.ops.iter().any(|o| o == b"unset"));
+            if hit {
+                let home = t.ns.unwrap();
+                let mut fqn = ns_ref.qualified_name(home);
+                if fqn != b"::" {
+                    fqn.extend_from_slice(b"::");
+                }
+                // `base` may be qualified (registered as `::n::x`); use its
+                // simple tail under the home namespace.
+                let simple = match t.base.windows(2).rposition(|w| w == b"::") {
+                    Some(i) => &t.base[i + 2..],
+                    None => &t.base[..],
+                };
+                fqn.extend_from_slice(simple);
+                if let Some(e) = &t.elem {
+                    fqn.push(b'(');
+                    fqn.extend_from_slice(e);
+                    fqn.push(b')');
+                }
+                victims.push((fqn, t.command.clone()));
+            }
+            !hit
+        });
+        victims
+    }
+
+    /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
+    /// are ignored (an unset trace's result is discarded, as in C).
+    fn fire_unset_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+        if victims.is_empty() || self.traces.borrow().firing > 0 {
+            return;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        self.traces.borrow_mut().firing += 1;
+        for (name, cmd) in victims {
+            let args = crate::list::new_list_obj(&[
+                new_string(&name),
+                new_string(b""),
+                new_string(b"unset"),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.borrow_mut().firing -= 1;
+        unsafe {
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
+        }
+    }
+
+    /// Resolve a (relative/absolute) namespace name to its id, or `None`.
+    pub(crate) fn find_namespace_id(&self, name: &[u8]) -> Option<NsId> {
+        self.namespaces
+            .borrow()
+            .find_namespace(self.current_ns.get(), name)
     }
 
     // -- introspection (`info` / `array`) -------------------------------------
@@ -1060,9 +1760,10 @@ impl Interp {
         }
     }
 
-    /// `info locals` — the active frame's local variable names.
+    /// `info locals` — the active frame's local variable names (links such as
+    /// `global`/`variable`/`upvar` and auto-linked instance vars are excluded).
     pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
-        self.frames.borrow().local_names()
+        self.frames.borrow().local_names_no_links()
     }
 
     /// `info globals` — the global namespace's variable names.
@@ -1082,6 +1783,46 @@ impl Interp {
         v.sort();
         v.dedup();
         v
+    }
+
+    /// Simple command names in the namespace named `qualifier` (absolute or
+    /// relative to the current namespace), or empty if it does not exist — for
+    /// a namespace-qualified `info commands ::ns::pattern`.
+    pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        // An empty qualifier (a leading `::pattern`) addresses the global ns.
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v: Vec<Vec<u8>> = ns.command_names(id).iter().map(|s| s.to_vec()).collect();
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
+    /// Simple proc names in the namespace named `qualifier` (`info procs
+    /// ::ns::pattern`), or empty if it does not exist.
+    pub(crate) fn procs_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.proc_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
     }
 
     /// Proc names visible from the current namespace (`info procs`).
@@ -1194,6 +1935,162 @@ impl Interp {
         Code::Error
     }
 
+    /// Like [`error`](Self::error) but with an explicit `-errorcode` (the trace
+    /// still builds up as the error unwinds). For commands that mirror C's
+    /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
+    pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
+        self.set_result_bytes(msg);
+        *self.exc.borrow_mut() = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            line: 1,
+            already_logged: false,
+        };
+        Code::Error
+    }
+
+    /// The `interp bgerror` handler command prefix (empty ⇒ default).
+    pub(crate) fn bgerror_handler(&self) -> Vec<u8> {
+        self.bgerror.borrow().clone()
+    }
+
+    /// Set the `interp bgerror` handler command prefix.
+    pub(crate) fn set_bgerror_handler(&self, prefix: &[u8]) {
+        *self.bgerror.borrow_mut() = prefix.to_vec();
+    }
+
+    /// Queue a background error (a destructor failing during implicit teardown,
+    /// etc.) for later processing by `update` — Tcl defers it to the event loop
+    /// rather than firing at the error site.
+    pub(crate) fn report_bg_error(&mut self, msg: &[u8], options: &[u8]) {
+        self.bg_queue
+            .borrow_mut()
+            .push((msg.to_vec(), options.to_vec()));
+    }
+
+    /// Mutable access to the event loop's pending-event queue (`after`/`vwait`/
+    /// `update`, in `cmd_event`). Callers must drop the borrow before evaluating
+    /// an event script.
+    pub(crate) fn events_mut(&self) -> std::cell::RefMut<'_, crate::cmd_event::EventQueue> {
+        self.events.borrow_mut()
+    }
+
+    /// Mutable access to the live-coroutine registry (`cmd_coro`). Callers must
+    /// drop the borrow before blocking on a coroutine handoff (the worker thread
+    /// reaches the same registry to swap its context).
+    pub(crate) fn coros_mut(
+        &self,
+    ) -> std::cell::RefMut<'_, std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>
+    {
+        self.coros.borrow_mut()
+    }
+
+    /// Swap the interp's per-flow *execution context* (call frames, the
+    /// `info frame` stack, current namespace, recursion depth, return/error
+    /// state, the TclOO call/define stacks, …) with `ctx`. This is how a
+    /// coroutine handoff installs the resuming side's context: a single swap is
+    /// its own inverse, so resume (caller→coro) and yield (coro→caller) each
+    /// call it once. The shared *definitions* (namespaces, commands, classes,
+    /// channels, the result object) are not swapped — coroutines share them.
+    pub(crate) fn swap_coro_ctx(&self, ctx: &mut CoroContext) {
+        {
+            let mut f = self.frames.borrow_mut();
+            std::mem::swap(&mut *f, &mut ctx.frames);
+        }
+        std::mem::swap(&mut *self.cmd_frames.borrow_mut(), &mut ctx.cmd_frames);
+        std::mem::swap(&mut *self.script_stack.borrow_mut(), &mut ctx.script_stack);
+        std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
+        std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
+        self.oo.borrow_mut().swap_exec(&mut ctx.oo);
+        let ns = self.current_ns.replace(ctx.current_ns);
+        ctx.current_ns = ns;
+        let rd = self.recursion_depth.replace(ctx.recursion_depth);
+        ctx.recursion_depth = rd;
+        let rc = self.return_code.replace(ctx.return_code);
+        ctx.return_code = rc;
+        let rl = self.return_level.replace(ctx.return_level);
+        ctx.return_level = rl;
+        let ed = self.eval_depth.replace(ctx.eval_depth);
+        ctx.eval_depth = ed;
+    }
+
+    /// Swap the execution context of the coroutine named `name` with the live
+    /// interpreter context (the resume/yield handoff in `cmd_coro`). A no-op if
+    /// the coroutine is gone. The registry borrow is released before any
+    /// blocking handoff.
+    pub(crate) fn coro_swap_named(&self, name: &[u8]) {
+        // Take the context out (releasing the registry borrow), swap, put back —
+        // so `swap_coro_ctx`'s RefCell touches never overlap the registry borrow.
+        let taken = self
+            .coros
+            .borrow_mut()
+            .get_mut(name)
+            .map(|e| std::mem::replace(&mut e.context, CoroContext::placeholder()));
+        if let Some(mut ctx) = taken {
+            self.swap_coro_ctx(&mut ctx);
+            if let Some(e) = self.coros.borrow_mut().get_mut(name) {
+                e.context = ctx;
+            }
+        }
+    }
+
+    /// A second owning handle to the same interpreter state (an `Rc` clone) —
+    /// handed to a coroutine worker thread (`cmd_coro`).
+    pub(crate) fn clone_handle(&self) -> Interp {
+        Interp(Rc::clone(&self.0))
+    }
+
+    /// Whether `name` resolves to a command in the current namespace.
+    pub(crate) fn command_exists(&self, name: &[u8]) -> bool {
+        self.namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)
+            .is_some()
+    }
+
+    /// Register coroutine command `name` (its invocation resumes it).
+    pub(crate) fn register_coroutine_command(&mut self, name: &[u8]) {
+        self.ns_register(name, Command::Builtin(crate::cmd_coro::coro_resume_command));
+    }
+
+    /// Process queued background errors (called by `update`): invoke the
+    /// `interp bgerror` handler as `{*}$handler $msg $options` for each. With no
+    /// handler set they are dropped. The caller's result is preserved.
+    pub(crate) fn process_bg_errors(&mut self) {
+        // Drain in FIFO order; processing one may queue more.
+        while !self.bg_queue.borrow().is_empty() {
+            let batch: Vec<(Vec<u8>, Vec<u8>)> = std::mem::take(&mut self.bg_queue.borrow_mut());
+            for (msg, options) in batch {
+                let handler = self.bgerror_handler();
+                if handler.is_empty() {
+                    continue;
+                }
+                let saved = self.result_bytes();
+                let hobj = obj::new_string_bytes(&handler);
+                unsafe { obj::incr_ref_count(hobj) };
+                let words = crate::list::list_elements(hobj).unwrap_or_default();
+                let mut argv: Vec<*mut TclObj> = Vec::with_capacity(words.len() + 2);
+                for w in words {
+                    unsafe { obj::incr_ref_count(w) };
+                    argv.push(w);
+                }
+                for s in [&msg, &options] {
+                    let o = obj::new_string_bytes(s);
+                    unsafe { obj::incr_ref_count(o) };
+                    argv.push(o);
+                }
+                if !argv.is_empty() {
+                    let _ = self.dispatch(&argv);
+                }
+                for a in &argv {
+                    unsafe { obj::decr_ref_count(*a) };
+                }
+                unsafe { obj::decr_ref_count(hobj) };
+                self.set_result_bytes(&saved);
+            }
+        }
+    }
+
     /// Pre-seed the error trace for `error msg info ?code?` / `throw`: the result
     /// is `msg`, the trace starts at `info` (so the throwing command is **not**
     /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns
@@ -1280,20 +2177,47 @@ impl Interp {
     fn make_proc_error(&mut self, frame: ProcFrame) {
         // `(procedure "NAME" line N)` / `(lambda term "NAME" line N)` — the name
         // quoted, truncated to 60 bytes (`...` on overflow).
-        let (kind, name): (&[u8], &[u8]) = match frame {
-            ProcFrame::Proc(n) => (b"procedure", n),
-            ProcFrame::Lambda(n) => (b"lambda term", n),
-        };
-        let overflow = name.len() > 60;
-        let trunc = if overflow { &name[..60] } else { name };
-        let mut inner = Vec::with_capacity(kind.len() + trunc.len() + 8);
-        inner.extend_from_slice(kind);
-        inner.extend_from_slice(b" \"");
-        inner.extend_from_slice(trunc);
-        if overflow {
-            inner.extend_from_slice(b"...");
+        // Append a name quoted and truncated to 60 bytes (`...` on overflow),
+        // C's ELLIPSIFY.
+        fn push_ellipsified(out: &mut Vec<u8>, name: &[u8]) {
+            let overflow = name.len() > 60;
+            out.push(b'"');
+            out.extend_from_slice(if overflow { &name[..60] } else { name });
+            if overflow {
+                out.extend_from_slice(b"...");
+            }
+            out.push(b'"');
         }
-        inner.push(b'"');
+        let inner = match frame {
+            ProcFrame::Proc(n) | ProcFrame::Lambda(n) => {
+                let kind: &[u8] = if matches!(frame, ProcFrame::Lambda(_)) {
+                    b"lambda term"
+                } else {
+                    b"procedure"
+                };
+                let mut inner = Vec::with_capacity(kind.len() + n.len() + 8);
+                inner.extend_from_slice(kind);
+                inner.push(b' ');
+                push_ellipsified(&mut inner, n);
+                inner
+            }
+            ProcFrame::Method { kind, owner, what } => {
+                // `KIND "OWNER" method "NAME"` / `KIND "OWNER" constructor`.
+                let mut inner = Vec::new();
+                inner.extend_from_slice(kind);
+                inner.push(b' ');
+                push_ellipsified(&mut inner, owner);
+                match what {
+                    MethodFrameWhat::Named(name) => {
+                        inner.extend_from_slice(b" method ");
+                        push_ellipsified(&mut inner, name);
+                    }
+                    MethodFrameWhat::Constructor => inner.extend_from_slice(b" constructor"),
+                    MethodFrameWhat::Destructor => inner.extend_from_slice(b" destructor"),
+                }
+                inner
+            }
+        };
         self.append_frame_line(&inner);
         self.exc.borrow_mut().already_logged = false;
     }
@@ -1317,7 +2241,14 @@ impl Interp {
     /// <N>)"` to `errorInfo` (seeding it from the result message if no frame has
     /// been logged yet), where `inner` is the caller-built body — e.g.
     /// `procedure "p"`, `lambda term "..."`, or `"eval" body`.
-    fn append_frame_line(&mut self, inner: &[u8]) {
+    /// Clear `already_logged` after adding a frame at a real frame boundary
+    /// (e.g. an OO definition script), so the enclosing command logs its own
+    /// `invoked from within` frame.
+    pub(crate) fn clear_error_logged(&self) {
+        self.exc.borrow_mut().already_logged = false;
+    }
+
+    pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
         let line = self.exc.borrow().line;
         if self.exc.borrow().info.is_none() {
             let msg = self.result_bytes();
@@ -1365,7 +2296,14 @@ impl Interp {
             pairs.push((b"file".to_vec(), file.to_vec()));
         }
         pairs.push((b"cmd".to_vec(), f.cmd.clone()));
-        if let Some(p) = &f.proc {
+        // A TclOO method frame reports `method`/`class`|`object` (the declarer)
+        // in place of `proc` (C's `TclInfoFrame`).
+        if let Some((method, kind, owner)) = &f.oo {
+            if !method.is_empty() {
+                pairs.push((b"method".to_vec(), method.clone()));
+            }
+            pairs.push((kind.clone(), owner.clone()));
+        } else if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
         // `level` is the distance from the current call level (omitted for a
@@ -1375,6 +2313,20 @@ impl Interp {
             pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
         }
         Some(pairs)
+    }
+
+    /// Snapshot the current error/result state (the result bytes + the
+    /// `errorInfo`/`errorCode` accumulator) so a side-effecting cleanup (e.g.
+    /// running a destructor after a failed constructor) can run and then have
+    /// the original error restored.
+    pub(crate) fn error_snapshot(&self) -> (Vec<u8>, ExceptionState) {
+        (self.result_bytes(), self.exc.borrow().clone())
+    }
+
+    /// Restore a previously taken [`error_snapshot`](Self::error_snapshot).
+    pub(crate) fn error_restore(&mut self, snap: (Vec<u8>, ExceptionState)) {
+        self.set_result_bytes(&snap.0);
+        *self.exc.borrow_mut() = snap.1;
     }
 
     /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,
@@ -1468,6 +2420,12 @@ impl Interp {
         if self.eval_depth.get() == 0 && last == Code::Error {
             self.publish_error();
         }
+        // Between top-level commands, drain any queued background errors with the
+        // current handler — the event loop's behaviour, so errors from one
+        // command don't leak into a later command's intercepted handler.
+        if self.eval_depth.get() == 0 && !self.bg_queue.borrow().is_empty() {
+            self.process_bg_errors();
+        }
         last
     }
 
@@ -1491,6 +2449,7 @@ impl Interp {
             line_base,
             cmd: Vec::new(),
             line: 1,
+            oo: top.and_then(|f| f.oo.clone()),
         }
     }
 
@@ -1520,7 +2479,7 @@ impl Interp {
             }
             top.cmd = src[cmd.start..cmd.end].to_vec();
         }
-        let code = self.eval_words(&cmd.words);
+        let code = self.eval_words(src, &cmd.words);
         if code == Code::Error {
             self.log_command_info(src, cmd);
         }
@@ -1528,7 +2487,7 @@ impl Interp {
     }
 
     /// Substitute each word of a command (with `{*}` expansion), then dispatch.
-    fn eval_words(&mut self, words: &[parse::Word]) -> Code {
+    fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
         let mut argv: Vec<*mut TclObj> = Vec::new();
         for w in words {
             let obj = match self.substitute_word(&w.body) {
@@ -1564,6 +2523,21 @@ impl Interp {
             return Code::Ok;
         }
 
+        // TIP 280 argument lines: each word's file-absolute source line, for a
+        // body-defining command (`proc`/`method`/`oo::define`/…) to stamp its
+        // body so `info frame` reports file-relative lines even when the body
+        // begins on a later line than the command. Computed relative to the
+        // command's already-set line (cheap), and aligned with `words` (the
+        // body-definers do not use `{*}`, so word index == argv index). Set
+        // *after* substitution so a nested `[cmd]` cannot clobber it.
+        let cmd_line = self.cmd_frames.borrow().last().map_or(0, |f| f.line);
+        let w0 = words.first().map_or(0, |w| w.start);
+        let arg_lines: Vec<u32> = words
+            .iter()
+            .map(|w| cmd_line + count_newlines(&src[w0..w.start.min(src.len())]))
+            .collect();
+        *self.arg_lines.borrow_mut() = arg_lines;
+
         let code = self.dispatch(&argv);
         // Safe to release argv now: a command that made an argv element its
         // result did so via set_obj_result, which holds an independent +1.
@@ -1575,6 +2549,197 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        self.cmd_count.set(self.cmd_count.get() + 1);
+        // Fast path: no command/execution traces, or we're already inside a
+        // trace callback (C's INTERP_TRACE_IN_PROGRESS) — original dispatch.
+        let traced = {
+            let t = self.traces.borrow();
+            !t.cmd_traces.is_empty() && t.exec_firing == 0
+        };
+        if !traced {
+            return self.dispatch_inner(argv);
+        }
+        self.dispatch_traced(argv)
+    }
+
+    /// Slow path: the command may carry execution (enter/leave/step) traces, or
+    /// a step trace is active. Mirrors C's `TclEvalObjvInternal` order: interp
+    /// (step) enter traces fire before per-command enter; per-command leave
+    /// fires before interp (step) leave.
+    fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
+        use crate::cmd_trace::ops;
+        let name = obj_bytes(argv[0]);
+        let fqn = self.resolve_cmd_fqn(&name);
+        let (has_enter, has_leave, has_step) = match &fqn {
+            Some(f) => {
+                let t = self.traces.borrow();
+                let (mut he, mut hl, mut hs) = (false, false, false);
+                for tr in t.cmd_traces.iter().filter(|tr| tr.name == *f) {
+                    he |= (tr.ops & ops::ENTER) != 0;
+                    hl |= (tr.ops & ops::LEAVE) != 0;
+                    hs |= (tr.ops & ops::STEP_ANY) != 0;
+                }
+                (he, hl, hs)
+            }
+            None => (false, false, false),
+        };
+        let stepping = !self.traces.borrow().step_active.is_empty();
+        if !has_enter && !has_leave && !has_step && !stepping {
+            return self.dispatch_inner(argv);
+        }
+        // The `{cmd arg ...}` word: argv rendered as a single list element (C's
+        // `TraceExecutionProc` builds it via per-arg `DStringAppendElement`).
+        let cmd_word = {
+            let lst = crate::list::new_list_obj(argv);
+            let bytes = obj_bytes(lst);
+            drop_fresh(lst);
+            bytes
+        };
+        // (A) enterstep for active step traces (interp traces fire on enter
+        // before per-command enter); a non-OK enterstep aborts the command.
+        if stepping {
+            if let Some(c) = self.fire_step(&cmd_word, ops::ENTERSTEP, None) {
+                return c;
+            }
+        }
+        // (B) per-command enter; a non-OK enter aborts with the callback result.
+        if has_enter {
+            if let Some(c) = self.fire_exec_enter(fqn.as_deref().unwrap(), &cmd_word) {
+                return c;
+            }
+        }
+        // (C) install this command's step traces (deduped against recursion).
+        let installed = if has_step {
+            self.install_step_traces(fqn.as_deref().unwrap())
+        } else {
+            0
+        };
+        let mut code = self.dispatch_inner(argv);
+        // (D) remove the step traces installed above (they are the last pushed).
+        if installed > 0 {
+            self.remove_installed_step_traces(installed);
+        }
+        // (E) per-command leave (before interp/step leave), then (F) leavestep.
+        if has_leave {
+            code = self.fire_exec_leave(fqn.as_deref().unwrap(), &cmd_word, code);
+        }
+        if stepping {
+            if let Some(c) = self.fire_step(&cmd_word, ops::LEAVESTEP, Some(code)) {
+                code = c;
+            }
+        }
+        code
+    }
+
+    /// Push a `StepActive` for each step trace on `fqn` not already live (dedup
+    /// by owner+prefix handles recursion: only the outermost installs). Returns
+    /// how many were pushed (the last `n` of `step_active`, popped on exit).
+    fn install_step_traces(&mut self, fqn: &[u8]) -> usize {
+        use crate::cmd_trace::{ops, StepActive};
+        let to_install: Vec<(u8, Vec<u8>)> = {
+            let t = self.traces.borrow();
+            t.cmd_traces
+                .iter()
+                .filter(|c| c.name == fqn && (c.ops & ops::STEP_ANY) != 0)
+                .filter(|c| {
+                    !t.step_active
+                        .iter()
+                        .any(|s| s.owner == fqn && s.command == c.command)
+                })
+                .map(|c| (c.ops & ops::STEP_ANY, c.command.clone()))
+                .collect()
+        };
+        let n = to_install.len();
+        let mut tt = self.traces.borrow_mut();
+        for (ops_bits, command) in to_install {
+            tt.step_active.push(StepActive {
+                owner: fqn.to_vec(),
+                ops: ops_bits,
+                command,
+            });
+        }
+        n
+    }
+
+    /// Pop the `n` step traces this command installed (balanced nesting keeps
+    /// them at the end: any nested step-traced command popped its own first).
+    fn remove_installed_step_traces(&mut self, n: usize) {
+        let mut tt = self.traces.borrow_mut();
+        let keep = tt.step_active.len() - n;
+        tt.step_active.truncate(keep);
+    }
+
+    /// Fire active step traces for the current command. `ENTERSTEP` fires in
+    /// reverse install order with `<prefix> {cmd args} enterstep` (a non-OK code
+    /// aborts); `LEAVESTEP` fires in install order with `<prefix> {cmd args}
+    /// <code> <result> leavestep` (a non-OK code overrides). The result is saved
+    /// once and restored after, but live between callbacks (C's interp-trace
+    /// `SaveInterpState`/`RestoreInterpState`).
+    fn fire_step(&mut self, cmd_word: &[u8], op_bit: u8, code: Option<Code>) -> Option<Code> {
+        use crate::cmd_trace::ops;
+        let is_enter = op_bit == ops::ENTERSTEP;
+        let mut cmds: Vec<Vec<u8>> = self
+            .traces
+            .borrow()
+            .step_active
+            .iter()
+            .filter(|s| (s.ops & op_bit) != 0)
+            .map(|s| s.command.clone())
+            .collect();
+        if is_enter {
+            cmds.reverse();
+        }
+        if cmds.is_empty() {
+            return None;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        let code_str = code.map(|c| c.as_int().to_string().into_bytes());
+        let op_label: &[u8] = if is_enter { b"enterstep" } else { b"leavestep" };
+
+        self.traces.borrow_mut().exec_firing += 1;
+        let mut outcome: Option<Code> = None;
+        for cmd in cmds {
+            let args = if is_enter {
+                crate::list::new_list_obj(&[new_string(cmd_word), new_string(op_label)])
+            } else {
+                let result_bytes = obj_bytes(self.result.get());
+                crate::list::new_list_obj(&[
+                    new_string(cmd_word),
+                    new_string(code_str.as_deref().unwrap_or(b"0")),
+                    new_string(&result_bytes),
+                    new_string(op_label),
+                ])
+            };
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let c = self.eval_str(&line);
+            if c != Code::Ok {
+                outcome = Some(c);
+                break;
+            }
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+
+        match outcome {
+            Some(c) => {
+                unsafe { obj::decr_ref_count(saved) };
+                Some(c)
+            }
+            None => {
+                unsafe {
+                    obj::decr_ref_count(self.result.get());
+                    self.result.set(saved);
+                }
+                None
+            }
+        }
+    }
+
+    /// The original resolve→invoke→unknown dispatch (trace-free).
+    fn dispatch_inner(&mut self, argv: &[*mut TclObj]) -> Code {
         let name = obj_bytes(argv[0]);
         let resolved = self
             .namespaces
@@ -1582,6 +2747,14 @@ impl Interp {
             .resolve(self.current_ns.get(), &name);
         if let Some(cmd) = resolved {
             return self.invoke(cmd, argv);
+        }
+        // Inside an `oo::define`/`oo::objdefine` body, an unresolved leading word
+        // may be a definition subcommand (an abbreviation, or one without a
+        // global builtin); resolve it as C's define ensemble would.
+        if self.in_oo_define() {
+            if let Some(code) = self.oo_define_command(&name, argv) {
+                return code;
+            }
         }
         // Command miss: dispatch through `unknown <name> <args…>` if it exists
         // (and we're not already resolving `unknown` itself).
@@ -1639,7 +2812,7 @@ impl Interp {
     /// objects/classes consistently.
     pub(crate) fn fqn_for(&self, name: &[u8]) -> Vec<u8> {
         if name.starts_with(b"::") {
-            return name.to_vec();
+            return normalize_colons(name);
         }
         let qn = self
             .namespaces
@@ -1650,7 +2823,48 @@ impl Interp {
             fqn.extend_from_slice(b"::");
         }
         fqn.extend_from_slice(name);
-        fqn
+        normalize_colons(&fqn)
+    }
+
+    /// Commands dispatched so far (`info cmdcount`).
+    pub(crate) fn cmd_count(&self) -> u64 {
+        self.cmd_count.get()
+    }
+
+    /// The `info cmdtype` classification of `name`, or `None` if no such command.
+    pub(crate) fn cmdtype(&self, name: &[u8]) -> Option<&'static [u8]> {
+        let cmd = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)?;
+        Some(match cmd {
+            Command::Builtin(_) => b"native",
+            Command::Proc(_) => b"proc",
+            Command::Alias { .. } | Command::ParentAlias { .. } => b"alias",
+            Command::Imported { .. } => b"import",
+            Command::Ensemble(_) => b"ensemble",
+            Command::OoObject(_) => b"object",
+            Command::ChildInterp(_) => b"native",
+        })
+    }
+
+    /// The `::tcl::mathfunc::*` function names (`info functions`).
+    pub(crate) fn mathfunc_names(&self) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        match ns.find_namespace(GLOBAL, b"::tcl::mathfunc") {
+            Some(id) => ns.command_names(id).iter().map(|n| n.to_vec()).collect(),
+            None => Vec::new(),
+        }
+    }
+
+    /// The canonical FQN `name` resolves to (full resolution order), or `None`
+    /// if no such command — for `trace add|remove|info command|execution`, which
+    /// must address the same binding `dispatch` hits and error
+    /// `invalid command name` on a miss.
+    pub(crate) fn resolve_cmd_fqn(&self, name: &[u8]) -> Option<Vec<u8>> {
+        self.namespaces
+            .borrow()
+            .resolve_fqn(self.current_ns.get(), name)
     }
 
     /// Dispatch a child-interpreter command (`$child subcommand ?arg ...?`): the
@@ -2005,6 +3219,10 @@ impl Interp {
                 source: def.source.clone(),
                 body_line_base: def.body_line_base,
                 link_vars: &[],
+                keep_loop_codes: false,
+                same_level: false,
+                usage_prefix: None,
+                level_words: None,
             },
         )
     }
@@ -2033,13 +3251,16 @@ impl Interp {
         } else {
             params
         };
+        // The `wrong # args` command prefix (an OO method passes the invoking
+        // `obj method`; everything else uses the invoked name).
+        let usage = meta.usage_prefix.as_deref().unwrap_or(usage_called);
         // Arity (defaults assumed trailing — the common shape): supplied must
         // cover the no-default params, and not exceed the positionals unless an
         // `args` catch-all soaks up the rest.
         let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&proc_usage(usage_called, params));
+            return self.error(&self.proc_wrong_args(usage, params, supplied));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth.get() >= RECURSION_LIMIT {
@@ -2047,12 +3268,20 @@ impl Interp {
         }
         self.recursion_depth.set(self.recursion_depth.get() + 1);
 
-        self.frames.borrow_mut().push(ns);
-        // Record the invocation words for `info level N`: the invoked name plus
-        // the supplied arguments.
-        let mut words = Vec::with_capacity(call_args.len() + 1);
-        words.push(usage_called.to_vec());
-        words.extend(call_args.iter().map(|&a| obj_bytes(a)));
+        if meta.same_level {
+            self.frames.borrow_mut().push_same_level(ns);
+        } else {
+            self.frames.borrow_mut().push(ns);
+        }
+        // Record the invocation words for `info level N`: an OO constructor
+        // supplies the `create`/`new` invocation words verbatim; otherwise the
+        // invoked name plus the supplied arguments.
+        let words = meta.level_words.unwrap_or_else(|| {
+            let mut w = Vec::with_capacity(call_args.len() + 1);
+            w.push(usage_called.to_vec());
+            w.extend(call_args.iter().map(|&a| obj_bytes(a)));
+            w
+        });
         self.frames.borrow_mut().set_words(words);
         let saved_ns = self.current_ns.get();
         self.current_ns.set(ns);
@@ -2060,8 +3289,8 @@ impl Interp {
         // Pre-link a TclOO method's declared instance variables: each name in
         // the frame becomes a link to the object's namespace variable (`ns`), so
         // the method sees instance state without an explicit `variable`.
-        for v in meta.link_vars {
-            self.make_variable(ns, v);
+        for (local, target) in meta.link_vars {
+            self.make_variable_mapped(ns, local, target);
         }
 
         // Bind positionals left-to-right: the supplied arg, else the default.
@@ -2087,7 +3316,7 @@ impl Interp {
                 self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&proc_usage(usage_called, params));
+                return self.error(&self.proc_wrong_args(usage, params, supplied));
             };
             if stored.is_err() {
                 self.frames.borrow_mut().pop();
@@ -2110,6 +3339,18 @@ impl Interp {
         // The proc body runs as its own `info frame` level: `type proc` (or
         // `source` if defined in a sourced file), the proc FQN, and the new call
         // level (set after `frames.push`, so `current_level` is the proc's).
+        // A TclOO method body carries its method context for `info frame`
+        // (`method`/`class`|`object`), which displaces the `proc` key.
+        let oo = match &meta.err {
+            ProcFrame::Method { kind, owner, what } => {
+                let method = match what {
+                    MethodFrameWhat::Named(n) => n.to_vec(),
+                    MethodFrameWhat::Constructor | MethodFrameWhat::Destructor => Vec::new(),
+                };
+                Some((method, kind.to_vec(), owner.to_vec()))
+            }
+            _ => None,
+        };
         let proc_frame = CmdFrame {
             kind: if meta.source.is_some() {
                 FrameKind::Source
@@ -2123,17 +3364,27 @@ impl Interp {
             line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
+            oo,
         };
         let code = self.eval_framed(body, proc_frame);
+        // The frame's local variables (and any traces on them) die with it.
+        let proc_level = self.frames.borrow().current_level();
         self.frames.borrow_mut().pop();
+        if !self.traces.borrow().traces.is_empty() {
+            self.clear_frame_var_traces(proc_level);
+        }
         self.current_ns.set(saved_ns);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
         // error (C Tcl: `invoked "break" outside of a loop`).
         let settled = match self.settle_return(code) {
-            Code::Break => self.error(b"invoked \"break\" outside of a loop"),
-            Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
+            Code::Break if !meta.keep_loop_codes => {
+                self.error(b"invoked \"break\" outside of a loop")
+            }
+            Code::Continue if !meta.keep_loop_codes => {
+                self.error(b"invoked \"continue\" outside of a loop")
+            }
             other => other,
         };
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
@@ -2292,6 +3543,16 @@ impl Interp {
         self.error(&msg)
     }
 
+    /// C's `Tcl_FindCommand` + `TCL_LEAVE_ERR_MSG` miss (`unknown command "X"`,
+    /// `tclNamesp.c`) — distinct from `invalid_command`'s `invalid command
+    /// name`. Used by `trace add|remove|info command|execution`.
+    pub(crate) fn unknown_command(&mut self, name: &[u8]) -> Code {
+        let mut msg = b"unknown command \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.push(b'"');
+        self.error(&msg)
+    }
+
     /// Substitute one word's body into an **owned** (`+1`) object.
     /// A `Variable` reference to an unset variable, or a `[cmd]` that errors,
     /// returns `Err(code)` with the interp result already set.
@@ -2315,7 +3576,9 @@ impl Interp {
                                 Some(p) => Some(self.subst_index(p)?),
                                 None => None,
                             };
-                            self.fire_read_trace(v.name, index.as_deref());
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
                             let obj = match index.as_deref() {
                                 Some(key) => self.var_get_elem(v.name, key),
                                 None => self.var_get(v.name),
@@ -2356,7 +3619,9 @@ impl Interp {
                                 Some(parts) => Some(self.subst_index(parts)?),
                                 None => None,
                             };
-                            self.fire_read_trace(v.name, index.as_deref());
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
                             match self.read_var(v.name, index.as_deref()) {
                                 Some(bytes) => buf.extend_from_slice(&bytes),
                                 None => return Err(self.no_such_variable(v.name, index.as_deref())),
@@ -2404,7 +3669,9 @@ impl Interp {
                         Some(p) => Some(self.subst_index(p)?),
                         None => None,
                     };
-                    self.fire_read_trace(v.name, index.as_deref());
+                    if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                        return Err(c);
+                    }
                     match self.read_var(v.name, index.as_deref()) {
                         Some(bytes) => out.extend_from_slice(&bytes),
                         None => return Err(self.no_such_variable(v.name, index.as_deref())),
@@ -2501,6 +3768,68 @@ impl Interp {
 /// The `wrong # args: should be "name p1 ?p2? ?arg ...?"` message for a proc
 /// call — required params bare, defaulted params `?p?`, the `args` catch-all
 /// `?arg ...?` (mirrors C's `Tcl_WrongNumArgs` for procs).
+impl Interp {
+    /// The `wrong # args` message for a proc/method, applying any active
+    /// ensemble-rewrite so the call is reported as the user wrote it (C's
+    /// `Tcl_WrongNumArgs` rewrite path). When a rewrite is active and all the
+    /// inserted words are accounted for, the leading `removed` words of the
+    /// original `source` replace the rewritten prefix, and the formal parameters
+    /// already satisfied by the inserted arguments are dropped.
+    pub(crate) fn proc_wrong_args(
+        &self,
+        called: &[u8],
+        params: &[Param],
+        supplied: usize,
+    ) -> Vec<u8> {
+        if let Some(rw) = self.ensemble_rewrite() {
+            // How many trailing words of `source` were the user's own arguments,
+            // and how many formal parameters the inserted prefix already filled.
+            let user_args = rw.source.len().saturating_sub(rw.removed);
+            let drop = supplied.saturating_sub(user_args);
+            // Only rewrite when the dropped parameters are actually present (C's
+            // `objc < toSkip` guard); otherwise fall back to the plain message.
+            if drop <= params.len() {
+                let prefix: Vec<&[u8]> = rw
+                    .source
+                    .iter()
+                    .take(rw.removed)
+                    .map(Vec::as_slice)
+                    .collect();
+                return proc_usage_words(&prefix, &params[drop..], params);
+            }
+        }
+        proc_usage(called, params)
+    }
+}
+
+/// Build a `wrong # args` message from explicit leading `words` followed by the
+/// formal `shown` parameters (`all` is the full parameter list, for the `args`
+/// catch-all test). Shared by the plain and ensemble-rewritten forms.
+fn proc_usage_words(words: &[&[u8]], shown: &[Param], all: &[Param]) -> Vec<u8> {
+    let mut m = b"wrong # args: should be \"".to_vec();
+    for (i, w) in words.iter().enumerate() {
+        if i > 0 {
+            m.push(b' ');
+        }
+        m.extend_from_slice(w);
+    }
+    let last_is_args = all.last().is_some_and(|p| p.name == b"args");
+    for p in shown {
+        m.push(b' ');
+        if last_is_args && std::ptr::eq(p, all.last().unwrap()) {
+            m.extend_from_slice(b"?arg ...?");
+        } else if p.default.is_some() {
+            m.push(b'?');
+            m.extend_from_slice(&p.name);
+            m.push(b'?');
+        } else {
+            m.extend_from_slice(&p.name);
+        }
+    }
+    m.push(b'"');
+    m
+}
+
 fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
     let mut m = b"wrong # args: should be \"".to_vec();
     m.extend_from_slice(called);
@@ -2559,6 +3888,37 @@ impl Drop for InterpState {
 pub(crate) fn new_string(bytes: &[u8]) -> *mut TclObj {
     // SAFETY: `bytes` is a valid readable slice.
     unsafe { obj::new_string_obj(bytes.as_ptr() as *const c_char, bytes.len() as obj::TclSize) }
+}
+
+/// Collapse every run of two-or-more `:` to a single `::` separator, matching
+/// Tcl's namespace-name normalization (empty namespace components are ignored):
+/// `::::classinstance` → `::classinstance`, `::a:::b` → `::a::b`. A lone `:` is
+/// a legal identifier character and is left untouched.
+fn normalize_colons(name: &[u8]) -> Vec<u8> {
+    if !name.windows(3).any(|w| w == b":::") {
+        return name.to_vec();
+    }
+    let mut out = Vec::with_capacity(name.len());
+    let mut i = 0;
+    while i < name.len() {
+        if name[i] == b':' {
+            let mut j = i;
+            while j < name.len() && name[j] == b':' {
+                j += 1;
+            }
+            let run = j - i;
+            if run >= 2 {
+                out.extend_from_slice(b"::");
+            } else {
+                out.push(b':');
+            }
+            i = j;
+        } else {
+            out.push(name[i]);
+            i += 1;
+        }
+    }
+    out
 }
 
 /// Copy an object's string rep (shimmering if needed) into owned bytes.

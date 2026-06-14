@@ -53,7 +53,7 @@ impl Owned {
     }
 
     /// Adopt a freshly-minted (`rc 0`) object, taking it to `rc 1`.
-    fn fresh(o: *mut TclObj) -> Owned {
+    pub(crate) fn fresh(o: *mut TclObj) -> Owned {
         // SAFETY: `o` is a fresh object from a constructor / tower op.
         unsafe { obj::incr_ref_count(o) };
         Owned(o)
@@ -97,6 +97,13 @@ pub trait ExprCtx {
     fn read_var(&mut self, name: &str) -> Result<Owned, ExprError>;
     /// Evaluate a `[script]` (brackets stripped) to an owned result.
     fn eval_command(&mut self, script: &str) -> Result<Owned, ExprError>;
+    /// Substitute the raw contents of a `"…"` operand — `$var`, `${var}`,
+    /// `[cmd]`, and backslashes — exactly as a double-quoted word (C's
+    /// expr parser quotes the operand and substitutes it). The default treats
+    /// the contents literally (the standalone evaluator has no interp).
+    fn subst_string(&mut self, inner: &str) -> Result<Owned, ExprError> {
+        Ok(Owned::fresh(obj::new_string_bytes(inner.as_bytes())))
+    }
     /// Evaluate a `func(args…)` math-function call. The interp routes this
     /// through the command table (`::tcl::mathfunc::func`, so user overrides
     /// win — the A3 contract); the standalone evaluator falls back to the shared
@@ -140,7 +147,7 @@ impl ExprOps for TowerOps<'_> {
         Ok(make_literal(text))
     }
     fn string(&mut self, inner: &str) -> Result<Owned, ExprError> {
-        Ok(Owned::fresh(obj::new_string_bytes(inner.as_bytes())))
+        self.ctx.subst_string(inner)
     }
     fn var(&mut self, name: &str) -> Result<Owned, ExprError> {
         self.ctx.read_var(name)

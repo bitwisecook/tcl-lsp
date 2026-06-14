@@ -38,13 +38,18 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"args",
         b"body",
         b"class",
+        b"cmdcount",
+        b"cmdtype",
         b"commands",
         b"complete",
+        b"coroutine",
         b"default",
         b"exists",
         b"frame",
+        b"functions",
         b"globals",
         b"level",
+        b"loaded",
         b"library",
         b"locals",
         b"nameofexecutable",
@@ -72,13 +77,32 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match sub {
         b"exists" => info_exists(interp, argv),
-        b"commands" => set_list(interp, argv, Interp::visible_command_names),
-        b"procs" => set_list(interp, argv, Interp::visible_proc_names),
+        b"commands" => set_list_qualified(
+            interp,
+            argv,
+            b"info commands ?pattern?",
+            Interp::commands_in_namespace,
+            Interp::visible_command_names,
+        ),
+        b"procs" => set_list_qualified(
+            interp,
+            argv,
+            b"info procs ?pattern?",
+            Interp::procs_in_namespace,
+            Interp::visible_proc_names,
+        ),
         b"vars" => set_list(interp, argv, Interp::visible_var_names),
         b"globals" => set_list(interp, argv, Interp::global_var_names),
         b"locals" => set_list(interp, argv, Interp::local_var_names),
         b"level" => info_level(interp, argv),
         b"frame" => info_frame(interp, argv),
+        b"coroutine" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info coroutine");
+            }
+            interp.set_result_bytes(&crate::cmd_coro::current_coroutine());
+            Code::Ok
+        }
         b"object" => crate::cmd_oo::info_object(interp, argv),
         b"class" => crate::cmd_oo::info_class(interp, argv),
         b"tclversion" => fixed(interp, argv, b"info tclversion", b"9.0"),
@@ -96,6 +120,28 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"body" => info_body(interp, argv),
         b"args" => info_args(interp, argv),
         b"default" => info_default(interp, argv),
+        b"cmdtype" => info_cmdtype(interp, argv),
+        b"cmdcount" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info cmdcount");
+            }
+            interp.set_result(crate::obj::new_wide_int_obj(interp.cmd_count() as i64));
+            Code::Ok
+        }
+        b"functions" => {
+            if argv.len() > 3 {
+                return wrong_args(interp, b"info functions ?pattern?");
+            }
+            let pat = argv.get(2).map(|&a| obj_bytes(a));
+            set_filtered(interp, interp.mathfunc_names(), pat.as_deref())
+        }
+        b"loaded" => {
+            if argv.len() > 4 {
+                return wrong_args(interp, b"info loaded ?interp? ?prefix?");
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
         b"script" => {
             if argv.len() > 3 {
                 return wrong_args(interp, b"info script ?filename?");
@@ -122,8 +168,28 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
             m.extend_from_slice(
-                b"\": must be args, body, commands, complete, default, exists, frame, globals, level, library, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
+                b"\": must be args, body, class, cmdcount, cmdtype, commands, complete, default, exists, frame, functions, globals, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
             );
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `info cmdtype command` — the kind of command (`native`/`proc`/`alias`/…).
+fn info_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"info cmdtype commandName");
+    }
+    let name = obj_bytes(argv[2]);
+    match interp.cmdtype(&name) {
+        Some(t) => {
+            interp.set_result_bytes(t);
+            Code::Ok
+        }
+        None => {
+            let mut m = b"unknown command \"".to_vec();
+            m.extend_from_slice(&name);
+            m.push(b'"');
             interp.set_error(&m)
         }
     }
@@ -133,7 +199,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Code {
     let objs: Vec<*mut TclObj> = names
         .iter()
-        .filter(|n| pattern.map_or(true, |p| glob_match(p, n)))
+        .filter(|n| pattern.is_none_or(|p| glob_match(p, n)))
         .map(|n| new_string(n))
         .collect();
     let l = list::new_list_obj(&objs); // retains each element
@@ -148,6 +214,46 @@ fn set_list(interp: &mut Interp, argv: &[*mut TclObj], names: fn(&Interp) -> Vec
     }
     let pattern = argv.get(2).map(|&a| obj_bytes(a));
     let list = names(interp);
+    set_filtered(interp, list, pattern.as_deref())
+}
+
+/// `info commands|procs|vars ?pattern?` — a namespace-qualified pattern
+/// (`::ns::glob`) lists the matching names *in that namespace* (re-qualified);
+/// an unqualified pattern filters the names visible from the current scope.
+fn set_list_qualified(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    usage: &[u8],
+    in_namespace: fn(&Interp, &[u8]) -> Vec<Vec<u8>>,
+    visible: fn(&Interp) -> Vec<Vec<u8>>,
+) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, usage);
+    }
+    let pattern = argv.get(2).map(|&a| obj_bytes(a));
+    // Find the last `::` so a qualified pattern splits into (prefix, tail glob).
+    let split = pattern.as_deref().and_then(|p| {
+        p.windows(2)
+            .rposition(|w| w == b"::")
+            .map(|i| (&p[..i], &p[i + 2..]))
+    });
+    if let Some((prefix, tail)) = split {
+        let names = in_namespace(interp, prefix);
+        let objs: Vec<*mut TclObj> = names
+            .iter()
+            .filter(|n| glob_match(tail, n))
+            .map(|n| {
+                let mut full = prefix.to_vec();
+                full.extend_from_slice(b"::");
+                full.extend_from_slice(n);
+                new_string(&full)
+            })
+            .collect();
+        let l = list::new_list_obj(&objs);
+        interp.set_result(l);
+        return Code::Ok;
+    }
+    let list = visible(interp);
     set_filtered(interp, list, pattern.as_deref())
 }
 
@@ -419,6 +525,27 @@ mod tests {
     }
 
     #[test]
+    fn info_commands_qualified_pattern() {
+        leak_free(|i| {
+            run(
+                i,
+                b"namespace eval ::myns { proc aaa {} {}; proc abb {} {}; proc zzz {} {} }",
+            );
+            // A namespace-qualified glob lists that namespace's commands,
+            // re-qualified, sorted.
+            assert_eq!(
+                run(i, b"lsort [info commands ::myns::a*]"),
+                b"::myns::aaa ::myns::abb"
+            );
+            assert_eq!(run(i, b"info commands ::myns::zzz"), b"::myns::zzz");
+            // A non-existent namespace yields nothing.
+            assert_eq!(run(i, b"info commands ::nope::*"), b"");
+            // An unqualified pattern still works (global builtin present).
+            assert_eq!(run(i, b"info commands ::set"), b"::set");
+        });
+    }
+
+    #[test]
     fn info_level_reports_call_words() {
         leak_free(|i| {
             assert_eq!(run(i, b"info level"), b"0"); // global scope
@@ -476,6 +603,24 @@ mod tests {
             assert_eq!(
                 run(i, b"h"),
                 b"type eval line 1 cmd {info frame 0} proc ::h"
+            );
+        });
+    }
+
+    #[test]
+    fn info_cmdtype_loaded_functions() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"info cmdtype puts"), b"native");
+            assert_eq!(run(i, b"proc p {} {}; info cmdtype p"), b"proc");
+            assert_eq!(run(i, b"info loaded"), b"");
+            assert_eq!(run(i, b"info functions sin"), b"sin");
+            // cmdcount increases as commands run.
+            assert_eq!(
+                run(
+                    i,
+                    b"set a [info cmdcount]; set b [info cmdcount]; expr {$b > $a}"
+                ),
+                b"1"
             );
         });
     }

@@ -1705,8 +1705,410 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + `ledit` + three-way var-read-miss error | **124 / 168** | 43 (+1 timeout) | **10448 / 18939** |
 | + `lmap` + empty-script result reset | **125 / 168** | 43 (0 timeout) | **10566 / 19027** |
 | + `lseq` (arithmetic-series generator) | **125 / 168** | 43 (0 timeout) | **10660 / 19027** |
+| + `trace` command/execution/step + lifecycle | **125 / 168** | 43 (0 timeout) | **10818 / 19027** |
+| + `lset` (list-element set in a variable) | **126 / 168** | 42 (0 timeout) | **10870 / 19027** |
+| + `lsort` options (`-stride`/`-index`/`-dictionary`/`-command`/`-indices`) | **128 / 168** | 40 (0 timeout) | **11116 / 19027** |
+| + `lsearch` options (`-sorted`/`-index`/`-stride`/`-regexp`/`-subindices`/…) | **128 / 168** | 40 (0 timeout) | **11216 / 19027** |
+| + `string` insert/replace/wordstart/wordend/compare-opts/is-dict + `tcl::prefix` | **128 / 168** | 40 (0 timeout) | **11408 / 19027** |
+| + `binary encode`/`decode` (hex/base64/uuencode) + `u` scan modifier | **128 / 168** | 40 (0 timeout) | **11516 / 19027** |
+| + `info cmdtype`/`cmdcount`/`functions`/`loaded` | **128 / 168** | 40 (0 timeout) | **11534 / 19027** |
+| + OO object-lifetime sync on `rename`/delete | **128 / 168** | 40 (0 timeout) | **11536 / 19027** |
+| + TclOO classes-as-objects (`oo::define … self`, class methods) | **128 / 168** | 40 (0 timeout) | **11542 / 19027** |
+| + TclOO call-chain refactor + `filter`s + `info` oo subcommands | **128 / 168** | 40 (0 timeout) | **11546 / 19027** |
+| + TclOO class-destroy cascades to subclasses | **128 / 168** | 40 (0 timeout) | **11557 / 19027** |
+| + TclOO per-object `my` (not global) | **128 / 168** | 40 (0 timeout) | **11561 / 19027** |
+| + TclOO `private` methods + `unknown` method-list message | **128 / 168** | 40 (0 timeout) | **11572 / 19027** |
+| + TclOO `oo::object`/`oo::class` as real objects (uniform dispatch) | **128 / 168** | 40 (0 timeout) | **11576 / 19027** |
+| + TclOO object built-ins (`my variable`/`varname`/`eval`) | **128 / 168** | 40 (0 timeout) | **11584 / 19027** |
+| + TclOO `info object creationid` / `info class definitionnamespace` | **128 / 168** | 40 (0 timeout) | **11602 / 19027** |
+| + TclOO define-subcommand abbreviation + `class`/`deletemethod`/`renamemethod` | **128 / 168** | 40 (0 timeout) | **11616 / 19027** |
+| + TclOO `export` of built-ins + `info object`/`info class` abbreviation & subcommands | **128 / 168** | 40 (0 timeout) | **11624 / 19027** |
+| + `info commands` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11662 / 20532** |
+| + `info procs` namespace-qualified patterns (`::ns::glob`) | **129 / 168** | 39 (0 timeout) | **11665 / 20532** |
+| + TclOO `definitionnamespace` (TIP 524) define subcommand + semantics | **129 / 168** | 39 (0 timeout) | **11672 / 20532** |
+| + TclOO metaclasses (`meta create` → class, synthetic `oo::class` ctor, `isa metaclass`) | **129 / 168** | 39 (0 timeout) | **11679 / 20532** |
+| + TclOO `info object`/`class call` + `self call` + TIP 500 same-object private visibility | **129 / 168** | 39 (0 timeout) | **11680 / 20532** |
+| + TclOO `oo::copy` clones the class facet (class cloning) | **129 / 168** | 39 (0 timeout) | **11689 / 20532** |
+| + TclOO `createWithNamespace` + `oo::copy ?targetNamespace?` | **129 / 168** | 39 (0 timeout) | **11693 / 20532** |
+| + TclOO destructors (rename/namespace-delete), C3 MRO, slot ops, class-change, private/unexport, var-decl | **129 / 168** | 39 (0 timeout) | **11735 / 20532** |
+| + TclOO `::oo::Slot` base class (native ops) + `unknown`-method dispatch | **129 / 168** | 39 (0 timeout) | **11743 / 20532** |
+| + TclOO `myclass` command + forward resolves `my`/`myclass` in object ns | **129 / 168** | 39 (0 timeout) | **11751 / 20532** |
+| + TclOO TIP 500 private-method class scoping (`my m` prefers declaring class) | **129 / 168** | 39 (0 timeout) | **11753 / 20532** |
+| + TclOO definition-script errorInfo frame (`(in definition script for …)`) | **129 / 168** | 39 (0 timeout) | **11757 / 20532** |
+| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 356 / 388** |
 
-The 2026-06-13 increments (**+2006 tests, 45.7% → 56.0%**, zero regressions):
+The 2026-06-14 (cont.3) **push-through** chunks (**+4 oo + 6 expr-old, zero
+regressions**, `oo.test` 352 → 356) — each began as a regression that exposed a
+wider bug:
+- **`expr` quoted-string substitution** (oo-19.1, +6 expr-old): a `"…"` operand
+  now substitutes `$var`/`${var}`/`[cmd]`/`\` like a double-quoted word (it was
+  taken literally). Found by chasing oo-19.1's `expr {"${ns}::x" eq …}`.
+- **Variable unset traces on namespace teardown** (oo-11.8): deleting a namespace
+  fires its variables' unset traces (names built first, namespace torn down, then
+  callbacks run — so a callback sees it already gone); oo_destroy deletes the
+  instance namespace before unregistering the object, so the callback sees the
+  object torn-down ("impossible to invoke method").
+- **`self target` of a filter-wrapped built-in** names its declarer (oo-12.8);
+  **`oo::copy`** names the new object in a `<cloned>` wrong-args (oo-15.9).
+
+The 2026-06-14 (cont.2) **FILTER_HANDLING** chunk (**+2, zero regressions**,
+`oo.test` 350 → 352): filters now wrap a method call regardless of public/`my`,
+except while a filter (and everything it calls synchronously) runs — a
+`filter_handling` flag inherited down the call tree, set when a filter step runs
+and cleared when the filter calls `next`. Matches C's FILTER_HANDLING:
+`my Bar` inside a filter isn't re-wrapped (oo-12.5/12.6 stay green) while
+`my InnerFoo` inside a normal method is (oo-12.7), incl. mixin-of-mixin filters
+(oo-14.7). (An earlier "immediate-caller-is-a-filter" check regressed 12.5/12.6
+— the regression was the signal that the flag must be inherited, not local.)
+
+The **`oo::define` definition-namespace** rework was re-attempted with the C
+model (`TclOOGetDefineContextNamespace` → TIP-524 custom ns else
+`::oo::define`/`::oo::objdefine`; class args via `GetClassInOuterContext`) and
+again came out net −22, but the regression pinpointed the root cause:
+`InitDefineContext` pushes a real **`FRAME_IS_OO_DEFINE` call frame**, so the
+body runs at a *new* call level with `def_stack`, `info level`, `uplevel`, and
+variable scope all aligned to it. Switching `current_ns` alone (no frame)
+misaligns the level from `def_stack` (private-var declaration, TIP-524 ns
+resolution, and `self`-subcommand all break). The correct fix is a dedicated
+define call-frame — a frame-machinery change touching the sensitive oo-18.x
+errorInfo paths — left as the next focused rework, now precisely scoped.
+
+The 2026-06-14 (cont.) **forward/trace/varname** chunks (**+7 more, zero
+regressions**, `oo.test` 343 → 350):
+- **Ensemble rewrite for forward `wrong # args`** (oo-6.14/6.16): a forward
+  chain records the original invocation words; the eventual method's wrong-args
+  reports the call as written (interp-wide `ensemble_rewrite`, C's
+  `TclInitRewriteEnsemble` / `Tcl_WrongNumArgs` rewrite).
+- **Namespace-scoped variable traces** (oo-19.2, oo-20.7/20.13/20.14): a trace
+  is tagged with its variable's resolved home namespace (through
+  global/variable/upvar links) and fires only for that variable — no cross-test
+  pollution; trace.test holds at 199.
+- **`varname` follows links** to the real variable's FQN (oo-19.5).
+
+The 2026-06-14 **TclOO long-tail** chunks (**+22 `oo.test` over a session, zero
+regressions per step**, `oo.test` 321 → 343) — each read against the Tcl 9 C
+source and byte-verified:
+- **Self-mixin call-chain facet** (oo-13.7): a class mixed into its own instance
+  contributes both facets under one FQN; the chain now tags each step's facet
+  (`method_chain_faceted`) so dispatch finds the class-facet method.
+- **Object rename tracking** (oo-23.1, oo-34.10): a rename follows into
+  dependents' class/superclass/mixin lists and re-binds the object command's own
+  embedded FQN (the name `self` reports), so a renamed object stays dispatchable.
+- **`myclass` direct invocation** (oo-41.2) via its tracked alias.
+- **Filters wrap built-in targets** like `destroy` (oo-12.2/12.3): the filter
+  chain runs through `oo_run` and `next` reaches the built-in terminus.
+- **Class destruction deletes the instance namespace** (oo-15.13.2);
+  **`oo::copy` to an existing namespace errors** (oo-15.12); distinct
+  **class-of-classes** root message (oo-13.10).
+- (Build) MSRV raised to 1.85 (`is_none_or` et al.).
+- **Nested-ownership teardown** (oo-1.22, oo-35.7.3): `oo_destroy` cascades to
+  objects living in the destroyed object's instance namespace (C's
+  `ObjectNamespaceDeleted` → `TclOODeleteDescendants`), in nesting order.
+- **Two-phase teardown** (oo-35.7.1/2): the destructor runs, then the object is
+  marked *torn-down* while still registered during the descendant cascade, so a
+  child's destructor calling back into the parent gets the verbatim "impossible
+  to invoke method" (C guts the object before deleting its child namespaces).
+- **Class-instance descendant cascade** (oo-16.14): destroying an object that is
+  also a class tears down its subclasses/instances too, guarded against cyclic
+  hierarchies — fixes leftover objects polluting later tests.
+- **Class→non-class demotion** (oo-13.6): `oo::objdefine obj class <non-class>`
+  destroys the former class's dependents.
+- **Constructor `info level 0`** (oo-2.1) reports the `create`/`new` invocation;
+  **`package versions tcl::oo`** (oo-0.9); **OO define-target resolution** falls
+  back to the global namespace (oo-3.11, oo-10.1); **forward target** resolves
+  within the object's namespace subtree (oo-6.6); **`info object methods
+  -scope`** filtering (oo-39.12); **empty superclass** defaults to `oo::class`
+  for a metaclass (oo-35.2); redundant `::` runs collapse in OO names.
+
+Deferred (documented as future work — each a sizeable cross-cutting subsystem;
+the core ensemble-rewrite now exists and handles OO forward chains, but the
+remaining `wrong # args` cases need it threaded into more dispatchers). The
+**16 still-failing `oo.test`**, each a focused dedicated subsystem:
+- **`oo::define` definition call-frame** (oo-7.4/7.5/7.9/34.1, and oo-13.11): a
+  real `FRAME_IS_OO_DEFINE` frame so the body runs at its own level with
+  `def_stack`/`info level`/`namespace current`/var-scope aligned, class args
+  resolving in the outer frame (C's InitDefineContext / GetClassInOuterContext;
+  a `current_ns`-only switch misaligns the level — see SYNC above).
+- **Non-OO ensemble rewrite** threaded into the namespace-ensemble dispatcher and
+  the `string` ensemble (oo-2.7/2.8/6.17/6.18); `forward`+rename/trace edge cases
+  (oo-6.19/6.20).
+- **`tailcall`** core command (oo-2.6).
+- **`Var::Undefined`** ghosts so `namespace which -variable`/`info vars` find a
+  `varname`'d-or-`variable`-declared-but-unset variable while `info exists` is 0
+  (oo-19.4) — ~10 core var-model sites, validate against var/namespace/info.
+- **Object lifetime across an active call** so `next` survives the object
+  renaming/deleting itself mid-method (oo-7.10).
+- **Private-variable lazy resolution** timing (oo-38.5); the Itcl
+  upvar-in-destructor teardown case (oo-3.5a).
+
+The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
+regressions**) — refactored the method-call chain to a list of `(provider,
+method)` steps (object-vs-class resolution by identity, not position), which is
+behaviour-preserving and lets **filters** be modelled as steps whose method is
+the filter name, prepended ahead of the target-method steps with `next`
+advancing through the chain. Added the `filter` define-subcommand (class +
+objdefine), `self target`, and the `info object mixins` / `info class
+mixins`/`variables` introspection. `oo.test` 41 → 45.
+
+The 2026-06-13 **TclOO classes-as-objects** chunk (**+6 tests, zero
+regressions**) — a class is now also registered as an object, so `oo::define C
+self method …` (define-context `self` routing to objdefine on the class) and
+class methods (`C foo`) work, and a failed class-definition script rolls the
+class back (clearing the dominant `oo.test` setup-cascade). Method resolution is
+now **positional** (chain head = per-object methods, rest = class instance
+methods) since a class lives in both registry maps. `oo.test` 35 → 41. Next:
+filters, private methods, the remaining `info object`/`info class` subcommands.
+
+The 2026-06-13 **OO rename/delete** fix (**+2 tests, zero regressions**) — an
+OO object/class is tied to its command, so `rename obj {}` (the tests' cleanup
+idiom) must drop it from the `OoState` registry (both the object and class
+maps — a class is in both) and a rename must move it; otherwise the name could
+not be recreated (the dominant `oo.test` setup-cascade) and a stale half-entry
+could panic a later method dispatch (now a clean `object … has been deleted`).
+The bulk of `oo.test` remains the TclOO **meta-protocol** (filters, private
+methods, `my`/`self` subcommands, classes-as-objects, full C3 linearisation) —
+the deferred 3-file blocker.
+
+The 2026-06-13 **TclOO meta-protocol** chunks (**+13 tests over three commits,
+zero regressions**, `oo.test` 56 → 71):
+1. **class-destroy cascade** — `oo_destroy_class` now recursively destroys
+   subclasses (classes listing this one as a superclass or mixin) before its
+   instances, matching `TclOO`'s "a class's epoch invalidates its dependants";
+   without it the dominant `oo.test` cleanup-cascade left half-deleted classes
+   that could not be recreated (`oo.test` 45 → 56, sweep 11546 → 11557).
+2. **per-object `my`** — C `TclOO` creates `my` in each *object's* namespace,
+   not globally; the tests' cleanup idiom `catch {rename ::my {}}` previously
+   deleted our single global `my` and broke every later object. `my` is now
+   registered as `<fqn>::my` per object (`oo.test` 56 → 60, sweep 11557 →
+   11561).
+3. **`private` + `unknown` method list** — the `private` define-subcommand and
+   `method -private`/`-export` flags mark a method unexported (`o secret` →
+   unknown, `my secret` → works), and an unknown method now emits the C
+   `unknown method "X": must be a, b or destroy` enumeration (sorted, non-Oxford
+   join; classes also list `create`/`new`). Byte-identical to `tclsh9.0`
+   (`oo.test` 60 → 71, sweep 11561 → 11572).
+4. **base classes as real objects** — `oo::object`/`oo::class` are now full
+   objects (in both the `objects` and `classes` maps) that dispatch through the
+   normal `oo_dispatch` path rather than dedicated builtins, so `create`/`new`/
+   `destroy`, the empty-name check (`object name must not be empty`), the
+   `wrong # args: should be "<cmd> method ?arg ...?"` / `"<cmd> create
+   objectName ?arg ...?"` usages, and unknown-method enumeration are all handled
+   uniformly. `::oo::class` is a singleton (`new` unexported → lists only
+   `create or destroy`); an object whose only method (`destroy`) is unexported
+   reports `object "X" has no visible methods`; construction with no constructor
+   silently ignores extra args (matching `tclsh9.0`). (`oo.test` 71 → 75, sweep
+   11572 → 11576).
+5. **object built-in methods** — the unexported `oo::object` methods `variable`
+   (link instance variables into the calling method frame, rejecting `::`-
+   qualified names), `varname` (the fully-qualified instance-variable name) and
+   `eval` (evaluate a script in the object's namespace), reachable only via
+   `my`. (`oo.test` 75 → 83, sweep 11576 → 11584).
+6. **`creationid` / `definitionnamespace` introspection** — `info object
+   creationid` (a unique, monotonic per-object ID stable across rename) and
+   `info class definitionnamespace … ?-class|-instance?` (TIP 524; the built-in
+   `::oo::define`/`::oo::objdefine` defaults). Also corrected the
+   `does not refer to an object`/`is not a class` messages (no surrounding
+   quotes for the not-an-object case, resolving the object before the class as
+   C does) across `oo::define`/`oo::objdefine`/`info object`/`info class`.
+   (`oo.test` 83 → 101, sweep 11584 → 11602).
+7. **define-subcommand surface** — definition bodies now resolve an unknown
+   leading word as C's define ensemble does: an exact name or a unique prefix
+   (`super` → `superclass`, `forw` → `forward`, `meth` → `method`; an ambiguous
+   prefix like `m` stays an error). Adds the `deletemethod`/`renamemethod` and
+   (objdefine) `class` subcommands, and fixes `self { script }` in a definition
+   to evaluate the body. (`oo.test` 101 → 115, sweep 11602 → 11616).
+8. **`export` of built-ins + `info` introspection** — `export` now promotes a
+   default-unexported built-in (`eval`/`variable`/`varname`) to a public method
+   (tracked in a per-target `exported` set). `info object`/`info class` resolve
+   abbreviated subcommands (exact or unique prefix) and emit C's `unknown or
+   ambiguous subcommand "X": must be …` message; added the `forward`/`filters`/
+   `definition`/`methodtype` subcommands (`call`/`properties` still deferred).
+   (`oo.test` 115 → 123, sweep 11616 → 11624).
+
+The 2026-06-13 **`info commands` namespace-qualified patterns** fix (**+38
+tests, zero regressions**) — `info commands ::ns::glob` now resolves the
+namespace qualifier, lists that namespace's commands and matches the tail glob,
+re-qualifying the results (the C behaviour); an unqualified pattern keeps the
+current+global visible-command listing. This unblocked **apply.test** (0 → 21,
+it errored at setup), **safe.test** (52 → 61), `namespace-old.test` (+3),
+`info.test`/`oo.test`/`tm.test`/`safe-stock.test`; sweep **11624 → 11662**.
+The same qualified-pattern handling was then extended to **`info procs`**
+(`info.test` +3 more, sweep **11662 → 11665**, zero regressions). It was *not*
+applied to `info vars`: there it regressed `safe.test` (the safe package's
+`info vars ::safe::S*` state probes legitimately expose teardown residue our
+safe implementation leaves), so `info vars` keeps the visible-scope listing for
+now.
+
+The 2026-06-13 **TclOO `definitionnamespace`** chunk (TIP 524, **+7 tests,
+zero regressions**) — the `definitionnamespace ?-class|-instance? namespace`
+define subcommand stores the namespace on the class (a new `class_def_ns`
+field for `-class`, the existing `def_ns` for `-instance`; an empty name
+resets; the root classes reject it). A definition body now resolves bare
+commands in the applicable namespace: an `oo::define` on a class uses its
+metaclass's `-class` namespace, an `oo::objdefine` on an object its class's
+`-instance` namespace (the built-in `::oo::define`/`::oo::objdefine` defaults
+stay served by the global definition commands). `oo.test` 124 → 131; sweep
+11665 → 11672.
+
+The 2026-06-13 **TclOO metaclasses** chunk (**+7 tests, zero regressions**) —
+instantiating a *metaclass* (a class whose MRO includes `::oo::class`) now
+produces a class: the new instance is registered in both the object and class
+maps, and `::oo::class` contributes a synthetic constructor that applies the
+optional definition-script argument (in the metaclass's `-class` definition
+namespace, completing the TIP-524 semantics for `foocls create foo {…}`).
+`info object isa metaclass`/`mixin` were added; `oo_dispatch` now honours a
+class that `unexport`s its own `create`/`new` (a custom factory metaclass —
+they become plain unknown methods); and `oo_destroy` frees a metaclass
+instance from *both* maps so its name can be recreated. `oo.test` 131 → 138.
+
+The 2026-06-13 **`info call` + `self call`** chunk (**zero regressions**) —
+`info object`/`info class call` and `self call` report the method-resolution
+chain (each step a `{callType method declarer methodType}` element, `callType`
+`method`/`private`, `methodType` `method`/`forward`); `self call` adds the
+current index. Implementing it required TIP 500's same-object private
+visibility: a private method is reachable by an external dispatch (`[self]
+priv`) that originates from within the same object, so `oo_invoke` relaxes the
+export check when the calling frame belongs to the target object. `oo.test`
+138 → 139.
+
+The 2026-06-13 **`oo::copy` class cloning** chunk (**+9 tests, zero
+regressions**) — `oo::copy` now clones a source's *class* facet (methods,
+superclasses, declared variables, mixins, filters) as well as its object
+facet, so copying a class yields a working class whose instances run the
+cloned methods. Previously a class copy was a half-object: `bar create …`
+failed mid-test and leaked the source name, cascading "command already exists"
+failures across the `oo-15.*` cloning block. `oo.test` 139 → 148.
+
+The 2026-06-13 **`createWithNamespace` + `oo::copy ?targetNamespace?`** chunk
+(**+4 tests, zero regressions**) — the `createWithNamespace objectName
+namespaceName` class built-in (unexported by default; enabled via `self export
+createWithNamespace`) creates an object whose instance-variable namespace is the
+named one, erroring if it already exists. `oo::copy` gained the third
+`?targetNamespace?` argument (and an empty target name auto-generates), with the
+corrected `wrong # args` usage. `oo.test` 148 → 152.
+
+The 2026-06-13 **TclOO lifecycle + inheritance + visibility** push (**+40 tests
+over phases A–E, zero regressions**, `oo.test` 152 → 192):
+- **Destructors & teardown** — the full destructor chain (MRO order, `next`)
+  now fires on `obj destroy`, `rename obj {}` *and* `namespace delete
+  <object-namespace>` (a new `oo_namespace_deleted` hook), guarded against
+  re-entrancy (`DESTRUCTOR_CALLED`); a destroyed object frees its instance
+  namespace and both registry maps. The `can't create` message now uses the
+  name as written. `oo.test` 152 → 163.
+- **Variable declarations** — per-object `variable` decls, the `::`/array name
+  errors, and `info object variables` (declared) split from `vars` (set).
+- **C3 linearization** — replaced the preorder MRO with proper C3 (a diamond
+  `D(B C)`/`A` linearizes to `[D B C A]`).
+- **Slot operations** — `superclass`/`mixin`/`variable`/`filter` accept the TIP
+  380 ops `-set`/`-append`/`-prepend`/`-remove`/`-appendifnew`/`-clear`, with
+  class-name resolution, the self-mixin / uniqueness / circular-dependency
+  errors.
+- **Class change** — `oo::objdefine X class C` moves an object between the
+  object/class maps (non-class↔class), with the root-class and self-instance
+  errors.
+- **Visibility** — a method is exported by default only if its name starts with
+  a lowercase letter (else unexported); `-export`/`-unexport`/`-private` flags;
+  an `export` anywhere in the chain overrides a class-level unexport; TIP 500
+  `private` methods are a distinct set (hidden from `info methods -private`,
+  unlike merely-unexported ones). Introspection: `info class/object` no-arg
+  usage, `definition` argument spec with defaults, `methods -all/-private`
+  including the inherited `oo::object` built-ins.
+
+The 2026-06-13 **`info`** increment (**+18 tests, zero regressions**) — the
+`info cmdtype`/`cmdcount`/`functions`/`loaded` subcommands (`tclCmdIL.c`). The
+bulk of `info.test`'s remainder is `info frame` source-location exactness
+(PC-5, deferred) and the 5 missing `::tcl::mathfunc` names that `info functions`
+lists. `info.test` 81 → 99.
+
+The 2026-06-13 **`binary`** increment (**+108 tests, zero regressions**) —
+`binary encode`/`decode` for `hex`/`base64` (`-maxlen`/`-wrapchar`/`-strict`)/
+`uuencode` (`tclBinary.c`), plus the `u` unsigned modifier on integer `binary
+scan` codes. Byte-identical to `tclsh9.0`. `binary.test` 308 → 404.
+
+The 2026-06-13 **`string`-surface** increment (**+192 tests, zero regressions**)
+— `string insert`/`replace`/`wordstart`/`wordend` subcommands, `-nocase`/`-length`
+on `string compare`/`equal`, the `dict` class and class-named usage for `string
+is`, the `::tcl::string::insert` direct command, and the `tcl::prefix
+match`/`all`/`longest` command (`tclIndexObj.c`). Byte-identical to `tclsh9.0`.
+`string.test` 372 → 552.
+
+The 2026-06-13 **`lsearch`-options** increment (**+100 tests, zero
+regressions**) — completed `lsearch` from the `-exact`/`-glob`/`-nocase`/`-all`/
+`-not`/`-inline` subset to the full `Tcl_LsearchObjCmd`: the `-sorted` binary
+search (+`-bisect`, `-increasing`/`-decreasing`), datatypes `-ascii`/
+`-dictionary`/`-integer`/`-real` (numeric elements validated lazily, as C does),
+`-regexp` (via the runtime regex engine), `-index` (nested key), `-stride`
+(+leading-`-index` group offset), `-start`, and `-subindices`. Shares
+`dictionary_compare`/`select_by_index`/`index_spec` with `lsort`. Byte-identical
+to `tclsh9.0`. `lsearch.test` 30 → 130.
+
+The 2026-06-13 **`lsort`-options** increment (**+246 tests, zero regressions**)
+— completed `lsort` from the `-ascii`/`-integer`/`-real`/`-nocase`/`-unique`
+subset to the full `Tcl_LsortObjCmd` switch set: `-dictionary` (ported
+`DictionaryCompare` — case-insensitive, embedded decimals compared numerically,
+leading-zero secondary tiebreak), `-index` (drill into each element by a nested
+path, `SelectObjFromSublist`), `-stride` (group the flat list; the leading
+`-index` value, default 0, picks the key element within each group and the rest
+of the path applies inside it; output regroups), `-indices` (return positions),
+and `-command` (a stable merge sort whose comparator evals the user prefix —
+reentrant, so not a plain `sort_by`). Byte-identical to `tclsh9.0` incl. all the
+`stride length`/`multiple of the stride`/`within the group`/`missing from
+sublist` error strings. `error.test` 123 → 261 (its `lsort -stride 2` errorcode-
+normalising `customMatch`), `cmdIL.test` 48 → 125, `lsearch.test` 0 → 30.
+
+The 2026-06-13 **`lset`** increment (**+52 tests, zero regressions**) — the
+in-variable nested list-element set (`Tcl_LsetObjCmd`/`TclLsetList`/
+`TclLsetFlat`, `tclListObj.c`): `lset listVar ?index ...? value`. A lone index
+arg is an index *path* (`lset x {1 0} v`), multiple args each one index; each
+index resolves against its sublist length (`end`/`end±N`, range `0..=len` with
+`len` appending), descending and rebuilding the nested list bottom-up
+(`cmd_list.rs::lset_descend`, sharing `index_spec`/`bad_index` with
+`lindex`/`ledit`), then storing it back through `var_set` (so write traces fire)
+and returning it. Byte-identical to `tclsh9.0` incl. the empty-list/append
+quirks (single-element sublists stringify without braces, so `lset x 0 0 Z` on
+`{}` → `Z`). `reg.test` 0 → 32 (now runs to a summary), `lsetComp.test` 2 → 19;
+`lset.test` stays constraint-skipped (`testevalex`, a `tcl::test` C command).
+
+The 2026-06-13 **`trace`** increment (**+158 tests, 56.0% → 56.9%**, zero
+regressions) — `trace.test` **49 → 195** (the rest are
+`tcl::test`/`testcmdtrace` C-tier commands, the `after`/`update` event loop, and
+`const`, all out of this command's scope):
+
+- **command + execution traces** (`cmd_trace.rs`, `tclTrace.c`'s
+  `Tcl_TraceObjCmd` + the three type helpers): `trace add|remove|info
+  command|execution`. Command traces (`rename`/`delete`) fire from
+  `rename_command` *before* the table mutation as `command oldName newName
+  rename` / `command oldName {} delete`, following a renamed command and dying
+  on delete (`Interp::fire_cmd_trace`). Execution `enter`/`leave` wrap the
+  dispatch chokepoint (`dispatch → dispatch_traced → dispatch_inner`):
+  enter newest-first, leave oldest-first, `<prefix> {cmd args} [<code>
+  <result>] <op>`, with enter-error abort and leave-error override; the result
+  is saved once and restored after the callbacks but live between them (C's
+  single `SaveInterpState`/`RestoreInterpState`). Keyed by resolved FQN
+  (`resolve_cmd_fqn`); registry is a `CmdTrace` Vec with a `TraceOps` bitset.
+- **step traces** (`enterstep`/`leavestep`): a command carrying step ops
+  installs a `StepActive` on entry (deduped against recursion so only the
+  outermost installs); while any is live, every executed command fires
+  enterstep (reverse) before and leavestep (forward) after — matching C's
+  interp-trace order (interp enter before per-command enter; per-command leave
+  before interp leave). Byte-identical to `tclsh9.0` on the recursive-factorial
+  and nested-error step scenarios.
+- **variable-trace error propagation** (`fire_var_trace` → `pending_err`): a
+  `read`/`write` callback error now fails the access with `can't read|set
+  "name": <msg>` (C's `TclObjCallVarTraces` + `TclObjVarErrMsg`); `unset`/`array`
+  errors stay swallowed. Write routes through a new unit `VarError::TraceError`
+  (keeps `VarError` `Copy`; the ~40 `var_error` callers propagate unchanged);
+  read routes through `fire_read_trace` at the `$var` and `set name` chokepoints.
+- **trace lifecycle** (matches C; prevents unbounded accumulation that otherwise
+  poisoned later tests into exponential step output): redefining a command
+  (`proc`) deletes the old one — fire its `delete` command-traces and drop all
+  its traces (`Tcl_CreateObjCommand` replace); unsetting a variable drops its
+  variable traces; and a **proc-local** variable's traces die when the call
+  frame pops (`VarTrace::frame_level` + `clear_frame_var_traces`, C frees a
+  local var's trace list at frame teardown).
+
+The earlier 2026-06-13 increments (**+2006 tests, 45.7% → 56.0%**, zero
+regressions):
 
 - **`ledit listVar first last ?element ...?`** (`cmd_list.rs`) — the Tcl 8.7/9.0
   in-place `lreplace` on a list *variable*. Shares `lreplace`'s index/clamp/
@@ -1976,6 +2378,198 @@ conflicts**.
   (2434) all pass — the expr/number/glob convergence behaves identically against
   the newer lexer.
 
+### SYNC inbound — 2026-06-13 (`info` subcommands)
+
+`cmd_info.rs`: `info cmdtype` (Command-variant → native/proc/alias/import/
+ensemble/object), `info cmdcount` (a per-dispatch counter), `info functions`
+(the `::tcl::mathfunc` names), `info loaded` (empty — no C extensions). No Zig
+fix back-ported (mirror `8150eca`). `info.test` 81 → 99; sweep **11516 →
+11534**, zero regressions. Residual: `info frame` byte-exactness (PC-5) and the
+`isnormal`/`issubnormal`/`isunordered`/`rand`/`srand` mathfuncs.
+
+### SYNC inbound — 2026-06-13 (`binary encode`/`decode` + unsigned scan)
+
+`cmd_binary.rs`: `binary encode`/`decode hex`/`base64`/`uuencode` (the base64
+`-maxlen`/`-wrapchar` wrapping and `-strict` invalid-char error, ported from
+`tclBinary.c`), and the `u` unsigned modifier on integer `binary scan` codes
+(mask the low `size*8` bits). No Zig fix back-ported (mirror `8150eca`);
+byte-checked against `tclsh9.0`. `binary.test` 308 → 404; sweep
+**11408 → 11516**, zero regressions.
+
+### SYNC inbound — 2026-06-13 (`string` surface + `tcl::prefix`)
+
+`cmd_string.rs`: added the `string insert`/`replace`/`wordstart`/`wordend`
+subcommands (`StringInsertCmd`/`StringRplcCmd`/`StringStartCmd`/`StringEndCmd`,
+incl. `string insert`'s `end == length` append base and the single-non-word-char
+word rule), `-nocase`/`-length` on `string compare`/`equal`, the `dict` class +
+class-named wrong-args for `string is`, the `::tcl::string::insert` direct
+command, and `tcl::prefix match`/`all`/`longest` (`tclIndexObj.c`). No Zig fix
+back-ported (mirror `8150eca`); byte-checked against `tclsh9.0`. `string.test`
+372 → 552; sweep **11216 → 11408**, zero regressions.
+
+### SYNC inbound — 2026-06-13 (`lsearch` option completion)
+
+`lsearch` (`cmd_list.rs`) completed to the full `Tcl_LsearchObjCmd`: `-sorted`
+binary search (`-bisect`, `-increasing`/`-decreasing`), `-ascii`/`-dictionary`/
+`-integer`/`-real` datatypes (elements validated lazily during the scan, per C),
+`-regexp` (runtime regex engine), `-index`/`-stride` (with the leading-`-index`
+group offset), `-start`, `-subindices` — added to the existing exact/glob/
+nocase/all/not/inline. Shares `dictionary_compare`/`select_by_index`/`index_spec`
+with `lsort`. No Zig fix back-ported (mirror `8150eca`); byte-checked against
+`tclsh9.0`. `lsearch.test` 30 → 130; sweep **11116 → 11216**, zero regressions.
+
+### SYNC inbound — 2026-06-13 (`lsort` option completion)
+
+`lsort` (`cmd_list.rs`) completed to the full `Tcl_LsortObjCmd` switch set —
+`-dictionary`/`-index`/`-indices`/`-stride`/`-command` added to the existing
+`-ascii`/`-integer`/`-real`/`-nocase`/`-increasing`/`-decreasing`/`-unique`.
+`DictionaryCompare` is ported verbatim; the decorate-sort-output structure
+mirrors C (logical elements keyed by `SelectObjFromSublist`, `-stride` grouping
+with a leading-`-index` group offset, regrouped output). `-command` is a stable
+merge sort whose comparator dispatches the user prefix (reentrant — `sort_by`
+cannot host an interp-evaluating, fallible comparator). Numeric keys are
+validated up front so the non-command comparators stay infallible. No Zig fix
+back-ported (mirror `8150eca`); byte-checked against `tclsh9.0`. `error.test`
+123 → 261, `cmdIL.test` 48 → 125, `lsearch.test` 0 → 30; sweep
+**10870 → 11116**, zero regressions.
+
+### SYNC inbound — 2026-06-13 (`lset`)
+
+`lset` (`cmd_list.rs`), the in-variable nested list-element set, ported from C's
+`Tcl_LsetObjCmd` + `TclLsetList`/`TclLsetFlat` (`tclListObj.c`). We re-derive the
+recursive descent (parse index → range-check `0..=len` → descend/rebuild) rather
+than C's copy-on-write `pendingInvalidates` chain (a string-rep-invalidation
+detail of C's representation, not behaviour); single-element sublists stringify
+without braces, which reproduces the empty-list/append quirks for free. Shares
+`index_spec`/`bad_index` with `lindex`/`ledit`; stores back through `var_set`
+(write traces fire) like `ledit`. No Zig fix back-ported (mirror anchor
+`8150eca`); byte-checked against `tclsh9.0`. `reg.test` 0 → 32, `lsetComp.test`
+2 → 19; sweep **10818 → 10870**, zero regressions.
+
+### SYNC inbound — 2026-06-13 (`trace` command/execution/step + lifecycle + var-trace error propagation)
+
+Completes the `trace` command beyond the prior variable-only subset, derived
+from C's `tclTrace.c` (`Tcl_TraceObjCmd` + `TraceExecutionObjCmd`/
+`TraceCommandObjCmd`/`TraceExecutionProc`/`TclCheckExecutionTraces`/
+`TclCheckInterpTraces`) and `tclBasic.c` (`TclEvalObjvInternal` enter/leave,
+`TclRenameCommand`) + `tclVar.c` (`TclObjVarErrMsg`). Five gated chunks:
+command-trace registration/info → command-trace firing → execution enter/leave
+→ step traces + redefine/unset/frame lifecycle → variable-trace error
+propagation. `trace.test` **49 → 195**; sweep **10660 → 10818**, zero
+regressions (a transient var.test regression from exposing a pre-existing
+local-variable-trace leak was fixed by tying frame-local traces to their call
+frame).
+
+- **Verbatim against C, byte-checked vs `tclsh9.0`.** Every new form — the
+  `bad option`/`bad operation[ list]`/`unknown command "X"` errors, the
+  enter/leave/step callback strings and their newest-first/oldest-first/
+  reverse/forward ordering, the live-result-between-callbacks leak, the
+  `can't read|set "name": <msg>` propagation — was confirmed identical to
+  `tclsh9.0`, including the recursive-`factorial` and nested-`bar`-error step
+  scenarios (`trace-23.2`, `trace-28.2`).
+- **No Zig behavioural fix back-ported.** `runtime/zig/` has no `trace`
+  command-family module (variable-trace firing only); the port follows C's
+  control flow directly. Mirror anchor unchanged (`8150eca`).
+- **Representation note.** Three sibling registries on `TraceTable` (variable
+  `Vec`, command/execution `CmdTrace` `Vec` keyed by FQN with a `TraceOps`
+  `u8` bitset, live-step `StepActive` `Vec`) rather than one unified enum vec —
+  the kinds fire from disjoint chokepoints and the hot dispatch path early-outs
+  on `cmd_traces.is_empty()`. Step-trace lifetime is bracketed by the call
+  stack (install on the step-traced command's `dispatch_traced` entry, dedup by
+  owner+prefix for recursion, pop on exit) rather than C's explicit
+  `startLevel`/`startCmd` interp-trace, which the single-threaded `Rc`/`RefCell`
+  model makes unnecessary.
+
+### SYNC inbound — 2026-06-14 (TclOO slots + foundation classes + next-level)
+
+TclOO push toward finishing the `oo*.test` suites (`oo.test` 272 → 289, zero
+regressions; `ooProp.test` stable 55/55), all derived from Tcl 9 C
+(`tclOO*.c`):
+
+- **Foundation classes** — `::oo::abstract`, `::oo::singleton`,
+  `::oo::SingletonInstance` created at OO init (C's `InitFoundation`), so a
+  fresh interp's `info class subclasses/instances` matches (oo-1.21).
+- **`::oo::Slot` fidelity** — `destroy` is unexported (an external `$slot
+  destroy` misses → unknown handler); `unknown` is native (`Slot_Unknown`) and
+  `--default-operation` is a forward, so neither adds an `info level` frame
+  (oo-33.2/33.3/33.4/33.5).
+- **The eleven built-in slot objects** — `define::{filter,mixin,superclass,
+  variable}`, `objdefine::{filter,mixin,variable}` and the four TIP 558
+  property slots are now real `::oo::Slot` instances with per-instance
+  `Get`/`Set` (+ `Resolve`/`--default-operation` for the class-reference slots)
+  (C's `TclOODefineSlots`; oo-34.2..34.9, oo-1.21). The property slots route
+  through the generic slot machinery, retiring the bespoke `prop_slot_op`.
+- **TIP 516 class resolution** — `superclass`/`mixin` resolve names as classes
+  (current ns → global, `Slot_ResolveClass`), validating only the added items.
+- **`next`-chain frame level** — every method in a call chain runs at the level
+  of the original invocation, so `info level`/`upvar`/`uplevel` see through the
+  chain to the original caller (oo-7.6).
+- **`my` reaches the class factory** — `create`/`new`/`createWithNamespace`
+  shared between `$cls m` and `my m`, so a metaclass method can `my create …`
+  even when it unexports `create`/`new` externally (oo-7.x factory pattern).
+- **No-method invocation** (`$obj`) forces the user `unknown` handler (oo-24.3);
+  **`self class`** errors for an object-defined method (oo-29.1); **class
+  destroy** cascades to objects that mix it in (oo-14.1); **`info frame`** in a
+  method body reports `method`/`class`|`object` (oo-22.1/22.2).
+
+#### oo-22 / `info frame` / coroutine dovetail
+
+`oo-22` spans three independent needs. `info frame` inside a method now carries
+the OO method context (the `CmdFrame` records `(method, class|object, owner)`
+from the call meta, displacing the `proc` key — C's `TclInfoFrame`), landing
+**oo-22.1/22.2**. The line-tracking part is now done too:
+
+- **oo-22.7/22.8 — file-absolute method-body line tracking (DONE).** TIP 280
+  argument-line tracking: the parser records each word's byte offset
+  (`Word::start`), the eval loop computes per-word file-absolute lines just
+  before dispatch (`arg_lines`/`arg_line`), and a method/constructor body
+  defined while sourcing records `(file, body_line_base)`. Its `info frame` is
+  then `type source` + `file` with file-relative lines, even when the body opens
+  on a later line than the `method` command. The single-command `oo::define
+  <target> <sub> …` form re-bases the argument lines onto the dispatched
+  subcommand. (The class-create body path still passes `None`; not exercised by
+  these tests. This infra is the lever for the broader ~169 `info.test`
+  source-line failures.)
+
+- **oo-22.3–22.6 — coroutines (DONE).** Implemented as **cooperative OS-thread
+  coroutines** (`cmd_coro`) plus the event loop (`cmd_event`: `after`/`vwait`/
+  `update`). Each coroutine runs its body on its own thread — the parked native
+  stack *is* the suspended continuation — with strict ping-pong handoff over
+  rendezvous channels, so the `!Send` `Rc`/`RefCell` interpreter is shared but
+  never aliased (one `unsafe impl Send` on the handoff handle, sound under the
+  serialization). The per-flow execution context (call frames, the `info frame`
+  stack, current namespace, the TclOO call/define stacks, return/error state) is
+  swapped in/out on each handoff (`Interp::swap_coro_ctx`); definitions
+  (namespaces/commands/classes/channels) stay shared. `info coroutine` is
+  thread-local. Deleting a suspended (or self-deleting) coroutine terminates its
+  worker via a quiet panic-unwind sentinel while the main thread is blocked, so
+  no concurrent interpreter access. The thread-local leak counters are not a
+  blocker: the production `run_script` build never leak-checks, and the
+  `#[cfg(test)]` coroutine tests deliberately skip `leak_free`. Native only; the
+  single-threaded wasm build stubs the commands (a future explicit-stack
+  evaluator would be the wasm route). Completing coroutines also flushed the
+  cross-test pollution gated on oo-1.25 (which aborted mid-body on the missing
+  `coroutine`, leaking `A`): oo-3.7, oo-7.7. `coroutine.test` 0 → 28/77.
+
+After coroutines, the same-session tail of OO fixes (all zero-regression) took
+`oo.test` further to **307/388**: `next` into the `oo::object` core built-ins
+(`eval`/`variable`/`varname`/`destroy`) and those built-ins appearing as call-
+chain steps in `info class/object call` (oo-18.5, oo-35.1); the two-arg
+`info object class obj className` membership test; a failed constructor running
+the destructor before re-raising (oo-2.9); and `info class methods -all`
+traversing mixin links (oo-35.5). The full Tcl 9 sweep is **11935/20494**
+(up from 11757; coroutines/event loop flipped `coroutine.test`/`event.test` and
+the OO suites from error-before-summary to passing).
+
+Still open (larger/foundational): filters wrapping the `destroy` built-in need
+it as a chain *step* in the initial dispatch (oo-12.2); the define body runs in
+the caller's namespace, not `::oo::define`/`::oo::objdefine` with outer-context
+class resolution (oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor
+`wrong # args` / `info level` words (oo-2.1/2.7/2.8); class morphing + self-mixin
+(oo-13.x); empty-superclass on a metaclass (oo-35.2); `varname` ghosts
+(oo-19.x); coroutine advanced forms (`yieldto`, custom `return -code`,
+`info level` in coroutines).
+
 ### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
 Chunks: `ledit`, `lmap`, `lseq`, the three-way variable-read-miss error, and
@@ -2146,9 +2740,18 @@ compiler/LSP or the Zig runtime.
     `info level`/`info frame`/`source`; PC-6 AOT interop.
 11. ◐ **Run the real Tcl library + `tcltest`** (new north-star bring-up — see
     [`tcltest-bringup.md`](tcltest-bringup.md); **in progress** — sweep at
-    **10660/19027**, the 2026-06-13 `ledit`/`lmap`/`lseq` + var-read-miss +
+    **11757/20532**, the 2026-06-13 TclOO meta-protocol increments (class-
+    destroy cascade, per-object `my`, `private` methods + `unknown` method
+    list, `oo::object`/`oo::class` as real objects) took `oo.test` 45 → 123, the
+    2026-06-13 `ledit`/`lmap`/`lseq` +
+    var-read-miss +
     empty-script reset increments landed the list/loop-command surface that
-    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise). Run the **unmodified** pure-Tcl
+    `lreplace.test`/`lmap.test`/`lseq.test`/`set*.test` exercise, the
+    `trace` command/execution/step + lifecycle increment took `trace.test`
+    49 → 195, `lset` unblocked `reg.test`/`lsetComp.test`, the full
+    `lsort` option set took `error.test` 123 → 261 and `cmdIL.test` 48 → 125,
+    and the full `lsearch` option set took `lsearch.test` 30 → 130).
+    Run the **unmodified** pure-Tcl
     `init.tcl`/`tcltest.tcl` + real C-Tcl-9 `*.test` files by **porting the C
     command surface** (not re-porting the library): L1 eval/exception/
     introspection core (`eval`/`uplevel`/`apply`/`subst`/`catch`/`error`/`return

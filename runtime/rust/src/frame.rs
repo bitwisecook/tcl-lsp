@@ -96,6 +96,11 @@ pub enum VarError {
     /// *create* path raises this; reads/unsets of the same name report
     /// `no such variable` instead.
     NoSuchNamespace,
+    /// A write trace's callback errored: the set fails with `can't set "name":
+    /// <msg>`, the trace message carried out-of-band in `TraceTable::pending_err`
+    /// (kept unit so `VarError` stays `Copy`; the `var_error` callers propagate
+    /// it unchanged).
+    TraceError,
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +239,17 @@ impl VarTable {
         self.vars.keys().map(|k| k.as_slice()).collect()
     }
 
+    /// Names of the table's *direct* variables (scalars/arrays), excluding
+    /// links (`global`/`upvar`/`variable` / auto-linked instance vars) — for
+    /// `info locals`, which lists only true locals.
+    pub(crate) fn non_link_names(&self) -> Vec<&[u8]> {
+        self.vars
+            .iter()
+            .filter(|(_, v)| !matches!(v, Var::Link(_)))
+            .map(|(k, _)| k.as_slice())
+            .collect()
+    }
+
     /// Element names of array `name`, sorted (`array names`); `None` if not an
     /// array.
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<&[u8]>> {
@@ -336,6 +352,16 @@ impl FrameStack {
             .is_some_and(|i| self.frames[i].is_proc)
     }
 
+    /// Whether `name` is bound to a link (`global`/`upvar`/`variable`) in the
+    /// active frame — used to decide if a variable trace on an unqualified name
+    /// is frame-local (it is not when the name links to an outer variable, which
+    /// outlives this frame).
+    pub(crate) fn current_is_link(&self, name: &[u8]) -> bool {
+        self.index_of_level(self.active_level)
+            .and_then(|i| self.frames[i].table.cell(name))
+            .is_some_and(|c| matches!(c, Var::Link(_)))
+    }
+
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
     /// redirection of the active level.
     pub fn top_level(&self) -> usize {
@@ -346,6 +372,22 @@ impl FrameStack {
     /// and makes it the active frame.
     pub fn push(&mut self, ns: NsId) -> usize {
         let level = self.active_level + 1;
+        let mut f = Frame::new(level, ns);
+        f.is_proc = true;
+        f.saved_active = self.active_level;
+        self.frames.push(f);
+        self.active_level = level;
+        level
+    }
+
+    /// Push a proc call frame that shares the *current* level (it still gets its
+    /// own local-variable table). Used for a TclOO method invoked via `next`:
+    /// the whole call chain runs at the level of the original invocation, so
+    /// `info level` / `upvar` / `uplevel` resolve through the chain. Returns the
+    /// (unchanged) level; the new frame becomes active and, being topmost at
+    /// that level, is what unqualified names and `info level` resolve to.
+    pub fn push_same_level(&mut self, ns: NsId) -> usize {
+        let level = self.active_level;
         let mut f = Frame::new(level, ns);
         f.is_proc = true;
         f.saved_active = self.active_level;
@@ -418,6 +460,20 @@ impl FrameStack {
                 self.frames[i]
                     .table
                     .names()
+                    .into_iter()
+                    .map(<[u8]>::to_vec)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// `info locals` — the active frame's true local variables (no links).
+    pub(crate) fn local_names_no_links(&self) -> Vec<Vec<u8>> {
+        self.index_of_level(self.active_level)
+            .map(|i| {
+                self.frames[i]
+                    .table
+                    .non_link_names()
                     .into_iter()
                     .map(<[u8]>::to_vec)
                     .collect()

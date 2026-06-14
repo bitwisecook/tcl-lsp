@@ -71,7 +71,8 @@ exclude = [
 version = "0.1.0"
 edition = "2021"
 # Bumped from 1.80 for salsa 0.26 (edition 2024 → rustc ≥ 1.85), the
-# incremental query engine adopted for the LSP query database (tcl-lsp-db).
+# incremental query engine adopted for the LSP query database (tcl-lsp-db);
+# the runtime/rust port independently needs ≥ 1.85 for is_none_or et al.
 rust-version = "1.85"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"

@@ -22,6 +22,7 @@ use crate::obj::{self, TclObj};
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"rename", rename);
     interp.register_builtin(b"interp", interp_cmd);
+    // `update` is registered by `cmd_event` (the real event loop).
 }
 
 /// Commands that may not be renamed (mirrors Tcl 9's `TclProtectedCommandsList`
@@ -108,6 +109,24 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(list::new_list_obj(&elems));
             for e in elems {
                 drop_fresh(e);
+            }
+            Code::Ok
+        }
+        b"bgerror" => {
+            // `interp bgerror path ?cmdPrefix?` — get/set the current interp's
+            // background-error handler. Only the current interp ("") is modelled.
+            if argv.len() < 3 || argv.len() > 4 {
+                return wrong_args(interp, b"interp bgerror path ?cmdPrefix?");
+            }
+            match argv.get(3) {
+                Some(&p) => {
+                    interp.set_bgerror_handler(&obj_bytes(p));
+                    interp.set_result_bytes(b"");
+                }
+                None => {
+                    let h = interp.bgerror_handler();
+                    interp.set_result_bytes(&h);
+                }
             }
             Code::Ok
         }

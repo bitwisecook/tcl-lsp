@@ -119,6 +119,21 @@ impl Namespaces {
             .map(|(ns, simple)| self.arena[ns].commands[&simple].clone())
     }
 
+    /// The canonical fully-qualified name a (relative/absolute) command `name`
+    /// resolves to, following the full resolution order — or `None` if no such
+    /// command exists. Used to key command/execution traces so they address the
+    /// same binding `resolve` (and `rename`/`delete`) hit.
+    #[must_use]
+    pub fn resolve_fqn(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        self.home_of(current, name).map(|(ns, simple)| {
+            let q = self.qualified_name(ns);
+            let mut fqn = if q == b"::" { Vec::new() } else { q };
+            fqn.extend_from_slice(b"::");
+            fqn.extend_from_slice(&simple);
+            fqn
+        })
+    }
+
     /// Sorted command names in namespace `ns` (`info commands`).
     #[must_use]
     pub fn command_names(&self, ns: NsId) -> Vec<&[u8]> {
@@ -323,6 +338,27 @@ impl Namespaces {
         Some(fqn)
     }
 
+    /// The fully-qualified name a *variable* `name` resolves to from `current`
+    /// (`namespace which -variable`), or `None`. Like Tcl's
+    /// `Tcl_FindNamespaceVar`, this resolves `name` as a **namespace** variable
+    /// (ignoring local proc links) and requires it to be declared/set in the
+    /// target namespace's variable table.
+    #[must_use]
+    pub(crate) fn which_variable(&self, current: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        let (ns, simple) = if contains_qualifier(name) {
+            self.var_home(current, name)?
+        } else {
+            (current, name.to_vec())
+        };
+        self.arena.get(ns)?.vars.cell(&simple)?;
+        let mut fqn = self.qualified_name(ns);
+        if ns != GLOBAL {
+            fqn.extend_from_slice(b"::"); // global's qualified_name is already `::`
+        }
+        fqn.extend_from_slice(&simple);
+        Some(fqn)
+    }
+
     /// `namespace origin` — the fully-qualified name of the *original* command
     /// `name` resolves to, following `import` chains to their source. `None` if
     /// the command doesn't resolve.
@@ -413,13 +449,35 @@ impl Namespaces {
         let Some(ns) = self.find_namespace(current, qualified) else {
             return false;
         };
+        self.delete_namespace_by_id(ns);
+        true
+    }
+
+    /// Delete the namespace `ns` (and its subtree), unlinking it from its parent.
+    /// Deleting the global namespace clears its contents but keeps the node
+    /// (it has no parent to unlink from) — matching `namespace delete ::`.
+    pub fn delete_namespace_by_id(&mut self, ns: NsId) {
         self.delete_subtree(ns);
         // Unlink from the parent so the name no longer resolves.
         if let Some(parent) = self.arena[ns].parent {
             let name = std::mem::take(&mut self.arena[ns].name);
             self.arena[parent].children.remove(&name);
         }
-        true
+    }
+
+    /// `ns` and all of its descendant namespace ids (for destroying every OO
+    /// object whose instance namespace lies in a namespace being deleted).
+    #[must_use]
+    pub fn descendant_ids(&self, ns: NsId) -> Vec<NsId> {
+        let mut out = vec![ns];
+        let mut i = 0;
+        while i < out.len() {
+            for child in self.children(out[i]) {
+                out.push(child);
+            }
+            i += 1;
+        }
+        out
     }
 
     /// Recursively clear a namespace and its descendants: dropping the `VarTable`

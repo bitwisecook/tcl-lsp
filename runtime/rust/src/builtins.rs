@@ -53,6 +53,10 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_misc::install(interp);
     crate::cmd_chan::install(interp);
     crate::cmd_trace::install(interp);
+    // The event loop (`after`/`vwait`/`update`) — registers `update`, replacing
+    // the bgerror-only stub in `cmd_alias`.
+    crate::cmd_event::install(interp);
+    crate::cmd_coro::install(interp);
     // `regexp`/`regsub` need the linked-in Tcl regex engine (the C ARE engine).
     #[cfg(have_regex)]
     crate::cmd_regex::install(interp);
@@ -69,10 +73,26 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 }
 
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+    // A write-trace error: wrap the trace's own message (stashed in pending_err)
+    // as `can't set "name": <msg>` (C's TclObjVarErrMsg).
+    if e == VarError::TraceError {
+        let reason = interp
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        let mut msg = b"can't set \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": ");
+        msg.extend_from_slice(&reason);
+        return interp.set_error(&msg);
+    }
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
+        VarError::TraceError => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
@@ -88,6 +108,11 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         2 => {
             let name = obj_bytes(argv[1]);
             let (base, elem) = split_array_ref(&name);
+            // A read trace fires before the read (C's Tcl_ObjGetVar2); a trace
+            // error fails the read with `can't read "name": <msg>`.
+            if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
+                return c;
+            }
             let val = match &elem {
                 Some(k) => interp.var_get_elem(&base, k),
                 None => interp.var_get(&base),
@@ -536,6 +561,22 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             )));
         }
         Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
+    }
+
+    fn subst_string(&mut self, inner: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        // A `"…"` operand substitutes like a double-quoted word ($var/[cmd]/\).
+        match self
+            .interp
+            .do_subst(inner.as_bytes(), crate::subst::SubstFlags::default())
+        {
+            Ok(v) => Ok(crate::expr::Owned::fresh(crate::obj::new_string_bytes(&v))),
+            Err(_) => {
+                self.propagated = true;
+                Err(crate::expr::ExprError(obj_bytes(
+                    self.interp.get_obj_result(),
+                )))
+            }
+        }
     }
 
     fn call_function(

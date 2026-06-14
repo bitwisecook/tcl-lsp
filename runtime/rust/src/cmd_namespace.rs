@@ -33,11 +33,53 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
+/// Canonical `namespace` subcommands (alphabetical — the ensemble order, used
+/// for unique-prefix resolution and the error message).
+const NAMESPACE_SUBS: &[&[u8]] = &[
+    b"children",
+    b"code",
+    b"current",
+    b"delete",
+    b"ensemble",
+    b"eval",
+    b"exists",
+    b"export",
+    b"forget",
+    b"import",
+    b"inscope",
+    b"origin",
+    b"parent",
+    b"path",
+    b"qualifiers",
+    b"tail",
+    b"upvar",
+    b"which",
+];
+
 fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"namespace subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
+    // contract), so e.g. `namespace exist` → `exists`.
+    let raw = obj_bytes(argv[1]);
+    let sub: &[u8] = if let Some(c) = NAMESPACE_SUBS.iter().find(|c| **c == raw.as_slice()) {
+        c
+    } else {
+        let mut it = NAMESPACE_SUBS
+            .iter()
+            .filter(|c| c.starts_with(raw.as_slice()));
+        match (it.next(), it.next()) {
+            (Some(c), None) => c,
+            _ => {
+                let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+                m.extend_from_slice(&raw);
+                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
+                return interp.set_error(&m);
+            }
+        }
+    };
+    match sub {
         b"current" => ns_current(interp, argv),
         b"delete" => ns_delete(interp, argv),
         b"eval" => ns_eval(interp, argv),
@@ -56,12 +98,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
         b"upvar" => ns_upvar(interp, argv),
-        other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
-            interp.set_error(&m)
-        }
+        _ => unreachable!("subcommand resolved to a canonical name above"),
     }
 }
 
@@ -82,15 +119,21 @@ fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// children, commands, and variables). A missing namespace is an error; with no
 /// names it is a no-op. Mirrors C's `NamespaceDeleteCmd` (`tclNamesp.c`).
 fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let cur = interp.current_ns();
     for &a in &argv[2..] {
         let name = obj_bytes(a);
-        if !interp.namespaces_mut().delete_namespace(cur, &name) {
+        // An object lives in its own namespace: deleting that namespace destroys
+        // the object (running its destructor while the namespace is still
+        // intact), matching C's `ObjectNamespaceDeleted`.
+        let Some(ns_id) = interp.find_namespace_id(&name) else {
             let mut m = b"unknown namespace \"".to_vec();
             m.extend_from_slice(&name);
             m.extend_from_slice(b"\" in namespace delete command");
             return interp.set_error(&m);
-        }
+        };
+        interp.oo_namespace_deleted(ns_id);
+        // Delete by id so variable unset traces in the namespace fire as it is
+        // torn down (the named `delete_namespace` path does not).
+        interp.delete_namespace_by_id(ns_id);
     }
     interp.set_result_bytes(b"");
     Code::Ok
@@ -196,28 +239,32 @@ fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut want_variable = false;
     let mut name: Option<Vec<u8>> = None;
+    // The flags accept unambiguous prefix abbreviations (`-var`, `-com`), as
+    // Tcl's option table does; a non-flag argument (or one after another flag)
+    // is the name. Only one name is allowed.
     for &a in &argv[2..] {
         let b = obj_bytes(a);
-        match b.as_slice() {
-            b"-command" => {}
-            b"-variable" => want_variable = true,
-            _ => {
-                if name.is_some() {
-                    return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
-                }
-                name = Some(b);
+        let is_flag = b.first() == Some(&b'-') && name.is_none();
+        if is_flag && b.len() > 1 && b"-command".starts_with(b.as_slice()) {
+            // -command (default behaviour)
+        } else if is_flag && b.len() > 1 && b"-variable".starts_with(b.as_slice()) {
+            want_variable = true;
+        } else {
+            if name.is_some() {
+                return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
             }
+            name = Some(b);
         }
     }
     let Some(name) = name else {
         return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
     };
-    if want_variable {
-        interp.set_result_bytes(b""); // ns variables not modelled yet
-        return Code::Ok;
-    }
     let cur = interp.current_ns();
-    let fqn = interp.namespaces().which_command(cur, &name);
+    let fqn = if want_variable {
+        interp.namespaces().which_variable(cur, &name)
+    } else {
+        interp.namespaces().which_command(cur, &name)
+    };
     interp.set_result_bytes(&fqn.unwrap_or_default());
     Code::Ok
 }
@@ -785,11 +832,45 @@ mod tests {
     }
 
     #[test]
+    fn subcommand_prefix_abbreviation() {
+        leak_free(|i| {
+            // `namespace` subcommands accept unambiguous prefixes.
+            assert_eq!(i.eval_str(b"namespace exist ::nope"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"namespace cur"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::");
+            // An ambiguous prefix still errors.
+            assert_eq!(i.eval_str(b"namespace ex foo"), Code::Error);
+        });
+    }
+
+    #[test]
     fn which_resolves_command_fqn() {
         leak_free(|i| {
             assert_eq!(i.eval_str(b"namespace which -command set"), Code::Ok);
             assert_eq!(i.result_bytes(), b"::set");
             assert_eq!(i.eval_str(b"namespace which nope"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            // Prefix abbreviation of the flags (`-com`, `-var`).
+            assert_eq!(i.eval_str(b"namespace which -com set"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::set");
+        });
+    }
+
+    #[test]
+    fn which_variable_resolves_namespace_var_fqn() {
+        leak_free(|i| {
+            // `namespace which -variable` resolves a namespace variable to its
+            // FQN (ignoring local proc links); a missing one yields "".
+            assert_eq!(
+                i.eval_str(b"namespace eval ::n { variable gv 1 }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"namespace which -variable ::n::gv"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::n::gv");
+            assert_eq!(i.eval_str(b"namespace which -var ::n::gv"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::n::gv");
+            assert_eq!(i.eval_str(b"namespace which -variable ::n::nope"), Code::Ok);
             assert_eq!(i.result_bytes(), b"");
         });
     }

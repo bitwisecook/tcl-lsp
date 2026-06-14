@@ -35,9 +35,16 @@ impl PackageState {
         let mut p = PackageState::default();
         p.provided.insert(b"tcl".to_vec(), b"9.0.3".to_vec());
         p.provided.insert(b"Tcl".to_vec(), b"9.0.3".to_vec());
-        // TclOO is built in (the `oo::*` commands are always present).
+        // TclOO is built in (the `oo::*` commands are always present). C also
+        // registers `ifneeded` entries for both names at the patchlevel (its
+        // `initScript`) so they show up in `package versions` (oo-0.9).
         p.provided.insert(b"tcl::oo".to_vec(), b"1.3.1".to_vec());
         p.provided.insert(b"TclOO".to_vec(), b"1.3.1".to_vec());
+        let already = b"# Already present, OK?".to_vec();
+        p.ifneeded
+            .insert((b"tcl::oo".to_vec(), b"1.3.1".to_vec()), already.clone());
+        p.ifneeded
+            .insert((b"TclOO".to_vec(), b"1.3.1".to_vec()), already);
         p
     }
 }
@@ -186,14 +193,14 @@ fn best_ifneeded(interp: &Interp, name: &[u8], exact: bool, reqs: &[Vec<u8>]) ->
             continue;
         }
         let ok = if exact {
-            reqs.first().map_or(true, |r| r == v)
+            reqs.first().is_none_or(|r| r == v)
         } else {
             reqs.iter().all(|r| vsatisfies(v, r))
         };
         if ok
             && best
                 .as_ref()
-                .map_or(true, |b| vcompare(v, b) == core::cmp::Ordering::Greater)
+                .is_none_or(|b| vcompare(v, b) == core::cmp::Ordering::Greater)
         {
             best = Some(v.clone());
         }
@@ -211,7 +218,7 @@ fn check_provided(
 ) -> Option<Result<Vec<u8>, Code>> {
     let v = interp.packages.borrow().provided.get(name)?.clone();
     let ok = if exact {
-        reqs.first().map_or(true, |r| r == &v)
+        reqs.first().is_none_or(|r| r == &v)
     } else {
         reqs.iter().all(|r| vsatisfies(&v, r))
     };

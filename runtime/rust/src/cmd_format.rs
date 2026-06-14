@@ -286,7 +286,7 @@ fn int_field(spec: &Spec, value: i64, radix: u32, upper: bool, prefix: &[u8]) ->
         let mut padded = Vec::new();
         padded.extend_from_slice(sign);
         padded.extend_from_slice(prefix);
-        padded.extend(std::iter::repeat(b'0').take(pad_n));
+        padded.extend(std::iter::repeat_n(b'0', pad_n));
         padded.extend_from_slice(&digits);
         return padded;
     }
@@ -331,7 +331,7 @@ fn float_field(spec: &Spec, conv: u8, value: f64) -> Vec<u8> {
         let sign_len = usize::from(matches!(bytes.first(), Some(b'-' | b'+' | b' ')));
         let pad_n = spec.width - bytes.len();
         let mut padded = bytes[..sign_len].to_vec();
-        padded.extend(std::iter::repeat(b'0').take(pad_n));
+        padded.extend(std::iter::repeat_n(b'0', pad_n));
         padded.extend_from_slice(&bytes[sign_len..]);
         return padded;
     }
@@ -379,9 +379,9 @@ fn pad(spec: &Spec, body: Vec<u8>, _numeric: bool) -> Vec<u8> {
     let mut out = Vec::with_capacity(spec.width);
     if spec.minus {
         out.extend_from_slice(&body);
-        out.extend(std::iter::repeat(b' ').take(pad_n));
+        out.extend(std::iter::repeat_n(b' ', pad_n));
     } else {
-        out.extend(std::iter::repeat(b' ').take(pad_n));
+        out.extend(std::iter::repeat_n(b' ', pad_n));
         out.extend_from_slice(&body);
     }
     out
