@@ -25,7 +25,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::interp::{obj_bytes, CallMeta, Code, Command, Interp, Param, ProcFrame};
+use crate::interp::{
+    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
+};
 use crate::list;
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
@@ -2792,7 +2794,7 @@ impl Interp {
             // via `my`), but a public call reaches them too once explicitly
             // `export`ed.
             if !external || exported_anywhere {
-                if let Some(code) = self.oo_builtin_method(obj, method, args) {
+                if let Some(code) = self.oo_builtin_method(obj, method, args, external) {
                     return code;
                 }
             }
@@ -2840,6 +2842,7 @@ impl Interp {
         obj: &[u8],
         method: &[u8],
         args: &[*mut TclObj],
+        external: bool,
     ) -> Option<Code> {
         let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns)?;
         match method {
@@ -2893,7 +2896,22 @@ impl Interp {
                     out
                 };
                 let ns_name = self.namespaces().qualified_name(var_ns);
-                Some(self.ns_eval(&ns_name, &script))
+                let code = self.ns_eval(&ns_name, &script);
+                // C's FinalizeEval: on error append `(in "<name> eval" script
+                // line N)`, where name is the object's name for a public call
+                // and the literal `my` for an internal (non-public) one.
+                if code == Code::Error {
+                    let mut inner = b"in \"".to_vec();
+                    if external {
+                        inner.extend_from_slice(obj);
+                    } else {
+                        inner.extend_from_slice(b"my");
+                    }
+                    inner.extend_from_slice(b" eval\" script");
+                    self.append_frame_line(&inner);
+                    self.clear_error_logged();
+                }
+                Some(code)
             }
             _ => None,
         }
@@ -3242,6 +3260,17 @@ impl Interp {
         } else {
             method.clone()
         };
+        // The method-body errorInfo frame (`CommonMethErrorHandler`): named by
+        // the *declaring* entity — `object`/`class` per whether the provider is
+        // the object itself or one of its classes.
+        let kind: &[u8] = if is_object { b"object" } else { b"class" };
+        let what = if method.is_empty() {
+            MethodFrameWhat::Constructor
+        } else if method == b"<destructor>" {
+            MethodFrameWhat::Destructor
+        } else {
+            MethodFrameWhat::Named(&method)
+        };
         self.oo.borrow_mut().call_stack.push(OoFrame {
             object: obj.to_vec(),
             chain,
@@ -3255,7 +3284,11 @@ impl Interp {
             args,
             &name,
             CallMeta {
-                err: ProcFrame::Proc(&name),
+                err: ProcFrame::Method {
+                    kind,
+                    owner: &prov,
+                    what,
+                },
                 fqn: None,
                 source: None,
                 body_line_base: 0,
@@ -3478,6 +3511,11 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    /// Whether `haystack` contains the byte subsequence `needle`.
+    fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+        haystack.windows(needle.len()).any(|w| w == needle)
     }
 
     #[test]
@@ -3842,6 +3880,38 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"can't create object \"K\": command already exists with that name"
+            );
+        });
+    }
+
+    #[test]
+    fn method_body_errorinfo_frames() {
+        leak_free(|i| {
+            ok(i, b"oo::class create cls { constructor {} {} }");
+            ok(i, b"cls create obj");
+            // A per-object method: `(object "::obj" method "bar" line N)`.
+            ok(i, b"oo::objdefine obj method bar {} {error foo}");
+            assert_eq!(i.eval_str(b"obj bar"), Code::Error);
+            let ei = ok(i, b"set errorInfo");
+            assert!(
+                contains(&ei, b"(object \"::obj\" method \"bar\" line 1)"),
+                "got {ei:?}"
+            );
+            // A class method: `(class "::cls" method "cm" line N)`.
+            ok(i, b"oo::define cls method cm {} {error boom}");
+            assert_eq!(i.eval_str(b"obj cm"), Code::Error);
+            let ei = ok(i, b"set errorInfo");
+            assert!(
+                contains(&ei, b"(class \"::cls\" method \"cm\" line 1)"),
+                "got {ei:?}"
+            );
+            // `my eval {…}` adds `(in "my eval" script line N)`.
+            ok(i, b"oo::objdefine obj method ev {} {my eval {error e}}");
+            assert_eq!(i.eval_str(b"obj ev"), Code::Error);
+            let ei = ok(i, b"set errorInfo");
+            assert!(
+                contains(&ei, b"(in \"my eval\" script line 1)"),
+                "got {ei:?}"
             );
         });
     }

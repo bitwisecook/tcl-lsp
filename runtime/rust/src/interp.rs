@@ -68,6 +68,23 @@ pub(crate) enum ProcFrame<'a> {
     /// `(lambda term "LAMBDA" line N)` — an `apply` lambda. `LAMBDA` is the whole
     /// lambda-expression string (`{params body ?ns?}`, i.e. `argv[1]`).
     Lambda(&'a [u8]),
+    /// A TclOO method body (`CommonMethErrorHandler`, `tclOOMethod.c`):
+    /// `(KIND "OWNER" method "NAME" line N)`, or `(KIND "OWNER" constructor|
+    /// destructor line N)`. `kind` is `object`/`class` per the declaring entity,
+    /// `owner` is that entity's name, and `what` selects the method/ctor/dtor.
+    Method {
+        kind: &'a [u8],
+        owner: &'a [u8],
+        what: MethodFrameWhat<'a>,
+    },
+}
+
+/// What a TclOO method-body error frame names: a method (`method "NAME"`) or a
+/// constructor/destructor (a bare keyword).
+pub(crate) enum MethodFrameWhat<'a> {
+    Named(&'a [u8]),
+    Constructor,
+    Destructor,
 }
 
 /// What a proc/lambda call contributes to the diagnostic stacks: the errorInfo
@@ -1684,20 +1701,47 @@ impl Interp {
     fn make_proc_error(&mut self, frame: ProcFrame) {
         // `(procedure "NAME" line N)` / `(lambda term "NAME" line N)` — the name
         // quoted, truncated to 60 bytes (`...` on overflow).
-        let (kind, name): (&[u8], &[u8]) = match frame {
-            ProcFrame::Proc(n) => (b"procedure", n),
-            ProcFrame::Lambda(n) => (b"lambda term", n),
-        };
-        let overflow = name.len() > 60;
-        let trunc = if overflow { &name[..60] } else { name };
-        let mut inner = Vec::with_capacity(kind.len() + trunc.len() + 8);
-        inner.extend_from_slice(kind);
-        inner.extend_from_slice(b" \"");
-        inner.extend_from_slice(trunc);
-        if overflow {
-            inner.extend_from_slice(b"...");
+        // Append a name quoted and truncated to 60 bytes (`...` on overflow),
+        // C's ELLIPSIFY.
+        fn push_ellipsified(out: &mut Vec<u8>, name: &[u8]) {
+            let overflow = name.len() > 60;
+            out.push(b'"');
+            out.extend_from_slice(if overflow { &name[..60] } else { name });
+            if overflow {
+                out.extend_from_slice(b"...");
+            }
+            out.push(b'"');
         }
-        inner.push(b'"');
+        let inner = match frame {
+            ProcFrame::Proc(n) | ProcFrame::Lambda(n) => {
+                let kind: &[u8] = if matches!(frame, ProcFrame::Lambda(_)) {
+                    b"lambda term"
+                } else {
+                    b"procedure"
+                };
+                let mut inner = Vec::with_capacity(kind.len() + n.len() + 8);
+                inner.extend_from_slice(kind);
+                inner.push(b' ');
+                push_ellipsified(&mut inner, n);
+                inner
+            }
+            ProcFrame::Method { kind, owner, what } => {
+                // `KIND "OWNER" method "NAME"` / `KIND "OWNER" constructor`.
+                let mut inner = Vec::new();
+                inner.extend_from_slice(kind);
+                inner.push(b' ');
+                push_ellipsified(&mut inner, owner);
+                match what {
+                    MethodFrameWhat::Named(name) => {
+                        inner.extend_from_slice(b" method ");
+                        push_ellipsified(&mut inner, name);
+                    }
+                    MethodFrameWhat::Constructor => inner.extend_from_slice(b" constructor"),
+                    MethodFrameWhat::Destructor => inner.extend_from_slice(b" destructor"),
+                }
+                inner
+            }
+        };
         self.append_frame_line(&inner);
         self.exc.borrow_mut().already_logged = false;
     }
