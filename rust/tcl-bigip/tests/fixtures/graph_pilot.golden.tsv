@@ -1,0 +1,18 @@
+test://config:30:45:ltm:profile client-ssl:/Common/web_clientssl	test://config:24:34:sys:file ssl-cert:/Common/web.crt	cert-key-chain	sys_file_ssl_cert
+test://config:30:45:ltm:profile client-ssl:/Common/web_clientssl	test://config:27:33:sys:file ssl-key:/Common/web.key	cert-key-chain	sys_file_ssl_key
+test://config:53:46:security:firewall rule-list:/Common/web_rules	test://config:48:46:security:firewall port-list:/Common/web_ports	rules	security_firewall_port_list
+test://config:53:46:security:firewall rule-list:/Common/web_rules	test://config:43:51:security:firewall address-list:/Common/web_servers	rules	security_firewall_address_list
+test://config:65:26:ltm:pool:/Common/app_pool	test://config:3:34:ltm:monitor http:/Common/http_mon	monitor	ltm_monitor_http
+test://config:65:26:ltm:pool:/Common/app_pool	test://config:6:36:ltm:monitor https:/Common/https_mon	monitor	ltm_monitor_https
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:65:26:ltm:pool:/Common/app_pool	pool	ltm_pool
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:65:26:ltm:pool:/Common/app_pool	pool[]	ltm_pool
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:38:32:ltm:snatpool:/Common/snat_pool1	source-address-translation	ltm_snatpool
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:18:37:ltm:profile http:/Common/custom_http	profiles	ltm_profile_http
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:30:45:ltm:profile client-ssl:/Common/web_clientssl	profiles	ltm_profile_client_ssl
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:18:37:ltm:profile http:/Common/custom_http	profiles[]	ltm_profile_http
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:30:45:ltm:profile client-ssl:/Common/web_clientssl	profiles[]	ltm_profile_client_ssl
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:21:46:ltm:persistence cookie:/Common/cookie_persist	persist	ltm_persistence_cookie
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:9:31:ltm:rule:/Common/redirect_rule	rules	ltm_rule
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:9:31:ltm:rule:/Common/redirect_rule	rules[]	ltm_rule
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:14:30:ltm:policy:/Common/web_policy	policies	ltm_policy
+test://config:71:27:ltm:virtual:/Common/app_vs	test://config:0:26:net:vlan:/Common/internal	vlans	net_vlan

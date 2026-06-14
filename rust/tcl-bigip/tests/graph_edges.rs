@@ -1,16 +1,14 @@
-//! Differential parity for the BIG-IP graph **legacy edge** walk against
-//! `_build_forward_edges` (with the pilot value-spec dispatch and the iRule
-//! path disabled — the always-on token-scan fallback).
+//! Differential parity for the full BIG-IP graph edge walk on a realistic
+//! `bigip.conf` against `_build_forward_edges` — the pilot value-spec dispatch
+//! plus the legacy token-scan fallback, with only the iRule path disabled (it
+//! lands in a later increment). Companion to `graph_pilot.rs`, which exercises
+//! the compound pilot specs on a synthetic fixture; this pins the combined
+//! pilot+legacy walk on real config. Self-contained — no Python at test time.
 //!
-//! The pilot engine + iRule edges are layered on in later increments and the
-//! full-edge golden lands then; this pins the legacy walk exactly. Self-
-//! contained — no Python at test time.
-//!
-//! The Rust legacy walk reproduces every Python legacy edge, plus a small,
-//! frozen set of *extra* edges (`graph_edges_legacy.drift.txt`) caused by the
-//! same registry-**data** drift the object-query layer documents: properties
-//! Python migrated to the pilot specs (so their *legacy* `references` were
-//! cleared, e.g. `persist` on `ltm virtual`) still carry those refs in the
+//! The Rust walk reproduces every Python edge, plus a small frozen set of
+//! *extra* edges (`graph_edges.drift.txt`) caused by registry-**data** drift:
+//! properties Python migrated to the pilot specs (so their *legacy* `references`
+//! were cleared, e.g. `persist` on `ltm virtual`) still carry those refs in the
 //! generated Rust registry data. That is a registry-data-regen workstream, not
 //! a walk-logic bug; this test pins the set so a real logic regression fails.
 
@@ -20,13 +18,11 @@ use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
 use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
-fn graph_legacy_edges_match_python() {
+fn graph_edges_match_python() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/bigip.conf")).expect("read config");
-    let golden =
-        std::fs::read_to_string(format!("{dir}/graph_edges_legacy.golden.tsv")).expect("golden");
-    let drift =
-        std::fs::read_to_string(format!("{dir}/graph_edges_legacy.drift.txt")).expect("drift");
+    let golden = std::fs::read_to_string(format!("{dir}/graph_edges.golden.tsv")).expect("golden");
+    let drift = std::fs::read_to_string(format!("{dir}/graph_edges.drift.txt")).expect("drift");
 
     let cfg = parse_bigip_conf(&source, "Common");
     let uri = "test://config".to_owned();

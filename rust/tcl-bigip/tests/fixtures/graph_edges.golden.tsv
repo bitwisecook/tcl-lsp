@@ -30,6 +30,8 @@ test://config:190:27:ltm:virtual:/Common/www_vs	test://config:162:29:ltm:rule:/C
 test://config:190:27:ltm:virtual:/Common/www_vs	test://config:137:31:ltm:rule:/Common/route_by_host	rules[]	ltm_rule
 test://config:190:27:ltm:virtual:/Common/www_vs	test://config:154:30:ltm:rule:/Common/ip_blocklist	rules[]	ltm_rule
 test://config:190:27:ltm:virtual:/Common/www_vs	test://config:162:29:ltm:rule:/Common/uri_rewrite	rules[]	ltm_rule
+test://config:190:27:ltm:virtual:/Common/www_vs	test://config:103:49:ltm:persistence cookie:/Common/my_cookie_persist	persist	ltm_persistence_cookie
+test://config:190:27:ltm:virtual:/Common/www_vs	test://config:96:33:ltm:snatpool:/Common/my_snatpool	source-address-translation	ltm_snatpool
 test://config:224:27:ltm:virtual:/Common/api_vs	test://config:79:26:ltm:pool:/Common/api_pool	pool	ltm_pool
 test://config:224:27:ltm:virtual:/Common/api_vs	test://config:79:26:ltm:pool:/Common/api_pool	pool[]	ltm_pool
 test://config:224:27:ltm:virtual:/Common/api_vs	test://config:113:41:ltm:profile http:/Common/my_http_profile	profiles	ltm_profile_http

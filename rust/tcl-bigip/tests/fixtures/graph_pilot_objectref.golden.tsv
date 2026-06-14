@@ -1,9 +1,0 @@
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:18:26:ltm:pool:/Common/app_pool	pool	ltm_pool
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:18:26:ltm:pool:/Common/app_pool	pool[]	ltm_pool
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:12:37:ltm:profile http:/Common/custom_http	profiles	ltm_profile_http
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:12:37:ltm:profile http:/Common/custom_http	profiles[]	ltm_profile_http
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:15:46:ltm:persistence cookie:/Common/cookie_persist	persist	ltm_persistence_cookie
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:3:31:ltm:rule:/Common/redirect_rule	rules	ltm_rule
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:3:31:ltm:rule:/Common/redirect_rule	rules[]	ltm_rule
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:8:30:ltm:policy:/Common/web_policy	policies	ltm_policy
-test://config:23:27:ltm:virtual:/Common/app_vs	test://config:0:26:net:vlan:/Common/internal	vlans	net_vlan

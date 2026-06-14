@@ -1,12 +1,14 @@
 //! Differential parity for the graph's **pilot value-spec edge path**
-//! (`references_via_spec` dispatch), increment 1: the `ListSpec(ObjectRefSpec)`
-//! family (`rules` / `policies` / `vlans` / firewall `rule-lists` /
-//! `address-lists`).
+//! (`references_via_spec` dispatch) across every reference-producing pilot spec:
+//! `ListSpec(ObjectRefSpec)` (`rules`/`policies`/`vlans`/firewall lists),
+//! `Profile`/`Persistence` attachments, `MonitorExpressionSpec`, `SnatModeSpec`,
+//! `CertKeyChainSpec`, and `FirewallRuleSpec`.
 //!
-//! The fixture exercises `policies` and `vlans` on an `ltm virtual` — whose
-//! *legacy* references are empty (migrated to the pilot specs), so those edges
-//! come ONLY from the pilot path. The golden is captured from Python with
-//! exactly these pilot specs enabled and the iRule path disabled. Self-contained.
+//! The fixture exercises pilot-only edges (`policies`/`vlans`/`persist`, whose
+//! legacy references are cleared) plus the compound specs (monitor min-of, SNAT
+//! pool, cert-key-chain, firewall source/destination lists). The golden is
+//! captured from Python with the full pilot table enabled and the iRule path
+//! disabled. Self-contained — no Python at test time.
 
 use std::collections::BTreeSet;
 
@@ -14,13 +16,11 @@ use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
 use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
-fn graph_pilot_objectref_edges_match_python() {
+fn graph_pilot_edges_match_python() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_pilot.conf")).expect("read config");
-    let golden =
-        std::fs::read_to_string(format!("{dir}/graph_pilot_objectref.golden.tsv")).expect("golden");
-    let drift =
-        std::fs::read_to_string(format!("{dir}/graph_pilot_objectref.drift.txt")).expect("drift");
+    let golden = std::fs::read_to_string(format!("{dir}/graph_pilot.golden.tsv")).expect("golden");
+    let drift = std::fs::read_to_string(format!("{dir}/graph_pilot.drift.txt")).expect("drift");
 
     let cfg = parse_bigip_conf(&source, "Common");
     let uri = "test://config".to_owned();

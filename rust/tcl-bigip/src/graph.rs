@@ -646,5 +646,266 @@ fn pilot_references(
         return Some(refs);
     }
 
+    // `MonitorExpressionSpec` — a pool/node/GTM `monitor` expression; each
+    // referenced monitor path targets the (family) monitor kind.
+    if let Some(monitor_kind) = match (module, object_type, property) {
+        ("ltm", "pool" | "node", "monitor") => Some("ltm monitor"),
+        ("gtm", "pool" | "server", "monitor") => Some("gtm monitor"),
+        _ => None,
+    } {
+        let refs = monitor_paths(raw)
+            .into_iter()
+            .map(|p| (monitor_kind.to_owned(), p))
+            .collect();
+        return Some(refs);
+    }
+
+    // `SnatModeSpec` — `source-address-translation`; references the SNAT pool
+    // when the mode is `snat`.
+    if (module, object_type, property) == ("ltm", "virtual", "source-address-translation") {
+        let refs = snat_pool_path(raw)
+            .map(|p| vec![("ltm snatpool".to_owned(), p)])
+            .unwrap_or_default();
+        return Some(refs);
+    }
+
+    // `ListSpec(CertKeyChainSpec)` — keyed-block; each entry references its
+    // cert / key / chain SSL files.
+    if matches!(
+        (module, object_type, property),
+        (
+            "ltm",
+            "profile client-ssl" | "profile server-ssl",
+            "cert-key-chain"
+        )
+    ) {
+        let refs = parse_keyed_block_entries(raw)
+            .into_iter()
+            .flat_map(|(_name, body)| cert_key_chain_refs(&body))
+            .collect();
+        return Some(refs);
+    }
+
+    // `ListSpec(FirewallRuleSpec)` — keyed-block; each rule body references its
+    // source/destination port-lists + address-lists and any nested rule-list.
+    if (module, object_type, property) == ("security", "firewall rule-list", "rules") {
+        let refs = parse_keyed_block_entries(raw)
+            .into_iter()
+            .flat_map(|(_name, body)| firewall_rule_refs(&body))
+            .collect();
+        return Some(refs);
+    }
+
+    // Migrated but reference-free for raw-string input: `DestinationSpec` (no
+    // `references()`), `DataGroupRecordSpec` / `GtmRegionMemberSpec` (no refs),
+    // and `LtmPolicyRuleSpec` (no `parse()`, so it sees a string with no
+    // `actions`). All fall through to the legacy path, exactly like Python's
+    // empty pilot result followed by the unconditional legacy passes.
     None
+}
+
+/// Monitor paths referenced by a `monitor` expression (port of
+/// `MonitorExpression.try_parse` → `.monitors`): `default`/`none` → none;
+/// `min N of { … }` → the braced tokens; otherwise an `and`-chain of paths.
+fn monitor_paths(text: &str) -> Vec<String> {
+    let s = text.trim();
+    if s.is_empty() || s == "default" || s == "none" {
+        return Vec::new();
+    }
+    if let Some(rest) = s.strip_prefix("min ") {
+        let rest = rest.trim_start();
+        let Some(of_idx) = rest.find(" of ") else {
+            return Vec::new();
+        };
+        if rest[..of_idx].trim().parse::<i64>().is_err() {
+            return Vec::new();
+        }
+        let body = rest[of_idx + 4..].trim_start();
+        if !body.starts_with('{') || !body.trim_end().ends_with('}') {
+            return Vec::new();
+        }
+        let close = body.rfind('}').unwrap_or(body.len());
+        return body[1..close]
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect();
+    }
+    // `M1 and M2 and …` (or a single bare path). A non-`and` where a separator
+    // is expected is a parse failure → no references.
+    let mut monitors = Vec::new();
+    let mut expect_monitor = true;
+    for tok in s.split_whitespace() {
+        if expect_monitor {
+            monitors.push(tok.to_owned());
+            expect_monitor = false;
+        } else if tok == "and" {
+            expect_monitor = true;
+        } else {
+            return Vec::new();
+        }
+    }
+    monitors
+}
+
+/// The SNAT pool path of a `source-address-translation` body (port of
+/// `SnatMode.try_parse` + `references`), or `None` unless `type snat pool …`.
+fn snat_pool_path(text: &str) -> Option<String> {
+    let mut body = text.trim();
+    body = body.strip_prefix('{').unwrap_or(body);
+    body = body.strip_suffix('}').unwrap_or(body);
+    let tokens: Vec<&str> = body.split_whitespace().collect();
+    let mut kind = "none";
+    let mut pool = "";
+    let mut idx = 0;
+    while idx < tokens.len() {
+        match tokens[idx] {
+            "type" if idx + 1 < tokens.len() => {
+                kind = match tokens[idx + 1] {
+                    "none" => "none",
+                    "automap" => "automap",
+                    "snat" => "snat",
+                    _ => return None,
+                };
+                idx += 2;
+            }
+            "pool" if idx + 1 < tokens.len() => {
+                pool = tokens[idx + 1];
+                idx += 2;
+            }
+            _ => idx += 1,
+        }
+    }
+    (kind == "snat" && !pool.is_empty()).then(|| pool.to_owned())
+}
+
+/// SSL `(kind, path)` refs of one `cert-key-chain` entry body (port of
+/// `CertKeyChain.from_raw` + `references`): cert + key + chain, in order.
+fn cert_key_chain_refs(body: &str) -> Vec<(String, String)> {
+    let tokens: Vec<&str> = body.split_whitespace().collect();
+    let (mut cert, mut key, mut chain) = ("", "", "");
+    for i in 0..tokens.len() {
+        let Some(value) = tokens.get(i + 1) else {
+            continue;
+        };
+        match tokens[i] {
+            "cert" => cert = value,
+            "key" => key = value,
+            "chain" => chain = value,
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    if !cert.is_empty() {
+        out.push(("sys file ssl-cert".to_owned(), cert.to_owned()));
+    }
+    if !key.is_empty() {
+        out.push(("sys file ssl-key".to_owned(), key.to_owned()));
+    }
+    if !chain.is_empty() {
+        out.push(("sys file ssl-cert".to_owned(), chain.to_owned()));
+    }
+    out
+}
+
+/// `(kind, path)` refs of one firewall rule body (port of `FirewallRule` +
+/// `FirewallEndpoint`): source then destination port-lists + address-lists,
+/// then a nested `rule-list`.
+fn firewall_rule_refs(body: &str) -> Vec<(String, String)> {
+    let raw: Vec<&str> = body.split_whitespace().collect();
+    // Split off the brace-balanced source/destination sub-block bodies.
+    let mut top: Vec<&str> = Vec::new();
+    let mut source = String::new();
+    let mut destination = String::new();
+    let mut idx = 0;
+    while idx < raw.len() {
+        let tok = raw[idx];
+        if matches!(tok, "source" | "destination") && raw.get(idx + 1) == Some(&"{") {
+            let mut depth = 1;
+            idx += 2;
+            let start = idx;
+            while idx < raw.len() && depth > 0 {
+                match raw[idx] {
+                    "{" => depth += 1,
+                    "}" => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                idx += 1;
+            }
+            let sub = raw[start..idx].join(" ");
+            if tok == "source" {
+                source = sub;
+            } else {
+                destination = sub;
+            }
+            if idx < raw.len() {
+                idx += 1; // skip the closing `}`
+            }
+            continue;
+        }
+        top.push(tok);
+        idx += 1;
+    }
+    let mut rule_list = "";
+    let mut i = 0;
+    while i < top.len() {
+        if top[i] == "rule-list" && i + 1 < top.len() {
+            rule_list = top[i + 1];
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    let mut out = Vec::new();
+    endpoint_refs(&source, &mut out);
+    endpoint_refs(&destination, &mut out);
+    if !rule_list.is_empty() {
+        out.push((
+            "security firewall rule-list".to_owned(),
+            rule_list.to_owned(),
+        ));
+    }
+    out
+}
+
+/// Append one firewall endpoint's `(kind, path)` refs: port-lists then
+/// address-lists (port/address literals aren't object references).
+fn endpoint_refs(sub_body: &str, out: &mut Vec<(String, String)>) {
+    let tokens: Vec<&str> = sub_body.split_whitespace().collect();
+    let mut port_lists: Vec<&str> = Vec::new();
+    let mut address_lists: Vec<&str> = Vec::new();
+    let mut idx = 0;
+    while idx < tokens.len() {
+        let tok = tokens[idx];
+        if matches!(tok, "port-lists" | "ports" | "address-lists" | "addresses")
+            && tokens.get(idx + 1) == Some(&"{")
+        {
+            idx += 2;
+            let mut items: Vec<&str> = Vec::new();
+            while idx < tokens.len() && tokens[idx] != "}" {
+                items.push(tokens[idx]);
+                idx += 1;
+            }
+            if idx < tokens.len() {
+                idx += 1;
+            }
+            match tok {
+                "port-lists" => port_lists.extend(items),
+                "address-lists" => address_lists.extend(items),
+                _ => {}
+            }
+            continue;
+        }
+        idx += 1;
+    }
+    for p in port_lists {
+        out.push(("security firewall port-list".to_owned(), p.to_owned()));
+    }
+    for p in address_lists {
+        out.push(("security firewall address-list".to_owned(), p.to_owned()));
+    }
 }
