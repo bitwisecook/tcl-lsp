@@ -33,6 +33,13 @@ use crate::taint::{propagate_taints, TaintLattice};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 
+/// Content-addressed per-procedure lattice memo used by
+/// [`CompilationUnit::build_for_memoized`].  `cache(key, build)` returns the
+/// cached [`FunctionUnit`] for `key`, or runs `build` (storing the result) on a
+/// miss.  The caller owns the backing store and its eviction policy.
+pub type ProcLatticeCache<'a> =
+    dyn FnMut(&str, &mut dyn FnMut() -> FunctionUnit) -> FunctionUnit + 'a;
+
 // ---------------------------------------------------------------------------
 // Per-function analysis bundle
 // ---------------------------------------------------------------------------
@@ -225,6 +232,51 @@ impl CompilationUnit {
         defer_top_level: bool,
         config: tcl_lexer::LexerConfig,
     ) -> Self {
+        Self::build_for_inner(source, registry, defer_top_level, config, "", None)
+    }
+
+    /// Like [`Self::build_for_with_config`] but routes each procedure's
+    /// per-function lattice build through `cache`, a content-addressed memo.
+    ///
+    /// `cache(key, build)` returns the cached `FunctionUnit` for `key`, or
+    /// runs `build` (and stores it) on a miss.  The key captures **every**
+    /// input to [`FunctionUnit::build_with_param_constants`] for that
+    /// procedure — the body source (which, with the module-wide
+    /// upvar/param context digest, determines the CFG), the parameter list,
+    /// the interprocedural `param_constants`, and `dialect_key` (which
+    /// discriminates registries across dialects) — so a cache hit returns the
+    /// **identical** unit the non-memoised path would build.  The result is
+    /// therefore byte-identical to [`Self::build_for_with_config`]; only the
+    /// redundant SSA/SCCP/type/rendered recompute for an unchanged procedure
+    /// body is skipped.  Top-level and methods are always built fresh (no body
+    /// source to key on); the cross-function interproc taint re-run still runs
+    /// over the whole unit in [`Self::with_interprocedural`].
+    pub fn build_for_memoized(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        config: tcl_lexer::LexerConfig,
+        dialect_key: &str,
+        cache: &mut ProcLatticeCache<'_>,
+    ) -> Self {
+        Self::build_for_inner(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect_key,
+            Some(cache),
+        )
+    }
+
+    fn build_for_inner(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        config: tcl_lexer::LexerConfig,
+        dialect_key: &str,
+        mut cache: Option<&mut ProcLatticeCache<'_>>,
+    ) -> Self {
         let mut ir_module = lower_to_ir_with_config(source, registry, config);
         // C36d/e/f: specialise Option-shape factories before any
         // other module-level passes so the synthesised child procs
@@ -241,6 +293,11 @@ impl CompilationUnit {
         // for (interprocedural constant propagation).
         let call_site_constants = collect_call_site_constants(&cfg_module, &ir_module.procedures);
         let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), &[], registry);
+        // One digest of the module-wide upvar/param context, shared by every
+        // procedure key: a procedure's CFG depends on this context, so an edit
+        // that changes it must invalidate every memoised lattice (conservative
+        // but correct).  Only computed on the memoised path.
+        let ctx_digest = cache.as_ref().map(|_| proc_context_digest(&ir_module));
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
         for (qname, cfg) in &cfg_module.procedures {
             let params = ir_module
@@ -249,16 +306,42 @@ impl CompilationUnit {
                 .map_or(&[][..], |p| p.params.as_slice());
             let param_constants =
                 params_constants_from_call_sites(params, &call_site_constants, qname);
-            procedures.insert(
-                qname.clone(),
-                FunctionUnit::build_with_param_constants(
+            let proc = ir_module.procedures.get(qname);
+            let body_source = proc.and_then(|p| p.body_source.as_deref());
+            let body_offset = proc.map_or(0, |p| p.span.start());
+            let fu = match (cache.as_mut(), body_source, ctx_digest) {
+                (Some(memo), Some(body_source), Some(ctx)) => {
+                    let key = proc_lattice_key(
+                        dialect_key,
+                        ctx,
+                        qname,
+                        body_offset,
+                        body_source,
+                        params,
+                        param_constants.as_ref(),
+                    );
+                    let cfg = cfg.clone();
+                    let params = params.to_vec();
+                    let param_constants = param_constants.clone();
+                    memo(&key, &mut || {
+                        FunctionUnit::build_with_param_constants(
+                            qname,
+                            cfg.clone(),
+                            &params,
+                            registry,
+                            param_constants.as_ref(),
+                        )
+                    })
+                }
+                _ => FunctionUnit::build_with_param_constants(
                     qname,
                     cfg.clone(),
                     params,
                     registry,
                     param_constants.as_ref(),
                 ),
-            );
+            };
+            procedures.insert(qname.clone(), fu);
         }
         // SF-2: lower TclOO method bodies (populated in
         // `ir_module.methods` by lowering) to per-method
@@ -394,6 +477,69 @@ impl CompilationUnit {
     pub fn functions(&self) -> impl Iterator<Item = &FunctionUnit> {
         std::iter::once(&self.top_level).chain(self.procedures.values())
     }
+}
+
+/// Stable digest of the module-wide CFG context (`upvar_procs` +
+/// `proc_params`) that every procedure's CFG depends on.  Shared by every
+/// per-procedure lattice cache key (see [`CompilationUnit::build_for_memoized`])
+/// so an edit that changes the context invalidates every memoised lattice.
+fn proc_context_digest(ir_module: &IrModule) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let (upvar_procs, proc_params) = crate::cfg_builder::prepare_cfg_context(ir_module);
+    let mut upvar: Vec<_> = upvar_procs.iter().collect();
+    upvar.sort_by(|a, b| a.0.cmp(b.0));
+    let mut params: Vec<_> = proc_params.iter().collect();
+    params.sort_by(|a, b| a.0.cmp(b.0));
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for (name, info) in upvar {
+        name.hash(&mut hasher);
+        info.hash(&mut hasher);
+    }
+    for (name, plist) in params {
+        name.hash(&mut hasher);
+        plist.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+/// Content-addressed cache key for one procedure's lattice (see
+/// [`CompilationUnit::build_for_memoized`]).  Captures every input to
+/// [`FunctionUnit::build_with_param_constants`] for the procedure: the
+/// `dialect_key` (registry discriminator), the module context digest `ctx`
+/// (which with the body determines the CFG), the qualified name, the body
+/// source verbatim, the parameter list, and the interprocedural
+/// `param_constants` — serialised deterministically so equal inputs yield an
+/// equal key.  A hit therefore returns the byte-identical unit.
+fn proc_lattice_key(
+    dialect_key: &str,
+    ctx: u64,
+    qname: &str,
+    body_offset: u32,
+    body_source: &str,
+    params: &[String],
+    param_constants: Option<&HashMap<ValueKey, crate::analyses::LatticeValue>>,
+) -> String {
+    use std::fmt::Write as _;
+    let mut key = String::with_capacity(body_source.len() + 64);
+    // `body_offset` (the procedure's absolute definition offset) is part of the
+    // key because the cached unit's CFG/SSA spans are **absolute** — a
+    // shifted-but-unedited body must miss so its diagnostics land at the new
+    // positions, not the cached ones.  (Full offset-invariance — caching at
+    // offset 0 and rebasing — is a later refinement.)  Length-prefix the body
+    // so it can't run into the trailing fields.
+    let _ = write!(
+        key,
+        "{dialect_key}\u{0}{ctx:016x}\u{0}{qname}\u{0}{body_offset}\u{0}{params:?}\u{0}{}\u{0}",
+        body_source.len()
+    );
+    key.push_str(body_source);
+    if let Some(pc) = param_constants {
+        let mut entries: Vec<_> = pc.iter().map(|(k, v)| format!("{k:?}={v:?}")).collect();
+        entries.sort_unstable();
+        key.push('\u{0}');
+        key.push_str(&entries.join("\u{1}"));
+    }
+    key
 }
 
 /// Per-arg-position call-site literal evidence for one callee.

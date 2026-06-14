@@ -343,6 +343,20 @@ impl Analyser {
         self
     }
 
+    /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
+    /// CFG/SSA diagnostic tail, so [`Self::emit_cfg_ssa_diagnostics`] consumes
+    /// it (once) instead of rebuilding the whole-file unit.  The supplied unit
+    /// must be equal to what the tail would build for this document's source —
+    /// the incremental path builds it from memoised per-function lattices, so
+    /// only the unchanged-body lattice recompute is skipped.  Reset after the
+    /// next `analyse`.
+    pub fn set_cu_override(
+        &mut self,
+        cu: std::sync::Arc<crate::compilation_unit::CompilationUnit>,
+    ) {
+        self.cu_override = Some(cu);
+    }
+
     /// Analyse a Tcl source for the given dialect, returning a
     /// fully-populated [`AnalysisResult`].
     ///

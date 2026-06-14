@@ -9562,6 +9562,125 @@ mod tests {
         assert!(a.result.diagnostics.is_empty());
     }
 
+    /// Slice 4: a memoised `CompilationUnit` (built via `build_for_memoized`
+    /// and fed through the `cu_override` seam) must yield **byte-identical**
+    /// diagnostics to the whole-file path — both on a cold cache (all misses,
+    /// proving the refactor) and a warm cache (all hits, proving the cache key
+    /// captures every lattice input).
+    #[test]
+    fn memoized_compilation_unit_diagnostics_match_whole_file() {
+        use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+        let snippets = [
+            "proc a {x} {\n  if {$x} { set y 1 }\n  return $y\n}\nproc b {} { a 1 }\n",
+            "set g 0\nproc inc {} { global g; incr g }\ninc\nputs $g\n",
+            "proc f {n} {\n  set acc 0\n  for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n  return $acc\n}\nproc g {} { set z 9; set z 10; return $z }\n",
+            "namespace eval n {\n  proc p {a} { set b $a; return $b }\n}\nset r [n::p 3]\n",
+            "oo::class create K {\n  method m {a} { set n $a; return $n }\n}\nproc top {} { set q 1; set q 2 }\n",
+        ];
+        for src in snippets {
+            let mut registry = tcl_registry::CommandRegistry::build_default();
+            if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
+                registry.load_dialect(d);
+            }
+            // Whole-file reference.
+            let mut whole = Analyser::new();
+            let want = whole.analyse(src, "tcl");
+
+            // Build a memoised unit (cold cache) and run through the seam.
+            let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+            let build_cu = |cache: &mut HashMap<String, FunctionUnit>| {
+                CompilationUnit::build_for_memoized(
+                    src,
+                    &registry,
+                    false,
+                    tcl_lexer::LexerConfig::default(),
+                    "tcl",
+                    &mut |key: &str, build: &mut dyn FnMut() -> FunctionUnit| {
+                        if let Some(fu) = cache.get(key) {
+                            return fu.clone();
+                        }
+                        let fu = build();
+                        cache.insert(key.to_owned(), fu.clone());
+                        fu
+                    },
+                )
+                .with_interprocedural(&registry, Some("tcl"))
+            };
+
+            let cold = build_cu(&mut cache);
+            let mut a_cold = Analyser::new();
+            a_cold.set_cu_override(Arc::new(cold));
+            let got_cold = a_cold.analyse(src, "tcl");
+            assert_eq!(
+                want.diagnostics, got_cold.diagnostics,
+                "cold-cache memoised diagnostics differ for:\n{src}"
+            );
+            assert!(!cache.is_empty(), "cache should have entries for:\n{src}");
+
+            // Warm cache: every procedure body is a hit now.
+            let warm = build_cu(&mut cache);
+            let mut a_warm = Analyser::new();
+            a_warm.set_cu_override(Arc::new(warm));
+            let got_warm = a_warm.analyse(src, "tcl");
+            assert_eq!(
+                want.diagnostics, got_warm.diagnostics,
+                "warm-cache memoised diagnostics differ for:\n{src}"
+            );
+        }
+    }
+
+    /// Slice 4 shift-correctness: a body that is **unedited but shifted** (lines
+    /// inserted above it) must NOT take a stale cache hit — the cached unit's
+    /// spans are absolute, so its diagnostics must land at the new positions.
+    /// The absolute offset in the cache key guarantees a miss + rebuild here.
+    #[test]
+    fn memoized_compilation_unit_shift_correctness() {
+        use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+        let base = "proc a {} { set x 1; set x 2 }\nproc b {} { set y 1; set y 2 }\n";
+        // Same procs, shifted down by a prepended top-level line.
+        let shifted = "set top 0\nproc a {} { set x 1; set x 2 }\nproc b {} { set y 1; set y 2 }\n";
+
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
+            registry.load_dialect(d);
+        }
+        let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+        let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
+            let cu = CompilationUnit::build_for_memoized(
+                s,
+                &registry,
+                false,
+                tcl_lexer::LexerConfig::default(),
+                "tcl",
+                &mut |key: &str, build: &mut dyn FnMut() -> FunctionUnit| {
+                    if let Some(fu) = cache.get(key) {
+                        return fu.clone();
+                    }
+                    let fu = build();
+                    cache.insert(key.to_owned(), fu.clone());
+                    fu
+                },
+            )
+            .with_interprocedural(&registry, Some("tcl"));
+            let mut a = Analyser::new();
+            a.set_cu_override(Arc::new(cu));
+            a.analyse(s, "tcl")
+        };
+
+        // Prime the cache on `base`, then analyse `shifted` reusing it.
+        let _ = build(base, &mut cache);
+        let got = build(shifted, &mut cache);
+        let want = Analyser::new().analyse(shifted, "tcl");
+        assert_eq!(
+            want.diagnostics, got.diagnostics,
+            "shifted-body diagnostics must match a fresh analyse (no stale hit)"
+        );
+    }
+
     #[test]
     fn emit_cfg_ssa_diagnostics_no_w220_on_simple_assignment() {
         // ``set x 1`` — single assignment, no overwrite, no
