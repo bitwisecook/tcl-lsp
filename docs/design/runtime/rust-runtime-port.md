@@ -2595,6 +2595,33 @@ the same engine; `lseq` against `Tcl_LseqObjCmd`/`TclNewArithSeriesObj`
   here so it is not lost. The top-of-doc mirror hash is intentionally left at
   `8150eca` until a deliberate re-baseline.
 
+### SYNC inbound — 2026-06-14 (`string is` full port)
+
+`string is` rewritten from C's `StringIsCmd` (`tmp/tcl9.0.3/generic/tclCmdMZ.c`),
+taking `string.test` 564 → 618 (all 54 `string-6.*` failures cleared, zero
+regressions in the broad sweep). The old implementation only matched class names
+exactly, set the `-failindex` var even on success, and rejected surrounding
+whitespace on numeric classes; the port fixes all three plus the message order.
+
+- **Class/option lookup is `Tcl_GetIndexFromObj`** — exact name or unambiguous
+  prefix, with `bad class`/`ambiguous class` distinguished (and the `must be …`
+  list in C declaration order: `…, control, boolean, …`). Abbreviated classes
+  (`bool`, `gra`, `int`) and options (`-fail`) now resolve (string-6.5, 6.6,
+  6.22/6.23, 6.86, 6.90, …). The `-failindex`-without-var error names the
+  resolved class (`string is double …`, string-6.3).
+- **`-failindex` var is set only when the result is 0** (C's `if (result==0 &&
+  failVarObj)`), so a successful `string is … -failindex var` leaves `var` unset
+  (string-6.9).
+- **Numeric classes via the shared `tcl_syntax::number` (`TclParseNumber`)** —
+  `integer`/`wideinteger`/`entier`/`double` allow a leading/trailing whitespace
+  run, report the fail index at the byte where parsing stopped, accept bignums
+  for `integer`/`entier`, and report `-1` for a `wideinteger` value that parses
+  but overflows a wide (string-6.31–6.59, 6.100–6.131).
+- **Boolean classes via `ParseBoolean` (`tclObj.c`)** — `0`/`1` or a
+  case-insensitive unambiguous prefix of `true`/`false`/`yes`/`no`/`on`/`off`
+  (so `25`, `1.0`, `o` are not booleans), failing at index 0 (string-6.45–6.47,
+  6.72–6.74).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
