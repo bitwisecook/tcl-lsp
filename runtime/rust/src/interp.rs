@@ -169,6 +169,16 @@ struct CmdFrame {
     oo: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
 }
 
+/// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
+enum EnsembleUnknown {
+    /// A non-empty result: the replacement command prefix to dispatch.
+    Prefix(Vec<Vec<u8>>),
+    /// An empty result: the handler defined the subcommand — reparse the call.
+    Reparse,
+    /// The handler errored (or returned a bad code); `Code` carries the failure.
+    Failed(Code),
+}
+
 /// A `CmdFrame`'s location type (`info frame`'s `type` key).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FrameKind {
@@ -3592,18 +3602,45 @@ impl Interp {
             m.extend_from_slice(b" subcommand ?arg ...?\"");
             return self.error(&m);
         }
-        // The valid subcommand set (sorted): explicit `-subcommands`, else the
-        // `-map` keys, else the namespace's exported commands.
-        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
-            (Some(list), _) => list.clone(),
-            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
-            (None, None) => self.namespaces.borrow().exported_commands(cfg.ns),
-        };
-        subs.sort();
-        subs.dedup();
-
+        // Resolve the subcommand. On a miss, the `-unknown` handler gets one
+        // chance (`reparseCount < 1`) to define it (empty result ⇒ reparse) or
+        // supply a replacement command prefix (non-empty result).
         let sub = obj_bytes(argv[1 + nparams]);
-        let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) else {
+        let mut reparsed = false;
+        loop {
+            let subs = self.ensemble_subcommands(cfg);
+            if let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) {
+                let resolved = &subs[idx];
+                // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
+                let prefix: Vec<Vec<u8>> = cfg
+                    .map
+                    .as_ref()
+                    .and_then(|m| {
+                        m.iter()
+                            .find(|(k, _)| k == resolved)
+                            .map(|(_, p)| p.clone())
+                    })
+                    .unwrap_or_else(|| {
+                        let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
+                        if cfg.ns != GLOBAL {
+                            t.extend_from_slice(b"::");
+                        }
+                        t.extend_from_slice(resolved);
+                        vec![t]
+                    });
+                return self.dispatch_ensemble_target(&prefix, argv, nparams);
+            }
+            // Miss: try the `-unknown` handler once.
+            if !cfg.unknown.is_empty() && !reparsed {
+                reparsed = true;
+                match self.ensemble_unknown(cfg, argv) {
+                    EnsembleUnknown::Prefix(prefix) => {
+                        return self.dispatch_ensemble_target(&prefix, argv, nparams);
+                    }
+                    EnsembleUnknown::Reparse => continue,
+                    EnsembleUnknown::Failed(code) => return code,
+                }
+            }
             // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
             let mut m = if cfg.prefixes {
                 b"unknown or ambiguous subcommand \"".to_vec()
@@ -3614,32 +3651,33 @@ impl Interp {
             m.extend_from_slice(b"\": must be ");
             m.extend_from_slice(&crate::ensemble::must_be(&subs));
             return self.error(&m);
+        }
+    }
+
+    /// The ensemble's valid subcommand set (sorted, deduped): explicit
+    /// `-subcommands`, else the `-map` keys, else the namespace's exports.
+    fn ensemble_subcommands(&self, cfg: &crate::ensemble::EnsembleConfig) -> Vec<Vec<u8>> {
+        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
+            (Some(list), _) => list.clone(),
+            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
+            (None, None) => self.namespaces.borrow().exported_commands(cfg.ns),
         };
-        let resolved = &subs[idx];
+        subs.sort();
+        subs.dedup();
+        subs
+    }
 
-        // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
-        let prefix: Vec<Vec<u8>> = cfg
-            .map
-            .as_ref()
-            .and_then(|m| {
-                m.iter()
-                    .find(|(k, _)| k == resolved)
-                    .map(|(_, p)| p.clone())
-            })
-            .unwrap_or_else(|| {
-                let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
-                if cfg.ns != GLOBAL {
-                    t.extend_from_slice(b"::");
-                }
-                t.extend_from_slice(resolved);
-                vec![t]
-            });
-
-        // Build [target…, params…, rest…], each owned (+1), and re-dispatch. The
-        // `-parameters` values (`argv[1..1+nparams]`) thread in right after the
-        // target prefix; the subcommand's own args follow from `2+nparams`.
+    /// Dispatch a resolved ensemble subcommand: `[prefix…, params…, rest…]` (the
+    /// `-parameters` values thread in right after the target prefix; the
+    /// subcommand's own args follow). `nparams` = `cfg.parameters.len()`.
+    fn dispatch_ensemble_target(
+        &mut self,
+        prefix: &[Vec<u8>],
+        argv: &[*mut TclObj],
+        nparams: usize,
+    ) -> Code {
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
-        for w in &prefix {
+        for w in prefix {
             let o = new_string(w);
             // SAFETY: fresh obj; take the owning +1 the new argv holds.
             unsafe { obj::incr_ref_count(o) };
@@ -3658,6 +3696,56 @@ impl Interp {
         let code = self.dispatch(&new_argv);
         release_all(&new_argv);
         code
+    }
+
+    /// Invoke an ensemble's `-unknown` handler on a subcommand miss
+    /// (`EnsembleUnknownCallback`): `handler… ensembleFQN argv[1..]…`. An empty
+    /// `TCL_OK` result asks for a reparse (the handler defined the subcommand); a
+    /// non-empty one is the replacement command prefix; anything else fails.
+    fn ensemble_unknown(
+        &mut self,
+        cfg: &crate::ensemble::EnsembleConfig,
+        argv: &[*mut TclObj],
+    ) -> EnsembleUnknown {
+        let ens_fqn = self
+            .resolve_cmd_fqn(&obj_bytes(argv[0]))
+            .unwrap_or_else(|| obj_bytes(argv[0]));
+        let mut hv: Vec<*mut TclObj> = Vec::with_capacity(cfg.unknown.len() + argv.len());
+        for w in &cfg.unknown {
+            let o = new_string(w);
+            unsafe { obj::incr_ref_count(o) };
+            hv.push(o);
+        }
+        let fqo = new_string(&ens_fqn);
+        unsafe { obj::incr_ref_count(fqo) };
+        hv.push(fqo);
+        for &a in &argv[1..] {
+            unsafe { obj::incr_ref_count(a) };
+            hv.push(a);
+        }
+        let code = self.dispatch(&hv);
+        release_all(&hv);
+        match code {
+            Code::Ok => {
+                let res = obj_bytes(self.get_obj_result());
+                match crate::parse::split_list(&res) {
+                    Ok(prefix) if !prefix.is_empty() => EnsembleUnknown::Prefix(prefix),
+                    Ok(_) => EnsembleUnknown::Reparse,
+                    Err(e) => EnsembleUnknown::Failed(self.error(e.message())),
+                }
+            }
+            Code::Error => EnsembleUnknown::Failed(Code::Error),
+            other => {
+                let mut m = b"unknown subcommand handler returned bad code: ".to_vec();
+                m.extend_from_slice(match other {
+                    Code::Return => b"return".as_slice(),
+                    Code::Break => b"break",
+                    Code::Continue => b"continue",
+                    _ => b"?",
+                });
+                EnsembleUnknown::Failed(self.error(&m))
+            }
+        }
     }
 
     /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works

@@ -2751,6 +2751,21 @@ unknown-command handler (namespace.test 223 → 230, zero regressions):
   namespace-52.7), else the built-in `unknown` command (namespace-52.4–52.9).
   The `TCL_EVAL_INVOKE`/child-interp-alias corner (52.11) is still open.
 
+### SYNC inbound — 2026-06-14 (ensemble `-unknown` handler dispatch)
+
+The ensemble `-unknown` handler now dispatches on a subcommand miss
+(`EnsembleUnknownCallback`, namespace.test 230 → 234): the handler is invoked
+once as `handler… ensembleFQN argv[1..]…`; a non-empty `TCL_OK` result is the
+replacement command prefix (dispatched with the usual params/rest threading), an
+empty result reparses the call (the handler defined the subcommand), and an
+error/bad-code result fails with C's wording (`unknown subcommand handler
+returned bad code: …`). Fixes namespace-47.1/47.3/47.7/47.8. The remaining 47.x
+(47.2/47.4/47.6) only differ in the `$::errorInfo` trace frames (the
+`(ensemble unknown subcommand handler)` + handler-command lines), which need the
+errorInfo-frame plumbing and are deferred; namespace-50.x (rewriting target
+`wrong # args` messages to the ensemble invocation) is the documented
+ensemble-rewrite-threading rework.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
