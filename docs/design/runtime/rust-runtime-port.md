@@ -1735,6 +1735,36 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `myclass` command + forward resolves `my`/`myclass` in object ns | **129 / 168** | 39 (0 timeout) | **11751 / 20532** |
 | + TclOO TIP 500 private-method class scoping (`my m` prefers declaring class) | **129 / 168** | 39 (0 timeout) | **11753 / 20532** |
 | + TclOO definition-script errorInfo frame (`(in definition script for …)`) | **129 / 168** | 39 (0 timeout) | **11757 / 20532** |
+| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 334 / 388** |
+
+The 2026-06-14 **TclOO long-tail** chunks (**+13 `oo.test` over a session, zero
+regressions per step**, `oo.test` 321 → 334) — each read against the Tcl 9 C
+source and byte-verified:
+- **Nested-ownership teardown** (oo-1.22, oo-35.7.3): `oo_destroy` cascades to
+  objects living in the destroyed object's instance namespace (C's
+  `ObjectNamespaceDeleted` → `TclOODeleteDescendants`), in nesting order.
+- **Two-phase teardown** (oo-35.7.1/2): the destructor runs, then the object is
+  marked *torn-down* while still registered during the descendant cascade, so a
+  child's destructor calling back into the parent gets the verbatim "impossible
+  to invoke method" (C guts the object before deleting its child namespaces).
+- **Class-instance descendant cascade** (oo-16.14): destroying an object that is
+  also a class tears down its subclasses/instances too, guarded against cyclic
+  hierarchies — fixes leftover objects polluting later tests.
+- **Class→non-class demotion** (oo-13.6): `oo::objdefine obj class <non-class>`
+  destroys the former class's dependents.
+- **Constructor `info level 0`** (oo-2.1) reports the `create`/`new` invocation;
+  **`package versions tcl::oo`** (oo-0.9); **OO define-target resolution** falls
+  back to the global namespace (oo-3.11, oo-10.1); **forward target** resolves
+  within the object's namespace subtree (oo-6.6); **`info object methods
+  -scope`** filtering (oo-39.12); **empty superclass** defaults to `oo::class`
+  for a metaclass (oo-35.2); redundant `::` runs collapse in OO names.
+
+Deferred (documented as future work): running `oo::define` script bodies in the
+`::oo::define` namespace (C's frame model — attempted, regressed 22 across
+private vars / TIP 524 / myclass, reverted); the ensemble-rewrite chaining for
+`forward` wrong-args (oo-6.14–6.20); the self-mixin call-chain facet ambiguity
+(oo-23.1/41.2/13.7); variable unset-traces firing during namespace teardown
+(oo-11.8); and the trace-namespace qualification pollution (oo-19.x/20.x).
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
