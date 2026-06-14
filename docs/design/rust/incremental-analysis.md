@@ -210,13 +210,29 @@ practcl.tcl from ~1 s to low-ms).
 | Slice 4 — per-procedure lattice memoisation (`build_for_memoized` + `lattice_rebase`), offset-invariant, wired into `file_analysis_incremental` via an idempotent content cache | **shipped** (byte-identical; e2e parity) |
 | Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
 
-> **Remaining (future):** the interprocedural taint cascade still re-runs
-> `propagate_taints` for every function on each edit (the per-function
-> baseline lattices are reused; only the taint re-run is whole-file); the
-> optimiser's second `CompilationUnit` (`lift_compiler_diagnostics`) is still
-> whole-file. A salsa-native per-item lattice graph (interning post-inline IR)
-> would replace the process-wide content cache but needs `Hash`/`Eq` across the
-> IR graph (blocked today by float fields / no `serde`).
+> **Remaining (future).** The per-procedure baseline lattices are memoised for
+> *both* diagnostics consumers (the analyser CFG/SSA tail and the optimiser's
+> `lift_compiler_diagnostics` checks), byte-identically, via the process-wide
+> content cache + `CompilationUnit::build_for_memoized`. What's left:
+>
+> - **Interprocedural taint cascade.** `with_interprocedural` still re-runs
+>   `propagate_taints` for every function on each edit (a small fraction of the
+>   per-edit cost now). Memoising it byte-identically needs a per-function key
+>   over the reachable-callee `ProcSummary`s — i.e. hand-rolling salsa's
+>   dependency tracking, fragile enough that it's only worth doing as part of a
+>   salsa-native lattice graph.
+> - **Salsa-native per-item lattice graph.** Would replace the content cache
+>   (proper GC + a natural taint cascade) by interning each procedure's
+>   *offset-0* post-inline IR body as a salsa key. The `Hash`/`Eq` prerequisite
+>   is **done** — the IR body AST is float-free (literals are text; the
+>   `f64`-bearing `ConstValue` lives in the lattice, not the body), so
+>   `Script`/`Statement`/`ExprNode` derive `Hash`/`Eq` cleanly. The remaining
+>   blocker is *architectural*, not perf: `lift_compiler_diagnostics` runs
+>   **off** the salsa graph (in the server's lift path, with a registry but no
+>   db handle), so a `function_lattice` query can serve the analyser tail but
+>   not the optimiser consumer. A full conversion must therefore *also* move the
+>   optimiser checks onto a salsa query — only then can the content cache be
+>   retired. Net-zero perf, so deferred until that broader move is worthwhile.
 
 ## How to run the experiments
 
