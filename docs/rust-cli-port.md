@@ -137,9 +137,14 @@ Keystone progress / remaining pieces:
   (`build_objects_for_source` / `ObjectNode` / `GraphContext`). All 28 nodes of
   a representative `bigip.conf` match Python exactly (node_id, kind, offsets,
   ranges).
-- ⛔ **forward edges** — `resolve_kind_in_configs` (needs `BigipConfig`
-  resolvers: `resolve_name` / `resolve_generic_object` / per-kind table
-  resolvers, not yet ported) + the legacy token-scan walk + edge dedup.
+- ✅ **name resolution** (`resolve_kind_in_configs` + `BigipConfig.resolve_name`
+  / `resolve_generic_object`) → `tcl-bigip::graph`. Object ranges read from
+  `canon_fields()["range"]`; `spec.module` stands in for the per-object module
+  (verified safe for table-backed kinds). 84 probes match Python.
+- ✅ **legacy forward edges** (`_build_forward_edges` token-scan path +
+  `build_bigip_object_graph`) → `tcl-bigip::graph` (`ObjectEdge`/`ObjectGraph`).
+  Reproduces every Python legacy edge in order; 2 frozen drift edges pinned
+  (`graph_edges_legacy.drift.txt`).
 - ⛔ **registry-first dispatch** (`references_via_spec` / pilot value-spec engine,
   `registry/{pilot,references,value_specs,properties}.py` — `value_specs.py`
   alone is ~1777 LOC, ~25 spec classes) — used *additively* alongside the legacy
@@ -157,6 +162,15 @@ Keystone progress / remaining pieces:
 > `gw` on `net route`). The query *logic* matches Python; these edges will
 > diverge until the data baseline is regenerated. Pinned in
 > `tcl-registry/tests/fixtures/object_query.drift.txt`.
+>
+> A second drift class surfaced via the graph edges: properties Python
+> **migrated to the pilot specs** had their *legacy* `references` cleared (so
+> `candidate_kinds_for_key` returns empty), but the generated Rust data still
+> carries them — e.g. `persist` on `ltm virtual`. These show up as *extra* Rust
+> legacy edges (pinned in `graph_edges_legacy.drift.txt`). The object-query
+> golden didn't catch this class because it only recorded Python-non-empty rows;
+> regenerating the registry data (or expanding that golden to probe every Rust
+> property name) is the fix.
 
 ## Prioritised remaining roadmap
 
