@@ -95,7 +95,8 @@ helpers are done; the rest await engine ports.
 | `diff` (`changes`) | ✅ parity (add/remove/scalar) | ports `compute_diff` over the model; fields read from `canon_fields()`; accepts tmsh input via `to_scf`. **Gap:** object-list field *display* (pool `members`, data-group `records`) shows canonical JSON vs Python's dataclass `repr` — change *detection* is still correct. Golden-tested (add/remove text+JSON, scalar modify, tmsh input) |
 | `explain` (`describe`) | ✅ byte-parity | ports `compute_explain` + the `resolve_name` resolution layer (model-based — does **not** need the ref-graph); walks `canon_fields()` (`BigipList` navigation) for profiles/iRules/persistence/SNAT/pool. Verified across virtual/pool/auto/short-name/not-found, text + JSON; golden-tested |
 | `extract` (`ucs2scf`) | ✅ byte-parity (scf) | golden-tested. Ports `extract_ucs_file` onto `tcl-bigip-io`: reads a `.ucs` (plain gzip-tar **or** OpenPGP-encrypted), extracts to SCF in memory, writes verbatim. Encrypted archives decrypt purely in Rust. tmsh/tmsh-delta deferred (needs the tmsh emitter); interactive TTY passphrase prompting not yet wired in the binary (env-var / explicit only) |
-| `stats`, `cleanup`, `grep`, `validate`, `graph`, `rename` | ⛔ stub | need the BIG-IP **ref-graph** (keystone, below) |
+| `graph` (`deps`) | ✅ byte-parity | full ref-graph (nodes + pilot/legacy/iRule edges) → `export_graph` (DOT/JSON/Mermaid). Verified end-to-end vs the Python CLI across all formats × `--seed`/`--reverse`/`--max-depth`. (Byte-parity on configs free of the documented registry-data drift.) |
+| `stats`, `cleanup`, `grep`, `validate`, `rename` | ⛔ stub | ref-graph keystone now **done**; these consume it next |
 | `tmsh`, `convert`, `redact`/`unredact` | ⛔ stub | need the tmsh / AS3 emit + redaction engines |
 | `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `query`, `irule` group | ⛔ stub | need remote / PCAP / query-DSL ports |
 
@@ -170,7 +171,13 @@ Keystone progress / remaining pieces:
   (`via_property = "irule:<command>"`); `tcl-lsp-core`'s span-only port migrated
   onto it. Golden-tested: 117 resolve probes, 15 walker cases, and the full
   `bigip.conf` graph (61 edges incl. 3 iRule) — only the 1 pinned drift edge.
-- ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
+- ✅ **graph_export** (`graph_export.py`) → `tcl-bigip::graph` (`export_graph` +
+  `filter_to_subgraph` BFS + DOT/JSON/Mermaid serialisers; JSON hand-written for
+  `json.dumps(indent=2)` key-order parity). Byte-parity golden-tested.
+- ✅ **`f5 graph` (alias `deps`)** wired end to end (`load_paths` →
+  `build_bigip_object_graph` → `export_graph` → file/stdout). Verified
+  byte-identical to the Python CLI across all 3 formats × the full flag matrix
+  (`--seed` / `--reverse` / `--max-depth`).
 
 > **Registry-data drift (blocks full byte-parity, separate workstream):** the
 > generated Rust registry **data** (`tcl-registry/src/bigip/data`, a
