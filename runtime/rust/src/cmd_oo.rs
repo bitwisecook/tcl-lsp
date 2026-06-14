@@ -3180,9 +3180,15 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             let all = argv[4..].iter().any(|&a| obj_bytes(a) == b"-all");
             let private = argv[4..].iter().any(|&a| obj_bytes(a) == b"-private");
+            // `-scope public|unexported|private` (TIP 500) selects exactly one
+            // visibility class (and ignores `-all`).
+            let scope: Option<Vec<u8>> = argv[4..]
+                .iter()
+                .position(|&a| obj_bytes(a) == b"-scope")
+                .and_then(|p| argv.get(4 + p + 1).map(|&a| obj_bytes(a)));
             let mut names: Vec<Vec<u8>> = Vec::new();
-            // The object's own methods, plus (with `-all`) the whole chain.
-            let chain = if all {
+            // The object's own methods, plus (with `-all`, no `-scope`) the chain.
+            let chain = if all && scope.is_none() {
                 interp.method_chain(&obj)
             } else {
                 vec![obj.clone()]
@@ -3201,7 +3207,16 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 };
                 if let Some((methods, unexp, priv_set)) = entry {
                     for n in methods.keys() {
-                        let show = if private {
+                        let show = if let Some(sc) = &scope {
+                            let s: &[u8] = if priv_set.contains(n) {
+                                b"private"
+                            } else if unexp.contains(n) {
+                                b"unexported"
+                            } else {
+                                b"public"
+                            };
+                            s == sc.as_slice()
+                        } else if private {
                             !priv_set.contains(n)
                         } else {
                             !unexp.contains(n)
@@ -3213,8 +3228,9 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
             }
             // `-all` also surfaces the inherited `oo::object` built-in methods,
-            // honouring any `export`/`unexport` applied to them.
-            if all {
+            // honouring any `export`/`unexport` applied to them (but `-scope`
+            // restricts to the object's own methods).
+            if all && scope.is_none() {
                 for b in [
                     b"<cloned>".as_slice(),
                     b"destroy",
