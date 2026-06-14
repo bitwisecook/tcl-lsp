@@ -1,0 +1,125 @@
+//! Output writers — the Rust port of `_write_text_output`,
+//! `_write_highlighted_output`, and the colour/tab resolution helpers in
+//! `tooling/cli/_utils.py`.
+
+use std::io::{IsTerminal, Write};
+use std::path::{Path, PathBuf};
+
+use crate::input::CliError;
+
+/// Where verb output goes: stdout (the Python `"-"`) or a file.
+#[derive(Debug, Clone)]
+pub enum OutputTarget {
+    /// Standard output.
+    Stdout,
+    /// A file path.
+    File(PathBuf),
+}
+
+impl OutputTarget {
+    /// Map an optional `--output` path to a target (`None`/`-` → stdout).
+    #[must_use]
+    pub fn from_arg(output: Option<&Path>) -> Self {
+        match output {
+            None => OutputTarget::Stdout,
+            Some(p) if p.as_os_str() == "-" => OutputTarget::Stdout,
+            Some(p) => OutputTarget::File(p.to_path_buf()),
+        }
+    }
+
+    /// Whether this target is standard output.
+    #[must_use]
+    pub fn is_stdout(&self) -> bool {
+        matches!(self, OutputTarget::Stdout)
+    }
+}
+
+/// Write text to the target (mirrors `_write_text_output`).
+///
+/// For stdout, a trailing newline is appended when the text is non-empty and
+/// does not already end in one. For files, bytes are written verbatim.
+pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliError> {
+    match target {
+        OutputTarget::Stdout => {
+            let mut out = std::io::stdout().lock();
+            out.write_all(text.as_bytes())
+                .map_err(|e| CliError::Io(format!("failed to write stdout: {e}")))?;
+            if !text.is_empty() && !text.ends_with('\n') {
+                out.write_all(b"\n")
+                    .map_err(|e| CliError::Io(format!("failed to write stdout: {e}")))?;
+            }
+            Ok(())
+        }
+        OutputTarget::File(path) => std::fs::write(path, text)
+            .map_err(|e| CliError::Io(format!("failed to write {}: {e}", path.display()))),
+    }
+}
+
+/// Write Tcl source, optionally colourised, with Python-faithful tab handling
+/// (mirrors `_write_highlighted_output`).
+///
+/// When writing to stdout with `tab_width > 0`, tabs are expanded to spaces
+/// just as `str.expandtabs` does. ANSI highlighting is applied when
+/// `use_colour` is set.
+pub fn write_highlighted_output(
+    target: &OutputTarget,
+    text: &str,
+    use_colour: bool,
+    tab_width: usize,
+) -> Result<(), CliError> {
+    let mut rendered = text.to_owned();
+    if target.is_stdout() && tab_width > 0 {
+        rendered = expand_tabs(&rendered, tab_width);
+    }
+    if use_colour {
+        // TODO(highlight): the ANSI highlighter port (the `highlight` verb)
+        // is not wired up yet; until then `--colour` degrades to plain text.
+        // Non-TTY output (the common parity-test path) resolves to no colour.
+    }
+    write_text_output(target, &rendered)
+}
+
+/// Expand tab characters to spaces using tab-stop semantics identical to
+/// Python's `str.expandtabs(tabsize)`: a tab advances to the next multiple of
+/// `tabsize`; column resets on `\n`/`\r`.
+#[must_use]
+pub fn expand_tabs(text: &str, tabsize: usize) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut col = 0usize;
+    for ch in text.chars() {
+        match ch {
+            '\t' => {
+                if tabsize > 0 {
+                    let spaces = tabsize - (col % tabsize);
+                    for _ in 0..spaces {
+                        out.push(' ');
+                    }
+                    col += spaces;
+                }
+            }
+            '\n' | '\r' => {
+                out.push(ch);
+                col = 0;
+            }
+            other => {
+                out.push(other);
+                col += 1;
+            }
+        }
+    }
+    out
+}
+
+/// Decide whether ANSI highlighting should be applied (mirrors
+/// `_resolve_use_colour`): `--colour` forces on, `--no-colour` forces off,
+/// otherwise it is on only when writing to a TTY stdout.
+#[must_use]
+pub fn resolve_use_colour(colour: bool, no_colour: bool, target: &OutputTarget) -> bool {
+    if colour {
+        return true;
+    }
+    if no_colour {
+        return false;
+    }
+    target.is_stdout() && std::io::stdout().is_terminal()
+}

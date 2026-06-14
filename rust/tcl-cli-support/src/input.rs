@@ -1,0 +1,263 @@
+//! Input-document resolution — the Rust port of `_read_input_documents`,
+//! `_combine_sources`, and the supporting discovery helpers in
+//! `tooling/cli/_utils.py`.
+
+use std::io::{IsTerminal, Read};
+use std::path::{Path, PathBuf};
+
+/// Source file extensions the CLI accepts (mirrors `_SOURCE_SUFFIXES`).
+const SOURCE_SUFFIXES: &[&str] = &[
+    "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl",
+];
+
+/// Directory names skipped during recursive discovery (mirrors
+/// `_SKIP_DIRECTORY_NAMES`).
+const SKIP_DIRECTORY_NAMES: &[&str] = &[
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "build",
+    "dist",
+];
+
+/// Errors raised while resolving CLI input (the Rust analogue of
+/// `TclCliError`). Rendered as `error: {msg}` by the binary, exit code 2.
+#[derive(Debug, thiserror::Error)]
+pub enum CliError {
+    /// A user-facing input/usage problem, message matched to the Python text.
+    #[error("{0}")]
+    Input(String),
+    /// An underlying I/O failure while reading a file or stdin.
+    #[error("{0}")]
+    Io(String),
+}
+
+impl CliError {
+    /// Construct an input/usage error from any displayable message.
+    pub fn input(msg: impl Into<String>) -> Self {
+        CliError::Input(msg.into())
+    }
+}
+
+/// A resolved input document (mirrors the `InputDocument` dataclass).
+#[derive(Debug, Clone)]
+pub struct InputDocument {
+    /// Human-readable label: a file path, `<inline:N>`, or `<stdin>`.
+    pub label: String,
+    /// The document source text.
+    pub source: String,
+    /// The originating file path, if any.
+    pub path: Option<PathBuf>,
+}
+
+/// `pkgIndex.tcl` is always accepted; otherwise the extension must be known.
+fn is_supported_source_file(path: &Path) -> bool {
+    if path.file_name().is_some_and(|n| n == "pkgIndex.tcl") {
+        return true;
+    }
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) => {
+            let lower = ext.to_ascii_lowercase();
+            SOURCE_SUFFIXES.contains(&lower.as_str())
+        }
+        None => false,
+    }
+}
+
+/// Discover supported source files under `directory`, sorted, honouring the
+/// skip-directory set and the leading-dot rule (mirrors
+/// `_iter_directory_sources`).
+fn iter_directory_sources(directory: &Path, recursive: bool) -> Result<Vec<PathBuf>, CliError> {
+    let mut files = Vec::new();
+    if recursive {
+        walk_recursive(directory, &mut files)?;
+    } else {
+        let mut entries: Vec<PathBuf> = read_dir_sorted(directory)?;
+        entries.sort();
+        for path in entries {
+            if path.is_file() && is_supported_source_file(&path) {
+                files.push(canonical(&path));
+            }
+        }
+    }
+    Ok(files)
+}
+
+/// Recursive directory walk, visiting child directories in sorted order and
+/// files in sorted order (mirrors the `os.walk` + `sorted(...)` shape).
+fn walk_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), CliError> {
+    let entries = read_dir_sorted(dir)?;
+    let mut subdirs: Vec<PathBuf> = Vec::new();
+    let mut files: Vec<PathBuf> = Vec::new();
+    for path in entries {
+        if path.is_dir() {
+            let keep = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| !SKIP_DIRECTORY_NAMES.contains(&n) && !n.starts_with('.'));
+            if keep {
+                subdirs.push(path);
+            }
+        } else if path.is_file() && is_supported_source_file(&path) {
+            files.push(canonical(&path));
+        }
+    }
+    files.sort();
+    out.extend(files);
+    subdirs.sort();
+    for sub in subdirs {
+        walk_recursive(&sub, out)?;
+    }
+    Ok(())
+}
+
+fn read_dir_sorted(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map_err(|e| CliError::Io(format!("failed to read directory {}: {e}", dir.display())))?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .collect();
+    entries.sort();
+    Ok(entries)
+}
+
+/// Resolve to an absolute path, falling back to the input on failure (the
+/// Python code uses `Path.resolve()`, which does not require existence here
+/// since the caller has already checked).
+fn canonical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Resolve CLI inputs into ordered [`InputDocument`]s.
+///
+/// Mirrors `_read_input_documents`: inline `--source` snippets come first
+/// (labelled `<inline:N>`), then files and directory-discovered files
+/// (deduplicated, UTF-8 with lossy replacement). If nothing resolves and stdin
+/// is not a TTY, stdin is read as `<stdin>`; otherwise an error is returned.
+///
+/// Package-name inputs (a bare token that is not an existing path) are not yet
+/// supported in the Rust port — they require the `tclpkg` resolver (Phase 6) —
+/// and produce a clear error rather than being silently dropped.
+pub fn read_input_documents(
+    inputs: &[PathBuf],
+    inline_sources: &[String],
+    recursive: bool,
+) -> Result<Vec<InputDocument>, CliError> {
+    let mut ordered_files: Vec<PathBuf> = Vec::new();
+    let mut package_names: Vec<String> = Vec::new();
+
+    for raw in inputs {
+        let path = expand_user(raw);
+        if !path.exists() {
+            package_names.push(raw.display().to_string());
+            continue;
+        }
+        if path.is_file() {
+            if !is_supported_source_file(&path) {
+                return Err(CliError::input(format!(
+                    "unsupported source file: {} (expected Tcl/iRules file extensions)",
+                    path.display()
+                )));
+            }
+            ordered_files.push(canonical(&path));
+        } else if path.is_dir() {
+            let discovered = iter_directory_sources(&canonical(&path), recursive)?;
+            if discovered.is_empty() {
+                return Err(CliError::input(format!(
+                    "directory has no supported Tcl source files: {}",
+                    path.display()
+                )));
+            }
+            ordered_files.extend(discovered);
+        } else {
+            return Err(CliError::input(format!(
+                "unsupported input path type: {}",
+                path.display()
+            )));
+        }
+    }
+
+    if !package_names.is_empty() {
+        return Err(CliError::input(format!(
+            "package resolution is not yet implemented in the Rust port: {}",
+            package_names.join(", ")
+        )));
+    }
+
+    let mut documents: Vec<InputDocument> = Vec::new();
+    for (index, source_text) in inline_sources.iter().enumerate() {
+        documents.push(InputDocument {
+            label: format!("<inline:{}>", index + 1),
+            source: source_text.clone(),
+            path: None,
+        });
+    }
+
+    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+    for file_path in ordered_files {
+        if !seen.insert(file_path.clone()) {
+            continue;
+        }
+        let bytes = std::fs::read(&file_path)
+            .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
+        // Python reads with errors="replace": decode UTF-8 lossily.
+        let source = String::from_utf8_lossy(&bytes).into_owned();
+        documents.push(InputDocument {
+            label: file_path.display().to_string(),
+            source,
+            path: Some(file_path),
+        });
+    }
+
+    if documents.is_empty() && !std::io::stdin().is_terminal() {
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| CliError::Io(format!("failed to read stdin: {e}")))?;
+        documents.push(InputDocument {
+            label: "<stdin>".to_owned(),
+            source: buf,
+            path: None,
+        });
+    }
+
+    if documents.is_empty() {
+        return Err(CliError::input(
+            "no input provided; pass files/directories/packages, --source, or pipe stdin",
+        ));
+    }
+
+    Ok(documents)
+}
+
+/// Combine documents into one source string: each doc's trailing newlines are
+/// stripped and the chunks are joined with a blank line (mirrors
+/// `_combine_sources`).
+#[must_use]
+pub fn combine_sources(documents: &[InputDocument]) -> String {
+    documents
+        .iter()
+        .map(|d| d.source.trim_end_matches('\n'))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Expand a leading `~` to the user's home directory (best-effort; mirrors
+/// `Path.expanduser`).
+fn expand_user(path: &Path) -> PathBuf {
+    let Some(s) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    if let Some(rest) = s.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return Path::new(&home).join(rest);
+        }
+    } else if s == "~" {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home);
+        }
+    }
+    path.to_path_buf()
+}

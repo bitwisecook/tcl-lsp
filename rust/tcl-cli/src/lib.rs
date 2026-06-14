@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 
 mod cli;
+mod commands;
 
 use std::ffi::OsString;
 use std::process::ExitCode;
@@ -47,9 +48,54 @@ where
 /// Returns the intended process exit code (0 = success, 1 = semantic failure,
 /// 2 = usage/internal error) so the binary can forward it verbatim.
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
-    // Phase 0 scaffolding: the command tree is complete and diffable against
-    // the Python CLI, but verb engines are wired up in later phases. Each arm
-    // will be replaced with a real handler as that verb is ported.
-    let verb = command.verb_name();
-    anyhow::bail!("`tcl {verb}` is not yet implemented in the Rust port");
+    match command {
+        Command::Format {
+            input,
+            indent_size,
+            indent_style,
+            max_line_length,
+            colour,
+        } => commands::transform::run_format(
+            input,
+            *indent_size,
+            indent_style.as_deref(),
+            *max_line_length,
+            colour,
+        ),
+        Command::Minify {
+            input,
+            compact,
+            symbol_map,
+            aggressive,
+            isolated,
+            colour,
+        } => commands::transform::run_minify(
+            input,
+            *compact,
+            symbol_map.as_deref(),
+            *aggressive,
+            *isolated,
+            colour,
+        ),
+        Command::UnminifyError {
+            symbol_map,
+            error,
+            error_file,
+            minified,
+            original,
+            output,
+        } => commands::transform::run_unminify_error(
+            symbol_map,
+            error.as_deref(),
+            error_file.as_deref(),
+            minified.as_deref(),
+            original.as_deref(),
+            output.as_deref(),
+        ),
+        // Verbs not yet ported fall through to a clear not-implemented error.
+        other => {
+            let verb = other.verb_name();
+            anyhow::bail!("`tcl {verb}` is not yet implemented in the Rust port");
+        }
+    }
 }

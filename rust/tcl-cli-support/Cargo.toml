@@ -1,0 +1,17 @@
+[package]
+name = "tcl-cli-support"
+description = "Shared CLI plumbing for the native tcl / f5 CLIs (input/output, dialect registries)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-registry = { path = "../tcl-registry" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
+thiserror = "2"
+
+[lints]
+workspace = true

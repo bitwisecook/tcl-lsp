@@ -311,7 +311,7 @@ pub enum Command {
         #[arg(long = "indent-size", value_name = "N")]
         indent_size: Option<usize>,
         /// Indentation style.
-        #[arg(long = "indent-style", value_name = "STYLE", value_parser = ["space", "tab"])]
+        #[arg(long = "indent-style", value_name = "STYLE", value_parser = ["spaces", "tabs"])]
         indent_style: Option<String>,
         /// Maximum line length before wrapping.
         #[arg(long = "max-line-length", value_name = "N")]
@@ -325,26 +325,43 @@ pub enum Command {
     Minify {
         #[command(flatten)]
         input: InputArgs,
-        /// Also compact identifier names.
+        /// Compact variable and proc names to short identifiers.
         #[arg(long)]
         compact: bool,
-        /// Write the symbol map to this path (with --compact).
+        /// Write the symbol map (original -> compacted names) to FILE.
         #[arg(long = "symbol-map", value_name = "FILE")]
         symbol_map: Option<PathBuf>,
+        /// Maximum compression: run all optimiser passes, then compact + minify.
+        #[arg(long)]
+        aggressive: bool,
+        /// Treat the script as self-contained — also compact global-scope names.
+        #[arg(long)]
+        isolated: bool,
+        #[command(flatten)]
+        colour: ColourArgs,
     },
 
     /// Translate a minified-code error message back to original names.
     #[command(visible_alias = "umerr")]
     UnminifyError {
-        /// Symbol map written by `minify --compact`.
+        /// Symbol map written by `minify --symbol-map`.
         #[arg(long = "symbol-map", value_name = "FILE")]
         symbol_map: PathBuf,
-        /// Error message text to translate.
-        #[arg(long)]
+        /// Error message text to translate (inline).
+        #[arg(long, short = 'e', value_name = "TEXT")]
         error: Option<String>,
-        /// Read the error message from a file.
+        /// File containing error messages to translate ('-' for stdin).
         #[arg(long = "error-file", value_name = "FILE")]
         error_file: Option<PathBuf>,
+        /// The minified source file (for line-number remapping).
+        #[arg(long, value_name = "FILE")]
+        minified: Option<PathBuf>,
+        /// The original source file (for line-number remapping).
+        #[arg(long, value_name = "FILE")]
+        original: Option<PathBuf>,
+        /// Output path ('-' for stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Print a bash / fish / zsh completion script for the tcl CLI.

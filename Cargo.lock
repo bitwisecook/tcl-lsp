@@ -1032,6 +1032,17 @@ dependencies = [
  "anyhow",
  "clap",
  "clap_complete",
+ "tcl-cli-support",
+ "tcl-lsp-core",
+]
+
+[[package]]
+name = "tcl-cli-support"
+version = "0.1.0"
+dependencies = [
+ "tcl-lsp-core",
+ "tcl-registry",
+ "thiserror",
 ]
 
 [[package]]

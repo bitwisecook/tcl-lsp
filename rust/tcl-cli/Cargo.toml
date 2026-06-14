@@ -16,6 +16,8 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 clap_complete = "4"
 anyhow = "1"
+tcl-cli-support = { path = "../tcl-cli-support" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
 
 [lints]
 workspace = true
