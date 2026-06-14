@@ -1962,7 +1962,16 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"attempt to form circular dependency graph");
     }
     if new.is_empty() {
-        new = vec![b"::oo::object".to_vec()];
+        // Zero superclasses defaults to a single root: `oo::class` for a class
+        // that is itself a class (a metaclass — reachable from `oo::class`), so
+        // its instances stay classes; otherwise `oo::object` (C's
+        // ClassSuperclassSet, Bug 9d61624b3d; oo-35.2).
+        let is_metaclass = self_reachable(interp, b"::oo::class", &current);
+        new = vec![if is_metaclass {
+            b"::oo::class".to_vec()
+        } else {
+            b"::oo::object".to_vec()
+        }];
     }
     interp
         .oo
