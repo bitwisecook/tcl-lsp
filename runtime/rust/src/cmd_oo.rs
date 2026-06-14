@@ -161,7 +161,12 @@ pub struct OoState {
     counter: usize,
     /// Monotonic source of object creation IDs (`info object creationid`).
     next_id: u64,
-    def_stack: Vec<DefTarget>,
+    /// The definition-target stack, each entry tagged with the call-frame level
+    /// it is active at. The definition commands (`method`/`variable`/…) are in
+    /// scope only when evaluation is *directly* at that level; a nested
+    /// proc/method call suspends the context (and `uplevel` back into the body
+    /// restores it), matching C's scoping of the `::oo::define` namespace.
+    def_stack: Vec<(DefTarget, usize)>,
     call_stack: Vec<OoFrame>,
     /// Non-zero while inside a `private` definition modifier — methods defined
     /// then are marked unexported (callable only via `my`).
@@ -358,7 +363,7 @@ fn register_define_ns_commands(interp: &mut Interp) {
 /// A `::oo::define::<sub>` / `::oo::objdefine::<sub>` command: errors outside a
 /// definition context, else dispatches the subcommand on the current target.
 fn oo_ns_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if interp.oo.borrow().def_stack.is_empty() {
+    if interp.active_def_target().is_none() {
         return interp.set_error(
             b"this command may only be called from within the context of an \
               ::oo::define or ::oo::objdefine command",
@@ -1208,7 +1213,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// The current definition target, or an error if outside a definition body.
 fn def_target(interp: &mut Interp) -> Result<DefTarget, Code> {
-    let target = interp.oo.borrow().def_stack.last().cloned();
+    let target = interp.active_def_target();
     match target {
         Some(t) => Ok(t),
         None => Err(interp
@@ -1967,8 +1972,9 @@ fn has_duplicate(list: &[Vec<u8>]) -> bool {
 }
 
 fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // Outside a definition body, this is the ordinary `variable` command.
-    if interp.oo.borrow().def_stack.is_empty() {
+    // Outside a definition body (incl. a nested proc/method call from one), this
+    // is the ordinary `variable` command.
+    if interp.active_def_target().is_none() {
         return crate::cmd_var::variable(interp, argv);
     }
     // The `variable` slot's default operation is `-append` (its DeclaredSlot
@@ -2125,7 +2131,7 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Define-context `self`: inside an `oo::define`/`oo::class create` body,
         // `self ?subcmd …?` applies objdefine-style directives to the object
         // being defined (the classes-as-objects model). `self` alone returns it.
-        let def_target = interp.oo.borrow().def_stack.last().cloned();
+        let def_target = interp.active_def_target();
         if let Some(target) = def_target {
             // C has two `self` commands: `oo::objdefine`'s takes no arguments
             // (`TclOODefineObjSelfObjCmd`), while `oo::define`'s applies
@@ -2141,11 +2147,12 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if !is_class {
                 return wrong_args(interp, b"self");
             }
+            let lvl = interp.current_level();
             interp
                 .oo
                 .borrow_mut()
                 .def_stack
-                .push(DefTarget::Object(tfqn));
+                .push((DefTarget::Object(tfqn), lvl));
             // `self { script }` runs a definition body; `self subcmd …` is one
             // directive — mirror `oo_run_def`'s script-vs-subcommand split.
             let code = if argv.len() == 2 {
@@ -2269,7 +2276,20 @@ impl Interp {
     /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`
     /// body (so `dispatch` should try definition-subcommand resolution on a miss).
     pub(crate) fn in_oo_define(&self) -> bool {
-        !self.oo.borrow().def_stack.is_empty()
+        self.active_def_target().is_some()
+    }
+
+    /// The definition target whose body is being evaluated *directly* at the
+    /// current call-frame level — `None` inside a nested proc/method called from
+    /// a definition body (where the definition commands are out of scope).
+    fn active_def_target(&self) -> Option<DefTarget> {
+        let lvl = self.current_level();
+        self.oo
+            .borrow()
+            .def_stack
+            .last()
+            .filter(|(_, l)| *l == lvl)
+            .map(|(t, _)| t.clone())
     }
 
     /// Allocate the next monotonic object creation ID.
@@ -2320,10 +2340,7 @@ impl Interp {
             b"unexport",
             b"variable",
         ];
-        let is_object = matches!(
-            self.oo.borrow().def_stack.last(),
-            Some(DefTarget::Object(_))
-        );
+        let is_object = matches!(self.active_def_target(), Some(DefTarget::Object(_)));
         let cands: &[&[u8]] = if is_object { OBJ_CMDS } else { CLASS_CMDS };
         // Exact name wins; otherwise a unique prefix (ambiguous → not resolved).
         let matched: Option<&[u8]> = if let Some(c) = cands.iter().find(|c| **c == name) {
@@ -2366,8 +2383,16 @@ impl Interp {
     /// namespace (exact name or unique prefix), dispatching the qualified form.
     /// `None` when there is no custom namespace or no match.
     fn oo_define_ns_command(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Option<Code> {
-        let target = self.oo.borrow().def_stack.last().cloned()?;
-        let def_ns = self.definition_namespace_for(&target)?;
+        let target = self.active_def_target()?;
+        // A custom TIP 524 definition namespace, else the built-in default
+        // (`::oo::define` / `::oo::objdefine`) — user procs there are reachable
+        // as definition commands too (oo-36.9/36.10).
+        let def_ns = self
+            .definition_namespace_for(&target)
+            .unwrap_or_else(|| match target {
+                DefTarget::Object(_) => b"::oo::objdefine".to_vec(),
+                DefTarget::Class(_) => b"::oo::define".to_vec(),
+            });
         let cmds = self.commands_in_namespace(&def_ns);
         let full: &[u8] = if let Some(c) = cmds.iter().find(|c| c.as_slice() == name) {
             c
@@ -3575,7 +3600,8 @@ impl Interp {
         prefix.push(b' ');
         prefix.extend_from_slice(&obj_bytes(argv[1]));
         let saved = self.oo.borrow_mut().def_rewrite.replace(prefix);
-        self.oo.borrow_mut().def_stack.push(target);
+        let lvl = self.current_level();
+        self.oo.borrow_mut().def_stack.push((target, lvl));
         let code = self.dispatch(&argv[2..]);
         self.oo.borrow_mut().def_stack.pop();
         self.oo.borrow_mut().def_rewrite = saved;
@@ -3596,7 +3622,8 @@ impl Interp {
         // a `rename` inside the body is reflected (oo-18.6/18.7). The creation id
         // is stable across rename, so we re-find the entry by it at error time.
         let creation_id = self.oo.borrow().objects.get(&fqn).map(|o| o.creation_id);
-        self.oo.borrow_mut().def_stack.push(target);
+        let lvl = self.current_level();
+        self.oo.borrow_mut().def_stack.push((target, lvl));
         let code = self.eval_str(body);
         self.oo.borrow_mut().def_stack.pop();
         // On error, add the `(in definition script for class/object "X" line N)`
@@ -5269,6 +5296,27 @@ mod tests {
             );
             assert_eq!(ok(i, b"info object properties o"), b"m n");
             assert_eq!(ok(i, b"info object properties o -all"), b"a m n x y z");
+        });
+    }
+
+    #[test]
+    fn define_context_is_frame_scoped() {
+        leak_free(|i| {
+            // A user proc in ::oo::define is reachable as a definition command,
+            // and runs with the definition context suspended (frame-scoped): its
+            // `variable` is the ordinary command, and `uplevel 1` re-enters the
+            // definition body's context (oo-36.9, oo-43.x).
+            ok(i, b"oo::class create C");
+            // `variable ::x` in the proc is the ordinary command (define context
+            // suspended); direct `self` errors at the proc level, `uplevel 1
+            // self` re-enters the definition body's context and yields the class.
+            ok(
+                i,
+                b"proc ::oo::define::probe {} { variable ::tcl::tmpvar; set ::tcl::tmpvar 7; \
+                  return [list [catch {self} m] [catch {uplevel 1 self} m2] $m2] }",
+            );
+            assert_eq!(ok(i, b"oo::define C probe"), b"1 0 ::C");
+            assert_eq!(ok(i, b"set ::tcl::tmpvar"), b"7");
         });
     }
 
