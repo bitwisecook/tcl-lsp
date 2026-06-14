@@ -231,6 +231,53 @@ fn lattice_cache() -> &'static Mutex<HashMap<String, (u32, FunctionUnit)>> {
 /// just rebuilds the byte-identical unit, so eviction is always safe).
 const LATTICE_CACHE_CAP: usize = 16_384;
 
+/// Build a `CompilationUnit` (with interprocedural summary applied) whose
+/// per-procedure lattices are memoised in the process-wide [`lattice_cache`].
+///
+/// Shared by the analyser's CFG/SSA diagnostic tail and the optimiser's
+/// compiler-checks pass so an unchanged procedure's lattice is built once and
+/// reused (rebased to its new offset) across edits *and* across both
+/// consumers' passes.  Byte-identical to
+/// [`CompilationUnit::build_for_with_config`] `+ with_interprocedural`.
+///
+/// **`cache_ns` must uniquely encode the `config`** (the two consumers lower
+/// with different [`tcl_lexer::LexerConfig`]s, which can change a `{*}`/`}{`
+/// body's IR): callers pass distinct namespaces so entries never cross-pollute.
+#[must_use]
+pub fn memoised_compilation_unit(
+    source: &str,
+    registry: &CommandRegistry,
+    defer_top_level: bool,
+    config: tcl_lexer::LexerConfig,
+    cache_ns: &str,
+    dialect_opt: Option<&str>,
+) -> CompilationUnit {
+    CompilationUnit::build_for_memoized(
+        source,
+        registry,
+        defer_top_level,
+        config,
+        cache_ns,
+        &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
+            if let Some(entry) = lattice_cache()
+                .lock()
+                .expect("lattice cache poisoned")
+                .get(key)
+            {
+                return entry.clone();
+            }
+            let entry = build();
+            let mut map = lattice_cache().lock().expect("lattice cache poisoned");
+            if map.len() >= LATTICE_CACHE_CAP {
+                map.clear();
+            }
+            map.insert(key.to_owned(), entry.clone());
+            entry
+        },
+    )
+    .with_interprocedural(registry, dialect_opt)
+}
+
 /// Incremental whole-file analysis: the per-item path with each `proc` body's
 /// isolated analysis memoised via [`item_body_analysis`], so a body edit
 /// recomputes one body + the cheap shell instead of the whole walk; the
@@ -254,37 +301,23 @@ pub fn file_analysis_incremental(
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised, and feed it through the analyser's `cu_override` seam.  The
-    // registry mirrors the one `emit_cfg_ssa_diagnostics` builds for itself, so
-    // the supplied unit is the one it would otherwise build.
+    // registry + default lexer config mirror what `emit_cfg_ssa_diagnostics`
+    // builds for itself, so the supplied unit is the one it would otherwise
+    // build.  Cache namespace `"a:"` (analyser, default lexer config) is
+    // distinct from the optimiser's so the two never cross-pollute.
     let mut registry = CommandRegistry::build_default();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     if let Some(d) = DialectSet::parse(&dialect) {
         registry.load_dialect(d);
     }
-    let cu = CompilationUnit::build_for_memoized(
+    let cu = memoised_compilation_unit(
         &text,
         &registry,
         false,
         tcl_lexer::LexerConfig::default(),
-        &dialect,
-        &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
-            if let Some(entry) = lattice_cache()
-                .lock()
-                .expect("lattice cache poisoned")
-                .get(key)
-            {
-                return entry.clone();
-            }
-            let entry = build();
-            let mut map = lattice_cache().lock().expect("lattice cache poisoned");
-            if map.len() >= LATTICE_CACHE_CAP {
-                map.clear();
-            }
-            map.insert(key.to_owned(), entry.clone());
-            entry
-        },
-    )
-    .with_interprocedural(&registry, dialect_opt);
+        &format!("a:{dialect}"),
+        dialect_opt,
+    );
     analyser.set_cu_override(Arc::new(cu));
 
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {

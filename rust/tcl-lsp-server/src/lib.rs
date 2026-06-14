@@ -4363,7 +4363,6 @@ fn lift_compiler_diagnostics(
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-    use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
     use tcl_compiler::optimiser::optimise_unit;
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
@@ -4375,14 +4374,20 @@ fn lift_compiler_diagnostics(
     // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow
     // / SCCP, all keyed off a single interprocedurally-summarised
     // compilation unit (mirrors the `compiler_checks_run_all` PyO3
-    // bridge's construction).
-    let cu = CompilationUnit::build_for_with_config(
+    // bridge's construction).  The unit's per-procedure lattices are memoised
+    // in the shared process-wide cache so an unchanged procedure is built once
+    // and reused across edits (the optimiser unit was the dominant remaining
+    // per-edit cost once the analyser walk + tail were memoised).  Cache
+    // namespace `"o:"` (optimiser, dialect lexer config) is distinct from the
+    // analyser's `"a:"` since the two lower with different lexer configs.
+    let cu = tcl_lsp_db::memoised_compilation_unit(
         text,
         registry,
         false,
         tcl_lexer::LexerConfig::for_dialect(dialect),
-    )
-    .with_interprocedural(registry, dialect_opt);
+        &format!("o:{dialect}"),
+        dialect_opt,
+    );
     // An optimiser O-code (`O1xx`) is gated by the `tclLsp.optimiser.enabled`
     // master switch and the profile + per-code `disabled_optimisations` set,
     // wherever it is emitted (some — e.g. the constant-branch `O100` — come
