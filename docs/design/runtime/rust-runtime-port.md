@@ -1735,7 +1735,21 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `myclass` command + forward resolves `my`/`myclass` in object ns | **129 / 168** | 39 (0 timeout) | **11751 / 20532** |
 | + TclOO TIP 500 private-method class scoping (`my m` prefers declaring class) | **129 / 168** | 39 (0 timeout) | **11753 / 20532** |
 | + TclOO definition-script errorInfo frame (`(in definition script for …)`) | **129 / 168** | 39 (0 timeout) | **11757 / 20532** |
-| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 352 / 388** |
+| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 356 / 388** |
+
+The 2026-06-14 (cont.3) **push-through** chunks (**+4 oo + 6 expr-old, zero
+regressions**, `oo.test` 352 → 356) — each began as a regression that exposed a
+wider bug:
+- **`expr` quoted-string substitution** (oo-19.1, +6 expr-old): a `"…"` operand
+  now substitutes `$var`/`${var}`/`[cmd]`/`\` like a double-quoted word (it was
+  taken literally). Found by chasing oo-19.1's `expr {"${ns}::x" eq …}`.
+- **Variable unset traces on namespace teardown** (oo-11.8): deleting a namespace
+  fires its variables' unset traces (names built first, namespace torn down, then
+  callbacks run — so a callback sees it already gone); oo_destroy deletes the
+  instance namespace before unregistering the object, so the callback sees the
+  object torn-down ("impossible to invoke method").
+- **`self target` of a filter-wrapped built-in** names its declarer (oo-12.8);
+  **`oo::copy`** names the new object in a `<cloned>` wrong-args (oo-15.9).
 
 The 2026-06-14 (cont.2) **FILTER_HANDLING** chunk (**+2, zero regressions**,
 `oo.test` 350 → 352): filters now wrap a method call regardless of public/`my`,
@@ -1808,22 +1822,24 @@ source and byte-verified:
 
 Deferred (documented as future work — each a sizeable cross-cutting subsystem;
 the core ensemble-rewrite now exists and handles OO forward chains, but the
-remaining `wrong # args` cases need it threaded into more dispatchers):
-the **ensemble-rewrite for non-OO ensembles** (oo-6.17 namespace-ensemble
-`-parameters`, oo-6.18 the builtin `string length` message, oo-2.7/2.8 the
-namespace-ensemble + constructor path, oo-15.9 `<cloned>` naming); the
-**`oo::define` definition call-frame** (oo-7.4/7.5/7.9/34.1 + the `self`-subcommand
-namespace and `definitionnamespace` outer-resolution it implies) — needs a real
-`FRAME_IS_OO_DEFINE` frame (see SYNC above), not just a `current_ns` switch;
-**`Var::Undefined` ghosts** so
-`namespace which -variable` finds a `varname`'d-but-unset variable
-(oo-19.4/19.5); the **trace-namespace qualification pollution** (oo-19.1/19.2,
-20.7/20.13/20.14, risks trace.test's 199 passing); **filter-chain introspection**
-including built-in steps (oo-12.7/12.8/14.7); `next` **after object deletion**
-(oo-7.10); variable **unset-traces during namespace teardown** (oo-11.8); private
-**variable lazy-resolution timing** (oo-38.5); `tailcall` in a constructor
-(oo-2.6); class morph mid-define (oo-13.11); and the Itcl upvar-in-destructor
-case (oo-3.5a).
+remaining `wrong # args` cases need it threaded into more dispatchers). The
+**16 still-failing `oo.test`**, each a focused dedicated subsystem:
+- **`oo::define` definition call-frame** (oo-7.4/7.5/7.9/34.1, and oo-13.11): a
+  real `FRAME_IS_OO_DEFINE` frame so the body runs at its own level with
+  `def_stack`/`info level`/`namespace current`/var-scope aligned, class args
+  resolving in the outer frame (C's InitDefineContext / GetClassInOuterContext;
+  a `current_ns`-only switch misaligns the level — see SYNC above).
+- **Non-OO ensemble rewrite** threaded into the namespace-ensemble dispatcher and
+  the `string` ensemble (oo-2.7/2.8/6.17/6.18); `forward`+rename/trace edge cases
+  (oo-6.19/6.20).
+- **`tailcall`** core command (oo-2.6).
+- **`Var::Undefined`** ghosts so `namespace which -variable`/`info vars` find a
+  `varname`'d-or-`variable`-declared-but-unset variable while `info exists` is 0
+  (oo-19.4) — ~10 core var-model sites, validate against var/namespace/info.
+- **Object lifetime across an active call** so `next` survives the object
+  renaming/deleting itself mid-method (oo-7.10).
+- **Private-variable lazy resolution** timing (oo-38.5); the Itcl
+  upvar-in-destructor teardown case (oo-3.5a).
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
