@@ -2426,31 +2426,34 @@ from the call meta, displacing the `proc` key — C's `TclInfoFrame`), landing
   these tests. This infra is the lever for the broader ~169 `info.test`
   source-line failures.)
 
-The remaining coroutine cluster is the one genuinely blocked subsystem:
+- **oo-22.3–22.6 — coroutines (DONE).** Implemented as **cooperative OS-thread
+  coroutines** (`cmd_coro`) plus the event loop (`cmd_event`: `after`/`vwait`/
+  `update`). Each coroutine runs its body on its own thread — the parked native
+  stack *is* the suspended continuation — with strict ping-pong handoff over
+  rendezvous channels, so the `!Send` `Rc`/`RefCell` interpreter is shared but
+  never aliased (one `unsafe impl Send` on the handoff handle, sound under the
+  serialization). The per-flow execution context (call frames, the `info frame`
+  stack, current namespace, the TclOO call/define stacks, return/error state) is
+  swapped in/out on each handoff (`Interp::swap_coro_ctx`); definitions
+  (namespaces/commands/classes/channels) stay shared. `info coroutine` is
+  thread-local. Deleting a suspended (or self-deleting) coroutine terminates its
+  worker via a quiet panic-unwind sentinel while the main thread is blocked, so
+  no concurrent interpreter access. The thread-local leak counters are not a
+  blocker: the production `run_script` build never leak-checks, and the
+  `#[cfg(test)]` coroutine tests deliberately skip `leak_free`. Native only; the
+  single-threaded wasm build stubs the commands (a future explicit-stack
+  evaluator would be the wasm route). Completing coroutines also flushed the
+  cross-test pollution gated on oo-1.25 (which aborted mid-body on the missing
+  `coroutine`, leaking `A`): oo-3.7, oo-7.7. `coroutine.test` 0 → 28/77;
+  `oo.test` → 303/388.
 
-- **oo-22.3–22.6 — coroutines.** `coroutine`/`yield` must suspend mid-method and
-  resume later (driven here through `after`/`vwait`). The Rust evaluator is
-  **recursive** — a `yield` deep in the call stack cannot return to the
-  `coroutine` creator without unwinding. The two same-thread-safe escapes are
-  both blocked here: a **stackful-coroutine crate** (e.g. `corosensei`) keeps the
-  `!Send` `Rc`/`RefCell` interp on one thread, but needs an external dependency
-  (no network) and its separate-stack switching is **wasm-target-hostile** (this
-  is the WASM runtime port); an **OS-thread-per-coroutine** with serialized
-  handoff would otherwise work, but the runtime's **leak counters are
-  `thread_local!`** (`counters.rs`) — allocating `TclObj`s on a coroutine thread
-  would break the leak-accounting invariant the whole test discipline depends
-  on, and the interp is `!Send` regardless. The faithful route is a **CPS / NRE
-  rewrite** of the eval loop to an explicit (non-recursive) execution stack, at
-  which point `yield`/`vwait`/the event loop become tractable together; that is a
-  major, separate undertaking. Coroutines also gate the cross-test pollution
-  (oo-1.25 aborts mid-body on the missing `coroutine`, leaking global `A`).
-
-Still open (larger/foundational): the define body runs in the caller's
+Still open (larger/foundational): builtin methods (`eval`/`variable`/`varname`/
+`destroy`) are not call-chain steps, so `next` into a builtin and filters
+wrapping them fail (oo-18.5, oo-12.2); the define body runs in the caller's
 namespace, not `::oo::define`/`::oo::objdefine` with outer-context class
-resolution (blocks oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor
-`wrong # args` / `info level` words (oo-2.1/2.7/2.8); cross-test teardown
-pollution (oo-7.7 et al pass in isolation — gated on coroutine via oo-1.25);
-PC-5 source lines (oo-22.7/22.8); coroutine (oo-22.3–22.6).
+resolution (oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor `wrong # args`
+/ `info level` words (oo-2.1/2.7/2.8); class morphing (oo-13.x); coroutine
+advanced forms (`yieldto`, custom `return -code`, `info level` in coroutines).
 
 ### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
