@@ -237,7 +237,13 @@ fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
     let bytes =
         std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
     let source = String::from_utf8_lossy(&bytes).into_owned();
-    Ok(parse_bigip_conf(&source, "Common"))
+    // Accept tmsh-script input as well as SCF (mirrors `_to_scf` in the Python
+    // diff handler) so `tmsh create/modify` headers compare against the same
+    // objects, not `tmsh`-module generics.
+    Ok(parse_bigip_conf(
+        &crate::commands::scf::to_scf(&source),
+        "Common",
+    ))
 }
 
 /// Compare the interesting fields of two objects (mirrors `_diff_object`).

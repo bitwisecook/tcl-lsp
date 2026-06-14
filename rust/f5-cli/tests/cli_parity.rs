@@ -100,6 +100,19 @@ fn diff_add_remove_json_matches_python() {
 }
 
 #[test]
+fn diff_tmsh_input_matches_python() {
+    // tmsh-script input is normalised to SCF before parsing (the `to_scf` path),
+    // so `tmsh create/modify` headers compare against the real objects.
+    let dir = fixtures_dir();
+    let a = dir.join("diff-a.tmsh");
+    let b = dir.join("diff-b.tmsh");
+    assert_diff_matches(
+        &["diff", a.to_str().unwrap(), b.to_str().unwrap()],
+        "diff-tmsh.text.golden",
+    );
+}
+
+#[test]
 fn explain_virtual_text_matches_python() {
     let conf = fixtures_dir().join("bigip.conf");
     assert_diff_matches(

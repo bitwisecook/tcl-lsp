@@ -8,4 +8,5 @@
 pub mod diff;
 pub mod explain;
 pub mod merge;
+pub mod scf;
 pub mod split;
