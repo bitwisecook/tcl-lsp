@@ -298,7 +298,9 @@ pub fn resolve_kind_in_configs(
 
 use std::collections::{HashMap, HashSet};
 
-use crate::parser::helpers::{parse_list_block, parse_properties_with_spans};
+use crate::parser::helpers::{
+    parse_keyed_block_entries, parse_list_block, parse_properties_with_spans,
+};
 
 /// A forward reference edge between two object nodes. Mirrors the Python
 /// `_Edge` (`BigipObjectEdge`).
@@ -607,20 +609,42 @@ fn pilot_references(
 ) -> Option<Vec<(String, String)>> {
     // `ListSpec(ObjectRefSpec(kind = K))` — a braced-space-separated list of
     // refs; each non-empty token yields one reference to the first kind.
-    let list_ref_kind = match (module, object_type, property) {
-        ("ltm", "virtual", "rules") => "ltm rule",
-        ("ltm", "virtual", "policies") => "ltm policy",
-        ("ltm", "virtual", "vlans") => "net vlan",
-        ("security", "firewall policy", "rule-lists") => "security firewall rule-list",
-        ("security", "firewall address-list", "address-lists") => "security firewall address-list",
-        _ => return None,
-    };
-    let refs = parse_list_block(raw)
-        .into_iter()
-        .filter_map(|tok| {
-            let t = tok.trim();
-            (!t.is_empty()).then(|| (list_ref_kind.to_owned(), t.to_owned()))
-        })
-        .collect();
-    Some(refs)
+    if let Some(list_ref_kind) = match (module, object_type, property) {
+        ("ltm", "virtual", "rules") => Some("ltm rule"),
+        ("ltm", "virtual", "policies") => Some("ltm policy"),
+        ("ltm", "virtual", "vlans") => Some("net vlan"),
+        ("security", "firewall policy", "rule-lists") => Some("security firewall rule-list"),
+        ("security", "firewall address-list", "address-lists") => {
+            Some("security firewall address-list")
+        }
+        _ => None,
+    } {
+        let refs = parse_list_block(raw)
+            .into_iter()
+            .filter_map(|tok| {
+                let t = tok.trim();
+                (!t.is_empty()).then(|| (list_ref_kind.to_owned(), t.to_owned()))
+            })
+            .collect();
+        return Some(refs);
+    }
+
+    // `ListSpec(ProfileAttachmentSpec | PersistenceAttachmentSpec)` — a
+    // keyed-block list where each item's key IS the referenced path.
+    if let Some(attach_kind) = match (module, object_type, property) {
+        ("ltm", "virtual", "profiles") => Some("ltm profile"),
+        ("ltm", "virtual", "persist") => Some("ltm persistence"),
+        _ => None,
+    } {
+        let refs = parse_keyed_block_entries(raw)
+            .into_iter()
+            .filter_map(|(key, _body)| {
+                let k = key.trim();
+                (!k.is_empty()).then(|| (attach_kind.to_owned(), k.to_owned()))
+            })
+            .collect();
+        return Some(refs);
+    }
+
+    None
 }
