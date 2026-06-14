@@ -53,6 +53,13 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             commands::diag::run_diag(input, diag)
         }
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
+        Command::Opt {
+            input,
+            profile,
+            disable,
+            enable,
+            colour,
+        } => commands::transform::run_opt(input, profile, disable, enable, colour),
         Command::Format {
             input,
             indent_size,

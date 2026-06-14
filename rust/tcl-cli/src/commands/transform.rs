@@ -16,6 +16,13 @@ use tcl_lsp_core::minify::{
     SymbolMap,
 };
 
+use std::collections::HashSet;
+
+use tcl_compiler::optimiser::profiles::{profile_to_disabled, OptimisationProfile};
+use tcl_compiler::optimiser::{
+    apply_optimisations, optimise_source_multipass, optimise_with_dialect,
+};
+
 use crate::cli::{ColourArgs, InputArgs};
 
 /// Default tab-expansion width used on stdout (mirrors the CLI default; the
@@ -60,6 +67,88 @@ pub fn run_format(
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
     write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH)?;
+    Ok(0)
+}
+
+/// `tcl opt` — run the optimiser and emit rewritten Tcl.
+///
+/// Follows the Python CLI's profile semantics: `full` (the default) is a single
+/// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
+pub fn run_opt(
+    input: &InputArgs,
+    profile: &str,
+    disable: &[String],
+    enable: &[String],
+    colour: &ColourArgs,
+) -> anyhow::Result<u8> {
+    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let source = combine_sources(&documents);
+    let registry = registry_for_dialect(&input.dialect);
+    let dialect = Some(input.dialect.as_str());
+
+    let profile = OptimisationProfile::parse(profile);
+    let mut disabled: HashSet<String> = profile_to_disabled(profile)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    for raw in disable {
+        for code in raw.split(',') {
+            let code = code.trim();
+            if !code.is_empty() {
+                disabled.insert(code.to_ascii_uppercase());
+            }
+        }
+    }
+    for raw in enable {
+        for code in raw.split(',') {
+            let code = code.trim();
+            if !code.is_empty() {
+                disabled.remove(&code.to_ascii_uppercase());
+            }
+        }
+    }
+
+    // Python `profile_spec`: only `aggressive` is multi-pass (max 5 iters);
+    // every other profile (including `full`) is a single pass.
+    let (optimised, optimisations) = if matches!(profile, OptimisationProfile::Aggressive) {
+        optimise_source_multipass(&source, registry, dialect, 5)
+    } else {
+        let kept: Vec<_> = optimise_with_dialect(&source, registry, dialect)
+            .into_iter()
+            .filter(|o| !disabled.contains(&o.code))
+            .collect();
+        let optimised = apply_optimisations(&source, &kept);
+        (optimised, kept)
+    };
+
+    let target = OutputTarget::from_arg(input.output.as_deref());
+    let mut rendered = optimised;
+    // On stdout the Python CLI appends a comment block summarising the rewrites.
+    if target.is_stdout() && !optimisations.is_empty() {
+        let mut lines = vec![
+            "\n\n# -------------".to_owned(),
+            format!("# optimised: {} rewrite(s)", optimisations.len()),
+        ];
+        for o in &optimisations {
+            lines.push(format!("# {}  {}", o.code, o.message));
+        }
+        rendered = format!(
+            "{}\n{}\n",
+            rendered.trim_end_matches('\n'),
+            lines.join("\n")
+        );
+    }
+
+    let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH)?;
+
+    if !target.is_stdout() {
+        eprintln!(
+            "optimised {} input(s); rewrites={}",
+            documents.len(),
+            optimisations.len()
+        );
+    }
     Ok(0)
 }
 

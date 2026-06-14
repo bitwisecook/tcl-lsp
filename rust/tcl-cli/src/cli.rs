@@ -290,7 +290,8 @@ pub enum Command {
         #[command(flatten)]
         input: InputArgs,
         /// Optimisation profile.
-        #[arg(long, default_value = "full", value_name = "PROFILE")]
+        #[arg(long, default_value = "full", value_name = "PROFILE",
+              value_parser = ["off", "readability", "standard", "full", "aggressive"])]
         profile: String,
         /// Disable specific optimisation codes (repeatable).
         #[arg(long = "disable", value_name = "CODE")]
