@@ -2402,13 +2402,29 @@ fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"my methodName ?arg ...?");
     }
-    let Some(object) = interp
+    // Inside a method, `my` dispatches on the current object; invoked directly
+    // (e.g. `[info object namespace o]::my m`) it dispatches on the object that
+    // owns this `my` command, found via its tracked alias (oo-16.13).
+    let object = match interp
         .oo
         .borrow()
         .call_stack
         .last()
         .map(|f| f.object.clone())
-    else {
+    {
+        Some(o) => Some(o),
+        None => {
+            let fqn = interp.fqn_for(&obj_bytes(argv[0]));
+            interp
+                .oo
+                .borrow()
+                .objects
+                .iter()
+                .find(|(_, o)| o.my_aliases.first().is_some_and(|a| *a == fqn))
+                .map(|(k, _)| k.clone())
+        }
+    };
+    let Some(object) = object else {
         return err(interp, b"my may only be called from inside a method");
     };
     let method = obj_bytes(argv[1]);
@@ -5437,6 +5453,17 @@ mod tests {
                                                     // a's y is untouched by b's foo.
             assert_eq!(ok(i, b"a eval {set y}"), b"1");
             assert_eq!(ok(i, b"a eval foo"), b"2"); // a.y 1->2
+        });
+    }
+
+    #[test]
+    fn my_command_invoked_directly() {
+        leak_free(|i| {
+            // The per-object `my`, invoked directly (not from a method), still
+            // dispatches on its own object (oo-16.13).
+            ok(i, b"oo::object create foo");
+            ok(i, b"oo::objdefine foo method Bar {} {return {ok in foo}}");
+            assert_eq!(ok(i, b"[info object namespace foo]::my Bar"), b"ok in foo");
         });
     }
 
