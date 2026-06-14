@@ -2375,6 +2375,40 @@ frame).
   `startLevel`/`startCmd` interp-trace, which the single-threaded `Rc`/`RefCell`
   model makes unnecessary.
 
+### SYNC inbound — 2026-06-14 (TclOO slots + foundation classes + next-level)
+
+TclOO push toward finishing the `oo*.test` suites (`oo.test` 272 → 289, zero
+regressions; `ooProp.test` stable 55/55), all derived from Tcl 9 C
+(`tclOO*.c`):
+
+- **Foundation classes** — `::oo::abstract`, `::oo::singleton`,
+  `::oo::SingletonInstance` created at OO init (C's `InitFoundation`), so a
+  fresh interp's `info class subclasses/instances` matches (oo-1.21).
+- **`::oo::Slot` fidelity** — `destroy` is unexported (an external `$slot
+  destroy` misses → unknown handler); `unknown` is native (`Slot_Unknown`) and
+  `--default-operation` is a forward, so neither adds an `info level` frame
+  (oo-33.2/33.3/33.4/33.5).
+- **The eleven built-in slot objects** — `define::{filter,mixin,superclass,
+  variable}`, `objdefine::{filter,mixin,variable}` and the four TIP 558
+  property slots are now real `::oo::Slot` instances with per-instance
+  `Get`/`Set` (+ `Resolve`/`--default-operation` for the class-reference slots)
+  (C's `TclOODefineSlots`; oo-34.2..34.9, oo-1.21). The property slots route
+  through the generic slot machinery, retiring the bespoke `prop_slot_op`.
+- **TIP 516 class resolution** — `superclass`/`mixin` resolve names as classes
+  (current ns → global, `Slot_ResolveClass`), validating only the added items.
+- **`next`-chain frame level** — every method in a call chain runs at the level
+  of the original invocation, so `info level`/`upvar`/`uplevel` see through the
+  chain to the original caller (oo-7.6).
+- **`my` reaches the class factory** — `create`/`new`/`createWithNamespace`
+  shared between `$cls m` and `my m`, so a metaclass method can `my create …`
+  even when it unexports `create`/`new` externally (oo-7.x factory pattern).
+
+Still open (larger/foundational): the define body runs in the caller's
+namespace, not `::oo::define`/`::oo::objdefine` with outer-context class
+resolution (blocks oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor
+`wrong # args` / `info level` words (oo-2.1/2.7/2.8); cross-test teardown
+pollution (oo-7.7 et al pass in isolation); coroutine + `info frame` (oo-22).
+
 ### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
 Chunks: `ledit`, `lmap`, `lseq`, the three-way variable-read-miss error, and
