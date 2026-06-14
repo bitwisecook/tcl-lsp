@@ -5651,9 +5651,28 @@ impl Interp {
             o.destroyed = true;
         }
         self.oo_destroy_class_descendants(class);
+        // Drop the registry entries, the command, the per-object `my`/`myclass`,
+        // and the class's own instance namespace — a class created with an
+        // explicit target namespace (`oo::copy … <ns>`) owns it, so destroying
+        // the class must delete it too (oo-15.13.x), as `oo_destroy` does.
+        let (var_ns, aliases) = {
+            let oo = self.oo.borrow();
+            let o = oo.objects.get(class);
+            (
+                o.map(|o| o.var_ns),
+                o.map(|o| o.my_aliases.clone()).unwrap_or_default(),
+            )
+        };
         self.oo.borrow_mut().classes.remove(class);
         self.oo.borrow_mut().objects.remove(class);
         self.delete_command(class);
+        for a in aliases {
+            self.delete_command(&a);
+        }
+        if let Some(ns) = var_ns {
+            self.oo_namespace_deleted(ns);
+            self.delete_namespace_by_id(ns);
+        }
     }
 
     /// Destroy a class's subclasses and instances (C's `TclOODeleteDescendants`),
