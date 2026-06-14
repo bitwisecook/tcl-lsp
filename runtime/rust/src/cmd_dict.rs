@@ -74,7 +74,7 @@ fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict get dictValue ?key?` — the value for `key`, or the whole dict if no key.
 fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return wrong_args(interp, b"dict get dictValue ?key ...?");
+        return wrong_args(interp, b"dict get dictionary ?key ...?");
     }
     if argv.len() == 3 {
         interp.set_result(argv[2]); // whole dict
@@ -88,7 +88,7 @@ fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match dict::dict_get(cur, &key) {
             Ok(Some(v)) => cur = v,
             Ok(None) => return key_not_known(interp, &key),
-            Err(_) => return bad_dict(interp),
+            Err(e) => return bad_dict(interp, e),
         }
     }
     interp.set_result(cur);
@@ -98,7 +98,7 @@ fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict exists dictValue key`
 fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return wrong_args(interp, b"dict exists dictValue key ?key ...?");
+        return wrong_args(interp, b"dict exists dictionary key ?key ...?");
     }
     // Drill the key path; a missing key or a non-dict along the way → 0 (Tcl
     // `dict exists` reports false rather than erroring).
@@ -122,17 +122,17 @@ fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// `dict size dictValue`
+/// `dict size dictionary`
 fn size(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return wrong_args(interp, b"dict size dictValue");
+        return wrong_args(interp, b"dict size dictionary");
     }
     match dict::dict_size(argv[2]) {
         Ok(n) => {
             interp.set_result(obj::new_wide_int_obj(n as i64));
             Code::Ok
         }
-        Err(_) => bad_dict(interp),
+        Err(e) => bad_dict(interp, e),
     }
 }
 
@@ -160,28 +160,28 @@ fn glob_filtered_result(
     Code::Ok
 }
 
-/// `dict keys dictValue ?pattern?` — keys in insertion order, glob-filtered.
+/// `dict keys dictionary ?pattern?` — keys in insertion order, glob-filtered.
 fn keys(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return wrong_args(interp, b"dict keys dictValue ?pattern?");
+        return wrong_args(interp, b"dict keys dictionary ?pattern?");
     }
     match dict::dict_keys(argv[2]) {
         Ok(ks) => glob_filtered_result(interp, argv, ks),
-        Err(_) => bad_dict(interp),
+        Err(e) => bad_dict(interp, e),
     }
 }
 
-/// `dict values dictValue ?pattern?` — values in insertion order, glob-filtered.
+/// `dict values dictionary ?pattern?` — values in insertion order, glob-filtered.
 fn values(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return wrong_args(interp, b"dict values dictValue ?pattern?");
+        return wrong_args(interp, b"dict values dictionary ?pattern?");
     }
     match dict::dict_pairs(argv[2]) {
         Ok(pairs) => {
             let vs: Vec<*mut TclObj> = pairs.iter().map(|&(_, v)| v).collect();
             glob_filtered_result(interp, argv, vs)
         }
-        Err(_) => bad_dict(interp),
+        Err(e) => bad_dict(interp, e),
     }
 }
 
@@ -193,16 +193,16 @@ fn merge(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &d in &argv[2..] {
         let pairs = match dict::dict_pairs(d) {
             Ok(p) => p,
-            Err(_) => {
+            Err(e) => {
                 unsafe { obj::decr_ref_count(acc) };
-                return bad_dict(interp);
+                return bad_dict(interp, e);
             }
         };
         for (k, v) in pairs {
             // acc is unshared (we hold the only ref) → in-place set is sound.
-            if dict::dict_set(acc, k, v).is_err() {
+            if let Err(e) = dict::dict_set(acc, k, v) {
                 unsafe { obj::decr_ref_count(acc) };
-                return bad_dict(interp);
+                return bad_dict(interp, e);
             }
         }
     }
@@ -216,8 +216,8 @@ fn merge(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn copy_dict(interp: &mut Interp, src: *mut TclObj) -> Option<*mut TclObj> {
     let pairs = match dict::dict_pairs(src) {
         Ok(p) => p,
-        Err(_) => {
-            bad_dict(interp);
+        Err(e) => {
+            bad_dict(interp, e);
             return None;
         }
     };
@@ -281,7 +281,7 @@ fn getdef(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp.set_result(default);
                 return Code::Ok;
             }
-            Err(_) => return bad_dict(interp),
+            Err(e) => return bad_dict(interp, e),
         }
     }
     interp.set_result(cur);
@@ -297,7 +297,7 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let pairs = match dict::dict_pairs(argv[2]) {
         Ok(p) => p,
-        Err(_) => return bad_dict(interp),
+        Err(e) => return bad_dict(interp, e),
     };
     let kind = obj_bytes(argv[3]);
     let mut kept: Vec<(*mut TclObj, *mut TclObj)> = Vec::new();
@@ -323,7 +323,7 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 6 {
                 return wrong_args(
                     interp,
-                    b"dict filter dictionary script {keyVar valueVar} filterScript",
+                    b"dict filter dictionary script {keyVarName valueVarName} filterScript",
                 );
             }
             let vars = match crate::parse::split_list(&obj_bytes(argv[4])) {
@@ -403,12 +403,12 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         buf.extend_from_slice(&obj_bytes(s));
     }
     let val = crate::interp::new_string(&buf); // rc 0; dict_set retains
-    if dict::dict_set(target, key, val).is_err() {
+    if let Err(e) = dict::dict_set(target, key, val) {
         drop_fresh(val);
         if is_new {
             drop_fresh(target);
         }
-        return bad_dict(interp);
+        return bad_dict(interp, e);
     }
     store_dict(interp, &name, target, is_new)
 }
@@ -427,12 +427,12 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     elems.extend_from_slice(&argv[4..]);
     let val = crate::list::new_list_obj(&elems); // rc 0; dict_set retains
-    if dict::dict_set(target, key, val).is_err() {
+    if let Err(e) = dict::dict_set(target, key, val) {
         drop_fresh(val);
         if is_new {
             drop_fresh(target);
         }
-        return bad_dict(interp);
+        return bad_dict(interp, e);
     }
     store_dict(interp, &name, target, is_new)
 }
@@ -472,12 +472,12 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let sum = cur.wrapping_add(amount);
     let val = crate::interp::new_string(sum.to_string().as_bytes());
-    if dict::dict_set(target, key, val).is_err() {
+    if let Err(e) = dict::dict_set(target, key, val) {
         drop_fresh(val);
         if is_new {
             drop_fresh(target);
         }
-        return bad_dict(interp);
+        return bad_dict(interp, e);
     }
     store_dict(interp, &name, target, is_new)
 }
@@ -507,11 +507,11 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
     };
-    if dict::dict_set(target, key, value).is_err() {
+    if let Err(e) = dict::dict_set(target, key, value) {
         if is_new {
             drop_fresh(target);
         }
-        return bad_dict(interp);
+        return bad_dict(interp, e);
     }
     if is_new && interp.var_set(&name, target).is_err() {
         drop_fresh(target);
@@ -534,11 +534,11 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
     };
-    if dict::dict_unset(target, &key).is_err() {
+    if let Err(e) = dict::dict_unset(target, &key) {
         if is_new {
             drop_fresh(target);
         }
-        return bad_dict(interp);
+        return bad_dict(interp, e);
     }
     if is_new && interp.var_set(&name, target).is_err() {
         drop_fresh(target);
@@ -556,7 +556,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(
             interp,
-            b"dict for {keyVarName valueVarName} dictValue script",
+            b"dict for {keyVarName valueVarName} dictionary script",
         );
     }
     let var_spec = obj_bytes(argv[2]);
@@ -567,7 +567,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let (kvar, vvar) = (vars[0].clone(), vars[1].clone());
     let pairs = match dict::dict_pairs(argv[3]) {
         Ok(p) => p,
-        Err(_) => return bad_dict(interp),
+        Err(e) => return bad_dict(interp, e),
     };
     let body = obj_bytes(argv[4]);
 
@@ -595,7 +595,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(
             interp,
-            b"dict map {keyVarName valueVarName} dictValue script",
+            b"dict map {keyVarName valueVarName} dictionary script",
         );
     }
     let vars = match parse::split_list(&obj_bytes(argv[2])) {
@@ -604,7 +604,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let pairs = match dict::dict_pairs(argv[3]) {
         Ok(p) => p,
-        Err(_) => return bad_dict(interp),
+        Err(e) => return bad_dict(interp, e),
     };
     let body = obj_bytes(argv[4]);
     let acc = dict::new_dict_obj(&[]);
@@ -662,7 +662,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(None) => {
                 interp.var_unset(&var);
             }
-            Err(_) => return bad_dict(interp),
+            Err(e) => return bad_dict(interp, e),
         }
     }
 
@@ -712,12 +712,12 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match dict::dict_get(sub, &obj_bytes(k)) {
             Ok(Some(v)) => sub = v,
             Ok(None) => return key_not_known(interp, &obj_bytes(k)),
-            Err(_) => return bad_dict(interp),
+            Err(e) => return bad_dict(interp, e),
         }
     }
     let pairs = match dict::dict_pairs(sub) {
         Ok(p) => p,
-        Err(_) => return bad_dict(interp),
+        Err(e) => return bad_dict(interp, e),
     };
     // Map every key to a local var.
     let keys: Vec<Vec<u8>> = pairs.iter().map(|&(k, _)| obj_bytes(k)).collect();
@@ -767,8 +767,41 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-fn bad_dict(interp: &mut Interp) -> Code {
-    interp.set_error(b"missing value to go with key")
+/// Map a dict string-parse failure to its C-faithful message + `-errorcode`
+/// (`SetDictFromAny`/`FindElement`, type strings `dict`/`DICTIONARY`).
+fn bad_dict(interp: &mut Interp, e: crate::dict::DictError) -> Code {
+    use crate::dict::DictError as E;
+    let (msg, code): (Vec<u8>, &[u8]) = match e {
+        E::MissingValue => (
+            b"missing value to go with key".to_vec(),
+            b"TCL VALUE DICTIONARY",
+        ),
+        E::BraceJunk(frag) => {
+            let mut m = b"dict element in braces followed by \"".to_vec();
+            m.extend_from_slice(&frag);
+            m.extend_from_slice(b"\" instead of space");
+            (m, b"TCL VALUE DICTIONARY JUNK")
+        }
+        E::QuoteJunk(frag) => {
+            let mut m = b"dict element in quotes followed by \"".to_vec();
+            m.extend_from_slice(&frag);
+            m.extend_from_slice(b"\" instead of space");
+            (m, b"TCL VALUE DICTIONARY JUNK")
+        }
+        E::UnmatchedBrace => (
+            b"unmatched open brace in dict".to_vec(),
+            b"TCL VALUE DICTIONARY BRACE",
+        ),
+        E::UnmatchedQuote => (
+            b"unmatched open quote in dict".to_vec(),
+            b"TCL VALUE DICTIONARY QUOTE",
+        ),
+        E::NotUtf8 => (
+            b"missing value to go with key".to_vec(),
+            b"TCL VALUE DICTIONARY",
+        ),
+    };
+    interp.error_with_code(&msg, code)
 }
 
 fn key_not_known(interp: &mut Interp, key: &[u8]) -> Code {

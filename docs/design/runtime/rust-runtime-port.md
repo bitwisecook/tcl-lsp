@@ -2622,6 +2622,26 @@ whitespace on numeric classes; the port fixes all three plus the message order.
   (so `25`, `1.0`, `o` are not booleans), failing at index 0 (string-6.45–6.47,
   6.72–6.74).
 
+### SYNC inbound — 2026-06-14 (`dict` usage messages + dict-parse errors/codes)
+
+`dict.test` 276 → 304 (zero regressions in the broad sweep), in two themed
+fixes, both from C (`tclDictObj.c`/`tclUtil.c`):
+
+- **Usage strings matched to C verbatim** — the argument-count messages used
+  `dictValue`/`{keyVar valueVar}`; C uses `dictionary`/`{keyVarName
+  valueVarName}` (`get`/`exists`/`size`/`keys`/`values`/`for`/`map`/`filter`;
+  dict-24.1–4, dict-17 syntax, …).
+- **Faithful dict string-parse errors with `-errorcode`** — a malformed dict
+  value now reports the dict-typed `FindElement` diagnostics instead of the
+  generic `missing value to go with key`: `dict element in
+  braces/quotes followed by "X" instead of space` (`TCL VALUE DICTIONARY JUNK`,
+  with the offending fragment), `unmatched open brace/quote in dict` (`… BRACE`/
+  `… QUOTE`), and the odd-count `missing value to go with key` (`TCL VALUE
+  DICTIONARY`). A new runtime `dict_find_element`/`scan_dict_pairs` ports
+  `tclUtil.c`'s `FindElement` with the `dict`/`DICTIONARY` type strings (the list
+  splitter stays untouched), feeding `error_with_code` (dict-4.13–4.17 + the
+  `…a` error-code variants).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

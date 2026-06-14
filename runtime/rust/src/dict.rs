@@ -43,7 +43,6 @@ use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::obj::{self, TclObj, TclObjType};
-use crate::parse::{self, ListError};
 
 /// Deterministic FNV-1a hasher (no `RandomState` — reproducible across runs).
 #[derive(Default)]
@@ -160,14 +159,10 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
         return Ok(());
     }
     let bytes = obj::bytes_of(obj);
-    let elems = parse::split_list(&bytes).map_err(DictError::List)?;
-    if elems.len() % 2 != 0 {
-        return Err(DictError::OddLength);
-    }
-    let mut entries: Vec<(*mut TclObj, *mut TclObj)> = Vec::with_capacity(elems.len() / 2);
+    let pairs = scan_dict_pairs(&bytes)?;
+    let mut entries: Vec<(*mut TclObj, *mut TclObj)> = Vec::with_capacity(pairs.len());
     let mut index = Index::default();
-    let mut it = elems.into_iter();
-    while let (Some(k), Some(v)) = (it.next(), it.next()) {
+    for (k, v) in pairs {
         let ko = obj::new_string_bytes(&k);
         let vo = obj::new_string_bytes(&v);
         // SAFETY: fresh key/value objects; the dict takes the owning +1 on each.
@@ -195,13 +190,176 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
 
 // -- error ------------------------------------------------------------------
 
-/// Why a value could not be used as a dict.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Why a value could not be parsed as a dict (`SetDictFromAny`/`FindElement`
+/// with the "dict" type strings). Each variant carries what the C-faithful
+/// message and `-errorcode` need.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DictError {
-    /// The string rep is not a valid list.
-    List(ListError),
-    /// The list has an odd number of elements (missing a value for a key).
-    OddLength,
+    /// Odd number of elements — `missing value to go with key`
+    /// (`TCL VALUE DICTIONARY`).
+    MissingValue,
+    /// Junk after a closing brace — `dict element in braces followed by "X"
+    /// instead of space` (`TCL VALUE DICTIONARY JUNK`); carries the fragment.
+    BraceJunk(Vec<u8>),
+    /// Junk after a closing quote — `dict element in quotes followed by "X"
+    /// instead of space` (`TCL VALUE DICTIONARY JUNK`); carries the fragment.
+    QuoteJunk(Vec<u8>),
+    /// Unmatched `{` — `unmatched open brace in dict` (`TCL VALUE DICTIONARY BRACE`).
+    UnmatchedBrace,
+    /// Unmatched `"` — `unmatched open quote in dict` (`TCL VALUE DICTIONARY QUOTE`).
+    UnmatchedQuote,
+    /// Input bytes were not valid UTF-8 (violates the internal-rep invariant).
+    NotUtf8,
+}
+
+/// One located dict element (key or value): its interior byte range, whether it
+/// is `literal` (no backslash collapse needed), and the resume offset.
+struct DictElem {
+    value: core::ops::Range<usize>,
+    literal: bool,
+    next: usize,
+}
+
+/// Tcl list/dict-element whitespace (`TclIsSpaceProcM`).
+#[inline]
+fn is_dict_space(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+}
+
+/// Locate the next dict element in `bytes` at/after `start` — the dict-typed
+/// `FindElement` (`tclUtil.c`), distinct from the list splitter only in its
+/// error wording/codes (and in surfacing the offending fragment). Returns
+/// `Ok(None)` when only trailing whitespace remains.
+fn dict_find_element(bytes: &[u8], start: usize) -> Result<Option<DictElem>, DictError> {
+    let len = bytes.len();
+    let mut pos = start;
+    while pos < len && is_dict_space(bytes[pos]) {
+        pos += 1;
+    }
+    if pos >= len {
+        return Ok(None);
+    }
+
+    let mut open_braces: usize = 0;
+    let mut in_quotes = false;
+    let mut literal = true;
+    let elem_start;
+    match bytes[pos] {
+        b'{' => {
+            open_braces = 1;
+            pos += 1;
+            elem_start = pos;
+        }
+        b'"' => {
+            in_quotes = true;
+            pos += 1;
+            elem_start = pos;
+        }
+        _ => elem_start = pos,
+    }
+
+    // The fragment reported in a "followed by" error: up to 20 non-space bytes
+    // starting just after the closing delimiter (C's `p2` walk).
+    let frag = |from: usize| -> Vec<u8> {
+        let mut p2 = from;
+        while p2 < len && !is_dict_space(bytes[p2]) && p2 < from + 20 {
+            p2 += 1;
+        }
+        bytes[from..p2].to_vec()
+    };
+
+    let size;
+    loop {
+        if pos >= len {
+            if open_braces != 0 {
+                return Err(DictError::UnmatchedBrace);
+            }
+            if in_quotes {
+                return Err(DictError::UnmatchedQuote);
+            }
+            size = pos - elem_start;
+            break;
+        }
+        match bytes[pos] {
+            b'{' if open_braces != 0 => open_braces += 1,
+            b'}' => {
+                if open_braces == 1 {
+                    size = pos - elem_start;
+                    pos += 1;
+                    if pos < len && !is_dict_space(bytes[pos]) {
+                        return Err(DictError::BraceJunk(frag(pos)));
+                    }
+                    break;
+                } else if open_braces > 1 {
+                    open_braces -= 1;
+                }
+            }
+            b'"' if in_quotes => {
+                size = pos - elem_start;
+                pos += 1;
+                if pos < len && !is_dict_space(bytes[pos]) {
+                    return Err(DictError::QuoteJunk(frag(pos)));
+                }
+                break;
+            }
+            b'\\' => {
+                if open_braces == 0 {
+                    literal = false;
+                }
+                if pos + 1 < len {
+                    pos += 2;
+                    continue;
+                }
+                pos += 1;
+                continue;
+            }
+            ch if open_braces == 0 && !in_quotes && is_dict_space(ch) => {
+                size = pos - elem_start;
+                break;
+            }
+            _ => {}
+        }
+        pos += 1;
+    }
+
+    while pos < len && is_dict_space(bytes[pos]) {
+        pos += 1;
+    }
+    Ok(Some(DictElem {
+        value: elem_start..elem_start + size,
+        literal,
+        next: pos,
+    }))
+}
+
+/// Decoded (key, value) byte pairs from a dict's string rep.
+type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
+
+/// Parse `bytes` into dict (key, value) byte pairs — `SetDictFromAny`'s string
+/// path. A later duplicate key is *not* deduped here (the caller handles it);
+/// an odd element count is `missing value to go with key`.
+fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
+    if core::str::from_utf8(bytes).is_err() {
+        return Err(DictError::NotUtf8);
+    }
+    let decode = |el: &DictElem| -> Vec<u8> {
+        let raw = &bytes[el.value.clone()];
+        if el.literal {
+            raw.to_vec()
+        } else {
+            tcl_syntax::backslash::decode_bytes(raw).into_owned()
+        }
+    };
+    let mut pairs = Vec::new();
+    let mut pos = 0;
+    while let Some(key) = dict_find_element(bytes, pos)? {
+        let Some(val) = dict_find_element(bytes, key.next)? else {
+            return Err(DictError::MissingValue);
+        };
+        pairs.push((decode(&key), decode(&val)));
+        pos = val.next;
+    }
+    Ok(pairs)
 }
 
 // -- public ops -------------------------------------------------------------
@@ -437,7 +595,7 @@ mod tests {
         leak_free(|| {
             let v = new_string_bytes(b"a 1 b"); // missing value for b
             unsafe { obj::incr_ref_count(v) };
-            assert_eq!(dict_size(v), Err(DictError::OddLength));
+            assert_eq!(dict_size(v), Err(DictError::MissingValue));
             unsafe { obj::decr_ref_count(v) };
         });
     }
