@@ -1145,8 +1145,21 @@ impl Interp {
         if self.oo.borrow().classes.contains_key(obj) {
             // A class object responds to the class built-ins. `::oo::class`
             // is a singleton with `new` unexported, so it lists only `create`.
-            names.insert(b"create".to_vec());
-            if obj != b"::oo::class" {
+            // A class that unexports its own `create`/`new` (e.g. a metaclass
+            // with a custom factory) hides them from an external miss.
+            let ext = self.oo.borrow().unknown_external;
+            let (cre_unexp, new_unexp) = {
+                let oo = self.oo.borrow();
+                let o = oo.objects.get(obj);
+                (
+                    o.is_some_and(|o| o.unexported.contains(b"create".as_slice())),
+                    o.is_some_and(|o| o.unexported.contains(b"new".as_slice())),
+                )
+            };
+            if !(ext && cre_unexp) {
+                names.insert(b"create".to_vec());
+            }
+            if obj != b"::oo::class" && !(ext && new_unexp) {
                 names.insert(b"new".to_vec());
             }
         }
@@ -3876,76 +3889,101 @@ impl Interp {
         }
     }
 
+    /// The class instantiation built-ins (`create`/`new`/`createWithNamespace`).
+    /// Shared by external `$cls method …` dispatch and internal `my method …`
+    /// dispatch, so a metaclass method can `my create …`. `args` are the
+    /// arguments *after* the method name; `cmd` names the command for
+    /// `wrong # args`. `block_unexported` honours an `unexport` of `create`/
+    /// `new` (and the default-unexported `createWithNamespace`) for an external
+    /// call; an internal call sees them all. Returns `None` when `method` is not
+    /// an applicable built-in, so the caller falls through.
+    fn oo_class_factory(
+        &mut self,
+        fqn: &[u8],
+        cmd: &[u8],
+        method: &[u8],
+        args: &[*mut TclObj],
+        block_unexported: bool,
+    ) -> Option<Code> {
+        if !self.oo.borrow().classes.contains_key(fqn) {
+            return None;
+        }
+        // The metaclass `::oo::class` is a singleton: instantiating it builds a
+        // *class* (`oo_make_class`), and `new` is unexported on it.
+        let is_meta = fqn == b"::oo::class";
+        let (cre_unexp, new_unexp, cwn_exp) = {
+            let oo = self.oo.borrow();
+            match oo.objects.get(fqn) {
+                Some(o) => (
+                    o.unexported.contains(b"create".as_slice()),
+                    o.unexported.contains(b"new".as_slice()),
+                    o.exported.contains(b"createWithNamespace".as_slice()),
+                ),
+                None => (false, false, false),
+            }
+        };
+        let cre_ok = !block_unexported || !cre_unexp;
+        let new_ok = !block_unexported || !new_unexp;
+        // `createWithNamespace` is unexported by default; an external call needs
+        // it `self export`ed, an internal call reaches it regardless.
+        let cwn_ok = !block_unexported || cwn_exp;
+        match method {
+            b"new" if !is_meta && new_ok => Some(self.oo_new(fqn, None, b"", args)),
+            b"createWithNamespace" if cwn_ok => {
+                if args.len() < 2 {
+                    let mut u = cmd.to_vec();
+                    u.extend_from_slice(b" createWithNamespace objectName namespaceName ?arg ...?");
+                    return Some(wrong_args(self, &u));
+                }
+                let raw = obj_bytes(args[0]);
+                if raw.is_empty() {
+                    return Some(self.error(b"object name must not be empty"));
+                }
+                let name = self.fqn_for(&raw);
+                let ns_raw = obj_bytes(args[1]);
+                // The namespace is *created*; an existing one is an error.
+                if self.resolve_namespace_name(&ns_raw).is_some() {
+                    let mut m = b"can't create namespace \"".to_vec();
+                    m.extend_from_slice(&ns_raw);
+                    m.extend_from_slice(b"\": already exists");
+                    return Some(self.error(&m));
+                }
+                let ns = self.fqn_for(&ns_raw);
+                Some(self.oo_new_ns(fqn, Some(name), &raw, Some(ns), &args[2..]))
+            }
+            b"create" if cre_ok => {
+                if args.is_empty() {
+                    let mut u = cmd.to_vec();
+                    u.extend_from_slice(b" create objectName ?arg ...?");
+                    return Some(wrong_args(self, &u));
+                }
+                let raw = obj_bytes(args[0]);
+                if raw.is_empty() {
+                    return Some(self.error(b"object name must not be empty"));
+                }
+                let name = self.fqn_for(&raw);
+                Some(if is_meta {
+                    self.oo_make_class(&name, &raw, args.get(1).map(|&a| obj_bytes(a)).as_deref())
+                } else {
+                    self.oo_new(fqn, Some(name), &raw, &args[1..])
+                })
+            }
+            _ => None,
+        }
+    }
+
     /// Dispatch a command bound to the OO object/class FQN `fqn`.
     pub(crate) fn oo_dispatch(&mut self, fqn: &[u8], argv: &[*mut TclObj]) -> Code {
         if self.oo.borrow().classes.contains_key(fqn) {
-            // The metaclass `::oo::class` is a singleton: instantiating it
-            // builds a *class* (`oo_make_class`), and `new` is unexported on it
-            // (anonymous classes are not created through the public surface).
-            let is_meta = fqn == b"::oo::class";
-            // A class may `unexport` its own `create`/`new` (e.g. a metaclass
-            // that wants a custom factory); then those names are plain unknown
-            // methods, not the built-in instantiation forms.
-            // `createWithNamespace` is a class built-in that is *unexported* by
-            // default (TclOO); it works only once `self export`ed.
-            let (cre_ok, new_ok, cwn_ok) = {
-                let oo = self.oo.borrow();
-                match oo.objects.get(fqn) {
-                    Some(o) => (
-                        !o.unexported.contains(b"create".as_slice()),
-                        !o.unexported.contains(b"new".as_slice()),
-                        o.exported.contains(b"createWithNamespace".as_slice()),
-                    ),
-                    None => (true, true, false),
+            let cmd = obj_bytes(argv[0]);
+            // The class instantiation built-ins honour the class's own
+            // `export`/`unexport` for this external call.
+            if let Some(sub) = argv.get(1).map(|&a| obj_bytes(a)) {
+                if let Some(code) = self.oo_class_factory(fqn, &cmd, &sub, &argv[2..], true) {
+                    return code;
                 }
-            };
+            }
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-                Some(b"new") if !is_meta && new_ok => self.oo_new(fqn, None, b"", &argv[2..]),
-                Some(b"createWithNamespace") if cwn_ok => {
-                    if argv.len() < 4 {
-                        let mut u = obj_bytes(argv[0]);
-                        u.extend_from_slice(
-                            b" createWithNamespace objectName namespaceName ?arg ...?",
-                        );
-                        return wrong_args(self, &u);
-                    }
-                    let raw = obj_bytes(argv[2]);
-                    if raw.is_empty() {
-                        return self.error(b"object name must not be empty");
-                    }
-                    let name = self.fqn_for(&raw);
-                    let ns_raw = obj_bytes(argv[3]);
-                    // The namespace is *created*; an existing one is an error.
-                    if self.resolve_namespace_name(&ns_raw).is_some() {
-                        let mut m = b"can't create namespace \"".to_vec();
-                        m.extend_from_slice(&ns_raw);
-                        m.extend_from_slice(b"\": already exists");
-                        return self.error(&m);
-                    }
-                    let ns = self.fqn_for(&ns_raw);
-                    self.oo_new_ns(fqn, Some(name), &raw, Some(ns), &argv[4..])
-                }
-                Some(b"create") if cre_ok => {
-                    if argv.len() < 3 {
-                        let mut u = obj_bytes(argv[0]);
-                        u.extend_from_slice(b" create objectName ?arg ...?");
-                        return wrong_args(self, &u);
-                    }
-                    let raw = obj_bytes(argv[2]);
-                    if raw.is_empty() {
-                        return self.error(b"object name must not be empty");
-                    }
-                    let name = self.fqn_for(&raw);
-                    if is_meta {
-                        self.oo_make_class(
-                            &name,
-                            &raw,
-                            argv.get(3).map(|&a| obj_bytes(a)).as_deref(),
-                        )
-                    } else {
-                        self.oo_new(fqn, Some(name), &raw, &argv[3..])
-                    }
-                }
                 Some(b"destroy") => {
                     self.oo_destroy_class(fqn);
                     self.set_result_bytes(b"");
@@ -4199,6 +4237,15 @@ impl Interp {
                 if code == Code::Ok {
                     self.set_result_bytes(b"");
                 }
+                return code;
+            }
+            // The class instantiation built-ins (`create`/`new`/
+            // `createWithNamespace`) are reachable here when `obj` is a class
+            // — notably via an internal `my create …` from a metaclass method
+            // (oo-7.4/7.5). External calls honour the class's export state.
+            if let Some(code) =
+                self.oo_class_factory(obj, obj, method, args, enforce && !exported_anywhere)
+            {
                 return code;
             }
             // The object built-ins (`variable`/`varname`/`eval`) are not in any
@@ -6520,6 +6567,28 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn my_create_reaches_class_factory() {
+        leak_free(|i| {
+            // A metaclass method can instantiate via `my create`, even when the
+            // class unexports `create` for external callers (TclOO factory).
+            ok(
+                i,
+                b"oo::class create meta { superclass oo::class; self { unexport create new; \
+                   method make {x} { my create $x } } }",
+            );
+            // External create is hidden (unknown method, not listing create/new).
+            assert_eq!(i.eval_str(b"meta create foo"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown method \"create\": must be destroy or make"
+            );
+            // The internal `my create` still works.
+            assert_eq!(ok(i, b"meta make ::bar"), b"::bar");
+            assert_eq!(ok(i, b"info object class ::bar"), b"::meta");
         });
     }
 
