@@ -66,3 +66,16 @@ fn minify_compact_matches_python() {
         "greet.minify-compact.golden",
     );
 }
+
+#[test]
+fn command_info_text_matches_python() {
+    assert_matches_golden(&["command-info", "string"], "command-info.string.golden");
+}
+
+#[test]
+fn command_info_json_matches_python() {
+    assert_matches_golden(
+        &["command-info", "string", "--json"],
+        "command-info.string.json.golden",
+    );
+}

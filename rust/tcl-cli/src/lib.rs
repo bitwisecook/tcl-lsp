@@ -53,6 +53,18 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             commands::diag::run_diag(input, diag)
         }
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
+        Command::CmdInfo {
+            command,
+            dialect,
+            json,
+            output,
+        } => commands::lookup::run_command_info(command, dialect, *json, output.as_deref()),
+        Command::Completion { shell } => {
+            use clap::CommandFactory;
+            let mut cmd = Cli::command();
+            clap_complete::generate(*shell, &mut cmd, "tcl", &mut std::io::stdout());
+            Ok(0)
+        }
         Command::Opt {
             input,
             profile,

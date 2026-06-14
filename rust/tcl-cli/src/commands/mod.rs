@@ -5,4 +5,5 @@
 //! crate, and writes output. Handlers return the intended process exit code.
 
 pub mod diag;
+pub mod lookup;
 pub mod transform;
