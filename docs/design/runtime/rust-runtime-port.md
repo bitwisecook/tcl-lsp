@@ -2801,6 +2801,20 @@ exponent is read from a `%.{p-1}e` rendering (robust vs `log10` rounding); fixes
 the expr-old-32.* math-function-formatting cases (the functions were already
 correct — only the `%g` rendering was wrong).
 
+### SYNC inbound — 2026-06-14 (math-function arg-count + arith `-errorcode`)
+
+`expr` math errors now carry C's `-errorcode` and the right arg-count wording
+(expr-old.test 398 → 405):
+
+- **Math-function arity** (`cmd_mathfunc`): `not enough`/`too many arguments for
+  math function "NAME"` with `-errorcode TCL WRONGARGS` (checked before operand
+  conversion), and a domain error (e.g. `sqrt(-1)`) carries `ARITH DOMAIN
+  {domain error: argument not in valid range}` (expr-old-34.7/8, 40.3, 41.3).
+- **Arithmetic `-errorcode`** — `ExprError` gained an optional `-errorcode`;
+  divide-by-zero is `ARITH DIVZERO {divide by zero}`, and `expr`/`::tcl::mathop`
+  now re-raise math/arith errors *with* their code instead of dropping it via
+  `set_error` (expr-old-26.8/26.9). `%` shares the divide-by-zero path.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

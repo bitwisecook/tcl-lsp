@@ -532,7 +532,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
                     Ok(v) => Some(v),
                     Err(_) => {
                         self.propagated = true;
-                        return Err(crate::expr::ExprError(obj_bytes(
+                        return Err(crate::expr::ExprError::from_bytes(obj_bytes(
                             self.interp.get_obj_result(),
                         )));
                     }
@@ -548,7 +548,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             Some(o) => Ok(crate::expr::Owned::retain(o)),
             None => {
                 let m = self.interp.read_miss_msg(&base, elem.as_deref());
-                Err(crate::expr::ExprError(m))
+                Err(crate::expr::ExprError::from_bytes(m))
             }
         }
     }
@@ -556,7 +556,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         if self.interp.eval_str(script.as_bytes()) == Code::Error {
             self.propagated = true;
-            return Err(crate::expr::ExprError(obj_bytes(
+            return Err(crate::expr::ExprError::from_bytes(obj_bytes(
                 self.interp.get_obj_result(),
             )));
         }
@@ -572,7 +572,7 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             Ok(v) => Ok(crate::expr::Owned::fresh(crate::obj::new_string_bytes(&v))),
             Err(_) => {
                 self.propagated = true;
-                Err(crate::expr::ExprError(obj_bytes(
+                Err(crate::expr::ExprError::from_bytes(obj_bytes(
                     self.interp.get_obj_result(),
                 )))
             }
@@ -591,10 +591,12 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
             // A math-function error (e.g. `sqrt(-1)` domain error) is logged at
             // the `expr` command, not as an inner frame — so it is *not*
-            // propagated; `expr` raises it as its own (`while executing`).
-            return Err(crate::expr::ExprError(obj_bytes(
-                self.interp.get_obj_result(),
-            )));
+            // propagated; `expr` raises it as its own (`while executing`). Carry
+            // the math function's `-errorcode` (TCL WRONGARGS / ARITH DOMAIN) so
+            // `expr`'s re-raise preserves it.
+            let msg = obj_bytes(self.interp.get_obj_result());
+            let code = self.interp.error_code();
+            return Err(crate::expr::ExprError::from_parts(msg, code));
         }
         Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
     }
@@ -634,7 +636,10 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // A propagated sub-eval error already set the result + `::errorInfo`
         // trace at the inner command — preserve it (no `expr` frame).
         Err(_) if propagated => Code::Error,
-        Err(e) => interp.set_error(&e.0),
+        Err(e) => match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        },
     }
 }
 
@@ -657,7 +662,10 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     match result {
         Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
         Err(_) if propagated => Err(Code::Error),
-        Err(e) => Err(interp.set_error(&e.0)),
+        Err(e) => Err(match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        }),
     }
 }
 
@@ -677,10 +685,13 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Co
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
     match result {
-        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.0)),
+        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.msg)),
         // Preserve a propagated sub-eval error's trace (no condition `expr` frame).
         Err(_) if propagated => Err(Code::Error),
-        Err(e) => Err(interp.set_error(&e.0)),
+        Err(e) => Err(match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        }),
     }
 }
 

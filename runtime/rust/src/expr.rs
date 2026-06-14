@@ -18,25 +18,58 @@ use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj};
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, UnaryOp};
 
-/// An expr-evaluation error carrying Tcl's verbatim message bytes.
+/// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
+/// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExprError(pub Vec<u8>);
+pub struct ExprError {
+    pub msg: Vec<u8>,
+    pub code: Option<Vec<u8>>,
+}
 
 impl ExprError {
     fn msg(s: &[u8]) -> ExprError {
-        ExprError(s.to_vec())
+        ExprError {
+            msg: s.to_vec(),
+            code: None,
+        }
+    }
+    /// An error from owned message bytes (no `-errorcode`).
+    pub fn from_bytes(m: Vec<u8>) -> ExprError {
+        ExprError { msg: m, code: None }
+    }
+    /// An error from message bytes plus an optional `-errorcode` (an empty code
+    /// is treated as none).
+    pub fn from_parts(m: Vec<u8>, code: Vec<u8>) -> ExprError {
+        ExprError {
+            msg: m,
+            code: (!code.is_empty()).then_some(code),
+        }
+    }
+    /// An error with an explicit `-errorcode`.
+    fn with_code(m: &[u8], code: &[u8]) -> ExprError {
+        ExprError {
+            msg: m.to_vec(),
+            code: Some(code.to_vec()),
+        }
     }
 }
 
 pub(crate) fn arith_err(e: ArithError) -> ExprError {
-    ExprError::msg(match e {
-        ArithError::NonNumeric => b"can't use non-numeric string as operand of arithmetic",
-        ArithError::NonInteger => b"can't use floating-point value as operand of bitwise op",
-        ArithError::DivideByZero => b"divide by zero",
-        ArithError::NegativeShift => b"negative shift argument",
-        ArithError::ExponentTooLarge => b"exponent too large",
-        ArithError::Alloc => b"out of memory",
-    })
+    match e {
+        ArithError::NonNumeric => {
+            ExprError::msg(b"can't use non-numeric string as operand of arithmetic")
+        }
+        ArithError::NonInteger => {
+            ExprError::msg(b"can't use floating-point value as operand of bitwise op")
+        }
+        // C stamps the arithmetic `-errorcode`s (`tclExecute.c`).
+        ArithError::DivideByZero => {
+            ExprError::with_code(b"divide by zero", b"ARITH DIVZERO {divide by zero}")
+        }
+        ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
+        ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
+        ArithError::Alloc => ExprError::msg(b"out of memory"),
+    }
 }
 
 /// `cannot use {floating-point value|non-numeric string} "VALUE" as
@@ -55,7 +88,7 @@ fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprEr
     m.extend_from_slice(b"operand of \"");
     m.extend_from_slice(op);
     m.push(b'"');
-    ExprError(m)
+    ExprError::from_bytes(m)
 }
 
 /// Map a binary operator to its source symbol (for operand-type errors).
@@ -189,7 +222,7 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
             let mut m = b"unknown math function \"".to_vec();
             m.extend_from_slice(name.as_bytes());
             m.push(b'"');
-            Err(ExprError(m))
+            Err(ExprError::from_bytes(m))
         }
     }
 }
@@ -310,7 +343,7 @@ impl ExprOps for TowerOps<'_> {
         bool_obj(b)
     }
     fn unsupported(&mut self, what: &str) -> ExprError {
-        ExprError(what.as_bytes().to_vec())
+        ExprError::from_bytes(what.as_bytes().to_vec())
     }
 }
 
@@ -339,7 +372,7 @@ pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
             let mut m = b"expected boolean value but got \"".to_vec();
             m.extend_from_slice(&bytes);
             m.push(b'"');
-            Err(ExprError(m))
+            Err(ExprError::from_bytes(m))
         }
     }
 }
@@ -475,7 +508,13 @@ mod tests {
 
     #[test]
     fn errors() {
-        assert_eq!(ev("1 / 0", &[]), Err(ExprError::msg(b"divide by zero")));
+        assert_eq!(
+            ev("1 / 0", &[]),
+            Err(ExprError::with_code(
+                b"divide by zero",
+                b"ARITH DIVZERO {divide by zero}"
+            ))
+        );
         assert!(ev("$missing + 1", &[]).is_err());
     }
 }
