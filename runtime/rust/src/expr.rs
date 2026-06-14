@@ -39,6 +39,66 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
     })
 }
 
+/// `cannot use {floating-point value|non-numeric string} "VALUE" as
+/// SIDEoperand of "OP"` — C's `IllegalExprOperandType` (`tclExecute.c`). `side`
+/// is `""` for a unary op, `"left "`/`"right "` for a binary one.
+fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
+    let mut m = b"cannot use ".to_vec();
+    m.extend_from_slice(if float {
+        b"floating-point value \""
+    } else {
+        b"non-numeric string \""
+    });
+    m.extend_from_slice(value);
+    m.extend_from_slice(b"\" as ");
+    m.extend_from_slice(side);
+    m.extend_from_slice(b"operand of \"");
+    m.extend_from_slice(op);
+    m.push(b'"');
+    ExprError(m)
+}
+
+/// Map a binary operator to its source symbol (for operand-type errors).
+fn binop_sym(op: BinOp) -> &'static [u8] {
+    match op {
+        BinOp::Add => b"+",
+        BinOp::Sub => b"-",
+        BinOp::Mul => b"*",
+        BinOp::Div => b"/",
+        BinOp::Mod => b"%",
+        BinOp::Pow => b"**",
+        BinOp::BitAnd => b"&",
+        BinOp::BitOr => b"|",
+        BinOp::BitXor => b"^",
+        BinOp::LShift => b"<<",
+        BinOp::RShift => b">>",
+        _ => b"?",
+    }
+}
+
+/// Build the operand-type error for a *binary* op: the offending operand is the
+/// first one (left, then right) that is non-numeric (for `NonNumeric`) or a
+/// float (for `NonInteger`). Other `ArithError`s keep their plain message.
+fn binop_err(e: ArithError, op: BinOp, lp: *mut TclObj, rp: *mut TclObj) -> ExprError {
+    let float = match e {
+        ArithError::NonInteger => true,
+        ArithError::NonNumeric => false,
+        other => return arith_err(other),
+    };
+    // `NonInteger`: the float operand; `NonNumeric`: the non-numeric one.
+    let left_bad = if float {
+        bignum::is_numeric(lp) && !bignum::is_integer(lp)
+    } else {
+        !bignum::is_numeric(lp)
+    };
+    let (val, side): (Vec<u8>, &[u8]) = if left_bad {
+        (obj::bytes_of(lp), b"left ")
+    } else {
+        (obj::bytes_of(rp), b"right ")
+    };
+    operand_type_err(float, &val, side, binop_sym(op))
+}
+
 /// An owned object reference (`rc +1`) that releases on drop — the discipline
 /// that keeps the shared recursive walk leak-/double-free-safe across early
 /// returns.
@@ -179,23 +239,52 @@ impl ExprOps for TowerOps<'_> {
             _ => return Err(ExprError::msg(b"unsupported operator")),
         };
         // `left`/`right` stay alive until here, then release.
-        Ok(Owned::fresh(res.map_err(arith_err)?))
+        Ok(Owned::fresh(res.map_err(|e| binop_err(e, op, lp, rp))?))
     }
 
     fn unary(&mut self, op: UnaryOp, value: Owned) -> Result<Owned, ExprError> {
+        // A unary operand-type error names the value and the operator, with no
+        // left/right qualifier (`as operand of "OP"`).
+        let uerr = |e: ArithError, sym: &[u8]| -> ExprError {
+            match e {
+                ArithError::NonInteger => {
+                    operand_type_err(true, &obj::bytes_of(value.ptr()), b"", sym)
+                }
+                ArithError::NonNumeric => {
+                    operand_type_err(false, &obj::bytes_of(value.ptr()), b"", sym)
+                }
+                other => arith_err(other),
+            }
+        };
         match op {
             UnaryOp::Pos => {
                 if bignum::compare(value.ptr(), value.ptr()).is_none() {
-                    return Err(arith_err(ArithError::NonNumeric));
+                    return Err(operand_type_err(
+                        false,
+                        &obj::bytes_of(value.ptr()),
+                        b"",
+                        b"+",
+                    ));
                 }
                 Ok(value)
             }
-            UnaryOp::Neg => Ok(Owned::fresh(bignum::neg(value.ptr()).map_err(arith_err)?)),
-            UnaryOp::BitNot => Ok(Owned::fresh(bignum::bnot(value.ptr()).map_err(arith_err)?)),
-            UnaryOp::Not => {
-                let b = to_bool(value.ptr())?;
-                Ok(bool_obj(!b))
-            }
+            UnaryOp::Neg => Ok(Owned::fresh(
+                bignum::neg(value.ptr()).map_err(|e| uerr(e, b"-"))?,
+            )),
+            UnaryOp::BitNot => Ok(Owned::fresh(
+                bignum::bnot(value.ptr()).map_err(|e| uerr(e, b"~"))?,
+            )),
+            UnaryOp::Not => match to_bool(value.ptr()) {
+                Ok(b) => Ok(bool_obj(!b)),
+                // A `!` operand that is neither boolean nor numeric is an
+                // operand-type error (not the generic "expected boolean").
+                Err(_) => Err(operand_type_err(
+                    false,
+                    &obj::bytes_of(value.ptr()),
+                    b"",
+                    b"!",
+                )),
+            },
             UnaryOp::WordNot => Err(ExprError::msg(b"unsupported operator")),
         }
     }

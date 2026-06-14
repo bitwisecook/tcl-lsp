@@ -2776,6 +2776,20 @@ error (`namespace "X" not found in "::ns"`, namespace-51.10). The remaining
 51.13–51.15 are the trace-during-deletion / path-recompute corner; namespace-50.x
 and the 53.x wrong-#-args cases are the ensemble-rewrite-threading rework.
 
+### SYNC inbound — 2026-06-14 (`expr` operand-type errors)
+
+`expr`'s operand-type errors now match C's `IllegalExprOperandType`
+(`tclExecute.c`), taking expr-old.test 358 → 390:
+
+- `cannot use floating-point value "V" as [left/right ]operand of "OP"` and
+  `cannot use non-numeric string "V" as …` — carrying the offending operand's
+  value, the operator symbol, and (for binary ops) which operand is at fault
+  (left checked first), built in `expr.rs`'s `arith`/`unary` where the operator
+  and operands are in scope (expr-old-3.*, expr-old-5.*).
+- `%` is now integer-only like the other bit/shift ops: a float operand is a
+  `NonInteger` error instead of computing a float modulo (`divmod` only floats
+  for `/`).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

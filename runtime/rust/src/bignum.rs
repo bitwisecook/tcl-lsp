@@ -360,13 +360,14 @@ pub fn mod_(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
 fn divmod(a: *mut TclObj, b: *mut TclObj, want_quotient: bool) -> Result<*mut TclObj, ArithError> {
     let x = num(a)?;
     let y = num(b)?;
-    // Float division when either operand is a float (`%` on a float is an error
-    // in Tcl, but that surfaces at the expr layer; here `/` floats, `%` would
-    // already be rejected upstream).
+    // `/` divides as floats when either operand is a float; `%` is integer-only,
+    // so a float operand is an error (`cannot use floating-point value …`).
     if matches!(x, NumVal::Float(_)) || matches!(y, NumVal::Float(_)) {
+        if !want_quotient {
+            return Err(ArithError::NonInteger);
+        }
         let (p, q) = (as_f64(x), as_f64(y));
-        let r = if want_quotient { p / q } else { p % q };
-        return Ok(obj::new_double_obj(r));
+        return Ok(obj::new_double_obj(p / q));
     }
     // Wide fast path.
     if let (NumVal::Wide(p), NumVal::Wide(q)) = (&x, &y) {
@@ -438,6 +439,13 @@ fn mp_floor_divmod(a: &Mp, b: &Mp) -> Result<(Mp, Mp), ArithError> {
 #[must_use]
 pub fn is_integer(obj: *mut TclObj) -> bool {
     matches!(read(obj), Some(NumVal::Wide(_) | NumVal::Big(_)))
+}
+
+/// Whether `obj` reads as any number (integer, bignum, or float) — used by
+/// `expr`'s operand-type error to tell a non-numeric operand from a float one.
+#[must_use]
+pub fn is_numeric(obj: *mut TclObj) -> bool {
+    read(obj).is_some()
 }
 
 /// Read `obj` as a [`mathfunc::Num`](tcl_syntax::expr::mathfunc::Num) for the
