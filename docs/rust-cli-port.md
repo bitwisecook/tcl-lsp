@@ -153,11 +153,15 @@ Keystone progress / remaining pieces:
   `BigipList` materialisation).
   - ✅ `ListSpec(ObjectRefSpec)` family (`rules`/`policies`/`vlans`/firewall
     `rule-lists`/`address-lists`) — golden-tested (pilot-only `policies`/`vlans`
-    edges verified); 2 pinned drift edges.
-  - ⛔ compound specs: `MonitorExpressionSpec`, `ProfileAttachmentSpec`,
-    `PersistenceAttachmentSpec`, `DestinationSpec`, `SnatModeSpec`,
-    `CertKeyChainSpec`, `DataGroupRecordSpec`, `GtmRegionMemberSpec`,
+    edges verified).
+  - ✅ `ProfileAttachmentSpec` / `PersistenceAttachmentSpec` (keyed-block;
+    `profiles`/`persist`) — golden-tested (pilot-only `persist` edge verified).
+  - ✅ `DestinationSpec` — no-op (no `references()`); falls to legacy.
+  - ⛔ remaining: `MonitorExpressionSpec`, `SnatModeSpec` (need their type
+    parsers), `CertKeyChainSpec`, `DataGroupRecordSpec`, `GtmRegionMemberSpec`,
     `LtmPolicyRuleSpec`, `FirewallRuleSpec`.
+  - Pilot-fixture drift edges (Rust legacy-section refs not cleared) pinned in
+    `graph_pilot_objectref.drift.txt`.
 - ⛔ **irules_refs** (`extract_irules_object_references`, ~368 LOC) for iRule edges.
 - ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
 
