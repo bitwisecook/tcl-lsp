@@ -116,6 +116,11 @@ pub(crate) struct CallMeta<'a> {
     /// original invocation, so `info level` / `upvar` / `uplevel` see through
     /// the chain to the original caller (C's call-chain execution).
     pub same_level: bool,
+    /// The command prefix to use in a `wrong # args` message instead of
+    /// `usage_called` (which still names the `info level` words). For a TclOO
+    /// method this is the invoking `obj method` (or a forward's rewritten
+    /// original invocation); `None` keeps `usage_called`.
+    pub usage_prefix: Option<Vec<u8>>,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -3065,6 +3070,7 @@ impl Interp {
                 link_vars: &[],
                 keep_loop_codes: false,
                 same_level: false,
+                usage_prefix: None,
             },
         )
     }
@@ -3093,13 +3099,16 @@ impl Interp {
         } else {
             params
         };
+        // The `wrong # args` command prefix (an OO method passes the invoking
+        // `obj method`; everything else uses the invoked name).
+        let usage = meta.usage_prefix.as_deref().unwrap_or(usage_called);
         // Arity (defaults assumed trailing — the common shape): supplied must
         // cover the no-default params, and not exceed the positionals unless an
         // `args` catch-all soaks up the rest.
         let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&proc_usage(usage_called, params));
+            return self.error(&proc_usage(usage, params));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth.get() >= RECURSION_LIMIT {
@@ -3151,7 +3160,7 @@ impl Interp {
                 self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&proc_usage(usage_called, params));
+                return self.error(&proc_usage(usage, params));
             };
             if stored.is_err() {
                 self.frames.borrow_mut().pop();

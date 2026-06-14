@@ -201,6 +201,19 @@ pub struct OoState {
     /// call. An internal (`my m`) miss lists the unexported methods and the
     /// `oo::object` built-ins too; an external one lists only public methods.
     unknown_external: bool,
+    /// The `wrong # args` command prefix a `forward` installs for the method it
+    /// forwards to (the original invocation, e.g. `foo test`), consumed by the
+    /// next method body's run_proc (C's ensemble-rewrite for `Tcl_WrongNumArgs`).
+    fwd_usage: Option<Vec<u8>>,
+}
+
+/// The object command name as named from the global scope (strip a single
+/// leading `::`) — the `wrong # args` prefix for a method (approximating C's
+/// literal `objv[0]` for the common, global-scope case).
+fn object_display(obj: &[u8]) -> Vec<u8> {
+    obj.strip_prefix(b"::")
+        .map(<[u8]>::to_vec)
+        .unwrap_or_else(|| obj.to_vec())
 }
 
 /// The TclOO *execution* state (the per-flow stacks, not the shared class/object
@@ -5146,6 +5159,17 @@ impl Interp {
                 unsafe { obj::incr_ref_count(a) };
                 new_argv.push(a);
             }
+            // The method this forward leads to reports `wrong # args` against the
+            // *original* invocation (`obj method`), not the forwarded command
+            // (C's ensemble rewrite). Install it for the next method body.
+            let mut fwd = if external {
+                object_display(obj)
+            } else {
+                b"my".to_vec()
+            };
+            fwd.push(b' ');
+            fwd.extend_from_slice(target);
+            self.oo.borrow_mut().fwd_usage = Some(fwd);
             self.oo.borrow_mut().call_stack.push(OoFrame {
                 object: obj.to_vec(),
                 chain,
@@ -5155,6 +5179,9 @@ impl Interp {
             });
             let code = self.dispatch(&new_argv);
             self.oo.borrow_mut().call_stack.pop();
+            // Clear the rewrite if the forwarded command was not a method body
+            // (which would have consumed it).
+            self.oo.borrow_mut().fwd_usage = None;
             for a in new_argv {
                 unsafe { obj::decr_ref_count(a) };
             }
@@ -5245,6 +5272,23 @@ impl Interp {
             Some((file, base)) => (Some(file.clone()), *base),
             None => (None, 0),
         };
+        // `wrong # args` prefix: a forward's rewritten original invocation, else
+        // the invoking `obj method` (external) / `my method` (internal). Only
+        // regular methods (constructors/destructors keep their synthetic name).
+        let usage_prefix: Option<Vec<u8>> = if method.is_empty() || method == b"<destructor>" {
+            None
+        } else if let Some(u) = self.oo.borrow_mut().fwd_usage.take() {
+            Some(u)
+        } else {
+            let mut p = if external {
+                object_display(obj)
+            } else {
+                b"my".to_vec()
+            };
+            p.push(b' ');
+            p.extend_from_slice(&method);
+            Some(p)
+        };
         let code = self.run_proc(
             &params,
             &body,
@@ -5267,6 +5311,7 @@ impl Interp {
                 // A non-first chain step is reached via `next`: it shares the
                 // level of the original method invocation (step 0).
                 same_level: index > 0,
+                usage_prefix,
             },
         );
         self.oo.borrow_mut().call_stack.pop();
