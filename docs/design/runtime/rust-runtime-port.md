@@ -2700,6 +2700,33 @@ namespace-14.* cases are multi-colon collapsing and the "trailing `::` is a
 significant empty var name" rules, which live in the shared name parser
 (deferred).
 
+### Scoped-but-blocked — `namespace ensemble configure` / `-parameters` / `-unknown`
+
+A full `namespace ensemble configure` (get-all dict / cget / set), `-parameters`
+(threaded through dispatch as `target p1 p2 args…`), and `-unknown` *storage*
+were implemented and byte-verified against `tclsh9.0` (namespace-53.1/53.3
+match exactly), but the work was **reverted** because it surfaces a **pre-existing
+command-trace / namespace-deletion lifecycle crash** that aborts the whole
+namespace.test run:
+
+- Root cause (independent of ensembles): after namespace.test-7.x, a command
+  delete-trace lingers with name `::x` and body `namespace delete ::;#` (the
+  `[namespace current]` in the trace body resolved to `::`, and the trace was
+  not removed when its command's namespace was torn down). Defining a *new*
+  global `proc x` then fires that stale delete-trace via `on_command_replaced`,
+  which runs `namespace delete ::` and wipes every global command (`puts`/`set`
+  vanish → hard abort). `delete_namespace_by_id` fires/removes **variable**
+  unset traces but not **command** delete traces, so they leak.
+- Why ensembles exposed it: enabling unambiguous-prefix resolution of the
+  `namespace ensemble` subcommand (`namespace ens cre …`, namespace-49.1) let
+  that test progress to its `proc x`, which had previously errored out at the
+  unresolved `cre`.
+- Re-landing plan: first fix command delete-trace cleanup on namespace deletion
+  (fire-and-ignore, then remove — mirroring `take_ns_unset_traces`) and the
+  trace-body namespace context, *then* restore the ensemble configure/parameters
+  patch. This is in the "trace is sensitive — guard it" area, so it needs its own
+  before/after trace.test diff.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
