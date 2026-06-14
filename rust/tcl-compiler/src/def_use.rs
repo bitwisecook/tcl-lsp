@@ -103,7 +103,7 @@ impl DefUseChain {
 }
 
 /// Complete def-use analysis for one function.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct DefUseResult {
     /// All chains keyed by `(variable, version)`.
     pub chains: HashMap<SsaValueKey, DefUseChain>,

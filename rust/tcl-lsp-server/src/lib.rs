@@ -325,15 +325,48 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         .unwrap_or_default()
     };
 
+    // Optimiser / compiler-checks diagnostics, also off the event loop via the
+    // cancellable salsa `compiler_check_diagnostics` query: the unit's
+    // per-procedure lattices are memoised by `function_lattice` and shared with
+    // the analyser tail above.  On cancellation, drop the run like the base
+    // analysis (the superseding edit reschedules a fresh one).  `file` is `None`
+    // only if the salsa input is absent; then build directly (uncached).
+    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = if let Some(file) = file {
+        let snapshot = db.lock().await.clone();
+        match tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::compiler_check_diagnostics(&snapshot, file)).ok()
+        })
+        .await
+        {
+            Ok(Some(d)) => d,
+            Ok(None) | Err(_) => return false,
+        }
+    } else {
+        let (c_text, c_dialect) = (text.clone(), dialect.clone());
+        let c_registry = Arc::clone(&registry);
+        tokio::task::spawn_blocking(move || {
+            Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &c_text,
+                &c_registry,
+                &c_dialect,
+            ))
+        })
+        .await
+        .unwrap_or_else(|_| {
+            Arc::new(tcl_lsp_db::CompilerDiagnostics {
+                checks: Vec::new(),
+                optimisations: Vec::new(),
+            })
+        })
+    };
+
     let analysis_lifts = Arc::clone(&analysis);
     let lift_text = text.clone();
-    let lift_dialect = dialect.clone();
     let result = tokio::task::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
-            &registry,
-            &lift_dialect,
+            &compiler_diags,
             optimiser_enabled,
             &opt_disabled,
         ));
@@ -4358,36 +4391,22 @@ fn lift_source_style_diagnostics(
 /// both is a follow-up once the document-store lands.
 fn lift_compiler_diagnostics(
     text: &str,
-    registry: &CommandRegistry,
-    dialect: &str,
+    diags: &tcl_lsp_db::CompilerDiagnostics,
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-    use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
-    use tcl_compiler::optimiser::optimise_unit;
+    use tcl_compiler::compiler_checks::Severity as CheckSeverity;
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
 
     let line_index = tcl_lexer::LineIndex::new(text);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
     let mut out: Vec<tower_lsp::lsp_types::Diagnostic> = Vec::new();
 
-    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow
-    // / SCCP, all keyed off a single interprocedurally-summarised
-    // compilation unit (mirrors the `compiler_checks_run_all` PyO3
-    // bridge's construction).  The unit's per-procedure lattices are memoised
-    // in the shared process-wide cache so an unchanged procedure is built once
-    // and reused across edits (the optimiser unit was the dominant remaining
-    // per-edit cost once the analyser walk + tail were memoised).  Cache
-    // namespace `"o:"` (optimiser, dialect lexer config) is distinct from the
-    // analyser's `"a:"` since the two lower with different lexer configs.
-    let cu = tcl_lsp_db::memoised_compilation_unit(
-        text,
-        registry,
-        false,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
-        &format!("o:{dialect}"),
-        dialect_opt,
-    );
+    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow / SCCP,
+    // all keyed off a single interprocedurally-summarised compilation unit whose
+    // per-procedure lattices are memoised by the salsa-native `function_lattice`
+    // query (so an unchanged procedure is built once and reused across edits
+    // *and* shared with the analyser tail).  The unit is built by the
+    // `compiler_check_diagnostics` query; here we only filter + lift.
     // An optimiser O-code (`O1xx`) is gated by the `tclLsp.optimiser.enabled`
     // master switch and the profile + per-code `disabled_optimisations` set,
     // wherever it is emitted (some — e.g. the constant-branch `O100` — come
@@ -4396,7 +4415,8 @@ fn lift_compiler_diagnostics(
     let optimiser_suppressed = |code: &str| {
         code.starts_with('O') && (!optimiser_enabled || disabled_optimisations.contains(code))
     };
-    for d in run_all_checks(&cu, registry, dialect_opt) {
+    for d in &diags.checks {
+        let d = d.clone();
         if optimiser_suppressed(&d.code) {
             continue;
         }
@@ -4422,12 +4442,11 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic; the fix plumbing itself is GAP-C3). The
     // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
     // block, mirroring Python's `if optimiser_enabled:` gate.
-    // Share the single CompilationUnit already built above for `run_all_checks`
-    // instead of letting `optimise_with_dialect` lower the source a second time
-    // (~129 ms saved per document on large files — E7).
-    for o in optimise_unit(&cu, registry, dialect_opt)
-        .into_iter()
+    for o in diags
+        .optimisations
+        .iter()
         .filter(|_| optimiser_enabled)
+        .cloned()
     {
         // Profile + per-code gate: the active profile disables whole O-code
         // categories (the default `readability` profile surfaces only

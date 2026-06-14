@@ -207,32 +207,37 @@ practcl.tcl from ~1 s to low-ms).
 | Slice 1 — `item_tree`/`item_sig`/`file_decls` | **shipped** (corpus-gated) |
 | Slice 2 — per-item walk via deferred bodies (`analyse_per_item`); `incremental == fresh` fuzzer to 0 | **shipped** (byte-identical over corpus) |
 | Slice 3 — memoise per-body analysis (`item_body_analysis`); offset-invariant keys | **shipped** (firewall + offset-invariance tests) |
-| Slice 4 — per-procedure lattice memoisation (`build_for_memoized` + `lattice_rebase`), offset-invariant, wired into `file_analysis_incremental` via an idempotent content cache | **shipped** (byte-identical; e2e parity) |
+| Slice 4 — per-procedure lattice memoisation (`build_for_memoized` + `lattice_rebase`), offset-invariant | **shipped** (byte-identical; e2e parity) |
 | Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
+| Salsa-native per-procedure lattice graph (`function_lattice` query interning each proc's offset-0 body + `CfgContext`); both consumers (analyser tail + optimiser via `compiler_check_diagnostics`) on salsa; process-wide content cache retired | **shipped** (byte-identical; offset-invariant firewall + e2e parity) |
 
-> **Remaining (future).** The per-procedure baseline lattices are memoised for
-> *both* diagnostics consumers (the analyser CFG/SSA tail and the optimiser's
-> `lift_compiler_diagnostics` checks), byte-identically, via the process-wide
-> content cache + `CompilationUnit::build_for_memoized`. What's left:
+> **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
+> (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now
+> memoised by the salsa-native `function_lattice` query, replacing the
+> process-wide content cache (so salsa garbage-collects unreferenced entries).
+> `build_for_memoized` normalises each procedure body to offset 0 and hands it
+> (with the module's `CfgContext`, interned once per build) to a callback that
+> interns the `FnLatticeKey` and demands `function_lattice`; the builder rebases
+> the returned offset-0 unit to the procedure's real span (`lattice_rebase`).
+> Reuses the same `build_cfg_function_with_upvars` call `build_cfg` makes per
+> procedure, so the rebuilt unit equals the whole-module build's (modulo offset),
+> under `db.registry` (byte-identical to both consumers' `build_default` +
+> `load_dialect`).  The optimiser path was the architectural blocker — it ran
+> *off* salsa with no db handle; it now runs through the `compiler_check_diagnostics`
+> tracked query (server filters the master-switch / per-code disables + lifts), so
+> both diagnostics consumers share the same memoised lattices.  Gated by the
+> per-item corpus + `incremental == fresh` differential fuzzer + the db
+> equivalence/offset-invariance tests (`function_lattice_reused_on_body_shift`,
+> `compiler_check_diagnostics_matches_uncached`) + e2e parity.
+>
+> **Remaining (future).**
 >
 > - **Interprocedural taint cascade.** `with_interprocedural` still re-runs
 >   `propagate_taints` for every function on each edit (a small fraction of the
 >   per-edit cost now). Memoising it byte-identically needs a per-function key
->   over the reachable-callee `ProcSummary`s — i.e. hand-rolling salsa's
->   dependency tracking, fragile enough that it's only worth doing as part of a
->   salsa-native lattice graph.
-> - **Salsa-native per-item lattice graph.** Would replace the content cache
->   (proper GC + a natural taint cascade) by interning each procedure's
->   *offset-0* post-inline IR body as a salsa key. The `Hash`/`Eq` prerequisite
->   is **done** — the IR body AST is float-free (literals are text; the
->   `f64`-bearing `ConstValue` lives in the lattice, not the body), so
->   `Script`/`Statement`/`ExprNode` derive `Hash`/`Eq` cleanly. The remaining
->   blocker is *architectural*, not perf: `lift_compiler_diagnostics` runs
->   **off** the salsa graph (in the server's lift path, with a registry but no
->   db handle), so a `function_lattice` query can serve the analyser tail but
->   not the optimiser consumer. A full conversion must therefore *also* move the
->   optimiser checks onto a salsa query — only then can the content cache be
->   retired. Net-zero perf, so deferred until that broader move is worthwhile.
+>   over the reachable-callee `ProcSummary`s — i.e. a `taint_cascade` query layered
+>   on `function_lattice`'s baseline taints, fed the reachable summaries as
+>   interned inputs.  Now tractable on the salsa-native graph; net-small perf.
 
 ## How to run the experiments
 

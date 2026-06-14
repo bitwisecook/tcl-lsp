@@ -9589,21 +9589,31 @@ mod tests {
             let want = whole.analyse(src, "tcl");
 
             // Build a memoised unit (cold cache) and run through the seam.
-            let mut cache: HashMap<String, (u32, FunctionUnit)> = HashMap::new();
-            let build_cu = |cache: &mut HashMap<String, (u32, FunctionUnit)>| {
+            // The callback mirrors the db's `function_lattice`: build the
+            // offset-0 unit, keyed on the offset-0 body + name + params.
+            let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+            let build_cu = |cache: &mut HashMap<String, FunctionUnit>| {
                 CompilationUnit::build_for_memoized(
                     src,
                     &registry,
                     false,
                     tcl_lexer::LexerConfig::default(),
                     "tcl",
-                    &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
-                        if let Some(entry) = cache.get(key) {
-                            return entry.clone();
+                    &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                        let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                        if let Some(fu) = cache.get(&key) {
+                            return fu.clone();
                         }
-                        let entry = build();
-                        cache.insert(key.to_owned(), entry.clone());
-                        entry
+                        let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                            req.qname,
+                            req.body,
+                            true,
+                            req.upvar_procs.clone(),
+                            req.proc_params.clone(),
+                        );
+                        let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                        cache.insert(key, fu.clone());
+                        fu
                     },
                 )
                 .with_interprocedural(&registry, Some("tcl"))
@@ -9659,21 +9669,32 @@ mod tests {
         if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
             registry.load_dialect(d);
         }
-        let mut cache: HashMap<String, (u32, FunctionUnit)> = HashMap::new();
-        let build = |s: &str, cache: &mut HashMap<String, (u32, FunctionUnit)>| {
+        let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+        let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
             let cu = CompilationUnit::build_for_memoized(
                 s,
                 &registry,
                 false,
                 tcl_lexer::LexerConfig::default(),
                 "tcl",
-                &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
-                    if let Some(entry) = cache.get(key) {
-                        return entry.clone();
+                // Position-independent key: the body is normalised to offset 0
+                // before the callback sees it, so a shifted-but-unedited proc
+                // hits and the builder rebases the cached offset-0 unit.
+                &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                    let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                    if let Some(fu) = cache.get(&key) {
+                        return fu.clone();
                     }
-                    let entry = build();
-                    cache.insert(key.to_owned(), entry.clone());
-                    entry
+                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                        req.qname,
+                        req.body,
+                        true,
+                        req.upvar_procs.clone(),
+                        req.proc_params.clone(),
+                    );
+                    let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                    cache.insert(key, fu.clone());
+                    fu
                 },
             )
             .with_interprocedural(&registry, Some("tcl"));
