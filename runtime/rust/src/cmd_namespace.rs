@@ -33,11 +33,53 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
+/// Canonical `namespace` subcommands (alphabetical — the ensemble order, used
+/// for unique-prefix resolution and the error message).
+const NAMESPACE_SUBS: &[&[u8]] = &[
+    b"children",
+    b"code",
+    b"current",
+    b"delete",
+    b"ensemble",
+    b"eval",
+    b"exists",
+    b"export",
+    b"forget",
+    b"import",
+    b"inscope",
+    b"origin",
+    b"parent",
+    b"path",
+    b"qualifiers",
+    b"tail",
+    b"upvar",
+    b"which",
+];
+
 fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"namespace subcommand ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    // Resolve the subcommand by exact name or unambiguous prefix (the ensemble
+    // contract), so e.g. `namespace exist` → `exists`.
+    let raw = obj_bytes(argv[1]);
+    let sub: &[u8] = if let Some(c) = NAMESPACE_SUBS.iter().find(|c| **c == raw.as_slice()) {
+        c
+    } else {
+        let mut it = NAMESPACE_SUBS
+            .iter()
+            .filter(|c| c.starts_with(raw.as_slice()));
+        match (it.next(), it.next()) {
+            (Some(c), None) => c,
+            _ => {
+                let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+                m.extend_from_slice(&raw);
+                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
+                return interp.set_error(&m);
+            }
+        }
+    };
+    match sub {
         b"current" => ns_current(interp, argv),
         b"delete" => ns_delete(interp, argv),
         b"eval" => ns_eval(interp, argv),
@@ -56,12 +98,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
         b"upvar" => ns_upvar(interp, argv),
-        other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
-            interp.set_error(&m)
-        }
+        _ => unreachable!("subcommand resolved to a canonical name above"),
     }
 }
 
@@ -790,6 +827,19 @@ mod tests {
             assert_eq!(i.result_bytes(), b"");
             assert_eq!(i.eval_str(b"namespace tail plain"), Code::Ok);
             assert_eq!(i.result_bytes(), b"plain");
+        });
+    }
+
+    #[test]
+    fn subcommand_prefix_abbreviation() {
+        leak_free(|i| {
+            // `namespace` subcommands accept unambiguous prefixes.
+            assert_eq!(i.eval_str(b"namespace exist ::nope"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"0");
+            assert_eq!(i.eval_str(b"namespace cur"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::");
+            // An ambiguous prefix still errors.
+            assert_eq!(i.eval_str(b"namespace ex foo"), Code::Error);
         });
     }
 
