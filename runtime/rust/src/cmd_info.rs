@@ -42,6 +42,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"cmdtype",
         b"commands",
         b"complete",
+        b"coroutine",
         b"default",
         b"exists",
         b"frame",
@@ -95,6 +96,13 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"locals" => set_list(interp, argv, Interp::local_var_names),
         b"level" => info_level(interp, argv),
         b"frame" => info_frame(interp, argv),
+        b"coroutine" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info coroutine");
+            }
+            interp.set_result_bytes(&crate::cmd_coro::current_coroutine());
+            Code::Ok
+        }
         b"object" => crate::cmd_oo::info_object(interp, argv),
         b"class" => crate::cmd_oo::info_class(interp, argv),
         b"tclversion" => fixed(interp, argv, b"info tclversion", b"9.0"),

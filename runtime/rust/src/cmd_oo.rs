@@ -199,6 +199,33 @@ pub struct OoState {
     unknown_external: bool,
 }
 
+/// The TclOO *execution* state (the per-flow stacks, not the shared class/object
+/// definitions): swapped in/out when a coroutine suspends/resumes so a method
+/// running inside a coroutine has its own `self`/`my`/`next` call chain and
+/// definition context (`cmd_coro`).
+#[derive(Default)]
+pub struct OoExec {
+    def_stack: Vec<(DefTarget, usize)>,
+    call_stack: Vec<OoFrame>,
+    private_depth: usize,
+    def_rewrite: Option<Vec<u8>>,
+    unknown_scope: Option<Vec<u8>>,
+    unknown_external: bool,
+}
+
+impl OoState {
+    /// Swap this interp's OO execution stacks with `e` (the class/object
+    /// *definitions* — `classes`/`objects`/`counter`/`next_id` — stay shared).
+    pub(crate) fn swap_exec(&mut self, e: &mut OoExec) {
+        std::mem::swap(&mut self.def_stack, &mut e.def_stack);
+        std::mem::swap(&mut self.call_stack, &mut e.call_stack);
+        std::mem::swap(&mut self.private_depth, &mut e.private_depth);
+        std::mem::swap(&mut self.def_rewrite, &mut e.def_rewrite);
+        std::mem::swap(&mut self.unknown_scope, &mut e.unknown_scope);
+        std::mem::swap(&mut self.unknown_external, &mut e.unknown_external);
+    }
+}
+
 /// Register the `oo::*` commands and the definition / context commands.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"oo::define", oo_define_cmd);

@@ -43,6 +43,7 @@ pub mod cmd_array;
 pub mod cmd_binary;
 pub mod cmd_chan;
 pub mod cmd_control;
+pub mod cmd_coro;
 pub mod cmd_dict;
 pub mod cmd_error;
 pub mod cmd_eval;

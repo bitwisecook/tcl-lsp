@@ -245,6 +245,51 @@ struct ExceptionState {
     already_logged: bool,
 }
 
+/// A coroutine's saved execution context: the per-flow interpreter state that
+/// is swapped in while the coroutine runs and swapped back out when it yields
+/// (`cmd_coro` / [`Interp::swap_coro_ctx`]). Shared definitions (namespaces,
+/// commands, classes, channels) are *not* here — coroutines share them.
+pub(crate) struct CoroContext {
+    frames: FrameStack,
+    cmd_frames: Vec<CmdFrame>,
+    current_ns: NsId,
+    recursion_depth: usize,
+    script_stack: Vec<Vec<u8>>,
+    return_code: Code,
+    return_level: usize,
+    exc: ExceptionState,
+    arg_lines: Vec<u32>,
+    eval_depth: usize,
+    oo: crate::cmd_oo::OoExec,
+}
+
+impl CoroContext {
+    /// A fresh context for a new coroutine: an empty call/`info frame` stack
+    /// running in `ns` (the namespace `coroutine` was invoked from, so the body
+    /// resolves commands there), with default return/error/OO state.
+    pub(crate) fn fresh(ns: NsId) -> CoroContext {
+        CoroContext {
+            frames: FrameStack::new(),
+            cmd_frames: Vec::new(),
+            current_ns: ns,
+            recursion_depth: 0,
+            script_stack: Vec::new(),
+            return_code: Code::Ok,
+            return_level: 1,
+            exc: ExceptionState::default(),
+            arg_lines: Vec::new(),
+            eval_depth: 0,
+            oo: crate::cmd_oo::OoExec::default(),
+        }
+    }
+
+    /// A throwaway context used only as a temporary placeholder while the real
+    /// one is swapped (immediately overwritten).
+    fn placeholder() -> CoroContext {
+        CoroContext::fresh(GLOBAL)
+    }
+}
+
 /// A registered command. `Builtin` and the `Alias` redirect today; `Proc {
 /// params, body }` (user procs, T1.5) and `External { table_index, client_data }`
 /// (extension commands via `Tcl_CreateObjCommand`, §4.6/§13.2, Track 2) are the
@@ -458,6 +503,10 @@ pub struct InterpState {
     bg_queue: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
     /// The event loop's pending timer + idle events (`after`/`vwait`/`update`).
     events: RefCell<crate::cmd_event::EventQueue>,
+    /// Live coroutines (`coroutine`/`yield`), keyed by command name. Each holds
+    /// the coroutine's saved execution context (swapped in/out on resume/yield)
+    /// and the handoff channels to its worker thread (`cmd_coro`).
+    coros: RefCell<std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>,
     result: Cell<*mut TclObj>,
 }
 
@@ -498,6 +547,7 @@ impl Interp {
             bgerror: RefCell::new(Vec::new()),
             bg_queue: RefCell::new(Vec::new()),
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
+            coros: RefCell::new(std::collections::BTreeMap::new()),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -543,6 +593,12 @@ impl Interp {
             }
         }
         let existed = old_fqn.is_some();
+        // Deleting a suspended coroutine's command tears down its worker first.
+        if new.is_empty() {
+            if let Some(of) = &old_fqn {
+                crate::cmd_coro::on_command_deleted(self, of);
+            }
+        }
         let raw = self
             .namespaces
             .borrow_mut()
@@ -620,6 +676,8 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
+        // If `name` is a suspended coroutine, terminate its worker first.
+        crate::cmd_coro::on_command_deleted(self, name);
         self.namespaces
             .borrow_mut()
             .delete(self.current_ns.get(), name)
@@ -1759,6 +1817,84 @@ impl Interp {
     /// an event script.
     pub(crate) fn events_mut(&self) -> std::cell::RefMut<'_, crate::cmd_event::EventQueue> {
         self.events.borrow_mut()
+    }
+
+    /// Mutable access to the live-coroutine registry (`cmd_coro`). Callers must
+    /// drop the borrow before blocking on a coroutine handoff (the worker thread
+    /// reaches the same registry to swap its context).
+    pub(crate) fn coros_mut(
+        &self,
+    ) -> std::cell::RefMut<'_, std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>
+    {
+        self.coros.borrow_mut()
+    }
+
+    /// Swap the interp's per-flow *execution context* (call frames, the
+    /// `info frame` stack, current namespace, recursion depth, return/error
+    /// state, the TclOO call/define stacks, …) with `ctx`. This is how a
+    /// coroutine handoff installs the resuming side's context: a single swap is
+    /// its own inverse, so resume (caller→coro) and yield (coro→caller) each
+    /// call it once. The shared *definitions* (namespaces, commands, classes,
+    /// channels, the result object) are not swapped — coroutines share them.
+    pub(crate) fn swap_coro_ctx(&self, ctx: &mut CoroContext) {
+        {
+            let mut f = self.frames.borrow_mut();
+            std::mem::swap(&mut *f, &mut ctx.frames);
+        }
+        std::mem::swap(&mut *self.cmd_frames.borrow_mut(), &mut ctx.cmd_frames);
+        std::mem::swap(&mut *self.script_stack.borrow_mut(), &mut ctx.script_stack);
+        std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
+        std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
+        self.oo.borrow_mut().swap_exec(&mut ctx.oo);
+        let ns = self.current_ns.replace(ctx.current_ns);
+        ctx.current_ns = ns;
+        let rd = self.recursion_depth.replace(ctx.recursion_depth);
+        ctx.recursion_depth = rd;
+        let rc = self.return_code.replace(ctx.return_code);
+        ctx.return_code = rc;
+        let rl = self.return_level.replace(ctx.return_level);
+        ctx.return_level = rl;
+        let ed = self.eval_depth.replace(ctx.eval_depth);
+        ctx.eval_depth = ed;
+    }
+
+    /// Swap the execution context of the coroutine named `name` with the live
+    /// interpreter context (the resume/yield handoff in `cmd_coro`). A no-op if
+    /// the coroutine is gone. The registry borrow is released before any
+    /// blocking handoff.
+    pub(crate) fn coro_swap_named(&self, name: &[u8]) {
+        // Take the context out (releasing the registry borrow), swap, put back —
+        // so `swap_coro_ctx`'s RefCell touches never overlap the registry borrow.
+        let taken = self
+            .coros
+            .borrow_mut()
+            .get_mut(name)
+            .map(|e| std::mem::replace(&mut e.context, CoroContext::placeholder()));
+        if let Some(mut ctx) = taken {
+            self.swap_coro_ctx(&mut ctx);
+            if let Some(e) = self.coros.borrow_mut().get_mut(name) {
+                e.context = ctx;
+            }
+        }
+    }
+
+    /// A second owning handle to the same interpreter state (an `Rc` clone) —
+    /// handed to a coroutine worker thread (`cmd_coro`).
+    pub(crate) fn clone_handle(&self) -> Interp {
+        Interp(Rc::clone(&self.0))
+    }
+
+    /// Whether `name` resolves to a command in the current namespace.
+    pub(crate) fn command_exists(&self, name: &[u8]) -> bool {
+        self.namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)
+            .is_some()
+    }
+
+    /// Register coroutine command `name` (its invocation resumes it).
+    pub(crate) fn register_coroutine_command(&mut self, name: &[u8]) {
+        self.ns_register(name, Command::Builtin(crate::cmd_coro::coro_resume_command));
     }
 
     /// Process queued background errors (called by `update`): invoke the
