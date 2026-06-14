@@ -5069,15 +5069,19 @@ impl Interp {
         }
         let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
         if let Some(ns) = var_ns {
-            // Only a command defined *directly* in the object namespace (the
-            // per-object `my`/`myclass`) gets qualified — not one merely visible
-            // via the global fallback (which must keep its caller-context vars).
-            let in_ns = self.namespaces().command_names(ns).contains(&word);
-            if in_ns {
-                let mut qn = self.namespaces().qualified_name(ns);
-                qn.extend_from_slice(b"::");
-                qn.extend_from_slice(word);
-                return qn;
+            // Resolve the word as a command in the object's namespace. Only a
+            // command whose home lies *within* the object's namespace subtree
+            // (the per-object `my`/`myclass`, or a proc the object put in a child
+            // namespace — oo-6.6) gets qualified; one merely visible via the
+            // global fallback is left bare so it keeps its caller-context vars.
+            let mut prefix = self.namespaces().qualified_name(ns);
+            if prefix != b"::" {
+                prefix.extend_from_slice(b"::");
+            }
+            if let Some(fqn) = self.namespaces().resolve_fqn(ns, word) {
+                if fqn.starts_with(&prefix) {
+                    return fqn;
+                }
             }
         }
         word.to_vec()
