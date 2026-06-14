@@ -160,6 +160,11 @@ struct DiagInputs {
     documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
     workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
     gate: Arc<Mutex<()>>,
+    lattice_cache: Arc<
+        std::sync::Mutex<
+            HashMap<Url, HashMap<String, tcl_compiler::compilation_unit::FunctionUnit>>,
+        >,
+    >,
 }
 
 /// Run the analyser + diagnostic lifts for one document and publish the result,
@@ -174,6 +179,60 @@ struct DiagInputs {
 /// Decoupling diagnostics from salsa keeps editing responsive; the interactive
 /// read handlers still use the memoised queries.  (Sharing the two behind one
 /// cancellation-aware query is the later per-item/MVCC step.)
+/// Build the diagnostics `CompilationUnit` for `text`, memoising each
+/// procedure's per-function lattice in the per-URI `lattice_cache` (slice 4).
+///
+/// The result is byte-identical to the unit
+/// [`Analyser::emit_cfg_ssa_diagnostics`] would build itself — the cache only
+/// skips the redundant SSA/SCCP/type/rendered recompute for a procedure whose
+/// body (and absolute position, and cross-function context) is unchanged.  The
+/// URI's sub-map is taken out for the duration of the (CPU-heavy) build so the
+/// lock isn't held across it, then swept to the procedures present in this
+/// build and put back.
+fn build_memoised_cu(
+    text: &str,
+    dialect: &str,
+    registry: &CommandRegistry,
+    uri: &Url,
+    cache: &std::sync::Mutex<
+        HashMap<Url, HashMap<String, tcl_compiler::compilation_unit::FunctionUnit>>,
+    >,
+) -> Option<tcl_compiler::compilation_unit::CompilationUnit> {
+    use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
+
+    let mut map = cache.lock().ok()?.remove(uri).unwrap_or_default();
+    let mut touched: HashSet<String> = HashSet::new();
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
+    let cu = {
+        let mut memo = |key: &str, build: &mut dyn FnMut() -> FunctionUnit| -> FunctionUnit {
+            touched.insert(key.to_owned());
+            if let Some(fu) = map.get(key) {
+                return fu.clone();
+            }
+            let fu = build();
+            map.insert(key.to_owned(), fu.clone());
+            fu
+        };
+        CompilationUnit::build_for_memoized(
+            text,
+            registry,
+            false,
+            tcl_lexer::LexerConfig::default(),
+            dialect,
+            &mut memo,
+        )
+        .with_interprocedural(registry, dialect_opt)
+    };
+    // Sweep dead entries (procedures removed/renamed since the last build) so
+    // the cache stays bounded to the document's live procedures.
+    map.retain(|key, _| touched.contains(key));
+    if let Ok(mut guard) = cache.lock() {
+        guard.insert(uri.clone(), map);
+    }
+    Some(cu)
+}
+
+#[allow(clippy::too_many_lines)]
 async fn run_diagnostics_core(
     inputs: DiagInputs,
     uri: Url,
@@ -192,6 +251,7 @@ async fn run_diagnostics_core(
         documents,
         workspace_index,
         gate,
+        lattice_cache,
     } = inputs;
 
     // F5 BIG-IP config is not Tcl source — publish an empty set and stop.
@@ -212,15 +272,24 @@ async fn run_diagnostics_core(
     let line_count = text.lines().count();
 
     // Base analysis: a direct analyse on a blocking worker (no salsa handle —
-    // see the function doc), off the LSP event loop.
+    // see the function doc), off the LSP event loop.  The CFG/SSA diagnostic
+    // tail consumes a `CompilationUnit` whose per-procedure lattices are
+    // memoised in the per-URI `lattice_cache` (slice 4): a body-only edit
+    // reuses every unchanged procedure's lattice instead of rebuilding the
+    // whole unit.  The supplied unit is byte-identical to the one the tail
+    // would build itself, so diagnostics are unchanged.
     let analysis: Arc<AnalysisResult> = {
         let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
+        let a_registry = Arc::clone(&registry);
+        let a_uri = uri.clone();
+        let a_cache = Arc::clone(&lattice_cache);
         tokio::task::spawn_blocking(move || {
-            Arc::new(
-                Backend::configured_analyser(a_disabled, non_ascii_mode)
-                    .analyse(&a_text, &a_dialect)
-                    .clone(),
-            )
+            let mut analyser = Backend::configured_analyser(a_disabled, non_ascii_mode);
+            if let Some(cu) = build_memoised_cu(&a_text, &a_dialect, &a_registry, &a_uri, &a_cache)
+            {
+                analyser.set_cu_override(Arc::new(cu));
+            }
+            Arc::new(analyser.analyse(&a_text, &a_dialect).clone())
         })
         .await
         .unwrap_or_default()
@@ -391,6 +460,18 @@ pub struct Backend {
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
     /// mode); `set_*` on `workspace/didChangeConfiguration`.
     db_config: Mutex<tcl_lsp_db::AnalyserConfig>,
+    /// Per-URI content-addressed cache of per-procedure `FunctionUnit`
+    /// lattices for the diagnostics CFG/SSA tail (slice 4).  Keyed by URI, then
+    /// by the procedure's content key; a body-only edit reuses the lattices of
+    /// every procedure above the edit point instead of rebuilding the whole
+    /// compilation unit.  A `std::sync::Mutex` (not tokio) because it is locked
+    /// inside the `spawn_blocking` analyser worker; swept per build so it stays
+    /// bounded to the document's live procedures, and dropped on `did_close`.
+    lattice_cache: Arc<
+        std::sync::Mutex<
+            HashMap<Url, HashMap<String, tcl_compiler::compilation_unit::FunctionUnit>>,
+        >,
+    >,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -498,6 +579,7 @@ impl Backend {
             db: Arc::new(Mutex::new(db)),
             db_files: Mutex::new(HashMap::new()),
             db_config: Mutex::new(db_config),
+            lattice_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
 
@@ -520,6 +602,9 @@ impl Backend {
     /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).
     async fn db_remove_source(&self, uri: &Url) {
         self.db_files.lock().await.remove(uri);
+        if let Ok(mut cache) = self.lattice_cache.lock() {
+            cache.remove(uri);
+        }
     }
 
     /// Mirror the editor analyser config (disabled diagnostics + non-ASCII
@@ -1968,6 +2053,7 @@ impl Backend {
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
             gate: Arc::clone(&self.document_analysis_gate),
+            lattice_cache: Arc::clone(&self.lattice_cache),
         }
     }
 
@@ -5329,6 +5415,7 @@ mod tests {
             db: Arc::new(Mutex::new(db)),
             db_files: Mutex::new(HashMap::new()),
             db_config: Mutex::new(db_config),
+            lattice_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
 
