@@ -66,7 +66,7 @@ fn array_names(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
     let keys = interp.array_names(name).unwrap_or_default();
     let objs: Vec<*mut TclObj> = keys
         .iter()
-        .filter(|k| pattern.as_deref().map_or(true, |p| glob_match(p, k)))
+        .filter(|k| pattern.as_deref().is_none_or(|p| glob_match(p, k)))
         .map(|k| new_string(k))
         .collect();
     interp.set_result(list::new_list_obj(&objs));

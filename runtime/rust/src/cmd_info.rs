@@ -199,7 +199,7 @@ fn info_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Code {
     let objs: Vec<*mut TclObj> = names
         .iter()
-        .filter(|n| pattern.map_or(true, |p| glob_match(p, n)))
+        .filter(|n| pattern.is_none_or(|p| glob_match(p, n)))
         .map(|n| new_string(n))
         .collect();
     let l = list::new_list_obj(&objs); // retains each element

@@ -5640,7 +5640,7 @@ impl Interp {
             .borrow()
             .objects
             .get(class)
-            .map_or(true, |o| o.destroyed)
+            .is_none_or(|o| o.destroyed)
         {
             return;
         }

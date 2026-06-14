@@ -19,7 +19,7 @@
 name = "tcl-runtime"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.85"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 description = "Rust port of the Tcl WASM runtime support library + interpreter fallback"

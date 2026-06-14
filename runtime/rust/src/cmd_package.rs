@@ -193,14 +193,14 @@ fn best_ifneeded(interp: &Interp, name: &[u8], exact: bool, reqs: &[Vec<u8>]) ->
             continue;
         }
         let ok = if exact {
-            reqs.first().map_or(true, |r| r == v)
+            reqs.first().is_none_or(|r| r == v)
         } else {
             reqs.iter().all(|r| vsatisfies(v, r))
         };
         if ok
             && best
                 .as_ref()
-                .map_or(true, |b| vcompare(v, b) == core::cmp::Ordering::Greater)
+                .is_none_or(|b| vcompare(v, b) == core::cmp::Ordering::Greater)
         {
             best = Some(v.clone());
         }
@@ -218,7 +218,7 @@ fn check_provided(
 ) -> Option<Result<Vec<u8>, Code>> {
     let v = interp.packages.borrow().provided.get(name)?.clone();
     let ok = if exact {
-        reqs.first().map_or(true, |r| r == &v)
+        reqs.first().is_none_or(|r| r == &v)
     } else {
         reqs.iter().all(|r| vsatisfies(&v, r))
     };
