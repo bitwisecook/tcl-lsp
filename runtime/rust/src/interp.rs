@@ -309,6 +309,7 @@ pub struct Param {
 
 /// A compiled `proc` definition: its parameters, body script, and the namespace
 /// it was defined in (which becomes the current namespace while it runs).
+#[derive(Clone)]
 pub struct ProcDef {
     pub params: Vec<Param>,
     pub body: Vec<u8>,

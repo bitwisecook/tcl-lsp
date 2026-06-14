@@ -270,6 +270,11 @@ pub fn install(interp: &mut Interp) {
         c.methods
             .insert(b"unknown".to_vec(), Method::Builtin(oo_object_unknown));
         c.unexported.insert(b"unknown".to_vec());
+        // `<cloned>` copies the instance namespace during `oo::copy`; reachable
+        // via `next` from a user-defined `<cloned>` override.
+        c.methods
+            .insert(b"<cloned>".to_vec(), Method::Builtin(oo_object_cloned));
+        c.unexported.insert(b"<cloned>".to_vec());
     }
     let _ =
         interp.eval_str(b"namespace eval ::oo {variable version 1.3.1; variable patchlevel 1.3.1}");
@@ -1097,6 +1102,29 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.oo_run_def(DefTarget::Object(fqn), argv)
 }
 
+/// `<cloned>` object built-in (C's `TclOO_Object_Cloned`): copy the procedures
+/// and variables of the origin object's instance namespace into this object's.
+/// Invoked by `oo::copy`; a user `<cloned>` runs first and reaches this via
+/// `next`.
+fn oo_object_cloned(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+    if args.len() != 1 {
+        return wrong_args(interp, b"my <cloned> originObject");
+    }
+    let src = interp.oo_resolve_object(&obj_bytes(args[0]));
+    let pair = {
+        let oo = interp.oo.borrow();
+        match (oo.objects.get(&src), oo.objects.get(obj)) {
+            (Some(s), Some(d)) => Some((s.var_ns, d.var_ns)),
+            _ => None,
+        }
+    };
+    if let Some((src_ns, dst_ns)) = pair {
+        interp.oo_clone_namespace(src_ns, dst_ns);
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
 /// `oo::copy srcObject ?targetObject?` — clone an object (its class + per-object
 /// methods/mixins).
 fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -1161,6 +1189,17 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.oo.borrow_mut().classes.insert(dst.clone(), cls);
     }
     interp.ns_register(&dst, Command::OoObject(dst.clone()));
+    interp.oo_register_my(&dst);
+    // Run the `<cloned>` method (a user override first, then oo::object's native
+    // implementation via `next`) to copy the instance namespace's procedures
+    // and variables from the source (oo-15.6, oo-15.8).
+    let src_obj = obj::new_string_bytes(&src);
+    unsafe { obj::incr_ref_count(src_obj) };
+    let code = interp.oo_invoke(&dst, b"<cloned>", &[src_obj], false);
+    unsafe { obj::decr_ref_count(src_obj) };
+    if code == Code::Error {
+        return Code::Error;
+    }
     interp.set_result(obj::new_string_bytes(&dst));
     Code::Ok
 }
@@ -4146,6 +4185,77 @@ impl Interp {
         Some(s)
     }
 
+    /// Copy the procedures and variables of namespace `src_ns` into `dst_ns`
+    /// (C's `TclCopyNamespaceProcedures`/`Variables`, used by `<cloned>`).
+    fn oo_clone_namespace(&mut self, src_ns: NsId, dst_ns: NsId) {
+        // Procedures (skip built-ins like the per-object `my`/`myclass`).
+        let names: Vec<Vec<u8>> = self
+            .namespaces()
+            .command_names(src_ns)
+            .iter()
+            .map(|n| n.to_vec())
+            .collect();
+        // The destination namespace's FQN, for re-pointing copied procs.
+        let dst_qual = {
+            let q = self.namespaces().qualified_name(dst_ns);
+            if q == b"::" {
+                Vec::new()
+            } else {
+                q
+            }
+        };
+        for n in &names {
+            // Bind the resolved command before borrowing mutably (the `Ref` from
+            // `namespaces()` must be dropped first).
+            let cmd = self.namespaces().resolve(src_ns, n);
+            if let Some(Command::Proc(def)) = cmd {
+                // Re-point the copy to the destination namespace, so its body's
+                // `variable`/unqualified names resolve there, not in the source.
+                let mut new_def = (*def).clone();
+                new_def.ns = dst_ns;
+                new_def.fqn = {
+                    let mut f = dst_qual.clone();
+                    f.extend_from_slice(b"::");
+                    f.extend_from_slice(n);
+                    f
+                };
+                self.namespaces_mut()
+                    .bind(dst_ns, n, Command::Proc(std::rc::Rc::new(new_def)));
+            }
+        }
+        // Variables (scalars and array elements; `store_*` retains the values).
+        type ArrayCopy = (Vec<u8>, Vec<(Vec<u8>, *mut TclObj)>);
+        let mut scalars: Vec<(Vec<u8>, *mut TclObj)> = Vec::new();
+        let mut arrays: Vec<ArrayCopy> = Vec::new();
+        {
+            let ns = self.namespaces();
+            let table = ns.var_table(src_ns);
+            for name in ns.var_names(src_ns) {
+                match table.cell(&name) {
+                    Some(crate::frame::Var::Scalar(p)) => scalars.push((name, *p)),
+                    Some(crate::frame::Var::Array(map)) => {
+                        arrays.push((name, map.iter().map(|(k, v)| (k.clone(), *v)).collect()));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for (name, p) in scalars {
+            let _ = self
+                .namespaces_mut()
+                .var_table_mut(dst_ns)
+                .store_scalar(&name, p);
+        }
+        for (name, elems) in arrays {
+            for (k, p) in elems {
+                let _ = self
+                    .namespaces_mut()
+                    .var_table_mut(dst_ns)
+                    .store_elem(&name, &k, p);
+            }
+        }
+    }
+
     /// Resolve an object name to its FQN, following namespace-import aliases to
     /// the origin command if the qualified name is not itself an object (so an
     /// imported object command resolves to the real object; oo-1.10).
@@ -5227,6 +5337,28 @@ mod tests {
             // Unexporting destroy hides it from `-all` (oo-17.10).
             ok(i, b"oo::define C unexport {*}[info class methods C -all]");
             assert_eq!(ok(i, b"info class methods C -all"), b"");
+        });
+    }
+
+    #[test]
+    fn oo_copy_clones_namespace_contents() {
+        leak_free(|i| {
+            // oo::copy copies the instance namespace's procs (re-pointed to the
+            // copy's namespace) and variable values (oo-15.6/15.8).
+            ok(i, b"oo::class create C { export eval }");
+            ok(i, b"C create a");
+            ok(
+                i,
+                b"a eval {variable y 0; proc foo {} {variable y; incr y}}",
+            );
+            assert_eq!(ok(i, b"a eval foo"), b"1"); // a.y = 1
+            ok(i, b"oo::copy a b");
+            // b inherits y=1 and its own foo (operating on b's y).
+            assert_eq!(ok(i, b"b eval foo"), b"2"); // b.y 1->2
+            assert_eq!(ok(i, b"b eval foo"), b"3"); // b.y 2->3
+                                                    // a's y is untouched by b's foo.
+            assert_eq!(ok(i, b"a eval {set y}"), b"1");
+            assert_eq!(ok(i, b"a eval foo"), b"2"); // a.y 1->2
         });
     }
 
