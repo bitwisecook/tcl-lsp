@@ -126,6 +126,31 @@ build on it — port + golden-test it in isolation first (verify via
 `f5 graph --format json`). (Separate from `irules_object_refs.py` (~944 LOC),
 the iRule-command → object reference resolver used by the `irule`/query paths.)
 
+Keystone progress / remaining pieces:
+- ✅ **object-registry query layer** (`object_registry.py`) → `tcl-registry::bigip`
+  (`kind_for_header`, `candidate_kinds_for_key`/`_for_section_item`,
+  `matches_section`, `default_registry`). Differentially golden-tested (3398
+  probes). `kind_for_header` matches Python exactly.
+- ⛔ **resolve_kind_in_configs** + `build_bigip_object_graph` itself → `tcl-bigip`
+  (needs `BigipConfig` resolvers + `_parse_properties_with_spans` /
+  `_parse_list_block` + range mapping).
+- ⛔ **registry-first dispatch** (`references_via_spec` / pilot value-spec engine,
+  `registry/{pilot,references}.py` ~500 LOC + the value-spec system) — used
+  *additively* alongside the legacy token-scan path; full `f5 graph` parity
+  needs it (it owns the `viaProperty`/edge set for migrated properties).
+- ⛔ **irules_refs** (`extract_irules_object_references`, ~368 LOC) for iRule edges.
+- ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
+
+> **Registry-data drift (blocks full byte-parity, separate workstream):** the
+> generated Rust registry **data** (`tcl-registry/src/bigip/data`, a
+> `gen_bigip_rust.py` baseline) has drifted from current Python for ~14
+> properties' `references` lists (e.g. `monitor` on `cm traffic-group`; `pool`
+> /`last-hop-pool` on `gtm listener*`; `prober-pool` on `gtm datacenter`/`server`;
+> `fw-enforced-policy`/`fw-staged-policy`/`service-policy` on `ltm virtual`;
+> `gw` on `net route`). The query *logic* matches Python; these edges will
+> diverge until the data baseline is regenerated. Pinned in
+> `tcl-registry/tests/fixtures/object_query.drift.txt`.
+
 ## Prioritised remaining roadmap
 
 Done so far (f5): `merge`, `split`, `diff`, `explain` (model-based); `extract`
