@@ -280,7 +280,9 @@ dependencies = [
  "anyhow",
  "clap",
  "clap_complete",
+ "tcl-bigip",
  "tcl-cli-support",
+ "tcl-registry",
 ]
 
 [[package]]
