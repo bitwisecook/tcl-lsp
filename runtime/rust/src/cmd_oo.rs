@@ -1372,12 +1372,19 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // being defined (the classes-as-objects model). `self` alone returns it.
         let def_target = interp.oo.borrow().def_stack.last().cloned();
         if let Some(target) = def_target {
-            let tfqn = match target {
-                DefTarget::Class(c) | DefTarget::Object(c) => c,
+            // C has two `self` commands: `oo::objdefine`'s takes no arguments
+            // (`TclOODefineObjSelfObjCmd`), while `oo::define`'s applies
+            // class-side directives (`TclOODefineSelfObjCmd`).
+            let (tfqn, is_class) = match target {
+                DefTarget::Class(c) => (c, true),
+                DefTarget::Object(o) => (o, false),
             };
             if argv.len() == 1 {
                 interp.set_result(obj::new_string_bytes(&tfqn));
                 return Code::Ok;
+            }
+            if !is_class {
+                return wrong_args(interp, b"self");
             }
             interp
                 .oo
@@ -3675,6 +3682,29 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn define_context_self_arity() {
+        leak_free(|i| {
+            ok(i, b"oo::class create Cls");
+            ok(i, b"Cls create obj");
+            // `oo::define`'s `self` accepts class-side directives; `self` alone
+            // returns the class.
+            assert_eq!(ok(i, b"oo::define Cls {set ::r [self]}; set ::r"), b"::Cls");
+            ok(
+                i,
+                b"oo::define Cls { self { method cm {} {return classside} } }",
+            );
+            assert_eq!(ok(i, b"Cls cm"), b"classside");
+            // `oo::objdefine`'s `self` takes no arguments (oo-36.8).
+            assert_eq!(ok(i, b"oo::objdefine obj {self}"), b"::obj");
+            assert_eq!(
+                i.eval_str(b"oo::objdefine obj {self anything}"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"wrong # args: should be \"self\"");
         });
     }
 
