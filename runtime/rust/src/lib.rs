@@ -46,6 +46,7 @@ pub mod cmd_control;
 pub mod cmd_dict;
 pub mod cmd_error;
 pub mod cmd_eval;
+pub mod cmd_event;
 pub mod cmd_format;
 pub mod cmd_fs;
 pub mod cmd_info;

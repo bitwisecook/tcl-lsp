@@ -22,18 +22,7 @@ use crate::obj::{self, TclObj};
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"rename", rename);
     interp.register_builtin(b"interp", interp_cmd);
-    // `update`/`update idletasks`: background errors are reported synchronously
-    // at their source, so processing the (empty) event queue is a no-op.
-    interp.register_builtin(b"update", update_cmd);
-}
-
-fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() > 2 || (argv.len() == 2 && obj_bytes(argv[1]) != b"idletasks") {
-        return wrong_args(interp, b"update ?idletasks?");
-    }
-    interp.process_bg_errors();
-    interp.set_result_bytes(b"");
-    Code::Ok
+    // `update` is registered by `cmd_event` (the real event loop).
 }
 
 /// Commands that may not be renamed (mirrors Tcl 9's `TclProtectedCommandsList`

@@ -53,6 +53,9 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_misc::install(interp);
     crate::cmd_chan::install(interp);
     crate::cmd_trace::install(interp);
+    // The event loop (`after`/`vwait`/`update`) — registers `update`, replacing
+    // the bgerror-only stub in `cmd_alias`.
+    crate::cmd_event::install(interp);
     // `regexp`/`regsub` need the linked-in Tcl regex engine (the C ARE engine).
     #[cfg(have_regex)]
     crate::cmd_regex::install(interp);

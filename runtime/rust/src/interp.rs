@@ -456,6 +456,8 @@ pub struct InterpState {
     /// Queued background errors `(message, options)`, drained by `update` (Tcl
     /// defers them to the event loop rather than firing at the error site).
     bg_queue: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
+    /// The event loop's pending timer + idle events (`after`/`vwait`/`update`).
+    events: RefCell<crate::cmd_event::EventQueue>,
     result: Cell<*mut TclObj>,
 }
 
@@ -495,6 +497,7 @@ impl Interp {
             cmd_count: Cell::new(0),
             bgerror: RefCell::new(Vec::new()),
             bg_queue: RefCell::new(Vec::new()),
+            events: RefCell::new(crate::cmd_event::EventQueue::default()),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -1749,6 +1752,13 @@ impl Interp {
         self.bg_queue
             .borrow_mut()
             .push((msg.to_vec(), options.to_vec()));
+    }
+
+    /// Mutable access to the event loop's pending-event queue (`after`/`vwait`/
+    /// `update`, in `cmd_event`). Callers must drop the borrow before evaluating
+    /// an event script.
+    pub(crate) fn events_mut(&self) -> std::cell::RefMut<'_, crate::cmd_event::EventQueue> {
+        self.events.borrow_mut()
     }
 
     /// Process queued background errors (called by `update`): invoke the
