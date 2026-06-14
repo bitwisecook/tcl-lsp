@@ -104,6 +104,10 @@ struct Object {
     /// `rename obj {}` and `namespace delete` does not re-run it (C's
     /// `DESTRUCTOR_CALLED`).
     destroyed: bool,
+    /// Current FQNs of the per-object `my`/`myclass` commands. Tracked across
+    /// `rename` so that destroying the object also deletes a `my` renamed out
+    /// of the instance namespace (C ties `my`'s lifetime to the object).
+    my_aliases: Vec<Vec<u8>>,
 }
 
 /// One step of a method-call chain: the provider (object or class FQN) and the
@@ -452,6 +456,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             filters: src_obj.filters,
             variables: src_obj.variables,
             destroyed: false,
+            my_aliases: Vec::new(),
         },
     );
     if let Some(cls) = src_cls {
@@ -1396,6 +1401,11 @@ impl Interp {
         let mut mc = fqn.to_vec();
         mc.extend_from_slice(b"::myclass");
         self.ns_register(&mc, Command::Builtin(myclass_cmd));
+        // Remember these names so the object's teardown deletes them even if
+        // they are later renamed out of the instance namespace.
+        if let Some(o) = self.oo.borrow_mut().objects.get_mut(fqn) {
+            o.my_aliases = vec![name, mc];
+        }
     }
 
     /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`
@@ -2305,6 +2315,15 @@ impl Interp {
                 if let Some(c) = cls {
                     oo.classes.insert(nf.to_vec(), c);
                 }
+                // A renamed per-object `my`/`myclass` follows in the owning
+                // object's alias list, so teardown still finds and deletes it.
+                for o in oo.objects.values_mut() {
+                    for a in &mut o.my_aliases {
+                        if a.as_slice() == old_fqn {
+                            *a = nf.to_vec();
+                        }
+                    }
+                }
             }
             // Deletion (`rename obj {}`): C ties the object's lifetime to its
             // command, so the destructor fires before the registry entry goes.
@@ -2312,7 +2331,8 @@ impl Interp {
                 if self.oo.borrow().classes.contains_key(old_fqn) {
                     self.oo_destroy_class(old_fqn);
                 } else if self.oo.borrow().objects.contains_key(old_fqn) {
-                    self.oo_destroy(old_fqn);
+                    // Implicit teardown swallows the destructor result.
+                    let _ = self.oo_destroy(old_fqn);
                 }
             }
         }
@@ -2336,7 +2356,7 @@ impl Interp {
             .map(|(k, _)| k.clone())
             .collect();
         for v in victims {
-            self.oo_destroy(&v);
+            let _ = self.oo_destroy(&v);
         }
     }
 
@@ -2549,9 +2569,13 @@ impl Interp {
         } else if self.oo.borrow().objects.contains_key(fqn) {
             match argv.get(1).map(|&a| obj_bytes(a)) {
                 Some(m) if m == b"destroy" => {
-                    self.oo_destroy(fqn);
-                    self.set_result_bytes(b"");
-                    Code::Ok
+                    // Explicit `obj destroy` propagates a destructor error to
+                    // its caller; on success the method yields the empty string.
+                    let code = self.oo_destroy(fqn);
+                    if code == Code::Ok {
+                        self.set_result_bytes(b"");
+                    }
+                    code
                 }
                 Some(method) => self.oo_invoke(fqn, &method, &argv[2..], true),
                 None => {
@@ -3204,38 +3228,59 @@ impl Interp {
         code
     }
 
-    fn oo_destroy(&mut self, obj: &[u8]) {
+    /// Destroy an object. Returns the destructor's result `Code`: explicit
+    /// `obj destroy` propagates a destructor error to its caller (C's
+    /// `AfterNRDestructor` returns the destructor result), whereas implicit
+    /// teardown (`rename {}`/`namespace delete`/class cascade) ignores it (those
+    /// errors are routed to `bgerror`). Cleanup of the command/namespace happens
+    /// regardless of the destructor outcome.
+    fn oo_destroy(&mut self, obj: &[u8]) -> Code {
         // Re-entrancy guard (C's DESTRUCTOR_CALLED): run the destructor at most
         // once even if `destroy`/`rename {}`/`namespace delete` all reach here.
         let state = self.oo.borrow().objects.get(obj).map(|o| o.destroyed);
+        let mut dtor_code = Code::Ok;
         match state {
-            None => return, // not an object (or already fully removed)
+            None => return Code::Ok, // not an object (or already fully removed)
             Some(false) => {
                 if let Some(o) = self.oo.borrow_mut().objects.get_mut(obj) {
                     o.destroyed = true;
                 }
-                self.oo_run_destructors(obj);
+                dtor_code = self.oo_run_destructors(obj);
             }
             Some(true) => {} // destructor already running/ran — fall through to cleanup
         }
         // Cleanup: drop the registry entries (a metaclass instance is in both
         // maps), the command, the per-object `my`/`myclass`, and the object's
         // own variable namespace (C deletes the instance namespace).
-        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
+        let (var_ns, aliases) = {
+            let oo = self.oo.borrow();
+            let o = oo.objects.get(obj);
+            (
+                o.map(|o| o.var_ns),
+                o.map(|o| o.my_aliases.clone()).unwrap_or_default(),
+            )
+        };
         self.oo.borrow_mut().objects.remove(obj);
         self.oo.borrow_mut().classes.remove(obj);
         self.delete_command(obj);
+        // A `my`/`myclass` command renamed out of the object's namespace (e.g.
+        // `rename ::obj::my ::objmy`) is still tied to the object's lifetime in
+        // C, so delete it here too (deleting the var-ns alone would miss it).
+        for a in aliases {
+            self.delete_command(&a);
+        }
         if let Some(ns) = var_ns {
             self.delete_namespace_by_id(ns);
         }
+        dtor_code
     }
 
     /// Run the object's destructor chain (every class in the MRO that declares a
     /// `destructor`, most-derived first, with `next` chaining), with the object
     /// still intact so the body's `my`/variables resolve.
-    fn oo_run_destructors(&mut self, obj: &[u8]) {
+    fn oo_run_destructors(&mut self, obj: &[u8]) -> Code {
         let Some(class) = self.oo.borrow().objects.get(obj).map(|o| o.class.clone()) else {
-            return;
+            return Code::Ok;
         };
         let chain: Vec<CallStep> = self
             .mro(&class)
@@ -3252,11 +3297,13 @@ impl Interp {
                 method: b"<destructor>".to_vec(),
             })
             .collect();
-        if !chain.is_empty() {
-            // A destructor error is reported as a background error, not
-            // propagated (C's AfterNRDestructor).
-            let _ = self.oo_run(obj, chain, 0, b"<destructor>", &[]);
+        if chain.is_empty() {
+            return Code::Ok;
         }
+        // The destructor result is returned to the caller: explicit `obj
+        // destroy` propagates it (C's `AfterNRDestructor`); implicit teardown
+        // ignores it (routing to `bgerror`).
+        self.oo_run(obj, chain, 0, b"<destructor>", &[])
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
@@ -3287,7 +3334,7 @@ impl Interp {
             .map(|(k, _)| k.clone())
             .collect();
         for o in insts {
-            self.oo_destroy(&o);
+            let _ = self.oo_destroy(&o);
         }
         self.oo.borrow_mut().classes.remove(class);
         self.oo.borrow_mut().objects.remove(class);
@@ -3758,6 +3805,33 @@ mod tests {
                 i.result_bytes(),
                 b"can't create object \"K\": command already exists with that name"
             );
+        });
+    }
+
+    #[test]
+    fn destructor_error_propagation_and_renamed_my_teardown() {
+        leak_free(|i| {
+            // Explicit `obj destroy` propagates a destructor error to its caller
+            // (oo-3.6); the object command is still removed.
+            ok(i, b"oo::class create cls { destructor { error foo } }");
+            assert_eq!(
+                ok(
+                    i,
+                    b"list [catch {[cls create obj] destroy} m] $m [info commands obj]"
+                ),
+                b"1 foo {}"
+            );
+            // Implicit teardown (rename {}) swallows the destructor error.
+            ok(i, b"cls create obj2");
+            ok(i, b"rename obj2 {}");
+            // A `my` renamed out of the instance namespace is deleted when the
+            // object is destroyed (oo-3.4): tie its lifetime to the object.
+            ok(i, b"oo::class create plain { constructor {} {} }");
+            ok(i, b"plain create p");
+            ok(i, b"rename [info object namespace p]::my ::pmy");
+            assert_eq!(ok(i, b"info commands ::pmy"), b"::pmy");
+            ok(i, b"p destroy");
+            assert_eq!(ok(i, b"info commands ::pmy"), b"");
         });
     }
 

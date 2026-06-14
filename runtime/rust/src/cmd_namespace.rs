@@ -201,28 +201,32 @@ fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut want_variable = false;
     let mut name: Option<Vec<u8>> = None;
+    // The flags accept unambiguous prefix abbreviations (`-var`, `-com`), as
+    // Tcl's option table does; a non-flag argument (or one after another flag)
+    // is the name. Only one name is allowed.
     for &a in &argv[2..] {
         let b = obj_bytes(a);
-        match b.as_slice() {
-            b"-command" => {}
-            b"-variable" => want_variable = true,
-            _ => {
-                if name.is_some() {
-                    return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
-                }
-                name = Some(b);
+        let is_flag = b.first() == Some(&b'-') && name.is_none();
+        if is_flag && b.len() > 1 && b"-command".starts_with(b.as_slice()) {
+            // -command (default behaviour)
+        } else if is_flag && b.len() > 1 && b"-variable".starts_with(b.as_slice()) {
+            want_variable = true;
+        } else {
+            if name.is_some() {
+                return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
             }
+            name = Some(b);
         }
     }
     let Some(name) = name else {
         return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
     };
-    if want_variable {
-        interp.set_result_bytes(b""); // ns variables not modelled yet
-        return Code::Ok;
-    }
     let cur = interp.current_ns();
-    let fqn = interp.namespaces().which_command(cur, &name);
+    let fqn = if want_variable {
+        interp.namespaces().which_variable(cur, &name)
+    } else {
+        interp.namespaces().which_command(cur, &name)
+    };
     interp.set_result_bytes(&fqn.unwrap_or_default());
     Code::Ok
 }
@@ -795,6 +799,27 @@ mod tests {
             assert_eq!(i.eval_str(b"namespace which -command set"), Code::Ok);
             assert_eq!(i.result_bytes(), b"::set");
             assert_eq!(i.eval_str(b"namespace which nope"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            // Prefix abbreviation of the flags (`-com`, `-var`).
+            assert_eq!(i.eval_str(b"namespace which -com set"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::set");
+        });
+    }
+
+    #[test]
+    fn which_variable_resolves_namespace_var_fqn() {
+        leak_free(|i| {
+            // `namespace which -variable` resolves a namespace variable to its
+            // FQN (ignoring local proc links); a missing one yields "".
+            assert_eq!(
+                i.eval_str(b"namespace eval ::n { variable gv 1 }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"namespace which -variable ::n::gv"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::n::gv");
+            assert_eq!(i.eval_str(b"namespace which -var ::n::gv"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::n::gv");
+            assert_eq!(i.eval_str(b"namespace which -variable ::n::nope"), Code::Ok);
             assert_eq!(i.result_bytes(), b"");
         });
     }
