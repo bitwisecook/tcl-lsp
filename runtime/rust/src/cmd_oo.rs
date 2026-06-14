@@ -5230,13 +5230,17 @@ impl Interp {
         for s in subs {
             self.oo_destroy_class(&s);
         }
-        // Then this class's direct instances.
+        // Then this class's direct instances *and* any object that mixes it in
+        // (C's instances list includes the objects we're mixed into).
         let insts: Vec<Vec<u8>> = self
             .oo
             .borrow()
             .objects
             .iter()
-            .filter(|(k, o)| k.as_slice() != class && o.class == class)
+            .filter(|(k, o)| {
+                k.as_slice() != class
+                    && (o.class == class || o.mixins.iter().any(|m| m.as_slice() == class))
+            })
             .map(|(k, _)| k.clone())
             .collect();
         for o in insts {
@@ -6597,6 +6601,22 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn class_destroy_cascades_to_mixin_users() {
+        leak_free(|i| {
+            // Destroying a class destroys objects that mix it in; an object
+            // whose mixin was cleared survives.
+            ok(i, b"oo::class create A");
+            ok(i, b"oo::class create B");
+            ok(i, b"oo::objdefine [A create keep] mixin B");
+            ok(i, b"oo::objdefine [A create gone] mixin B");
+            ok(i, b"oo::objdefine keep mixin");
+            ok(i, b"B destroy");
+            assert_eq!(ok(i, b"info object isa object gone"), b"0");
+            assert_eq!(ok(i, b"info object isa object keep"), b"1");
         });
     }
 
