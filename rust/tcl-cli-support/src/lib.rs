@@ -11,6 +11,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod chrome;
 mod highlight;
 mod input;
 mod output;

@@ -31,7 +31,7 @@ where
     match dispatch(&cli.command) {
         Ok(code) => ExitCode::from(code),
         Err(err) => {
-            eprintln!("error: {err:#}");
+            tcl_cli_support::chrome::eprint_error(format!("{err:#}"));
             ExitCode::from(2)
         }
     }
