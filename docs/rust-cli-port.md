@@ -145,11 +145,19 @@ Keystone progress / remaining pieces:
   `build_bigip_object_graph`) → `tcl-bigip::graph` (`ObjectEdge`/`ObjectGraph`).
   Reproduces every Python legacy edge in order; 2 frozen drift edges pinned
   (`graph_edges_legacy.drift.txt`).
-- ⛔ **registry-first dispatch** (`references_via_spec` / pilot value-spec engine,
-  `registry/{pilot,references,value_specs,properties}.py` — `value_specs.py`
-  alone is ~1777 LOC, ~25 spec classes) — used *additively* alongside the legacy
-  path; full `f5 graph` parity needs it (owns the `viaProperty`/edge set for the
-  19 migrated properties). **Approved for full port.**
+- 🛠 **registry-first dispatch** (`references_via_spec` / pilot value-spec engine)
+  — **in progress, full port approved**. Wired into the edge walk (runs before
+  the legacy path, shared dedup) + `candidate_registry_kinds_for_display`. The
+  graph only consumes each `Reference`'s `(target_kind, target_path)`, so each
+  pilot spec is a **slim extractor** over the raw value (no full `ValueSpec`/
+  `BigipList` materialisation).
+  - ✅ `ListSpec(ObjectRefSpec)` family (`rules`/`policies`/`vlans`/firewall
+    `rule-lists`/`address-lists`) — golden-tested (pilot-only `policies`/`vlans`
+    edges verified); 2 pinned drift edges.
+  - ⛔ compound specs: `MonitorExpressionSpec`, `ProfileAttachmentSpec`,
+    `PersistenceAttachmentSpec`, `DestinationSpec`, `SnatModeSpec`,
+    `CertKeyChainSpec`, `DataGroupRecordSpec`, `GtmRegionMemberSpec`,
+    `LtmPolicyRuleSpec`, `FirewallRuleSpec`.
 - ⛔ **irules_refs** (`extract_irules_object_references`, ~368 LOC) for iRule edges.
 - ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
 
