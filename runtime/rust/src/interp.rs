@@ -426,6 +426,13 @@ pub struct InterpState {
     eval_depth: Cell<usize>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
+    /// The `interp bgerror` handler command prefix (a Tcl list). Empty means the
+    /// default. A background error (e.g. a destructor failing during implicit
+    /// teardown) is reported to it: `{*}$handler $message $options`.
+    bgerror: RefCell<Vec<u8>>,
+    /// Queued background errors `(message, options)`, drained by `update` (Tcl
+    /// defers them to the event loop rather than firing at the error site).
+    bg_queue: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
     result: Cell<*mut TclObj>,
 }
 
@@ -462,6 +469,8 @@ impl Interp {
             cmd_frames: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
+            bgerror: RefCell::new(Vec::new()),
+            bg_queue: RefCell::new(Vec::new()),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -1650,6 +1659,63 @@ impl Interp {
         Code::Error
     }
 
+    /// The `interp bgerror` handler command prefix (empty ⇒ default).
+    pub(crate) fn bgerror_handler(&self) -> Vec<u8> {
+        self.bgerror.borrow().clone()
+    }
+
+    /// Set the `interp bgerror` handler command prefix.
+    pub(crate) fn set_bgerror_handler(&self, prefix: &[u8]) {
+        *self.bgerror.borrow_mut() = prefix.to_vec();
+    }
+
+    /// Queue a background error (a destructor failing during implicit teardown,
+    /// etc.) for later processing by `update` — Tcl defers it to the event loop
+    /// rather than firing at the error site.
+    pub(crate) fn report_bg_error(&mut self, msg: &[u8], options: &[u8]) {
+        self.bg_queue
+            .borrow_mut()
+            .push((msg.to_vec(), options.to_vec()));
+    }
+
+    /// Process queued background errors (called by `update`): invoke the
+    /// `interp bgerror` handler as `{*}$handler $msg $options` for each. With no
+    /// handler set they are dropped. The caller's result is preserved.
+    pub(crate) fn process_bg_errors(&mut self) {
+        // Drain in FIFO order; processing one may queue more.
+        while !self.bg_queue.borrow().is_empty() {
+            let batch: Vec<(Vec<u8>, Vec<u8>)> = std::mem::take(&mut self.bg_queue.borrow_mut());
+            for (msg, options) in batch {
+                let handler = self.bgerror_handler();
+                if handler.is_empty() {
+                    continue;
+                }
+                let saved = self.result_bytes();
+                let hobj = obj::new_string_bytes(&handler);
+                unsafe { obj::incr_ref_count(hobj) };
+                let words = crate::list::list_elements(hobj).unwrap_or_default();
+                let mut argv: Vec<*mut TclObj> = Vec::with_capacity(words.len() + 2);
+                for w in words {
+                    unsafe { obj::incr_ref_count(w) };
+                    argv.push(w);
+                }
+                for s in [&msg, &options] {
+                    let o = obj::new_string_bytes(s);
+                    unsafe { obj::incr_ref_count(o) };
+                    argv.push(o);
+                }
+                if !argv.is_empty() {
+                    let _ = self.dispatch(&argv);
+                }
+                for a in &argv {
+                    unsafe { obj::decr_ref_count(*a) };
+                }
+                unsafe { obj::decr_ref_count(hobj) };
+                self.set_result_bytes(&saved);
+            }
+        }
+    }
+
     /// Pre-seed the error trace for `error msg info ?code?` / `throw`: the result
     /// is `msg`, the trace starts at `info` (so the throwing command is **not**
     /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns
@@ -1957,6 +2023,12 @@ impl Interp {
         // `catch` would (`catch` publishes earlier, at depth > 0).
         if self.eval_depth.get() == 0 && last == Code::Error {
             self.publish_error();
+        }
+        // Between top-level commands, drain any queued background errors with the
+        // current handler — the event loop's behaviour, so errors from one
+        // command don't leak into a later command's intercepted handler.
+        if self.eval_depth.get() == 0 && !self.bg_queue.borrow().is_empty() {
+            self.process_bg_errors();
         }
         last
     }

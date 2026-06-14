@@ -3443,7 +3443,7 @@ impl Interp {
                     self.oo_destroy_class(old_fqn);
                 } else if self.oo.borrow().objects.contains_key(old_fqn) {
                     // Implicit teardown swallows the destructor result.
-                    let _ = self.oo_destroy(old_fqn);
+                    self.oo_destroy_bg(old_fqn);
                 }
             }
         }
@@ -3467,7 +3467,7 @@ impl Interp {
             .map(|(k, _)| k.clone())
             .collect();
         for v in victims {
-            let _ = self.oo_destroy(&v);
+            self.oo_destroy_bg(&v);
         }
     }
 
@@ -4755,12 +4755,32 @@ impl Interp {
         code
     }
 
+    /// Destroy an object during implicit teardown, routing a destructor error to
+    /// the `interp bgerror` handler (C's `AfterNRDestructor` → background error).
+    fn oo_destroy_bg(&mut self, obj: &[u8]) {
+        if self.oo_destroy(obj) == Code::Error {
+            let msg = self.result_bytes();
+            let ec = self.error_code();
+            let options = build_list(&[
+                b"-code".to_vec(),
+                b"1".to_vec(),
+                b"-level".to_vec(),
+                b"0".to_vec(),
+                b"-errorcode".to_vec(),
+                ec,
+                b"-errorinfo".to_vec(),
+                msg.clone(),
+            ]);
+            self.report_bg_error(&msg, &options);
+        }
+    }
+
     /// Destroy an object. Returns the destructor's result `Code`: explicit
     /// `obj destroy` propagates a destructor error to its caller (C's
     /// `AfterNRDestructor` returns the destructor result), whereas implicit
-    /// teardown (`rename {}`/`namespace delete`/class cascade) ignores it (those
-    /// errors are routed to `bgerror`). Cleanup of the command/namespace happens
-    /// regardless of the destructor outcome.
+    /// teardown (`rename {}`/`namespace delete`/class cascade) reports it to
+    /// `bgerror`. Cleanup of the command/namespace happens regardless of the
+    /// destructor outcome.
     fn oo_destroy(&mut self, obj: &[u8]) -> Code {
         // Re-entrancy guard (C's DESTRUCTOR_CALLED): run the destructor at most
         // once even if `destroy`/`rename {}`/`namespace delete` all reach here.
@@ -4861,7 +4881,7 @@ impl Interp {
             .map(|(k, _)| k.clone())
             .collect();
         for o in insts {
-            let _ = self.oo_destroy(&o);
+            self.oo_destroy_bg(&o);
         }
         self.oo.borrow_mut().classes.remove(class);
         self.oo.borrow_mut().objects.remove(class);
@@ -5337,6 +5357,25 @@ mod tests {
             // Unexporting destroy hides it from `-all` (oo-17.10).
             ok(i, b"oo::define C unexport {*}[info class methods C -all]");
             assert_eq!(ok(i, b"info class methods C -all"), b"");
+        });
+    }
+
+    #[test]
+    fn destructor_error_goes_to_bgerror() {
+        leak_free(|i| {
+            // A destructor erroring during implicit teardown (`rename {}`) is
+            // queued as a background error and reported to the `interp bgerror`
+            // handler at `update`, not propagated (oo-3.7/3.8).
+            ok(
+                i,
+                b"interp bgerror {} [list apply {{var msg args} {upvar #0 $var v; lappend v $msg}} ::caught]",
+            );
+            ok(i, b"oo::class create cls { destructor {error boom} }");
+            ok(i, b"set ::caught {}; cls create obj");
+            ok(i, b"rename obj {}");
+            ok(i, b"update idletasks");
+            assert_eq!(ok(i, b"set ::caught"), b"boom");
+            ok(i, b"interp bgerror {} {}");
         });
     }
 
