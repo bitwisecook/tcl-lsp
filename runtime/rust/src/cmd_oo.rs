@@ -1663,16 +1663,22 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(x) => x,
         Err(m) => return err(interp, &m),
     };
-    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
+    // TIP 516: resolve each name as a class (current namespace, then global —
+    // C's `Slot_ResolveClass`), storing the canonical FQN so the slot tracks
+    // classes, not strings. An unresolvable name is kept as-is; validation runs
+    // in the setter, so only the items being *added* are checked.
+    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.oo_resolve_object(v)).collect();
     // C resolves each via Tcl_GetObjectFromObj (→ `X does not refer to an
     // object`, as-written) then requires it be a class (→ `only a class can be
     // a superclass`).
-    for (s, raw) in resolved.iter().zip(vals.iter()) {
-        if !interp.oo.borrow().objects.contains_key(s) {
-            return not_object(interp, raw);
-        }
-        if !interp.oo.borrow().classes.contains_key(s) {
-            return err(interp, b"only a class can be a superclass");
+    if op_validates(&op) {
+        for (s, raw) in resolved.iter().zip(vals.iter()) {
+            if !interp.oo.borrow().objects.contains_key(s) {
+                return not_object(interp, raw);
+            }
+            if !interp.oo.borrow().classes.contains_key(s) {
+                return err(interp, b"only a class can be a superclass");
+            }
         }
     }
     let current = interp
@@ -1757,6 +1763,17 @@ fn slot_op_split(args: &[Vec<u8>], default: SlotOp) -> Result<(SlotOp, &[Vec<u8>
         }
         _ => (default, args),
     })
+}
+
+/// Whether a slot op *adds* items (so the class/object slots must validate the
+/// supplied values). `-remove`/`-clear` only drop items, so a now-deleted name
+/// is harmless and is not validated (C validates in the setter, over the
+/// resulting list — which for these ops is a subset of the already-valid set).
+fn op_validates(op: &SlotOp) -> bool {
+    matches!(
+        op,
+        SlotOp::Set | SlotOp::Append | SlotOp::Prepend | SlotOp::AppendIfNew
+    )
 }
 
 /// Apply a slot op to the current list, yielding the new list.
@@ -1948,15 +1965,20 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(x) => x,
         Err(m) => return err(interp, &m),
     };
-    // Resolve each value to a class FQN and validate it (C: `X does not refer
-    // to an object`, as-written, then `may only mix in classes`).
-    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
-    for (mx, raw) in resolved.iter().zip(vals.iter()) {
-        if !interp.oo.borrow().objects.contains_key(mx) {
-            return not_object(interp, raw);
-        }
-        if !interp.oo.borrow().classes.contains_key(mx) {
-            return err(interp, b"may only mix in classes");
+    // Resolve each value to a class FQN (TIP 516: current namespace then
+    // global, C's `Slot_ResolveClass` — an unresolvable name is kept as-is).
+    // Validation (`X does not refer to an object`, as-written, then `may only
+    // mix in classes`) happens in the setter, so only the items being *added*
+    // are checked; `-remove`/`-clear` may name a now-deleted class harmlessly.
+    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.oo_resolve_object(v)).collect();
+    if op_validates(&op) {
+        for (mx, raw) in resolved.iter().zip(vals.iter()) {
+            if !interp.oo.borrow().objects.contains_key(mx) {
+                return not_object(interp, raw);
+            }
+            if !interp.oo.borrow().classes.contains_key(mx) {
+                return err(interp, b"may only mix in classes");
+            }
         }
     }
     let target = match def_target(interp) {
