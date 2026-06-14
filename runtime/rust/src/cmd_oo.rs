@@ -3124,25 +3124,55 @@ impl Interp {
                 chain.push(c.to_vec());
             }
         };
-        if let Some(o) = self.oo.borrow().objects.get(obj) {
-            for mx in &o.mixins {
-                for c in self.mro(mx) {
-                    push(&c, &mut chain);
+        let (obj_mixins, cls, cls_mixins) = {
+            let oo = self.oo.borrow();
+            match oo.objects.get(obj) {
+                Some(o) => {
+                    let cls = o.class.clone();
+                    let cm = oo.classes.get(&cls).map(|c| c.mixins.clone());
+                    (o.mixins.clone(), Some(cls), cm.unwrap_or_default())
                 }
+                None => (Vec::new(), None, Vec::new()),
             }
-            let cls = o.class.clone();
-            if let Some(cl) = self.oo.borrow().classes.get(&cls) {
-                for mx in &cl.mixins {
-                    for c in self.mro(mx) {
-                        push(&c, &mut chain);
-                    }
-                }
-            }
+        };
+        let mut guard: Vec<Vec<u8>> = Vec::new();
+        for mx in &obj_mixins {
+            self.push_mixin_precedence(mx, &mut chain, &mut guard);
+        }
+        for mx in &cls_mixins {
+            self.push_mixin_precedence(mx, &mut chain, &mut guard);
+        }
+        if let Some(cls) = cls {
             for c in self.mro(&cls) {
                 push(&c, &mut chain);
             }
         }
         chain
+    }
+
+    /// Append a mixin's full precedence to the call chain: the mixin's own
+    /// mixins (recursively, so mixins-of-mixins are reachable — Bug 1960703,
+    /// oo-14.6), then the mixin and its superclass MRO. `guard` breaks cycles.
+    fn push_mixin_precedence(&self, mx: &[u8], chain: &mut Vec<Vec<u8>>, guard: &mut Vec<Vec<u8>>) {
+        if guard.iter().any(|g| g == mx) {
+            return;
+        }
+        guard.push(mx.to_vec());
+        let nested = self
+            .oo
+            .borrow()
+            .classes
+            .get(mx)
+            .map(|c| c.mixins.clone())
+            .unwrap_or_default();
+        for m2 in &nested {
+            self.push_mixin_precedence(m2, chain, guard);
+        }
+        for c in self.mro(mx) {
+            if !chain.iter().any(|x| x == &c) {
+                chain.push(c);
+            }
+        }
     }
 
     /// If `word` (a forward's command name) names a command in `obj`'s instance
@@ -3741,6 +3771,28 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn mixin_of_mixin_methods_are_reachable() {
+        leak_free(|i| {
+            // Bug 1960703 (oo-14.6): a method from a mixin's own mixin is
+            // reachable via the call chain.
+            ok(i, b"oo::class create parent");
+            ok(
+                i,
+                b"oo::class create A { superclass parent; method egg {} {return chicken} }",
+            );
+            ok(
+                i,
+                b"oo::class create B { superclass parent; mixin A; method bar {} {my egg} }",
+            );
+            ok(
+                i,
+                b"oo::class create C { superclass parent; mixin B; method foo {} {my bar} }",
+            );
+            assert_eq!(ok(i, b"[C new] foo"), b"chicken");
         });
     }
 
