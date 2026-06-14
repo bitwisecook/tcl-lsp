@@ -17,6 +17,7 @@
 
 pub mod apl;
 pub mod canonical;
+pub mod graph;
 pub mod model;
 pub mod parser;
 pub mod range;
