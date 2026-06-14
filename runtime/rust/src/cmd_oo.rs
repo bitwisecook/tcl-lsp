@@ -3945,6 +3945,9 @@ impl Interp {
                 // move from both to avoid a dangling half-entry.
                 let obj = oo.objects.remove(old_fqn);
                 let cls = oo.classes.remove(old_fqn);
+                // Only an actual OO object/class command gets re-bound below (not
+                // an incidental rename of `my` or some unrelated command).
+                let was_oo_object = obj.is_some() || cls.is_some();
                 if let Some(o) = obj {
                     oo.objects.insert(nf.to_vec(), o);
                 }
@@ -3953,12 +3956,43 @@ impl Interp {
                 }
                 // A renamed per-object `my`/`myclass` follows in the owning
                 // object's alias list, so teardown still finds and deletes it.
+                // References to the renamed object/class in other records' class,
+                // superclass, and mixin lists follow too — C tracks objects by
+                // pointer, so a rename is transparent to its dependents (e.g. a
+                // class mixed into its own renamed instance; oo-23.1).
                 for o in oo.objects.values_mut() {
                     for a in &mut o.my_aliases {
                         if a.as_slice() == old_fqn {
                             *a = nf.to_vec();
                         }
                     }
+                    if o.class.as_slice() == old_fqn {
+                        o.class = nf.to_vec();
+                    }
+                    for m in &mut o.mixins {
+                        if m.as_slice() == old_fqn {
+                            *m = nf.to_vec();
+                        }
+                    }
+                }
+                for c in oo.classes.values_mut() {
+                    for s in &mut c.supers {
+                        if s.as_slice() == old_fqn {
+                            *s = nf.to_vec();
+                        }
+                    }
+                    for m in &mut c.mixins {
+                        if m.as_slice() == old_fqn {
+                            *m = nf.to_vec();
+                        }
+                    }
+                }
+                drop(oo);
+                // The object command embeds its own FQN (returned by `self` and
+                // used to resolve the object); re-bind it under the new name so a
+                // renamed object reports and dispatches as its new name (oo-23.1).
+                if was_oo_object {
+                    self.ns_register(nf, Command::OoObject(nf.to_vec()));
                 }
             }
             // Deletion (`rename obj {}`): C ties the object's lifetime to its
