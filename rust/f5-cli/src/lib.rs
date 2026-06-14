@@ -38,7 +38,18 @@ where
 }
 
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
-    // Phase 0 scaffolding: see `tcl_cli::dispatch`.
-    let verb = command.verb_name();
-    anyhow::bail!("`f5 {verb}` is not yet implemented in the Rust port");
+    match command {
+        Command::Completion { shell } => {
+            use clap::CommandFactory;
+            let mut cmd = Cli::command();
+            clap_complete::generate(*shell, &mut cmd, "f5-query", &mut std::io::stdout());
+            Ok(0)
+        }
+        // Verbs not yet ported (the BIG-IP engines land in later phases) fall
+        // through to a clear not-implemented error.
+        other => {
+            let verb = other.verb_name();
+            anyhow::bail!("`f5 {verb}` is not yet implemented in the Rust port");
+        }
+    }
 }

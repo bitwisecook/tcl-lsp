@@ -78,3 +78,45 @@ where
         .with(TableStyle::rounded())
         .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{dim_style, error_style, heading_style, render_table, success_style, warn_style};
+
+    #[derive(tabled::Tabled)]
+    struct Row {
+        name: &'static str,
+        count: usize,
+    }
+
+    #[test]
+    fn render_table_emits_header_rows_and_border() {
+        let table = render_table([
+            Row {
+                name: "pool",
+                count: 3,
+            },
+            Row {
+                name: "node",
+                count: 5,
+            },
+        ]);
+        assert!(table.contains("name"), "header present: {table}");
+        assert!(
+            table.contains("pool") && table.contains('5'),
+            "rows present"
+        );
+        assert!(table.contains('─'), "rounded border drawn");
+    }
+
+    #[test]
+    fn styles_construct() {
+        // Smoke-check the palette builders don't panic and differ from plain.
+        let plain = anstyle::Style::new();
+        assert_ne!(error_style(), plain);
+        assert_ne!(warn_style(), plain);
+        assert_ne!(success_style(), plain);
+        assert_ne!(heading_style(), plain);
+        assert_ne!(dim_style(), plain);
+    }
+}
