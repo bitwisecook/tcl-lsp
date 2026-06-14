@@ -288,26 +288,12 @@ pub fn install(interp: &mut Interp) {
     // are resolved by the global builtins + the define-context fallback.
     let _ = interp.eval_str(b"namespace eval ::oo::define {}; namespace eval ::oo::objdefine {}");
     install_slot_class(interp);
-    // TIP 558 property slots: invoked as `oo::define c
-    // ::oo::configuresupport::readableproperties -set …` etc. Each manages the
-    // class's (or object's) readable/writable property set.
     let _ = interp.eval_str(b"namespace eval ::oo::configuresupport {}");
-    interp.ns_register(
-        b"::oo::configuresupport::readableproperties",
-        Command::Builtin(prop_slot_class_readable),
-    );
-    interp.ns_register(
-        b"::oo::configuresupport::writableproperties",
-        Command::Builtin(prop_slot_class_writable),
-    );
-    interp.ns_register(
-        b"::oo::configuresupport::objreadableproperties",
-        Command::Builtin(prop_slot_obj_readable),
-    );
-    interp.ns_register(
-        b"::oo::configuresupport::objwritableproperties",
-        Command::Builtin(prop_slot_obj_writable),
-    );
+    // The seven definition slots and the four TIP 558 property slots are real
+    // `::oo::Slot` instances (C's `TclOODefineSlots`), invoked e.g. as
+    // `oo::define c ::oo::configuresupport::readableproperties -set …`. Their
+    // per-instance `Get`/`Set` read/write the active definition target's lists.
+    install_slot_instances(interp);
     install_configurable(interp);
     register_define_ns_commands(interp);
 }
@@ -315,7 +301,9 @@ pub fn install(interp: &mut Interp) {
 /// Register the definition subcommands as real commands in `::oo::define` /
 /// `::oo::objdefine` (e.g. `::oo::define::method`). Invoked outside a definition
 /// context they report C's "this command may only be called …" error; inside
-/// one they dispatch like the bare definition subcommand.
+/// one they dispatch like the bare definition subcommand. The list-valued slots
+/// (`filter`/`mixin`/`superclass`/`variable`) are *not* listed here: they are
+/// real `::oo::Slot` instances installed by `install_slot_instances`.
 fn register_define_ns_commands(interp: &mut Interp) {
     const CLASS: &[&[u8]] = &[
         b"constructor",
@@ -323,30 +311,23 @@ fn register_define_ns_commands(interp: &mut Interp) {
         b"deletemethod",
         b"destructor",
         b"export",
-        b"filter",
         b"forward",
         b"method",
-        b"mixin",
         b"private",
         b"renamemethod",
         b"self",
-        b"superclass",
         b"unexport",
-        b"variable",
     ];
     const OBJ: &[&[u8]] = &[
         b"class",
         b"deletemethod",
         b"export",
-        b"filter",
         b"forward",
         b"method",
-        b"mixin",
         b"private",
         b"renamemethod",
         b"self",
         b"unexport",
-        b"variable",
     ];
     for sub in CLASS {
         let mut fqn = b"::oo::define::".to_vec();
@@ -445,19 +426,6 @@ fn install_abstract_singleton(interp: &mut Interp) {
         b"oo::class create ::oo::abstract { superclass ::oo::class }\n\
           oo::define ::oo::abstract unexport create createWithNamespace new",
     );
-}
-
-fn prop_slot_class_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    prop_slot_op(interp, argv, false, false)
-}
-fn prop_slot_class_writable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    prop_slot_op(interp, argv, false, true)
-}
-fn prop_slot_obj_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    prop_slot_op(interp, argv, true, false)
-}
-fn prop_slot_obj_writable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    prop_slot_op(interp, argv, true, true)
 }
 
 fn prop_define_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -887,40 +855,6 @@ fn write_property_set(
     }
 }
 
-/// Apply a TIP 558 property-slot operation to the current definition target's
-/// readable/writable property set. `want_object` selects the `obj*` slots
-/// (object context) vs the class slots; `writable` selects which list. The
-/// stored set is uniqued (first-wins, unsorted — `info … properties` sorts).
-fn prop_slot_op(
-    interp: &mut Interp,
-    argv: &[*mut TclObj],
-    want_object: bool,
-    writable: bool,
-) -> Code {
-    let target = match def_target(interp) {
-        Ok(t) => t,
-        Err(code) => return code,
-    };
-    // The base Slot default operation is `-append`.
-    let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let (op, vals) = match slot_op_split(&raw, SlotOp::Append) {
-        Ok(x) => x,
-        Err(m) => return err(interp, &m),
-    };
-    // Read the current set, apply, then unique (first occurrence wins).
-    let current = read_property_set(interp, &target, want_object, writable);
-    let applied = slot_apply(&op, &current, vals);
-    let mut uniq: Vec<Vec<u8>> = Vec::with_capacity(applied.len());
-    for v in applied {
-        if !uniq.contains(&v) {
-            uniq.push(v);
-        }
-    }
-    write_property_set(interp, &target, want_object, writable, uniq);
-    interp.set_result_bytes(b"");
-    Code::Ok
-}
-
 /// Define `::oo::Slot` (TIP 380): the overridable `Get`/`Set`/`Resolve` and the
 /// `unknown`-driven defaulting are pure Tcl; the `-set`/`-append`/… operations
 /// are native so they add no call frame (the `info level` the ops observe
@@ -961,6 +895,211 @@ fn install_slot_class(interp: &mut Interp) {
             cl.methods.insert(name.to_vec(), Method::Builtin(*f));
         }
     }
+}
+
+/// The eleven built-in slot objects (`::oo::Slot` instances) that C's
+/// `TclOODefineSlots` installs in every interp: the list-valued definition
+/// slots and the TIP 558 property slots. `oo-1.21` / `oo-34.*` introspect them
+/// (`info class instances ::oo::Slot`, per-slot method lists). Each gets
+/// per-instance `Get`/`Set` (native, operating on the active definition target)
+/// plus, for the class-reference slots, a `Resolve` (resolves a class name) and
+/// a `--default-operation` forwarding to `-set`.
+fn install_slot_instances(interp: &mut Interp) {
+    // (slot object name, is a class-reference slot: mixin/superclass)
+    const SLOTS: &[(&[u8], bool)] = &[
+        (b"::oo::define::filter", false),
+        (b"::oo::define::mixin", true),
+        (b"::oo::define::superclass", true),
+        (b"::oo::define::variable", false),
+        (b"::oo::objdefine::filter", false),
+        (b"::oo::objdefine::mixin", true),
+        (b"::oo::objdefine::variable", false),
+        (b"::oo::configuresupport::readableproperties", false),
+        (b"::oo::configuresupport::writableproperties", false),
+        (b"::oo::configuresupport::objreadableproperties", false),
+        (b"::oo::configuresupport::objwritableproperties", false),
+    ];
+    for (name, class_ref) in SLOTS {
+        let mut script = b"::oo::Slot create ".to_vec();
+        script.extend_from_slice(name);
+        let _ = interp.eval_str(&script);
+        if let Some(o) = interp.oo.borrow_mut().objects.get_mut(*name) {
+            o.methods
+                .insert(b"Get".to_vec(), Method::Builtin(slot_inst_get));
+            o.methods
+                .insert(b"Set".to_vec(), Method::Builtin(slot_inst_set));
+            o.unexported.insert(b"Get".to_vec());
+            o.unexported.insert(b"Set".to_vec());
+            if *class_ref {
+                o.methods
+                    .insert(b"Resolve".to_vec(), Method::Builtin(slot_inst_resolve));
+                o.unexported.insert(b"Resolve".to_vec());
+                // Class-reference slots default to `-set` (not the base `-append`).
+                o.methods.insert(
+                    b"--default-operation".to_vec(),
+                    Method::Forward {
+                        prefix: vec![b"my".to_vec(), b"-set".to_vec()],
+                    },
+                );
+                o.unexported.insert(b"--default-operation".to_vec());
+            }
+        }
+    }
+}
+
+/// Classify a built-in slot object by name into the definition-target field it
+/// reads/writes. `None` for the property slots (handled via `read/write_
+/// property_set`) or an unknown name.
+fn slot_property_kind(slot: &[u8]) -> Option<(bool, bool)> {
+    // (want_object, writable)
+    match slot {
+        b"::oo::configuresupport::readableproperties" => Some((false, false)),
+        b"::oo::configuresupport::writableproperties" => Some((false, true)),
+        b"::oo::configuresupport::objreadableproperties" => Some((true, false)),
+        b"::oo::configuresupport::objwritableproperties" => Some((true, true)),
+        _ => None,
+    }
+}
+
+/// Read the current contents of a built-in slot from the active definition
+/// target (C's per-slot `*_Get`).
+fn slot_field_read(interp: &Interp, slot: &[u8], target: &DefTarget) -> Vec<Vec<u8>> {
+    if let Some((want_object, writable)) = slot_property_kind(slot) {
+        return read_property_set(interp, target, want_object, writable);
+    }
+    let oo = interp.oo.borrow();
+    match (slot, target) {
+        (b"::oo::define::filter", DefTarget::Class(c)) => {
+            oo.classes.get(c).map(|x| x.filters.clone())
+        }
+        (b"::oo::define::mixin", DefTarget::Class(c)) => {
+            oo.classes.get(c).map(|x| x.mixins.clone())
+        }
+        (b"::oo::define::superclass", DefTarget::Class(c)) => {
+            oo.classes.get(c).map(|x| x.supers.clone())
+        }
+        (b"::oo::define::variable", DefTarget::Class(c)) => {
+            oo.classes.get(c).map(|x| x.variables.clone())
+        }
+        (b"::oo::objdefine::filter", DefTarget::Object(o)) => {
+            oo.objects.get(o).map(|x| x.filters.clone())
+        }
+        (b"::oo::objdefine::mixin", DefTarget::Object(o)) => {
+            oo.objects.get(o).map(|x| x.mixins.clone())
+        }
+        (b"::oo::objdefine::variable", DefTarget::Object(o)) => {
+            oo.objects.get(o).map(|x| x.variables.clone())
+        }
+        _ => None,
+    }
+    .unwrap_or_default()
+}
+
+/// Write a built-in slot's contents back to the active definition target (C's
+/// per-slot `*_Set`). The class-reference and filter/variable list slots store
+/// the list verbatim; the property slots unique it (first occurrence wins).
+fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: Vec<Vec<u8>>) {
+    if let Some((want_object, writable)) = slot_property_kind(slot) {
+        let mut uniq: Vec<Vec<u8>> = Vec::with_capacity(list.len());
+        for v in list {
+            if !uniq.contains(&v) {
+                uniq.push(v);
+            }
+        }
+        write_property_set(interp, target, want_object, writable, uniq);
+        return;
+    }
+    let mut oo = interp.oo.borrow_mut();
+    match (slot, target) {
+        (b"::oo::define::filter", DefTarget::Class(c)) => {
+            if let Some(x) = oo.classes.get_mut(c) {
+                x.filters = list;
+            }
+        }
+        (b"::oo::define::mixin", DefTarget::Class(c)) => {
+            if let Some(x) = oo.classes.get_mut(c) {
+                x.mixins = list;
+            }
+        }
+        (b"::oo::define::superclass", DefTarget::Class(c)) => {
+            if let Some(x) = oo.classes.get_mut(c) {
+                x.supers = if list.is_empty() {
+                    vec![b"::oo::object".to_vec()]
+                } else {
+                    list
+                };
+            }
+        }
+        (b"::oo::define::variable", DefTarget::Class(c)) => {
+            if let Some(x) = oo.classes.get_mut(c) {
+                x.variables = list;
+            }
+        }
+        (b"::oo::objdefine::filter", DefTarget::Object(o)) => {
+            if let Some(x) = oo.objects.get_mut(o) {
+                x.filters = list;
+            }
+        }
+        (b"::oo::objdefine::mixin", DefTarget::Object(o)) => {
+            if let Some(x) = oo.objects.get_mut(o) {
+                x.mixins = list;
+            }
+        }
+        (b"::oo::objdefine::variable", DefTarget::Object(o)) => {
+            if let Some(x) = oo.objects.get_mut(o) {
+                x.variables = list;
+            }
+        }
+        _ => {}
+    }
+}
+
+/// A built-in slot's `Get` method: returns its current contents from the active
+/// definition target.
+fn slot_inst_get(interp: &mut Interp, slot: &[u8], _args: &[*mut TclObj]) -> Code {
+    let Some(target) = interp.active_def_target() else {
+        return err(
+            interp,
+            b"this command may only be called from within the context of an \
+              ::oo::define or ::oo::objdefine command",
+        );
+    };
+    let list = slot_field_read(interp, slot, &target);
+    set_list(interp, &list);
+    Code::Ok
+}
+
+/// A built-in slot's `Set` method: stores the (single list) argument into the
+/// active definition target.
+fn slot_inst_set(interp: &mut Interp, slot: &[u8], args: &[*mut TclObj]) -> Code {
+    let Some(target) = interp.active_def_target() else {
+        return err(
+            interp,
+            b"this command may only be called from within the context of an \
+              ::oo::define or ::oo::objdefine command",
+        );
+    };
+    let list = args
+        .first()
+        .map(|&a| parse_list(&obj_bytes(a)))
+        .unwrap_or_default();
+    slot_field_write(interp, slot, &target, list);
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// A class-reference slot's `Resolve` method (C's `Slot_ResolveClass`): resolve
+/// the item as a class in the active definition context (current namespace then
+/// global), returning it unchanged if it does not name a class.
+fn slot_inst_resolve(interp: &mut Interp, _slot: &[u8], args: &[*mut TclObj]) -> Code {
+    let raw = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
+    let resolved = interp.oo_resolve_object(&raw);
+    if interp.oo.borrow().classes.contains_key(&resolved) {
+        interp.set_result(obj::new_string_bytes(&resolved));
+    } else {
+        interp.set_result(obj::new_string_bytes(&raw));
+    }
+    Code::Ok
 }
 
 /// C's `Slot_Unknown`: the method-miss handler for slots. `args[0]` is the
@@ -6378,6 +6517,42 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn builtin_slot_objects_present() {
+        leak_free(|i| {
+            // The eleven built-in slots are ::oo::Slot instances.
+            assert_eq!(
+                ok(i, b"lsort [info class instances ::oo::Slot]"),
+                b"::oo::configuresupport::objreadableproperties \
+                  ::oo::configuresupport::objwritableproperties \
+                  ::oo::configuresupport::readableproperties \
+                  ::oo::configuresupport::writableproperties ::oo::define::filter \
+                  ::oo::define::mixin ::oo::define::superclass ::oo::define::variable \
+                  ::oo::objdefine::filter ::oo::objdefine::mixin ::oo::objdefine::variable"
+            );
+            // filter slot: public ops from the class, Get/Set private.
+            assert_eq!(
+                ok(i, b"lsort [info object methods ::oo::define::filter -all]"),
+                b"-append -appendifnew -clear -prepend -remove -set"
+            );
+            assert_eq!(
+                ok(
+                    i,
+                    b"lsort [info object methods ::oo::define::filter -private]"
+                ),
+                b"Get Set"
+            );
+            // mixin slot also has a Resolve + a --default-operation forward.
+            assert_eq!(
+                ok(
+                    i,
+                    b"lsort [info object methods ::oo::define::mixin -private]"
+                ),
+                b"--default-operation Get Resolve Set"
+            );
         });
     }
 
