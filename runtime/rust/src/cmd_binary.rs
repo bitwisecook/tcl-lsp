@@ -291,8 +291,21 @@ fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let s = obj_bytes(argv[3]);
             let mut out = Vec::with_capacity(s.len() / 2);
             let mut hi: Option<u8> = None;
-            for &c in s.iter() {
-                let Some(v) = hex_nib(c) else { continue };
+            for (i, &c) in s.iter().enumerate() {
+                let v = match hex_nib(c) {
+                    Some(v) => v,
+                    // Whitespace is ignorable; any other non-hex byte is an error
+                    // (C's `binary decode hex`: `if (strict || !isspace) badChar`).
+                    None if c.is_ascii_whitespace() => continue,
+                    None => {
+                        let mut m = b"invalid hexadecimal digit \"".to_vec();
+                        m.push(c);
+                        m.extend_from_slice(
+                            format!("\" (U+{:06X}) at position {i}", u32::from(c)).as_bytes(),
+                        );
+                        return interp.error_with_code(&m, b"TCL BINARY DECODE INVALID");
+                    }
+                };
                 match hi.take() {
                     None => hi = Some(v),
                     Some(h) => out.push((h << 4) | v),

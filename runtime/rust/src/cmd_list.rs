@@ -918,12 +918,16 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             use core::cmp::Ordering::*;
             match ord {
                 Equal => {
+                    // Don't stop on the first match: with duplicates it may be an
+                    // interior one. Keep searching the lower half for the leftmost
+                    // occurrence (C's `lsearch` binary search), or the upper half
+                    // for the last `<=` under `-bisect`.
                     index = mid;
-                    if !bisect {
-                        break;
+                    if bisect {
+                        lower = mid;
+                    } else {
+                        upper = mid;
                     }
-                    // -bisect wants the last <= match; keep searching upward.
-                    lower = mid;
                 }
                 Less => {
                     if increasing {
@@ -1434,12 +1438,31 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     if unique {
-        let eq_mode = if mode == SortMode::Command {
-            SortMode::Ascii
+        if mode == SortMode::Command {
+            // `-unique` equivalence is defined by the comparator (not bytewise),
+            // and the *last* of an equal run is kept (C's MergeLists keeps the
+            // right element on `cmp == 0 && unique`).
+            let words = match list::list_elements(cmd_prefix.expect("Command mode")) {
+                Ok(v) => v.iter().map(|&w| obj_bytes(w)).collect::<Vec<_>>(),
+                Err(e) => return bad_list(interp, e),
+            };
+            let mut deduped: Vec<(usize, *mut TclObj)> = Vec::with_capacity(items.len());
+            for it in items.iter().copied() {
+                if let Some(prev) = deduped.last() {
+                    match lsort_cmd_compare(interp, &words, prev.1, it.1) {
+                        Ok(0) => {
+                            deduped.pop();
+                        }
+                        Ok(_) => {}
+                        Err(c) => return c,
+                    }
+                }
+                deduped.push(it);
+            }
+            items = deduped;
         } else {
-            mode
-        };
-        items.dedup_by(|a, b| lsort_key_cmp(eq_mode, nocase, a.1, b.1).is_eq());
+            items.dedup_by(|a, b| lsort_key_cmp(mode, nocase, a.1, b.1).is_eq());
+        }
     }
 
     // Build the result: -indices yields positions; -stride emits whole groups.

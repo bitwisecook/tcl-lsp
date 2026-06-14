@@ -109,6 +109,12 @@ impl EventQueue {
         // No due timer: an idle event runs only when no timer is *due*.
         self.idle.pop_front().map(|(_, s)| s)
     }
+
+    /// Pop the next idle event only (never a timer) — `update idletasks` drains
+    /// idle handlers but must not run due timer events.
+    fn pop_idle(&mut self) -> Option<Vec<u8>> {
+        self.idle.pop_front().map(|(_, s)| s)
+    }
 }
 
 /// Register `after`, `vwait`, and (replacing the stub) `update`.
@@ -224,16 +230,23 @@ fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `update` / `update idletasks` — service the events that are ready now, then
-/// return. `idletasks` services only idle events (and timers, conservatively).
+/// return. `idletasks` services *only* idle events — it must not run timer
+/// events (C's `Tcl_UpdateObjCmd`: `TCL_IDLE_EVENTS` excludes timers).
 fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 2 || (argv.len() == 2 && obj_bytes(argv[1]) != b"idletasks") {
         return err(interp, b"wrong # args: should be \"update ?idletasks?\"");
     }
+    let idletasks = argv.len() == 2;
     interp.process_bg_errors();
-    // Drain everything ready *now* (does not wait for future timers).
+    // Drain everything ready *now* (does not wait for future timers); for
+    // `idletasks`, only idle handlers.
     let now = Instant::now();
     loop {
-        let script = interp.events_mut().pop_ready(now);
+        let script = if idletasks {
+            interp.events_mut().pop_idle()
+        } else {
+            interp.events_mut().pop_ready(now)
+        };
         let Some(script) = script else { break };
         if run_event(interp, &script) == Code::Error {
             return Code::Error;
