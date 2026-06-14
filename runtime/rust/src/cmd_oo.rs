@@ -1452,6 +1452,13 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // namespace; otherwise it defaults to the object's own name.
     let var_ns = match argv.get(3).map(|&a| obj_bytes(a)) {
         Some(ref ns) if !ns.is_empty() => {
+            // The target namespace is *created*; an existing one is an error
+            // (C's `TclOO_Copy`; oo-15.12).
+            if interp.resolve_namespace_name(ns).is_some() {
+                let mut m = ns.clone();
+                m.extend_from_slice(b" refers to an existing namespace");
+                return err(interp, &m);
+            }
             let ns = interp.fqn_for(ns);
             interp.ensure_namespace(&ns)
         }
