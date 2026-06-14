@@ -15,6 +15,7 @@ verified by golden differential tests.
 | `tcl-cli` | bin `tcl` — clap command tree + verb dispatch (thin shell) |
 | `f5-cli` | bin `f5-query` — clap command tree + verb dispatch (thin shell) |
 | `tcl-cli-support` | shared plumbing: input resolution, output writers, per-dialect registry cache, syntax highlighter, and the `chrome` module |
+| `tcl-bigip-io` | f5 input layer: UCS archives (gzip-tar + OpenPGP-symmetric decrypt, pure Rust, no gpg), the `read_path`/`load_paths` resolver, and passphrase resolution. Pure crypto core (bytes in → SCF/bytes out, all in-memory); file/stdin I/O isolated to its `paths` module |
 
 Existing engine crates reused: `tcl-lexer`, `tcl-syntax`, `tcl-registry`,
 `tcl-compiler` (lowering/CFG/codegen/optimiser/analyser/segmenter),
@@ -93,15 +94,30 @@ helpers are done; the rest await engine ports.
 | `split` | ✅ byte-parity (scf) | uses `extract_blocks`/`parse_generic_header`; round-trip golden-tested; tmsh deferred |
 | `diff` (`changes`) | ✅ parity (add/remove/scalar) | ports `compute_diff` over the model; fields read from `canon_fields()`; accepts tmsh input via `to_scf`. **Gap:** object-list field *display* (pool `members`, data-group `records`) shows canonical JSON vs Python's dataclass `repr` — change *detection* is still correct. Golden-tested (add/remove text+JSON, scalar modify, tmsh input) |
 | `explain` (`describe`) | ✅ byte-parity | ports `compute_explain` + the `resolve_name` resolution layer (model-based — does **not** need the ref-graph); walks `canon_fields()` (`BigipList` navigation) for profiles/iRules/persistence/SNAT/pool. Verified across virtual/pool/auto/short-name/not-found, text + JSON; golden-tested |
+| `extract` (`ucs2scf`) | ✅ byte-parity (scf) | golden-tested. Ports `extract_ucs_file` onto `tcl-bigip-io`: reads a `.ucs` (plain gzip-tar **or** OpenPGP-encrypted), extracts to SCF in memory, writes verbatim. Encrypted archives decrypt purely in Rust. tmsh/tmsh-delta deferred (needs the tmsh emitter); interactive TTY passphrase prompting not yet wired in the binary (env-var / explicit only) |
 | `stats`, `cleanup`, `grep`, `validate`, `graph`, `rename` | ⛔ stub | need the BIG-IP **ref-graph** (keystone, below) |
 | `tmsh`, `convert`, `redact`/`unredact` | ⛔ stub | need the tmsh / AS3 emit + redaction engines |
-| `extract`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `query`, `irule` group | ⛔ stub | need UCS / remote / PCAP / query-DSL ports |
+| `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `query`, `irule` group | ⛔ stub | need remote / PCAP / query-DSL ports |
 
 **Shared parity helpers** (`tcl_cli_support`):
 - `ensure_ascii` — escape non-ASCII as `\uXXXX`, matching Python's
   `json.dumps(ensure_ascii=True)`; applied to every JSON-emitting verb.
 - `f5-cli` `commands::scf::to_scf` — normalise `tmsh create/modify` script input
   to SCF (port of `_to_scf` / `tmsh_parse.py`) before parsing.
+
+**f5 input layer** (`tcl-bigip-io`, **done**): the UCS foundation. A plain UCS
+is a gzip-tar of `/config`; an encrypted UCS is an OpenPGP *symmetric* message
+(F5 KB K5437) whose plaintext is that gzip-tar. The crate decrypts **purely in
+Rust** — a faithful 1:1 port of the Python `_openpgp`/`_aes` fallback (S2K +
+AES-CFB + quick-check + SHA-1 MDC), chosen over the rPGP `pgp` crate because
+"most faithfully reproduces the Python decryptor" points at a line-for-line
+port on a tiny audited dep tree (`aes` + RustCrypto hashes + `flate2` + `tar`)
+rather than a full-OpenPGP implementation. Everything is in-memory (decrypt →
+gunzip → untar on cursors) so a UCS's SSL keys never touch disk. KAT-tested
+(FIPS-197) + differential parity against gpg-produced fixtures. The
+`read_path`/`load_paths` resolver makes `.ucs` (plain or encrypted) a
+first-class input; wiring it into the model-reading verbs (`diff`, `explain`,
+`merge`, …) so they accept `.ucs` is a small follow-up per verb.
 
 **Keystone:** the BIG-IP **object reference graph** — `build_bigip_object_graph`
 in `dialects/f5/bigip/link_extract.py` (~569 LOC, range-based node/edge
@@ -112,19 +128,20 @@ the iRule-command → object reference resolver used by the `irule`/query paths.
 
 ## Prioritised remaining roadmap
 
-Done so far (f5, model-based, no ref-graph needed): `merge`, `split`, `diff`,
-`explain`. Remaining, in dependency order:
+Done so far (f5): `merge`, `split`, `diff`, `explain` (model-based); `extract`
+(UCS). The **f5 input layer + UCS** foundation (`tcl-bigip-io`) is complete.
+Remaining, in dependency order:
 
 1. **BIG-IP ref-graph** (`build_bigip_object_graph`, `tcl-bigip` extension) —
    unblocks `stats`, `cleanup`, `grep`, `validate`, `graph`, `rename`. Highest
-   leverage; port + golden-test in isolation first.
+   leverage; port + golden-test in isolation first. **(in progress)**
 2. **tmsh / AS3 emit engines** → `tmsh` (+delta), `convert`; **redaction** →
    `redact`/`unredact`.
 3. **`tcl-cli-serialise`** (port `tooling/cli/serialise.py`) — unblocks the tcl
    JSON verbs (symbols/callgraph/symbolgraph/dataflow/diagram, tcl `diff`).
    Gated by analyser parity for full fidelity.
 4. **`registry-dump`** (port `registry_snapshot.py`) — real parity, both CLIs; finicky (field-by-field).
-5. **f5 remote** (`tcl-bigip-remote`: REST/SSH/UCS/OpenPGP/AES) and **PCAP** (`tcl-bigip-pcap`) — pure-Rust crates; also covers `extract`/`fetch`/`push`/`pull`/`explain-flow`/`enrich-*`/`pcap-remap`.
+5. **f5 remote** (`tcl-bigip-remote`: REST/SSH) and **PCAP** (`tcl-bigip-pcap`) — pure-Rust crates; covers `fetch`/`push`/`pull`/`explain-flow`/`enrich-*`/`pcap-remap`. (UCS/OpenPGP/AES already done in `tcl-bigip-io`.)
 6. **Query DSL** (`tcl-bigip-query`) and **tclpkg** (`pkg`/`venv`/`docker`) — the two largest sub-systems.
 7. **tcl-only engine-gap verbs**: `help` (KCS SQLite), `minimize`, `find-legacy`, `explore`/`diagram` (explorer report), `compwasm` (wasm pipeline), `dis` (VM compiler).
 8. **Engine-gap closure** (separate workstreams): analyser, optimiser, lowering/VM-compiler — these flip diag/opt/dis to parity.
@@ -148,5 +165,8 @@ Done so far (f5, model-based, no ref-graph needed): `merge`, `split`, `diff`,
 Each CLI has a `tests/cli_parity.rs` that runs the built binary and diffs stdout
 against committed `tests/fixtures/*.golden` files captured from
 `python -m tooling.{tcl,f5}.main`. Self-contained (no Python at test time), so it
-runs under `cargo test --workspace`. Current coverage: 7 tcl + 8 f5 golden tests.
+runs under `cargo test --workspace`. Current coverage: 7 tcl + 11 f5 golden
+tests, plus `tcl-bigip-io`'s FIPS-197 AES KATs and UCS differential tests
+(self-contained — fixtures captured once from the Python CLI and `gpg
+--symmetric`; no Python/gpg at test time).
 `make rust-tcl` / `rust-f5` / `rust-clis` build the binaries.
