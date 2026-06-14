@@ -116,8 +116,10 @@ rather than a full-OpenPGP implementation. Everything is in-memory (decrypt →
 gunzip → untar on cursors) so a UCS's SSL keys never touch disk. KAT-tested
 (FIPS-197) + differential parity against gpg-produced fixtures. The
 `read_path`/`load_paths` resolver makes `.ucs` (plain or encrypted) a
-first-class input; wiring it into the model-reading verbs (`diff`, `explain`,
-`merge`, …) so they accept `.ucs` is a small follow-up per verb.
+first-class input. It is wired into the model-reading verbs that are already
+ported — `diff`, `explain`, `merge` accept a `.ucs` (plain or encrypted) exactly
+like a `.conf`/`.scf`, golden-verified — and `stats`/`cleanup`/`grep`/`validate`/
+`graph`/`rename` inherit it automatically once their ref-graph engine lands.
 
 **Keystone:** the BIG-IP **object reference graph** — `build_bigip_object_graph`
 in `dialects/f5/bigip/link_extract.py` (~569 LOC, range-based node/edge
