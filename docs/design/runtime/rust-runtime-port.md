@@ -2790,6 +2790,17 @@ and the 53.x wrong-#-args cases are the ensemble-rewrite-threading rework.
   `NonInteger` error instead of computing a float modulo (`divmod` only floats
   for `/`).
 
+### SYNC inbound — 2026-06-14 (`format %g` significant-digits)
+
+`format %g`/`%G` now uses **significant**-digit precision like C's `printf`
+(expr-old.test 390 → 398): pick `%e` when the decimal exponent is `< -4` or
+`>= p`, else `%f`, each at the precision giving `p` significant figures, then
+trim trailing zeros unless `#`. Previously it used `p-1` *fractional* digits, so
+`format %.6g [expr asin(0.5)]` gave `0.5236` instead of `0.523599`. The decimal
+exponent is read from a `%.{p-1}e` rendering (robust vs `log10` rounding); fixes
+the expr-old-32.* math-function-formatting cases (the functions were already
+correct — only the `%g` rendering was wrong).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

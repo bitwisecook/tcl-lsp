@@ -300,18 +300,7 @@ fn float_field(spec: &Spec, conv: u8, value: f64) -> Vec<u8> {
         b'f' => format!("{value:.prec$}"),
         b'e' => format!("{value:.prec$e}"),
         b'E' => format!("{value:.prec$E}"),
-        b'g' | b'G' => {
-            // Shortest of %e/%f with significant-digit precision; Rust's default
-            // float formatting is a close, round-trippable approximation.
-            let p = prec.max(1);
-            let g = format!("{value:.*}", p.saturating_sub(1));
-            // Trim trailing zeros (the %g behaviour) unless `#`.
-            if spec.alt {
-                g
-            } else {
-                trim_g(&g)
-            }
-        }
+        b'g' | b'G' => format_g(value, prec.max(1), conv == b'G', spec.alt),
         _ => format!("{value}"),
     };
     // Normalise Rust's exponent (`1e2` → `1e+02`) toward C's form.
@@ -346,6 +335,54 @@ fn trim_g(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// `%g`/`%G` with `p` **significant** digits (C's `printf`): use `%e` when the
+/// decimal exponent is `< -4` or `>= p`, else `%f`, each at the precision that
+/// yields `p` significant digits; trailing zeros are trimmed unless `alt` (`#`).
+fn format_g(value: f64, p: usize, upper: bool, alt: bool) -> String {
+    if !value.is_finite() {
+        let s = format!("{value}"); // inf / NaN
+        return if upper { s.to_uppercase() } else { s };
+    }
+    // Significant-digit scientific form gives the decimal exponent directly.
+    let sci = format!("{value:.*e}", p - 1);
+    let exp: i32 = sci
+        .find('e')
+        .and_then(|i| sci[i + 1..].parse().ok())
+        .unwrap_or(0);
+    let mut out = if exp < -4 || exp >= p as i32 {
+        // %e with p-1 fractional digits; trim the mantissa (keep the exponent).
+        let s = fix_exponent(&sci);
+        if alt {
+            s
+        } else {
+            trim_g_e(&s)
+        }
+    } else {
+        // %f with enough fractional digits for p significant figures.
+        let fprec = usize::try_from(p as i32 - 1 - exp).unwrap_or(0);
+        let s = format!("{value:.fprec$}");
+        if alt {
+            s
+        } else {
+            trim_g(&s)
+        }
+    };
+    if upper {
+        out = out.to_uppercase();
+    }
+    out
+}
+
+/// Trailing-zero trim of a `%e`-form `%g` result: trim zeros in the mantissa
+/// (before `e`), keeping the exponent intact.
+fn trim_g_e(s: &str) -> String {
+    let Some(epos) = s.find(['e', 'E']) else {
+        return trim_g(s);
+    };
+    let (mantissa, exp) = s.split_at(epos);
+    format!("{}{}", trim_g(mantissa), exp)
 }
 
 /// Rust prints `1e2`; C prints `1.000000e+02`-style with a signed 2-digit
