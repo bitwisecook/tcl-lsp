@@ -257,7 +257,7 @@ impl fmt::Display for UnaryOp {
 /// can produce, plus [`Self::Raw`] as the "give up" fallback. Expression
 /// trees are immutable once built (no interior mutability). Recursive
 /// children are `Box<ExprNode>` to keep the enum size bounded.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExprNode {
     /// Integer, float, or boolean literal.
     Literal {
