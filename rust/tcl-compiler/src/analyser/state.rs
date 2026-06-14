@@ -25,7 +25,7 @@ use super::types::AnalysisResult;
 /// Mirrors the Python ``self._var_command_sites`` tuple in
 /// ``_AnalyserBase.__init__``. Used by the W307
 /// (variable-as-command misuse) post-pass that lands in **C41d3**.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarCommandSite {
     /// Variable name used as a command head (no leading ``$``).
     pub var_name: String,
@@ -48,7 +48,7 @@ pub struct VarCommandSite {
 /// Mirrors ``self._cmd_command_sites`` — same shape as
 /// [`VarCommandSite`] except the head is a command-substitution
 /// rather than a variable.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CmdCommandSite {
     /// Text of the bracketed command substitution (no brackets).
     pub cmd_text: String,
@@ -234,7 +234,7 @@ pub struct Analyser {
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
 /// setting (`core/analysis/checks/_style.py`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum NonAsciiMode {
     /// No explicit setting: resolve per dialect at emit time — `Strict`
     /// for F5 iRules/iApps (ASCII-only environments), `Confusables`

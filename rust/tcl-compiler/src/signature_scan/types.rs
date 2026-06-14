@@ -24,7 +24,7 @@ use tcl_lexer::Span;
 /// is the literal text following the parameter name inside a braced
 /// `{name default}` form — whitespace before it is stripped, whitespace
 /// inside the default text is preserved.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamDef {
     /// Parameter name as written in the proc declaration.
     pub name: String,

@@ -40,7 +40,7 @@ use super::types::AnalysisResult;
 /// fills it — proc bodies via an **isolated** analysis (memoisable), method
 /// bodies in place (byte-identical, not yet memoised).
 #[derive(Debug, Clone)]
-pub(super) struct DeferredBody {
+pub struct DeferredBody {
     /// Body text (braces stripped), as `analyse_body` expects.
     pub body_text: String,
     /// The body's `Str` token (absolute span) — drives offset arithmetic.
@@ -64,8 +64,35 @@ pub(super) struct DeferredBody {
 
 impl Analyser {
     /// Per-item analysis entry — byte-identical to [`Analyser::analyse`] for
-    /// well-formed input, falling back to it otherwise. See module docs.
+    /// well-formed input, falling back to it otherwise. Analyses each proc body
+    /// directly. See module docs.
     pub fn analyse_per_item(&mut self, source: &str, dialect: &str) -> AnalysisResult {
+        let disabled = self.disabled_diagnostics.clone();
+        let non_ascii = self.non_ascii_mode;
+        let empty_overlay = super::types::build_stub_overlay(&[]);
+        let mut body_fn = |db: &DeferredBody| {
+            analyse_proc_body_isolated(
+                db,
+                dialect,
+                &disabled,
+                non_ascii,
+                Some(empty_overlay.clone()),
+            )
+        };
+        self.analyse_per_item_with(source, dialect, &mut body_fn)
+    }
+
+    /// As [`Self::analyse_per_item`], but each *proc* body's isolated analysis
+    /// is produced by `body_fn` — letting a caller (the LSP query DB) memoise it
+    /// in salsa so a body edit recomputes only that body.  Method bodies are
+    /// filled in place.  Byte-identical to `analyse` whenever `body_fn` returns
+    /// what [`analyse_proc_body_isolated`] would.
+    pub fn analyse_per_item_with(
+        &mut self,
+        source: &str,
+        dialect: &str,
+        body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
+    ) -> AnalysisResult {
         use std::collections::HashSet;
         use tcl_registry::CommandRegistry;
 
@@ -148,14 +175,8 @@ impl Analyser {
                 self.analyse_body(&db.body_text, db.body_tok, &db.scope_path);
             } else {
                 // Proc bodies: analyse in isolation (a pure function of the
-                // body — the unit slice 3 memoises) and graft into the shell.
-                let frag = analyse_proc_body_isolated(
-                    db,
-                    &self.dialect,
-                    &self.disabled_diagnostics,
-                    self.non_ascii_mode,
-                    self.stub_overlay.clone(),
-                );
+                // body — the unit memoised by `body_fn`) and graft into shell.
+                let frag = body_fn(db);
                 self.graft_proc_body(db, frag);
             }
         }
@@ -213,8 +234,10 @@ impl Analyser {
     }
 }
 
-/// The facts produced by analysing one proc body in isolation.
-struct BodyFragment {
+/// The facts produced by analysing one proc body in isolation.  Cloneable +
+/// `PartialEq` so the LSP query DB can memoise it (salsa early-cutoff).
+#[derive(Clone, PartialEq)]
+pub struct BodyFragment {
     result: AnalysisResult,
     proc_scope: super::types::Scope,
     ensembles: std::collections::HashSet<String>,
@@ -229,7 +252,9 @@ struct BodyFragment {
 /// offset so the handlers' span re-slicing stays in range, and the proc's
 /// enclosing namespace + params are reconstructed) so the facts need no
 /// rebasing.  Offset-invariant memoisation (offset-0 + rebase) is a follow-up.
-fn analyse_proc_body_isolated(
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn analyse_proc_body_isolated(
     db: &DeferredBody,
     dialect: &str,
     disabled: &std::collections::HashSet<String>,

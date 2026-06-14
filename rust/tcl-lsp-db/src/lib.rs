@@ -18,9 +18,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
+use tcl_compiler::analyser::per_item::{analyse_proc_body_isolated, BodyFragment, DeferredBody};
 use tcl_compiler::analyser::{
     Analyser, AnalysisResult, FileDecls, ItemSig, ItemTree, NonAsciiMode,
 };
+use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
 use tcl_lsp_core::semantic_tokens::SemanticTokens;
@@ -152,6 +154,99 @@ pub fn item_sigs(db: &dyn salsa::Database, file: SourceFile) -> Arc<Vec<ItemSig>
 #[salsa::tracked]
 pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> {
     Arc::new(FileDecls::from_sigs(item_sigs(db, file).iter()))
+}
+
+/// Interned identity of a single `proc` body's isolated analysis — the per-item
+/// firewall's memoisation key (slice 3).  Holds everything
+/// [`analyse_proc_body_isolated`] consumes; equal keys (an unedited body) reuse
+/// the cached [`item_body_analysis`].  `content_start` keys on the body's
+/// absolute offset (offset-invariant rebasing is a follow-up; a same-position
+/// body edit already recomputes only that body).
+#[salsa::interned]
+pub struct ItemBodyKey<'db> {
+    #[returns(ref)]
+    pub body_text: String,
+    pub content_start: u32,
+    #[returns(ref)]
+    pub namespace: String,
+    #[returns(ref)]
+    pub scope_name: String,
+    #[returns(ref)]
+    pub params: Vec<ParamDef>,
+    pub name_span: tcl_lexer::Span,
+    #[returns(ref)]
+    pub dialect: String,
+    #[returns(ref)]
+    pub disabled: Vec<String>,
+    pub non_ascii: NonAsciiMode,
+}
+
+/// Memoised isolated analysis of one `proc` body.  A body-only edit changes
+/// only that body's [`ItemBodyKey`], so salsa reuses every other body's result.
+#[salsa::tracked]
+pub fn item_body_analysis<'db>(
+    db: &'db dyn salsa::Database,
+    key: ItemBodyKey<'db>,
+) -> Arc<BodyFragment> {
+    let body_text = key.body_text(db).clone();
+    let content_start = key.content_start(db);
+    #[allow(clippy::cast_possible_truncation)]
+    let span = tcl_lexer::Span::new(content_start, content_start + body_text.len() as u32);
+    let body = DeferredBody {
+        body_text,
+        body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, span),
+        scope_path: Vec::new(),
+        is_method: false,
+        namespace: key.namespace(db).clone(),
+        scope_name: key.scope_name(db).clone(),
+        params: key.params(db).clone(),
+        name_span: key.name_span(db),
+    };
+    let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
+    let overlay = tcl_compiler::analyser::types::build_stub_overlay(&[]);
+    Arc::new(analyse_proc_body_isolated(
+        &body,
+        key.dialect(db),
+        &disabled,
+        key.non_ascii(db),
+        Some(overlay),
+    ))
+}
+
+/// Incremental whole-file analysis: the per-item path with each `proc` body's
+/// isolated analysis memoised via [`item_body_analysis`], so a body edit
+/// recomputes one body + the cheap shell + cross-item tail instead of the whole
+/// walk.  Byte-identical to [`file_analysis`] (and `analyse`) — proven by the
+/// `per_item_corpus` gate over the shared `analyse_per_item_with` orchestration.
+#[salsa::tracked]
+pub fn file_analysis_incremental(
+    db: &dyn salsa::Database,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Arc<AnalysisResult> {
+    let disabled_vec = config.disabled_diagnostics(db).clone();
+    let non_ascii = config.non_ascii_mode(db);
+    let dialect = file.dialect(db).clone();
+    let text = file.text(db).clone();
+    let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
+        .with_non_ascii_mode(non_ascii);
+    let mut body_fn = |body: &DeferredBody| -> BodyFragment {
+        let content_start = body.body_tok.span.start() + u32::from(body.body_tok.content_offset);
+        let key = ItemBodyKey::new(
+            db,
+            body.body_text.clone(),
+            content_start,
+            body.namespace.clone(),
+            body.scope_name.clone(),
+            body.params.clone(),
+            body.name_span,
+            dialect.clone(),
+            disabled_vec.clone(),
+            non_ascii,
+        );
+        (*item_body_analysis(db, key)).clone()
+    };
+    Arc::new(analyser.analyse_per_item_with(&text, &dialect, &mut body_fn))
 }
 
 /// Document outline — wraps `document_symbols_from_analysis`, reusing the
@@ -290,5 +385,71 @@ mod tests {
         let after = file_decls(&db, file);
         assert!(after.procs.contains("::b"));
         assert!(!after.procs.contains("::a"));
+    }
+
+    #[test]
+    fn file_analysis_incremental_matches_full() {
+        let db = TclDatabase::default();
+        let cfg = cfg(&db);
+        for src in [
+            SRC,
+            "proc a {x} { return $x }\nproc b {} { a 1 }\n",
+            "namespace eval n { proc f {y} { set z $y } }\nset g 1\nputs $g\n",
+            "oo::class create K {\n  method m {a} { set n $a }\n}\nproc p {} { set q 1 }\n",
+        ] {
+            let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+            let inc = file_analysis_incremental(&db, file, cfg);
+            let full = file_analysis(&db, file, cfg);
+            assert_eq!(*inc, *full, "incremental != full for:\n{src}");
+        }
+    }
+
+    /// The slice-3 firewall: a body-only edit (same length, so other bodies
+    /// keep their offset) recomputes exactly one `item_body_analysis`.
+    #[test]
+    fn body_edit_recomputes_one_item() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let file = SourceFile::new(
+            &db,
+            "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n".to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let init = std::mem::take(&mut *log.lock().unwrap());
+        assert_eq!(
+            init.iter()
+                .filter(|s| s.contains("item_body_analysis"))
+                .count(),
+            2,
+            "initial: both bodies analysed: {init:?}"
+        );
+
+        // Edit proc a's body, keeping length (so b's offset is unchanged).
+        file.set_text(&mut db)
+            .to("proc a {} { set x 99999 }\nproc b {} { set y 22222 }\n".to_owned());
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let after = std::mem::take(&mut *log.lock().unwrap());
+        assert_eq!(
+            after
+                .iter()
+                .filter(|s| s.contains("item_body_analysis"))
+                .count(),
+            1,
+            "body edit -> exactly ONE item_body_analysis recomputes: {after:?}"
+        );
     }
 }
