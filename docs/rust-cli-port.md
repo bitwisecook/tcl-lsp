@@ -133,13 +133,18 @@ Keystone progress / remaining pieces:
   (`kind_for_header`, `candidate_kinds_for_key`/`_for_section_item`,
   `matches_section`, `default_registry`). Differentially golden-tested (3398
   probes). `kind_for_header` matches Python exactly.
-- ⛔ **resolve_kind_in_configs** + `build_bigip_object_graph` itself → `tcl-bigip`
-  (needs `BigipConfig` resolvers + `_parse_properties_with_spans` /
-  `_parse_list_block` + range mapping).
+- ✅ **node extraction** (`_build_objects_for_source`) → `tcl-bigip::graph`
+  (`build_objects_for_source` / `ObjectNode` / `GraphContext`). All 28 nodes of
+  a representative `bigip.conf` match Python exactly (node_id, kind, offsets,
+  ranges).
+- ⛔ **forward edges** — `resolve_kind_in_configs` (needs `BigipConfig`
+  resolvers: `resolve_name` / `resolve_generic_object` / per-kind table
+  resolvers, not yet ported) + the legacy token-scan walk + edge dedup.
 - ⛔ **registry-first dispatch** (`references_via_spec` / pilot value-spec engine,
-  `registry/{pilot,references}.py` ~500 LOC + the value-spec system) — used
-  *additively* alongside the legacy token-scan path; full `f5 graph` parity
-  needs it (it owns the `viaProperty`/edge set for migrated properties).
+  `registry/{pilot,references,value_specs,properties}.py` — `value_specs.py`
+  alone is ~1777 LOC, ~25 spec classes) — used *additively* alongside the legacy
+  path; full `f5 graph` parity needs it (owns the `viaProperty`/edge set for the
+  19 migrated properties). **Approved for full port.**
 - ⛔ **irules_refs** (`extract_irules_object_references`, ~368 LOC) for iRule edges.
 - ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
 
