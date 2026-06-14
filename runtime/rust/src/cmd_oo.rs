@@ -1343,7 +1343,7 @@ fn oo_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"oo::define target ?arg ...?");
     }
-    let fqn = interp.fqn_for(&obj_bytes(argv[1]));
+    let fqn = interp.oo_resolve_object(&obj_bytes(argv[1]));
     // C resolves the object first (`Tcl_GetObjectFromObj`): a name that is not
     // an object at all reports differently from an object that is not a class.
     if !interp.oo.borrow().objects.contains_key(&fqn) {
@@ -1362,7 +1362,7 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"oo::objdefine target ?arg ...?");
     }
-    let fqn = interp.fqn_for(&obj_bytes(argv[1]));
+    let fqn = interp.oo_resolve_object(&obj_bytes(argv[1]));
     if !interp.oo.borrow().objects.contains_key(&fqn) {
         return not_object(interp, &obj_bytes(argv[1]));
     }
@@ -1672,7 +1672,7 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if obj == b"::oo::object" || obj == b"::oo::class" {
         return err(interp, b"may not modify the class of the root object class");
     }
-    let new_cls = interp.fqn_for(&obj_bytes(argv[1]));
+    let new_cls = interp.oo_resolve_object(&obj_bytes(argv[1]));
     if !interp.oo.borrow().objects.contains_key(&new_cls) {
         return not_object(interp, &obj_bytes(argv[1]));
     }
@@ -4855,10 +4855,25 @@ impl Interp {
         if self.oo.borrow().objects.contains_key(&fqn) {
             return fqn;
         }
-        self.namespaces()
+        if let Some(o) = self
+            .namespaces()
             .command_origin(self.current_ns(), name)
             .filter(|o| self.oo.borrow().objects.contains_key(o))
-            .unwrap_or(fqn)
+        {
+            return o;
+        }
+        // Object/class names resolve like commands: an unqualified name not
+        // found in the current namespace falls back to the global namespace
+        // (e.g. `oo::objdefine [self] class Sub` from inside a method, where the
+        // current namespace is the object's instance namespace; oo-3.11).
+        if !name.starts_with(b"::") {
+            let mut global = b"::".to_vec();
+            global.extend_from_slice(name);
+            if self.oo.borrow().objects.contains_key(&global) {
+                return global;
+            }
+        }
+        fqn
     }
 
     /// The precedence (linearization) of a *class* itself — its mixins, the
