@@ -154,17 +154,44 @@ impl Analyser {
 
         // --- pass 2: fill each deferred body ---
         let deferred = std::mem::take(&mut self.deferred_bodies);
-        // Phase-A fallback: a PROC body analysed in isolation can't see
-        // enclosing-scope state, so a body that reads/writes a namespace/global
-        // var or defines classes/instances would diverge.  Fall back to a full
-        // rebuild for those files (method bodies are filled in place below, so
-        // they don't need this guard).  Phase B will pre-seed enclosing defs.
-        if deferred
-            .iter()
-            .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text))
-        {
+        // Fall back to a full rebuild for the two patterns the isolated-body
+        // decomposition can't reproduce byte-for-byte:
+        //
+        // 1. **Duplicate definitions** — the same proc/method qualified name
+        //    defined more than once.  A whole-file walk processes the
+        //    redefinitions in source order (last-definition-wins for the shared
+        //    scope/`all_variables` key); the per-item graft *merges* every
+        //    body's facts instead.  Covers both top-level duplicates (e.g.
+        //    platform-conditional `proc auto_execok` in `if {…} else {…}`) and a
+        //    body that **redefines an enclosing/sibling proc** — the lazy-init
+        //    pattern `proc p {a} { …; proc p {a} {real} }`, where the inner def
+        //    wins in a whole-file walk but merges here.
+        // 2. **Class definition / extension in a proc body** (`oo::class` /
+        //    `oo::define` / `itcl::class` / object aliasing) — a class's methods
+        //    accumulate across bodies in a whole-file walk (remove → add →
+        //    re-insert), which the graft's overwrite-on-key cannot reproduce.
+        //
+        // Both are rare; everything else (namespace/global/`variable` state,
+        // qualified `$::g` reads — replayed at graft) takes the fast incremental
+        // path.  Guarded by the corpus `per_item == analyse` gate + the
+        // `incremental == fresh` fuzzer.
+        let structural_fallback = {
+            let mut seen = std::collections::HashSet::new();
+            let duplicate_top_level = deferred.iter().any(|db| {
+                !seen.insert((db.is_method, db.namespace.as_str(), db.scope_name.as_str()))
+            });
+            duplicate_top_level
+                || deferred
+                    .iter()
+                    .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text))
+        };
+        if structural_fallback {
             return self.fresh_full_analyse(source, dialect);
         }
+        // Track every defined proc qualified name (top-level + nested) so a body
+        // that redefines an already-defined proc forces a fallback.
+        let mut defined_procs: std::collections::HashSet<String> =
+            self.result.all_procs.keys().cloned().collect();
         for db in &deferred {
             if db.is_method {
                 // Method bodies: fill in place (byte-identical; not memoised).
@@ -174,6 +201,14 @@ impl Analyser {
                 // Proc bodies: analyse in isolation (a pure function of the
                 // body — the unit memoised by `body_fn`) and graft into shell.
                 let frag = body_fn(db);
+                if frag
+                    .result
+                    .all_procs
+                    .keys()
+                    .any(|name| !defined_procs.insert(name.clone()))
+                {
+                    return self.fresh_full_analyse(source, dialect);
+                }
                 self.graft_proc_body(db, frag);
             }
         }
@@ -239,6 +274,12 @@ impl Analyser {
         self.pending_arity.extend(frag.pending_arity);
         self.var_command_sites.extend(frag.var_sites);
         self.cmd_command_sites.extend(frag.cmd_sites);
+        // Replay the body's qualified global reads against the shell's real
+        // global scope (rebased to the body's position): a `$::g` read lands as
+        // a reference on the enclosing `::g` exactly as a whole-file walk would.
+        for (name, span) in frag.global_reads {
+            self.record_var_read(&name, shift(span, delta), &[]);
+        }
     }
 }
 
@@ -252,6 +293,9 @@ pub struct BodyFragment {
     pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
     var_sites: Vec<super::state::VarCommandSite>,
     cmd_sites: Vec<super::state::CmdCommandSite>,
+    /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
+    /// enclosing global scope; replayed on the shell's real globals at graft.
+    global_reads: Vec<(String, tcl_lexer::Span)>,
 }
 
 /// Analyse one `proc` body as an isolated unit at **offset 0** — a pure
@@ -289,6 +333,9 @@ pub fn analyse_proc_body_isolated(
     }
     a.registry = Some(registry);
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
+    // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
+    // global scope, so the graft can replay them on the shell's real globals.
+    a.capture_global_reads = Some(Vec::new());
     let proc_path =
         reconstruct_proc_scope(&mut a.result.global_scope, &db.namespace, &db.scope_name);
     let placeholder = tcl_lexer::Span::new(0, 0);
@@ -307,6 +354,7 @@ pub fn analyse_proc_body_isolated(
         pending_arity: a.pending_arity,
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
+        global_reads: a.capture_global_reads.unwrap_or_default(),
     }
 }
 
@@ -481,14 +529,26 @@ fn reconstruct_proc_scope(
     path
 }
 
-/// Does an isolated proc body need enclosing-scope context to match `analyse`?
-/// True if it references a `::`-qualified variable (read `$::x` / `${ns::x}` or
-/// a writer command targeting `::x`), or runs a command that defines/links
-/// enclosing-scope or object state.  Conservative — a false positive only costs
-/// a full-rebuild fallback, never correctness.  Phase B pre-seeds the enclosing
-/// defs to shrink this set.
+/// Does an isolated proc body interact with enclosing-scope / object state in a
+/// way the per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
+/// fallback?  True when the body:
+///
+/// * **defines or extends a class / aliased object** (`oo::class` / `oo::define`
+///   / `itcl::class` / `oo::copy`) — class facts accumulate across bodies in a
+///   whole-file walk (remove → add → re-insert), which the graft's
+///   overwrite-on-key can't reproduce; **or**
+/// * **declares or writes an enclosing-scope variable** (`variable` / `global` /
+///   `upvar` / `namespace`, or a writer command — `set`/`incr`/`lappend`/
+///   `append`/`dict`/`array` — targeting a `::`-qualified name).  Such a body's
+///   `all_variables` / global-scope effect (definition span, `warn_if_unused`,
+///   const-string-dependent diagnostics like W304) depends on enclosing context
+///   the isolated analysis can't see.
+///
+/// Qualified variable *reads* (`$::g`) are **not** listed: they are captured and
+/// replayed on the shell's globals at graft time, so they stay on the fast path.
+/// Conservative — a false positive only costs a full rebuild, never correctness.
 fn body_needs_enclosing_context(body_text: &str) -> bool {
-    const RISKY: &[&str] = &[
+    const DECLARERS: &[&str] = &[
         "variable",
         "global",
         "upvar",
@@ -498,10 +558,6 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
         "oo::class",
         "oo::copy",
         "itcl::class",
-        "interp",
-        "rename",
-        "new",
-        "create",
     ];
     const WRITERS: &[&str] = &["set", "incr", "lappend", "append", "dict", "array"];
     let words: Vec<&str> = body_text
@@ -509,32 +565,13 @@ fn body_needs_enclosing_context(body_text: &str) -> bool {
         .filter(|w| !w.is_empty())
         .collect();
     for (i, &w) in words.iter().enumerate() {
-        if RISKY.contains(&w) {
+        if DECLARERS.contains(&w) {
             return true;
         }
+        // A writer whose next word or two is a `::`-qualified target writes an
+        // enclosing-scope variable.
         if WRITERS.contains(&w) && words[i + 1..].iter().take(2).any(|t| t.contains("::")) {
             return true;
-        }
-    }
-    // Qualified variable *read*: `$::x`, `${::x}`, `$ns::x`, `${ns::x}`.
-    let b = body_text.as_bytes();
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'$' {
-            let mut j = i + 1;
-            if j < b.len() && b[j] == b'{' {
-                j += 1;
-            }
-            let start = j;
-            while j < b.len() && (b[j].is_ascii_alphanumeric() || b[j] == b':' || b[j] == b'_') {
-                j += 1;
-            }
-            if body_text[start..j].contains("::") {
-                return true;
-            }
-            i = j.max(i + 1);
-        } else {
-            i += 1;
         }
     }
     false
@@ -578,5 +615,28 @@ mod tests {
     #[test]
     fn nested_proc_in_body() {
         eq("proc outer {} { proc ::inner {} { set z 1 } ; inner }\n");
+    }
+
+    #[test]
+    fn qualified_read_marks_enclosing_global_used() {
+        // A body's `$::g` read must land as a reference on the enclosing `::g`
+        // (captured + replayed at graft), so the "unused" state matches a
+        // whole-file walk even though the body is analysed in isolation.
+        eq("set ::g 1\nproc r {} { return [expr {$::g + 1}] }\n");
+        eq("set ::g 1\nproc r {} { return 0 }\n"); // unused global stays unused
+    }
+
+    #[test]
+    fn duplicate_top_level_proc_falls_back() {
+        // Platform-conditional redefinition: last-def-wins in a whole-file walk;
+        // the per-item path detects the duplicate and falls back, so equal.
+        eq("if {1} {\n  proc p {} { set file a; puts $file }\n} else {\n  proc p {} { return 2 }\n}\n");
+    }
+
+    #[test]
+    fn self_redefining_proc_falls_back() {
+        // Lazy-init: the inner `proc p` redefines the outer; nested-redefinition
+        // detection forces a fallback so the result matches a whole-file walk.
+        eq("proc p {a} { proc p {a} { return $a }\n p $a }\n");
     }
 }

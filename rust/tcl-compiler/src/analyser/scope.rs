@@ -483,6 +483,13 @@ impl Analyser {
                 if let Some(e) = element {
                     var.array_indices.insert(e);
                 }
+            } else if let Some(captured) = self.capture_global_reads.as_mut() {
+                // Isolated per-item body: the enclosing global scope is empty
+                // here, so a qualified read that would resolve against it in a
+                // whole-file analyse is captured for the aggregator to replay on
+                // the shell's real global scope.  `name` (not `base_owned`)
+                // preserves any `arr(idx)` element for the replay.
+                captured.push((name.to_string(), read_span));
             }
         }
     }

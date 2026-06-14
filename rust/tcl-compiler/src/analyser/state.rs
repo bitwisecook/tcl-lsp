@@ -237,6 +237,14 @@ pub struct Analyser {
     /// `None` for the whole-file `analyse` path (byte-identical: it builds
     /// the unit itself, exactly as before).
     pub(super) cu_override: Option<std::sync::Arc<crate::compilation_unit::CompilationUnit>>,
+    /// When `Some`, an isolated proc-body analysis (the per-item path) records
+    /// every qualified (`::` / `static::`) variable read that fell through to
+    /// the (empty) enclosing global scope here, instead of dropping it.  The
+    /// aggregator replays these on the shell's global scope during the graft, so
+    /// a body's `$::g` read lands as a reference on the real enclosing `::g`
+    /// def — one of the divergences the per-item path must reproduce.  `None` on
+    /// the whole-file `analyse` path (reads resolve against the populated scope).
+    pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
@@ -322,6 +330,7 @@ impl Analyser {
             defer_proc_bodies: false,
             deferred_bodies: Vec::new(),
             cu_override: None,
+            capture_global_reads: None,
         }
     }
 

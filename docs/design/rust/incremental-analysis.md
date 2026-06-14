@@ -210,6 +210,36 @@ practcl.tcl from ~1 s to low-ms).
 | Slice 4 — per-procedure lattice memoisation (`build_for_memoized` + `lattice_rebase`), offset-invariant | **shipped** (byte-identical; e2e parity) |
 | Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
 | Salsa-native per-procedure lattice graph (`function_lattice` query interning each proc's offset-0 body + `CfgContext`); both consumers (analyser tail + optimiser via `compiler_check_diagnostics`) on salsa; process-wide content cache retired | **shipped** (byte-identical; offset-invariant firewall + e2e parity) |
+| Per-item walk Phase B — widen the fast path: qualified `$::g` reads captured + replayed on the shell's globals at graft; the enclosing-context fallback narrowed from "any namespace/global/`variable`/qualified-read body" to **duplicate definitions** (top-level + nested self-redefinition) and **class-defining / qualified-writer bodies** | **shipped** (≈42% of corpus files now take the incremental fast path, up from the qualified-read-trigger floor; byte-identical — corpus + fuzzer gated) |
+
+> **Phase B — what the fast path now covers, and what still falls back.**
+> The per-item walk's enclosing-context fallback (`body_needs_enclosing_context`)
+> used to fire on *any* body touching namespace/global/`variable` state or a
+> qualified `$::g` read — i.e. almost every non-trivial file.  Phase B:
+>
+> - **Captures + replays qualified reads.** A body's `$::g` read is recorded
+>   (`Analyser::capture_global_reads`) when it misses the isolated body's empty
+>   global scope, then replayed on the shell's real `::g` at graft — so a body
+>   that only *reads* enclosing globals no longer needs the fallback.
+> - **Narrows the fallback** to the two patterns the isolated-body decomposition
+>   genuinely can't reproduce byte-for-byte: (1) **duplicate definitions** — the
+>   same proc/method qualified name defined twice (platform-conditional `proc`s
+>   *and* the lazy-init self-redefinition `proc p {a} { …; proc p {a} {real} }`,
+>   detected by tracking every defined proc name across the shell + body
+>   fragments); (2) **class-defining or qualified-writer bodies** (`oo::class` /
+>   `oo::define`, or `set ::ns::x`) — whose `all_variables` / class-method facts
+>   accumulate across bodies in a whole-file walk but only *merge* in the graft.
+>
+> Result: ~42% of corpus files take the incremental fast path (a body edit
+> recomputes one body + shell + tail).  The remaining ~58% — those that
+> **declare/write** enclosing variables (`variable` / `global` / `set ::x`) or
+> define classes in a body, including marquee files like `practcl.tcl` and
+> `init.tcl` — still fall back, because making them byte-identical needs the
+> isolated body to *pre-seed* its enclosing const-strings + variable defs (so
+> `warn_if_unused`, definition spans, and const-string-dependent diagnostics like
+> W304 resolve identically).  That pre-seeding — keyed so a body invalidates only
+> when its enclosing context changes — is the next step toward a fully
+> incremental analyser walk.
 
 > **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
 > (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now
