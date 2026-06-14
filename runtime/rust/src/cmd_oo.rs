@@ -1894,7 +1894,15 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let Some(ns) = ns else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
-            let mut names = interp.namespaces().var_names(ns);
+            // `info object vars obj ?pattern?` — the optional glob filters the
+            // (simple) variable names (oo-16.10).
+            let pat = argv.get(4).map(|&a| obj_bytes(a));
+            let mut names: Vec<Vec<u8>> = interp
+                .namespaces()
+                .var_names(ns)
+                .into_iter()
+                .filter(|n| fqn_glob_ok(pat.as_deref(), n))
+                .collect();
             names.sort();
             set_list(interp, &names);
             Code::Ok
@@ -2323,6 +2331,38 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         if show && !names.contains(n) {
                             names.push(n.clone());
                         }
+                    }
+                }
+            }
+            // `-all` reaches oo::object's built-ins: `destroy` (public, unless
+            // unexported in the chain), plus the unexported set under `-private`
+            // (oo-17.9, oo-17.10).
+            if all {
+                let add = |n: &[u8], names: &mut Vec<Vec<u8>>| {
+                    if !names.iter().any(|x| x == n) {
+                        names.push(n.to_vec());
+                    }
+                };
+                let destroy_unexported = chain.iter().any(|c| {
+                    interp
+                        .oo
+                        .borrow()
+                        .classes
+                        .get(c)
+                        .is_some_and(|cl| cl.unexported.contains(b"destroy".as_slice()))
+                });
+                if private || !destroy_unexported {
+                    add(b"destroy", &mut names);
+                }
+                if private {
+                    for b in [
+                        &b"<cloned>"[..],
+                        b"eval",
+                        b"unknown",
+                        b"variable",
+                        b"varname",
+                    ] {
+                        add(b, &mut names);
                     }
                 }
             }
@@ -3771,6 +3811,29 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn info_methods_all_and_object_vars_pattern() {
+        leak_free(|i| {
+            // `info object vars obj ?pattern?` filters by the glob (oo-16.10).
+            ok(i, b"oo::class create K");
+            ok(i, b"K create foo");
+            ok(i, b"oo::objdefine foo export eval");
+            ok(i, b"foo eval {variable c 3 a 1 b 2 ddd 4}");
+            assert_eq!(ok(i, b"lsort [info object vars foo ?]"), b"a b c");
+            // `info class methods -all` includes destroy; `-all -private` adds
+            // the oo::object built-ins (oo-17.9).
+            ok(i, b"oo::class create C { method bar {} {} }");
+            assert_eq!(ok(i, b"lsort [info class methods C -all]"), b"bar destroy");
+            assert_eq!(
+                ok(i, b"lsort [info class methods C -all -private]"),
+                b"<cloned> bar destroy eval unknown variable varname"
+            );
+            // Unexporting destroy hides it from `-all` (oo-17.10).
+            ok(i, b"oo::define C unexport {*}[info class methods C -all]");
+            assert_eq!(ok(i, b"info class methods C -all"), b"");
         });
     }
 
