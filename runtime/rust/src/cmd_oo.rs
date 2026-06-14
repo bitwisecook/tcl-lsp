@@ -205,6 +205,7 @@ pub fn install(interp: &mut Interp) {
     // can't break it. `self`/`next` resolve via the call stack.
     interp.register_builtin(b"self", self_cmd);
     interp.register_builtin(b"next", next_cmd);
+    interp.register_builtin(b"nextto", nextto_cmd);
     // Root classes (so `superclass`-less classes inherit `object` and
     // `superclass oo::class`/`oo::object` validate). Both are themselves
     // objects (instances of `::oo::class`) and dispatch through `oo_dispatch`
@@ -2340,6 +2341,71 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         err(interp, b"no next method implementation")
     }
+}
+
+/// `nextto class ?arg ...?` (C's `TclOONextToObjCmd`): like `next`, but resumes
+/// the call chain at the non-filter step declared by `class`, which must lie
+/// *ahead* of the current step (no jumping backwards).
+fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
+        (
+            frame.object.clone(),
+            frame.chain.clone(),
+            frame.index,
+            frame.target.clone(),
+        )
+    });
+    let Some((object, chain, index, target)) = ctx else {
+        return err(interp, b"nextto may only be called from inside a method");
+    };
+    if argv.len() < 2 {
+        return wrong_args(interp, b"nextto class ?arg ...?");
+    }
+    let raw = obj_bytes(argv[1]);
+    // The class argument resolves like a command: current namespace then the
+    // global fallback (C's Tcl_GetObjectFromObj), not relative to the object's
+    // instance namespace that the method runs in.
+    let class = match interp.namespaces().resolve_fqn(interp.current_ns(), &raw) {
+        Some(c) if interp.oo.borrow().objects.contains_key(&c) => c,
+        _ => interp.fqn_for(&raw),
+    };
+    if !interp.oo.borrow().objects.contains_key(&class) {
+        return not_object(interp, &raw);
+    }
+    if !interp.oo.borrow().classes.contains_key(&class) {
+        let mut m = b"\"".to_vec();
+        m.extend_from_slice(&raw);
+        m.extend_from_slice(b"\" is not a class");
+        return err(interp, &m);
+    }
+    // A non-filter step has the same method name as the invoked target.
+    let is_target = |s: &CallStep| s.method == target;
+    // Search forward (past the current step) for the class's implementation.
+    for i in index + 1..chain.len() {
+        if chain[i].provider == class && is_target(&chain[i]) {
+            return interp.oo_run(&object, chain, i, &target, &argv[2..]);
+        }
+    }
+    // Not reachable ahead: distinguish "behind us" from "not in the chain".
+    let method_type: &[u8] = if target.is_empty() {
+        b"constructor"
+    } else if target == b"<destructor>" {
+        b"destructor"
+    } else {
+        b"method"
+    };
+    let reachable_behind = (0..=index).any(|i| chain[i].provider == class && is_target(&chain[i]));
+    let mut m = method_type.to_vec();
+    if reachable_behind {
+        m.extend_from_slice(b" implementation by \"");
+        m.extend_from_slice(&raw);
+        m.extend_from_slice(b"\" not reachable from here");
+    } else {
+        m.extend_from_slice(b" has no non-filter implementation by \"");
+        m.extend_from_slice(&raw);
+        m.push(b'"');
+    }
+    err(interp, &m)
 }
 
 // -- info object / info class (called from cmd_info) -------------------------
@@ -4947,6 +5013,44 @@ mod tests {
             // Unexporting destroy hides it from `-all` (oo-17.10).
             ok(i, b"oo::define C unexport {*}[info class methods C -all]");
             assert_eq!(ok(i, b"info class methods C -all"), b"");
+        });
+    }
+
+    #[test]
+    fn nextto_resumes_chain_at_class() {
+        leak_free(|i| {
+            ok(i, b"oo::class create root");
+            ok(
+                i,
+                b"oo::class create A { superclass root; method x args {lappend ::r ==A==} }",
+            );
+            ok(
+                i,
+                b"oo::class create B { superclass A; method x args {lappend ::r ==B==; nextto A} }",
+            );
+            ok(
+                i,
+                b"oo::class create C { superclass A; method x args {lappend ::r ==C==} }",
+            );
+            ok(
+                i,
+                b"oo::class create D { superclass B C; method x args {lappend ::r ==D==; next} }",
+            );
+            ok(i, b"set ::r {}; [D new] x");
+            // D -> B (next) -> B does `nextto A`, skipping C, to A.
+            assert_eq!(ok(i, b"set ::r"), b"==D== ==B== ==A==");
+            // nextto to an unrelated/behind class errors.
+            ok(i, b"oo::class create Z { superclass root }");
+            ok(
+                i,
+                b"oo::class create E { superclass root; method x {} {nextto Z} }",
+            );
+            ok(i, b"E create e");
+            assert_eq!(i.eval_str(b"e x"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"method has no non-filter implementation by \"Z\""
+            );
         });
     }
 
