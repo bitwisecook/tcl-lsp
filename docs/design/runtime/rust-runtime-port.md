@@ -1735,7 +1735,29 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `myclass` command + forward resolves `my`/`myclass` in object ns | **129 / 168** | 39 (0 timeout) | **11751 / 20532** |
 | + TclOO TIP 500 private-method class scoping (`my m` prefers declaring class) | **129 / 168** | 39 (0 timeout) | **11753 / 20532** |
 | + TclOO definition-script errorInfo frame (`(in definition script for …)`) | **129 / 168** | 39 (0 timeout) | **11757 / 20532** |
-| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 350 / 388** |
+| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 352 / 388** |
+
+The 2026-06-14 (cont.2) **FILTER_HANDLING** chunk (**+2, zero regressions**,
+`oo.test` 350 → 352): filters now wrap a method call regardless of public/`my`,
+except while a filter (and everything it calls synchronously) runs — a
+`filter_handling` flag inherited down the call tree, set when a filter step runs
+and cleared when the filter calls `next`. Matches C's FILTER_HANDLING:
+`my Bar` inside a filter isn't re-wrapped (oo-12.5/12.6 stay green) while
+`my InnerFoo` inside a normal method is (oo-12.7), incl. mixin-of-mixin filters
+(oo-14.7). (An earlier "immediate-caller-is-a-filter" check regressed 12.5/12.6
+— the regression was the signal that the flag must be inherited, not local.)
+
+The **`oo::define` definition-namespace** rework was re-attempted with the C
+model (`TclOOGetDefineContextNamespace` → TIP-524 custom ns else
+`::oo::define`/`::oo::objdefine`; class args via `GetClassInOuterContext`) and
+again came out net −22, but the regression pinpointed the root cause:
+`InitDefineContext` pushes a real **`FRAME_IS_OO_DEFINE` call frame**, so the
+body runs at a *new* call level with `def_stack`, `info level`, `uplevel`, and
+variable scope all aligned to it. Switching `current_ns` alone (no frame)
+misaligns the level from `def_stack` (private-var declaration, TIP-524 ns
+resolution, and `self`-subcommand all break). The correct fix is a dedicated
+define call-frame — a frame-machinery change touching the sensitive oo-18.x
+errorInfo paths — left as the next focused rework, now precisely scoped.
 
 The 2026-06-14 (cont.) **forward/trace/varname** chunks (**+7 more, zero
 regressions**, `oo.test` 343 → 350):
@@ -1790,12 +1812,10 @@ remaining `wrong # args` cases need it threaded into more dispatchers):
 the **ensemble-rewrite for non-OO ensembles** (oo-6.17 namespace-ensemble
 `-parameters`, oo-6.18 the builtin `string length` message, oo-2.7/2.8 the
 namespace-ensemble + constructor path, oo-15.9 `<cloned>` naming); the
-**FILTER_HANDLING** model so filters wrap `my` calls but not within a filter
-(oo-12.7/12.8/14.7 — an internal-call attempt regressed oo-12.5/12.6); running
-`oo::define` **script bodies in the
-`::oo::define` namespace** (C's frame model — oo-7.4/7.5/7.9/34.1; attempted,
-regressed 22 across private vars / TIP 524 / myclass, reverted, and a narrower
-subcommand-precedence attempt regressed oo-18.x); **`Var::Undefined` ghosts** so
+**`oo::define` definition call-frame** (oo-7.4/7.5/7.9/34.1 + the `self`-subcommand
+namespace and `definitionnamespace` outer-resolution it implies) — needs a real
+`FRAME_IS_OO_DEFINE` frame (see SYNC above), not just a `current_ns` switch;
+**`Var::Undefined` ghosts** so
 `namespace which -variable` finds a `varname`'d-but-unset variable
 (oo-19.4/19.5); the **trace-namespace qualification pollution** (oo-19.1/19.2,
 20.7/20.13/20.14, risks trace.test's 199 passing); **filter-chain introspection**
