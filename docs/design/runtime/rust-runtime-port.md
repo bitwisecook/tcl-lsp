@@ -1735,11 +1735,24 @@ The Rust interpreter runs the real Tcl 9 suite end-to-end (real `tcltest`
 | + TclOO `myclass` command + forward resolves `my`/`myclass` in object ns | **129 / 168** | 39 (0 timeout) | **11751 / 20532** |
 | + TclOO TIP 500 private-method class scoping (`my m` prefers declaring class) | **129 / 168** | 39 (0 timeout) | **11753 / 20532** |
 | + TclOO definition-script errorInfo frame (`(in definition script for …)`) | **129 / 168** | 39 (0 timeout) | **11757 / 20532** |
-| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 334 / 388** |
+| + TclOO coroutines/event-loop, `info frame`, teardown & introspection tail | — | — | **`oo.test` 343 / 388** |
 
-The 2026-06-14 **TclOO long-tail** chunks (**+13 `oo.test` over a session, zero
-regressions per step**, `oo.test` 321 → 334) — each read against the Tcl 9 C
+The 2026-06-14 **TclOO long-tail** chunks (**+22 `oo.test` over a session, zero
+regressions per step**, `oo.test` 321 → 343) — each read against the Tcl 9 C
 source and byte-verified:
+- **Self-mixin call-chain facet** (oo-13.7): a class mixed into its own instance
+  contributes both facets under one FQN; the chain now tags each step's facet
+  (`method_chain_faceted`) so dispatch finds the class-facet method.
+- **Object rename tracking** (oo-23.1, oo-34.10): a rename follows into
+  dependents' class/superclass/mixin lists and re-binds the object command's own
+  embedded FQN (the name `self` reports), so a renamed object stays dispatchable.
+- **`myclass` direct invocation** (oo-41.2) via its tracked alias.
+- **Filters wrap built-in targets** like `destroy` (oo-12.2/12.3): the filter
+  chain runs through `oo_run` and `next` reaches the built-in terminus.
+- **Class destruction deletes the instance namespace** (oo-15.13.2);
+  **`oo::copy` to an existing namespace errors** (oo-15.12); distinct
+  **class-of-classes** root message (oo-13.10).
+- (Build) MSRV raised to 1.85 (`is_none_or` et al.).
 - **Nested-ownership teardown** (oo-1.22, oo-35.7.3): `oo_destroy` cascades to
   objects living in the destroyed object's instance namespace (C's
   `ObjectNamespaceDeleted` → `TclOODeleteDescendants`), in nesting order.
@@ -1759,12 +1772,21 @@ source and byte-verified:
   -scope`** filtering (oo-39.12); **empty superclass** defaults to `oo::class`
   for a metaclass (oo-35.2); redundant `::` runs collapse in OO names.
 
-Deferred (documented as future work): running `oo::define` script bodies in the
-`::oo::define` namespace (C's frame model — attempted, regressed 22 across
-private vars / TIP 524 / myclass, reverted); the ensemble-rewrite chaining for
-`forward` wrong-args (oo-6.14–6.20); the self-mixin call-chain facet ambiguity
-(oo-23.1/41.2/13.7); variable unset-traces firing during namespace teardown
-(oo-11.8); and the trace-namespace qualification pollution (oo-19.x/20.x).
+Deferred (documented as future work — each a sizeable cross-cutting subsystem):
+the interp-wide **ensemble-rewrite** for `wrong # args` (oo-6.14/16–20, 2.7/2.8,
+15.9 — it must rewrite even a builtin's message, e.g. `string length` in
+oo-6.18, so it can't be OO-local); running `oo::define` **script bodies in the
+`::oo::define` namespace** (C's frame model — oo-7.4/7.5/7.9/34.1; attempted,
+regressed 22 across private vars / TIP 524 / myclass, reverted, and a narrower
+subcommand-precedence attempt regressed oo-18.x); **`Var::Undefined` ghosts** so
+`namespace which -variable` finds a `varname`'d-but-unset variable
+(oo-19.4/19.5); the **trace-namespace qualification pollution** (oo-19.1/19.2,
+20.7/20.13/20.14, risks trace.test's 199 passing); **filter-chain introspection**
+including built-in steps (oo-12.7/12.8/14.7); `next` **after object deletion**
+(oo-7.10); variable **unset-traces during namespace teardown** (oo-11.8); private
+**variable lazy-resolution timing** (oo-38.5); `tailcall` in a constructor
+(oo-2.6); class morph mid-define (oo-13.11); and the Itcl upvar-in-destructor
+case (oo-3.5a).
 
 The 2026-06-13 **TclOO filters** chunk (**+4 tests over two commits, zero
 regressions**) — refactored the method-call chain to a list of `(provider,
