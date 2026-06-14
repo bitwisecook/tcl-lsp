@@ -131,8 +131,9 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(&m);
         };
         interp.oo_namespace_deleted(ns_id);
-        let cur = interp.current_ns();
-        interp.namespaces_mut().delete_namespace(cur, &name);
+        // Delete by id so variable unset traces in the namespace fire as it is
+        // torn down (the named `delete_namespace` path does not).
+        interp.delete_namespace_by_id(ns_id);
     }
     interp.set_result_bytes(b"");
     Code::Ok

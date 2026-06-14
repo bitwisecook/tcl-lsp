@@ -5760,9 +5760,6 @@ impl Interp {
             // objects, so this only reaches the (not-yet-destroyed) descendants.
             self.oo_namespace_deleted(ns);
         }
-        // Cleanup: drop the registry entries (a metaclass instance is in both
-        // maps), the command, the per-object `my`/`myclass`, and the object's
-        // own variable namespace (C deletes the instance namespace).
         let aliases = self
             .oo
             .borrow()
@@ -5770,17 +5767,22 @@ impl Interp {
             .get(obj)
             .map(|o| o.my_aliases.clone())
             .unwrap_or_default();
+        // Delete the instance namespace first — this unsets its variables and
+        // fires their unset traces while the object is still registered and
+        // torn-down, so a trace callback sees `info object isa object` true, the
+        // namespace already gone, and a method call as "impossible to invoke
+        // method" (C's ObjectNamespaceDeleted order; oo-11.8).
+        if let Some(ns) = var_ns {
+            self.delete_namespace_by_id(ns);
+        }
+        // Then drop the registry entries (a metaclass instance is in both maps),
+        // the command, and the per-object `my`/`myclass` (a `my` renamed out of
+        // the namespace is tied to the object's lifetime in C, so delete it too).
         self.oo.borrow_mut().objects.remove(obj);
         self.oo.borrow_mut().classes.remove(obj);
         self.delete_command(obj);
-        // A `my`/`myclass` command renamed out of the object's namespace (e.g.
-        // `rename ::obj::my ::objmy`) is still tied to the object's lifetime in
-        // C, so delete it here too (deleting the var-ns alone would miss it).
         for a in aliases {
             self.delete_command(&a);
-        }
-        if let Some(ns) = var_ns {
-            self.delete_namespace_by_id(ns);
         }
         dtor_code
     }

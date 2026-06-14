@@ -1614,7 +1614,85 @@ impl Interp {
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        // Variables in the namespace (and its descendants) are about to be
+        // unset; fire their unset traces. Names are built while the namespace
+        // still exists, then the namespace is torn down, then the callbacks run
+        // — so a callback sees the namespace already gone (C's order; oo-11.8).
+        let victims = self.take_ns_unset_traces(ns);
         self.namespaces.borrow_mut().delete_namespace_by_id(ns);
+        self.fire_unset_callbacks(victims);
+    }
+
+    /// Remove and return the `(fullName, command)` of every *unset* variable
+    /// trace registered on a namespace variable in `ns` or a descendant (so it
+    /// can be fired as the namespace is deleted).
+    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+        if self.traces.borrow().traces.iter().all(|t| t.ns.is_none()) {
+            return Vec::new();
+        }
+        let ids: std::collections::HashSet<NsId> = self
+            .namespaces
+            .borrow()
+            .descendant_ids(ns)
+            .into_iter()
+            .collect();
+        let mut victims = Vec::new();
+        let mut traces = self.traces.borrow_mut();
+        let ns_ref = self.namespaces.borrow();
+        traces.traces.retain(|t| {
+            let hit =
+                t.ns.is_some_and(|n| ids.contains(&n) && t.ops.iter().any(|o| o == b"unset"));
+            if hit {
+                let home = t.ns.unwrap();
+                let mut fqn = ns_ref.qualified_name(home);
+                if fqn != b"::" {
+                    fqn.extend_from_slice(b"::");
+                }
+                // `base` may be qualified (registered as `::n::x`); use its
+                // simple tail under the home namespace.
+                let simple = match t.base.windows(2).rposition(|w| w == b"::") {
+                    Some(i) => &t.base[i + 2..],
+                    None => &t.base[..],
+                };
+                fqn.extend_from_slice(simple);
+                if let Some(e) = &t.elem {
+                    fqn.push(b'(');
+                    fqn.extend_from_slice(e);
+                    fqn.push(b')');
+                }
+                victims.push((fqn, t.command.clone()));
+            }
+            !hit
+        });
+        victims
+    }
+
+    /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
+    /// are ignored (an unset trace's result is discarded, as in C).
+    fn fire_unset_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+        if victims.is_empty() || self.traces.borrow().firing > 0 {
+            return;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        self.traces.borrow_mut().firing += 1;
+        for (name, cmd) in victims {
+            let args = crate::list::new_list_obj(&[
+                new_string(&name),
+                new_string(b""),
+                new_string(b"unset"),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.borrow_mut().firing -= 1;
+        unsafe {
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
+        }
     }
 
     /// Resolve a (relative/absolute) namespace name to its id, or `None`.
