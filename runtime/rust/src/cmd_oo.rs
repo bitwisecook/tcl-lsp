@@ -1502,7 +1502,14 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // and variables from the source (oo-15.6, oo-15.8).
     let src_obj = obj::new_string_bytes(&src);
     unsafe { obj::incr_ref_count(src_obj) };
+    // A `wrong # args` from a user `<cloned>` names the new object (C reports the
+    // copy as `<obj> <cloned> …`), not the internal `my` (oo-15.9). Prime the
+    // usage prefix the method body's run_proc consumes.
+    let mut usage = dst.clone();
+    usage.extend_from_slice(b" <cloned>");
+    interp.oo.borrow_mut().fwd_usage = Some(usage);
     let code = interp.oo_invoke(&dst, b"<cloned>", &[src_obj], false);
+    interp.oo.borrow_mut().fwd_usage = None;
     unsafe { obj::decr_ref_count(src_obj) };
     if code == Code::Error {
         return Code::Error;
