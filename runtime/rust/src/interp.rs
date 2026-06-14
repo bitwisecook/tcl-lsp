@@ -121,6 +121,11 @@ pub(crate) struct CallMeta<'a> {
     /// method this is the invoking `obj method` (or a forward's rewritten
     /// original invocation); `None` keeps `usage_called`.
     pub usage_prefix: Option<Vec<u8>>,
+    /// The exact words to record for `info level N` of this frame, when they
+    /// differ from the default `usage_called` + supplied args. Set for a TclOO
+    /// constructor (the `create`/`new` invocation, e.g. `oo::object create foo`)
+    /// so `info level 0` reflects the instantiation, not `<constructor>`.
+    pub level_words: Option<Vec<Vec<u8>>>,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -3072,6 +3077,7 @@ impl Interp {
                 keep_loop_codes: false,
                 same_level: false,
                 usage_prefix: None,
+                level_words: None,
             },
         )
     }
@@ -3122,11 +3128,15 @@ impl Interp {
         } else {
             self.frames.borrow_mut().push(ns);
         }
-        // Record the invocation words for `info level N`: the invoked name plus
-        // the supplied arguments.
-        let mut words = Vec::with_capacity(call_args.len() + 1);
-        words.push(usage_called.to_vec());
-        words.extend(call_args.iter().map(|&a| obj_bytes(a)));
+        // Record the invocation words for `info level N`: an OO constructor
+        // supplies the `create`/`new` invocation words verbatim; otherwise the
+        // invoked name plus the supplied arguments.
+        let words = meta.level_words.unwrap_or_else(|| {
+            let mut w = Vec::with_capacity(call_args.len() + 1);
+            w.push(usage_called.to_vec());
+            w.extend(call_args.iter().map(|&a| obj_bytes(a)));
+            w
+        });
         self.frames.borrow_mut().set_words(words);
         let saved_ns = self.current_ns.get();
         self.current_ns.set(ns);

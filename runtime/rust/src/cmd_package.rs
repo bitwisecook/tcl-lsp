@@ -35,9 +35,16 @@ impl PackageState {
         let mut p = PackageState::default();
         p.provided.insert(b"tcl".to_vec(), b"9.0.3".to_vec());
         p.provided.insert(b"Tcl".to_vec(), b"9.0.3".to_vec());
-        // TclOO is built in (the `oo::*` commands are always present).
+        // TclOO is built in (the `oo::*` commands are always present). C also
+        // registers `ifneeded` entries for both names at the patchlevel (its
+        // `initScript`) so they show up in `package versions` (oo-0.9).
         p.provided.insert(b"tcl::oo".to_vec(), b"1.3.1".to_vec());
         p.provided.insert(b"TclOO".to_vec(), b"1.3.1".to_vec());
+        let already = b"# Already present, OK?".to_vec();
+        p.ifneeded
+            .insert((b"tcl::oo".to_vec(), b"1.3.1".to_vec()), already.clone());
+        p.ifneeded
+            .insert((b"TclOO".to_vec(), b"1.3.1".to_vec()), already);
         p
     }
 }

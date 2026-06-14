@@ -205,6 +205,11 @@ pub struct OoState {
     /// forwards to (the original invocation, e.g. `foo test`), consumed by the
     /// next method body's run_proc (C's ensemble-rewrite for `Tcl_WrongNumArgs`).
     fwd_usage: Option<Vec<u8>>,
+    /// The full command words of the `create`/`new` invocation that is about to
+    /// run a constructor (e.g. `oo::object create foo`), so the constructor's
+    /// `info level 0` reports the instantiation rather than the synthetic
+    /// `<constructor>` name (oo-2.1). Consumed by the constructor's run_proc.
+    ctor_words: Option<Vec<Vec<u8>>>,
 }
 
 /// The object command name as named from the global scope (strip a single
@@ -4151,6 +4156,14 @@ impl Interp {
         // `createWithNamespace` is unexported by default; an external call needs
         // it `self export`ed, an internal call reaches it regardless.
         let cwn_ok = !block_unexported || cwn_exp;
+        // Record the instantiation words (`cmd method ?args...?`) for the
+        // constructor's `info level 0` (oo-2.1). The constructor's run_proc
+        // consumes this; a no-constructor path leaves it for the next create.
+        if matches!(method, b"new" | b"create" | b"createWithNamespace") {
+            let mut words = vec![cmd.to_vec(), method.to_vec()];
+            words.extend(args.iter().map(|&a| obj_bytes(a)));
+            self.oo.borrow_mut().ctor_words = Some(words);
+        }
         match method {
             b"new" if !is_meta && new_ok => Some(self.oo_new(fqn, None, b"", args)),
             b"createWithNamespace" if cwn_ok => {
@@ -5366,6 +5379,14 @@ impl Interp {
             p.extend_from_slice(&method);
             Some(p)
         };
+        // A constructor's `info level 0` reports the originating `create`/`new`
+        // invocation (e.g. `oo::object create foo`), captured by the dispatcher,
+        // rather than the synthetic `<constructor>` name (oo-2.1).
+        let level_words = if method.is_empty() {
+            self.oo.borrow_mut().ctor_words.take()
+        } else {
+            None
+        };
         let code = self.run_proc(
             &params,
             &body,
@@ -5389,6 +5410,7 @@ impl Interp {
                 // level of the original method invocation (step 0).
                 same_level: index > 0,
                 usage_prefix,
+                level_words,
             },
         );
         self.oo.borrow_mut().call_stack.pop();
