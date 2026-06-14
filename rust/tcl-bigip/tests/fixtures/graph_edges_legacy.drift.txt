@@ -1,0 +1,2 @@
+test://config:190:27:ltm:virtual:/Common/www_vs	test://config:103:49:ltm:persistence cookie:/Common/my_cookie_persist	persist	ltm_persistence_cookie
+test://config:190:27:ltm:virtual:/Common/www_vs	test://config:103:49:ltm:persistence cookie:/Common/my_cookie_persist	persist[]	ltm_persistence_cookie

@@ -288,3 +288,273 @@ pub fn resolve_kind_in_configs(
     }
     None
 }
+
+// ---------------------------------------------------------------------------
+// Forward reference edges — port of `_build_forward_edges` (legacy token-scan
+// path). The registry-first (pilot value-spec) dispatch is layered on top in a
+// later increment; this is the always-on fallback path that keeps the graph
+// complete.
+// ---------------------------------------------------------------------------
+
+use std::collections::{HashMap, HashSet};
+
+use crate::parser::helpers::{parse_list_block, parse_properties_with_spans};
+
+/// A forward reference edge between two object nodes. Mirrors the Python
+/// `_Edge` (`BigipObjectEdge`).
+#[derive(Debug, Clone)]
+pub struct ObjectEdge {
+    /// Referencing node id.
+    pub source_id: String,
+    /// Referenced node id.
+    pub target_id: String,
+    /// The property (or `key[]` for a list item, `irule:<cmd>` for iRules).
+    pub via_property: String,
+    /// The registry kind the reference resolved through.
+    pub via_kind: String,
+}
+
+/// Tokens that look like references but never are (mirrors `_FALSEY_REF_TOKENS`).
+const FALSEY_REF_TOKENS: &[&str] = &[
+    "none",
+    "add",
+    "delete",
+    "modify",
+    "replace-all-with",
+    "enabled",
+    "disabled",
+    "default",
+    "all",
+    "and",
+    "or",
+    "context",
+    "clientside",
+    "serverside",
+    "true",
+    "false",
+];
+
+const REF_STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
+
+/// Split a property value into reference tokens (mirrors `_extract_value_tokens`):
+/// a braced value is parsed as a list block; otherwise maximal non-space,
+/// non-brace runs (`[^\s{}]+`).
+fn extract_value_tokens(value: &str) -> Vec<String> {
+    let stripped = value.trim();
+    if stripped.is_empty() {
+        return Vec::new();
+    }
+    if stripped.starts_with('{') && stripped.ends_with('}') {
+        return parse_list_block(stripped);
+    }
+    stripped
+        .split(|c: char| c.is_whitespace() || c == '{' || c == '}')
+        .filter(|t| !t.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Whether `token` could be an object reference (mirrors `_is_candidate_reference`).
+fn is_candidate_reference(token: &str) -> bool {
+    let clean = token.trim_matches(REF_STRIP);
+    if clean.is_empty() {
+        return false;
+    }
+    !FALSEY_REF_TOKENS.contains(&clean.to_ascii_lowercase().as_str())
+}
+
+/// Normalise a reference token for `kind` (mirrors `_normalise_reference_for_kind`):
+/// strips delimiters, and for node/virtual-address kinds drops a trailing
+/// `:port` suffix.
+fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
+    let mut reference = token.trim_matches(REF_STRIP).to_owned();
+    let is_addr_kind = matches!(
+        kind,
+        "node" | "virtual_address" | "ltm_node" | "ltm_virtual_address"
+    );
+    if is_addr_kind && reference.matches(':').count() == 1 {
+        if let Some((left, right)) = reference.rsplit_once(':') {
+            if !right.is_empty() && right.bytes().all(|b| b.is_ascii_digit()) {
+                reference = left.to_owned();
+            }
+        }
+    }
+    reference
+}
+
+/// Resolve a reference to a target node id (mirrors `_resolve_target_node_id`):
+/// resolve the span, match a node by exact range, then by line containment.
+fn resolve_target_node_id(
+    kind: &str,
+    reference: &str,
+    source_module: Option<&str>,
+    configs: &[(String, &BigipConfig)],
+    by_range: &HashMap<&str, HashMap<RangeKey, String>>,
+    nodes_by_uri: &[(String, Vec<ObjectNode>)],
+    reg: &BigipRegistry,
+) -> Option<String> {
+    let (target_uri, target_rk) =
+        resolve_kind_in_configs(kind, reference, configs, source_module, reg)?;
+    if let Some(id) = by_range
+        .get(target_uri.as_str())
+        .and_then(|m| m.get(&target_rk))
+    {
+        return Some(id.clone());
+    }
+    // Containment fallback: a node whose line span encloses the target.
+    let (target_start, _, target_end, _) = target_rk;
+    let nodes = nodes_by_uri
+        .iter()
+        .find(|(u, _)| *u == target_uri)
+        .map(|(_, n)| n)?;
+    for node in nodes {
+        let (lo, hi) = (node.range.start.line, node.range.end.line);
+        if lo <= target_start && target_start <= hi && lo <= target_end && target_end <= hi {
+            return Some(node.node_id.clone());
+        }
+    }
+    None
+}
+
+/// Build the forward reference edges across all nodes (legacy token-scan path).
+fn build_forward_edges(
+    nodes_by_uri: &[(String, Vec<ObjectNode>)],
+    configs: &[(String, &BigipConfig)],
+    reg: &BigipRegistry,
+) -> Vec<ObjectEdge> {
+    let mut edges = Vec::new();
+    let mut seen: HashSet<(String, String, String, String)> = HashSet::new();
+
+    let mut by_range: HashMap<&str, HashMap<RangeKey, String>> = HashMap::new();
+    for (uri, nodes) in nodes_by_uri {
+        let m = by_range.entry(uri.as_str()).or_default();
+        for n in nodes {
+            m.insert(range_key_from(n.range), n.node_id.clone());
+        }
+    }
+
+    let mut push_edge = |edges: &mut Vec<ObjectEdge>,
+                         src: &str,
+                         target_id: String,
+                         via_property: String,
+                         kind: &str| {
+        let ek = (
+            src.to_owned(),
+            target_id.clone(),
+            via_property.clone(),
+            kind.to_owned(),
+        );
+        if seen.insert(ek) {
+            edges.push(ObjectEdge {
+                source_id: src.to_owned(),
+                target_id,
+                via_property,
+                via_kind: kind.to_owned(),
+            });
+        }
+    };
+
+    for (_uri, nodes) in nodes_by_uri {
+        for node in nodes {
+            for (key, prop) in parse_properties_with_spans(&node.body) {
+                // Legacy key path: candidate kinds for the property name.
+                let key_kinds = reg.candidate_kinds_for_key(
+                    &key,
+                    None,
+                    Some(&node.module),
+                    Some(&node.object_type),
+                );
+                if !key_kinds.is_empty() {
+                    for token in extract_value_tokens(&prop.value) {
+                        if !is_candidate_reference(&token) {
+                            continue;
+                        }
+                        for &kind in &key_kinds {
+                            let reference = normalise_reference_for_kind(kind, &token);
+                            if let Some(target_id) = resolve_target_node_id(
+                                kind,
+                                &reference,
+                                Some(&node.module),
+                                configs,
+                                &by_range,
+                                nodes_by_uri,
+                                reg,
+                            ) {
+                                push_edge(&mut edges, &node.node_id, target_id, key.clone(), kind);
+                            }
+                        }
+                    }
+                }
+
+                // Legacy section path: candidate kinds for list items.
+                let section_kinds = reg.candidate_kinds_for_section_item(
+                    &key,
+                    Some(&node.module),
+                    Some(&node.object_type),
+                );
+                if section_kinds.is_empty() {
+                    continue;
+                }
+                for token in parse_list_block(&prop.value) {
+                    if !is_candidate_reference(&token) {
+                        continue;
+                    }
+                    for &kind in &section_kinds {
+                        let reference = normalise_reference_for_kind(kind, &token);
+                        if let Some(target_id) = resolve_target_node_id(
+                            kind,
+                            &reference,
+                            Some(&node.module),
+                            configs,
+                            &by_range,
+                            nodes_by_uri,
+                            reg,
+                        ) {
+                            push_edge(
+                                &mut edges,
+                                &node.node_id,
+                                target_id,
+                                format!("{key}[]"),
+                                kind,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    edges
+}
+
+/// The full object graph: per-source nodes (in source order) and the flat list
+/// of forward edges. Mirrors `build_bigip_object_graph`'s return shape.
+pub struct ObjectGraph {
+    /// `(uri, nodes)` in input order; nodes in source order.
+    pub nodes_by_uri: Vec<(String, Vec<ObjectNode>)>,
+    /// Flat forward-edge list.
+    pub edges: Vec<ObjectEdge>,
+}
+
+/// Build the object reference graph from `(uri, source)` inputs (mirrors
+/// `build_bigip_object_graph`). `configs` supplies the parsed model per uri for
+/// reference resolution; sources without a config are skipped.
+#[must_use]
+pub fn build_bigip_object_graph(
+    sources: &[(String, String)],
+    configs: &[(String, &BigipConfig)],
+    ctx: &GraphContext,
+) -> ObjectGraph {
+    let mut nodes_by_uri: Vec<(String, Vec<ObjectNode>)> = Vec::new();
+    for (uri, source) in sources {
+        if !configs.iter().any(|(u, _)| u == uri) {
+            continue;
+        }
+        nodes_by_uri.push((uri.clone(), build_objects_for_source(uri, source, ctx)));
+    }
+    let reg = default_registry();
+    let edges = build_forward_edges(&nodes_by_uri, configs, reg);
+    ObjectGraph {
+        nodes_by_uri,
+        edges,
+    }
+}
