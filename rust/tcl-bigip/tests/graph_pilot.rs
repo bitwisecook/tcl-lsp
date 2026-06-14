@@ -6,11 +6,9 @@
 //!
 //! The fixture exercises pilot-only edges (`policies`/`vlans`/`persist`, whose
 //! legacy references are cleared) plus the compound specs (monitor min-of, SNAT
-//! pool, cert-key-chain, firewall source/destination lists). The golden is
-//! captured from Python with the full pilot table enabled and the iRule path
-//! disabled. Self-contained — no Python at test time.
-
-use std::collections::BTreeSet;
+//! pool, cert-key-chain, firewall source/destination lists). The Rust graph
+//! reproduces the Python edge set exactly — the registry-data regen cleared the
+//! former drift. Self-contained — no Python at test time.
 
 use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
 use tcl_bigip::parser::parse_bigip_conf;
@@ -20,7 +18,6 @@ fn graph_pilot_edges_match_python() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_pilot.conf")).expect("read config");
     let golden = std::fs::read_to_string(format!("{dir}/graph_pilot.golden.tsv")).expect("golden");
-    let drift = std::fs::read_to_string(format!("{dir}/graph_pilot.drift.txt")).expect("drift");
 
     let cfg = parse_bigip_conf(&source, "Common");
     let uri = "test://config".to_owned();
@@ -40,31 +37,18 @@ fn graph_pilot_edges_match_python() {
             )
         })
         .collect();
+    let want: Vec<&str> = golden.lines().collect();
 
-    let gset: BTreeSet<&str> = got.iter().map(String::as_str).collect();
-    let wset: BTreeSet<&str> = golden.lines().collect();
-    let drift_set: BTreeSet<&str> = drift.lines().filter(|l| !l.trim().is_empty()).collect();
-
-    // Every Python edge (pilot + legacy) is produced — including the pilot-only
-    // `policies`→`ltm_policy` / `vlans`→`net_vlan` edges legacy can't emit.
-    let missing: Vec<&&str> = wset.difference(&gset).collect();
-    assert!(missing.is_empty(), "missing Python edges: {missing:?}");
-
-    // The only extras are the frozen registry-data drift: Rust's legacy *section*
-    // refs for the migrated `policies`/`vlans` weren't cleared, so it emits the
-    // `[]` variants Python doesn't.
-    let extra: BTreeSet<&str> = gset.difference(&wset).copied().collect();
-    assert_eq!(extra, drift_set, "extra pilot-fixture edges changed");
-
-    // Order matches Python once the drift edges are removed.
-    let got_no_drift: Vec<&str> = got
-        .iter()
-        .map(String::as_str)
-        .filter(|e| !drift_set.contains(e))
-        .collect();
-    let want_order: Vec<&str> = golden.lines().collect();
-    assert_eq!(
-        got_no_drift, want_order,
-        "pilot edge order differs from Python"
+    // Exact ordered parity — including the pilot-only `policies`/`vlans`/`persist`
+    // edges legacy can't emit, with no drift edges after the registry-data regen.
+    assert_eq!(got, want, "pilot graph edges differ from Python");
+    assert!(
+        got.iter()
+            .any(|e| e.contains("\tpersist\tltm_persistence_cookie")),
+        "pilot persist"
+    );
+    assert!(
+        got.iter().any(|e| e.contains("\tvlans\tnet_vlan")),
+        "pilot vlans"
     );
 }

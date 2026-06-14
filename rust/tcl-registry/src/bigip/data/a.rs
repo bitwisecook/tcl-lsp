@@ -8,7 +8,7 @@ use super::super::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, Valu
 
 pub static SPECS: &[BigipObjectSpec] = &[
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_afm_sweeper_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -141,7 +141,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_application_security_anomalies_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -274,7 +274,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_application_security_network_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -407,7 +407,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_application_security_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -540,7 +540,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_asm_bypass_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -673,7 +673,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_asm_cpu_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -806,7 +806,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_asm_memory_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -939,7 +939,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_asm_violation_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1072,7 +1072,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_cpu_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1205,7 +1205,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_device_traffic_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1338,7 +1338,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_disk_info_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1471,7 +1471,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_dns_protocol_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1604,7 +1604,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_dns_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1737,7 +1737,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_dos_l3_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -1870,7 +1870,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_fw_nat_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2003,7 +2003,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_global_settings",
             table_name: None,
             resolver_name: None,
@@ -2011,12 +2011,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["global-settings"],
         },
         header_types: &[("analytics", "global-settings")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_http_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2149,7 +2147,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_ip_intelligence_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2282,7 +2280,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_ip_layer_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2415,7 +2413,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_lsn_pool_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2548,7 +2546,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_memory_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2681,7 +2679,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_network_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2814,7 +2812,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_pem_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -2947,7 +2945,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_pool_traffic_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3080,7 +3078,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_proc_cpu_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3213,7 +3211,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_protocol_security_http_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3346,7 +3344,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_protocol_security_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3479,7 +3477,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_sip_dos_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3612,7 +3610,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_sip_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3745,7 +3743,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_ssl_orchestrator_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -3878,7 +3876,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_ssl_orchestrator_service_virtual_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4011,7 +4009,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_swg_blocked_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4144,7 +4142,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_swg_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4277,7 +4275,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_tcp_analytics_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4410,7 +4408,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_tcp_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4543,7 +4541,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_traffic_classification_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4676,7 +4674,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_udp_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4809,7 +4807,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_uri_type",
             table_name: None,
             resolver_name: None,
@@ -4826,7 +4824,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_vcmp_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -4959,7 +4957,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "analytics_virtual_scheduled_report",
             table_name: None,
             resolver_name: None,
@@ -5092,7 +5090,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "api_protection_profile_apiprotection",
             table_name: None,
             resolver_name: None,
@@ -5304,7 +5302,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "api_protection_response",
             table_name: None,
             resolver_name: None,
@@ -5405,7 +5403,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "api_protection_server",
             table_name: None,
             resolver_name: None,
@@ -5447,7 +5445,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_active_directory",
             table_name: None,
             resolver_name: None,
@@ -5570,7 +5568,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_active_directory_trusted_domains",
             table_name: None,
             resolver_name: None,
@@ -5624,7 +5622,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_crldp",
             table_name: None,
             resolver_name: None,
@@ -5735,7 +5733,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_endpoint_management_system",
             table_name: None,
             resolver_name: None,
@@ -5866,7 +5864,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_f5_mfa_configuration",
             table_name: None,
             resolver_name: None,
@@ -5918,7 +5916,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_f5_service_connector",
             table_name: None,
             resolver_name: None,
@@ -5968,7 +5966,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_http",
             table_name: None,
             resolver_name: None,
@@ -6136,7 +6134,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_http_connector_request",
             table_name: None,
             resolver_name: None,
@@ -6225,7 +6223,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_kerberos",
             table_name: None,
             resolver_name: None,
@@ -6277,7 +6275,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_kerberos_keytab_file",
             table_name: None,
             resolver_name: None,
@@ -6301,7 +6299,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_ldap",
             table_name: None,
             resolver_name: None,
@@ -6490,7 +6488,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_oam",
             table_name: None,
             resolver_name: None,
@@ -6604,7 +6602,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_oauth_provider",
             table_name: None,
             resolver_name: None,
@@ -6727,7 +6725,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_oauth_request",
             table_name: None,
             resolver_name: None,
@@ -6825,7 +6823,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_oauth_server",
             table_name: None,
             resolver_name: None,
@@ -6910,7 +6908,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_ocsp",
             table_name: None,
             resolver_name: None,
@@ -7113,7 +7111,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_okta_connector",
             table_name: None,
             resolver_name: None,
@@ -7144,7 +7142,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_radius",
             table_name: None,
             resolver_name: None,
@@ -7256,7 +7254,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_saml",
             table_name: None,
             resolver_name: None,
@@ -7497,7 +7495,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_saml_idp_automation",
             table_name: None,
             resolver_name: None,
@@ -7606,7 +7604,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_saml_idp_connector",
             table_name: None,
             resolver_name: None,
@@ -7770,7 +7768,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_securid",
             table_name: None,
             resolver_name: None,
@@ -7814,7 +7812,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_aaa_tacacsplus",
             table_name: None,
             resolver_name: None,
@@ -7924,7 +7922,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_acl",
             table_name: None,
             resolver_name: None,
@@ -8152,7 +8150,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_apm_avr_config",
             table_name: None,
             resolver_name: None,
@@ -8178,7 +8176,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_client_image",
             table_name: None,
             resolver_name: None,
@@ -8186,12 +8184,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["client image"],
         },
         header_types: &[("apm", "client image")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_configuration_captcha",
             table_name: None,
             resolver_name: None,
@@ -8308,7 +8304,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_epsec_epsec_package",
             table_name: None,
             resolver_name: None,
@@ -8332,7 +8328,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_log_setting",
             table_name: None,
             resolver_name: None,
@@ -8519,7 +8515,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_ntlm_machine_account",
             table_name: None,
             resolver_name: None,
@@ -8575,7 +8571,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_ntlm_ntlm_auth",
             table_name: None,
             resolver_name: None,
@@ -8606,7 +8602,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_db_instance",
             table_name: None,
             resolver_name: None,
@@ -8650,7 +8646,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_jwk_config",
             table_name: None,
             resolver_name: None,
@@ -8658,12 +8654,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["oauth jwk-config"],
         },
         header_types: &[("apm", "oauth jwk-config")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_jwt_config",
             table_name: None,
             resolver_name: None,
@@ -8671,12 +8665,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["oauth jwt-config"],
         },
         header_types: &[("apm", "oauth jwt-config")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_jwt_provider_list",
             table_name: None,
             resolver_name: None,
@@ -8684,12 +8676,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["oauth jwt-provider-list"],
         },
         header_types: &[("apm", "oauth jwt-provider-list")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_oauth_claim",
             table_name: None,
             resolver_name: None,
@@ -8736,7 +8726,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_oauth_client_app",
             table_name: None,
             resolver_name: None,
@@ -8976,7 +8966,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_oauth_resource_server",
             table_name: None,
             resolver_name: None,
@@ -9020,7 +9010,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_oauth_oauth_scope",
             table_name: None,
             resolver_name: None,
@@ -9067,7 +9057,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_active_directory",
             table_name: None,
             resolver_name: None,
@@ -9169,7 +9159,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_client_cert",
             table_name: None,
             resolver_name: None,
@@ -9194,7 +9184,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_crldp",
             table_name: None,
             resolver_name: None,
@@ -9220,7 +9210,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_http",
             table_name: None,
             resolver_name: None,
@@ -9256,7 +9246,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_ldap",
             table_name: None,
             resolver_name: None,
@@ -9355,7 +9345,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_oauth",
             table_name: None,
             resolver_name: None,
@@ -9434,7 +9424,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_radius",
             table_name: None,
             resolver_name: None,
@@ -9485,7 +9475,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_saml",
             table_name: None,
             resolver_name: None,
@@ -9522,7 +9512,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_aaa_securid",
             table_name: None,
             resolver_name: None,
@@ -9575,7 +9565,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_acct_radius",
             table_name: None,
             resolver_name: None,
@@ -9608,7 +9598,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_acct_tacacsplus",
             table_name: None,
             resolver_name: None,
@@ -9638,7 +9628,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_api_authentication",
             table_name: None,
             resolver_name: None,
@@ -9657,7 +9647,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_api_server_selection",
             table_name: None,
             resolver_name: None,
@@ -9682,7 +9672,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_decision_box",
             table_name: None,
             resolver_name: None,
@@ -9712,7 +9702,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_dynamic_acl",
             table_name: None,
             resolver_name: None,
@@ -9743,7 +9733,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_ending_allow",
             table_name: None,
             resolver_name: None,
@@ -9762,7 +9752,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_ending_deny",
             table_name: None,
             resolver_name: None,
@@ -9793,7 +9783,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_ending_redirect",
             table_name: None,
             resolver_name: None,
@@ -9831,7 +9821,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_check_machine_cert",
             table_name: None,
             resolver_name: None,
@@ -9900,7 +9890,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_check_software",
             table_name: None,
             resolver_name: None,
@@ -9945,7 +9935,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_linux_check_file",
             table_name: None,
             resolver_name: None,
@@ -9978,7 +9968,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_linux_check_process",
             table_name: None,
             resolver_name: None,
@@ -10017,7 +10007,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_mac_check_file",
             table_name: None,
             resolver_name: None,
@@ -10055,7 +10045,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_mac_check_process",
             table_name: None,
             resolver_name: None,
@@ -10094,7 +10084,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_machine_info",
             table_name: None,
             resolver_name: None,
@@ -10113,7 +10103,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_browser_cache_cleaner",
             table_name: None,
             resolver_name: None,
@@ -10189,7 +10179,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_check_file",
             table_name: None,
             resolver_name: None,
@@ -10227,7 +10217,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_check_process",
             table_name: None,
             resolver_name: None,
@@ -10260,7 +10250,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_check_registry",
             table_name: None,
             resolver_name: None,
@@ -10293,7 +10283,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_group_policy",
             table_name: None,
             resolver_name: None,
@@ -10319,7 +10309,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_info_os",
             table_name: None,
             resolver_name: None,
@@ -10338,7 +10328,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_endpoint_windows_protected_workspace",
             table_name: None,
             resolver_name: None,
@@ -10403,7 +10393,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_external_logon_page",
             table_name: None,
             resolver_name: None,
@@ -10437,7 +10427,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_http_header_modify",
             table_name: None,
             resolver_name: None,
@@ -10602,7 +10592,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_ip_geolocation_lookup",
             table_name: None,
             resolver_name: None,
@@ -10621,7 +10611,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_ip_reputation_lookup",
             table_name: None,
             resolver_name: None,
@@ -10640,7 +10630,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_irule_event",
             table_name: None,
             resolver_name: None,
@@ -10671,7 +10661,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_kerberos",
             table_name: None,
             resolver_name: None,
@@ -10702,7 +10692,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_l7_protocol_lookup",
             table_name: None,
             resolver_name: None,
@@ -10721,7 +10711,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_logging",
             table_name: None,
             resolver_name: None,
@@ -10753,7 +10743,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_logon_page",
             table_name: None,
             resolver_name: None,
@@ -10971,7 +10961,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_message_box",
             table_name: None,
             resolver_name: None,
@@ -10996,7 +10986,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_oam",
             table_name: None,
             resolver_name: None,
@@ -11043,7 +11033,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_oauth_authz",
             table_name: None,
             resolver_name: None,
@@ -11372,7 +11362,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_request_classification",
             table_name: None,
             resolver_name: None,
@@ -11391,7 +11381,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_resource_assign",
             table_name: None,
             resolver_name: None,
@@ -11424,7 +11414,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_response_selection",
             table_name: None,
             resolver_name: None,
@@ -11449,7 +11439,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_route_domain_selection",
             table_name: None,
             resolver_name: None,
@@ -11496,7 +11486,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_server_cert_response_control",
             table_name: None,
             resolver_name: None,
@@ -11521,7 +11511,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_server_cert_status",
             table_name: None,
             resolver_name: None,
@@ -11540,7 +11530,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_session_check",
             table_name: None,
             resolver_name: None,
@@ -11559,7 +11549,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_ssl_check",
             table_name: None,
             resolver_name: None,
@@ -11578,7 +11568,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_tacacsplus",
             table_name: None,
             resolver_name: None,
@@ -11610,7 +11600,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_policy_agent_variable_assign",
             table_name: None,
             resolver_name: None,
@@ -11642,7 +11632,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_profile_access",
             table_name: None,
             resolver_name: None,
@@ -11920,7 +11910,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_profile_connectivity",
             table_name: None,
             resolver_name: None,
@@ -13259,7 +13249,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_profile_exchange",
             table_name: None,
             resolver_name: None,
@@ -13388,7 +13378,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_profile_oauth",
             table_name: None,
             resolver_name: None,
@@ -13676,7 +13666,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_profile_vdi",
             table_name: None,
             resolver_name: None,
@@ -13701,7 +13691,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_report_custom_report_field",
             table_name: None,
             resolver_name: None,
@@ -13752,7 +13742,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_address_space",
             table_name: None,
             resolver_name: None,
@@ -13833,7 +13823,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_app_tunnel",
             table_name: None,
             resolver_name: None,
@@ -13899,7 +13889,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_client_rate_class",
             table_name: None,
             resolver_name: None,
@@ -13967,7 +13957,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_client_traffic_classifier",
             table_name: None,
             resolver_name: None,
@@ -14133,7 +14123,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_ipv6_leasepool",
             table_name: None,
             resolver_name: None,
@@ -14176,7 +14166,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_leasepool",
             table_name: None,
             resolver_name: None,
@@ -14219,7 +14209,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_network_access",
             table_name: None,
             resolver_name: None,
@@ -14670,7 +14660,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_portal_access",
             table_name: None,
             resolver_name: None,
@@ -14816,7 +14806,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_remote_desktop_citrix",
             table_name: None,
             resolver_name: None,
@@ -14950,7 +14940,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_remote_desktop_citrix_client_bundle",
             table_name: None,
             resolver_name: None,
@@ -15010,7 +15000,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_remote_desktop_citrix_client_package_file",
             table_name: None,
             resolver_name: None,
@@ -15050,7 +15040,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_remote_desktop_quest",
             table_name: None,
             resolver_name: None,
@@ -15184,7 +15174,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_remote_desktop_rdp",
             table_name: None,
             resolver_name: None,
@@ -15322,7 +15312,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_remote_desktop_vmware_view",
             table_name: None,
             resolver_name: None,
@@ -15456,7 +15446,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_sandbox",
             table_name: None,
             resolver_name: None,
@@ -15556,7 +15546,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_webtop",
             table_name: None,
             resolver_name: None,
@@ -15622,7 +15612,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_resource_webtop_link",
             table_name: None,
             resolver_name: None,
@@ -15666,7 +15656,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_saml_artifact_resolution_service",
             table_name: None,
             resolver_name: None,
@@ -15748,7 +15738,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_saml_attribute_consuming_service",
             table_name: None,
             resolver_name: None,
@@ -15853,7 +15843,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_saml_auth_context_class_list",
             table_name: None,
             resolver_name: None,
@@ -15911,7 +15901,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_session",
             table_name: None,
             resolver_name: None,
@@ -15919,12 +15909,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["session"],
         },
         header_types: &[("apm", "session")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_basic",
             table_name: None,
             resolver_name: None,
@@ -15996,7 +15984,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_form_based",
             table_name: None,
             resolver_name: None,
@@ -16149,7 +16137,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_form_basedv2",
             table_name: None,
             resolver_name: None,
@@ -16642,7 +16630,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_kerberos",
             table_name: None,
             resolver_name: None,
@@ -16793,7 +16781,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_ntlmv1",
             table_name: None,
             resolver_name: None,
@@ -16914,7 +16902,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_ntlmv2",
             table_name: None,
             resolver_name: None,
@@ -17035,7 +17023,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_oauth_bearer",
             table_name: None,
             resolver_name: None,
@@ -17086,7 +17074,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_saml",
             table_name: None,
             resolver_name: None,
@@ -17305,7 +17293,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_saml_resource",
             table_name: None,
             resolver_name: None,
@@ -17358,7 +17346,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_saml_sp_automation",
             table_name: None,
             resolver_name: None,
@@ -17431,7 +17419,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_sso_saml_sp_connector",
             table_name: None,
             resolver_name: None,
@@ -17597,7 +17585,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_swg_scheme",
             table_name: None,
             resolver_name: None,
@@ -17622,7 +17610,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "apm_url_filter",
             table_name: None,
             resolver_name: None,
@@ -17646,7 +17634,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "asm_httpclass_asm",
             table_name: None,
             resolver_name: None,
@@ -17681,7 +17669,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "asm_policy",
             table_name: None,
             resolver_name: None,
@@ -17744,7 +17732,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_apm_auth",
             table_name: None,
             resolver_name: None,
@@ -17761,7 +17749,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_cert_ldap",
             table_name: None,
             resolver_name: None,
@@ -17998,7 +17986,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_ldap",
             table_name: None,
             resolver_name: None,
@@ -18224,24 +18212,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "auth_login_failures",
-            table_name: None,
-            resolver_name: None,
-            module: Some("auth"),
-            object_types: &["login-failures"],
-        },
-        header_types: &[("auth", "login-failures")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_partition",
             table_name: None,
             resolver_name: None,
@@ -18250,12 +18221,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("auth", "partition")],
         properties: &[
-            BigipPropertySpec {
-                name: "default-route-domain",
-                value_type: ValueKind::Reference,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "default-route-domain",
                 value_type: ValueKind::Unknown,
@@ -18269,7 +18234,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_password",
             table_name: None,
             resolver_name: None,
@@ -18277,12 +18242,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["password"],
         },
         header_types: &[("auth", "password")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_password_policy",
             table_name: None,
             resolver_name: None,
@@ -18367,7 +18330,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_radius",
             table_name: None,
             resolver_name: None,
@@ -18432,7 +18395,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_radius_server",
             table_name: None,
             resolver_name: None,
@@ -18483,7 +18446,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_remote_role",
             table_name: None,
             resolver_name: None,
@@ -18492,41 +18455,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("auth", "remote-role")],
         properties: &[
-            BigipPropertySpec {
-                name: "attribute",
-                value_type: ValueKind::Reference,
-                in_sections: &["dc1"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "console",
-                value_type: ValueKind::Reference,
-                in_sections: &["dc1"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "role",
-                value_type: ValueKind::Reference,
-                in_sections: &["dc1"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "user-partition",
-                value_type: ValueKind::Reference,
-                in_sections: &["dc1"],
-                references: &["auth_partition", "auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "attribute",
-                value_type: ValueKind::Reference,
-                in_sections: &["dc2"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -18650,7 +18578,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_remote_user",
             table_name: None,
             resolver_name: None,
@@ -18659,12 +18587,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("auth", "remote-user")],
         properties: &[
-            BigipPropertySpec {
-                name: "default-partition",
-                value_type: ValueKind::Reference,
-                references: &["auth_partition"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "default-partition",
                 value_type: ValueKind::Reference,
@@ -18693,7 +18615,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_source",
             table_name: None,
             resolver_name: None,
@@ -18720,7 +18642,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_tacacs",
             table_name: None,
             resolver_name: None,
@@ -18806,7 +18728,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "auth_user",
             table_name: None,
             resolver_name: None,

@@ -6,14 +6,11 @@
 //! registry, plus every property name per container, probed across several
 //! sections). Self-contained — no Python at test time.
 //!
-//! `kind_for_header` (the structural header→kind map) must match **exactly**.
-//! For `candidate_kinds_*` the *logic* is verified the same way, but a small,
-//! frozen set of rows differ because the generated Rust registry **data**
-//! (`bigip/data`, a `gen_bigip_rust.py` baseline) has drifted from current
-//! Python for ~14 properties' `references` lists. That drift is pinned in
-//! `object_query.drift.txt` and is a separate registry-data workstream — not a
-//! query-logic bug. Any *new* divergence (a real logic regression) changes the
-//! mismatch set and fails this test.
+//! `kind_for_header` (the structural header→kind map), `candidate_kinds_for_key`,
+//! and `candidate_kinds_for_section_item` must all match Python **exactly** —
+//! every probe, no exceptions. The registry **data** (`bigip/data`) is
+//! regenerated from the reconciled Python `OBJECT_SPECS` by
+//! `scripts/registry-audit/gen_bigip_rust.py`, so there is no data drift to pin.
 
 use std::collections::BTreeSet;
 
@@ -79,16 +76,15 @@ fn object_query_matches_python() {
         header_mismatches.join("\n")
     );
 
-    // candidate_kinds_* must match Python everywhere except the frozen
-    // registry-data drift set — proving the query logic is faithful.
-    let expected_drift: BTreeSet<String> = fixture("object_query.drift.txt")
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(str::to_owned)
-        .collect();
-    assert_eq!(
-        candidate_mismatches, expected_drift,
-        "candidate_kinds drift set changed — a query-logic regression or registry-data shift \
-         (regenerate object_query.drift.txt only if the data baseline legitimately moved)"
+    // candidate_kinds_* must match Python on every probe.
+    assert!(
+        candidate_mismatches.is_empty(),
+        "candidate_kinds diverged from Python ({} rows):\n{}",
+        candidate_mismatches.len(),
+        candidate_mismatches
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }

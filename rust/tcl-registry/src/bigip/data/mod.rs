@@ -4,7 +4,6 @@ use super::BigipObjectSpec;
 
 mod a;
 mod c;
-mod d;
 mod g;
 mod i;
 mod l;
@@ -22,7 +21,6 @@ pub fn all_specs() -> Vec<&'static BigipObjectSpec> {
     let mut v: Vec<&'static BigipObjectSpec> = Vec::new();
     v.extend(a::SPECS.iter());
     v.extend(c::SPECS.iter());
-    v.extend(d::SPECS.iter());
     v.extend(g::SPECS.iter());
     v.extend(i::SPECS.iter());
     v.extend(l::SPECS.iter());

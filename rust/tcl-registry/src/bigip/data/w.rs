@@ -8,7 +8,7 @@ use super::super::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, Valu
 
 pub static SPECS: &[BigipObjectSpec] = &[
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_ad_policy",
             table_name: None,
             resolver_name: None,
@@ -67,7 +67,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_application",
             table_name: None,
             resolver_name: None,
@@ -277,7 +277,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_domain_list",
             table_name: None,
             resolver_name: None,
@@ -307,7 +307,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_object_type",
             table_name: None,
             resolver_name: None,
@@ -362,7 +362,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_policy",
             table_name: None,
             resolver_name: None,
@@ -2650,7 +2650,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_resource_concat_set",
             table_name: None,
             resolver_name: None,
@@ -2686,7 +2686,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_resource_domain_list",
             table_name: None,
             resolver_name: None,
@@ -2716,7 +2716,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_resource_url",
             table_name: None,
             resolver_name: None,
@@ -2746,7 +2746,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_advertised_route",
             table_name: None,
             resolver_name: None,
@@ -2801,7 +2801,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_deduplication",
             table_name: None,
             resolver_name: None,
@@ -2824,7 +2824,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_endpoint_discovery",
             table_name: None,
             resolver_name: None,
@@ -2896,7 +2896,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_local_endpoint",
             table_name: None,
             resolver_name: None,
@@ -2994,7 +2994,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_profile_cifs",
             table_name: None,
             resolver_name: None,
@@ -3074,7 +3074,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_profile_isession",
             table_name: None,
             resolver_name: None,
@@ -3221,7 +3221,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_profile_mapi",
             table_name: None,
             resolver_name: None,
@@ -3269,7 +3269,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_remote_endpoint",
             table_name: None,
             resolver_name: None,
@@ -3387,7 +3387,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_server_discovery",
             table_name: None,
             resolver_name: None,

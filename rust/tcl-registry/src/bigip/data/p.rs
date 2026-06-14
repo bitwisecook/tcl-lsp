@@ -8,7 +8,7 @@ use super::super::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, Valu
 
 pub static SPECS: &[BigipObjectSpec] = &[
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_forwarding_endpoint",
             table_name: None,
             resolver_name: None,
@@ -180,7 +180,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_analytics",
             table_name: None,
             resolver_name: None,
@@ -242,7 +242,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_gx",
             table_name: None,
             resolver_name: None,
@@ -268,7 +268,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_hsl_flow",
             table_name: None,
             resolver_name: None,
@@ -300,7 +300,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_hsl_report",
             table_name: None,
             resolver_name: None,
@@ -317,7 +317,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_insert_content",
             table_name: None,
             resolver_name: None,
@@ -334,7 +334,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_policy",
             table_name: None,
             resolver_name: None,
@@ -364,7 +364,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_quota_mgmt",
             table_name: None,
             resolver_name: None,
@@ -386,7 +386,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_session_mgmt_attributes",
             table_name: None,
             resolver_name: None,
@@ -437,7 +437,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_global_settings_subscriber_activity_log",
             table_name: None,
             resolver_name: None,
@@ -474,7 +474,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_interception_endpoint",
             table_name: None,
             resolver_name: None,
@@ -505,7 +505,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_irule",
             table_name: None,
             resolver_name: None,
@@ -513,12 +513,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["irule"],
         },
         header_types: &[("pem", "irule")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_listener",
             table_name: None,
             resolver_name: None,
@@ -558,7 +556,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_policy",
             table_name: None,
             resolver_name: None,
@@ -2251,7 +2249,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_profile_diameter_endpoint",
             table_name: None,
             resolver_name: None,
@@ -2376,7 +2374,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_profile_radius_aaa",
             table_name: None,
             resolver_name: None,
@@ -2427,7 +2425,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_profile_spm",
             table_name: None,
             resolver_name: None,
@@ -2491,7 +2489,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_profile_subscriber_mgmt",
             table_name: None,
             resolver_name: None,
@@ -2576,7 +2574,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_protocol_diameter_avp",
             table_name: None,
             resolver_name: None,
@@ -2631,7 +2629,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_protocol_profile_gx",
             table_name: None,
             resolver_name: None,
@@ -2895,7 +2893,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_protocol_profile_radius",
             table_name: None,
             resolver_name: None,
@@ -3103,7 +3101,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_protocol_radius_avp",
             table_name: None,
             resolver_name: None,
@@ -3161,7 +3159,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_quota_mgmt_rating_group",
             table_name: None,
             resolver_name: None,
@@ -3407,7 +3405,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_reporting_format_script",
             table_name: None,
             resolver_name: None,
@@ -3436,7 +3434,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_service_chain_endpoint",
             table_name: None,
             resolver_name: None,
@@ -3601,7 +3599,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_subscriber",
             table_name: None,
             resolver_name: None,
@@ -3640,7 +3638,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "pem_subscriber_attribute",
             table_name: None,
             resolver_name: None,

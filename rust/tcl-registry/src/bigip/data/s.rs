@@ -8,7 +8,7 @@ use super::super::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, Valu
 
 pub static SPECS: &[BigipObjectSpec] = &[
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "saas_ap_ai_profile",
             table_name: None,
             resolver_name: None,
@@ -455,7 +455,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "saas_ati_profile",
             table_name: None,
             resolver_name: None,
@@ -672,7 +672,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "saas_bd_profile",
             table_name: None,
             resolver_name: None,
@@ -1596,7 +1596,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "saas_csd_profile",
             table_name: None,
             resolver_name: None,
@@ -1802,7 +1802,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_analytics_settings",
             table_name: None,
             resolver_name: None,
@@ -2035,29 +2035,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_anti_fraud_engine_update",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["anti-fraud engine-update"],
-        },
-        header_types: &[("security", "anti-fraud engine-update")],
-        properties: &[
-            BigipPropertySpec {
-                name: "load",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "file",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_anti_fraud_profile",
             table_name: None,
             resolver_name: None,
@@ -2066,35 +2044,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "anti-fraud profile")],
         properties: &[
-            BigipPropertySpec {
-                name: "alert-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "cloud-service-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "generic-malware",
-                value_type: ValueKind::Reference,
-                in_sections: &["rules"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "action",
-                value_type: ValueKind::Reference,
-                in_sections: &["server-side-missing-components"],
-                enum_values: &["block-user", "forensic", "inspection", "redirect", "remediation", "route", "web-service"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "alert-client-side-caching",
                 value_type: ValueKind::Enum,
@@ -6791,7 +6740,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_anti_fraud_signatures_update",
             table_name: None,
             resolver_name: None,
@@ -6810,63 +6759,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_blacklist_publisher_all_blacklist_publisher",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["blacklist-publisher all-blacklist-publisher"],
-        },
-        header_types: &[("security", "blacklist-publisher all-blacklist-publisher")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_blacklist_publisher_blacklist_publisher_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["blacklist-publisher blacklist-publisher-stats"],
-        },
-        header_types: &[("security", "blacklist-publisher blacklist-publisher-stats")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_blacklist_publisher_by_addr",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["blacklist-publisher by-addr"],
-        },
-        header_types: &[("security", "blacklist-publisher by-addr")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_blacklist_publisher_by_category",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["blacklist-publisher by-category"],
-        },
-        header_types: &[("security", "blacklist-publisher by-category")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_blacklist_publisher_category",
             table_name: None,
             resolver_name: None,
@@ -6885,7 +6778,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_blacklist_publisher_profile",
             table_name: None,
             resolver_name: None,
@@ -6944,59 +6837,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_bot_defense_anomaly",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["bot-defense anomaly"],
-        },
-        header_types: &[("security", "bot-defense anomaly")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_bot_defense_anomaly_category",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["bot-defense anomaly-category"],
-        },
-        header_types: &[("security", "bot-defense anomaly-category")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_bot_defense_class",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["bot-defense class"],
-        },
-        header_types: &[("security", "bot-defense class")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_bot_defense_micro_service",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["bot-defense micro-service"],
-        },
-        header_types: &[("security", "bot-defense micro-service")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_bot_defense_profile",
             table_name: None,
             resolver_name: None,
@@ -7997,7 +7838,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_bot_defense_signature",
             table_name: None,
             resolver_name: None,
@@ -8110,7 +7951,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_bot_defense_signature_category",
             table_name: None,
             resolver_name: None,
@@ -8127,33 +7968,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_bot_defense_template",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["bot-defense template"],
-        },
-        header_types: &[("security", "bot-defense template")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_cloud_services_cmd",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["cloud-services cmd"],
-        },
-        header_types: &[("security", "cloud-services cmd")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_cloud_services_connector",
             table_name: None,
             resolver_name: None,
@@ -8246,7 +8061,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_datasync_background_tasks",
             table_name: None,
             resolver_name: None,
@@ -8263,20 +8078,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_datasync_device_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["datasync device-stats"],
-        },
-        header_types: &[("security", "datasync device-stats")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_datasync_global_profile",
             table_name: None,
             resolver_name: None,
@@ -8372,7 +8174,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_datasync_local_profile",
             table_name: None,
             resolver_name: None,
@@ -8442,24 +8244,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_debug_drop_redirect_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["debug drop-redirect-stats"],
-        },
-        header_types: &[("security", "debug drop-redirect-stats")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_debug_matcher",
             table_name: None,
             resolver_name: None,
@@ -8559,7 +8344,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_debug_register",
             table_name: None,
             resolver_name: None,
@@ -8668,7 +8453,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_device_device_context",
             table_name: None,
             resolver_name: None,
@@ -8677,13 +8462,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "device device-context")],
         properties: &[
-            BigipPropertySpec {
-                name: "nat-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -8704,7 +8482,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_device_id_attribute",
             table_name: None,
             resolver_name: None,
@@ -8722,98 +8500,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_heavy_urls",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds heavy-urls"],
-        },
-        header_types: &[("security", "dos auto-thresholds heavy-urls")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_stress_based",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds stress-based"],
-        },
-        header_types: &[("security", "dos auto-thresholds stress-based")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_top_device_ids",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds top-device-ids"],
-        },
-        header_types: &[("security", "dos auto-thresholds top-device-ids")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_top_geolocations",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds top-geolocations"],
-        },
-        header_types: &[("security", "dos auto-thresholds top-geolocations")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_top_source_ips",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds top-source-ips"],
-        },
-        header_types: &[("security", "dos auto-thresholds top-source-ips")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_top_urls",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds top-urls"],
-        },
-        header_types: &[("security", "dos auto-thresholds top-urls")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_auto_thresholds_tps_based",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos auto-thresholds tps-based"],
-        },
-        header_types: &[("security", "dos auto-thresholds tps-based")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_autodos_file_object",
             table_name: None,
             resolver_name: None,
@@ -8837,7 +8524,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_behavioral_signature",
             table_name: None,
             resolver_name: None,
@@ -8859,7 +8546,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_bot_signature",
             table_name: None,
             resolver_name: None,
@@ -8970,7 +8657,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_bot_signature_category",
             table_name: None,
             resolver_name: None,
@@ -8988,7 +8675,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_device_config",
             table_name: None,
             resolver_name: None,
@@ -9792,24 +9479,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_dns_nxdomain_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos dns-nxdomain-stat"],
-        },
-        header_types: &[("security", "dos dns-nxdomain-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_dos_signature",
             table_name: None,
             resolver_name: None,
@@ -9818,13 +9488,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "dos dos-signature")],
         properties: &[
-            BigipPropertySpec {
-                name: "origin",
-                value_type: ValueKind::Reference,
-                enum_values: &["dynamic-bdos", "user-defined"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "alias",
                 value_type: ValueKind::String,
@@ -9951,7 +9614,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_dynamic_signatures",
             table_name: None,
             resolver_name: None,
@@ -9999,7 +9662,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_ip_uncommon_protolist",
             table_name: None,
             resolver_name: None,
@@ -10024,7 +9687,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_l4bdos_file_object",
             table_name: None,
             resolver_name: None,
@@ -10053,7 +9716,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_network_whitelist",
             table_name: None,
             resolver_name: None,
@@ -10350,7 +10013,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_profile",
             table_name: None,
             resolver_name: None,
@@ -13971,43 +13634,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_spva_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos spva-stats"],
-        },
-        header_types: &[("security", "dos spva-stats")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_stress_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos stress-stats"],
-        },
-        header_types: &[("security", "dos stress-stats")],
-        properties: &[
-            BigipPropertySpec {
-                name: "context-name",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "stress",
-                value_type: ValueKind::Enum,
-                enum_values: &["0-100", "auto"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_dos_udp_portlist",
             table_name: None,
             resolver_name: None,
@@ -14077,29 +13704,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_dos_virtual",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["dos virtual"],
-        },
-        header_types: &[("security", "dos virtual")],
-        properties: &[
-            BigipPropertySpec {
-                name: "query-valid-domain",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_address_list",
             table_name: None,
             resolver_name: None,
@@ -14141,7 +13746,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_config_change_log",
             table_name: None,
             resolver_name: None,
@@ -14149,85 +13754,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["firewall config-change-log"],
         },
         header_types: &[("security", "firewall config-change-log")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_container_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall container-stat"],
-        },
-        header_types: &[("security", "firewall container-stat")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_context_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall context-stat"],
-        },
-        header_types: &[("security", "firewall context-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_current_state",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall current-state"],
-        },
-        header_types: &[("security", "firewall current-state")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_fqdn_entity",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall fqdn-entity"],
-        },
-        header_types: &[("security", "firewall fqdn-entity")],
-        properties: &[
-            BigipPropertySpec {
-                name: "load",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_fqdn_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall fqdn-info"],
-        },
-        header_types: &[("security", "firewall fqdn-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_global_fqdn_policy",
             table_name: None,
             resolver_name: None,
@@ -14268,7 +13798,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_global_rules",
             table_name: None,
             resolver_name: None,
@@ -14277,20 +13807,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "firewall global-rules")],
         properties: &[
-            BigipPropertySpec {
-                name: "enforced-policy-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "staged-policy-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -14340,20 +13856,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_ipi_category_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall ipi-category-info"],
-        },
-        header_types: &[("security", "firewall ipi-category-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_management_ip_rules",
             table_name: None,
             resolver_name: None,
@@ -14362,32 +13865,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "firewall management-ip-rules")],
         properties: &[
-            BigipPropertySpec {
-                name: "place-after",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "place-before",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "rule-list",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                in_sections: &["source"],
-                enum_values: &["add", "default", "delete", "replace-all-with"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -14748,54 +14225,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_matching_rule",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall matching-rule"],
-        },
-        header_types: &[("security", "firewall matching-rule")],
-        properties: &[
-            BigipPropertySpec {
-                name: "dest-addr",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "source-addr",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "dest-port",
-                value_type: ValueKind::Integer,
-                min_value: Some(0f64),
-                max_value: Some(65535f64),
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "source-port",
-                value_type: ValueKind::Integer,
-                min_value: Some(0f64),
-                max_value: Some(65535f64),
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "protocol",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlan",
-                value_type: ValueKind::Reference,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_on_demand_compilation",
             table_name: None,
             resolver_name: None,
@@ -14803,12 +14233,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["firewall on-demand-compilation"],
         },
         header_types: &[("security", "firewall on-demand-compilation")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_on_demand_rule_deploy",
             table_name: None,
             resolver_name: None,
@@ -14816,12 +14244,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["firewall on-demand-rule-deploy"],
         },
         header_types: &[("security", "firewall on-demand-rule-deploy")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_policy",
             table_name: None,
             resolver_name: None,
@@ -14830,44 +14256,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "firewall policy")],
         properties: &[
-            BigipPropertySpec {
-                name: "irule",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "place-after",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "place-before",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "rule-list",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                in_sections: &["source"],
-                enum_values: &["add", "default", "delete", "replace-all-with"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "service-policy",
-                value_type: ValueKind::Reference,
-                references: &["security_firewall_policy", "ltm_policy"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "copy-from",
                 value_type: ValueKind::String,
@@ -15503,7 +14891,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_port_list",
             table_name: None,
             resolver_name: None,
@@ -15531,7 +14919,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_port_misuse_policy",
             table_name: None,
             resolver_name: None,
@@ -15664,7 +15052,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_rule_list",
             table_name: None,
             resolver_name: None,
@@ -15673,44 +15061,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "firewall rule-list")],
         properties: &[
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                in_sections: &["source"],
-                enum_values: &["add", "default", "delete", "replace-all-with"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "irule",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "place-after",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "place-before",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "rule-list",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "service-policy",
-                value_type: ValueKind::Reference,
-                references: &["security_firewall_policy", "ltm_policy"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -16257,20 +15607,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_firewall_rule_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["firewall rule-stat"],
-        },
-        header_types: &[("security", "firewall rule-stat")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_schedule",
             table_name: None,
             resolver_name: None,
@@ -16324,7 +15661,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_user_domain",
             table_name: None,
             resolver_name: None,
@@ -16357,7 +15694,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_user_list",
             table_name: None,
             resolver_name: None,
@@ -16365,12 +15702,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["firewall user-list"],
         },
         header_types: &[("security", "firewall user-list")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_firewall_uuid_default_autogenerate",
             table_name: None,
             resolver_name: None,
@@ -16378,25 +15713,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["firewall uuid-default-autogenerate"],
         },
         header_types: &[("security", "firewall uuid-default-autogenerate")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_flowspec_route_injector_flowspec_advertised_route_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["flowspec-route-injector flowspec-advertised-route-info"],
-        },
-        header_types: &[("security", "flowspec-route-injector flowspec-advertised-route-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_flowspec_route_injector_profile",
             table_name: None,
             resolver_name: None,
@@ -17101,33 +16421,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_http_file_type",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["http file-type"],
-        },
-        header_types: &[("security", "http file-type")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_http_mandatory_header",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["http mandatory-header"],
-        },
-        header_types: &[("security", "http mandatory-header")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_http_profile",
             table_name: None,
             resolver_name: None,
@@ -17860,7 +17154,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_ip_intelligence_blacklist_category",
             table_name: None,
             resolver_name: None,
@@ -17894,7 +17188,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_ip_intelligence_feed_list",
             table_name: None,
             resolver_name: None,
@@ -17903,13 +17197,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "ip-intelligence feed-list")],
         properties: &[
-            BigipPropertySpec {
-                name: "user",
-                value_type: ValueKind::Reference,
-                in_sections: &["poll"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::Reference,
@@ -18029,7 +17316,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_ip_intelligence_global_policy",
             table_name: None,
             resolver_name: None,
@@ -18069,41 +17356,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_ip_intelligence_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["ip-intelligence info"],
-        },
-        header_types: &[("security", "ip-intelligence info")],
-        properties: &[
-            BigipPropertySpec {
-                name: "fqdn",
-                value_type: ValueKind::String,
-                pattern: "^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\\\.)+[A-Za-z]{2,63}$",
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "geo",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "virtual-server",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "route-domain",
-                value_type: ValueKind::Reference,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_ip_intelligence_policy",
             table_name: None,
             resolver_name: None,
@@ -18247,33 +17500,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_log_antifraud_storage_field",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["log antifraud-storage-field"],
-        },
-        header_types: &[("security", "log antifraud-storage-field")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_log_network_storage_field",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["log network-storage-field"],
-        },
-        header_types: &[("security", "log network-storage-field")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_log_profile",
             table_name: None,
             resolver_name: None,
@@ -18282,105 +17509,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "log profile")],
         properties: &[
-            BigipPropertySpec {
-                name: "type",
-                value_type: ValueKind::Reference,
-                in_sections: &["format"],
-                allow_none: true,
-                enum_values: &["none", "default", "user-defined"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "type",
-                value_type: ValueKind::Reference,
-                in_sections: &["application"],
-                enum_values: &["predefined", "user-defined"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["format"],
-                allow_none: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "type",
-                value_type: ValueKind::Reference,
-                in_sections: &["name"],
-                allow_none: true,
-                enum_values: &["field-list", "none", "user-defined"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["end-inbound-session"],
-                allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["end-outbound-session"],
-                allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "type",
-                value_type: ValueKind::Reference,
-                in_sections: &["nat"],
-                allow_none: true,
-                enum_values: &["field-list", "none", "user-defined"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["errors"],
-                allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "type",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                enum_values: &["field-list", "none", "user-defined"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["quota-exceeded"],
-                allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["start-inbound-session"],
-                allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "field-list",
-                value_type: ValueKind::Reference,
-                in_sections: &["start-outbound-session"],
-                allow_none: true,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "antifraud",
                 value_type: ValueKind::List,
@@ -20903,85 +20031,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_log_protocol_dns_storage_field",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["log protocol-dns-storage-field"],
-        },
-        header_types: &[("security", "log protocol-dns-storage-field")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_log_protocol_sip_storage_field",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["log protocol-sip-storage-field"],
-        },
-        header_types: &[("security", "log protocol-sip-storage-field")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_log_remote_format",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["log remote-format"],
-        },
-        header_types: &[("security", "log remote-format")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_log_storage_field",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["log storage-field"],
-        },
-        header_types: &[("security", "log storage-field")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_malicious_sources_device_ids",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["malicious-sources device-ids"],
-        },
-        header_types: &[("security", "malicious-sources device-ids")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_malicious_sources_ip_addresses",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["malicious-sources ip-addresses"],
-        },
-        header_types: &[("security", "malicious-sources ip-addresses")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_nat_destination_translation",
             table_name: None,
             resolver_name: None,
@@ -21025,7 +20075,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_nat_policy",
             table_name: None,
             resolver_name: None,
@@ -21034,44 +20084,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "nat policy")],
         properties: &[
-            BigipPropertySpec {
-                name: "place-after",
-                value_type: ValueKind::Reference,
-                in_sections: &["rules"],
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "place-before",
-                value_type: ValueKind::Reference,
-                in_sections: &["rules"],
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                in_sections: &["source"],
-                enum_values: &["add", "default", "delete", "replace-all-with"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "gw",
-                value_type: ValueKind::Reference,
-                in_sections: &["next-hop"],
-                pattern: "^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-                references: &["net_self", "net_route", "ltm_virtual_address"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "type",
-                value_type: ValueKind::Reference,
-                in_sections: &["next-hop"],
-                enum_values: &["default", "pool", "gateway", "vlan"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -21530,7 +20542,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_nat_source_translation",
             table_name: None,
             resolver_name: None,
@@ -21806,7 +20818,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_packet_filter_default_rules",
             table_name: None,
             resolver_name: None,
@@ -21825,7 +20837,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_packet_filter_policy",
             table_name: None,
             resolver_name: None,
@@ -21942,85 +20954,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_packet_filter_rule_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["packet-filter rule-stat"],
-        },
-        header_types: &[("security", "packet-filter rule-stat")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_presentation_tmui_netflow_details",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["presentation tmui netflow-details"],
-        },
-        header_types: &[("security", "presentation tmui netflow-details")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_presentation_tmui_netflow_list",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["presentation tmui netflow-list"],
-        },
-        header_types: &[("security", "presentation tmui netflow-list")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_presentation_tmui_signature_details",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["presentation tmui signature-details"],
-        },
-        header_types: &[("security", "presentation tmui signature-details")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_presentation_tmui_signature_list",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["presentation tmui signature-list"],
-        },
-        header_types: &[("security", "presentation tmui signature-list")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protected_servers_netflow_tmc_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protected-servers netflow-tmc-stat"],
-        },
-        header_types: &[("security", "protected-servers netflow-tmc-stat")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_protected_zone",
             table_name: None,
             resolver_name: None,
@@ -22057,54 +20991,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_auto_update_settings",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection auto-update settings"],
-        },
-        header_types: &[("security", "protocol-inspection auto-update settings")],
-        properties: &[
-            BigipPropertySpec {
-                name: "auto-update-interval",
-                value_type: ValueKind::Reference,
-                references: &["auth_partition"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "enabled",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_auto_update_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection auto-update status"],
-        },
-        header_types: &[("security", "protocol-inspection auto-update status")],
-        properties: &[
-            BigipPropertySpec {
-                name: "last-updated-time",
-                value_type: ValueKind::Reference,
-                references: &["auth_partition"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "message",
-                value_type: ValueKind::String,
-                in_sections: &["last-updated-time"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_protocol_inspection_common_config",
             table_name: None,
             resolver_name: None,
@@ -22140,128 +21027,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_compliance",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection compliance"],
-        },
-        header_types: &[("security", "protocol-inspection compliance")],
-        properties: &[
-            BigipPropertySpec {
-                name: "accuracy",
-                value_type: ValueKind::Enum,
-                enum_values: &["high", "low", "medium"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "description",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "service",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "action",
-                value_type: ValueKind::Enum,
-                enum_values: &["accept", "drop", "reject"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "direction",
-                value_type: ValueKind::Enum,
-                enum_values: &["any", "to-client", "to-server"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "log",
-                value_type: ValueKind::Enum,
-                enum_values: &["yes", "no"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "documentation",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "performance-impact",
-                value_type: ValueKind::Enum,
-                enum_values: &["high", "low", "medium"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "systems",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "attack-type",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "id",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "protocol",
-                value_type: ValueKind::Enum,
-                enum_values: &["any", "tcp", "udp"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "risk",
-                value_type: ValueKind::Enum,
-                enum_values: &["critical", "high", "low", "medium"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "value",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "value-type",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_compliance_enums",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection compliance-enums"],
-        },
-        header_types: &[("security", "protocol-inspection compliance-enums")],
-        properties: &[
-            BigipPropertySpec {
-                name: "description",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "insp-id",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "value",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_protocol_inspection_learning_stats",
             table_name: None,
             resolver_name: None,
@@ -22269,34 +21035,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["protocol-inspection learning-stats"],
         },
         header_types: &[("security", "protocol-inspection learning-stats")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_learning_suggestions",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection learning-suggestions"],
-        },
-        header_types: &[("security", "protocol-inspection learning-suggestions")],
-        properties: &[
-            BigipPropertySpec {
-                name: "field-fmt",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "include-published",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_protocol_inspection_profile",
             table_name: None,
             resolver_name: None,
@@ -22370,47 +21112,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_profile_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection profile-status"],
-        },
-        header_types: &[("security", "protocol-inspection profile-status")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_service",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection service"],
-        },
-        header_types: &[("security", "protocol-inspection service")],
-        properties: &[
-            BigipPropertySpec {
-                name: "description",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "id",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "ports",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_protocol_inspection_signature",
             table_name: None,
             resolver_name: None,
@@ -22532,102 +21234,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_staging",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection staging"],
-        },
-        header_types: &[("security", "protocol-inspection staging")],
-        properties: &[
-            BigipPropertySpec {
-                name: "field-fmt",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_system",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection system"],
-        },
-        header_types: &[("security", "protocol-inspection system")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_updates",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection updates"],
-        },
-        header_types: &[("security", "protocol-inspection updates")],
-        properties: &[
-            BigipPropertySpec {
-                name: "install",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "file",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_protocol_inspection_virtual_servers",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["protocol-inspection virtual-servers"],
-        },
-        header_types: &[("security", "protocol-inspection virtual-servers")],
-        properties: &[
-            BigipPropertySpec {
-                name: "field-fmt",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_scrubber_dwbl_scrubber_category_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["scrubber dwbl-scrubber-category-stats"],
-        },
-        header_types: &[("security", "scrubber dwbl-scrubber-category-stats")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_scrubber_dwbl_scrubber_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["scrubber dwbl-scrubber-stat"],
-        },
-        header_types: &[("security", "scrubber dwbl-scrubber-stat")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_scrubber_profile",
             table_name: None,
             resolver_name: None,
@@ -22636,13 +21243,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "scrubber profile")],
         properties: &[
-            BigipPropertySpec {
-                name: "silverline",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "advertisement-ttl",
                 value_type: ValueKind::Integer,
@@ -23381,44 +21981,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "security_scrubber_unredirect",
-            table_name: None,
-            resolver_name: None,
-            module: Some("security"),
-            object_types: &["scrubber unredirect"],
-        },
-        header_types: &[("security", "scrubber unredirect")],
-        properties: &[
-            BigipPropertySpec {
-                name: "profile",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "unredirect-category",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "unredirect-netflow-protected-server",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "unredirect-route-domain",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "unredirect-virtual-server",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_ssh_ciphers",
             table_name: None,
             resolver_name: None,
@@ -24310,7 +22873,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_ssh_profile",
             table_name: None,
             resolver_name: None,
@@ -24917,7 +23480,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "security_zone",
             table_name: None,
             resolver_name: None,
@@ -24926,13 +23489,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("security", "zone")],
         properties: &[
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                enum_values: &["add", "delete", "modify", "replace-all-with"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "copy-from",
                 value_type: ValueKind::String,
@@ -24948,54 +23504,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_air_filter_reset",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["air-filter-reset"],
-        },
-        header_types: &[("sys", "air-filter-reset")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_alert_lcd",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["alert lcd"],
-        },
-        header_types: &[("sys", "alert lcd")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_aom",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["aom"],
-        },
-        header_types: &[("sys", "aom")],
-        properties: &[
-            BigipPropertySpec {
-                name: "aom",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_appiq_config",
             table_name: None,
             resolver_name: None,
@@ -25013,7 +23522,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_application_apl_script",
             table_name: None,
             resolver_name: None,
@@ -25021,12 +23530,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["application apl-script"],
         },
         header_types: &[("sys", "application apl-script")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_application_custom_stat",
             table_name: None,
             resolver_name: None,
@@ -25034,12 +23541,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["application custom-stat"],
         },
         header_types: &[("sys", "application custom-stat")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_application_service",
             table_name: None,
             resolver_name: None,
@@ -25048,13 +23553,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "application service")],
         properties: &[
-            BigipPropertySpec {
-                name: "device-group",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["cm_device_group"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -25245,7 +23743,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_application_template",
             table_name: None,
             resolver_name: None,
@@ -25415,7 +23913,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_autoscale_group",
             table_name: None,
             resolver_name: None,
@@ -25438,24 +23936,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_availability",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["availability"],
-        },
-        header_types: &[("sys", "availability")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_clock",
             table_name: None,
             resolver_name: None,
@@ -25463,12 +23944,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["clock"],
         },
         header_types: &[("sys", "clock")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_cluster",
             table_name: None,
             resolver_name: None,
@@ -25568,7 +24047,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_config",
             table_name: None,
             resolver_name: None,
@@ -25680,20 +24159,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_config_diff",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["config-diff"],
-        },
-        header_types: &[("sys", "config-diff")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_connection",
             table_name: None,
             resolver_name: None,
@@ -25715,7 +24181,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_console",
             table_name: None,
             resolver_name: None,
@@ -25732,7 +24198,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_core",
             table_name: None,
             resolver_name: None,
@@ -25803,33 +24269,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_cpu",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["cpu"],
-        },
-        header_types: &[("sys", "cpu")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_crypto_acceleration_strategy",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["crypto acceleration-strategy"],
-        },
-        header_types: &[("sys", "crypto acceleration-strategy")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_allow_key_export",
             table_name: None,
             resolver_name: None,
@@ -25847,7 +24287,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_ca_bundle_manager",
             table_name: None,
             resolver_name: None,
@@ -25900,7 +24340,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_cert",
             table_name: None,
             resolver_name: None,
@@ -25985,7 +24425,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_cert_order_manager",
             table_name: None,
             resolver_name: None,
@@ -26097,7 +24537,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_cert_validation_response_ocsp",
             table_name: None,
             resolver_name: None,
@@ -26105,12 +24545,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["crypto cert-validation-response ocsp"],
         },
         header_types: &[("sys", "crypto cert-validation-response ocsp")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_cert_validator_crl",
             table_name: None,
             resolver_name: None,
@@ -26135,7 +24573,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_cert_validator_ocsp",
             table_name: None,
             resolver_name: None,
@@ -26144,12 +24582,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "crypto cert-validator ocsp")],
         properties: &[
-            BigipPropertySpec {
-                name: "proxy-server-pool",
-                value_type: ValueKind::Reference,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "cache-error-timeout",
                 value_type: ValueKind::Integer,
@@ -26250,43 +24682,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_crypto_check_cert",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["crypto check-cert"],
-        },
-        header_types: &[("sys", "crypto check-cert")],
-        properties: &[
-            BigipPropertySpec {
-                name: "ignore-large-cert-bundles",
-                value_type: ValueKind::Enum,
-                enum_values: &["enabled", "disabled"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "log",
-                value_type: ValueKind::Enum,
-                enum_values: &["enabled", "disabled"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "stdout",
-                value_type: ValueKind::Enum,
-                enum_values: &["enabled", "disabled"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "verbose",
-                value_type: ValueKind::Enum,
-                enum_values: &["enabled", "disabled"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_client",
             table_name: None,
             resolver_name: None,
@@ -26347,39 +24743,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_crypto_crl",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["crypto crl"],
-        },
-        header_types: &[("sys", "crypto crl")],
-        properties: &[
-            BigipPropertySpec {
-                name: "install",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "ca-file",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "from-local-file",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "from-url",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_csr",
             table_name: None,
             resolver_name: None,
@@ -26461,33 +24825,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_crypto_encrypted_attributes",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["crypto encrypted-attributes"],
-        },
-        header_types: &[("sys", "crypto encrypted-attributes")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_crypto_fips_by_handle",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["crypto fips by-handle"],
-        },
-        header_types: &[("sys", "crypto fips by-handle")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_fips_external_hsm",
             table_name: None,
             resolver_name: None,
@@ -26495,12 +24833,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["crypto fips external-hsm"],
         },
         header_types: &[("sys", "crypto fips external-hsm")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_fips_key",
             table_name: None,
             resolver_name: None,
@@ -26508,12 +24844,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["crypto fips key"],
         },
         header_types: &[("sys", "crypto fips key")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_key",
             table_name: None,
             resolver_name: None,
@@ -26714,7 +25048,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_master_key",
             table_name: None,
             resolver_name: None,
@@ -26731,39 +25065,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_crypto_pkcs12",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["crypto pkcs12"],
-        },
-        header_types: &[("sys", "crypto pkcs12")],
-        properties: &[
-            BigipPropertySpec {
-                name: "install",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "from-local-file",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "from-url",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "passphrase",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_crypto_server",
             table_name: None,
             resolver_name: None,
@@ -26801,7 +25103,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_ha",
             table_name: None,
             resolver_name: None,
@@ -26836,7 +25138,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_clusterd",
             table_name: None,
             resolver_name: None,
@@ -26854,7 +25156,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_csyncd",
             table_name: None,
             resolver_name: None,
@@ -26872,7 +25174,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_icr_eventd",
             table_name: None,
             resolver_name: None,
@@ -26890,7 +25192,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_icrd",
             table_name: None,
             resolver_name: None,
@@ -26909,7 +25211,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_lind",
             table_name: None,
             resolver_name: None,
@@ -26927,7 +25229,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_mcpd",
             table_name: None,
             resolver_name: None,
@@ -26952,7 +25254,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_daemon_log_settings_tmm",
             table_name: None,
             resolver_name: None,
@@ -27034,7 +25336,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_datastor",
             table_name: None,
             resolver_name: None,
@@ -27082,7 +25384,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_db",
             table_name: None,
             resolver_name: None,
@@ -27090,29 +25392,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["db"],
         },
         header_types: &[("sys", "db")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_default_config",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["default-config"],
-        },
-        header_types: &[("sys", "default-config")],
-        properties: &[
-            BigipPropertySpec {
-                name: "load",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_diags_ihealth",
             table_name: None,
             resolver_name: None,
@@ -27150,33 +25433,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_diags_ihealth_request",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["diags ihealth-request"],
-        },
-        header_types: &[("sys", "diags ihealth-request")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_diags_ihealth_result",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["diags ihealth-result"],
-        },
-        header_types: &[("sys", "diags ihealth-result")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_disk_application_volume",
             table_name: None,
             resolver_name: None,
@@ -27184,12 +25441,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["disk application-volume"],
         },
         header_types: &[("sys", "disk application-volume")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_disk_directory",
             table_name: None,
             resolver_name: None,
@@ -27206,7 +25461,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_disk_logical_disk",
             table_name: None,
             resolver_name: None,
@@ -27228,7 +25483,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_dns",
             table_name: None,
             resolver_name: None,
@@ -27269,7 +25524,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_dynad_instrumentation",
             table_name: None,
             resolver_name: None,
@@ -27286,7 +25541,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_dynad_key",
             table_name: None,
             resolver_name: None,
@@ -27294,12 +25549,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["dynad key"],
         },
         header_types: &[("sys", "dynad key")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_dynad_rpm",
             table_name: None,
             resolver_name: None,
@@ -27307,12 +25560,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["dynad rpm"],
         },
         header_types: &[("sys", "dynad rpm")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_dynad_settings",
             table_name: None,
             resolver_name: None,
@@ -27329,20 +25580,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_dynad_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["dynad status"],
-        },
-        header_types: &[("sys", "dynad status")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_ecm_config",
             table_name: None,
             resolver_name: None,
@@ -27364,44 +25602,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ecm_register",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ecm register"],
-        },
-        header_types: &[("sys", "ecm register")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_failover",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["failover"],
-        },
-        header_types: &[("sys", "failover")],
-        properties: &[
-            BigipPropertySpec {
-                name: "device",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "traffic-group",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["cm_traffic_group"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_feature_module",
             table_name: None,
             resolver_name: None,
@@ -27418,7 +25619,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_apache_ssl_cert",
             table_name: None,
             resolver_name: None,
@@ -27435,7 +25636,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_browser_capabilities_db",
             table_name: None,
             resolver_name: None,
@@ -27452,7 +25653,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_data_group",
             table_name: None,
             resolver_name: None,
@@ -27501,7 +25702,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_device_capabilities_db",
             table_name: None,
             resolver_name: None,
@@ -27525,7 +25726,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_external_monitor",
             table_name: None,
             resolver_name: None,
@@ -27549,7 +25750,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_ifile",
             table_name: None,
             resolver_name: None,
@@ -27573,7 +25774,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_lwtunneltbl",
             table_name: None,
             resolver_name: None,
@@ -27597,7 +25798,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_rewrite_rule",
             table_name: None,
             resolver_name: None,
@@ -27614,7 +25815,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_ssl_cert",
             table_name: None,
             resolver_name: None,
@@ -27656,7 +25857,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_ssl_crl",
             table_name: None,
             resolver_name: None,
@@ -27680,7 +25881,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_file_ssl_key",
             table_name: None,
             resolver_name: None,
@@ -27709,20 +25910,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_fix_connection",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["fix-connection"],
-        },
-        header_types: &[("sys", "fix-connection")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_folder",
             table_name: None,
             resolver_name: None,
@@ -27731,13 +25919,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "folder")],
         properties: &[
-            BigipPropertySpec {
-                name: "device-group",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["cm_device_group"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -27773,7 +25954,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_fpga_firmware_config",
             table_name: None,
             resolver_name: None,
@@ -27791,50 +25972,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_fpga_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["fpga info"],
-        },
-        header_types: &[("sys", "fpga info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_fpga_turboflex_profile",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["fpga turboflex-profile"],
-        },
-        header_types: &[("sys", "fpga turboflex-profile")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_geoip",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["geoip"],
-        },
-        header_types: &[("sys", "geoip")],
-        properties: &[
-            BigipPropertySpec {
-                name: "load",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_global_settings",
             table_name: None,
             resolver_name: None,
@@ -28071,7 +26209,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_ha_group",
             table_name: None,
             resolver_name: None,
@@ -28080,13 +26218,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "ha-group")],
         properties: &[
-            BigipPropertySpec {
-                name: "pools",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "active-bonus",
                 value_type: ValueKind::Integer,
@@ -28383,46 +26514,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ha_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ha-status"],
-        },
-        header_types: &[("sys", "ha-status")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_hardware",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["hardware"],
-        },
-        header_types: &[("sys", "hardware")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_host_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["host-info"],
-        },
-        header_types: &[("sys", "host-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_httpd",
             table_name: None,
             resolver_name: None,
@@ -28656,20 +26748,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_hypervisor_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["hypervisor-info"],
-        },
-        header_types: &[("sys", "hypervisor-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_iapp_restricted_key",
             table_name: None,
             resolver_name: None,
@@ -28686,7 +26765,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_iapprestricted_key",
             table_name: None,
             resolver_name: None,
@@ -28703,46 +26782,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_icall_event",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["icall event"],
-        },
-        header_types: &[("sys", "icall event")],
-        properties: &[
-            BigipPropertySpec {
-                name: "generate",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "name",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "context",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "name",
-                value_type: ValueKind::String,
-                in_sections: &["context"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "value",
-                value_type: ValueKind::String,
-                in_sections: &["context"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_icall_handler_periodic",
             table_name: None,
             resolver_name: None,
@@ -28806,7 +26846,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_icall_handler_perpetual",
             table_name: None,
             resolver_name: None,
@@ -28916,7 +26956,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_icall_handler_triggered",
             table_name: None,
             resolver_name: None,
@@ -29008,7 +27048,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_icall_istats_trigger",
             table_name: None,
             resolver_name: None,
@@ -29055,20 +27095,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_icall_publisher",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["icall publisher"],
-        },
-        header_types: &[("sys", "icall publisher")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_icall_script",
             table_name: None,
             resolver_name: None,
@@ -29112,24 +27139,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_icmp_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["icmp-stat"],
-        },
-        header_types: &[("sys", "icmp-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_icontrol_soap",
             table_name: None,
             resolver_name: None,
@@ -29149,20 +27159,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_integrity_status_check",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["integrity status-check"],
-        },
-        header_types: &[("sys", "integrity status-check")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_internal_proxy",
             table_name: None,
             resolver_name: None,
@@ -29171,12 +27168,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "internal-proxy")],
         properties: &[
-            BigipPropertySpec {
-                name: "proxy-server-pool",
-                value_type: ValueKind::Reference,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -29202,54 +27193,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ip_address",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ip-address"],
-        },
-        header_types: &[("sys", "ip-address")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ip_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ip-stat"],
-        },
-        header_types: &[("sys", "ip-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ipfix_destination",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ipfix destination"],
-        },
-        header_types: &[("sys", "ipfix destination")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_ipfix_element",
             table_name: None,
             resolver_name: None,
@@ -29294,111 +27238,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ipfix_irules",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ipfix irules"],
-        },
-        header_types: &[("sys", "ipfix irules")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::Reference,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_iprep_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["iprep-status"],
-        },
-        header_types: &[("sys", "iprep-status")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_license",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["license"],
-        },
-        header_types: &[("sys", "license")],
-        properties: &[
-            BigipPropertySpec {
-                name: "install",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "add-on-keys",
-                value_type: ValueKind::List,
-                repeated: true,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "license-server",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "license-server-port",
-                value_type: ValueKind::Integer,
-                min_value: Some(0f64),
-                max_value: Some(65535f64),
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "registration-key",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "revoke",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_log",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["log"],
-        },
-        header_types: &[("sys", "log")],
-        properties: &[
-            BigipPropertySpec {
-                name: "security",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "lines",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "range",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_alertd",
             table_name: None,
             resolver_name: None,
@@ -29415,7 +27255,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_arcsight",
             table_name: None,
             resolver_name: None,
@@ -29445,7 +27285,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_ipfix",
             table_name: None,
             resolver_name: None,
@@ -29505,7 +27345,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_local_database",
             table_name: None,
             resolver_name: None,
@@ -29522,7 +27362,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_local_syslog",
             table_name: None,
             resolver_name: None,
@@ -29553,7 +27393,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_management_port",
             table_name: None,
             resolver_name: None,
@@ -29594,7 +27434,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_remote_high_speed_log",
             table_name: None,
             resolver_name: None,
@@ -29638,7 +27478,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_remote_syslog",
             table_name: None,
             resolver_name: None,
@@ -29689,7 +27529,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_destination_splunk",
             table_name: None,
             resolver_name: None,
@@ -29719,7 +27559,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_filter",
             table_name: None,
             resolver_name: None,
@@ -29772,7 +27612,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_config_publisher",
             table_name: None,
             resolver_name: None,
@@ -29803,7 +27643,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_log_rotate",
             table_name: None,
             resolver_name: None,
@@ -29891,20 +27731,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_mac_address",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["mac-address"],
-        },
-        header_types: &[("sys", "mac-address")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_management_dhcp",
             table_name: None,
             resolver_name: None,
@@ -29954,7 +27781,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_management_ip",
             table_name: None,
             resolver_name: None,
@@ -29971,7 +27798,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_management_ovsdb",
             table_name: None,
             resolver_name: None,
@@ -30076,7 +27903,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_management_proxy_config",
             table_name: None,
             resolver_name: None,
@@ -30085,12 +27912,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "management-proxy-config")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -30121,7 +27942,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_management_route",
             table_name: None,
             resolver_name: None,
@@ -30130,13 +27951,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "management-route")],
         properties: &[
-            BigipPropertySpec {
-                name: "gateway",
-                value_type: ValueKind::Reference,
-                pattern: "^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-                references: &["net_self", "net_route", "ltm_virtual_address"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
@@ -30169,84 +27983,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_mcp_state",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["mcp-state"],
-        },
-        header_types: &[("sys", "mcp-state")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_memory",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["memory"],
-        },
-        header_types: &[("sys", "memory")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_nethsm_async_queue_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["nethsm async-queue-stat"],
-        },
-        header_types: &[("sys", "nethsm async-queue-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_nethsm_pkcs11d_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["nethsm pkcs11d-stat"],
-        },
-        header_types: &[("sys", "nethsm pkcs11d-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_nethsm_sync_queue_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["nethsm sync-queue-stat"],
-        },
-        header_types: &[("sys", "nethsm sync-queue-stat")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_ntp",
             table_name: None,
             resolver_name: None,
@@ -30555,7 +28292,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_outbound_smtp",
             table_name: None,
             resolver_name: None,
@@ -30587,115 +28324,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_all_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance all-stats"],
-        },
-        header_types: &[("sys", "performance all-stats")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_connections",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance connections"],
-        },
-        header_types: &[("sys", "performance connections")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_dnsexpress",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance dnsexpress"],
-        },
-        header_types: &[("sys", "performance dnsexpress")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_dnssec",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance dnssec"],
-        },
-        header_types: &[("sys", "performance dnssec")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_gtm",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance gtm"],
-        },
-        header_types: &[("sys", "performance gtm")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_ramcache",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance ramcache"],
-        },
-        header_types: &[("sys", "performance ramcache")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_system",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance system"],
-        },
-        header_types: &[("sys", "performance system")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_performance_throughput",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["performance throughput"],
-        },
-        header_types: &[("sys", "performance throughput")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_pfman_consumer",
             table_name: None,
             resolver_name: None,
@@ -30713,7 +28342,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_pfman_device",
             table_name: None,
             resolver_name: None,
@@ -30731,20 +28360,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_proc_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["proc-info"],
-        },
-        header_types: &[("sys", "proc-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_provision",
             table_name: None,
             resolver_name: None,
@@ -30781,24 +28397,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_pva_traffic",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["pva-traffic"],
-        },
-        header_types: &[("sys", "pva-traffic")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_raid_array",
             table_name: None,
             resolver_name: None,
@@ -30806,12 +28405,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["raid array"],
         },
         header_types: &[("sys", "raid array")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_raid_bay",
             table_name: None,
             resolver_name: None,
@@ -30833,70 +28430,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_raid_disk",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["raid disk"],
-        },
-        header_types: &[("sys", "raid disk")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_ready",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["ready"],
-        },
-        header_types: &[("sys", "ready")],
-        properties: &[
-            BigipPropertySpec {
-                name: "config",
-                value_type: ValueKind::Boolean,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "license",
-                value_type: ValueKind::Boolean,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "provision",
-                value_type: ValueKind::Boolean,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "sys",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "config-ready",
-                value_type: ValueKind::Boolean,
-                in_sections: &["sys"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "license-ready",
-                value_type: ValueKind::Boolean,
-                in_sections: &["sys"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "provision-ready",
-                value_type: ValueKind::Boolean,
-                in_sections: &["sys"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_scriptd",
             table_name: None,
             resolver_name: None,
@@ -30920,7 +28454,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_service",
             table_name: None,
             resolver_name: None,
@@ -30955,59 +28489,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_sflow_data_source_http",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["sflow data-source http"],
-        },
-        header_types: &[("sys", "sflow data-source http")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_sflow_data_source_interface",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["sflow data-source interface"],
-        },
-        header_types: &[("sys", "sflow data-source interface")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_sflow_data_source_system",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["sflow data-source system"],
-        },
-        header_types: &[("sys", "sflow data-source system")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_sflow_data_source_vlan",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["sflow data-source vlan"],
-        },
-        header_types: &[("sys", "sflow data-source vlan")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_sflow_global_settings_http",
             table_name: None,
             resolver_name: None,
@@ -31036,7 +28518,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_sflow_global_settings_interface",
             table_name: None,
             resolver_name: None,
@@ -31059,7 +28541,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_sflow_global_settings_system",
             table_name: None,
             resolver_name: None,
@@ -31082,7 +28564,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_sflow_global_settings_vlan",
             table_name: None,
             resolver_name: None,
@@ -31111,7 +28593,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_sflow_receiver",
             table_name: None,
             resolver_name: None,
@@ -31162,7 +28644,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_smtp_server",
             table_name: None,
             resolver_name: None,
@@ -31171,12 +28653,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "smtp-server")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -31226,7 +28702,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_snmp",
             table_name: None,
             resolver_name: None,
@@ -31235,13 +28711,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("sys", "snmp")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                in_sections: &["users"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "agent-addresses",
                 value_type: ValueKind::List,
@@ -32038,46 +29507,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_software_block_device_hotfix",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["software block-device-hotfix"],
-        },
-        header_types: &[("sys", "software block-device-hotfix")],
-        properties: &[
-            BigipPropertySpec {
-                name: "install",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_software_block_device_image",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["software block-device-image"],
-        },
-        header_types: &[("sys", "software block-device-image")],
-        properties: &[
-            BigipPropertySpec {
-                name: "image",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "volume",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_software_hotfix",
             table_name: None,
             resolver_name: None,
@@ -32085,12 +29515,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["software hotfix"],
         },
         header_types: &[("sys", "software hotfix")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_software_image",
             table_name: None,
             resolver_name: None,
@@ -32098,12 +29526,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["software image"],
         },
         header_types: &[("sys", "software image")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_software_signature",
             table_name: None,
             resolver_name: None,
@@ -32111,25 +29537,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["software signature"],
         },
         header_types: &[("sys", "software signature")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_software_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["software status"],
-        },
-        header_types: &[("sys", "software status")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_software_update",
             table_name: None,
             resolver_name: None,
@@ -32156,20 +29567,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_software_update_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["software update-status"],
-        },
-        header_types: &[("sys", "software update-status")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_software_volume",
             table_name: None,
             resolver_name: None,
@@ -32177,12 +29575,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["software volume"],
         },
         header_types: &[("sys", "software volume")],
-        properties: &[
-
-        ],
+        properties: &[],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_sshd",
             table_name: None,
             resolver_name: None,
@@ -32246,7 +29642,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_state_mirroring",
             table_name: None,
             resolver_name: None,
@@ -32294,24 +29690,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_sync_sys_files",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["sync-sys-files"],
-        },
-        header_types: &[("sys", "sync-sys-files")],
-        properties: &[
-            BigipPropertySpec {
-                name: "from",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_syslog",
             table_name: None,
             resolver_name: None,
@@ -32529,80 +29908,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_tmm_info",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["tmm-info"],
-        },
-        header_types: &[("sys", "tmm-info")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_tmm_traffic",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["tmm-traffic"],
-        },
-        header_types: &[("sys", "tmm-traffic")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_traffic",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["traffic"],
-        },
-        header_types: &[("sys", "traffic")],
-        properties: &[
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_turboflex_features",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["turboflex features"],
-        },
-        header_types: &[("sys", "turboflex features")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_turboflex_profile_all",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["turboflex profile all"],
-        },
-        header_types: &[("sys", "turboflex profile all")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_turboflex_profile_config",
             table_name: None,
             resolver_name: None,
@@ -32620,33 +29926,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_turboflex_profile_feature",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["turboflex profile feature"],
-        },
-        header_types: &[("sys", "turboflex profile feature")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_turboflex_warning",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["turboflex warning"],
-        },
-        header_types: &[("sys", "turboflex warning")],
-        properties: &[
-
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_ucs",
             table_name: None,
             resolver_name: None,
@@ -32705,29 +29985,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_url_db_download_result",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["url-db download-result"],
-        },
-        header_types: &[("sys", "url-db download-result")],
-        properties: &[
-            BigipPropertySpec {
-                name: "db-version",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "ret-code",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_url_db_download_schedule",
             table_name: None,
             resolver_name: None,
@@ -32770,7 +30028,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "sys_url_db_url_category",
             table_name: None,
             resolver_name: None,
@@ -32816,19 +30074,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
                 ..BigipPropertySpec::DEFAULT
             },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
-            kind: "sys_version",
-            table_name: None,
-            resolver_name: None,
-            module: Some("sys"),
-            object_types: &["version"],
-        },
-        header_types: &[("sys", "version")],
-        properties: &[
-
         ],
     },
 ];

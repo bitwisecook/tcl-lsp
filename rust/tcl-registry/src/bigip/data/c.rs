@@ -337,79 +337,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "cm_add_to_trust",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["add-to-trust"],
-        },
-        header_types: &[("cm", "add-to-trust")],
-        properties: &[
-            BigipPropertySpec {
-                name: "device",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "port",
-                value_type: ValueKind::Integer,
-                min_value: Some(0f64),
-                max_value: Some(65535f64),
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "device-name",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "password",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_cert",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["cert"],
-        },
-        header_types: &[("cm", "cert")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_config_sync",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["config-sync"],
-        },
-        header_types: &[("cm", "config-sync")],
-        properties: &[
-            BigipPropertySpec {
-                name: "from-group",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "to-group",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "cm_device",
             table_name: None,
             resolver_name: None,
@@ -637,17 +564,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "cm_failover_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["failover-status"],
-        },
-        header_types: &[("cm", "failover-status")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "cm_ha_group",
             table_name: None,
             resolver_name: None,
@@ -670,54 +586,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "cm_remove_from_trust",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["remove-from-trust"],
-        },
-        header_types: &[("cm", "remove-from-trust")],
-        properties: &[BigipPropertySpec {
-            name: "device-name",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_sha1_fingerprint",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["sha1-fingerprint"],
-        },
-        header_types: &[("cm", "sha1-fingerprint")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_sniff_updates",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["sniff-updates"],
-        },
-        header_types: &[("cm", "sniff-updates")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_sync_status",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["sync-status"],
-        },
-        header_types: &[("cm", "sync-status")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "cm_traffic_group",
             table_name: None,
             resolver_name: None,
@@ -726,13 +594,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("cm", "traffic-group")],
         properties: &[
-            BigipPropertySpec {
-                name: "monitor",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["cm_ha_group"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -886,19 +747,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("cm", "trust-domain")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                in_sections: &["add-device"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "add-device",
                 value_type: ValueKind::Unknown,
                 shape_kind: Some(ValueKind::Object),
@@ -1047,38 +895,5 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_watch_devicegroup_device",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["watch-devicegroup-device"],
-        },
-        header_types: &[("cm", "watch-devicegroup-device")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_watch_sys_device",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["watch-sys-device"],
-        },
-        header_types: &[("cm", "watch-sys-device")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "cm_watch_trafficgroup_device",
-            table_name: None,
-            resolver_name: None,
-            module: Some("cm"),
-            object_types: &["watch-trafficgroup-device"],
-        },
-        header_types: &[("cm", "watch-trafficgroup-device")],
-        properties: &[],
     },
 ];

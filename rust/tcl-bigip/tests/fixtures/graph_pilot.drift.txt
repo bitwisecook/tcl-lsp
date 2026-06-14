@@ -1,3 +1,0 @@
-test://config:71:27:ltm:virtual:/Common/app_vs	test://config:14:30:ltm:policy:/Common/web_policy	policies[]	ltm_policy
-test://config:71:27:ltm:virtual:/Common/app_vs	test://config:0:26:net:vlan:/Common/internal	vlans[]	net_vlan
-test://config:71:27:ltm:virtual:/Common/app_vs	test://config:21:46:ltm:persistence cookie:/Common/cookie_persist	persist[]	ltm_persistence_cookie
