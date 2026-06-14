@@ -5293,14 +5293,19 @@ impl Interp {
                 }
             }
         }
-        if let Some(o) = self.oo.borrow().objects.get(obj) {
-            for v in &o.variables {
-                push_public(v, &mut vars);
-            }
-        }
-        for c in self.method_chain(obj) {
-            if let Some(cl) = self.oo.borrow().classes.get(&c) {
-                for v in &cl.variables {
+        // Public `variable` declarations are scoped to the *declaring* provider
+        // (C links `clsPtr->variables` / `oPtr->variables` of the method's
+        // declarer, not the whole hierarchy): a class method sees its class's
+        // declared vars, a per-object method sees the object's (oo-38.4).
+        {
+            let oo = self.oo.borrow();
+            let declared = if is_object {
+                oo.objects.get(&prov).map(|o| o.variables.clone())
+            } else {
+                oo.classes.get(&prov).map(|c| c.variables.clone())
+            };
+            if let Some(vs) = declared {
+                for v in &vs {
                     push_public(v, &mut vars);
                 }
             }

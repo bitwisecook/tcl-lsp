@@ -1610,9 +1610,10 @@ impl Interp {
         }
     }
 
-    /// `info locals` — the active frame's local variable names.
+    /// `info locals` — the active frame's local variable names (links such as
+    /// `global`/`variable`/`upvar` and auto-linked instance vars are excluded).
     pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
-        self.frames.borrow().local_names()
+        self.frames.borrow().local_names_no_links()
     }
 
     /// `info globals` — the global namespace's variable names.

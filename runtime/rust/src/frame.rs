@@ -239,6 +239,17 @@ impl VarTable {
         self.vars.keys().map(|k| k.as_slice()).collect()
     }
 
+    /// Names of the table's *direct* variables (scalars/arrays), excluding
+    /// links (`global`/`upvar`/`variable` / auto-linked instance vars) — for
+    /// `info locals`, which lists only true locals.
+    pub(crate) fn non_link_names(&self) -> Vec<&[u8]> {
+        self.vars
+            .iter()
+            .filter(|(_, v)| !matches!(v, Var::Link(_)))
+            .map(|(k, _)| k.as_slice())
+            .collect()
+    }
+
     /// Element names of array `name`, sorted (`array names`); `None` if not an
     /// array.
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<&[u8]>> {
@@ -449,6 +460,20 @@ impl FrameStack {
                 self.frames[i]
                     .table
                     .names()
+                    .into_iter()
+                    .map(<[u8]>::to_vec)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// `info locals` — the active frame's true local variables (no links).
+    pub(crate) fn local_names_no_links(&self) -> Vec<Vec<u8>> {
+        self.index_of_level(self.active_level)
+            .map(|i| {
+                self.frames[i]
+                    .table
+                    .non_link_names()
                     .into_iter()
                     .map(<[u8]>::to_vec)
                     .collect()
