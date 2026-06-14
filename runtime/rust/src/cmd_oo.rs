@@ -1106,7 +1106,9 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             b"oo::copy sourceName ?targetName? ?targetNamespace?",
         );
     }
-    let src = interp.fqn_for(&obj_bytes(argv[1]));
+    // The source resolves like a command (current namespace then global), so a
+    // copy from inside a namespace still finds a global object (oo-15.1).
+    let src = interp.oo_resolve_object(&obj_bytes(argv[1]));
     let Some(src_obj) = interp.oo.borrow().objects.get(&src).cloned() else {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[1]));
