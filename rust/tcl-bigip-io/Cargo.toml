@@ -1,0 +1,36 @@
+[package]
+name = "tcl-bigip-io"
+description = "Pure-Rust f5 input layer: UCS (gzip-tar + OpenPGP-symmetric) archives and the read_path/load_paths resolver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-bigip = { path = "../tcl-bigip" }
+thiserror = "2"
+
+# UCS container: gzip-compressed tar of /config.
+flate2 = "1"
+tar = "0.4"
+
+# Encrypted UCS = OpenPGP symmetric message (S2K + AES-CFB, F5 KB K5437).
+# Pure-Rust RustCrypto stack — a faithful port of the Python `_openpgp` /
+# `_aes` fallback decryptor (NO shelling out to gpg). The block cipher comes
+# from the audited `aes` crate; everything around it (packet framing, S2K,
+# OpenPGP-CFB, quick-check + SHA-1 MDC) mirrors the Python line for line.
+aes = "0.8"
+digest = "0.10"
+md-5 = "0.10"
+sha1 = "0.10"
+sha2 = "0.10"
+ripemd = "0.1"
+
+[dev-dependencies]
+flate2 = "1"
+tar = "0.4"
+
+[lints]
+workspace = true
