@@ -422,6 +422,29 @@ fn install_configurable(interp: &mut Interp) {
         b"oo::class create ::oo::configurable { superclass ::oo::class }\n\
           oo::define ::oo::configurable definitionnamespace ::oo::configuresupport::configurableclass",
     );
+    install_abstract_singleton(interp);
+}
+
+/// TIP-less foundation metaclasses created by `InitFoundation` in C
+/// (`tclOO.c`): `oo::singleton`, `oo::SingletonInstance`, and `oo::abstract`.
+/// `oo-1.21` introspects them, so they must exist in every fresh interp with
+/// the same class/superclass relationships the C core sets up.
+fn install_abstract_singleton(interp: &mut Interp) {
+    // `oo::singleton`: a metaclass (superclass oo::class) whose instances only
+    // permit a single instance; it unexports `create`/`createWithNamespace`.
+    let _ = interp.eval_str(
+        b"oo::class create ::oo::singleton { superclass ::oo::class }\n\
+          oo::define ::oo::singleton unexport create createWithNamespace",
+    );
+    // `oo::SingletonInstance`: a plain class (superclass oo::object) mixed into
+    // singleton instances so they can't easily be destroyed or cloned.
+    let _ = interp.eval_str(b"oo::class create ::oo::SingletonInstance {}");
+    // `oo::abstract`: a metaclass (superclass oo::class) whose instances can't
+    // be directly instantiated; it unexports `create`/`createWithNamespace`/`new`.
+    let _ = interp.eval_str(
+        b"oo::class create ::oo::abstract { superclass ::oo::class }\n\
+          oo::define ::oo::abstract unexport create createWithNamespace new",
+    );
 }
 
 fn prop_slot_class_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -6301,6 +6324,37 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn foundation_abstract_singleton_classes() {
+        leak_free(|i| {
+            // The three foundation metaclasses exist in a fresh interp.
+            assert_eq!(ok(i, b"info object class ::oo::singleton"), b"::oo::class");
+            assert_eq!(ok(i, b"info object class ::oo::abstract"), b"::oo::class");
+            assert_eq!(
+                ok(i, b"info object class ::oo::SingletonInstance"),
+                b"::oo::class"
+            );
+            // singleton/abstract are metaclasses (superclass oo::class).
+            assert_eq!(
+                ok(i, b"info class superclasses ::oo::singleton"),
+                b"::oo::class"
+            );
+            assert_eq!(
+                ok(i, b"info class superclasses ::oo::abstract"),
+                b"::oo::class"
+            );
+            // SingletonInstance is a plain subclass of oo::object.
+            assert_eq!(
+                ok(i, b"info class superclasses ::oo::SingletonInstance"),
+                b"::oo::object"
+            );
+            assert_eq!(
+                ok(i, b"lsort [info class subclasses ::oo::class]"),
+                b"::oo::abstract ::oo::configurable ::oo::singleton"
+            );
         });
     }
 }
