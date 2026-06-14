@@ -181,7 +181,7 @@ pub struct OoState {
     /// scope only when evaluation is *directly* at that level; a nested
     /// proc/method call suspends the context (and `uplevel` back into the body
     /// restores it), matching C's scoping of the `::oo::define` namespace.
-    def_stack: Vec<(DefTarget, usize)>,
+    def_stack: Vec<(DefTarget, usize, Option<u64>)>,
     call_stack: Vec<OoFrame>,
     /// Non-zero while inside a `private` definition modifier — methods defined
     /// then are marked unexported (callable only via `my`).
@@ -222,7 +222,7 @@ fn object_display(obj: &[u8]) -> Vec<u8> {
 /// definition context (`cmd_coro`).
 #[derive(Default)]
 pub struct OoExec {
-    def_stack: Vec<(DefTarget, usize)>,
+    def_stack: Vec<(DefTarget, usize, Option<u64>)>,
     call_stack: Vec<OoFrame>,
     private_depth: usize,
     def_rewrite: Option<Vec<u8>>,
@@ -2439,19 +2439,35 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return wrong_args(interp, b"self");
             }
             let lvl = interp.current_level();
-            interp
+            // The class-as-object's creation id comes from the enclosing
+            // `oo::define` entry (its name may have been renamed in the body, so
+            // a lookup by `tfqn` could already miss).
+            let creation_id = interp
                 .oo
-                .borrow_mut()
+                .borrow()
                 .def_stack
-                .push((DefTarget::Object(tfqn), lvl));
+                .last()
+                .and_then(|(_, _, c)| *c)
+                .or_else(|| interp.oo.borrow().objects.get(&tfqn).map(|o| o.creation_id));
+            interp.oo.borrow_mut().def_stack.push((
+                DefTarget::Object(tfqn.clone()),
+                lvl,
+                creation_id,
+            ));
             // `self { script }` runs a definition body; `self subcmd …` is one
             // directive — mirror `oo_run_def`'s script-vs-subcommand split.
-            let code = if argv.len() == 2 {
+            let is_body = argv.len() == 2;
+            let code = if is_body {
                 interp.eval_str(&obj_bytes(argv[1]))
             } else {
                 interp.dispatch(&argv[1..])
             };
             interp.oo.borrow_mut().def_stack.pop();
+            // The `self { script }` body is a class-side definition: on error it
+            // adds its own `(in definition script for class object "X")` frame.
+            if is_body && code == Code::Error {
+                interp.add_def_script_frame(b"class object", &tfqn, creation_id);
+            }
             return code;
         }
         return err(interp, b"self may only be called from inside a method");
@@ -2583,8 +2599,8 @@ impl Interp {
             .borrow()
             .def_stack
             .last()
-            .filter(|(_, l)| *l == lvl)
-            .map(|(t, _)| t.clone())
+            .filter(|(_, l, _)| *l == lvl)
+            .map(|(t, _, _)| t.clone())
     }
 
     /// Allocate the next monotonic object creation ID.
@@ -3961,7 +3977,11 @@ impl Interp {
         prefix.extend_from_slice(&obj_bytes(argv[1]));
         let saved = self.oo.borrow_mut().def_rewrite.replace(prefix);
         let lvl = self.current_level();
-        self.oo.borrow_mut().def_stack.push((target, lvl));
+        let tfqn = match &target {
+            DefTarget::Class(c) | DefTarget::Object(c) => c.clone(),
+        };
+        let cid = self.oo.borrow().objects.get(&tfqn).map(|o| o.creation_id);
+        self.oo.borrow_mut().def_stack.push((target, lvl, cid));
         // Re-base the TIP 280 argument lines onto the dispatched subcommand
         // (drop the `oo::define <target>` prefix) so a defined body word's line
         // is found at the subcommand's own index, then restore.
@@ -3996,7 +4016,10 @@ impl Interp {
         // is stable across rename, so we re-find the entry by it at error time.
         let creation_id = self.oo.borrow().objects.get(&fqn).map(|o| o.creation_id);
         let lvl = self.current_level();
-        self.oo.borrow_mut().def_stack.push((target, lvl));
+        self.oo
+            .borrow_mut()
+            .def_stack
+            .push((target, lvl, creation_id));
         // When sourced, run the body in a `type source` frame so the methods it
         // defines record file-absolute body lines (TIP 280).
         let code = self.eval_def_body(body, body_src);
@@ -4004,34 +4027,40 @@ impl Interp {
         // On error, add the `(in definition script for class/object "X" line N)`
         // errorInfo frame (C's GenerateErrorInfo).
         if code == Code::Error {
-            let current = creation_id
-                .and_then(|id| {
-                    self.oo
-                        .borrow()
-                        .objects
-                        .iter()
-                        .find(|(_, o)| o.creation_id == id)
-                        .map(|(k, _)| k.clone())
-                })
-                .unwrap_or_else(|| fqn.clone());
-            let mut inner = b"in definition script for ".to_vec();
-            inner.extend_from_slice(kind);
-            inner.extend_from_slice(b" \"");
-            // The name is quoted and truncated to 30 bytes (`...` on overflow),
-            // matching C's `OBJNAME_LENGTH_IN_ERRORINFO_LIMIT`.
-            if current.len() > 30 {
-                inner.extend_from_slice(&current[..30]);
-                inner.extend_from_slice(b"...");
-            } else {
-                inner.extend_from_slice(&current);
-            }
-            inner.push(b'"');
-            self.append_frame_line(&inner);
-            // A frame boundary: let the enclosing `oo::define`/`oo::class create`
-            // command log its own `invoked from within` frame.
-            self.clear_error_logged();
+            self.add_def_script_frame(kind, &fqn, creation_id);
         }
         code
+    }
+
+    /// Append the `(in definition script for <kind> "<name>" line N)` errorInfo
+    /// frame (C's `GenerateErrorInfo`). The object is named by its *current*
+    /// command (re-found by `creation_id` so a `rename` in the body shows), the
+    /// name quoted and truncated to 30 bytes (`OBJNAME_LENGTH_IN_ERRORINFO_LIMIT`).
+    fn add_def_script_frame(&mut self, kind: &[u8], fqn: &[u8], creation_id: Option<u64>) {
+        let current = creation_id
+            .and_then(|id| {
+                self.oo
+                    .borrow()
+                    .objects
+                    .iter()
+                    .find(|(_, o)| o.creation_id == id)
+                    .map(|(k, _)| k.clone())
+            })
+            .unwrap_or_else(|| fqn.to_vec());
+        let mut inner = b"in definition script for ".to_vec();
+        inner.extend_from_slice(kind);
+        inner.extend_from_slice(b" \"");
+        if current.len() > 30 {
+            inner.extend_from_slice(&current[..30]);
+            inner.extend_from_slice(b"...");
+        } else {
+            inner.extend_from_slice(&current);
+        }
+        inner.push(b'"');
+        self.append_frame_line(&inner);
+        // A frame boundary: let the enclosing command log its own `invoked from
+        // within` frame.
+        self.clear_error_logged();
     }
 
     /// The custom definition-resolution namespace for a definition `target`, or
