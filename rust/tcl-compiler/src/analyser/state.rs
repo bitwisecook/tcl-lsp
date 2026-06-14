@@ -212,6 +212,16 @@ pub struct Analyser {
     /// (strict for F5 iRules/iApps, confusables otherwise), matching
     /// Python's `_non_ascii_mode` + the iRules override.
     pub non_ascii_mode: NonAsciiMode,
+    /// When `true`, the walk builds only the **structural** facts (procs,
+    /// classes, aliases, ensembles, namespace/scope tree) and skips every
+    /// diagnostic-emission and cross-feature recording pass — the per-command
+    /// diagnostic dispatch *and* the post-walk emitter tail.  Used by the
+    /// `item_tree` query to extract the offset-stable declaration set cheaply
+    /// (the diagnostics are the bulk of the cost).  The structural handlers are
+    /// unchanged, so the resulting decl set is byte-identical to a full
+    /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
+    /// `false`; normal `analyse` is unaffected.
+    pub structure_only: bool,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
@@ -293,6 +303,7 @@ impl Analyser {
             line_offsets: None,
             pending_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
+            structure_only: false,
         }
     }
 
@@ -301,6 +312,16 @@ impl Analyser {
     #[must_use]
     pub fn with_non_ascii_mode(mut self, mode: NonAsciiMode) -> Self {
         self.non_ascii_mode = mode;
+        self
+    }
+
+    /// Enable structure-only mode (see [`Self::structure_only`]): the walk
+    /// builds the declaration/scope structure but skips all diagnostic
+    /// emission.  Returns `self` for builder-style configuration.  Used by the
+    /// `item_tree` query for cheap offset-stable item extraction.
+    #[must_use]
+    pub fn structure_only(mut self) -> Self {
+        self.structure_only = true;
         self
     }
 
@@ -516,18 +537,12 @@ impl Analyser {
         //    ``analyse``).
         // 5. ``dedupe_diagnostics`` — drop exact duplicates and
         //    the line-based suppression pairs.
-        let mut diag_registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            diag_registry.load_dialect(d);
+        // Structure-only mode (item_tree extraction) skips the entire
+        // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
+        // emitters are the dominant cost and produce no structural facts.
+        if !self.structure_only {
+            self.run_diagnostic_emitters(source);
         }
-        self.emit_unresolved_command_diagnostics(&diag_registry);
-        self.flush_arity_diagnostics();
-        self.emit_missing_package_require_diagnostics(&diag_registry);
-        self.emit_variable_usage_diagnostics();
-        self.emit_cfg_ssa_diagnostics(source);
-        self.emit_lexer_warning_diagnostics();
-        self.apply_disabled_diagnostics();
-        self.dedupe_diagnostics();
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
@@ -738,18 +753,7 @@ impl Analyser {
         }
 
         // Same diagnostic-emission tail as ``analyse``.
-        let mut diag_registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            diag_registry.load_dialect(d);
-        }
-        self.emit_unresolved_command_diagnostics(&diag_registry);
-        self.flush_arity_diagnostics();
-        self.emit_missing_package_require_diagnostics(&diag_registry);
-        self.emit_variable_usage_diagnostics();
-        self.emit_cfg_ssa_diagnostics(source);
-        self.emit_lexer_warning_diagnostics();
-        self.apply_disabled_diagnostics();
-        self.dedupe_diagnostics();
+        self.run_diagnostic_emitters(source);
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
@@ -829,22 +833,7 @@ impl Analyser {
         self.analyse_commands_inner(commands);
 
         if finalise {
-            let mut diag_registry = CommandRegistry::build_default();
-            if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-                diag_registry.load_dialect(d);
-            }
-            self.emit_unresolved_command_diagnostics(&diag_registry);
-            self.flush_arity_diagnostics();
-            self.emit_missing_package_require_diagnostics(&diag_registry);
-            self.emit_variable_usage_diagnostics();
-            self.emit_cfg_ssa_diagnostics(source);
-            // Parity with `analyse`: surface the lexer's extra-chars /
-            // var-brace warnings (E204 / E205 / E206). Previously absent
-            // here, so `analyse_commands` / `analyse_chunked` (and the
-            // incremental path) under-reported them.
-            self.emit_lexer_warning_diagnostics();
-            self.apply_disabled_diagnostics();
-            self.dedupe_diagnostics();
+            self.run_diagnostic_emitters(source);
         }
 
         let result = std::mem::take(&mut self.result);
@@ -1057,6 +1046,27 @@ impl Analyser {
         self.builtin_names
             .as_ref()
             .expect("builtin_names populated above")
+    }
+
+    /// Run the post-walk diagnostic-emission tail: the W123 / arity / missing-
+    /// package / variable-usage / CFG-SSA / lexer-warning emitters, then the
+    /// disabled-code filter and the dedupe + canonical-order pass.  Shared by
+    /// `analyse` / `analyse_chunked` / `analyse_commands` so the emitter set and
+    /// ordering stay identical across every entry point.
+    fn run_diagnostic_emitters(&mut self, source: &str) {
+        use tcl_registry::CommandRegistry;
+        let mut diag_registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            diag_registry.load_dialect(d);
+        }
+        self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.flush_arity_diagnostics();
+        self.emit_missing_package_require_diagnostics(&diag_registry);
+        self.emit_variable_usage_diagnostics();
+        self.emit_cfg_ssa_diagnostics(source);
+        self.emit_lexer_warning_diagnostics();
+        self.apply_disabled_diagnostics();
+        self.dedupe_diagnostics();
     }
 
     /// Reset transient run state so the next ``analyse`` call

@@ -226,98 +226,106 @@ impl Analyser {
         // points at the unresolved name rather than the whole
         // command line.
         let cmd_tok = arg_tokens_in[0];
-        let resolved = self.resolve_command_qualified_name(cmd_name);
-        self.result.command_invocations.push(
-            crate::signature_scan::types::SignatureCommandInvocation {
-                name: cmd_name.to_string(),
-                range: cmd_tok.span,
-                resolved_qualified_name: Some(resolved),
-            },
-        );
+        // Structure-only mode (item-tree extraction) skips every diagnostic /
+        // cross-feature recording pass below — they don't affect the declared
+        // proc / class / alias / ensemble structure and are the bulk of the
+        // per-command cost.  The structural handlers further down still run, so
+        // `file_decls` is identical to a full `analyse` (gated by the
+        // `file_decls_corpus` corpus test).
+        if !self.structure_only {
+            let resolved = self.resolve_command_qualified_name(cmd_name);
+            self.result.command_invocations.push(
+                crate::signature_scan::types::SignatureCommandInvocation {
+                    name: cmd_name.to_string(),
+                    range: cmd_tok.span,
+                    resolved_qualified_name: Some(resolved),
+                },
+            );
 
-        // iRules ``call PROC ARG...`` — record an additional
-        // ``CommandInvocation`` for the target proc so that
-        // references, rename, and call-hierarchy see through the
-        // indirection.  Mirrors
-        // ``_AnalyserCommandsMixin._process_command`` line 231 in
-        // ``core/analysis/_analyser/_commands.py``.
-        if cmd_name == "call" && self.dialect == "f5-irules" {
-            if let (Some(target_name), Some(target_tok)) =
-                (args.first(), arg_tokens_in.get(1).copied())
-            {
-                let resolved = self.resolve_command_qualified_name(target_name);
-                self.result.command_invocations.push(
-                    crate::signature_scan::types::SignatureCommandInvocation {
-                        name: target_name.clone(),
-                        range: target_tok.span,
-                        resolved_qualified_name: Some(resolved),
-                    },
-                );
+            // iRules ``call PROC ARG...`` — record an additional
+            // ``CommandInvocation`` for the target proc so that
+            // references, rename, and call-hierarchy see through the
+            // indirection.  Mirrors
+            // ``_AnalyserCommandsMixin._process_command`` line 231 in
+            // ``core/analysis/_analyser/_commands.py``.
+            if cmd_name == "call" && self.dialect == "f5-irules" {
+                if let (Some(target_name), Some(target_tok)) =
+                    (args.first(), arg_tokens_in.get(1).copied())
+                {
+                    let resolved = self.resolve_command_qualified_name(target_name);
+                    self.result.command_invocations.push(
+                        crate::signature_scan::types::SignatureCommandInvocation {
+                            name: target_name.clone(),
+                            range: target_tok.span,
+                            resolved_qualified_name: Some(resolved),
+                        },
+                    );
+                }
             }
-        }
 
-        // Walk every argument's source slice for ``[cmd ...]``
-        // substitutions and record each nested head as its own
-        // ``CommandInvocation``.  Mirrors ``_iter_nested_invocations``
-        // in ``_AnalyserCommandsMixin._record_command_invocation``
-        // (Python).
-        self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
+            // Walk every argument's source slice for ``[cmd ...]``
+            // substitutions and record each nested head as its own
+            // ``CommandInvocation``.  Mirrors ``_iter_nested_invocations``
+            // in ``_AnalyserCommandsMixin._record_command_invocation``
+            // (Python).
+            self.record_nested_invocations_from_args(cmd_name, args, arg_tokens_in);
 
-        // Run the per-command syntactic checks on commands nested inside
-        // ``[…]`` substitutions — the main walk never descends a
-        // substitution (it treats `[cmd …]` as a value), so a command
-        // like `set fh [open "|$cmd" r]` or `set x [string index abc 99]`
-        // would otherwise escape the security / bounds / arity / style
-        // families entirely.  Mirrors main's ``_recurse_nested_commands``
-        // re-running ``run_all_checks`` on each descended substitution
-        // command.
-        self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
+            // Run the per-command syntactic checks on commands nested inside
+            // ``[…]`` substitutions — the main walk never descends a
+            // substitution (it treats `[cmd …]` as a value), so a command
+            // like `set fh [open "|$cmd" r]` or `set x [string index abc 99]`
+            // would otherwise escape the security / bounds / arity / style
+            // families entirely.  Mirrors main's ``_recurse_nested_commands``
+            // re-running ``run_all_checks`` on each descended substitution
+            // command.
+            self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
 
-        // **C41d3.** Record variable-as-command and
-        // command-substitution-as-command call sites so the
-        // post-walk W307 / W308 emitters can resolve them.
-        // Mirrors the inline recording in
-        // ``_AnalyserCommandsMixin._process_command``
-        // (``_commands.py:182-198``).
-        self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
+            // **C41d3.** Record variable-as-command and
+            // command-substitution-as-command call sites so the
+            // post-walk W307 / W308 emitters can resolve them.
+            // Mirrors the inline recording in
+            // ``_AnalyserCommandsMixin._process_command``
+            // (``_commands.py:182-198``).
+            self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
 
-        // Record TclOO instance creation (`set v [Cls new]`,
-        // `Cls create inst`) so the LSP providers can resolve
-        // ``$v method`` / ``inst method`` call sites to the
-        // object's class.
-        self.record_instance_creation(cmd_name, args);
+            // Record TclOO instance creation (`set v [Cls new]`,
+            // `Cls create inst`) so the LSP providers can resolve
+            // ``$v method`` / ``inst method`` call sites to the
+            // object's class.
+            self.record_instance_creation(cmd_name, args);
 
-        // Generic EXPR-argument walk via the command registry's
-        // ``ArgRole::Expr``.  Picks up the condition arg of
-        // ``if`` / ``elseif`` / ``while`` / the cond+next slots
-        // of ``for`` / the body of ``expr`` / etc.  Currently
-        // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
-        // emitter; future EXPR-role checks slot in here.
-        //
-        // Run *before* the early-returning handlers
-        // (``handle_for_command`` / ``handle_foreach_command`` /
-        // ``handle_switch_command`` / ``handle_catch_command`` /
-        // ``handle_try_command``) so EXPR-role args on those
-        // commands aren't skipped — none of those handlers
-        // process EXPR args themselves (they own *body*
-        // recursion only), so this can't double-fire.
-        self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
+            // Generic EXPR-argument walk via the command registry's
+            // ``ArgRole::Expr``.  Picks up the condition arg of
+            // ``if`` / ``elseif`` / ``while`` / the cond+next slots
+            // of ``for`` / the body of ``expr`` / etc.  Currently
+            // hosts the W110 (``==``/``!=`` vs ``eq``/``ne``)
+            // emitter; future EXPR-role checks slot in here.
+            //
+            // Run *before* the early-returning handlers
+            // (``handle_for_command`` / ``handle_foreach_command`` /
+            // ``handle_switch_command`` / ``handle_catch_command`` /
+            // ``handle_try_command``) so EXPR-role args on those
+            // commands aren't skipped — none of those handlers
+            // process EXPR args themselves (they own *body*
+            // recursion only), so this can't double-fire.
+            self.dispatch_expr_arguments(cmd_name, args, arg_tokens);
 
-        // Dispatch-site diagnostic emitters (W302 / W001 / E004 / W101
-        // / W304 / W004 / E002-E003).  Extracted from this function so
-        // it stays within the line budget; see the method for the
-        // per-code rationale and ordering.  Run before the
-        // early-returning handlers so option-bearing / body-owning
-        // commands still get checked.
-        self.emit_dispatch_site_diagnostics(
-            cmd_name,
-            args,
-            arg_tokens,
-            arg_single,
-            arg_expand_in,
-            cmd_tok,
-            scope_path,
-        );
+            // Dispatch-site diagnostic emitters (W302 / W001 / E004 / W101
+            // / W304 / W004 / E002-E003).  Extracted from this function so
+            // it stays within the line budget; see the method for the
+            // per-code rationale and ordering.  Run before the
+            // early-returning handlers so option-bearing / body-owning
+            // commands still get checked.
+            self.emit_dispatch_site_diagnostics(
+                cmd_name,
+                args,
+                arg_tokens,
+                arg_single,
+                arg_expand_in,
+                cmd_tok,
+                scope_path,
+            );
+        } // end `if !self.structure_only`
 
         // Handler-by-handler dispatch. Each returning-bool
         // handler is consulted in turn; first match wins. The

@@ -62,15 +62,18 @@ fn file_decls_match_analyse_over_corpus() {
         if src.len() > 400_000 {
             continue;
         }
-        let mut analyser = Analyser::new();
-        let result = analyser.analyse(&src, dialect);
-        let decls = ItemTree::from_analysis(&result, &analyser.ensemble_namespaces).file_decls();
+        // GOT: the cheap structure-only extractor (what `item_tree` uses).
+        let mut so = Analyser::new().structure_only();
+        let so_result = so.analyse(&src, dialect);
+        let decls = ItemTree::from_analysis(&so_result, &so.ensemble_namespaces).file_decls();
 
+        // WANT: a full `analyse`'s declaration sets — the authority.
+        let mut full = Analyser::new();
+        let result = full.analyse(&src, dialect);
         let want_procs: BTreeSet<String> = result.all_procs.keys().cloned().collect();
         let want_classes: BTreeSet<String> = result.all_classes.keys().cloned().collect();
         let want_aliases: BTreeSet<String> = result.command_aliases.keys().cloned().collect();
-        let want_ensembles: BTreeSet<String> =
-            analyser.ensemble_namespaces.iter().cloned().collect();
+        let want_ensembles: BTreeSet<String> = full.ensemble_namespaces.iter().cloned().collect();
         checked += 1;
 
         let name = path.file_name().unwrap().to_string_lossy();

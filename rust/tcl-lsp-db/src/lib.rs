@@ -127,7 +127,10 @@ pub fn file_analysis(
 /// fallback (item detection is config-independent, hence no `AnalyserConfig`).
 #[salsa::tracked]
 pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
-    let mut analyser = Analyser::new();
+    // `structure_only` skips diagnostic emission (the dominant analyse cost)
+    // while building the identical declaration/scope structure — a cheap,
+    // non-divergent item extractor (gated by `file_decls_corpus`).
+    let mut analyser = Analyser::new().structure_only();
     let result = analyser.analyse(file.text(db), file.dialect(db));
     Arc::new(ItemTree::from_analysis(
         &result,
