@@ -417,6 +417,9 @@ fn resolve_target_node_id(
 }
 
 /// Build the forward reference edges across all nodes (legacy token-scan path).
+// A faithful port of the (long) `_build_forward_edges` — the pilot + two legacy
+// reference passes plus the shared dedup read most clearly as one function.
+#[allow(clippy::too_many_lines)]
 fn build_forward_edges(
     nodes_by_uri: &[(String, Vec<ObjectNode>)],
     configs: &[(String, &BigipConfig)],
@@ -457,6 +460,32 @@ fn build_forward_edges(
     for (_uri, nodes) in nodes_by_uri {
         for node in nodes {
             for (key, prop) in parse_properties_with_spans(&node.body) {
+                // Registry-first (pilot value-spec) dispatch — runs BEFORE the
+                // legacy path, exactly like Python, so its edges win the shared
+                // dedup and the output order matches. Migrated properties whose
+                // legacy `references` were cleared (e.g. `policies`/`vlans` on
+                // `ltm virtual`) get their edges only from here.
+                if let Some(spec_refs) =
+                    pilot_references(&node.module, &node.object_type, &key, &prop.value)
+                {
+                    for (target_kind, target_path) in spec_refs {
+                        for &kind in &reg.candidate_registry_kinds_for_display(&target_kind) {
+                            let reference = normalise_reference_for_kind(kind, &target_path);
+                            if let Some(target_id) = resolve_target_node_id(
+                                kind,
+                                &reference,
+                                Some(&node.module),
+                                configs,
+                                &by_range,
+                                nodes_by_uri,
+                                reg,
+                            ) {
+                                push_edge(&mut edges, &node.node_id, target_id, key.clone(), kind);
+                            }
+                        }
+                    }
+                }
+
                 // Legacy key path: candidate kinds for the property name.
                 let key_kinds = reg.candidate_kinds_for_key(
                     &key,
@@ -557,4 +586,41 @@ pub fn build_bigip_object_graph(
         nodes_by_uri,
         edges,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Pilot value-spec reference dispatch — the registry-first edge path
+// (`references_via_spec` + the migrated `PILOT_PROPERTY_SPECS`). The graph only
+// consumes each `Reference`'s `(target_kind, target_path)`, so each spec is
+// reproduced as a slim extractor over the raw property value rather than the
+// full `ValueSpec` / `BigipList` materialisation. Specs are added incrementally;
+// an unmigrated property returns `None` and falls through to the legacy path.
+// ---------------------------------------------------------------------------
+
+/// Enumerate `(target_kind, target_path)` references for a migrated property,
+/// or `None` when the property isn't in the pilot table.
+fn pilot_references(
+    module: &str,
+    object_type: &str,
+    property: &str,
+    raw: &str,
+) -> Option<Vec<(String, String)>> {
+    // `ListSpec(ObjectRefSpec(kind = K))` — a braced-space-separated list of
+    // refs; each non-empty token yields one reference to the first kind.
+    let list_ref_kind = match (module, object_type, property) {
+        ("ltm", "virtual", "rules") => "ltm rule",
+        ("ltm", "virtual", "policies") => "ltm policy",
+        ("ltm", "virtual", "vlans") => "net vlan",
+        ("security", "firewall policy", "rule-lists") => "security firewall rule-list",
+        ("security", "firewall address-list", "address-lists") => "security firewall address-list",
+        _ => return None,
+    };
+    let refs = parse_list_block(raw)
+        .into_iter()
+        .filter_map(|tok| {
+            let t = tok.trim();
+            (!t.is_empty()).then(|| (list_ref_kind.to_owned(), t.to_owned()))
+        })
+        .collect();
+    Some(refs)
 }

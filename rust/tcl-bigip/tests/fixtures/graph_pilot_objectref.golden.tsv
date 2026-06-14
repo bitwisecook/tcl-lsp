@@ -1,0 +1,6 @@
+test://config:17:27:ltm:virtual:/Common/app_vs	test://config:12:26:ltm:pool:/Common/app_pool	pool	ltm_pool
+test://config:17:27:ltm:virtual:/Common/app_vs	test://config:12:26:ltm:pool:/Common/app_pool	pool[]	ltm_pool
+test://config:17:27:ltm:virtual:/Common/app_vs	test://config:3:31:ltm:rule:/Common/redirect_rule	rules	ltm_rule
+test://config:17:27:ltm:virtual:/Common/app_vs	test://config:3:31:ltm:rule:/Common/redirect_rule	rules[]	ltm_rule
+test://config:17:27:ltm:virtual:/Common/app_vs	test://config:8:30:ltm:policy:/Common/web_policy	policies	ltm_policy
+test://config:17:27:ltm:virtual:/Common/app_vs	test://config:0:26:net:vlan:/Common/internal	vlans	net_vlan
