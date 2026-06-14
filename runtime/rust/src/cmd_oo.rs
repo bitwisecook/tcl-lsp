@@ -1689,9 +1689,12 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Err(c) => return c,
     };
-    // The root classes' class may not be changed.
-    if obj == b"::oo::object" || obj == b"::oo::class" {
+    // The root classes' class may not be changed (each with its own message).
+    if obj == b"::oo::object" {
         return err(interp, b"may not modify the class of the root object class");
+    }
+    if obj == b"::oo::class" {
+        return err(interp, b"may not modify the class of the class of classes");
     }
     let new_cls = interp.oo_resolve_object(&obj_bytes(argv[1]));
     if !interp.oo.borrow().objects.contains_key(&new_cls) {
