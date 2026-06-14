@@ -61,6 +61,22 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_func_args(interp, b"too many arguments for math function \"", fname);
     }
 
+    // `wide`/`int`/`entier` on an *integer* operand work on the tower directly,
+    // not via the f64-limited shared dispatch: `wide` wraps a too-big integer to
+    // a 64-bit signed value (C's truncation), and `int`/`entier` keep the
+    // (possibly bignum) integer exactly. (A *float* operand falls through to the
+    // shared dispatch.)
+    if matches!(lname.as_str(), "wide" | "int" | "entier") && crate::bignum::is_integer(argv[1]) {
+        if lname == "wide" {
+            interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
+                argv[1],
+            )));
+        } else {
+            interp.set_result(argv[1]); // integer is its own int/entier
+        }
+        return Code::Ok;
+    }
+
     // Operands → Num (object-preserving: a bignum/double keeps its rep).
     let nums: Option<Vec<Num>> = argv[1..]
         .iter()

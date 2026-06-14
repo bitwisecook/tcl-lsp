@@ -2815,6 +2815,20 @@ correct — only the `%g` rendering was wrong).
   now re-raise math/arith errors *with* their code instead of dropping it via
   `set_error` (expr-old-26.8/26.9). `%` shares the divide-by-zero path.
 
+### SYNC inbound — 2026-06-14 (`wide()`/`int()`/`entier()` over the tower)
+
+`wide`/`int`/`entier` on an **integer** operand now work over the numeric tower
+instead of the f64-limited shared math dispatch: `wide` wraps a too-big integer
+to a signed 64-bit value (C's truncation, `wide(2**63)` ⇒ `i64::MIN`, via
+libtommath `mp_get_i64`), and `int`/`entier` keep the (possibly bignum) integer
+exactly. Previously these domain-errored on anything exceeding `i64`. This also
+un-aborts the *sourcing* of expr.test (its `wideIs64bit` constraint computes
+`wide(0x8000000000000000) < 0` at top level). Note: expr.test now reaches a
+**pre-existing hang** further in (a heavy/looping test our runtime doesn't yet
+complete) — a separate follow-up; the `wide`/`int`/`entier` fix stands on its own
+(expr-old.test stays 405, byte-checked). Large *float* `int`/`entier` (bignum
+result, e.g. `int(1e30)`) is still deferred.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

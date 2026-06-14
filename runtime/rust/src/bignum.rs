@@ -448,6 +448,19 @@ pub fn is_numeric(obj: *mut TclObj) -> bool {
     read(obj).is_some()
 }
 
+/// The low 64 bits of an **integer** `obj` as a signed wide — C's `wide()`
+/// truncation (a bignum that overflows `i64` wraps, e.g. `wide(2**63)` ⇒
+/// `i64::MIN`). The caller guards with [`is_integer`]; a non-integer yields 0.
+#[must_use]
+pub fn truncate_to_wide(obj: *mut TclObj) -> i64 {
+    match read(obj) {
+        Some(NumVal::Wide(w)) => w,
+        // SAFETY: `mp` is a live mp_int; `mp_get_i64` returns its low 64 bits.
+        Some(NumVal::Big(mp)) => unsafe { mp_get_i64(mp.ptr()) },
+        _ => 0,
+    }
+}
+
 /// Read `obj` as a [`mathfunc::Num`](tcl_syntax::expr::mathfunc::Num) for the
 /// shared math-function dispatch — `None` if non-numeric. A bignum widens to a
 /// double (math functions compute on the double rung, as in C Tcl).
