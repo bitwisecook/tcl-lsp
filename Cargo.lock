@@ -1032,8 +1032,13 @@ dependencies = [
  "anyhow",
  "clap",
  "clap_complete",
+ "serde",
+ "serde_json",
  "tcl-cli-support",
+ "tcl-compiler",
+ "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-registry",
 ]
 
 [[package]]
