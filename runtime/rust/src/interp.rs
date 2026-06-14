@@ -1620,6 +1620,20 @@ impl Interp {
         Code::Error
     }
 
+    /// Like [`error`](Self::error) but with an explicit `-errorcode` (the trace
+    /// still builds up as the error unwinds). For commands that mirror C's
+    /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
+    pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
+        self.set_result_bytes(msg);
+        *self.exc.borrow_mut() = ExceptionState {
+            info: None,
+            code: code.to_vec(),
+            line: 1,
+            already_logged: false,
+        };
+        Code::Error
+    }
+
     /// Pre-seed the error trace for `error msg info ?code?` / `throw`: the result
     /// is `msg`, the trace starts at `info` (so the throwing command is **not**
     /// re-logged — `ERR_ALREADY_LOGGED`), and `-errorcode` is `code`. Returns

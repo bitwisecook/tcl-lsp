@@ -396,7 +396,7 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
             m.extend_from_slice(&prop);
             m.extend_from_slice(b"\": ");
             m.extend_from_slice(reason);
-            return err(interp, &m);
+            return interp.error_with_code(&m, b"TCL OO PROPERTY_FORMAT");
         }
         // Parse the property's options.
         let (mut kind_ro, mut kind_wo) = (false, false);
@@ -411,7 +411,9 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                     let mut m = b"bad option \"".to_vec();
                     m.extend_from_slice(&opt);
                     m.extend_from_slice(b"\": must be -get, -kind, or -set");
-                    return err(interp, &m);
+                    let mut code = b"TCL LOOKUP INDEX option ".to_vec();
+                    code.extend_from_slice(&opt);
+                    return interp.error_with_code(&m, &code);
                 }
             };
             if i + 1 >= argv.len() {
@@ -425,7 +427,7 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 m.extend_from_slice(b" to go with ");
                 m.extend_from_slice(optname);
                 m.extend_from_slice(b" option");
-                return err(interp, &m);
+                return interp.error_with_code(&m, b"TCL WRONGARGS");
             }
             let val = obj_bytes(argv[i + 1]);
             i += 2;
@@ -449,7 +451,9 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                         let mut m = b"bad kind \"".to_vec();
                         m.extend_from_slice(&val);
                         m.extend_from_slice(b"\": must be readable, readwrite, or writable");
-                        return err(interp, &m);
+                        let mut code = b"TCL LOOKUP INDEX kind ".to_vec();
+                        code.extend_from_slice(&val);
+                        return interp.error_with_code(&m, &code);
                     }
                 },
                 _ => unreachable!(),
@@ -672,7 +676,9 @@ fn get_property_name(
     m.extend_from_slice(&given);
     m.extend_from_slice(b"\": must be ");
     m.extend_from_slice(&oxford_join(&cands));
-    Err(interp.set_error(&m))
+    let mut code = b"TCL LOOKUP INDEX property ".to_vec();
+    code.extend_from_slice(&given);
+    Err(interp.error_with_code(&m, &code))
 }
 
 /// Join names as `a`, `a or b`, or `a, b, or c` (Tcl's option-table style).
@@ -4670,6 +4676,15 @@ mod tests {
             assert_eq!(ok(i, b"ro configure -r"), b"7");
             assert_eq!(i.eval_str(b"ro configure -r 9"), Code::Error);
             assert_eq!(i.result_bytes(), b"property \"-r\" is read only");
+            // Error codes (ooProp-4.x).
+            ok(i, b"oo::configurable create E { superclass parent }");
+            assert_eq!(i.eval_str(b"oo::define E {property -x}"), Code::Error);
+            assert_eq!(ok(i, b"set ::errorCode"), b"TCL OO PROPERTY_FORMAT");
+            assert_eq!(
+                i.eval_str(b"oo::define E {property q -kind gorp}"),
+                Code::Error
+            );
+            assert_eq!(ok(i, b"set ::errorCode"), b"TCL LOOKUP INDEX kind gorp");
         });
     }
 
