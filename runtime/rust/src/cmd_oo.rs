@@ -299,6 +299,76 @@ pub fn install(interp: &mut Interp) {
         Command::Builtin(prop_slot_obj_writable),
     );
     install_configurable(interp);
+    register_define_ns_commands(interp);
+}
+
+/// Register the definition subcommands as real commands in `::oo::define` /
+/// `::oo::objdefine` (e.g. `::oo::define::method`). Invoked outside a definition
+/// context they report C's "this command may only be called …" error; inside
+/// one they dispatch like the bare definition subcommand.
+fn register_define_ns_commands(interp: &mut Interp) {
+    const CLASS: &[&[u8]] = &[
+        b"constructor",
+        b"definitionnamespace",
+        b"deletemethod",
+        b"destructor",
+        b"export",
+        b"filter",
+        b"forward",
+        b"method",
+        b"mixin",
+        b"private",
+        b"renamemethod",
+        b"self",
+        b"superclass",
+        b"unexport",
+        b"variable",
+    ];
+    const OBJ: &[&[u8]] = &[
+        b"class",
+        b"deletemethod",
+        b"export",
+        b"filter",
+        b"forward",
+        b"method",
+        b"mixin",
+        b"private",
+        b"renamemethod",
+        b"self",
+        b"unexport",
+        b"variable",
+    ];
+    for sub in CLASS {
+        let mut fqn = b"::oo::define::".to_vec();
+        fqn.extend_from_slice(sub);
+        interp.ns_register(&fqn, Command::Builtin(oo_ns_define_cmd));
+    }
+    for sub in OBJ {
+        let mut fqn = b"::oo::objdefine::".to_vec();
+        fqn.extend_from_slice(sub);
+        interp.ns_register(&fqn, Command::Builtin(oo_ns_define_cmd));
+    }
+}
+
+/// A `::oo::define::<sub>` / `::oo::objdefine::<sub>` command: errors outside a
+/// definition context, else dispatches the subcommand on the current target.
+fn oo_ns_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp.oo.borrow().def_stack.is_empty() {
+        return interp.set_error(
+            b"this command may only be called from within the context of an \
+              ::oo::define or ::oo::objdefine command",
+        );
+    }
+    let cmd = obj_bytes(argv[0]);
+    // The subcommand is the segment after the final `::`.
+    let sub: Vec<u8> = (0..cmd.len().saturating_sub(1))
+        .rev()
+        .find(|&i| &cmd[i..i + 2] == b"::")
+        .map(|i| cmd[i + 2..].to_vec())
+        .unwrap_or_else(|| cmd.clone());
+    interp
+        .oo_define_command(&sub, argv)
+        .unwrap_or_else(|| interp.invalid_command(&cmd))
 }
 
 /// TIP 558 `oo::configurable` metaclass + the `property` definition command and
@@ -5031,6 +5101,25 @@ mod tests {
             );
             assert_eq!(ok(i, b"info object properties o"), b"m n");
             assert_eq!(ok(i, b"info object properties o -all"), b"a m n x y z");
+        });
+    }
+
+    #[test]
+    fn namespaced_define_command_context_error() {
+        leak_free(|i| {
+            // Outside a definition the namespaced define subcommands error.
+            assert_eq!(i.eval_str(b"oo::define::private error xyz"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"this command may only be called from within the context of an \
+                  ::oo::define or ::oo::objdefine command"
+            );
+            assert_eq!(i.eval_str(b"oo::objdefine::method m {} {}"), Code::Error);
+            // Inside a definition they dispatch normally.
+            ok(i, b"oo::class create C");
+            ok(i, b"oo::define C { ::oo::define::method m {} {return ok} }");
+            ok(i, b"C create o");
+            assert_eq!(ok(i, b"o m"), b"ok");
         });
     }
 
