@@ -2412,27 +2412,38 @@ regressions; `ooProp.test` stable 55/55), all derived from Tcl 9 C
 `oo-22` spans three independent needs. `info frame` inside a method now carries
 the OO method context (the `CmdFrame` records `(method, class|object, owner)`
 from the call meta, displacing the `proc` key — C's `TclInfoFrame`), landing
-**oo-22.1/22.2**. The remaining two parts are large separate subsystems:
+**oo-22.1/22.2**. The line-tracking part is now done too:
 
-- **oo-22.7/22.8 — file-absolute method-body line tracking.** These assert a
-  method body's `info frame` reports `type source` + `file` + the file-absolute
-  `line`, so a `Relative` filter can subtract a baseline. Today a method body is
-  a stored string with no source provenance, so it reports `type proc` and no
-  `file`. This is the **PC-5 source-location** subsystem — the same gap behind
-  ~169 `info.test` failures — and needs per-argument line tracking threaded from
-  the `oo::define` script into each method body (`body_line_base` + `file`).
+- **oo-22.7/22.8 — file-absolute method-body line tracking (DONE).** TIP 280
+  argument-line tracking: the parser records each word's byte offset
+  (`Word::start`), the eval loop computes per-word file-absolute lines just
+  before dispatch (`arg_lines`/`arg_line`), and a method/constructor body
+  defined while sourcing records `(file, body_line_base)`. Its `info frame` is
+  then `type source` + `file` with file-relative lines, even when the body opens
+  on a later line than the `method` command. The single-command `oo::define
+  <target> <sub> …` form re-bases the argument lines onto the dispatched
+  subcommand. (The class-create body path still passes `None`; not exercised by
+  these tests. This infra is the lever for the broader ~169 `info.test`
+  source-line failures.)
+
+The remaining coroutine cluster is the one genuinely blocked subsystem:
+
 - **oo-22.3–22.6 — coroutines.** `coroutine`/`yield` must suspend mid-method and
   resume later (driven here through `after`/`vwait`). The Rust evaluator is
-  **recursive** (a `yield` deep in the call stack cannot return to the
-  `coroutine` creator without unwinding), and the interp state is `Rc`/`RefCell`
-  (**`!Send`**), so the usual implementations are blocked: OS-thread-per-coro
-  needs `Send` state (would force `Arc`/`Mutex` everywhere); a stackful-coroutine
-  crate (e.g. `corosensei`) runs same-thread (so `!Send` is OK) but its
-  separate-stack switching is **wasm-target-hostile** (this is the WASM runtime
-  port); a CPS/NRE rewrite of the evaluator is the faithful route but a major
-  undertaking. Recommendation: defer until the eval loop is reworked toward an
-  explicit (non-recursive) execution stack, at which point `yield`/`vwait`/event
-  loop become tractable together.
+  **recursive** — a `yield` deep in the call stack cannot return to the
+  `coroutine` creator without unwinding. The two same-thread-safe escapes are
+  both blocked here: a **stackful-coroutine crate** (e.g. `corosensei`) keeps the
+  `!Send` `Rc`/`RefCell` interp on one thread, but needs an external dependency
+  (no network) and its separate-stack switching is **wasm-target-hostile** (this
+  is the WASM runtime port); an **OS-thread-per-coroutine** with serialized
+  handoff would otherwise work, but the runtime's **leak counters are
+  `thread_local!`** (`counters.rs`) — allocating `TclObj`s on a coroutine thread
+  would break the leak-accounting invariant the whole test discipline depends
+  on, and the interp is `!Send` regardless. The faithful route is a **CPS / NRE
+  rewrite** of the eval loop to an explicit (non-recursive) execution stack, at
+  which point `yield`/`vwait`/the event loop become tractable together; that is a
+  major, separate undertaking. Coroutines also gate the cross-test pollution
+  (oo-1.25 aborts mid-body on the missing `coroutine`, leaking global `A`).
 
 Still open (larger/foundational): the define body runs in the caller's
 namespace, not `::oo::define`/`::oo::objdefine` with outer-context class
