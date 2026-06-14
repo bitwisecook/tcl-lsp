@@ -189,7 +189,6 @@ struct DiagInputs {
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
     workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
-    gate: Arc<Mutex<()>>,
     /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
     /// drops it immediately, so an idle worker never holds a clone across the
     /// debounce sleep (which would block the next edit's `set_text` — salsa's
@@ -253,7 +252,6 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         opt_disabled,
         documents,
         workspace_index,
-        gate,
         db,
         // The worker captures the job from these before calling us; unused here.
         db_files: _,
@@ -351,12 +349,14 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
     match result {
         Ok(diags) => {
             {
-                let _gate = gate.lock().await;
-                let is_current = documents
-                    .lock()
-                    .await
-                    .get(uri)
-                    .is_some_and(|doc| doc.revision == revision);
+                // Hold the `documents` lock across the currency re-check and the
+                // workspace-index update so a concurrent `did_change`/`did_close`
+                // (which also take `documents`) cannot interleave between them
+                // and leave a stale index entry — the role the former global
+                // `document_analysis_gate` served, now via the natural
+                // `documents` → `workspace_index` lock order.
+                let docs = documents.lock().await;
+                let is_current = docs.get(uri).is_some_and(|doc| doc.revision == revision);
                 if !is_current {
                     // Superseded by a newer edit, which has marked the document
                     // dirty — settled for this version; the worker will process
@@ -412,12 +412,6 @@ pub struct Backend {
     client: Client,
     /// Open documents. `Arc` so the detached diagnostics task can hold it.
     documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
-    /// Serialises the small critical section that couples the live document
-    /// revision to the workspace index update + diagnostics publication.
-    /// The expensive analyser work runs outside this lock, on a detached
-    /// task, so an older worker cannot finish late and overwrite state for
-    /// newer text.  `Arc` so the detached task can hold it.
-    document_analysis_gate: Arc<Mutex<()>>,
     /// Per-URI coalescing diagnostics scheduler state.  Each edit marks the
     /// document dirty and, if no worker is running, starts one; the single
     /// worker debounces, then repeatedly analyses the document's **latest**
@@ -594,7 +588,6 @@ impl Backend {
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
-            document_analysis_gate: Arc::new(Mutex::new(())),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
@@ -927,10 +920,9 @@ impl Backend {
     /// server restarts.  Falls back to removing the entry when the
     /// URI isn't a readable file (untitled buffer, deleted file).
     ///
-    /// Disk IO and analysis deliberately run outside
-    /// `document_analysis_gate`. The final index update rechecks that
-    /// the URI is still closed, so a slow disk read cannot overwrite a
-    /// newly reopened unsaved buffer.
+    /// Disk IO and analysis deliberately run before taking any lock; the final
+    /// index update holds the `documents` lock across the still-closed re-check
+    /// so a slow disk read cannot overwrite a newly reopened unsaved buffer.
     async fn reindex_index_from_disk(&self, uri: &Url) {
         let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
             let dialect = match self.resolve_folder_dialect(uri).await {
@@ -947,8 +939,13 @@ impl Backend {
         } else {
             None
         };
-        let _gate = self.document_analysis_gate.lock().await;
-        if self.documents.lock().await.contains_key(uri) {
+        // Hold `documents` across the still-closed re-check and the index
+        // update (the `documents` → `workspace_index` order used everywhere
+        // since the global gate was retired) so a concurrent `did_open` cannot
+        // open the buffer between them and have its index entry clobbered by
+        // this disk-backed one.
+        let docs = self.documents.lock().await;
+        if docs.contains_key(uri) {
             return;
         }
         let mut index = self.workspace_index.lock().await;
@@ -2080,7 +2077,6 @@ impl Backend {
             opt_disabled,
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
-            gate: Arc::clone(&self.document_analysis_gate),
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_config: Arc::clone(&self.db_config),
@@ -2248,14 +2244,12 @@ impl Backend {
     /// the live document map at publication time so stale on-disk
     /// analysis cannot overwrite the open-buffer entry.
     async fn merge_workspace_scan_results(&self, analysed: &[(String, AnalysisResult)]) {
-        let _gate = self.document_analysis_gate.lock().await;
-        let open: HashSet<String> = self
-            .documents
-            .lock()
-            .await
-            .keys()
-            .map(ToString::to_string)
-            .collect();
+        // Hold `documents` across the open-set read + index merge (the
+        // `documents` → `workspace_index` order that replaced the global gate)
+        // so a file opening mid-merge can't have its open-buffer index entry
+        // overwritten by this disk-backed scan result.
+        let docs = self.documents.lock().await;
+        let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
         let mut index = self.workspace_index.lock().await;
         for (uri, analysis) in analysed {
             if open.contains(uri) {
@@ -2309,22 +2303,23 @@ impl LanguageServer for Backend {
         let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
         {
-            let _gate = self.document_analysis_gate.lock().await;
+            // Hold `documents` across the salsa input set + the index removal
+            // (the `documents` → `workspace_index` order that replaced the
+            // global gate): a reader must never see the new `doc.text` with a
+            // stale query result for the old text, and no diagnostics run may
+            // re-add a stale index entry between them.
             let mut docs = self.documents.lock().await;
             docs.insert(
                 uri.clone(),
                 DocumentState::with_version(params.text_document.text, dialect, version),
             );
-            // Set the salsa input while holding the `documents` lock — same
-            // reasoning as `did_change`: a reader must never see the new
-            // `doc.text` with a stale query result for the old text.
             self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
                 .await;
-            drop(docs);
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
+            drop(docs);
         }
         self.schedule_diagnostics(uri, dialect_for_diags).await;
     }
@@ -2342,7 +2337,6 @@ impl LanguageServer for Backend {
         let default_dialect = self.default_dialect.lock().await.clone();
         let change_version = params.text_document.version;
         let dialect = {
-            let _gate = self.document_analysis_gate.lock().await;
             let mut docs = self.documents.lock().await;
             let entry = docs
                 .entry(uri.clone())
@@ -2356,22 +2350,20 @@ impl LanguageServer for Backend {
             entry.text = text.clone();
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
-            // Update the salsa `SourceFile` input WHILE still holding the
-            // `documents` lock, so no concurrent request can observe the new
-            // `doc.text` (from `read_document`) together with a stale
-            // `file_analysis`/`document_symbols`/`semantic_tokens` query result
-            // for the old text. (db_set_source locks db→db_files, never
-            // documents, so this nesting introduces no new lock-order cycle.)
+            // Update the salsa `SourceFile` input + the cross-document index
+            // WHILE still holding the `documents` lock (the `documents` →
+            // `workspace_index` order that replaced the global gate): no
+            // concurrent request can observe the new `doc.text` (from
+            // `read_document`) with a stale query result for the old text, and
+            // no diagnostics run can re-add a stale index entry between the
+            // commit and the removal.  (db_set_source locks db→db_files, never
+            // documents, so this nesting introduces no lock-order cycle.)
             self.db_set_source(&uri, text, dialect.clone()).await;
-            drop(docs);
-            // The per-document analysis is no longer cached on the server — it
-            // lives in the query database, invalidated by the `db_set_source`
-            // above bumping the `SourceFile` input. The cross-document index is
-            // still refreshed by the diagnostics run below.
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
+            drop(docs);
             dialect
         };
         self.schedule_diagnostics(uri, dialect).await;
@@ -2415,20 +2407,26 @@ impl LanguageServer for Backend {
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = &params.text_document.uri;
         {
-            let _gate = self.document_analysis_gate.lock().await;
-            self.documents.lock().await.remove(uri);
+            // Remove the live document + its index entry while holding
+            // `documents` (the `documents` → `workspace_index` order that
+            // replaced the global gate): an in-flight diagnostics run re-checks
+            // currency under `documents` and, finding the doc gone, will not
+            // re-add a stale index entry or publish for it.
+            let mut docs = self.documents.lock().await;
+            docs.remove(uri);
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
-            // Clear any previously-published diagnostics before a later
-            // didOpen for the same URI can run. Close publishes do not
-            // carry a reliable document version, so this short publish
-            // stays ordered by the gate.
-            self.client
-                .publish_diagnostics(uri.clone(), Vec::new(), None)
-                .await;
+            drop(docs);
         }
+        // Clear any previously-published diagnostics so a later didOpen for the
+        // same URI starts clean.  Published outside the lock; a diagnostics run
+        // for the now-closed doc no longer publishes (its currency re-check
+        // fails), so this empty publish is the last word for the URI.
+        self.client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
         self.db_remove_source(uri).await;
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
@@ -5459,7 +5457,6 @@ mod tests {
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),
-            document_analysis_gate: Arc::new(Mutex::new(())),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
@@ -5493,7 +5490,6 @@ mod tests {
             .db_set_source(&uri, current_src.to_owned(), "tcl8.6".to_owned())
             .await;
         {
-            let _gate = backend.document_analysis_gate.lock().await;
             let mut doc =
                 DocumentState::with_version(current_src.to_owned(), "tcl8.6".to_owned(), 2);
             doc.revision = 2;
