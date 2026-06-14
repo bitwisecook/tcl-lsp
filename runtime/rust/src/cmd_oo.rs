@@ -58,6 +58,10 @@ struct Class {
     /// TIP 500 private instance variables (`private variable`): listed by
     /// `info class variables -private`, hidden from the plain form.
     private_variables: Vec<Vec<u8>>,
+    /// TIP 558 readable / writable property name sets (stored uniqued,
+    /// first-wins; sorted on introspection).
+    readable_properties: Vec<Vec<u8>>,
+    writable_properties: Vec<Vec<u8>>,
     /// Mixed-in classes (searched before the superclass MRO).
     mixins: Vec<Vec<u8>>,
     /// Methods marked non-exported (callable only via `my`).
@@ -107,6 +111,9 @@ struct Object {
     variables: Vec<Vec<u8>>,
     /// Per-object TIP 500 private instance variables.
     private_variables: Vec<Vec<u8>>,
+    /// Per-object TIP 558 readable / writable property sets.
+    readable_properties: Vec<Vec<u8>>,
+    writable_properties: Vec<Vec<u8>>,
     /// Set once the destructor chain has started, so teardown via `destroy`,
     /// `rename obj {}` and `namespace delete` does not re-run it (C's
     /// `DESTRUCTOR_CALLED`).
@@ -270,6 +277,155 @@ pub fn install(interp: &mut Interp) {
     // are resolved by the global builtins + the define-context fallback.
     let _ = interp.eval_str(b"namespace eval ::oo::define {}; namespace eval ::oo::objdefine {}");
     install_slot_class(interp);
+    // TIP 558 property slots: invoked as `oo::define c
+    // ::oo::configuresupport::readableproperties -set …` etc. Each manages the
+    // class's (or object's) readable/writable property set.
+    let _ = interp.eval_str(b"namespace eval ::oo::configuresupport {}");
+    interp.ns_register(
+        b"::oo::configuresupport::readableproperties",
+        Command::Builtin(prop_slot_class_readable),
+    );
+    interp.ns_register(
+        b"::oo::configuresupport::writableproperties",
+        Command::Builtin(prop_slot_class_writable),
+    );
+    interp.ns_register(
+        b"::oo::configuresupport::objreadableproperties",
+        Command::Builtin(prop_slot_obj_readable),
+    );
+    interp.ns_register(
+        b"::oo::configuresupport::objwritableproperties",
+        Command::Builtin(prop_slot_obj_writable),
+    );
+}
+
+fn prop_slot_class_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    prop_slot_op(interp, argv, false, false)
+}
+fn prop_slot_class_writable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    prop_slot_op(interp, argv, false, true)
+}
+fn prop_slot_obj_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    prop_slot_op(interp, argv, true, false)
+}
+fn prop_slot_obj_writable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    prop_slot_op(interp, argv, true, true)
+}
+
+/// Parse the `info … properties` option flags (`-all`, `-readable` [default],
+/// `-writable`) from `opts`, returning `(all, writable)` or an error code.
+fn parse_property_opts(interp: &mut Interp, opts: &[*mut TclObj]) -> Result<(bool, bool), Code> {
+    let (mut all, mut writable) = (false, false);
+    for &a in opts {
+        match obj_bytes(a).as_slice() {
+            b"-all" => all = true,
+            b"-readable" => writable = false,
+            b"-writable" => writable = true,
+            other => {
+                let mut m = b"bad option \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\": must be -all, -readable, or -writable");
+                return Err(interp.set_error(&m));
+            }
+        }
+    }
+    Ok((all, writable))
+}
+
+/// The current value of a definition target's readable/writable property set.
+/// `want_object` reads the per-object set (the object's entry); otherwise the
+/// class set (the class entry). A class is registered in both maps, so the
+/// target FQN is the key in either case.
+fn read_property_set(
+    interp: &Interp,
+    target: &DefTarget,
+    want_object: bool,
+    writable: bool,
+) -> Vec<Vec<u8>> {
+    let fqn = match target {
+        DefTarget::Class(c) | DefTarget::Object(c) => c,
+    };
+    let oo = interp.oo.borrow();
+    if want_object {
+        oo.objects.get(fqn).map(|o| {
+            if writable {
+                o.writable_properties.clone()
+            } else {
+                o.readable_properties.clone()
+            }
+        })
+    } else {
+        oo.classes.get(fqn).map(|c| {
+            if writable {
+                c.writable_properties.clone()
+            } else {
+                c.readable_properties.clone()
+            }
+        })
+    }
+    .unwrap_or_default()
+}
+
+fn write_property_set(
+    interp: &mut Interp,
+    target: &DefTarget,
+    want_object: bool,
+    writable: bool,
+    set: Vec<Vec<u8>>,
+) {
+    let fqn = match target {
+        DefTarget::Class(c) | DefTarget::Object(c) => c.clone(),
+    };
+    let mut oo = interp.oo.borrow_mut();
+    if want_object {
+        if let Some(o) = oo.objects.get_mut(&fqn) {
+            if writable {
+                o.writable_properties = set;
+            } else {
+                o.readable_properties = set;
+            }
+        }
+    } else if let Some(c) = oo.classes.get_mut(&fqn) {
+        if writable {
+            c.writable_properties = set;
+        } else {
+            c.readable_properties = set;
+        }
+    }
+}
+
+/// Apply a TIP 558 property-slot operation to the current definition target's
+/// readable/writable property set. `want_object` selects the `obj*` slots
+/// (object context) vs the class slots; `writable` selects which list. The
+/// stored set is uniqued (first-wins, unsorted — `info … properties` sorts).
+fn prop_slot_op(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    want_object: bool,
+    writable: bool,
+) -> Code {
+    let target = match def_target(interp) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+    // The base Slot default operation is `-append`.
+    let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let (op, vals) = match slot_op_split(&raw, SlotOp::Append) {
+        Ok(x) => x,
+        Err(m) => return err(interp, &m),
+    };
+    // Read the current set, apply, then unique (first occurrence wins).
+    let current = read_property_set(interp, &target, want_object, writable);
+    let applied = slot_apply(&op, &current, vals);
+    let mut uniq: Vec<Vec<u8>> = Vec::with_capacity(applied.len());
+    for v in applied {
+        if !uniq.contains(&v) {
+            uniq.push(v);
+        }
+    }
+    write_property_set(interp, &target, want_object, writable, uniq);
+    interp.set_result_bytes(b"");
+    Code::Ok
 }
 
 /// Define `::oo::Slot` (TIP 380): the overridable `Get`/`Set`/`Resolve` and the
@@ -526,6 +682,8 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             filters: src_obj.filters,
             variables: src_obj.variables,
             private_variables: src_obj.private_variables,
+            readable_properties: src_obj.readable_properties,
+            writable_properties: src_obj.writable_properties,
             destroyed: false,
             my_aliases: Vec::new(),
         },
@@ -1959,6 +2117,19 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => not_object(interp, &obj_bytes(argv[3])),
             }
         }
+        b"properties" => {
+            // `info object properties obj ?-all? ?-readable|-writable?` (TIP 558).
+            if !interp.oo.borrow().objects.contains_key(&obj) {
+                return not_object(interp, &obj_bytes(argv[3]));
+            }
+            let (all, writable) = match parse_property_opts(interp, &argv[4..]) {
+                Ok(x) => x,
+                Err(code) => return code,
+            };
+            let props = interp.object_property_list(&obj, writable, all);
+            set_list(interp, &props);
+            Code::Ok
+        }
         b"methods" => {
             if !interp.oo.borrow().objects.contains_key(&obj) {
                 return not_object(interp, &obj_bytes(argv[3]));
@@ -2318,6 +2489,16 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             };
             drop(cl);
             set_list(interp, &v);
+            Code::Ok
+        }
+        b"properties" => {
+            // `info class properties cls ?-all? ?-readable|-writable?` (TIP 558).
+            let (all, writable) = match parse_property_opts(interp, &argv[4..]) {
+                Ok(x) => x,
+                Err(code) => return code,
+            };
+            let props = interp.class_property_list(&cls, writable, all);
+            set_list(interp, &props);
             Code::Ok
         }
         b"instances" => {
@@ -3281,6 +3462,105 @@ impl Interp {
         path.pop();
     }
 
+    /// Sorted (ASCII) unique property names for a class. With `all`, unions the
+    /// class's readable/writable set over its mixins and superclasses (C's
+    /// `FindClassProps`); otherwise just the class's own set (oo-1.1–1.6).
+    fn class_property_list(&self, class: &[u8], writable: bool, all: bool) -> Vec<Vec<u8>> {
+        let mut acc: Vec<Vec<u8>> = Vec::new();
+        if all {
+            let mut seen: Vec<Vec<u8>> = Vec::new();
+            self.gather_class_props(class, writable, &mut acc, &mut seen);
+        } else if let Some(c) = self.oo.borrow().classes.get(class) {
+            let src = if writable {
+                &c.writable_properties
+            } else {
+                &c.readable_properties
+            };
+            acc.extend(src.iter().cloned());
+        }
+        acc.sort();
+        acc.dedup();
+        acc
+    }
+
+    fn gather_class_props(
+        &self,
+        class: &[u8],
+        writable: bool,
+        acc: &mut Vec<Vec<u8>>,
+        seen: &mut Vec<Vec<u8>>,
+    ) {
+        if seen.iter().any(|c| c == class) {
+            return;
+        }
+        seen.push(class.to_vec());
+        let (props, mixins, supers) = {
+            let oo = self.oo.borrow();
+            match oo.classes.get(class) {
+                Some(c) => {
+                    let p = if writable {
+                        c.writable_properties.clone()
+                    } else {
+                        c.readable_properties.clone()
+                    };
+                    (p, c.mixins.clone(), c.supers.clone())
+                }
+                None => return,
+            }
+        };
+        for p in props {
+            if !acc.contains(&p) {
+                acc.push(p);
+            }
+        }
+        for m in &mixins {
+            self.gather_class_props(m, writable, acc, seen);
+        }
+        for s in &supers {
+            self.gather_class_props(s, writable, acc, seen);
+        }
+    }
+
+    /// Sorted unique property names for an object. With `all`, unions the
+    /// object's own set with its full precedence (mixins + class chain);
+    /// otherwise just the object's own set (oo-1.7–1.11).
+    fn object_property_list(&self, obj: &[u8], writable: bool, all: bool) -> Vec<Vec<u8>> {
+        let mut acc: Vec<Vec<u8>> = Vec::new();
+        let push = |src: &[Vec<u8>], acc: &mut Vec<Vec<u8>>| {
+            for p in src {
+                if !acc.contains(p) {
+                    acc.push(p.clone());
+                }
+            }
+        };
+        if let Some(o) = self.oo.borrow().objects.get(obj) {
+            let src = if writable {
+                &o.writable_properties
+            } else {
+                &o.readable_properties
+            };
+            push(src, &mut acc);
+        }
+        if all {
+            for c in self.method_chain(obj) {
+                if c == obj {
+                    continue;
+                }
+                if let Some(cl) = self.oo.borrow().classes.get(&c) {
+                    let src = if writable {
+                        &cl.writable_properties
+                    } else {
+                        &cl.readable_properties
+                    };
+                    push(src, &mut acc);
+                }
+            }
+        }
+        acc.sort();
+        acc.dedup();
+        acc
+    }
+
     /// If `word` (a forward's command name) names a command in `obj`'s instance
     /// namespace (e.g. the per-object `my`/`myclass`), return its fully-qualified
     /// form so it resolves while the command still runs in the caller's context;
@@ -3953,6 +4233,48 @@ mod tests {
             ok(i, b"oo::objdefine gf filter flt");
             ok(i, b"set ::r {}; gf go");
             assert_eq!(ok(i, b"set ::r"), b"F-flt G-flt go");
+        });
+    }
+
+    #[test]
+    fn tip558_property_storage_and_introspection() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            ok(i, b"oo::class create c {superclass parent}");
+            // Empty to start; the slot stores uniqued, info sorts (oo-1.1).
+            assert_eq!(ok(i, b"info class properties c"), b"");
+            ok(
+                i,
+                b"oo::define c ::oo::configuresupport::readableproperties -set f e d",
+            );
+            assert_eq!(ok(i, b"info class properties c"), b"d e f");
+            assert_eq!(ok(i, b"info class properties c -writable"), b"");
+            ok(
+                i,
+                b"oo::define c ::oo::configuresupport::readableproperties -set a a a",
+            );
+            assert_eq!(ok(i, b"info class properties c"), b"a");
+            // Writable slot is independent.
+            ok(
+                i,
+                b"oo::define c ::oo::configuresupport::writableproperties -set w2 w1",
+            );
+            assert_eq!(ok(i, b"info class properties c -writable"), b"w1 w2");
+            // -all merges the superclass chain (oo-1.5).
+            ok(i, b"oo::class create d {superclass c}");
+            ok(
+                i,
+                b"oo::define d ::oo::configuresupport::readableproperties -set x y z",
+            );
+            assert_eq!(ok(i, b"info class properties d -all"), b"a x y z");
+            // Object properties + -all merges object, mixins, class chain (oo-1.9).
+            ok(i, b"d create o");
+            ok(
+                i,
+                b"oo::objdefine o ::oo::configuresupport::objreadableproperties -set m n",
+            );
+            assert_eq!(ok(i, b"info object properties o"), b"m n");
+            assert_eq!(ok(i, b"info object properties o -all"), b"a m n x y z");
         });
     }
 
