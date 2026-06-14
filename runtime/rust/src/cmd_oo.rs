@@ -392,18 +392,31 @@ fn register_define_ns_commands(interp: &mut Interp) {
     for sub in CLASS {
         let mut fqn = b"::oo::define::".to_vec();
         fqn.extend_from_slice(sub);
-        interp.ns_register(&fqn, Command::Builtin(oo_ns_define_cmd));
+        interp.ns_register(&fqn, Command::Builtin(oo_ns_define_class_cmd));
     }
     for sub in OBJ {
         let mut fqn = b"::oo::objdefine::".to_vec();
         fqn.extend_from_slice(sub);
-        interp.ns_register(&fqn, Command::Builtin(oo_ns_define_cmd));
+        interp.ns_register(&fqn, Command::Builtin(oo_ns_objdefine_cmd));
     }
+}
+
+/// `::oo::define::<sub>` command (class context).
+fn oo_ns_define_class_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    oo_ns_define_cmd(interp, argv, false)
+}
+
+/// `::oo::objdefine::<sub>` command (object context).
+fn oo_ns_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    oo_ns_define_cmd(interp, argv, true)
 }
 
 /// A `::oo::define::<sub>` / `::oo::objdefine::<sub>` command: errors outside a
 /// definition context, else dispatches the subcommand on the current target.
-fn oo_ns_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+/// `is_objdefine` is fixed by the namespace the command was registered in (the
+/// invoked `argv[0]` is the bare subcommand name when resolved directly in a
+/// definition-script body, so it can't be used to tell the two apart).
+fn oo_ns_define_cmd(interp: &mut Interp, argv: &[*mut TclObj], is_objdefine_cmd: bool) -> Code {
     let target = match interp.active_def_target() {
         Some(t) => t,
         None => {
@@ -416,12 +429,12 @@ fn oo_ns_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let cmd = obj_bytes(argv[0]);
     // A `::oo::define::*` command requires a class context and `::oo::objdefine::*`
     // an object context; the wrong pairing is an API misuse (oo-1.7).
-    let is_objdefine_cmd = cmd.starts_with(b"::oo::objdefine::");
     let target_is_object = matches!(target, DefTarget::Object(_));
     if is_objdefine_cmd != target_is_object {
         return interp.set_error(b"attempt to misuse API");
     }
-    // The subcommand is the segment after the final `::`.
+    // The subcommand is the segment after the final `::` (when invoked by its
+    // qualified name), else the bare invoked name.
     let sub: Vec<u8> = (0..cmd.len().saturating_sub(1))
         .rev()
         .find(|&i| &cmd[i..i + 2] == b"::")

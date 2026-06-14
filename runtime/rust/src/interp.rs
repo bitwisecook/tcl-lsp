@@ -2667,7 +2667,7 @@ impl Interp {
     /// objects/classes consistently.
     pub(crate) fn fqn_for(&self, name: &[u8]) -> Vec<u8> {
         if name.starts_with(b"::") {
-            return name.to_vec();
+            return normalize_colons(name);
         }
         let qn = self
             .namespaces
@@ -2678,7 +2678,7 @@ impl Interp {
             fqn.extend_from_slice(b"::");
         }
         fqn.extend_from_slice(name);
-        fqn
+        normalize_colons(&fqn)
     }
 
     /// Commands dispatched so far (`info cmdcount`).
@@ -3681,6 +3681,37 @@ impl Drop for InterpState {
 pub(crate) fn new_string(bytes: &[u8]) -> *mut TclObj {
     // SAFETY: `bytes` is a valid readable slice.
     unsafe { obj::new_string_obj(bytes.as_ptr() as *const c_char, bytes.len() as obj::TclSize) }
+}
+
+/// Collapse every run of two-or-more `:` to a single `::` separator, matching
+/// Tcl's namespace-name normalization (empty namespace components are ignored):
+/// `::::classinstance` → `::classinstance`, `::a:::b` → `::a::b`. A lone `:` is
+/// a legal identifier character and is left untouched.
+fn normalize_colons(name: &[u8]) -> Vec<u8> {
+    if !name.windows(3).any(|w| w == b":::") {
+        return name.to_vec();
+    }
+    let mut out = Vec::with_capacity(name.len());
+    let mut i = 0;
+    while i < name.len() {
+        if name[i] == b':' {
+            let mut j = i;
+            while j < name.len() && name[j] == b':' {
+                j += 1;
+            }
+            let run = j - i;
+            if run >= 2 {
+                out.extend_from_slice(b"::");
+            } else {
+                out.push(b':');
+            }
+            i = j;
+        } else {
+            out.push(name[i]);
+            i += 1;
+        }
+    }
+    out
 }
 
 /// Copy an object's string rep (shimmering if needed) into owned bytes.
