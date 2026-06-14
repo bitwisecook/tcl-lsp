@@ -16,7 +16,9 @@
 //! tracked query is sound and avoids requiring `CommandRegistry: PartialEq`.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+
+use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 
 use tcl_compiler::analyser::per_item::{analyse_proc_body_isolated, BodyFragment, DeferredBody};
 use tcl_compiler::analyser::{
@@ -210,10 +212,32 @@ pub fn item_body_analysis<'db>(
     ))
 }
 
+/// Process-wide content-addressed cache of per-procedure lattices (slice 4).
+///
+/// Keyed by the procedure's position-independent content key (body source +
+/// module-context digest + params + interprocedural `param_constants` + dialect
+/// — see `CompilationUnit::build_for_memoized`); the value carries the build
+/// offset so a shifted-but-unchanged body is rebased to its new position.  The
+/// map is **idempotent** (a key fully determines its `FunctionUnit`), so reading
+/// and populating it inside the otherwise-pure [`file_analysis_incremental`]
+/// query is sound — exactly like the durable `registries` cache — and the
+/// resulting `AnalysisResult` is byte-identical whether entries hit or miss.
+fn lattice_cache() -> &'static Mutex<HashMap<String, (u32, FunctionUnit)>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (u32, FunctionUnit)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Bound on [`lattice_cache`] entries; cleared wholesale when exceeded (a miss
+/// just rebuilds the byte-identical unit, so eviction is always safe).
+const LATTICE_CACHE_CAP: usize = 16_384;
+
 /// Incremental whole-file analysis: the per-item path with each `proc` body's
 /// isolated analysis memoised via [`item_body_analysis`], so a body edit
-/// recomputes one body + the cheap shell + cross-item tail instead of the whole
-/// walk.  Byte-identical to [`file_analysis`] (and `analyse`) — proven by the
+/// recomputes one body + the cheap shell instead of the whole walk; the
+/// CFG/SSA diagnostic tail's per-procedure lattices are likewise memoised via
+/// [`lattice_cache`] + `CompilationUnit::build_for_memoized` (slice 4), so an
+/// unchanged procedure's lattice is reused (and rebased) instead of rebuilt.
+/// Byte-identical to [`file_analysis`] (and `analyse`) — proven by the
 /// `per_item_corpus` gate over the shared `analyse_per_item_with` orchestration.
 #[salsa::tracked]
 pub fn file_analysis_incremental(
@@ -227,6 +251,42 @@ pub fn file_analysis_incremental(
     let text = file.text(db).clone();
     let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
         .with_non_ascii_mode(non_ascii);
+
+    // Build the CFG/SSA tail's compilation unit with per-procedure lattices
+    // memoised, and feed it through the analyser's `cu_override` seam.  The
+    // registry mirrors the one `emit_cfg_ssa_diagnostics` builds for itself, so
+    // the supplied unit is the one it would otherwise build.
+    let mut registry = CommandRegistry::build_default();
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    if let Some(d) = DialectSet::parse(&dialect) {
+        registry.load_dialect(d);
+    }
+    let cu = CompilationUnit::build_for_memoized(
+        &text,
+        &registry,
+        false,
+        tcl_lexer::LexerConfig::default(),
+        &dialect,
+        &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
+            if let Some(entry) = lattice_cache()
+                .lock()
+                .expect("lattice cache poisoned")
+                .get(key)
+            {
+                return entry.clone();
+            }
+            let entry = build();
+            let mut map = lattice_cache().lock().expect("lattice cache poisoned");
+            if map.len() >= LATTICE_CACHE_CAP {
+                map.clear();
+            }
+            map.insert(key.to_owned(), entry.clone());
+            entry
+        },
+    )
+    .with_interprocedural(&registry, dialect_opt);
+    analyser.set_cu_override(Arc::new(cu));
+
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
         let key = ItemBodyKey::new(
             db,
