@@ -1035,8 +1035,8 @@ pub fn export_graph(
 }
 
 /// BFS from the seed objects (matched by identifier), returning the reached
-/// nodes (in original order) and the edges among them. With no seeds the whole
-/// graph passes through. Mirrors `_filter_to_subgraph`.
+/// nodes (in BFS-visit order) and the edges among them. With no seeds the whole
+/// graph passes through unchanged (original order). Mirrors `_filter_to_subgraph`.
 fn filter_to_subgraph<'a>(
     all_nodes: &[&'a ObjectNode],
     edges: &'a [ObjectEdge],
@@ -1075,7 +1075,16 @@ fn filter_to_subgraph<'a>(
         }
     }
 
-    let mut visited: HashSet<&str> = matched_seeds.iter().copied().collect();
+    // `order` is the BFS visit order (seeds first, then discovered neighbours),
+    // which is the order Python's `visited` dict yields — and the order the kept
+    // nodes are emitted in. (Distinct from the original source order.)
+    let mut order: Vec<&str> = Vec::new();
+    let mut visited: HashSet<&str> = HashSet::new();
+    for &seed in &matched_seeds {
+        if visited.insert(seed) {
+            order.push(seed);
+        }
+    }
     let mut depth: HashMap<&str, usize> = matched_seeds.iter().map(|s| (*s, 0usize)).collect();
     let mut queue: std::collections::VecDeque<&str> = matched_seeds.iter().copied().collect();
     while let Some(current) = queue.pop_front() {
@@ -1087,16 +1096,18 @@ fn filter_to_subgraph<'a>(
             for &neighbour in neighbours {
                 if visited.insert(neighbour) {
                     depth.insert(neighbour, d + 1);
+                    order.push(neighbour);
                     queue.push_back(neighbour);
                 }
             }
         }
     }
 
-    let kept: Vec<&ObjectNode> = all_nodes
+    let by_id: HashMap<&str, &ObjectNode> =
+        all_nodes.iter().map(|n| (n.node_id.as_str(), *n)).collect();
+    let kept: Vec<&ObjectNode> = order
         .iter()
-        .copied()
-        .filter(|n| visited.contains(n.node_id.as_str()))
+        .filter_map(|id| by_id.get(id).copied())
         .collect();
     let kept_ids: HashSet<&str> = kept.iter().map(|n| n.node_id.as_str()).collect();
     let kept_edges: Vec<&ObjectEdge> = edges

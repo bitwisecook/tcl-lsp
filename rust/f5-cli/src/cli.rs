@@ -249,6 +249,8 @@ pub enum Command {
         reverse: bool,
         #[arg(long = "max-depth", value_name = "N")]
         max_depth: Option<usize>,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Emit a tmsh script that creates every object in the input config.

@@ -76,6 +76,21 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             passphrase,
             output.as_deref(),
         ),
+        Command::Graph {
+            inputs,
+            format,
+            seed,
+            reverse,
+            max_depth,
+            output,
+        } => commands::graph::run_graph(
+            inputs,
+            format,
+            seed,
+            *reverse,
+            *max_depth,
+            output.as_deref(),
+        ),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();

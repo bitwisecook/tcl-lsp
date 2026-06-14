@@ -28,6 +28,31 @@ fn graph_export_matches_python() {
 }
 
 #[test]
+fn graph_export_seeded_subgraph_matches_python() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    let source = std::fs::read_to_string(format!("{dir}/graph_export.conf")).expect("read config");
+    let cfg = parse_bigip_conf(&source, "Common");
+    let uri = "test://config".to_owned();
+    let sources = [(uri.clone(), source)];
+    let configs = [(uri, &cfg)];
+
+    let ctx = GraphContext::new();
+    let graph = build_bigip_object_graph(&sources, &configs, &ctx);
+
+    // BFS from the virtual, depth 1 → the virtual and its pool, in visit order.
+    let seeds = ["/Common/web_vs".to_owned()];
+    let export = export_graph(&graph, "json", &seeds, false, Some(1)).expect("export");
+    let want = std::fs::read_to_string(format!("{dir}/graph_export_seed.json.golden"))
+        .expect("read golden");
+    assert_eq!(
+        export.text, want,
+        "seeded subgraph export differs from Python"
+    );
+    assert_eq!(export.node_count, 2);
+    assert_eq!(export.edge_count, 2);
+}
+
+#[test]
 fn graph_export_rejects_unknown_format() {
     let ctx = GraphContext::new();
     let graph = build_bigip_object_graph(&[], &[], &ctx);
