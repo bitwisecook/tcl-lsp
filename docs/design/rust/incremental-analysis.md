@@ -204,11 +204,19 @@ practcl.tcl from ~1 s to low-ms).
 | Async + debounced diagnostics (heavy-edit fix) | **shipped** |
 | Shared CompilationUnit (E7) — `optimiser::optimise_unit` | **shipped** |
 | Phase-0 experiments E1–E8 + differential fuzzer + cascade prototype | **shipped** (this doc's findings) |
-| Slice 1 — `item_tree`/`item_sig`/`file_decls` | **not started** (the build) |
-| Slice 2 — relative-offset item body analysis | not started (the bulk) |
-| Slice 3 — memoise `item_analysis` (the perf win) | not started |
-| Slice 4 — per-item lattices + `interproc` cascade | not started |
-| Slice 5 — cancellation-aware walk; retire the diagnostics detour + gate | not started |
+| Slice 1 — `item_tree`/`item_sig`/`file_decls` | **shipped** (corpus-gated) |
+| Slice 2 — per-item walk via deferred bodies (`analyse_per_item`); `incremental == fresh` fuzzer to 0 | **shipped** (byte-identical over corpus) |
+| Slice 3 — memoise per-body analysis (`item_body_analysis`); offset-invariant keys | **shipped** (firewall + offset-invariance tests) |
+| Slice 4 — per-procedure lattice memoisation (`build_for_memoized` + `lattice_rebase`), offset-invariant, wired into `file_analysis_incremental` via an idempotent content cache | **shipped** (byte-identical; e2e parity) |
+| Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
+
+> **Remaining (future):** the interprocedural taint cascade still re-runs
+> `propagate_taints` for every function on each edit (the per-function
+> baseline lattices are reused; only the taint re-run is whole-file); the
+> optimiser's second `CompilationUnit` (`lift_compiler_diagnostics`) is still
+> whole-file. A salsa-native per-item lattice graph (interning post-inline IR)
+> would replace the process-wide content cache but needs `Hash`/`Eq` across the
+> IR graph (blocked today by float fields / no `serde`).
 
 ## How to run the experiments
 
