@@ -399,13 +399,23 @@ fn register_define_ns_commands(interp: &mut Interp) {
 /// A `::oo::define::<sub>` / `::oo::objdefine::<sub>` command: errors outside a
 /// definition context, else dispatches the subcommand on the current target.
 fn oo_ns_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if interp.active_def_target().is_none() {
-        return interp.set_error(
-            b"this command may only be called from within the context of an \
-              ::oo::define or ::oo::objdefine command",
-        );
-    }
+    let target = match interp.active_def_target() {
+        Some(t) => t,
+        None => {
+            return interp.set_error(
+                b"this command may only be called from within the context of an \
+                  ::oo::define or ::oo::objdefine command",
+            );
+        }
+    };
     let cmd = obj_bytes(argv[0]);
+    // A `::oo::define::*` command requires a class context and `::oo::objdefine::*`
+    // an object context; the wrong pairing is an API misuse (oo-1.7).
+    let is_objdefine_cmd = cmd.starts_with(b"::oo::objdefine::");
+    let target_is_object = matches!(target, DefTarget::Object(_));
+    if is_objdefine_cmd != target_is_object {
+        return interp.set_error(b"attempt to misuse API");
+    }
     // The subcommand is the segment after the final `::`.
     let sub: Vec<u8> = (0..cmd.len().saturating_sub(1))
         .rev()
