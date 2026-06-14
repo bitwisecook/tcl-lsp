@@ -5559,6 +5559,13 @@ impl Interp {
         if let Some(o) = self.oo.borrow_mut().objects.get_mut(obj) {
             o.torn_down = true;
         }
+        // If the object is also a class, its subclasses and instances are
+        // descendants too (C's `TclOODeleteDescendants`): destroy them, so e.g.
+        // tearing down a class reached as another metaclass's instance also tears
+        // down that class's own instances (oo-16.14 pollution).
+        if self.oo.borrow().classes.contains_key(obj) {
+            self.oo_destroy_class_descendants(obj);
+        }
         let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
         if let Some(ns) = var_ns {
             // Nested ownership (C's `ObjectNamespaceDeleted` →
@@ -5626,8 +5633,23 @@ impl Interp {
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
+        // Already being torn down (a cycle of mixins/superclasses, or reached
+        // again via an instance cascade) — nothing more to do.
+        if self
+            .oo
+            .borrow()
+            .objects
+            .get(class)
+            .map_or(true, |o| o.destroyed)
+        {
+            return;
+        }
         // Destroying a class cascades to its subclasses and instances (TclOO),
-        // then removes the class object itself.
+        // then removes the class object itself. Mark it destroyed first so the
+        // cascade does not re-enter it.
+        if let Some(o) = self.oo.borrow_mut().objects.get_mut(class) {
+            o.destroyed = true;
+        }
         self.oo_destroy_class_descendants(class);
         self.oo.borrow_mut().classes.remove(class);
         self.oo.borrow_mut().objects.remove(class);
@@ -5636,7 +5658,8 @@ impl Interp {
 
     /// Destroy a class's subclasses and instances (C's `TclOODeleteDescendants`),
     /// leaving the class object itself intact. Shared by full class destruction
-    /// and by demoting a class to a plain object (oo-13.6).
+    /// and by demoting a class to a plain object (oo-13.6). Already-destroyed
+    /// descendants are skipped so cyclic hierarchies don't recurse forever.
     fn oo_destroy_class_descendants(&mut self, class: &[u8]) {
         // Subclasses first: any class that lists this one as a superclass/mixin.
         let subs: Vec<Vec<u8>> = self
@@ -5650,6 +5673,13 @@ impl Interp {
                         || c.mixins.iter().any(|m| m.as_slice() == class))
             })
             .map(|(k, _)| k.clone())
+            .filter(|k| {
+                self.oo
+                    .borrow()
+                    .objects
+                    .get(k)
+                    .is_some_and(|o| !o.destroyed)
+            })
             .collect();
         for s in subs {
             self.oo_destroy_class(&s);
@@ -5663,6 +5693,7 @@ impl Interp {
             .iter()
             .filter(|(k, o)| {
                 k.as_slice() != class
+                    && !o.destroyed
                     && (o.class == class || o.mixins.iter().any(|m| m.as_slice() == class))
             })
             .map(|(k, _)| k.clone())
