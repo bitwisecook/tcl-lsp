@@ -1729,7 +1729,12 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 },
             );
         }
-    } else {
+    } else if interp.oo.borrow().classes.contains_key(&obj) {
+        // A class demoted to a non-class can no longer support its subclasses
+        // or instances, so they are torn down (C's `TclOODeleteDescendants`
+        // when the class facet goes away; oo-13.6). The object itself survives
+        // as a plain object — only its class facet is removed.
+        interp.oo_destroy_class_descendants(&obj);
         interp.oo.borrow_mut().classes.remove(&obj);
     }
     interp.set_result_bytes(b"");
@@ -5596,7 +5601,18 @@ impl Interp {
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
-        // Destroying a class cascades to its subclasses and instances (TclOO).
+        // Destroying a class cascades to its subclasses and instances (TclOO),
+        // then removes the class object itself.
+        self.oo_destroy_class_descendants(class);
+        self.oo.borrow_mut().classes.remove(class);
+        self.oo.borrow_mut().objects.remove(class);
+        self.delete_command(class);
+    }
+
+    /// Destroy a class's subclasses and instances (C's `TclOODeleteDescendants`),
+    /// leaving the class object itself intact. Shared by full class destruction
+    /// and by demoting a class to a plain object (oo-13.6).
+    fn oo_destroy_class_descendants(&mut self, class: &[u8]) {
         // Subclasses first: any class that lists this one as a superclass/mixin.
         let subs: Vec<Vec<u8>> = self
             .oo
@@ -5629,9 +5645,6 @@ impl Interp {
         for o in insts {
             self.oo_destroy_bg(&o);
         }
-        self.oo.borrow_mut().classes.remove(class);
-        self.oo.borrow_mut().objects.remove(class);
-        self.delete_command(class);
     }
 
     /// The method-resolution order for `class`: a preorder walk of the class and
