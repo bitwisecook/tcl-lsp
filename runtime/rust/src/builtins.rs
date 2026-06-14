@@ -563,6 +563,22 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
     }
 
+    fn subst_string(&mut self, inner: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        // A `"…"` operand substitutes like a double-quoted word ($var/[cmd]/\).
+        match self
+            .interp
+            .do_subst(inner.as_bytes(), crate::subst::SubstFlags::default())
+        {
+            Ok(v) => Ok(crate::expr::Owned::fresh(crate::obj::new_string_bytes(&v))),
+            Err(_) => {
+                self.propagated = true;
+                Err(crate::expr::ExprError(obj_bytes(
+                    self.interp.get_obj_result(),
+                )))
+            }
+        }
+    }
+
     fn call_function(
         &mut self,
         name: &str,
