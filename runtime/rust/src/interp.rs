@@ -229,8 +229,8 @@ fn count_newlines(s: &[u8]) -> u32 {
 /// `MakeProcError`, `proc-call-and-stack-traces.md` §1.5), not at the throw, and
 /// published to the `::errorInfo`/`::errorCode` globals when the error is caught
 /// or reaches the outermost eval.
-#[derive(Default)]
-struct ExceptionState {
+#[derive(Default, Clone)]
+pub(crate) struct ExceptionState {
     /// The accumulating `errorInfo`. `None` until the first frame is appended
     /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
     /// from within` and seeds the buffer from the result message.
@@ -2157,6 +2157,20 @@ impl Interp {
             pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
         }
         Some(pairs)
+    }
+
+    /// Snapshot the current error/result state (the result bytes + the
+    /// `errorInfo`/`errorCode` accumulator) so a side-effecting cleanup (e.g.
+    /// running a destructor after a failed constructor) can run and then have
+    /// the original error restored.
+    pub(crate) fn error_snapshot(&self) -> (Vec<u8>, ExceptionState) {
+        (self.result_bytes(), self.exc.borrow().clone())
+    }
+
+    /// Restore a previously taken [`error_snapshot`](Self::error_snapshot).
+    pub(crate) fn error_restore(&mut self, snap: (Vec<u8>, ExceptionState)) {
+        self.set_result_bytes(&snap.0);
+        *self.exc.borrow_mut() = snap.1;
     }
 
     /// The current `errorCode` (for `catch`'s `-errorcode`): the stamped value,

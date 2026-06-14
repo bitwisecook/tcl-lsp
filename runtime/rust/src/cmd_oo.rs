@@ -4282,9 +4282,19 @@ impl Interp {
         if !chain.is_empty() {
             let code = self.oo_run(&fqn, chain, 0, b"", args, false);
             if code == Code::Error {
+                // A failed constructor tears the partially-built object down,
+                // running its destructor (C: the object is deleted, firing the
+                // destructor chain), then re-raises the constructor's error.
+                let snap = self.error_snapshot();
+                if self.oo.borrow().objects.contains_key(&fqn) {
+                    self.oo_destroy_bg(&fqn);
+                }
+                // `oo_destroy_bg` removes the object; clean up the class facet
+                // (a failed metaclass instantiation) and the command too.
                 self.oo.borrow_mut().objects.remove(&fqn);
                 self.oo.borrow_mut().classes.remove(&fqn);
                 self.delete_command(&fqn);
+                self.error_restore(snap);
                 return Code::Error;
             }
             // A constructor that destroys its own object (`[self] destroy`)
