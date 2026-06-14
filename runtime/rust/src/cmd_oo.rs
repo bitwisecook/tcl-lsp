@@ -297,6 +297,50 @@ pub fn install(interp: &mut Interp) {
         b"::oo::configuresupport::objwritableproperties",
         Command::Builtin(prop_slot_obj_writable),
     );
+    install_configurable(interp);
+}
+
+/// TIP 558 `oo::configurable` metaclass + the `property` definition command and
+/// the `configure` method (C's tclOOProp.c / configurable wiring). A class made
+/// with `oo::configurable create` mixes in `::oo::configuresupport::configurable`
+/// (for `configure`) and resolves `property` in the configurableclass /
+/// configurableobject definition namespaces.
+fn install_configurable(interp: &mut Interp) {
+    // The two definition namespaces hold the `property` command (class /
+    // instance variants), reached via TIP 524 definition-namespace resolution.
+    let _ = interp.eval_str(
+        b"namespace eval ::oo::configuresupport::configurableclass {}; \
+          namespace eval ::oo::configuresupport::configurableobject {}",
+    );
+    interp.ns_register(
+        b"::oo::configuresupport::configurableclass::property",
+        Command::Builtin(prop_define_class),
+    );
+    interp.ns_register(
+        b"::oo::configuresupport::configurableobject::property",
+        Command::Builtin(prop_define_object),
+    );
+    // The mixin that gives configurable objects their `configure` method.
+    let _ = interp.eval_str(b"oo::class create ::oo::configuresupport::configurable {}");
+    if let Some(c) = interp
+        .oo
+        .borrow_mut()
+        .classes
+        .get_mut(b"::oo::configuresupport::configurable".as_slice())
+    {
+        c.methods
+            .insert(b"configure".to_vec(), Method::Builtin(oo_configure));
+    }
+    // The `oo::configurable` metaclass. Its instances (configurable classes) get
+    // the configurable support set up natively in `oo_new_ns` — mixing in the
+    // support class and pointing instance definitions at configurableobject —
+    // so the definition script still resolves class-name arguments in the
+    // caller's namespace. Its own definition namespace is configurableclass so
+    // `property` resolves while defining those classes.
+    let _ = interp.eval_str(
+        b"oo::class create ::oo::configurable { superclass ::oo::class }\n\
+          oo::define ::oo::configurable definitionnamespace ::oo::configuresupport::configurableclass",
+    );
 }
 
 fn prop_slot_class_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -310,6 +354,303 @@ fn prop_slot_obj_readable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 fn prop_slot_obj_writable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     prop_slot_op(interp, argv, true, true)
+}
+
+fn prop_define_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    prop_define(interp, argv, false)
+}
+fn prop_define_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    prop_define(interp, argv, true)
+}
+
+/// `property name ?-get body? ?-set body? ?-kind k? …` (TIP 558,
+/// `TclOODefinePropertyCmd`): declare configurable properties on the current
+/// definition target. Default props read/write the like-named instance
+/// variable through generated `<ReadProp-name>` / `<WriteProp-name>` methods;
+/// `-get`/`-set` supply custom bodies. Registers `-name` in the readable /
+/// writable property set per `-kind` (readable / readwrite [default] / writable).
+fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) -> Code {
+    let target = match def_target(interp) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+    let mut i = 1;
+    while i < argv.len() {
+        let prop = obj_bytes(argv[i]);
+        i += 1;
+        // Validate the property name (C's TclOOInstallStdPropertyImpls).
+        let bad = if prop.first() == Some(&b'-') {
+            Some(&b"must not begin with -"[..])
+        } else if prop.windows(2).any(|w| w == b"::") {
+            Some(&b"must not contain namespace separators"[..])
+        } else if prop.contains(&b'(') || prop.contains(&b')') {
+            Some(&b"must not contain parentheses"[..])
+        } else {
+            None
+        };
+        if let Some(reason) = bad {
+            let mut m = b"bad property name \"".to_vec();
+            m.extend_from_slice(&prop);
+            m.extend_from_slice(b"\": ");
+            m.extend_from_slice(reason);
+            return err(interp, &m);
+        }
+        // Parse the property's options.
+        let (mut kind_ro, mut kind_wo) = (false, false);
+        let mut getter: Option<Vec<u8>> = None;
+        let mut setter: Option<Vec<u8>> = None;
+        while i < argv.len() && obj_bytes(argv[i]).first() == Some(&b'-') {
+            let opt = obj_bytes(argv[i]);
+            let optname: &[u8] = match opt.as_slice() {
+                b"-get" => b"-get",
+                b"-set" => b"-set",
+                b"-kind" => b"-kind",
+                other => {
+                    let mut m = b"bad option \"".to_vec();
+                    m.extend_from_slice(other);
+                    m.extend_from_slice(b"\": must be -get, -kind, or -set");
+                    return err(interp, &m);
+                }
+            };
+            if i + 1 >= argv.len() {
+                let what: &[u8] = if optname == b"-kind" {
+                    b"kind value"
+                } else {
+                    b"body"
+                };
+                let mut m = b"missing ".to_vec();
+                m.extend_from_slice(what);
+                m.extend_from_slice(b" to go with ");
+                m.extend_from_slice(optname);
+                m.extend_from_slice(b" option");
+                return err(interp, &m);
+            }
+            let val = obj_bytes(argv[i + 1]);
+            i += 2;
+            match optname {
+                b"-get" => getter = Some(val),
+                b"-set" => setter = Some(val),
+                b"-kind" => match val.as_slice() {
+                    b"readable" => {
+                        kind_ro = true;
+                        kind_wo = false;
+                    }
+                    b"writable" => {
+                        kind_wo = true;
+                        kind_ro = false;
+                    }
+                    b"readwrite" => {
+                        kind_ro = false;
+                        kind_wo = false;
+                    }
+                    other => {
+                        let mut m = b"bad kind \"".to_vec();
+                        m.extend_from_slice(other);
+                        m.extend_from_slice(b"\": must be readable, readwrite, or writable");
+                        return err(interp, &m);
+                    }
+                },
+                _ => unreachable!(),
+            }
+        }
+        let readable = !kind_wo;
+        let writable = !kind_ro;
+        // Install the accessor methods (`<ReadProp-name>` / `<WriteProp-name>`),
+        // unexported (their `<…>` names are non-lowercase). Default impls read /
+        // write the like-named instance variable.
+        if readable {
+            let mname = property_method_name(b"<ReadProp-", &prop);
+            let body = getter.clone().unwrap_or_else(|| std_getter_body(&prop));
+            if let Code::Error = install_property_method(interp, &mname, &[], &body) {
+                return Code::Error;
+            }
+        }
+        if writable {
+            let mname = property_method_name(b"<WriteProp-", &prop);
+            let body = setter.clone().unwrap_or_else(|| std_setter_body(&prop));
+            if let Code::Error = install_property_method(interp, &mname, b"value", &body) {
+                return Code::Error;
+            }
+        }
+        // Register `-name` in the readable / writable property set(s).
+        let mut hyph = b"-".to_vec();
+        hyph.extend_from_slice(&prop);
+        if readable {
+            add_to_property_set(interp, &target, use_instance, false, &hyph);
+        }
+        if writable {
+            add_to_property_set(interp, &target, use_instance, true, &hyph);
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+fn property_method_name(prefix: &[u8], prop: &[u8]) -> Vec<u8> {
+    let mut m = prefix.to_vec();
+    m.extend_from_slice(prop);
+    m.push(b'>');
+    m
+}
+
+/// The default getter body: read the like-named instance variable.
+fn std_getter_body(prop: &[u8]) -> Vec<u8> {
+    let mut b = b"::variable ".to_vec();
+    b.extend_from_slice(prop);
+    b.extend_from_slice(b"; return [::set ");
+    b.extend_from_slice(prop);
+    b.push(b']');
+    b
+}
+
+/// The default setter body: write the like-named instance variable.
+fn std_setter_body(prop: &[u8]) -> Vec<u8> {
+    let mut b = b"::variable ".to_vec();
+    b.extend_from_slice(prop);
+    b.extend_from_slice(b"; ::set ");
+    b.extend_from_slice(prop);
+    b.extend_from_slice(b" $value");
+    b
+}
+
+fn install_property_method(interp: &mut Interp, name: &[u8], params: &[u8], body: &[u8]) -> Code {
+    let params = match crate::cmd_proc::parse_params(params) {
+        Ok(p) => p,
+        Err(e) => return err(interp, &e),
+    };
+    install_method_vis(
+        interp,
+        name.to_vec(),
+        Method::Body {
+            params,
+            body: body.to_vec(),
+        },
+        MethodVis::Unexported,
+    )
+}
+
+/// Append `prop` (already hyphenated) to a definition target's property set,
+/// uniquely.
+fn add_to_property_set(
+    interp: &mut Interp,
+    target: &DefTarget,
+    use_instance: bool,
+    writable: bool,
+    prop: &[u8],
+) {
+    let mut set = read_property_set(interp, target, use_instance, writable);
+    if !set.iter().any(|p| p.as_slice() == prop) {
+        set.push(prop.to_vec());
+    }
+    write_property_set(interp, target, use_instance, writable, set);
+}
+
+/// `configure` method (TIP 558, `TclOO_Configurable_Configure`): with no args
+/// returns the readable properties as an `-opt value …` dict; with one `-opt`
+/// reads it; with `-opt value …` pairs writes them.
+fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+    let n = args.len();
+    if n != 1 && n % 2 == 1 {
+        let mut u = obj.to_vec();
+        u.extend_from_slice(b" configure ?-option value ...?");
+        return wrong_args(interp, &u);
+    }
+    if n == 0 {
+        // Read every readable property into a dict (sorted by name).
+        let props = interp.object_property_list(obj, false, true);
+        let mut pairs: Vec<Vec<u8>> = Vec::with_capacity(props.len() * 2);
+        for p in props {
+            if read_property(interp, obj, &p) == Code::Error {
+                return Code::Error;
+            }
+            pairs.push(p);
+            pairs.push(interp.result_bytes());
+        }
+        set_list(interp, &pairs);
+        return Code::Ok;
+    }
+    if n == 1 {
+        let name = match get_property_name(interp, obj, args[0], false) {
+            Ok(n) => n,
+            Err(c) => return c,
+        };
+        return read_property(interp, obj, &name);
+    }
+    let mut i = 0;
+    while i < n {
+        let name = match get_property_name(interp, obj, args[i], true) {
+            Ok(n) => n,
+            Err(c) => return c,
+        };
+        if write_property(interp, obj, &name, args[i + 1]) == Code::Error {
+            return Code::Error;
+        }
+        i += 2;
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// Read a property by invoking the object's `<ReadProp-name>` method via `my`.
+fn read_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8]) -> Code {
+    let mname = property_method_name(b"<ReadProp", prop_hyph);
+    interp.oo_invoke(obj, &mname, &[], false)
+}
+
+fn write_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8], value: *mut TclObj) -> Code {
+    let mname = property_method_name(b"<WriteProp", prop_hyph);
+    interp.oo_invoke(obj, &mname, &[value], false)
+}
+
+/// Resolve a `configure` option to a property name in the object's readable /
+/// writable set, or produce the C error (`bad property` / `is read|write only`).
+fn get_property_name(
+    interp: &mut Interp,
+    obj: &[u8],
+    given: *mut TclObj,
+    writable: bool,
+) -> Result<Vec<u8>, Code> {
+    let given = obj_bytes(given);
+    let cands = interp.object_property_list(obj, writable, true);
+    if cands.contains(&given) {
+        return Ok(given);
+    }
+    // Accessible the other way? Report read-only / write-only.
+    let other = interp.object_property_list(obj, !writable, true);
+    if other.contains(&given) {
+        let mut m = b"property \"".to_vec();
+        m.extend_from_slice(&given);
+        m.extend_from_slice(b"\" is ");
+        m.extend_from_slice(if writable { b"read" } else { b"write" });
+        m.extend_from_slice(b" only");
+        return Err(interp.set_error(&m));
+    }
+    // Otherwise a plain bad-property error listing the candidates (Oxford comma).
+    let mut m = b"bad property \"".to_vec();
+    m.extend_from_slice(&given);
+    m.extend_from_slice(b"\": must be ");
+    m.extend_from_slice(&oxford_join(&cands));
+    Err(interp.set_error(&m))
+}
+
+/// Join names as `a`, `a or b`, or `a, b, or c` (Tcl's option-table style).
+fn oxford_join(items: &[Vec<u8>]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let n = items.len();
+    for (i, it) in items.iter().enumerate() {
+        if i > 0 {
+            if n > 2 {
+                out.extend_from_slice(b", ");
+            } else {
+                out.push(b' ');
+            }
+            if i == n - 1 {
+                out.extend_from_slice(b"or ");
+            }
+        }
+        out.extend_from_slice(it);
+    }
+    out
 }
 
 /// Parse the `info … properties` option flags (`-all`, `-readable` [default],
@@ -3080,10 +3421,27 @@ impl Interp {
         let mro = self.mro(class);
         let is_metaclass = mro.iter().any(|c| c.as_slice() == b"::oo::class");
         if is_metaclass {
+            // A TIP 558 configurable class (instance of `::oo::configurable`)
+            // mixes in the configurable support (for `configure`) and points its
+            // instance definitions at the configurableobject namespace (so
+            // `oo::objdefine $inst property …` resolves). Done before the
+            // definition script runs, which still resolves class-name arguments
+            // in the caller's namespace.
+            let configurable = mro.iter().any(|c| c.as_slice() == b"::oo::configurable");
             self.oo.borrow_mut().classes.insert(
                 fqn.clone(),
                 Class {
                     supers: vec![b"::oo::object".to_vec()],
+                    mixins: if configurable {
+                        vec![b"::oo::configuresupport::configurable".to_vec()]
+                    } else {
+                        Vec::new()
+                    },
+                    def_ns: if configurable {
+                        Some(b"::oo::configuresupport::configurableobject".to_vec())
+                    } else {
+                        None
+                    },
                     ..Class::default()
                 },
             );
@@ -4233,6 +4591,40 @@ mod tests {
             ok(i, b"oo::objdefine gf filter flt");
             ok(i, b"set ::r {}; gf go");
             assert_eq!(ok(i, b"set ::r"), b"F-flt G-flt go");
+        });
+    }
+
+    #[test]
+    fn tip558_configurable_configure() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            ok(
+                i,
+                b"oo::configurable create Point { superclass parent; property x y; \
+                  constructor args { my configure -x 0 -y 0 {*}$args } }",
+            );
+            ok(i, b"set pt [Point new -x 3]");
+            assert_eq!(ok(i, b"$pt configure -x"), b"3");
+            assert_eq!(ok(i, b"$pt configure -y"), b"0");
+            ok(i, b"$pt configure -y 4");
+            assert_eq!(ok(i, b"$pt configure"), b"-x 3 -y 4");
+            assert_eq!(i.eval_str(b"$pt configure gorp"), Code::Error);
+            assert_eq!(i.result_bytes(), b"bad property \"gorp\": must be -x or -y");
+            assert_eq!(i.eval_str(b"$pt configure -x 1 -y"), Code::Error);
+            // per-object property declaration (oo-2.3).
+            ok(i, b"oo::objdefine $pt property z");
+            ok(i, b"$pt configure -z 5");
+            assert_eq!(ok(i, b"$pt configure -z"), b"5");
+            // -kind controls direction.
+            ok(
+                i,
+                b"oo::configurable create RO { superclass parent; property r -kind readable; \
+                  constructor {} { my variable r; set r 7 } }",
+            );
+            ok(i, b"RO create ro");
+            assert_eq!(ok(i, b"ro configure -r"), b"7");
+            assert_eq!(i.eval_str(b"ro configure -r 9"), Code::Error);
+            assert_eq!(i.result_bytes(), b"property \"-r\" is read only");
         });
     }
 
