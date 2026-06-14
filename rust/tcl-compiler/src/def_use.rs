@@ -128,7 +128,7 @@ impl DefUseResult {
     #[must_use]
     pub fn is_dead(&self, name: &str, version: Version) -> bool {
         self.chain_for(name, version)
-            .map_or(true, DefUseChain::is_dead)
+            .is_none_or(DefUseChain::is_dead)
     }
 
     /// All SSA definitions of `name` across the function.

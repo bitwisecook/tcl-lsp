@@ -68,13 +68,13 @@ const LASSIGN_DIALECTS: &[&str] = &[
 /// that don't carry one) defaults to **enabled** to preserve
 /// pre-#433 behaviour for callers that haven't been updated.
 fn tailcall_supported(dialect: Option<&str>) -> bool {
-    dialect.map_or(true, |d| TAILCALL_DIALECTS.contains(&d))
+    dialect.is_none_or(|d| TAILCALL_DIALECTS.contains(&d))
 }
 
 /// Whether `lassign` is available in `dialect`.  Same `None`-means-
 /// enabled fallback as [`tailcall_supported`].
 fn lassign_supported(dialect: Option<&str>) -> bool {
-    dialect.map_or(true, |d| LASSIGN_DIALECTS.contains(&d))
+    dialect.is_none_or(|d| LASSIGN_DIALECTS.contains(&d))
 }
 
 /// Run the tail-call detection pass. Emits `O121` for every

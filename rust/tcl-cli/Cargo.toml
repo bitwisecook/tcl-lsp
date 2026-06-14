@@ -1,0 +1,28 @@
+[package]
+name = "tcl-cli"
+description = "Native Rust port of the unified `tcl` toolchain CLI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tcl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+clap_complete = "4"
+anyhow = "1"
+tcl-cli-support = { path = "../tcl-cli-support" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

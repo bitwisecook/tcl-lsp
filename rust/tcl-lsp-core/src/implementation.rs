@@ -157,7 +157,7 @@ fn enclosing_class(analysis: &AnalysisResult, cursor: u32) -> Option<&str> {
         if body.start() < cursor && cursor < body.end() {
             // Prefer the narrowest (innermost) containing body.
             let width = body.end() - body.start();
-            if best.map_or(true, |(_, w)| width < w) {
+            if best.is_none_or(|(_, w)| width < w) {
                 best = Some((cd.qualified_name.as_str(), width));
             }
         }

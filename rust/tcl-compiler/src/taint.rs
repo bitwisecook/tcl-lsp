@@ -1784,7 +1784,7 @@ fn sink_var_position_safe(
         // content arg is an output sink; a tainted channel id is a handle.
         "T101" if command == "puts" => args
             .last()
-            .map_or(true, |content| !arg_var_names(content).contains(name)),
+            .is_none_or(|content| !arg_var_names(content).contains(name)),
         // T104 SSRF — only the network-address positional slots named by
         // `taint_network_sink_args`. `Some(&[])` (positions unspecified)
         // imposes no filter.
@@ -2787,7 +2787,7 @@ mod tests {
         assert!(
             taints
                 .get(&("x".to_string(), 1))
-                .map_or(true, |t| !t.is_tainted()),
+                .is_none_or(|t| !t.is_tainted()),
             "constant assignment should not be tainted"
         );
     }

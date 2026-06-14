@@ -1,0 +1,9 @@
+ltm node /Common/n1 {
+    address 10.0.0.1
+}
+
+ltm pool /Common/p1 {
+    members {
+        /Common/n1:80 { }
+    }
+}

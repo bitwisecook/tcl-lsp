@@ -225,7 +225,7 @@ fn build_unset_nocomplain_action(
     line_index: &LineIndex,
 ) -> Option<CodeAction> {
     let start = diag.span.start() as usize;
-    if !source.get(start..start + 5).is_some_and(|s| s == "unset") {
+    if source.get(start..start + 5).is_none_or(|s| s != "unset") {
         return None;
     }
     let insert_offset = diag.span.start().checked_add(5)?;
@@ -1311,7 +1311,7 @@ fn find_var_ref(line: &str, var: &str) -> Option<(usize, usize, String)> {
     while let Some(rel) = line[search_from..].find(&bare) {
         let b = search_from + rel;
         let after = line[b + bare.len()..].chars().next();
-        if after.map_or(true, |c| !(c.is_alphanumeric() || c == '_' || c == ':')) {
+        if after.is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == ':')) {
             let cstart = line[..b].chars().count();
             return Some((cstart, cstart + bare.chars().count(), bare));
         }

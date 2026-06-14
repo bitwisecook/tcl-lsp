@@ -79,7 +79,7 @@ fn innermost_class_containing(analysis: &AnalysisResult, cursor: u32) -> Option<
         let body = cd.body_span;
         if body.start() < cursor && cursor < body.end() {
             let width = body.end() - body.start();
-            if best.map_or(true, |b| width < (b.body_span.end() - b.body_span.start())) {
+            if best.is_none_or(|b| width < (b.body_span.end() - b.body_span.start())) {
                 best = Some(cd);
             }
         }
