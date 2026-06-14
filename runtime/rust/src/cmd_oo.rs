@@ -129,6 +129,13 @@ struct Object {
     /// `rename obj {}` and `namespace delete` does not re-run it (C's
     /// `DESTRUCTOR_CALLED`).
     destroyed: bool,
+    /// Set once the destructor has finished and the object's method/class
+    /// structures are being dismantled, but the command is still resolvable
+    /// (C's `OBJECT_DESTRUCTING` after `ObjectNamespaceDeleted` guts the object).
+    /// A method call on a torn-down object yields "impossible to invoke method"
+    /// rather than running anything — what a nested-owned child sees when its
+    /// destructor calls back into the parent mid-teardown (oo-35.7.1/2, oo-11.8).
+    torn_down: bool,
     /// Current FQNs of the per-object `my`/`myclass` commands. Tracked across
     /// `rename` so that destroying the object also deletes a `my` renamed out
     /// of the instance namespace (C ties `my`'s lifetime to the object).
@@ -1462,6 +1469,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             readable_properties: src_obj.readable_properties,
             writable_properties: src_obj.writable_properties,
             destroyed: false,
+            torn_down: false,
             my_aliases: Vec::new(),
         },
     );
@@ -3941,7 +3949,10 @@ impl Interp {
             .borrow()
             .objects
             .iter()
-            .filter(|(_, o)| ids.contains(&o.var_ns))
+            // Skip objects already being torn down (e.g. the object whose own
+            // namespace deletion triggered this cascade) — only the not-yet-
+            // destroyed descendants are destroyed here.
+            .filter(|(_, o)| ids.contains(&o.var_ns) && !o.destroyed)
             .map(|(k, _)| k.clone())
             .collect();
         for v in victims {
@@ -4425,6 +4436,25 @@ impl Interp {
     ) -> Code {
         if !self.oo.borrow().objects.contains_key(obj) {
             return self.invalid_command(obj);
+        }
+        // A torn-down object (its destructor finished, structures dismantled, but
+        // command still resolvable) has no call chain for anything — C's
+        // `TclOOGetCallContext` returns NULL. This is what a nested-owned child's
+        // destructor hits when it calls back into the parent mid-teardown
+        // (oo-35.7.1/2, oo-11.8).
+        if self
+            .oo
+            .borrow()
+            .objects
+            .get(obj)
+            .is_some_and(|o| o.torn_down)
+        {
+            let mut m = b"impossible to invoke method \"".to_vec();
+            m.extend_from_slice(method);
+            m.extend_from_slice(b"\": no defined method or unknown method");
+            let mut code = b"TCL LOOKUP METHOD ".to_vec();
+            code.extend_from_slice(method);
+            return self.error_with_code(&m, &code);
         }
         // TIP 500: a private (unexported) method is still visible to an external
         // call that originates from *within the same object* (e.g. `[self]
@@ -5486,17 +5516,35 @@ impl Interp {
             }
             Some(true) => {} // destructor already running/ran — fall through to cleanup
         }
+        // The destructor has run; the object is now being dismantled. Mark it
+        // torn-down *before* the descendant cascade so a nested-owned child whose
+        // destructor calls back into this object sees "impossible to invoke
+        // method" (C guts the object in `ObjectNamespaceDeleted` before its
+        // child namespaces are deleted). The object stays in the registry — and
+        // its command resolvable — until cleanup below.
+        if let Some(o) = self.oo.borrow_mut().objects.get_mut(obj) {
+            o.torn_down = true;
+        }
+        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
+        if let Some(ns) = var_ns {
+            // Nested ownership (C's `ObjectNamespaceDeleted` →
+            // `TclOODeleteDescendants`): an object created inside this object's
+            // instance namespace is owned by it, so destroying this object tears
+            // those children down too — in nesting order, while their namespaces
+            // are still intact. `oo_namespace_deleted` skips already-destroyed
+            // objects, so this only reaches the (not-yet-destroyed) descendants.
+            self.oo_namespace_deleted(ns);
+        }
         // Cleanup: drop the registry entries (a metaclass instance is in both
         // maps), the command, the per-object `my`/`myclass`, and the object's
         // own variable namespace (C deletes the instance namespace).
-        let (var_ns, aliases) = {
-            let oo = self.oo.borrow();
-            let o = oo.objects.get(obj);
-            (
-                o.map(|o| o.var_ns),
-                o.map(|o| o.my_aliases.clone()).unwrap_or_default(),
-            )
-        };
+        let aliases = self
+            .oo
+            .borrow()
+            .objects
+            .get(obj)
+            .map(|o| o.my_aliases.clone())
+            .unwrap_or_default();
         self.oo.borrow_mut().objects.remove(obj);
         self.oo.borrow_mut().classes.remove(obj);
         self.delete_command(obj);
@@ -5507,13 +5555,6 @@ impl Interp {
             self.delete_command(&a);
         }
         if let Some(ns) = var_ns {
-            // Nested ownership (C's `ObjectNamespaceDeleted` →
-            // `TclOODeleteDescendants`): an object created inside this object's
-            // instance namespace is owned by it, so destroying this object tears
-            // those children down too — in nesting order, while their namespaces
-            // are still intact. `obj` is already removed from the registry above,
-            // so this only reaches the descendants.
-            self.oo_namespace_deleted(ns);
             self.delete_namespace_by_id(ns);
         }
         dtor_code
