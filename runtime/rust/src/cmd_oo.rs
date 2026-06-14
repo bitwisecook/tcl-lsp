@@ -2584,6 +2584,20 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     .find(|s| s.method == target)
                     .map(|s| (s.provider.clone(), s.method.clone()))
             });
+            // A filter wrapping a built-in target (e.g. `destroy`) has no chain
+            // step for it — the built-in is the implicit terminus — so name its
+            // declaring class directly (`::oo::object` for the object built-ins,
+            // `::oo::class` for the instantiation ones; oo-12.8).
+            let pair = pair.or_else(|| {
+                let decl: &[u8] = match target.as_slice() {
+                    b"destroy" | b"eval" | b"variable" | b"varname" | b"unknown" | b"<cloned>" => {
+                        b"::oo::object"
+                    }
+                    b"create" | b"new" | b"createWithNamespace" => b"::oo::class",
+                    _ => return None,
+                };
+                Some((decl.to_vec(), target.clone()))
+            });
             match pair {
                 Some((p, m)) => {
                     let objs = [obj::new_string_bytes(&p), obj::new_string_bytes(&m)];
