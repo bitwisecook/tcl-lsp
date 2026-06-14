@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 
 mod cli;
+mod commands;
 
 use std::ffi::OsString;
 use std::process::ExitCode;
@@ -39,6 +40,11 @@ where
 
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
+        Command::Merge {
+            paths,
+            format,
+            output,
+        } => commands::merge::run_merge(paths, format, output.as_deref()),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();

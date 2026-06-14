@@ -166,8 +166,9 @@ pub enum Command {
 
     /// Concatenate split per-partition SCFs into a single bigip.conf.
     Merge {
-        /// Directory of per-partition `.conf` files.
-        input: PathBuf,
+        /// Per-partition `.conf` files (or one directory).
+        #[arg(required = true, value_name = "PATH")]
+        paths: Vec<PathBuf>,
         #[command(flatten)]
         format: FormatArgs,
         #[arg(long, short, value_name = "FILE")]
