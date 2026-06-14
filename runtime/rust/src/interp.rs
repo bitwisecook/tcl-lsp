@@ -1619,8 +1619,92 @@ impl Interp {
         // still exists, then the namespace is torn down, then the callbacks run
         // — so a callback sees the namespace already gone (C's order; oo-11.8).
         let victims = self.take_ns_unset_traces(ns);
+        // The commands in the namespace tree are deleted too: collect+remove
+        // their command traces (firing the `delete` ones afterwards). Without
+        // this, a delete-trace on `::ns::cmd` would *linger* after `ns` is gone
+        // and mis-fire when a same-named command is later created (the stale
+        // `::x → namespace delete ::` chain that wiped the global namespace).
+        let cmd_victims = self.take_ns_cmd_traces(ns);
         self.namespaces.borrow_mut().delete_namespace_by_id(ns);
         self.fire_unset_callbacks(victims);
+        self.fire_deleted_cmd_callbacks(cmd_victims);
+    }
+
+    /// Remove and return the `(fqn, command)` of every command trace on a command
+    /// in `ns` or a descendant (so the command's deletion via namespace teardown
+    /// drops its traces, as C does). Only `delete`-op traces are returned for
+    /// firing; `rename`-only traces are removed silently (a deletion isn't a
+    /// rename).
+    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+        if self.traces.borrow().cmd_traces.is_empty() {
+            return Vec::new();
+        }
+        // The fully-qualified prefixes (`::a::b::`) of the namespace and every
+        // descendant; a command trace's name is `<homeQual>::<simple>`, so it
+        // belongs to the tree iff its qualifier prefix is one of these.
+        let quals: std::collections::HashSet<Vec<u8>> = {
+            let ns_ref = self.namespaces.borrow();
+            ns_ref
+                .descendant_ids(ns)
+                .into_iter()
+                .map(|i| {
+                    let mut q = ns_ref.qualified_name(i);
+                    if q != b"::" {
+                        q.extend_from_slice(b"::");
+                    }
+                    q
+                })
+                .collect()
+        };
+        let mut victims = Vec::new();
+        let mut traces = self.traces.borrow_mut();
+        traces.cmd_traces.retain(|t| {
+            // The command's home-namespace prefix: everything up to and
+            // including the last `::` (global commands are `::cmd` → `::`).
+            let qual: &[u8] = match t.name.windows(2).rposition(|w| w == b"::") {
+                Some(0) => b"::",
+                Some(i) => &t.name[..i + 2],
+                None => b"",
+            };
+            if quals.contains(qual) {
+                if (t.ops & crate::cmd_trace::ops::DELETE) != 0 {
+                    victims.push((t.name.clone(), t.command.clone()));
+                }
+                false // drop every trace on a command that is going away
+            } else {
+                true
+            }
+        });
+        victims
+    }
+
+    /// Fire collected command `delete`-trace callbacks as `command oldName {}
+    /// delete` after the namespace has been torn down (errors ignored — a delete
+    /// trace's result is discarded, matching C).
+    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+        if victims.is_empty() || self.traces.borrow().exec_firing > 0 {
+            return;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        self.traces.borrow_mut().exec_firing += 1;
+        for (name, cmd) in victims {
+            let args = crate::list::new_list_obj(&[
+                new_string(&name),
+                new_string(b""),
+                new_string(b"delete"),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+        unsafe {
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
+        }
     }
 
     /// Remove and return the `(fullName, command)` of every *unset* variable

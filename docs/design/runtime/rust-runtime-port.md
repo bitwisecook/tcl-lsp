@@ -2700,6 +2700,19 @@ namespace-14.* cases are multi-colon collapsing and the "trailing `::` is a
 significant empty var name" rules, which live in the shared name parser
 (deferred).
 
+### SYNC inbound — 2026-06-14 (command traces freed on namespace deletion)
+
+`delete_namespace_by_id` now collects, removes, and (for `delete`-op) fires the
+command traces on every command in the deleted namespace tree — the command
+analogue of the existing variable-unset-trace teardown (namespace.test 207 →
+209, trace.test unchanged at 199, zero regressions). Previously only variable
+unset traces were cleaned up, so a command delete-trace on `::ns::cmd` *lingered*
+after `ns` was deleted and mis-fired when a same-named command was later created
+(namespace-7.4/7.6). That stale trace was the root of the global-namespace wipe
+that blocked the ensemble work: defining a fresh `proc x` fired a leftover
+`::x → namespace delete ::;#` trace. With the traces freed correctly, that chain
+no longer forms.
+
 ### Scoped-but-blocked — `namespace ensemble configure` / `-parameters` / `-unknown`
 
 A full `namespace ensemble configure` (get-all dict / cget / set), `-parameters`
