@@ -2402,12 +2402,44 @@ regressions; `ooProp.test` stable 55/55), all derived from Tcl 9 C
 - **`my` reaches the class factory** — `create`/`new`/`createWithNamespace`
   shared between `$cls m` and `my m`, so a metaclass method can `my create …`
   even when it unexports `create`/`new` externally (oo-7.x factory pattern).
+- **No-method invocation** (`$obj`) forces the user `unknown` handler (oo-24.3);
+  **`self class`** errors for an object-defined method (oo-29.1); **class
+  destroy** cascades to objects that mix it in (oo-14.1); **`info frame`** in a
+  method body reports `method`/`class`|`object` (oo-22.1/22.2).
+
+#### oo-22 / `info frame` / coroutine dovetail
+
+`oo-22` spans three independent needs. `info frame` inside a method now carries
+the OO method context (the `CmdFrame` records `(method, class|object, owner)`
+from the call meta, displacing the `proc` key — C's `TclInfoFrame`), landing
+**oo-22.1/22.2**. The remaining two parts are large separate subsystems:
+
+- **oo-22.7/22.8 — file-absolute method-body line tracking.** These assert a
+  method body's `info frame` reports `type source` + `file` + the file-absolute
+  `line`, so a `Relative` filter can subtract a baseline. Today a method body is
+  a stored string with no source provenance, so it reports `type proc` and no
+  `file`. This is the **PC-5 source-location** subsystem — the same gap behind
+  ~169 `info.test` failures — and needs per-argument line tracking threaded from
+  the `oo::define` script into each method body (`body_line_base` + `file`).
+- **oo-22.3–22.6 — coroutines.** `coroutine`/`yield` must suspend mid-method and
+  resume later (driven here through `after`/`vwait`). The Rust evaluator is
+  **recursive** (a `yield` deep in the call stack cannot return to the
+  `coroutine` creator without unwinding), and the interp state is `Rc`/`RefCell`
+  (**`!Send`**), so the usual implementations are blocked: OS-thread-per-coro
+  needs `Send` state (would force `Arc`/`Mutex` everywhere); a stackful-coroutine
+  crate (e.g. `corosensei`) runs same-thread (so `!Send` is OK) but its
+  separate-stack switching is **wasm-target-hostile** (this is the WASM runtime
+  port); a CPS/NRE rewrite of the evaluator is the faithful route but a major
+  undertaking. Recommendation: defer until the eval loop is reworked toward an
+  explicit (non-recursive) execution stack, at which point `yield`/`vwait`/event
+  loop become tractable together.
 
 Still open (larger/foundational): the define body runs in the caller's
 namespace, not `::oo::define`/`::oo::objdefine` with outer-context class
 resolution (blocks oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor
 `wrong # args` / `info level` words (oo-2.1/2.7/2.8); cross-test teardown
-pollution (oo-7.7 et al pass in isolation); coroutine + `info frame` (oo-22).
+pollution (oo-7.7 et al pass in isolation — gated on coroutine via oo-1.25);
+PC-5 source lines (oo-22.7/22.8); coroutine (oo-22.3–22.6).
 
 ### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
