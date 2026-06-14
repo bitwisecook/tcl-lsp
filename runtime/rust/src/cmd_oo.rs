@@ -1813,14 +1813,16 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     })
                 }
                 b"typeof" => {
+                    // The object's full precedence list (mixins included), not
+                    // just its class's superclass MRO (oo-16.9). The chain leads
+                    // with the object itself, so drop it before matching classes.
                     let want = interp.fqn_for(&obj_bytes(argv[5]));
-                    interp
-                        .oo
-                        .borrow()
-                        .objects
-                        .get(&target)
-                        .map(|o| o.class.clone())
-                        .is_some_and(|c| interp.mro(&c).contains(&want))
+                    interp.oo.borrow().objects.contains_key(&target)
+                        && interp
+                            .method_chain(&target)
+                            .iter()
+                            .skip(1)
+                            .any(|p| *p == want)
                 }
                 _ => false,
             };
@@ -2208,12 +2210,15 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"instances" => {
+            // `info class instances class ?pattern?` — direct instances, the
+            // optional pattern glob-matching the instance command FQN.
+            let pat = argv.get(4).map(|&a| obj_bytes(a));
             let mut insts: Vec<Vec<u8>> = interp
                 .oo
                 .borrow()
                 .objects
                 .iter()
-                .filter(|(_, o)| o.class == cls)
+                .filter(|(k, o)| o.class == cls && fqn_glob_ok(pat.as_deref(), k))
                 .map(|(k, _)| k.clone())
                 .collect();
             insts.sort();
@@ -2221,12 +2226,17 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"subclasses" => {
+            // `info class subclasses class ?pattern?` — direct subclasses, the
+            // optional pattern glob-matching the subclass FQN (oo-17.8).
+            let pat = argv.get(4).map(|&a| obj_bytes(a));
             let mut subs: Vec<Vec<u8>> = interp
                 .oo
                 .borrow()
                 .classes
                 .iter()
-                .filter(|(k, c)| **k != cls && c.supers.contains(&cls))
+                .filter(|(k, c)| {
+                    **k != cls && c.supers.contains(&cls) && fqn_glob_ok(pat.as_deref(), k)
+                })
                 .map(|(k, _)| k.clone())
                 .collect();
             subs.sort();
@@ -2319,6 +2329,18 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.push(b'"');
             err(interp, &m)
         }
+    }
+}
+
+/// Whether `name` passes an optional introspection glob `pattern` (matching the
+/// fully-qualified name). `None` (no pattern) always passes.
+fn fqn_glob_ok(pattern: Option<&[u8]>, name: &[u8]) -> bool {
+    match pattern {
+        None => true,
+        Some(p) => match (core::str::from_utf8(p), core::str::from_utf8(name)) {
+            (Ok(p), Ok(n)) => tcl_syntax::glob::string_match(p, n),
+            _ => false,
+        },
     }
 }
 
@@ -3653,6 +3675,24 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn isa_typeof_traverses_mixins_and_subclass_pattern() {
+        leak_free(|i| {
+            // `isa typeof` follows mixin links, not just the class MRO (oo-16.9).
+            ok(i, b"oo::class create Ac");
+            ok(i, b"oo::class create Bc { superclass Ac }");
+            ok(i, b"oo::class create Cc { superclass Bc }");
+            ok(i, b"oo::class create Dc { mixin Cc }");
+            ok(i, b"Dc create F");
+            assert_eq!(ok(i, b"info object isa typeof F Bc"), b"1");
+            assert_eq!(ok(i, b"info object isa typeof F Cc"), b"1");
+            assert_eq!(ok(i, b"info object isa typeof F oo::class"), b"0");
+            // `info class subclasses class ?pattern?` filters by the FQN glob.
+            assert_eq!(ok(i, b"lsort [info class subclasses Ac]"), b"::Bc");
+            assert_eq!(ok(i, b"info class subclasses Ac ::C*"), b"");
         });
     }
 
