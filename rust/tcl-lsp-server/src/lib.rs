@@ -160,11 +160,7 @@ struct DiagInputs {
     documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
     workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
     gate: Arc<Mutex<()>>,
-    lattice_cache: Arc<
-        std::sync::Mutex<
-            HashMap<Url, HashMap<String, tcl_compiler::compilation_unit::FunctionUnit>>,
-        >,
-    >,
+    lattice_cache: LatticeCache,
 }
 
 /// Run the analyser + diagnostic lifts for one document and publish the result,
@@ -184,19 +180,17 @@ struct DiagInputs {
 ///
 /// The result is byte-identical to the unit
 /// [`Analyser::emit_cfg_ssa_diagnostics`] would build itself — the cache only
-/// skips the redundant SSA/SCCP/type/rendered recompute for a procedure whose
-/// body (and absolute position, and cross-function context) is unchanged.  The
-/// URI's sub-map is taken out for the duration of the (CPU-heavy) build so the
-/// lock isn't held across it, then swept to the procedures present in this
+/// skips the redundant SSA/SCCP/type/rendered recompute for an unchanged
+/// procedure body (a shifted body is rebased to its new offset on the way out).
+/// The URI's sub-map is taken out for the duration of the (CPU-heavy) build so
+/// the lock isn't held across it, then swept to the procedures present in this
 /// build and put back.
 fn build_memoised_cu(
     text: &str,
     dialect: &str,
     registry: &CommandRegistry,
     uri: &Url,
-    cache: &std::sync::Mutex<
-        HashMap<Url, HashMap<String, tcl_compiler::compilation_unit::FunctionUnit>>,
-    >,
+    cache: &LatticeCacheStore,
 ) -> Option<tcl_compiler::compilation_unit::CompilationUnit> {
     use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 
@@ -204,15 +198,16 @@ fn build_memoised_cu(
     let mut touched: HashSet<String> = HashSet::new();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect);
     let cu = {
-        let mut memo = |key: &str, build: &mut dyn FnMut() -> FunctionUnit| -> FunctionUnit {
-            touched.insert(key.to_owned());
-            if let Some(fu) = map.get(key) {
-                return fu.clone();
-            }
-            let fu = build();
-            map.insert(key.to_owned(), fu.clone());
-            fu
-        };
+        let mut memo =
+            |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| -> (u32, FunctionUnit) {
+                touched.insert(key.to_owned());
+                if let Some(entry) = map.get(key) {
+                    return entry.clone();
+                }
+                let entry = build();
+                map.insert(key.to_owned(), entry.clone());
+                entry
+            };
         CompilationUnit::build_for_memoized(
             text,
             registry,
@@ -460,19 +455,26 @@ pub struct Backend {
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
     /// mode); `set_*` on `workspace/didChangeConfiguration`.
     db_config: Mutex<tcl_lsp_db::AnalyserConfig>,
-    /// Per-URI content-addressed cache of per-procedure `FunctionUnit`
-    /// lattices for the diagnostics CFG/SSA tail (slice 4).  Keyed by URI, then
-    /// by the procedure's content key; a body-only edit reuses the lattices of
-    /// every procedure above the edit point instead of rebuilding the whole
-    /// compilation unit.  A `std::sync::Mutex` (not tokio) because it is locked
-    /// inside the `spawn_blocking` analyser worker; swept per build so it stays
-    /// bounded to the document's live procedures, and dropped on `did_close`.
-    lattice_cache: Arc<
-        std::sync::Mutex<
-            HashMap<Url, HashMap<String, tcl_compiler::compilation_unit::FunctionUnit>>,
-        >,
-    >,
+    /// Per-URI content-addressed cache of per-procedure lattices for the
+    /// diagnostics CFG/SSA tail (slice 4).  Keyed by URI, then by the
+    /// procedure's position-independent content key; a body-only edit reuses
+    /// (and rebases) the lattices of every *unchanged* procedure instead of
+    /// rebuilding the whole compilation unit.  A `std::sync::Mutex` (not tokio)
+    /// because it is locked inside the `spawn_blocking` analyser worker; swept
+    /// per build so it stays bounded to the document's live procedures, and
+    /// dropped on `did_close`.
+    lattice_cache: LatticeCache,
 }
+
+/// Backing store of the per-URI lattice cache: URI → (procedure content key →
+/// `(build_offset, FunctionUnit)`).  The offset lets a shifted-but-unchanged
+/// body be rebased to its new position on a cache hit.
+type LatticeCacheStore = std::sync::Mutex<
+    HashMap<Url, HashMap<String, (u32, tcl_compiler::compilation_unit::FunctionUnit)>>,
+>;
+
+/// Shared handle to the [`LatticeCacheStore`] (see [`Backend::lattice_cache`]).
+type LatticeCache = Arc<LatticeCacheStore>;
 
 /// Resolved `tclLsp.features.*` toggle state.
 ///

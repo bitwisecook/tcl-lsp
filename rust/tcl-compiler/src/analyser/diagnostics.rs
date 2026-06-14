@@ -9589,21 +9589,21 @@ mod tests {
             let want = whole.analyse(src, "tcl");
 
             // Build a memoised unit (cold cache) and run through the seam.
-            let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
-            let build_cu = |cache: &mut HashMap<String, FunctionUnit>| {
+            let mut cache: HashMap<String, (u32, FunctionUnit)> = HashMap::new();
+            let build_cu = |cache: &mut HashMap<String, (u32, FunctionUnit)>| {
                 CompilationUnit::build_for_memoized(
                     src,
                     &registry,
                     false,
                     tcl_lexer::LexerConfig::default(),
                     "tcl",
-                    &mut |key: &str, build: &mut dyn FnMut() -> FunctionUnit| {
-                        if let Some(fu) = cache.get(key) {
-                            return fu.clone();
+                    &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
+                        if let Some(entry) = cache.get(key) {
+                            return entry.clone();
                         }
-                        let fu = build();
-                        cache.insert(key.to_owned(), fu.clone());
-                        fu
+                        let entry = build();
+                        cache.insert(key.to_owned(), entry.clone());
+                        entry
                     },
                 )
                 .with_interprocedural(&registry, Some("tcl"))
@@ -9634,35 +9634,46 @@ mod tests {
     /// Slice 4 shift-correctness: a body that is **unedited but shifted** (lines
     /// inserted above it) must NOT take a stale cache hit — the cached unit's
     /// spans are absolute, so its diagnostics must land at the new positions.
-    /// The absolute offset in the cache key guarantees a miss + rebuild here.
+    /// The position-independent key + span rebase makes this a hit at the new
+    /// offset, byte-identical to a fresh analyse.
     #[test]
     fn memoized_compilation_unit_shift_correctness() {
         use crate::compilation_unit::{CompilationUnit, FunctionUnit};
         use std::collections::HashMap;
         use std::sync::Arc;
-        let base = "proc a {} { set x 1; set x 2 }\nproc b {} { set y 1; set y 2 }\n";
-        // Same procs, shifted down by a prepended top-level line.
-        let shifted = "set top 0\nproc a {} { set x 1; set x 2 }\nproc b {} { set y 1; set y 2 }\n";
+        // Bodies span read-before-set, dead store, and every control-flow shape
+        // (if/for/while/catch/switch) so the rebase traverses nested scripts +
+        // sub-spans, not just flat statements.  All produce positioned
+        // diagnostics whose spans must move with the shift.
+        let bodies = "proc a {} { return $undef }\n\
+             proc b {} { set y 1; set y 2; return $y }\n\
+             proc c {x} {\n  if {$x} { set z 1; set z 2 }\n  for {set i 0} {$i < 3} {incr i} { set w $q }\n  return $z\n}\n\
+             proc d {n} {\n  while {$n} { catch { set r $undef2 } }\n  switch -- $n { 1 { set s 1; set s 2 } default { return $missing } }\n}\n";
+        let base = bodies.to_owned();
+        // Same procs, shifted down by several prepended top-level lines.
+        let shifted = format!("set top 0\nset top2 1\n# a comment line\n{bodies}");
+        let base = base.as_str();
+        let shifted = shifted.as_str();
 
         let mut registry = tcl_registry::CommandRegistry::build_default();
         if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
             registry.load_dialect(d);
         }
-        let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
-        let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
+        let mut cache: HashMap<String, (u32, FunctionUnit)> = HashMap::new();
+        let build = |s: &str, cache: &mut HashMap<String, (u32, FunctionUnit)>| {
             let cu = CompilationUnit::build_for_memoized(
                 s,
                 &registry,
                 false,
                 tcl_lexer::LexerConfig::default(),
                 "tcl",
-                &mut |key: &str, build: &mut dyn FnMut() -> FunctionUnit| {
-                    if let Some(fu) = cache.get(key) {
-                        return fu.clone();
+                &mut |key: &str, build: &mut dyn FnMut() -> (u32, FunctionUnit)| {
+                    if let Some(entry) = cache.get(key) {
+                        return entry.clone();
                     }
-                    let fu = build();
-                    cache.insert(key.to_owned(), fu.clone());
-                    fu
+                    let entry = build();
+                    cache.insert(key.to_owned(), entry.clone());
+                    entry
                 },
             )
             .with_interprocedural(&registry, Some("tcl"));
@@ -9671,13 +9682,27 @@ mod tests {
             a.analyse(s, "tcl")
         };
 
-        // Prime the cache on `base`, then analyse `shifted` reusing it.
+        // Prime the cache on `base`, then analyse `shifted` reusing it.  The
+        // procedure bodies are unchanged, so they hit the position-independent
+        // cache and are rebased to their new offsets.
         let _ = build(base, &mut cache);
+        let entries_after_base = cache.len();
         let got = build(shifted, &mut cache);
         let want = Analyser::new().analyse(shifted, "tcl");
         assert_eq!(
             want.diagnostics, got.diagnostics,
-            "shifted-body diagnostics must match a fresh analyse (no stale hit)"
+            "shifted-body diagnostics must match a fresh analyse (rebased hit)"
+        );
+        // The shifted build reused the cached bodies (no new entries for the
+        // procedures), exercising the rebase path rather than rebuilding.
+        assert_eq!(
+            cache.len(),
+            entries_after_base,
+            "shifted bodies should reuse cached entries (position-independent key)"
+        );
+        assert!(
+            !want.diagnostics.is_empty(),
+            "test should exercise real positioned diagnostics"
         );
     }
 

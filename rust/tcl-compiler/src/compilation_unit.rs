@@ -34,11 +34,16 @@ use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 
 /// Content-addressed per-procedure lattice memo used by
-/// [`CompilationUnit::build_for_memoized`].  `cache(key, build)` returns the
-/// cached [`FunctionUnit`] for `key`, or runs `build` (storing the result) on a
-/// miss.  The caller owns the backing store and its eviction policy.
+/// [`CompilationUnit::build_for_memoized`].
+///
+/// `cache(key, build)` returns the cached `(build_offset, FunctionUnit)` for
+/// `key`, or runs `build` (storing and returning its result) on a miss.  The
+/// value carries the absolute offset the cached unit was built at so the
+/// builder can rebase a shifted-but-unchanged body to its new position (the key
+/// is position-independent — body source only — so a shifted body still hits).
+/// The caller owns the backing store and its eviction policy.
 pub type ProcLatticeCache<'a> =
-    dyn FnMut(&str, &mut dyn FnMut() -> FunctionUnit) -> FunctionUnit + 'a;
+    dyn FnMut(&str, &mut dyn FnMut() -> (u32, FunctionUnit)) -> (u32, FunctionUnit) + 'a;
 
 // ---------------------------------------------------------------------------
 // Per-function analysis bundle
@@ -269,6 +274,7 @@ impl CompilationUnit {
         )
     }
 
+    #[allow(clippy::too_many_lines)]
     fn build_for_inner(
         source: &str,
         registry: &CommandRegistry,
@@ -311,11 +317,12 @@ impl CompilationUnit {
             let body_offset = proc.map_or(0, |p| p.span.start());
             let fu = match (cache.as_mut(), body_source, ctx_digest) {
                 (Some(memo), Some(body_source), Some(ctx)) => {
+                    // Position-independent key: a shifted-but-unchanged body
+                    // hits, and the cached unit is rebased to its new offset.
                     let key = proc_lattice_key(
                         dialect_key,
                         ctx,
                         qname,
-                        body_offset,
                         body_source,
                         params,
                         param_constants.as_ref(),
@@ -323,15 +330,21 @@ impl CompilationUnit {
                     let cfg = cfg.clone();
                     let params = params.to_vec();
                     let param_constants = param_constants.clone();
-                    memo(&key, &mut || {
-                        FunctionUnit::build_with_param_constants(
-                            qname,
-                            cfg.clone(),
-                            &params,
-                            registry,
-                            param_constants.as_ref(),
+                    let (built_offset, mut fu) = memo(&key, &mut || {
+                        (
+                            body_offset,
+                            FunctionUnit::build_with_param_constants(
+                                qname,
+                                cfg.clone(),
+                                &params,
+                                registry,
+                                param_constants.as_ref(),
+                            ),
                         )
-                    })
+                    });
+                    let delta = i64::from(body_offset) - i64::from(built_offset);
+                    crate::lattice_rebase::rebase_function_unit(&mut fu, delta);
+                    fu
                 }
                 _ => FunctionUnit::build_with_param_constants(
                     qname,
@@ -509,27 +522,24 @@ fn proc_context_digest(ir_module: &IrModule) -> u64 {
 /// (which with the body determines the CFG), the qualified name, the body
 /// source verbatim, the parameter list, and the interprocedural
 /// `param_constants` — serialised deterministically so equal inputs yield an
-/// equal key.  A hit therefore returns the byte-identical unit.
+/// equal key.  **Position-independent**: the procedure's absolute offset is
+/// deliberately *not* part of the key, so a shifted-but-unchanged body hits;
+/// the builder rebases the cached unit's spans to the new offset.  A hit
+/// therefore yields the byte-identical unit after rebasing.
 fn proc_lattice_key(
     dialect_key: &str,
     ctx: u64,
     qname: &str,
-    body_offset: u32,
     body_source: &str,
     params: &[String],
     param_constants: Option<&HashMap<ValueKey, crate::analyses::LatticeValue>>,
 ) -> String {
     use std::fmt::Write as _;
     let mut key = String::with_capacity(body_source.len() + 64);
-    // `body_offset` (the procedure's absolute definition offset) is part of the
-    // key because the cached unit's CFG/SSA spans are **absolute** — a
-    // shifted-but-unedited body must miss so its diagnostics land at the new
-    // positions, not the cached ones.  (Full offset-invariance — caching at
-    // offset 0 and rebasing — is a later refinement.)  Length-prefix the body
-    // so it can't run into the trailing fields.
+    // Length-prefix the body so it can't run into the trailing fields.
     let _ = write!(
         key,
-        "{dialect_key}\u{0}{ctx:016x}\u{0}{qname}\u{0}{body_offset}\u{0}{params:?}\u{0}{}\u{0}",
+        "{dialect_key}\u{0}{ctx:016x}\u{0}{qname}\u{0}{params:?}\u{0}{}\u{0}",
         body_source.len()
     );
     key.push_str(body_source);
