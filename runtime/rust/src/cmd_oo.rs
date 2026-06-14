@@ -2846,21 +2846,37 @@ fn myclass_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"myclass methodName ?arg ...?");
     }
-    // The current object's class (which can morph), invoked internally.
-    let class = interp
+    // Inside a method, `myclass` dispatches on the current object's class; invoked
+    // directly (e.g. a renamed `myclass`) it dispatches on the class of the object
+    // that owns this command, found via its tracked alias (`my_aliases[1]`;
+    // oo-41.2). The class can morph, so it is read live.
+    let object = match interp
         .oo
         .borrow()
         .call_stack
         .last()
         .map(|f| f.object.clone())
-        .and_then(|o| {
+    {
+        Some(o) => Some(o),
+        None => {
+            let fqn = interp.fqn_for(&obj_bytes(argv[0]));
             interp
                 .oo
                 .borrow()
                 .objects
-                .get(&o)
-                .map(|ob| ob.class.clone())
-        });
+                .iter()
+                .find(|(_, o)| o.my_aliases.get(1).is_some_and(|a| *a == fqn))
+                .map(|(k, _)| k.clone())
+        }
+    };
+    let class = object.and_then(|o| {
+        interp
+            .oo
+            .borrow()
+            .objects
+            .get(&o)
+            .map(|ob| ob.class.clone())
+    });
     let Some(class) = class else {
         return err(interp, b"myclass may only be called from inside a method");
     };
