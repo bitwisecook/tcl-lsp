@@ -2387,6 +2387,10 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
         None | Some(b"object") => interp.set_result(obj::new_string_bytes(&object)),
+        // `self class` is the *declaring class* of the running method; a method
+        // defined directly on the object (objdefine / class-side `self method`)
+        // has no declaring class (C: `declaringClassPtr == NULL`).
+        Some(b"class") if class == object => return err(interp, b"method not defined by a class"),
         Some(b"class") => interp.set_result(obj::new_string_bytes(&class)),
         Some(b"method") => interp.set_result(obj::new_string_bytes(&method)),
         Some(b"namespace") => {
@@ -6593,6 +6597,21 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn self_class_in_object_method_errors() {
+        leak_free(|i| {
+            // `self class` in a method declared directly on the object has no
+            // declaring class.
+            ok(i, b"oo::object create obj");
+            ok(i, b"oo::objdefine obj method demo {} { self class }");
+            assert_eq!(i.eval_str(b"obj demo"), Code::Error);
+            assert_eq!(i.result_bytes(), b"method not defined by a class");
+            // A class instance method still reports its declaring class.
+            ok(i, b"oo::class create C { method d {} { self class } }");
+            assert_eq!(ok(i, b"[C new] d"), b"::C");
         });
     }
 
