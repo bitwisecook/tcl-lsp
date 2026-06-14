@@ -4,4 +4,5 @@
 //! resolves inputs via `tcl-cli-support`, drives the relevant Rust engine
 //! crate, and writes output. Handlers return the intended process exit code.
 
+pub mod diag;
 pub mod transform;

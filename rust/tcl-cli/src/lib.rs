@@ -49,6 +49,10 @@ where
 /// 2 = usage/internal error) so the binary can forward it verbatim.
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
+        Command::Diag { input, diag } | Command::Lint { input, diag } => {
+            commands::diag::run_diag(input, diag)
+        }
+        Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
         Command::Format {
             input,
             indent_size,
