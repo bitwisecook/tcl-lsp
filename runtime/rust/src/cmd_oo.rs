@@ -927,8 +927,15 @@ impl Interp {
                     names.insert(m.clone());
                 }
             }
+            // An explicitly-exported name is listed only if it is a real method
+            // or a promotable built-in — not a name merely `export`ed without a
+            // backing implementation (oo-4.3).
+            const PROMOTABLE: &[&[u8]] =
+                &[b"eval", b"variable", b"varname", b"unknown", b"<cloned>"];
             for m in exp {
-                names.insert(m.clone());
+                if methods.contains_key(m) || PROMOTABLE.contains(&m.as_slice()) {
+                    names.insert(m.clone());
+                }
             }
         };
         // A private method named is visible (and so listed) only from its own
@@ -2520,7 +2527,9 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"isa" => {
             // info object isa category objName ?arg?
             let cat = obj_bytes(argv[3]);
-            let target = interp.fqn_for(&obj_bytes(argv[4]));
+            // Resolve the object name following import aliases to the origin
+            // command, so an imported object command is recognised (oo-1.10).
+            let target = interp.oo_resolve_object(&obj_bytes(argv[4]));
             let yes = match cat.as_slice() {
                 b"object" => interp.oo.borrow().objects.contains_key(&target),
                 b"class" => interp.oo.borrow().classes.contains_key(&target),
@@ -4029,6 +4038,20 @@ impl Interp {
         chain
     }
 
+    /// Resolve an object name to its FQN, following namespace-import aliases to
+    /// the origin command if the qualified name is not itself an object (so an
+    /// imported object command resolves to the real object; oo-1.10).
+    fn oo_resolve_object(&self, name: &[u8]) -> Vec<u8> {
+        let fqn = self.fqn_for(name);
+        if self.oo.borrow().objects.contains_key(&fqn) {
+            return fqn;
+        }
+        self.namespaces()
+            .command_origin(self.current_ns(), name)
+            .filter(|o| self.oo.borrow().objects.contains_key(o))
+            .unwrap_or(fqn)
+    }
+
     /// The precedence (linearization) of a *class* itself — its mixins, the
     /// class, then its superclasses — keep-last deduped, for `info class call`.
     fn class_precedence(&self, class: &[u8]) -> Vec<Vec<u8>> {
@@ -5031,6 +5054,27 @@ mod tests {
             // Unexporting destroy hides it from `-all` (oo-17.10).
             ok(i, b"oo::define C unexport {*}[info class methods C -all]");
             assert_eq!(ok(i, b"info class methods C -all"), b"");
+        });
+    }
+
+    #[test]
+    fn isa_follows_import_and_unknown_list_excludes_bare_export() {
+        leak_free(|i| {
+            // info object isa follows a namespace-import alias to the object.
+            ok(
+                i,
+                b"namespace eval foo { namespace eval bar { oo::object create o; namespace export o }; namespace import bar::o }",
+            );
+            assert_eq!(ok(i, b"info object isa object foo::o"), b"1");
+            assert_eq!(ok(i, b"info object isa object foo::bar::o"), b"1");
+            // An `export`ed name with no implementation is not in the unknown list.
+            ok(i, b"oo::class create tc");
+            ok(i, b"oo::objdefine tc export Bad");
+            assert_eq!(i.eval_str(b"tc Bad"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown method \"Bad\": must be create, destroy or new"
+            );
         });
     }
 
