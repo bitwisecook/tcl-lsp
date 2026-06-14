@@ -459,6 +459,11 @@ impl Analyser {
                     body_text,
                     body_tok,
                     scope_path: child_path.clone(),
+                    is_method: false,
+                    namespace: ns_prefix.clone(),
+                    scope_name: raw_name.clone(),
+                    params: params.clone(),
+                    name_span,
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);
