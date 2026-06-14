@@ -2359,7 +2359,7 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"nextto may only be called from inside a method");
     };
     if argv.len() < 2 {
-        return wrong_args(interp, b"nextto class ?arg ...?");
+        return wrong_args(interp, b"nextto class ?arg...?");
     }
     let raw = obj_bytes(argv[1]);
     // The class argument resolves like a command: current namespace then the
@@ -2494,6 +2494,10 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `creationid` has its own arg-count message (it errors at 0 *or* 2+ names).
     if sub == b"creationid" && argv.len() != 4 {
         return wrong_args(interp, b"info object creationid objName");
+    }
+    // `call` takes exactly objName + methodName.
+    if sub == b"call" && argv.len() != 5 {
+        return wrong_args(interp, b"info object call objName methodName");
     }
     if argv.len() < 4 {
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
@@ -2868,6 +2872,17 @@ fn info_call(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool)
         };
         return wrong_args(interp, u);
     }
+    // The target must exist (oo-call-1.17): a non-object reports "X does not
+    // refer to an object"; a non-class object reports `"X" is not a class`.
+    if !interp.oo.borrow().objects.contains_key(fqn) {
+        return not_object(interp, &obj_bytes(argv[3]));
+    }
+    if class && !interp.oo.borrow().classes.contains_key(fqn) {
+        let mut m = b"\"".to_vec();
+        m.extend_from_slice(&obj_bytes(argv[3]));
+        m.extend_from_slice(b"\" is not a class");
+        return err(interp, &m);
+    }
     let method = obj_bytes(argv[4]);
     let elems = build_call_chain(interp, fqn, &method, class);
     set_list(interp, &elems);
@@ -3009,6 +3024,9 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(s) => s,
         Err(c) => return c,
     };
+    if sub == b"call" && argv.len() != 5 {
+        return wrong_args(interp, b"info class call className methodName");
+    }
     if argv.len() < 4 {
         return wrong_args(interp, b"info class subcommand className ?arg ...?");
     }
