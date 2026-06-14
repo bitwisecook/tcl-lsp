@@ -40,6 +40,11 @@ where
 
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
+        Command::Split {
+            input,
+            output,
+            format,
+        } => commands::split::run_split(input, output, format),
         Command::Merge {
             paths,
             format,

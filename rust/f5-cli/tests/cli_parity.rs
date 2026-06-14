@@ -39,3 +39,24 @@ fn merge_matches_python() {
         "f5 merge output does not match the Python CLI"
     );
 }
+
+#[test]
+fn split_then_merge_matches_python() {
+    // split a multi-partition fixture into a temp dir, then merge it back, and
+    // assert the round-trip equals the golden captured from the Python CLI.
+    let dir = fixtures_dir();
+    let input = dir.join("split-multi.conf");
+    let expected = std::fs::read(dir.join("split-multi.roundtrip.golden")).expect("read golden");
+
+    let out_dir = std::env::temp_dir().join(format!("f5-split-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out_dir);
+    run_f5(&["split", input.to_str().unwrap(), out_dir.to_str().unwrap()]);
+    let actual = run_f5(&["merge", out_dir.to_str().unwrap()]);
+    let _ = std::fs::remove_dir_all(&out_dir);
+
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+        "f5 split→merge round-trip does not match the Python CLI"
+    );
+}
