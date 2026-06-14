@@ -5307,16 +5307,25 @@ mod tests {
             // `variable` is the ordinary command, and `uplevel 1` re-enters the
             // definition body's context (oo-36.9, oo-43.x).
             ok(i, b"oo::class create C");
-            // `variable ::x` in the proc is the ordinary command (define context
-            // suspended); direct `self` errors at the proc level, `uplevel 1
-            // self` re-enters the definition body's context and yields the class.
+            // A non-command in a define body routes through the global `unknown`
+            // proc, whose `variable ::tcl::UnknownPending` must resolve to the
+            // ordinary command (the define context is suspended in that nested
+            // frame) — yielding the proper "invalid command name", not a spurious
+            // declared-variable error.
+            assert_eq!(i.eval_str(b"oo::define C nonesuch"), Code::Error);
+            assert!(
+                contains(&i.result_bytes(), b"invalid command name \"nonesuch\""),
+                "got {:?}",
+                i.result_bytes()
+            );
+            // A user proc in ::oo::define is reachable as a definition command;
+            // direct `self` errors at the proc level, `uplevel 1 self` re-enters
+            // the definition body's context and yields the class.
             ok(
                 i,
-                b"proc ::oo::define::probe {} { variable ::tcl::tmpvar; set ::tcl::tmpvar 7; \
-                  return [list [catch {self} m] [catch {uplevel 1 self} m2] $m2] }",
+                b"proc ::oo::define::probe {} { list [catch {self} m] [catch {uplevel 1 self} m2] $m2 }",
             );
             assert_eq!(ok(i, b"oo::define C probe"), b"1 0 ::C");
-            assert_eq!(ok(i, b"set ::tcl::tmpvar"), b"7");
         });
     }
 
