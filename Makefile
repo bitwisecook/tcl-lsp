@@ -161,7 +161,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-clis test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -571,6 +571,32 @@ rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
 	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
 	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
 	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
+
+# Build the native Rust `tcl` CLI binary (target/release/tcl).  Mirrors
+# rust-server: release by default, PROFILE=debug for a faster build.  This is
+# the Rust port of the Python `tcl` console script (tooling/tcl/main.py).
+rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native tcl CLI ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p tcl-cli $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/tcl"
+
+# Build the native Rust `f5-query` CLI binary (target/release/f5-query).
+# The Rust port of the Python `f5-query` console script (tooling/f5/main.py).
+rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native f5-query CLI ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/f5-query"
+
+# Build both native Rust CLIs in one go.
+rust-clis: rust-tcl rust-f5 ## Build the native Rust `tcl` + `f5-query` CLIs
 
 # Opt-in: run the VS Code extension integration tests against the NATIVE Rust
 # server.  Mirrors `test-ext` but exports TCL_LSP_SERVER_KIND=rust + the binary

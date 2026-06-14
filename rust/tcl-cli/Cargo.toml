@@ -1,0 +1,21 @@
+[package]
+name = "tcl-cli"
+description = "Native Rust port of the unified `tcl` toolchain CLI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "tcl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+clap_complete = "4"
+anyhow = "1"
+
+[lints]
+workspace = true

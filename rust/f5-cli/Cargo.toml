@@ -1,0 +1,21 @@
+[package]
+name = "f5-cli"
+description = "Native Rust port of the `f5-query` BIG-IP / iRules CLI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "f5-query"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "wrap_help"] }
+clap_complete = "4"
+anyhow = "1"
+
+[lints]
+workspace = true
