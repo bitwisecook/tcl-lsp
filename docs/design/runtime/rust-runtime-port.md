@@ -2650,6 +2650,25 @@ fixes, both from C (`tclDictObj.c`/`tclUtil.c`):
   filter`, dict-17.19). `dict with`/`dict update` usage strings matched to C
   (`dictVarName`/`script`). dict.test reaches 315/373.
 
+### SYNC inbound — 2026-06-14 (`lsearch -subindices` + `-index` validation)
+
+`lsearch.test` 133 → **165/165** (zero regressions), from C's `Tcl_LsearchObjCmd`
+(`tclCmdIL.c`) + `SelectObjFromSublist`:
+
+- **`-subindices` returns the resolved path / leaf** — non-inline now emits the
+  group base plus each *decoded* remaining `-index` value (`TclIndexDecode`
+  against the top list count, matching C, incl. `end`); `-inline -subindices`
+  returns the matched *leaf* drilled through the sub-path (or the in-group key
+  element when `-stride` consumed the only index), not the top element. Fixes the
+  `-subindices` ± `-stride` ± `-inline` ± `-sorted` clusters (lsearch-19.7/19.8,
+  25.*, 26.*, 27.*, 28.7–28.9).
+- **`-index` value scale validated at parse time** (`TclIndexEncode`): a negative
+  or `end+N` spec is `index "X" out of range` (`TCL VALUE INDEX OUTOFRANGE`),
+  a syntactically-bad spec is `bad index …` (lsearch-17.12–17.16).
+- **`-subindices` without `-index`** is the `BAD_OPTION_MIX` error (lsearch-3.7),
+  and the `-regexp` compile-failure prefix is `cannot compile …` to match C
+  (lsearch-2.6).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
