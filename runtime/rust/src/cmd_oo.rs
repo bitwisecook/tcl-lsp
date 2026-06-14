@@ -55,6 +55,9 @@ struct Class {
     destructor: Option<Vec<u8>>,
     /// Declared instance-variable names (auto-linked into every method frame).
     variables: Vec<Vec<u8>>,
+    /// TIP 500 private instance variables (`private variable`): listed by
+    /// `info class variables -private`, hidden from the plain form.
+    private_variables: Vec<Vec<u8>>,
     /// Mixed-in classes (searched before the superclass MRO).
     mixins: Vec<Vec<u8>>,
     /// Methods marked non-exported (callable only via `my`).
@@ -102,6 +105,8 @@ struct Object {
     filters: Vec<Vec<u8>>,
     /// Per-object declared instance variables (`oo::objdefine variable`).
     variables: Vec<Vec<u8>>,
+    /// Per-object TIP 500 private instance variables.
+    private_variables: Vec<Vec<u8>>,
     /// Set once the destructor chain has started, so teardown via `destroy`,
     /// `rename obj {}` and `namespace delete` does not re-run it (C's
     /// `DESTRUCTOR_CALLED`).
@@ -520,6 +525,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             private: src_obj.private,
             filters: src_obj.filters,
             variables: src_obj.variables,
+            private_variables: src_obj.private_variables,
             destroyed: false,
             my_aliases: Vec::new(),
         },
@@ -1326,20 +1332,37 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(t) => t,
         Err(code) => return code,
     };
-    let current = match &target {
-        DefTarget::Class(c) => interp
+    // Inside a `private { … }` block the names are TIP 500 private variables,
+    // tracked separately so introspection can distinguish them.
+    let private = interp.oo.borrow().private_depth > 0;
+    let current = match (&target, private) {
+        (DefTarget::Class(c), false) => interp
             .oo
             .borrow()
             .classes
             .get(c)
             .map(|cl| cl.variables.clone())
             .unwrap_or_default(),
-        DefTarget::Object(o) => interp
+        (DefTarget::Class(c), true) => interp
+            .oo
+            .borrow()
+            .classes
+            .get(c)
+            .map(|cl| cl.private_variables.clone())
+            .unwrap_or_default(),
+        (DefTarget::Object(o), false) => interp
             .oo
             .borrow()
             .objects
             .get(o)
             .map(|ob| ob.variables.clone())
+            .unwrap_or_default(),
+        (DefTarget::Object(o), true) => interp
+            .oo
+            .borrow()
+            .objects
+            .get(o)
+            .map(|ob| ob.private_variables.clone())
             .unwrap_or_default(),
     };
     // De-duplicate the appended result (a variable is declared once), mirroring
@@ -1354,15 +1377,25 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             true
         }
     });
-    match target {
-        DefTarget::Class(c) => {
+    match (target, private) {
+        (DefTarget::Class(c), false) => {
             if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&c) {
                 cl.variables = applied;
             }
         }
-        DefTarget::Object(o) => {
+        (DefTarget::Class(c), true) => {
+            if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&c) {
+                cl.private_variables = applied;
+            }
+        }
+        (DefTarget::Object(o), false) => {
             if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&o) {
                 ob.variables = applied;
+            }
+        }
+        (DefTarget::Object(o), true) => {
+            if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&o) {
+                ob.private_variables = applied;
             }
         }
     }
@@ -1908,12 +1941,16 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"variables" => {
-            let v = interp
-                .oo
-                .borrow()
-                .objects
-                .get(&obj)
-                .map(|o| o.variables.clone());
+            // `info object variables obj ?-private?` — `-private` lists the
+            // TIP 500 private instance variables instead of the public ones.
+            let private = argv.get(4).map(|&a| obj_bytes(a)).as_deref() == Some(b"-private");
+            let v = interp.oo.borrow().objects.get(&obj).map(|o| {
+                if private {
+                    o.private_variables.clone()
+                } else {
+                    o.variables.clone()
+                }
+            });
             match v {
                 Some(v) => {
                     set_list(interp, &v);
@@ -2271,7 +2308,15 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"variables" | b"variable" => {
-            let v = interp.oo.borrow().classes[&cls].variables.clone();
+            // `-private` lists the TIP 500 private instance variables.
+            let private = argv.get(4).map(|&a| obj_bytes(a)).as_deref() == Some(b"-private");
+            let cl = interp.oo.borrow();
+            let v = if private {
+                cl.classes[&cls].private_variables.clone()
+            } else {
+                cl.classes[&cls].variables.clone()
+            };
+            drop(cl);
             set_list(interp, &v);
             Code::Ok
         }
@@ -3508,6 +3553,23 @@ impl Interp {
                 }
             }
         }
+        // TIP 500 private variables are visible only to methods of their own
+        // declaring entity — the current step's provider (`prov`).
+        {
+            let oo = self.oo.borrow();
+            let provider_privates = if is_object {
+                oo.objects.get(&prov).map(|o| o.private_variables.clone())
+            } else {
+                oo.classes.get(&prov).map(|c| c.private_variables.clone())
+            };
+            if let Some(pv) = provider_privates {
+                for v in pv {
+                    if !vars.contains(&v) {
+                        vars.push(v);
+                    }
+                }
+            }
+        }
         let name = if method.is_empty() {
             b"<constructor>".to_vec()
         } else {
@@ -3891,6 +3953,34 @@ mod tests {
             ok(i, b"oo::objdefine gf filter flt");
             ok(i, b"set ::r {}; gf go");
             assert_eq!(ok(i, b"set ::r"), b"F-flt G-flt go");
+        });
+    }
+
+    #[test]
+    fn private_variable_introspection() {
+        leak_free(|i| {
+            // TIP 500 (oo-38.2): `private variable` is tracked separately from
+            // the public declared variables; `-private` lists it.
+            ok(i, b"oo::class create parent");
+            ok(
+                i,
+                b"oo::class create cls { superclass parent; private { variable x1; variable x2 }; variable y1 y2 }",
+            );
+            ok(i, b"cls create obj");
+            ok(
+                i,
+                b"oo::objdefine obj { private variable a1 a2; variable b1 b2 }",
+            );
+            assert_eq!(ok(i, b"lsort [info class variables cls]"), b"y1 y2");
+            assert_eq!(
+                ok(i, b"lsort [info class variables cls -private]"),
+                b"x1 x2"
+            );
+            assert_eq!(ok(i, b"lsort [info object variables obj]"), b"b1 b2");
+            assert_eq!(
+                ok(i, b"lsort [info object variables obj -private]"),
+                b"a1 a2"
+            );
         });
     }
 
