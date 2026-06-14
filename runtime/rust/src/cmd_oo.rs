@@ -2449,6 +2449,22 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .last()
                 .and_then(|(_, _, c)| *c)
                 .or_else(|| interp.oo.borrow().objects.get(&tfqn).map(|o| o.creation_id));
+            // The object being defined may have been deleted earlier in the body
+            // (e.g. `rename ::foo {}`); `self` then can't run (oo-18.11).
+            let alive = creation_id.is_some_and(|id| {
+                interp
+                    .oo
+                    .borrow()
+                    .objects
+                    .values()
+                    .any(|o| o.creation_id == id)
+            });
+            if !alive {
+                return err(
+                    interp,
+                    b"this command cannot be called when the object has been deleted",
+                );
+            }
             interp.oo.borrow_mut().def_stack.push((
                 DefTarget::Object(tfqn.clone()),
                 lvl,
