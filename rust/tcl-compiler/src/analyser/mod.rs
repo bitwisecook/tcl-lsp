@@ -41,6 +41,7 @@ pub mod item_tree;
 pub mod mro;
 pub mod oo;
 pub mod param_traits;
+pub mod per_item;
 pub mod recovery;
 pub mod scope;
 pub mod snapshot;

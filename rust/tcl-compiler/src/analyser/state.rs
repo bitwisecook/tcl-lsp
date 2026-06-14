@@ -222,6 +222,14 @@ pub struct Analyser {
     /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
     /// `false`; normal `analyse` is unaffected.
     pub structure_only: bool,
+    /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
+    /// walks record their body for separate analysis (`deferred_bodies`) instead
+    /// of recursing into it immediately.  Set only for the shell pass; the
+    /// per-body passes run with it `false` so nested defs walk in place.
+    pub defer_proc_bodies: bool,
+    /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
+    /// each analysed in a second pass that fills its already-created scope.
+    pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
@@ -304,6 +312,8 @@ impl Analyser {
             pending_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
+            defer_proc_bodies: false,
+            deferred_bodies: Vec::new(),
         }
     }
 
@@ -450,6 +460,47 @@ impl Analyser {
         // **C41e5** wires ``recover_missing_open_brace`` (for
         // switch with forgotten body brace), ``detect_stolen_close_brace``
         // (E103), and the generic E200 partial-command emitter.
+        self.walk_commands_top_level(&commands, ghost_recovery_applied);
+
+        // **C41d1.** Run the diagnostic-emission orchestrator
+        // and the post-pass filters.  Mirrors the tail of
+        // ``Analyser.analyse`` in
+        // ``core/analysis/_analyser/_core.py:380-384``:
+        //
+        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
+        // 2. ``emit_variable_usage_diagnostics`` — hook landed
+        //    in C41d1 (currently no-op).
+        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
+        //    landed in C41d1 (currently inert; per-emitter
+        //    dispatch lands in C41d2-d7).
+        // 4. ``apply_disabled_diagnostics`` — filter codes the
+        //    caller asked to silence (also covers the
+        //    file-suppression directives merged at the top of
+        //    ``analyse``).
+        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
+        //    the line-based suppression pairs.
+        // Structure-only mode (item_tree extraction) skips the entire
+        // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
+        // emitters are the dominant cost and produce no structural facts.
+        if !self.structure_only {
+            self.run_diagnostic_emitters(source);
+        }
+
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        result
+    }
+
+    /// Walk a top-level command stream through the dispatcher (the body of
+    /// `analyse`'s main loop, extracted so the per-item path can reuse it
+    /// verbatim).  `scope_path` is the global scope (`&[]`).  When
+    /// `defer_proc_bodies` is set, `handle_proc_command` / OO method walks
+    /// record the body for later isolated analysis instead of recursing.
+    pub(super) fn walk_commands_top_level(
+        &mut self,
+        commands: &[crate::segmenter::SegmentedCommand],
+        ghost_recovery_applied: bool,
+    ) {
         let total = commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
@@ -489,7 +540,7 @@ impl Analyser {
             // check on every analysed body.)
             self.emit_syntax_recovery_diagnostics(cmd_ref, ghost_recovery_applied);
             self.recover_stray_close_bracket(&mut cmd);
-            let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
+            let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
             let single = cmd.single_token_word.clone();
             // ``# noqa[: CODE,...]`` directives in
             // ``cmd.preceding_comment`` suppress diagnostics on
@@ -519,34 +570,6 @@ impl Analyser {
             self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
-
-        // **C41d1.** Run the diagnostic-emission orchestrator
-        // and the post-pass filters.  Mirrors the tail of
-        // ``Analyser.analyse`` in
-        // ``core/analysis/_analyser/_core.py:380-384``:
-        //
-        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
-        // 2. ``emit_variable_usage_diagnostics`` — hook landed
-        //    in C41d1 (currently no-op).
-        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
-        //    landed in C41d1 (currently inert; per-emitter
-        //    dispatch lands in C41d2-d7).
-        // 4. ``apply_disabled_diagnostics`` — filter codes the
-        //    caller asked to silence (also covers the
-        //    file-suppression directives merged at the top of
-        //    ``analyse``).
-        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
-        //    the line-based suppression pairs.
-        // Structure-only mode (item_tree extraction) skips the entire
-        // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
-        // emitters are the dominant cost and produce no structural facts.
-        if !self.structure_only {
-            self.run_diagnostic_emitters(source);
-        }
-
-        let result = std::mem::take(&mut self.result);
-        self.clear_run_state();
-        result
     }
 
     /// GAP-A1 strip 3c: ghost-token recovery.  When the scan-to-next
@@ -559,7 +582,7 @@ impl Analyser {
     /// returned (the caller then skips its own E201 detector to avoid a
     /// double-report).  Clean / fallback input has no partial command,
     /// so this never runs a second parse on the common path.
-    fn apply_ghost_recovery(
+    pub(super) fn apply_ghost_recovery(
         &mut self,
         source: &str,
         commands: &mut Vec<crate::segmenter::SegmentedCommand>,
@@ -922,7 +945,7 @@ impl Analyser {
     /// `clear_run_state` resets only the registry + line index), so a second
     /// `analyse` on `self` would run on dirty state; a fresh analyser is the
     /// safe way to take the full-rebuild fallback mid-call.
-    fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
+    pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_non_ascii_mode(self.non_ascii_mode);
         fresh.analyse(new_text, dialect)
@@ -1053,7 +1076,7 @@ impl Analyser {
     /// disabled-code filter and the dedupe + canonical-order pass.  Shared by
     /// `analyse` / `analyse_chunked` / `analyse_commands` so the emitter set and
     /// ordering stay identical across every entry point.
-    fn run_diagnostic_emitters(&mut self, source: &str) {
+    pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
         use tcl_registry::CommandRegistry;
         let mut diag_registry = CommandRegistry::build_default();
         if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
@@ -1091,15 +1114,38 @@ impl Analyser {
         for v in self.result.all_variables.values_mut() {
             v.references.sort_by_key(|s| (s.start(), s.end()));
         }
+        // The remaining walk-populated record vecs are likewise set-like
+        // (consumed by version inference / workspace index / regex checks),
+        // so sort each by source position for walk-strategy independence.
+        self.result
+            .package_requires
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .package_provides
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .source_targets
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .namespace_imports
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .auto_path_entries
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .regex_patterns
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
     }
 
     /// Reset transient run state so the next ``analyse`` call
     /// starts from a clean slate.  Called at the end of every
     /// public entry point (``analyse`` / ``analyse_chunked`` /
     /// ``analyse_commands``).
-    fn clear_run_state(&mut self) {
+    pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
         self.line_offsets = None;
+        self.defer_proc_bodies = false;
+        self.deferred_bodies.clear();
     }
 }
 

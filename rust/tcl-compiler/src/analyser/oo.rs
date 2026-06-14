@@ -167,7 +167,17 @@ impl Analyser {
             }
             self.define_var(base, mb.body_tok, &method_path, false, None);
         }
-        self.analyse_body(&mb.body_text, mb.body_tok, &method_path);
+        // Per-item shell pass: defer the method body (scope created above) for
+        // a second isolated pass, matching `handle_proc_command`.
+        if self.defer_proc_bodies {
+            self.deferred_bodies.push(super::per_item::DeferredBody {
+                body_text: mb.body_text.clone(),
+                body_tok: mb.body_tok,
+                scope_path: method_path,
+            });
+        } else {
+            self.analyse_body(&mb.body_text, mb.body_tok, &method_path);
+        }
     }
 
     /// Detect dispatch shape of a user-defined ``unknown`` proc.
