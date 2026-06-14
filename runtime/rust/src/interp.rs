@@ -517,7 +517,22 @@ pub struct InterpState {
     /// the coroutine's saved execution context (swapped in/out on resume/yield)
     /// and the handoff channels to its worker thread (`cmd_coro`).
     coros: RefCell<std::collections::BTreeMap<Vec<u8>, crate::cmd_coro::CoroEntry>>,
+    /// The active ensemble-rewrite, if any (C's `iPtr->ensembleRewrite`): the
+    /// original command words a forward / ensemble / constructor dispatch
+    /// replaced, so a downstream `wrong # args` can report the call as the user
+    /// wrote it. `removed` is how many leading words of `source` map to the
+    /// rewritten prefix. Set at the root dispatch, cleared when it returns.
+    ensemble_rewrite: RefCell<Option<EnsembleRewrite>>,
     result: Cell<*mut TclObj>,
+}
+
+/// An ensemble-rewrite record (see `InterpState::ensemble_rewrite`).
+#[derive(Clone)]
+pub(crate) struct EnsembleRewrite {
+    /// The original command words (e.g. `foo test 1 2 3`).
+    pub source: Vec<Vec<u8>>,
+    /// How many leading `source` words the rewritten prefix stands in for.
+    pub removed: usize,
 }
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -558,6 +573,7 @@ impl Interp {
             bg_queue: RefCell::new(Vec::new()),
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
             coros: RefCell::new(std::collections::BTreeMap::new()),
+            ensemble_rewrite: RefCell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -833,6 +849,31 @@ impl Interp {
     /// The current namespace (the eval context) — for the `namespace` builtin.
     pub(crate) fn current_ns(&self) -> NsId {
         self.current_ns.get()
+    }
+
+    /// Begin an ensemble-rewrite (a forward / ensemble / constructor replacing
+    /// the original command words). Returns `true` if this is the *root* rewrite
+    /// (no rewrite was active) — the caller must `clear_ensemble_rewrite` when
+    /// its dispatch returns. A nested rewrite is ignored (the root's `source` is
+    /// what `wrong # args` reports), matching the common case of C's
+    /// `TclInitRewriteEnsemble` chaining.
+    pub(crate) fn begin_ensemble_rewrite(&self, source: Vec<Vec<u8>>, removed: usize) -> bool {
+        let mut rw = self.ensemble_rewrite.borrow_mut();
+        if rw.is_some() {
+            return false;
+        }
+        *rw = Some(EnsembleRewrite { source, removed });
+        true
+    }
+
+    /// Clear the active ensemble-rewrite (paired with a root `begin_…`).
+    pub(crate) fn clear_ensemble_rewrite(&self) {
+        *self.ensemble_rewrite.borrow_mut() = None;
+    }
+
+    /// The active ensemble-rewrite, if any.
+    pub(crate) fn ensemble_rewrite(&self) -> Option<EnsembleRewrite> {
+        self.ensemble_rewrite.borrow().clone()
     }
 
     /// The namespace tree (read) — for the `namespace` builtin's queries. The
@@ -3115,7 +3156,7 @@ impl Interp {
         let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&proc_usage(usage, params));
+            return self.error(&self.proc_wrong_args(usage, params, supplied));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth.get() >= RECURSION_LIMIT {
@@ -3171,7 +3212,7 @@ impl Interp {
                 self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&proc_usage(usage, params));
+                return self.error(&self.proc_wrong_args(usage, params, supplied));
             };
             if stored.is_err() {
                 self.frames.borrow_mut().pop();
@@ -3623,6 +3664,68 @@ impl Interp {
 /// The `wrong # args: should be "name p1 ?p2? ?arg ...?"` message for a proc
 /// call — required params bare, defaulted params `?p?`, the `args` catch-all
 /// `?arg ...?` (mirrors C's `Tcl_WrongNumArgs` for procs).
+impl Interp {
+    /// The `wrong # args` message for a proc/method, applying any active
+    /// ensemble-rewrite so the call is reported as the user wrote it (C's
+    /// `Tcl_WrongNumArgs` rewrite path). When a rewrite is active and all the
+    /// inserted words are accounted for, the leading `removed` words of the
+    /// original `source` replace the rewritten prefix, and the formal parameters
+    /// already satisfied by the inserted arguments are dropped.
+    pub(crate) fn proc_wrong_args(
+        &self,
+        called: &[u8],
+        params: &[Param],
+        supplied: usize,
+    ) -> Vec<u8> {
+        if let Some(rw) = self.ensemble_rewrite() {
+            // How many trailing words of `source` were the user's own arguments,
+            // and how many formal parameters the inserted prefix already filled.
+            let user_args = rw.source.len().saturating_sub(rw.removed);
+            let drop = supplied.saturating_sub(user_args);
+            // Only rewrite when the dropped parameters are actually present (C's
+            // `objc < toSkip` guard); otherwise fall back to the plain message.
+            if drop <= params.len() {
+                let prefix: Vec<&[u8]> = rw
+                    .source
+                    .iter()
+                    .take(rw.removed)
+                    .map(Vec::as_slice)
+                    .collect();
+                return proc_usage_words(&prefix, &params[drop..], params);
+            }
+        }
+        proc_usage(called, params)
+    }
+}
+
+/// Build a `wrong # args` message from explicit leading `words` followed by the
+/// formal `shown` parameters (`all` is the full parameter list, for the `args`
+/// catch-all test). Shared by the plain and ensemble-rewritten forms.
+fn proc_usage_words(words: &[&[u8]], shown: &[Param], all: &[Param]) -> Vec<u8> {
+    let mut m = b"wrong # args: should be \"".to_vec();
+    for (i, w) in words.iter().enumerate() {
+        if i > 0 {
+            m.push(b' ');
+        }
+        m.extend_from_slice(w);
+    }
+    let last_is_args = all.last().is_some_and(|p| p.name == b"args");
+    for p in shown {
+        m.push(b' ');
+        if last_is_args && std::ptr::eq(p, all.last().unwrap()) {
+            m.extend_from_slice(b"?arg ...?");
+        } else if p.default.is_some() {
+            m.push(b'?');
+            m.extend_from_slice(&p.name);
+            m.push(b'?');
+        } else {
+            m.extend_from_slice(&p.name);
+        }
+    }
+    m.push(b'"');
+    m
+}
+
 fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
     let mut m = b"wrong # args: should be \"".to_vec();
     m.extend_from_slice(called);

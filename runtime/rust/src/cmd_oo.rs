@@ -5468,17 +5468,25 @@ impl Interp {
                 unsafe { obj::incr_ref_count(a) };
                 new_argv.push(a);
             }
-            // The method this forward leads to reports `wrong # args` against the
-            // *original* invocation (`obj method`), not the forwarded command
-            // (C's ensemble rewrite). Install it for the next method body.
-            let mut fwd = if external {
+            // The method this forward (possibly via a chain of forwards /
+            // ensembles) leads to reports `wrong # args` against the *original*
+            // invocation, not the forwarded command (C's ensemble rewrite). The
+            // first forward in the chain is the root: record the invocation words
+            // (`obj method ?args...?`); a downstream `wrong # args` rewrites
+            // against them. `fwd_usage` keeps the simple single-step prefix for
+            // the immediate next body's `info`-level naming.
+            let head = if external {
                 object_display(obj)
             } else {
                 b"my".to_vec()
             };
+            let mut fwd = head.clone();
             fwd.push(b' ');
             fwd.extend_from_slice(target);
             self.oo.borrow_mut().fwd_usage = Some(fwd);
+            let mut source = vec![head, target.to_vec()];
+            source.extend(args.iter().map(|&a| obj_bytes(a)));
+            let is_root = self.begin_ensemble_rewrite(source, 2);
             self.oo.borrow_mut().call_stack.push(OoFrame {
                 object: obj.to_vec(),
                 chain,
@@ -5488,6 +5496,9 @@ impl Interp {
             });
             let code = self.dispatch(&new_argv);
             self.oo.borrow_mut().call_stack.pop();
+            if is_root {
+                self.clear_ensemble_rewrite();
+            }
             // Clear the rewrite if the forwarded command was not a method body
             // (which would have consumed it).
             self.oo.borrow_mut().fwd_usage = None;
