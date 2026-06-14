@@ -149,6 +149,12 @@ struct Object {
 struct CallStep {
     provider: Vec<u8>,
     method: Vec<u8>,
+    /// Whether this step resolves against the *object* facet of `provider`
+    /// (its per-object methods) rather than the *class* facet (its instance
+    /// methods). Normally `provider == object`, but a class mixed into its own
+    /// instance (`self mixin <self>`) contributes both facets as distinct steps,
+    /// so the facet can't be re-derived from the name alone (oo-13.7/23.1/41.2).
+    is_object: bool,
 }
 
 /// One active method invocation (for `self` / `my` / `next`).
@@ -4423,6 +4429,7 @@ impl Interp {
             .iter()
             .filter(|c| self.class_has_ctor(c) || (is_metaclass && c.as_slice() == b"::oo::class"))
             .map(|c| CallStep {
+                is_object: c.as_slice() == fqn,
                 provider: c.clone(),
                 method: Vec::new(),
             })
@@ -4499,7 +4506,7 @@ impl Interp {
             .last()
             .is_some_and(|f| f.object.as_slice() == obj);
         let enforce = external && !caller_is_self;
-        let providers = self.method_chain(obj);
+        let providers = self.method_chain_faceted(obj);
         // An `export` of the method anywhere in the chain (e.g. on the object)
         // makes every step callable, overriding a class-level unexport.
         let exported_anywhere = self.method_exported(obj, method);
@@ -4522,8 +4529,8 @@ impl Interp {
         // skipped.
         let mut steps: Vec<CallStep> = providers
             .iter()
-            .filter(|p| {
-                let is_obj = p.as_slice() == obj;
+            .filter(|(p, is_obj)| {
+                let is_obj = *is_obj;
                 if !self.oo_has_method(p, method, is_obj) {
                     return false;
                 }
@@ -4533,9 +4540,10 @@ impl Interp {
                 }
                 !(enforce && !exported_anywhere && self.method_unexported(p, method, is_obj))
             })
-            .map(|p| CallStep {
+            .map(|(p, is_obj)| CallStep {
                 provider: p.clone(),
                 method: method.to_vec(),
+                is_object: *is_obj,
             })
             .collect();
         // A caller-scope private shadows any public override further down the
@@ -4605,7 +4613,7 @@ impl Interp {
             let code = if (method != b"unknown" || external)
                 && providers
                     .iter()
-                    .any(|p| self.oo_has_method(p, b"unknown", p.as_slice() == obj))
+                    .any(|(p, is_obj)| self.oo_has_method(p, b"unknown", *is_obj))
             {
                 let head = obj::new_string_bytes(method);
                 unsafe { obj::incr_ref_count(head) };
@@ -4752,7 +4760,7 @@ impl Interp {
 
     /// The active filter steps for `obj` (object filters, then class filters
     /// along the MRO), each resolved to the chain provider defining it.
-    fn active_filters(&self, obj: &[u8], providers: &[Vec<u8>]) -> Vec<CallStep> {
+    fn active_filters(&self, obj: &[u8], providers: &[(Vec<u8>, bool)]) -> Vec<CallStep> {
         let mut names: Vec<Vec<u8>> = Vec::new();
         let add = |n: &Vec<u8>, names: &mut Vec<Vec<u8>>| {
             if !names.contains(n) {
@@ -4764,7 +4772,7 @@ impl Interp {
                 add(f, &mut names);
             }
         }
-        for p in providers {
+        for (p, _) in providers {
             if let Some(c) = self.oo.borrow().classes.get(p) {
                 for f in &c.filters {
                     add(f, &mut names);
@@ -4780,10 +4788,11 @@ impl Interp {
             .flat_map(|fname| {
                 providers
                     .iter()
-                    .filter(|p| self.oo_has_method(p, fname, p.as_slice() == obj))
-                    .map(|p| CallStep {
+                    .filter(|(p, is_obj)| self.oo_has_method(p, fname, *is_obj))
+                    .map(|(p, is_obj)| CallStep {
                         provider: p.clone(),
                         method: fname.clone(),
+                        is_object: *is_obj,
                     })
                     .collect::<Vec<_>>()
             })
@@ -4799,24 +4808,42 @@ impl Interp {
     /// from them, matching C's `TclOOComputePrecedenceList` / call-chain order
     /// (oo-21.x C3 ordering, oo-14.x mixins).
     fn method_chain(&self, obj: &[u8]) -> Vec<Vec<u8>> {
+        self.method_chain_faceted(obj)
+            .into_iter()
+            .map(|(p, _)| p)
+            .collect()
+    }
+
+    /// Like [`method_chain`] but each provider is tagged with its facet
+    /// (`is_object`): the object's own methods vs a class's instance methods.
+    /// The object facet and a self-mixed class facet share the FQN but are
+    /// distinct steps, so the dedup keeps each `(provider, facet)` pair (not
+    /// just each name) — needed to dispatch a `self mixin <self>` method.
+    fn method_chain_faceted(&self, obj: &[u8]) -> Vec<(Vec<u8>, bool)> {
         let (obj_mixins, cls) = {
             let oo = self.oo.borrow();
             match oo.objects.get(obj) {
                 Some(o) => (o.mixins.clone(), Some(o.class.clone())),
-                None => return vec![obj.to_vec()],
+                None => return vec![(obj.to_vec(), true)],
             }
         };
-        let mut seq: Vec<Vec<u8>> = Vec::new();
+        let mut seq: Vec<(Vec<u8>, bool)> = Vec::new();
         let mut path: Vec<Vec<u8>> = Vec::new();
+        // Mixins and the class hierarchy contribute *class*-facet steps; the
+        // object itself sits between the object mixins and its class chain.
         for mx in &obj_mixins {
-            self.linearize_class(mx, &mut seq, &mut path);
+            let mut tmp: Vec<Vec<u8>> = Vec::new();
+            self.linearize_class(mx, &mut tmp, &mut path);
+            seq.extend(tmp.into_iter().map(|c| (c, false)));
         }
-        seq.push(obj.to_vec());
+        seq.push((obj.to_vec(), true));
         if let Some(cls) = cls {
-            self.linearize_class(&cls, &mut seq, &mut path);
+            let mut tmp: Vec<Vec<u8>> = Vec::new();
+            self.linearize_class(&cls, &mut tmp, &mut path);
+            seq.extend(tmp.into_iter().map(|c| (c, false)));
         }
-        // Keep each provider at its last occurrence (drop earlier duplicates).
-        let mut chain: Vec<Vec<u8>> = Vec::with_capacity(seq.len());
+        // Keep each (provider, facet) at its last occurrence (drop earlier dups).
+        let mut chain: Vec<(Vec<u8>, bool)> = Vec::with_capacity(seq.len());
         for (i, c) in seq.iter().enumerate() {
             if !seq[i + 1..].iter().any(|x| x == c) {
                 chain.push(c.clone());
@@ -5254,8 +5281,9 @@ impl Interp {
     ) -> Code {
         let prov = chain[index].provider.clone();
         let method = chain[index].method.clone();
-        // Object-vs-class resolution is by identity (a class is in both maps).
-        let is_object = prov == obj;
+        // Object-vs-class facet of this step (a class mixed into its own instance
+        // contributes both, so use the step's recorded facet, not `prov == obj`).
+        let is_object = chain[index].is_object;
         // The `::oo::class` synthetic constructor: instantiating a metaclass
         // runs the (optional) definition-script argument on the new class. C's
         // `oo::class` constructor is `{{definitionScript ""}}`.
@@ -5622,6 +5650,7 @@ impl Interp {
                     .is_some_and(|cl| cl.destructor.is_some())
             })
             .map(|c| CallStep {
+                is_object: c.as_slice() == obj,
                 provider: c,
                 method: b"<destructor>".to_vec(),
             })
