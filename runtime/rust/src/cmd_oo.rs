@@ -2975,6 +2975,15 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let Some(class) = class else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
+            // Two-arg form `info object class obj className`: a membership test —
+            // whether `className` is in the object's precedence (its class MRO +
+            // mixins), like `info object isa typeof` (C's `InfoObjectClassCmd`).
+            if let Some(&want_arg) = argv.get(4) {
+                let want = interp.oo_resolve_object(&obj_bytes(want_arg));
+                let yes = interp.method_chain(&obj).iter().skip(1).any(|p| *p == want);
+                interp.set_result_bytes(if yes { b"1" } else { b"0" });
+                return Code::Ok;
+            }
             interp.set_result(obj::new_string_bytes(&class));
             Code::Ok
         }
