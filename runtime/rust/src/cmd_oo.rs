@@ -4017,7 +4017,14 @@ impl Interp {
             let mut inner = b"in definition script for ".to_vec();
             inner.extend_from_slice(kind);
             inner.extend_from_slice(b" \"");
-            inner.extend_from_slice(&current);
+            // The name is quoted and truncated to 30 bytes (`...` on overflow),
+            // matching C's `OBJNAME_LENGTH_IN_ERRORINFO_LIMIT`.
+            if current.len() > 30 {
+                inner.extend_from_slice(&current[..30]);
+                inner.extend_from_slice(b"...");
+            } else {
+                inner.extend_from_slice(&current);
+            }
             inner.push(b'"');
             self.append_frame_line(&inner);
             // A frame boundary: let the enclosing `oo::define`/`oo::class create`
