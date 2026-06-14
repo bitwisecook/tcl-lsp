@@ -81,15 +81,17 @@ of the underlying Rust engine**, not by the CLI code:
 
 ## `f5` verb status
 
-The BIG-IP **object model + config parser** are ported (`tcl-bigip`), but **every
-analysis/emit engine is still Python-only** (`dialects/f5/bigip/*`,
-`dialects/f5/query/*`). So apart from `completion`, no f5 verb is wireable yet.
+The BIG-IP **object model + config parser** are ported (`tcl-bigip`), but most
+**analysis/emit engines are still Python-only** (`dialects/f5/bigip/*`,
+`dialects/f5/query/*`). The verbs needing only file I/O + the existing parser
+helpers are done; the rest await engine ports.
 
-- `completion` — ✅ idiomatic (clap_complete).
-- Everything else (`stats`, `cleanup`, `grep`, `diff`, `validate`, `explain`,
-  `graph`, `tmsh`, `convert`, `split`, `merge`, `rename`, `redact`/`unredact`,
-  `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`,
-  `registry-dump`, the `irule` group) — ⛔ stub, pending engine ports.
+| Verb | Status | Notes |
+|---|---|---|
+| `completion` | ✅ idiomatic | clap_complete |
+| `merge` | ✅ byte-parity (scf) | golden-tested; tmsh deferred |
+| `split` | ✅ byte-parity (scf) | uses `extract_blocks`/`parse_generic_header`; round-trip golden-tested; tmsh deferred |
+| `stats`, `cleanup`, `grep`, `diff`, `validate`, `explain`, `graph`, `tmsh`, `convert`, `rename`, `redact`/`unredact`, `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `registry-dump`, `irule` group | ⛔ stub | pending engine ports |
 
 **Keystone:** the BIG-IP **reference graph** (`build_bigip_object_graph` /
 `dialects/f5/bigip/irules_object_refs.py`, ~944 LOC). `stats`, `cleanup`, `grep`,
