@@ -20,6 +20,9 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+mod walker;
+pub use walker::{extract_irules_object_references, IrulesObjectReference};
+
 mod specs {
     use super::Deserialize;
 
