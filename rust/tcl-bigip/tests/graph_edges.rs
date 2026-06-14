@@ -1,9 +1,9 @@
-//! Differential parity for the full BIG-IP graph edge walk on a realistic
-//! `bigip.conf` against `_build_forward_edges` — the pilot value-spec dispatch
-//! plus the legacy token-scan fallback, with only the iRule path disabled (it
-//! lands in a later increment). Companion to `graph_pilot.rs`, which exercises
-//! the compound pilot specs on a synthetic fixture; this pins the combined
-//! pilot+legacy walk on real config. Self-contained — no Python at test time.
+//! Differential parity for the **complete** BIG-IP graph edge walk on a
+//! realistic `bigip.conf` against `_build_forward_edges` — the pilot value-spec
+//! dispatch, the legacy token-scan fallback, AND the iRule body walker.
+//! Companion to `graph_pilot.rs`, which exercises the compound pilot specs on a
+//! synthetic fixture; this pins the full walk on real config. Self-contained —
+//! no Python at test time.
 //!
 //! The Rust walk reproduces every Python edge, plus a small frozen set of
 //! *extra* edges (`graph_edges.drift.txt`) caused by registry-**data** drift:

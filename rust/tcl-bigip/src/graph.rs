@@ -2,13 +2,15 @@
 //! `dialects/f5/bigip/link_extract.py`.
 //!
 //! Builds the node/edge graph that `f5 stats` / `cleanup` / `grep` / `validate`
-//! / `graph` / `rename` all consume. This module owns the **node** half
-//! (`_build_objects_for_source`): every stanza in a source becomes an
-//! [`ObjectNode`] with a stable `node_id`, its `(module, object_type,
-//! identifier)`, resolved registry `kind`, and source [`Range`]. The forward
-//! reference **edges** (the config-resolving + registry/pilot reference walk)
-//! land alongside it as the port progresses.
+//! / `graph` / `rename` all consume. Every stanza becomes an [`ObjectNode`]
+//! (`_build_objects_for_source`) with a stable `node_id`, its `(module,
+//! object_type, identifier)`, resolved registry `kind`, and source [`Range`].
+//! The forward reference **edges** ([`build_bigip_object_graph`]) combine three
+//! passes per the Python `_build_forward_edges`: the registry-first pilot
+//! value-spec dispatch, the legacy token-scan fallback, and — for `ltm`/`gtm`
+//! rule bodies — the iRule object-reference walker (`tcl-irules`).
 
+use tcl_irules::extract_irules_object_references;
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::default_registry;
 use tcl_registry::BigipRegistry;
@@ -49,21 +51,30 @@ pub struct ObjectNode {
     pub range: Range,
 }
 
-/// A graph-building context: the BIG-IP registry + the object-type header index,
-/// built once and reused across sources.
+/// A graph-building context: the BIG-IP registry + the object-type header index
+/// + the iRules command registry, built once and reused across sources.
 pub struct GraphContext {
     #[allow(dead_code)]
     registry: BigipRegistry,
     index: ObjectTypeIndex,
+    /// Tcl command registry with the iRules dialect loaded, for the iRule edge
+    /// walker.
+    irules_registry: tcl_registry::CommandRegistry,
 }
 
 impl GraphContext {
-    /// Build the registry + header index once.
+    /// Build the registry + header index + iRules command registry once.
     #[must_use]
     pub fn new() -> Self {
         let registry = BigipRegistry::build();
         let index = ObjectTypeIndex::build(&registry);
-        Self { registry, index }
+        let mut irules_registry = tcl_registry::CommandRegistry::build_default();
+        irules_registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+        Self {
+            registry,
+            index,
+            irules_registry,
+        }
     }
 }
 
@@ -426,6 +437,7 @@ fn build_forward_edges(
     nodes_by_uri: &[(String, Vec<ObjectNode>)],
     configs: &[(String, &BigipConfig)],
     reg: &BigipRegistry,
+    irules_registry: &tcl_registry::CommandRegistry,
 ) -> Vec<ObjectEdge> {
     let mut edges = Vec::new();
     let mut seen: HashSet<(String, String, String, String)> = HashSet::new();
@@ -552,6 +564,37 @@ fn build_forward_edges(
                     }
                 }
             }
+
+            // iRule object references — walk an `ltm`/`gtm` rule body and
+            // resolve every BIG-IP object it names (mirrors the trailing
+            // `extract_irules_object_references` block in `_build_forward_edges`).
+            if matches!(node.module.as_str(), "ltm" | "gtm") && node.object_type == "rule" {
+                for reference in extract_irules_object_references(
+                    &node.body,
+                    Some(&node.module),
+                    irules_registry,
+                ) {
+                    for &kind in &reference.kinds {
+                        if let Some(target_id) = resolve_target_node_id(
+                            kind,
+                            &reference.name,
+                            Some(&node.module),
+                            configs,
+                            &by_range,
+                            nodes_by_uri,
+                            reg,
+                        ) {
+                            push_edge(
+                                &mut edges,
+                                &node.node_id,
+                                target_id,
+                                format!("irule:{}", reference.command),
+                                kind,
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
     edges
@@ -583,7 +626,7 @@ pub fn build_bigip_object_graph(
         nodes_by_uri.push((uri.clone(), build_objects_for_source(uri, source, ctx)));
     }
     let reg = default_registry();
-    let edges = build_forward_edges(&nodes_by_uri, configs, reg);
+    let edges = build_forward_edges(&nodes_by_uri, configs, reg, &ctx.irules_registry);
     ObjectGraph {
         nodes_by_uri,
         edges,
