@@ -3415,17 +3415,39 @@ fn build_call_chain(interp: &Interp, fqn: &[u8], method: &[u8], class: bool) -> 
         .filter(|p| interp.oo_has_method(p, method, is_obj(p)))
         .cloned()
         .collect();
+    // A core built-in (`destroy`/`eval`/`variable`/`varname`) is the terminal
+    // implementation of its name on `oo::object`, so it appears as a chain step
+    // even with no user method (C lists e.g. `{method destroy ::oo::object
+    // {core method: "destroy"}}`). `destroy` is public; the rest are private.
+    let core_builtin: Option<&[u8]> = match method {
+        b"destroy" => Some(b"method"),
+        b"eval" | b"variable" | b"varname" => Some(b"private"),
+        _ => None,
+    };
     if method_steps.is_empty() {
-        for p in &providers {
-            if interp.oo_has_method(p, b"unknown", is_obj(p)) {
+        if let Some(ct) = core_builtin {
+            if providers.iter().any(|p| p.as_slice() == b"::oo::object") {
                 elems.push(call_chain_elem(
                     interp,
-                    b"unknown",
-                    b"unknown",
-                    b"unknown",
-                    p,
-                    is_obj(p),
+                    ct,
+                    method,
+                    method,
+                    b"::oo::object",
+                    false,
                 ));
+            }
+        } else {
+            for p in &providers {
+                if interp.oo_has_method(p, b"unknown", is_obj(p)) {
+                    elems.push(call_chain_elem(
+                        interp,
+                        b"unknown",
+                        b"unknown",
+                        b"unknown",
+                        p,
+                        is_obj(p),
+                    ));
+                }
             }
         }
     } else {
@@ -3468,6 +3490,19 @@ fn call_chain_elem(
 fn method_type_name(interp: &Interp, provider: &[u8], key: &[u8], is_object: bool) -> Vec<u8> {
     if key == b"<constructor>" || key == b"<destructor>" || key.is_empty() {
         return b"method".to_vec();
+    }
+    // The `oo::object` core built-ins are rendered `core method: "NAME"` even
+    // though they are not in the method table (they are dispatched natively).
+    if provider == b"::oo::object"
+        && matches!(
+            key,
+            b"destroy" | b"eval" | b"variable" | b"varname" | b"unknown" | b"<cloned>"
+        )
+    {
+        let mut s = b"core method: \"".to_vec();
+        s.extend_from_slice(key);
+        s.push(b'"');
+        return s;
     }
     let oo = interp.oo.borrow();
     let m = if is_object {
