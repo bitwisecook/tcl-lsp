@@ -6605,6 +6605,28 @@ mod tests {
     }
 
     #[test]
+    fn info_frame_reports_method_context() {
+        leak_free(|i| {
+            // `info frame 0` in a class-defined method reports method + class;
+            // an object-defined method reports method + object (not `proc`).
+            ok(i, b"oo::class create c");
+            ok(i, b"c create i");
+            ok(i, b"oo::define c method m {} { info frame 0 }");
+            ok(i, b"oo::objdefine i method n {} { info frame 0 }");
+            let cm = ok(i, b"c create o; o m");
+            assert!(cm.windows(13).any(|w| w == b"method m clas"));
+            assert!(cm.ends_with(b"class ::c level 0"));
+            let inf = ok(i, b"i n");
+            assert!(inf.ends_with(b"object ::i level 0"));
+            // A plain proc still reports `proc`, not method/class.
+            ok(i, b"proc p {} { info frame 0 }");
+            let pf = ok(i, b"p");
+            assert!(pf.windows(7).any(|w| w == b"proc ::"));
+            assert!(!pf.windows(6).any(|w| w == b"method"));
+        });
+    }
+
+    #[test]
     fn class_destroy_cascades_to_mixin_users() {
         leak_free(|i| {
             // Destroying a class destroys objects that mix it in; an object

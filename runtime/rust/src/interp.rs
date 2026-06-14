@@ -152,6 +152,11 @@ struct CmdFrame {
     /// reported source line (the `line` key).
     cmd: Vec<u8>,
     line: u32,
+    /// TclOO method context for `info frame`: `(method-name, declarer-kind,
+    /// declarer-name)` where kind is `class`/`object`. Present for a method
+    /// body, where C reports `method`/`class`|`object` instead of `proc`.
+    /// `method-name` is empty for a constructor/destructor.
+    oo: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
 }
 
 /// A `CmdFrame`'s location type (`info frame`'s `type` key).
@@ -187,6 +192,7 @@ impl CmdFrame {
             line_base: 0,
             cmd: Vec::new(),
             line: 1,
+            oo: None,
         }
     }
 }
@@ -1927,7 +1933,14 @@ impl Interp {
             pairs.push((b"file".to_vec(), file.to_vec()));
         }
         pairs.push((b"cmd".to_vec(), f.cmd.clone()));
-        if let Some(p) = &f.proc {
+        // A TclOO method frame reports `method`/`class`|`object` (the declarer)
+        // in place of `proc` (C's `TclInfoFrame`).
+        if let Some((method, kind, owner)) = &f.oo {
+            if !method.is_empty() {
+                pairs.push((b"method".to_vec(), method.clone()));
+            }
+            pairs.push((kind.clone(), owner.clone()));
+        } else if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
         // `level` is the distance from the current call level (omitted for a
@@ -2059,6 +2072,7 @@ impl Interp {
             line_base,
             cmd: Vec::new(),
             line: 1,
+            oo: top.and_then(|f| f.oo.clone()),
         }
     }
 
@@ -2924,6 +2938,18 @@ impl Interp {
         // The proc body runs as its own `info frame` level: `type proc` (or
         // `source` if defined in a sourced file), the proc FQN, and the new call
         // level (set after `frames.push`, so `current_level` is the proc's).
+        // A TclOO method body carries its method context for `info frame`
+        // (`method`/`class`|`object`), which displaces the `proc` key.
+        let oo = match &meta.err {
+            ProcFrame::Method { kind, owner, what } => {
+                let method = match what {
+                    MethodFrameWhat::Named(n) => n.to_vec(),
+                    MethodFrameWhat::Constructor | MethodFrameWhat::Destructor => Vec::new(),
+                };
+                Some((method, kind.to_vec(), owner.to_vec()))
+            }
+            _ => None,
+        };
         let proc_frame = CmdFrame {
             kind: if meta.source.is_some() {
                 FrameKind::Source
@@ -2937,6 +2963,7 @@ impl Interp {
             line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
+            oo,
         };
         let code = self.eval_framed(body, proc_frame);
         // The frame's local variables (and any traces on them) die with it.
