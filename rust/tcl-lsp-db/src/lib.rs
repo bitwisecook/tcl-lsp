@@ -157,23 +157,21 @@ pub fn file_decls(db: &dyn salsa::Database, file: SourceFile) -> Arc<FileDecls> 
 }
 
 /// Interned identity of a single `proc` body's isolated analysis — the per-item
-/// firewall's memoisation key (slice 3).  Holds everything
-/// [`analyse_proc_body_isolated`] consumes; equal keys (an unedited body) reuse
-/// the cached [`item_body_analysis`].  `content_start` keys on the body's
-/// absolute offset (offset-invariant rebasing is a follow-up; a same-position
-/// body edit already recomputes only that body).
+/// firewall's memoisation key.  **Offset-invariant**: it holds only what the
+/// offset-0 analysis consumes (body text + enclosing namespace / name / params +
+/// config), *not* the body's position — so a shifted-but-unedited proc has the
+/// same key and reuses the cached [`item_body_analysis`] (the aggregator rebases
+/// the offset-0 facts by the body's real span).
 #[salsa::interned]
 pub struct ItemBodyKey<'db> {
     #[returns(ref)]
     pub body_text: String,
-    pub content_start: u32,
     #[returns(ref)]
     pub namespace: String,
     #[returns(ref)]
     pub scope_name: String,
     #[returns(ref)]
     pub params: Vec<ParamDef>,
-    pub name_span: tcl_lexer::Span,
     #[returns(ref)]
     pub dialect: String,
     #[returns(ref)]
@@ -181,26 +179,25 @@ pub struct ItemBodyKey<'db> {
     pub non_ascii: NonAsciiMode,
 }
 
-/// Memoised isolated analysis of one `proc` body.  A body-only edit changes
-/// only that body's [`ItemBodyKey`], so salsa reuses every other body's result.
+/// Memoised offset-0 isolated analysis of one `proc` body.  A body-only edit
+/// changes only that body's [`ItemBodyKey`], so salsa reuses every other body's
+/// result; an edit that merely *shifts* a body leaves its key unchanged.
 #[salsa::tracked]
 pub fn item_body_analysis<'db>(
     db: &'db dyn salsa::Database,
     key: ItemBodyKey<'db>,
 ) -> Arc<BodyFragment> {
-    let body_text = key.body_text(db).clone();
-    let content_start = key.content_start(db);
-    #[allow(clippy::cast_possible_truncation)]
-    let span = tcl_lexer::Span::new(content_start, content_start + body_text.len() as u32);
+    // The isolated analysis works at offset 0 and ignores `body_tok` / scope
+    // path (the aggregator supplies the real position when grafting), so a
+    // placeholder token is fine.
     let body = DeferredBody {
-        body_text,
-        body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, span),
+        body_text: key.body_text(db).clone(),
+        body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
         is_method: false,
         namespace: key.namespace(db).clone(),
         scope_name: key.scope_name(db).clone(),
         params: key.params(db).clone(),
-        name_span: key.name_span(db),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
     let overlay = tcl_compiler::analyser::types::build_stub_overlay(&[]);
@@ -231,15 +228,12 @@ pub fn file_analysis_incremental(
     let mut analyser = Analyser::with_disabled_diagnostics(disabled_vec.iter().cloned().collect())
         .with_non_ascii_mode(non_ascii);
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
-        let content_start = body.body_tok.span.start() + u32::from(body.body_tok.content_offset);
         let key = ItemBodyKey::new(
             db,
             body.body_text.clone(),
-            content_start,
             body.namespace.clone(),
             body.scope_name.clone(),
             body.params.clone(),
-            body.name_span,
             dialect.clone(),
             disabled_vec.clone(),
             non_ascii,
@@ -438,9 +432,11 @@ mod tests {
             "initial: both bodies analysed: {init:?}"
         );
 
-        // Edit proc a's body, keeping length (so b's offset is unchanged).
+        // Edit proc a's body, *changing its length* — this shifts proc b's
+        // byte offset.  Offset-invariance means b's key (its body text) is
+        // unchanged, so it stays a cache hit and only a recomputes.
         file.set_text(&mut db)
-            .to("proc a {} { set x 99999 }\nproc b {} { set y 22222 }\n".to_owned());
+            .to("proc a {} { set x 9999999999 }\nproc b {} { set y 22222 }\n".to_owned());
         let _ = file_analysis_incremental(&db, file, cfg);
         let after = std::mem::take(&mut *log.lock().unwrap());
         assert_eq!(
@@ -449,7 +445,7 @@ mod tests {
                 .filter(|s| s.contains("item_body_analysis"))
                 .count(),
             1,
-            "body edit -> exactly ONE item_body_analysis recomputes: {after:?}"
+            "length-changing body edit -> exactly ONE item recomputes (offset-invariant): {after:?}"
         );
     }
 }

@@ -289,6 +289,7 @@ impl Analyser {
     /// and the user-defined ``unknown`` proc detection from
     /// `_proc.py` are deferred to **C41d** / future strips —
     /// this strip is structural only.
+    #[allow(clippy::too_many_lines)]
     pub fn handle_proc_command(
         &mut self,
         cmd_name: &str,
@@ -463,7 +464,6 @@ impl Analyser {
                     namespace: ns_prefix.clone(),
                     scope_name: raw_name.clone(),
                     params: params.clone(),
-                    name_span,
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);

@@ -57,9 +57,6 @@ pub struct DeferredBody {
     pub scope_name: String,
     /// The proc's declared parameters (locals in the body). (Proc bodies only.)
     pub params: Vec<crate::signature_scan::types::ParamDef>,
-    /// Span the proc anchors its parameter definitions to (the proc-name token),
-    /// so the isolated analysis records identical param `VarDef`s. (Proc only.)
-    pub name_span: tcl_lexer::Span,
 }
 
 impl Analyser {
@@ -189,13 +186,24 @@ impl Analyser {
         result
     }
 
-    /// Graft an isolated proc body's facts (`frag`) into `self` (the shell):
-    /// replace the empty proc scope's contents and union the flat maps / vecs /
-    /// walk-state.  Order is canonicalised by the tail, so plain extend is fine.
-    fn graft_proc_body(&mut self, db: &DeferredBody, frag: BodyFragment) {
+    /// Graft an isolated (offset-0) proc body's facts into `self` (the shell):
+    /// **rebase** every span by the body's real position, then merge.  The shell
+    /// already holds the params (with their real name-span), so variables are
+    /// merge-or-inserted (an existing key is a param → keep its def span, add the
+    /// body's reads; a new key is a body local → insert).  Order is canonicalised
+    /// by the tail, so plain `extend` is fine for the rest.
+    fn graft_proc_body(&mut self, db: &DeferredBody, mut frag: BodyFragment) {
+        // Rebase: body facts are relative to the body content start.
+        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset);
+        let line_delta = self
+            .line_offsets
+            .as_deref()
+            .map_or(0, |lo| super::state::line_at_offset(lo, delta as usize));
+        rebase_fragment(&mut frag, delta, line_delta);
+
         if let Some(ps) = super::scope::scope_at_mut(&mut self.result.global_scope, &db.scope_path)
         {
-            ps.variables = frag.proc_scope.variables;
+            merge_scope_vars(&mut ps.variables, frag.proc_scope.variables);
             ps.procs = frag.proc_scope.procs;
             ps.classes = frag.proc_scope.classes;
             ps.children = frag.proc_scope.children;
@@ -203,7 +211,7 @@ impl Analyser {
         let r = frag.result;
         self.result.all_procs.extend(r.all_procs);
         self.result.all_classes.extend(r.all_classes);
-        self.result.all_variables.extend(r.all_variables);
+        merge_scope_vars(&mut self.result.all_variables, r.all_variables);
         self.result.command_aliases.extend(r.command_aliases);
         self.result.instance_classes.extend(r.instance_classes);
         self.result.diagnostics.extend(r.diagnostics);
@@ -246,12 +254,13 @@ pub struct BodyFragment {
     cmd_sites: Vec<super::state::CmdCommandSite>,
 }
 
-/// Analyse one `proc` body as an isolated unit — a pure function of
-/// `(offset, body_text, namespace, params)` (slice 3 memoises this).  The body
-/// is walked at its real absolute offset (the source is space-padded up to that
-/// offset so the handlers' span re-slicing stays in range, and the proc's
-/// enclosing namespace + params are reconstructed) so the facts need no
-/// rebasing.  Offset-invariant memoisation (offset-0 + rebase) is a follow-up.
+/// Analyse one `proc` body as an isolated unit at **offset 0** — a pure
+/// function of `(body_text, namespace, scope_name, params)`, so a
+/// shifted-but-unedited proc is a cache hit (offset-invariant).  The enclosing
+/// namespace + params are reconstructed; params get a placeholder definition
+/// span (the aggregator keeps the shell's real one).  Spans/lines are relative
+/// to the body start; [`Analyser::graft_proc_body`] rebases them by the body's
+/// real position.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn analyse_proc_body_isolated(
@@ -266,13 +275,14 @@ pub fn analyse_proc_body_isolated(
         Analyser::with_disabled_diagnostics(disabled.clone()).with_non_ascii_mode(non_ascii);
     a.dialect = dialect.to_string();
     a.stub_overlay = stub_overlay;
-    // `analyse_body` segments `body_text` at `span.start() + content_offset`
-    // (skipping the opening `{`), so place the content there in the padded
-    // source for the handlers' absolute span re-slicing to line up.
-    let abs = db.body_tok.span.start() as usize + db.body_tok.content_offset as usize;
-    let mut src = " ".repeat(abs);
-    src.push_str(&db.body_text);
-    a.source = src;
+    // Offset 0: the body content is the whole source; a synthetic `Str` body
+    // token spans it with `content_offset = 0` (no `{` to skip).
+    a.source.clone_from(&db.body_text);
+    #[allow(clippy::cast_possible_truncation)]
+    let body_tok = Token::new(
+        tcl_lexer::TokenType::Str,
+        tcl_lexer::Span::new(0, db.body_text.len() as u32),
+    );
     let mut registry = CommandRegistry::build_default();
     if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
         registry.load_dialect(d);
@@ -281,11 +291,12 @@ pub fn analyse_proc_body_isolated(
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
     let proc_path =
         reconstruct_proc_scope(&mut a.result.global_scope, &db.namespace, &db.scope_name);
-    let dummy = Token::new(tcl_lexer::TokenType::Str, db.name_span);
+    let placeholder = tcl_lexer::Span::new(0, 0);
+    let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
     for p in &db.params {
-        a.define_var(&p.name, dummy, &proc_path, false, Some(db.name_span));
+        a.define_var(&p.name, dummy, &proc_path, false, Some(placeholder));
     }
-    a.analyse_body(&db.body_text, db.body_tok, &proc_path);
+    a.analyse_body(&db.body_text, body_tok, &proc_path);
     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
         .expect("reconstructed proc scope")
         .clone();
@@ -296,6 +307,148 @@ pub fn analyse_proc_body_isolated(
         pending_arity: a.pending_arity,
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
+    }
+}
+
+/// Merge body-derived variables into a scope/`all_variables` map: an existing
+/// key is a param the shell already recorded (keep its real definition span;
+/// add the body's reads / warn flag / array indices); a new key is a body local
+/// (insert).
+fn merge_scope_vars(
+    dst: &mut std::collections::HashMap<String, super::types::VarDef>,
+    src: std::collections::HashMap<String, super::types::VarDef>,
+) {
+    for (k, v) in src {
+        if let Some(existing) = dst.get_mut(&k) {
+            existing.references.extend(v.references);
+            existing.warn_if_unused |= v.warn_if_unused;
+            existing.array_indices.extend(v.array_indices);
+        } else {
+            dst.insert(k, v);
+        }
+    }
+}
+
+fn shift(s: tcl_lexer::Span, d: u32) -> tcl_lexer::Span {
+    tcl_lexer::Span::new(s.start() + d, s.end() + d)
+}
+
+fn rebase_vardef(v: &mut super::types::VarDef, d: u32) {
+    v.definition_span = shift(v.definition_span, d);
+    for r in &mut v.references {
+        *r = shift(*r, d);
+    }
+}
+
+fn rebase_proc(p: &mut super::types::ProcDef, d: u32) {
+    p.name_span = shift(p.name_span, d);
+    p.body_span = shift(p.body_span, d);
+}
+
+fn rebase_method(m: &mut super::types::MethodDef, d: u32) {
+    m.name_span = shift(m.name_span, d);
+    m.body_span = shift(m.body_span, d);
+}
+
+fn rebase_class(c: &mut super::types::ClassDef, d: u32) {
+    c.name_span = shift(c.name_span, d);
+    c.body_span = shift(c.body_span, d);
+    for m in c.methods.values_mut().chain(c.class_methods.values_mut()) {
+        rebase_method(m, d);
+    }
+    for m in &mut c.constructors {
+        rebase_method(m, d);
+    }
+    if let Some(m) = &mut c.destructor {
+        rebase_method(m, d);
+    }
+    for (_, sp) in c.superclass_refs.iter_mut().chain(c.mixin_refs.iter_mut()) {
+        *sp = shift(*sp, d);
+    }
+    for p in c.properties.values_mut() {
+        p.name_span = shift(p.name_span, d);
+    }
+}
+
+fn rebase_diag(diag: &mut super::types::Diagnostic, d: u32) {
+    diag.span = shift(diag.span, d);
+    for f in &mut diag.fixes {
+        f.span = shift(f.span, d);
+    }
+}
+
+fn rebase_scope(s: &mut super::types::Scope, d: u32) {
+    if let Some(bs) = &mut s.body_span {
+        *bs = shift(*bs, d);
+    }
+    for v in s.variables.values_mut() {
+        rebase_vardef(v, d);
+    }
+    for p in s.procs.values_mut() {
+        rebase_proc(p, d);
+    }
+    for c in s.classes.values_mut() {
+        rebase_class(c, d);
+    }
+    for ch in &mut s.children {
+        rebase_scope(ch, d);
+    }
+}
+
+/// Shift every span in an offset-0 body fragment to the body's real position
+/// (`d` bytes; suppressed-line keys by `line_delta` lines).  E2 (offset-shift
+/// invariance) guarantees this reproduces an in-place walk exactly.
+fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
+    rebase_scope(&mut frag.proc_scope, d);
+    let r = &mut frag.result;
+    for p in r.all_procs.values_mut() {
+        rebase_proc(p, d);
+    }
+    for c in r.all_classes.values_mut() {
+        rebase_class(c, d);
+    }
+    for v in r.all_variables.values_mut() {
+        rebase_vardef(v, d);
+    }
+    for diag in &mut r.diagnostics {
+        rebase_diag(diag, d);
+    }
+    for inv in &mut r.command_invocations {
+        inv.range = shift(inv.range, d);
+    }
+    for x in &mut r.package_requires {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.package_provides {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.source_targets {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.namespace_imports {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.auto_path_entries {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.regex_patterns {
+        x.range = shift(x.range, d);
+    }
+    if !r.suppressed_lines.is_empty() {
+        let old = std::mem::take(&mut r.suppressed_lines);
+        for (line, codes) in old {
+            let nl = if line < 0 { line } else { line + line_delta };
+            r.suppressed_lines.entry(nl).or_default().extend(codes);
+        }
+    }
+    for (_, _, _, diag) in &mut frag.pending_arity {
+        rebase_diag(diag, d);
+    }
+    for s in &mut frag.var_sites {
+        s.cmd_span = shift(s.cmd_span, d);
+    }
+    for s in &mut frag.cmd_sites {
+        s.cmd_span = shift(s.cmd_span, d);
     }
 }
 

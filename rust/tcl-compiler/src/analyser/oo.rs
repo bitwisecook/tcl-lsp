@@ -180,7 +180,6 @@ impl Analyser {
                 namespace: String::new(),
                 scope_name: String::new(),
                 params: Vec::new(),
-                name_span: tcl_lexer::Span::new(0, 0),
             });
         } else {
             self.analyse_body(&mb.body_text, mb.body_tok, &method_path);
