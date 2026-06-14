@@ -88,6 +88,11 @@ pub struct Word<'s> {
     /// Preceded by a `{*}` argument-expansion marker (Tcl 8.5+).
     pub expand: bool,
     pub body: WordBody<'s>,
+    /// Byte offset of the word's first token in `src` — used to compute the
+    /// word's source line (TIP 280 argument-line tracking), e.g. so a method /
+    /// proc body defined on a later line than its command reports file-absolute
+    /// `info frame` lines.
+    pub start: usize,
 }
 
 /// One parsed command: its words and where to resume parsing the next command.
@@ -418,6 +423,7 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             kind: WordKind::Braced,
             expand,
             body: WordBody::Literal(token_content(sm, src, toks[0])),
+            start: toks[0].span.start() as usize,
         };
     }
     // Quoted iff the word opens with `"`. `in_quote` is unreliable for this (the
@@ -460,6 +466,7 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             kind,
             expand,
             body: WordBody::Literal(b""),
+            start: toks[0].span.start() as usize,
         };
     }
     if let [WordPart::Text(Cow::Borrowed(b))] = parts.as_slice() {
@@ -467,12 +474,14 @@ fn build_word<'s>(sm: &SourceMap<'s>, src: &'s [u8], toks: &[Token], expand: boo
             kind,
             expand,
             body: WordBody::Literal(b),
+            start: toks[0].span.start() as usize,
         };
     }
     Word {
         kind,
         expand,
         body: WordBody::Parts(parts),
+        start: toks[0].span.start() as usize,
     }
 }
 

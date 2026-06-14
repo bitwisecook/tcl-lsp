@@ -218,6 +218,11 @@ fn line_of(src: &[u8], offset: usize) -> u32 {
         .count() as u32
 }
 
+/// Count the newlines in `s` (the line delta between two source offsets).
+fn count_newlines(s: &[u8]) -> u32 {
+    s.iter().filter(|&&b| b == b'\n').count() as u32
+}
+
 /// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
 /// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
 /// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
@@ -431,6 +436,12 @@ pub struct InterpState {
     pub(crate) oo: RefCell<crate::cmd_oo::OoState>,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
     cmd_frames: RefCell<Vec<CmdFrame>>,
+    /// TIP 280 argument lines of the command currently being dispatched: each
+    /// word's file-absolute source line. A body-defining command reads its body
+    /// word's line to stamp the body's source provenance (so a method/proc body
+    /// reports file-relative `info frame` lines). Set per command just before
+    /// dispatch; consumers must read it before re-entering the eval loop.
+    arg_lines: RefCell<Vec<u32>>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -479,6 +490,7 @@ impl Interp {
             pending_delete: Cell::new(false),
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
+            arg_lines: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
             bgerror: RefCell::new(Vec::new()),
@@ -709,6 +721,28 @@ impl Interp {
         self.cmd_frames.borrow().last().map_or(1, |f| f.line)
     }
 
+    /// The file-absolute source line of argument `idx` of the command currently
+    /// being dispatched (TIP 280); falls back to the command line. Read by a
+    /// body-defining command for its body word.
+    pub(crate) fn arg_line(&self, idx: usize) -> u32 {
+        let lines = self.arg_lines.borrow();
+        lines
+            .get(idx)
+            .copied()
+            .unwrap_or_else(|| self.current_cmd_line())
+    }
+
+    /// Snapshot / restore the current argument lines (TIP 280) — used when a
+    /// command re-dispatches a sub-slice of its own words (e.g. the
+    /// single-command `oo::define <target> <sub> …` form), so the dispatched
+    /// subcommand's body word is found at the right index.
+    pub(crate) fn arg_lines_snapshot(&self) -> Vec<u32> {
+        self.arg_lines.borrow().clone()
+    }
+    pub(crate) fn set_arg_lines(&self, lines: Vec<u32>) {
+        *self.arg_lines.borrow_mut() = lines;
+    }
+
     /// Whether `name` resolves to an ensemble command (`namespace ensemble
     /// exists`).
     pub(crate) fn is_ensemble(&self, name: &[u8]) -> bool {
@@ -860,6 +894,33 @@ impl Interp {
             .last()
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// The file currently being sourced, as a shared handle (`None` at the top
+    /// level) — for stamping a definition/method body's source provenance.
+    pub(crate) fn current_source_file(&self) -> Option<Rc<[u8]>> {
+        self.script_stack
+            .borrow()
+            .last()
+            .map(|f| Rc::from(f.as_slice()))
+    }
+
+    /// Evaluate a TclOO definition body. With `src = Some((file, line_base))`
+    /// (the body was defined while sourcing a file) it runs in a `type source`
+    /// frame, so its commands — and the method bodies they define — report
+    /// file-absolute `info frame` lines (TIP 280). Otherwise it runs inline.
+    pub(crate) fn eval_def_body(&mut self, body: &[u8], src: Option<(Rc<[u8]>, u32)>) -> Code {
+        match src {
+            Some((file, line_base)) => {
+                let mut frame = self.inherited_cmd_frame();
+                frame.kind = FrameKind::Source;
+                frame.file = Some(file);
+                frame.line_base = line_base;
+                frame.oo = None;
+                self.eval_framed(body, frame)
+            }
+            None => self.eval_str(body),
+        }
     }
 
     /// `uplevel`: evaluate `script` in the variable scope **and** namespace of
@@ -2102,7 +2163,7 @@ impl Interp {
             }
             top.cmd = src[cmd.start..cmd.end].to_vec();
         }
-        let code = self.eval_words(&cmd.words);
+        let code = self.eval_words(src, &cmd.words);
         if code == Code::Error {
             self.log_command_info(src, cmd);
         }
@@ -2110,7 +2171,7 @@ impl Interp {
     }
 
     /// Substitute each word of a command (with `{*}` expansion), then dispatch.
-    fn eval_words(&mut self, words: &[parse::Word]) -> Code {
+    fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
         let mut argv: Vec<*mut TclObj> = Vec::new();
         for w in words {
             let obj = match self.substitute_word(&w.body) {
@@ -2145,6 +2206,21 @@ impl Interp {
         if argv.is_empty() {
             return Code::Ok;
         }
+
+        // TIP 280 argument lines: each word's file-absolute source line, for a
+        // body-defining command (`proc`/`method`/`oo::define`/…) to stamp its
+        // body so `info frame` reports file-relative lines even when the body
+        // begins on a later line than the command. Computed relative to the
+        // command's already-set line (cheap), and aligned with `words` (the
+        // body-definers do not use `{*}`, so word index == argv index). Set
+        // *after* substitution so a nested `[cmd]` cannot clobber it.
+        let cmd_line = self.cmd_frames.borrow().last().map_or(0, |f| f.line);
+        let w0 = words.first().map_or(0, |w| w.start);
+        let arg_lines: Vec<u32> = words
+            .iter()
+            .map(|w| cmd_line + count_newlines(&src[w0..w.start.min(src.len())]))
+            .collect();
+        *self.arg_lines.borrow_mut() = arg_lines;
 
         let code = self.dispatch(&argv);
         // Safe to release argv now: a command that made an argv element its

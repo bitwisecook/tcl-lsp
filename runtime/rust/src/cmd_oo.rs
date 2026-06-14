@@ -24,6 +24,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 use crate::interp::{
     obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
@@ -40,8 +41,18 @@ type NativeMethod = fn(&mut Interp, &[u8], &[*mut TclObj]) -> Code;
 /// A method: a normal body, a `forward` to a command prefix, or a native handler.
 #[derive(Clone)]
 enum Method {
-    Body { params: Vec<Param>, body: Vec<u8> },
-    Forward { prefix: Vec<Vec<u8>> },
+    Body {
+        params: Vec<Param>,
+        body: Vec<u8>,
+        /// Source provenance (TIP 280) when the method was defined while a file
+        /// was being sourced: `(file, body_line_base)`. Its `info frame` is then
+        /// `type source` with file-absolute lines (`line_base` = the body's
+        /// starting file line minus one). `None` for an eval-defined method.
+        src: Option<(Rc<[u8]>, u32)>,
+    },
+    Forward {
+        prefix: Vec<Vec<u8>>,
+    },
     Builtin(NativeMethod),
 }
 
@@ -613,6 +624,7 @@ fn install_property_method(interp: &mut Interp, name: &[u8], params: &[u8], body
         Method::Body {
             params,
             body: body.to_vec(),
+            src: None,
         },
         MethodVis::Unexported,
     )
@@ -1731,15 +1743,28 @@ fn def_method(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return err(interp, &e),
     };
     let vis = flag_vis.unwrap_or_else(|| default_vis(interp, &name));
+    // Source provenance for `info frame` (TIP 280): the body word is the last
+    // argument; its file-absolute line (minus one) is the body's line base.
+    let src = method_body_src(interp, argv.len() - 1);
     install_method_vis(
         interp,
         name,
         Method::Body {
             params,
             body: obj_bytes(rest[1]),
+            src,
         },
         vis,
     )
+}
+
+/// The source provenance `(file, body_line_base)` for a method/constructor body
+/// at argument index `body_idx`, when defined while sourcing a file; `None`
+/// otherwise (an eval-defined body keeps body-relative lines).
+fn method_body_src(interp: &Interp, body_idx: usize) -> Option<(Rc<[u8]>, u32)> {
+    interp
+        .current_source_file()
+        .map(|f| (f, interp.arg_line(body_idx).saturating_sub(1)))
 }
 
 /// A method/forward is exported by default only when its name begins with an
@@ -1770,6 +1795,7 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return err(interp, &e),
     };
+    let src = method_body_src(interp, 2);
     interp
         .oo
         .borrow_mut()
@@ -1779,6 +1805,7 @@ fn def_constructor(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .constructor = Some(Method::Body {
         params,
         body: obj_bytes(argv[2]),
+        src,
     });
     interp.set_result_bytes(b"");
     Code::Ok
@@ -3196,7 +3223,7 @@ fn info_definition(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class:
         }
     };
     match m {
-        Some(Method::Body { params, body }) => {
+        Some(Method::Body { params, body, .. }) => {
             let out = list_params_body(&params, &body);
             interp.set_result(obj::new_string_bytes(&out));
             Code::Ok
@@ -3579,7 +3606,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"constructor" => {
             let body = match &interp.oo.borrow().classes[&cls].constructor {
-                Some(Method::Body { params, body }) => list_params_body(params, body),
+                Some(Method::Body { params, body, .. }) => list_params_body(params, body),
                 _ => Vec::new(),
             };
             interp.set_result(obj::new_string_bytes(&body));
@@ -3797,7 +3824,7 @@ impl Interp {
         self.ns_register(fqn, Command::OoObject(fqn.to_vec()));
         self.oo_register_my(fqn);
         if let Some(script) = script {
-            let code = self.oo_define_body(DefTarget::Class(fqn.to_vec()), script);
+            let code = self.oo_define_body(DefTarget::Class(fqn.to_vec()), script, None);
             if code != Code::Ok {
                 // Roll back a failed definition so the name frees up (C destroys
                 // a partially-created class whose definition script errors).
@@ -3815,7 +3842,10 @@ impl Interp {
     fn oo_run_def(&mut self, target: DefTarget, argv: &[*mut TclObj]) -> Code {
         if argv.len() == 3 {
             let body = obj_bytes(argv[2]);
-            return self.oo_define_body(target, &body);
+            // The body word is argv[2]; capture its source provenance (TIP 280)
+            // now, while the argument lines are still those of this command.
+            let body_src = method_body_src(self, 2);
+            return self.oo_define_body(target, &body, body_src);
         }
         // Single-command form: a subcommand's `wrong # args` names the whole
         // original command (`oo::define Foo method …`), via the rewrite prefix
@@ -3826,7 +3856,15 @@ impl Interp {
         let saved = self.oo.borrow_mut().def_rewrite.replace(prefix);
         let lvl = self.current_level();
         self.oo.borrow_mut().def_stack.push((target, lvl));
+        // Re-base the TIP 280 argument lines onto the dispatched subcommand
+        // (drop the `oo::define <target>` prefix) so a defined body word's line
+        // is found at the subcommand's own index, then restore.
+        let saved_lines = self.arg_lines_snapshot();
+        if saved_lines.len() >= 2 {
+            self.set_arg_lines(saved_lines[2..].to_vec());
+        }
         let code = self.dispatch(&argv[2..]);
+        self.set_arg_lines(saved_lines);
         self.oo.borrow_mut().def_stack.pop();
         self.oo.borrow_mut().def_rewrite = saved;
         code
@@ -3837,7 +3875,12 @@ impl Interp {
     /// style lookup on a command miss), so bare procs there are reachable while
     /// class-name *arguments* still resolve in the caller's namespace. Shared by
     /// `oo_run_def` and the `oo::class` constructor (a metaclass instance body).
-    fn oo_define_body(&mut self, target: DefTarget, body: &[u8]) -> Code {
+    fn oo_define_body(
+        &mut self,
+        target: DefTarget,
+        body: &[u8],
+        body_src: Option<(Rc<[u8]>, u32)>,
+    ) -> Code {
         let (kind, fqn): (&[u8], Vec<u8>) = match &target {
             DefTarget::Class(c) => (b"class", c.clone()),
             DefTarget::Object(o) => (b"object", o.clone()),
@@ -3848,7 +3891,9 @@ impl Interp {
         let creation_id = self.oo.borrow().objects.get(&fqn).map(|o| o.creation_id);
         let lvl = self.current_level();
         self.oo.borrow_mut().def_stack.push((target, lvl));
-        let code = self.eval_str(body);
+        // When sourced, run the body in a `type source` frame so the methods it
+        // defines record file-absolute body lines (TIP 280).
+        let code = self.eval_def_body(body, body_src);
         self.oo.borrow_mut().def_stack.pop();
         // On error, add the `(in definition script for class/object "X" line N)`
         // errorInfo frame (C's GenerateErrorInfo).
@@ -4923,7 +4968,7 @@ impl Interp {
                 self.set_result_bytes(b"");
                 return Code::Ok;
             }
-            return self.oo_define_body(DefTarget::Class(obj.to_vec()), &body);
+            return self.oo_define_body(DefTarget::Class(obj.to_vec()), &body, None);
         }
         let m = if method.is_empty() {
             self.oo
@@ -4941,6 +4986,7 @@ impl Interp {
                 .map(|body| Method::Body {
                     params: Vec::new(),
                     body,
+                    src: None,
                 })
         } else if is_object {
             self.oo
@@ -5009,7 +5055,7 @@ impl Interp {
             return code;
         }
 
-        let Method::Body { params, body } = m else {
+        let Method::Body { params, body, src } = m else {
             unreachable!("forward handled above");
         };
         let Some(var_ns) = self.oo.borrow().objects.get(obj).map(|o| o.var_ns) else {
@@ -5086,6 +5132,12 @@ impl Interp {
             index,
             target: target.to_vec(),
         });
+        // A method defined while sourcing a file carries that file + the body's
+        // line base, so `info frame` reports file-absolute lines (TIP 280).
+        let (source, body_line_base) = match &src {
+            Some((file, base)) => (Some(file.clone()), *base),
+            None => (None, 0),
+        };
         let code = self.run_proc(
             &params,
             &body,
@@ -5099,8 +5151,8 @@ impl Interp {
                     what,
                 },
                 fqn: None,
-                source: None,
-                body_line_base: 0,
+                source,
+                body_line_base,
                 link_vars: &vars,
                 // Property accessors propagate break/continue to `configure`.
                 keep_loop_codes: method.starts_with(b"<ReadProp-")
@@ -6601,6 +6653,30 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn info_frame_method_body_lines_are_relative() {
+        leak_free(|i| {
+            // A method body defined while sourcing reports file-absolute lines,
+            // so a body command's `info frame` line tracks the source — even
+            // when the body opens on a later line than the `method` command.
+            let script = b"oo::class create C {}\n\
+                oo::define C {\n\
+                  method a {} {info frame 0}\n\
+                  method b {\n\
+                  } {info frame 0}\n\
+                }\n\
+                oo::define C method c {} {info frame 0}\n\
+                C create o\n\
+                list [dict get [o a] line] [dict get [o b] line] \
+                     [dict get [o c] line] [dict get [o a] type] \
+                     [dict get [o a] file]";
+            let r = i.eval_sourced(script, b"/tmp/x.tcl");
+            assert_eq!(r, Code::Ok);
+            // `method a` body line 3; `method b` body line 5; `method c` line 7.
+            assert_eq!(i.result_bytes(), b"3 5 7 source /tmp/x.tcl");
         });
     }
 
