@@ -5135,15 +5135,39 @@ file; this call falls through to the 'unknown' handler."
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
         // var set only there is not read-before-set). Mirrors the Python
         // analyser's interprocedurally-seeded compilation unit.
+        // Incremental seam: when the per-item path has supplied a unit whose
+        // per-function lattices were memoised, consume it instead of
+        // rebuilding the whole-file unit.  Equal by construction to the
+        // freshly-built unit (gated by the differential fuzzer + corpus).
+        if let Some(cu) = self.cu_override.take() {
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+            return;
+        }
         let dialect_opt = (!self.dialect.is_empty()).then_some(self.dialect.as_str());
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, dialect_opt);
+        self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+    }
 
+    /// Emit the CFG/SSA-derived diagnostics from an already-built
+    /// [`crate::compilation_unit::CompilationUnit`].
+    ///
+    /// Split out of [`Self::emit_cfg_ssa_diagnostics`] so the incremental
+    /// per-item path can supply a `CompilationUnit` whose per-function
+    /// lattices were memoised, instead of rebuilding the whole-file unit on
+    /// every edit.  Behaviour is identical: the whole-file entry point builds
+    /// the unit exactly as before and delegates here, and every cross-function
+    /// pass below reads the supplied unit unchanged.
+    pub fn emit_cfg_ssa_diagnostics_with_cu(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
         // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
         // command-binding lattice.  Independent of the CFG/SSA dead-store
         // machinery below, so run it up front against the same `cu`.
-        self.emit_w128_renamed_command(&cu, &registry);
+        self.emit_w128_renamed_command(cu, registry);
 
         // **C41e3 follow-up.** Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)
@@ -5151,7 +5175,7 @@ file; this call falls through to the 'unknown' handler."
         // populate them before the top-level read fires.
         // Mirrors `_globals_written_by_procs` in
         // `_diag_commands.py:264-296`.
-        let globals_written = globals_written_by_procs(&cu);
+        let globals_written = globals_written_by_procs(cu);
 
         // **W220 call-by-name suppression (SYNC-JUN02d-2).** Build the
         // interprocedural proc-index once so a caller-local passed *by
@@ -5162,7 +5186,7 @@ file; this call falls through to the 'unknown' handler."
         let cbn_proc_index = {
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
-                &registry,
+                registry,
                 Some(self.dialect.as_str()),
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
@@ -5198,7 +5222,7 @@ file; this call falls through to the 'unknown' handler."
             &globals_written,
             &top_level_cross_event_vars,
         );
-        self.emit_channel_diagnostics(&cu.top_level, &registry);
+        self.emit_channel_diagnostics(&cu.top_level, registry);
         for (qname, fu) in &cu.procedures {
             // **C41-default-on-followups-postpass W220-IR-paths.**
             // For ``::when::*`` procs, threaded
@@ -5234,7 +5258,7 @@ file; this call falls through to the 'unknown' handler."
                 &HashSet::new(),
                 &cross_event_vars,
             );
-            self.emit_channel_diagnostics(fu, &registry);
+            self.emit_channel_diagnostics(fu, registry);
             // **C41d7.** IRULE4005 — racy ``static::``
             // cross-event flow.  Only fires for non-RULE_INIT
             // ``when`` procs when ``ConnectionScope::racy_static_defs``
@@ -5255,7 +5279,7 @@ file; this call falls through to the 'unknown' handler."
         // collected during the walk.  Mirrors
         // ``_emit_var_command_diagnostics`` in
         // ``_diag_var_command.py``.
-        self.emit_var_command_diagnostics(&cu, &registry);
+        self.emit_var_command_diagnostics(cu, registry);
 
         // **C41 follow-up.** Suppress W123 for command-name
         // heads with partial interpolations like ``foo$suffix``
@@ -5263,7 +5287,7 @@ file; this call falls through to the 'unknown' handler."
         // known commands via SCCP.  Mirrors
         // ``_resolve_interpolated_commands`` in
         // ``_diag_commands.py:188-260``.
-        self.resolve_interpolated_w123_diagnostics(&cu);
+        self.resolve_interpolated_w123_diagnostics(cu);
     }
 
     /// Per-function diagnostic dispatcher.

@@ -230,6 +230,13 @@ pub struct Analyser {
     /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
     /// each analysed in a second pass that fills its already-created scope.
     pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
+    /// Pre-built compilation unit for the CFG/SSA diagnostic tail.  When
+    /// `Some`, [`Self::emit_cfg_ssa_diagnostics`] consumes it instead of
+    /// rebuilding the whole-file unit — the seam the incremental per-item
+    /// path uses to supply a unit whose per-function lattices were memoised.
+    /// `None` for the whole-file `analyse` path (byte-identical: it builds
+    /// the unit itself, exactly as before).
+    pub(super) cu_override: Option<std::sync::Arc<crate::compilation_unit::CompilationUnit>>,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
@@ -314,6 +321,7 @@ impl Analyser {
             structure_only: false,
             defer_proc_bodies: false,
             deferred_bodies: Vec::new(),
+            cu_override: None,
         }
     }
 
@@ -1146,6 +1154,7 @@ impl Analyser {
         self.line_offsets = None;
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
+        self.cu_override = None;
     }
 }
 
