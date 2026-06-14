@@ -337,6 +337,47 @@ impl BigipRegistry {
         self.get_by_header(module, object_type)
             .map(|spec| spec.kind_spec.kind)
     }
+
+    /// Map a `Reference.target_kind` display string (`"ltm pool"`, `"ltm
+    /// monitor"`, …) to registry-key kinds (mirrors
+    /// `candidate_registry_kinds_for_display`).
+    ///
+    /// An exact `(module, object_type)` header gives a single kind; a bare
+    /// family prefix (`"ltm monitor"`) fans out to every matching specific kind
+    /// in registration order (so a downstream resolver can try each).
+    #[must_use]
+    pub fn candidate_registry_kinds_for_display(&self, display_kind: &str) -> Vec<&'static str> {
+        if display_kind.is_empty() {
+            return Vec::new();
+        }
+        let (module, object_type) = display_kind.split_once(' ').unwrap_or((display_kind, ""));
+        if let Some(spec) = self.get_by_header(module, object_type) {
+            return vec![spec.kind_spec.kind];
+        }
+        let prefix = if object_type.is_empty() {
+            String::new()
+        } else {
+            format!("{object_type} ")
+        };
+        // Iterate specs (and their header types) in registration order — the
+        // same order `HEADER_KIND_MAP.items()` yields in Python.
+        let mut matches = Vec::new();
+        for spec in &self.specs {
+            for &(mod_, obj) in spec.header_types {
+                if mod_ != module {
+                    continue;
+                }
+                if !prefix.is_empty() && !obj.starts_with(&prefix) {
+                    continue;
+                }
+                if prefix.is_empty() && obj.contains(' ') {
+                    continue;
+                }
+                matches.push(spec.kind_spec.kind);
+            }
+        }
+        matches
+    }
 }
 
 impl BigipPropertySpec {
