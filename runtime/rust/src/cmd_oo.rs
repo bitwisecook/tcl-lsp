@@ -5457,6 +5457,13 @@ impl Interp {
             self.delete_command(&a);
         }
         if let Some(ns) = var_ns {
+            // Nested ownership (C's `ObjectNamespaceDeleted` →
+            // `TclOODeleteDescendants`): an object created inside this object's
+            // instance namespace is owned by it, so destroying this object tears
+            // those children down too — in nesting order, while their namespaces
+            // are still intact. `obj` is already removed from the registry above,
+            // so this only reaches the descendants.
+            self.oo_namespace_deleted(ns);
             self.delete_namespace_by_id(ns);
         }
         dtor_code
