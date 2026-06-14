@@ -14,7 +14,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::Path;
 
-use anyhow::Context;
 use serde::Serialize;
 use serde_json::Value;
 use tcl_bigip::canonical::Canon;
@@ -234,9 +233,12 @@ pub fn run_diff(
 }
 
 fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
-    let bytes =
-        std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let source = String::from_utf8_lossy(&bytes).into_owned();
+    // Read via the UCS-aware resolver (mirrors `read_path` in the Python diff
+    // handler) so a `.ucs` — plain or encrypted — is transparently extracted to
+    // SCF, exactly like a `.conf`/`.scf`.
+    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let (_uri, source) = tcl_bigip_io::read_path(&path.to_string_lossy(), false, &opts)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     // Accept tmsh-script input as well as SCF (mirrors `_to_scf` in the Python
     // diff handler) so `tmsh create/modify` headers compare against the same
     // objects, not `tmsh`-module generics.

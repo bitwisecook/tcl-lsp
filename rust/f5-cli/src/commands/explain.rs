@@ -9,11 +9,10 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use anyhow::Context;
 use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
-use tcl_bigip::parser::{parse_bigip_conf, BigipConfig};
+use tcl_bigip::parser::BigipConfig;
 use tcl_cli_support::{write_text_output, OutputTarget};
 
 /// Map a `Placed.table_name` to the kinds explain resolves against.
@@ -400,13 +399,19 @@ pub fn run_explain(
 ) -> anyhow::Result<u8> {
     let kind_hint = if kind == "auto" { None } else { Some(kind) };
 
-    let mut configs: Vec<BigipConfig> = Vec::new();
-    for path in inputs {
-        let bytes =
-            std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let source = String::from_utf8_lossy(&bytes).into_owned();
-        configs.push(parse_bigip_conf(&source, "Common"));
-    }
+    // Resolve inputs via the UCS-aware loader (mirrors `load_paths`), so a
+    // `.ucs` — plain or encrypted — is transparently extracted to SCF and
+    // parsed just like a `.conf`/`.scf`.
+    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let paths: Vec<String> = inputs
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&paths, &opts)
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+        .into_iter()
+        .map(|loaded| loaded.config)
+        .collect();
 
     // Use the first config that resolves the target; otherwise the first.
     let mut chosen = 0usize;

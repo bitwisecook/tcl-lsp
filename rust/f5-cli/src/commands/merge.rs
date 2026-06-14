@@ -36,10 +36,14 @@ pub fn run_merge(
         }
     }
 
+    // Read each file via the UCS-aware resolver (mirrors `read_path`) so a
+    // `.ucs` member is transparently extracted to SCF before concatenation.
+    let opts = tcl_bigip_io::PassphraseOptions::default();
     let mut chunks: Vec<String> = Vec::with_capacity(files.len());
     for f in &files {
-        let bytes = std::fs::read(f).with_context(|| format!("failed to read {}", f.display()))?;
-        chunks.push(String::from_utf8_lossy(&bytes).into_owned());
+        let (_uri, src) = tcl_bigip_io::read_path(&f.to_string_lossy(), false, &opts)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        chunks.push(src);
     }
 
     let mut merged = emit_merged(&chunks);
