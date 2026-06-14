@@ -91,28 +91,42 @@ helpers are done; the rest await engine ports.
 | `completion` | ✅ idiomatic | clap_complete |
 | `merge` | ✅ byte-parity (scf) | golden-tested; tmsh deferred |
 | `split` | ✅ byte-parity (scf) | uses `extract_blocks`/`parse_generic_header`; round-trip golden-tested; tmsh deferred |
-| `diff` (`changes`) | ✅ parity (add/remove/scalar) | ports `compute_diff` over the model; fields read from `canon_fields()`. **Gap:** object-list field *display* (pool `members`, data-group `records`) shows canonical JSON vs Python's dataclass `repr` — change *detection* is still correct. Golden-tested for add/remove + scalar modify |
-| `explain` (`describe`) | ✅ byte-parity | ports `compute_explain` + the `resolve_name` resolution layer; walks `canon_fields()` (`BigipList` navigation) for profiles/iRules/persistence/SNAT/pool. Verified across virtual/pool/auto/short-name/not-found, text + JSON; golden-tested |
-| `stats`, `cleanup`, `grep`, `validate`, `graph`, `tmsh`, `convert`, `rename`, `redact`/`unredact`, `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `registry-dump`, `irule` group | ⛔ stub | pending engine ports |
+| `diff` (`changes`) | ✅ parity (add/remove/scalar) | ports `compute_diff` over the model; fields read from `canon_fields()`; accepts tmsh input via `to_scf`. **Gap:** object-list field *display* (pool `members`, data-group `records`) shows canonical JSON vs Python's dataclass `repr` — change *detection* is still correct. Golden-tested (add/remove text+JSON, scalar modify, tmsh input) |
+| `explain` (`describe`) | ✅ byte-parity | ports `compute_explain` + the `resolve_name` resolution layer (model-based — does **not** need the ref-graph); walks `canon_fields()` (`BigipList` navigation) for profiles/iRules/persistence/SNAT/pool. Verified across virtual/pool/auto/short-name/not-found, text + JSON; golden-tested |
+| `stats`, `cleanup`, `grep`, `validate`, `graph`, `rename` | ⛔ stub | need the BIG-IP **ref-graph** (keystone, below) |
+| `tmsh`, `convert`, `redact`/`unredact` | ⛔ stub | need the tmsh / AS3 emit + redaction engines |
+| `extract`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `query`, `irule` group | ⛔ stub | need UCS / remote / PCAP / query-DSL ports |
 
-**Shared parity helper:** `tcl_cli_support::ensure_ascii` post-processes
-`serde_json::to_string_pretty` to escape non-ASCII as `\uXXXX`, matching Python's
-`json.dumps(ensure_ascii=True)`. Applied to every JSON-emitting verb.
+**Shared parity helpers** (`tcl_cli_support`):
+- `ensure_ascii` — escape non-ASCII as `\uXXXX`, matching Python's
+  `json.dumps(ensure_ascii=True)`; applied to every JSON-emitting verb.
+- `f5-cli` `commands::scf::to_scf` — normalise `tmsh create/modify` script input
+  to SCF (port of `_to_scf` / `tmsh_parse.py`) before parsing.
 
-**Keystone:** the BIG-IP **reference graph** (`build_bigip_object_graph` /
-`dialects/f5/bigip/irules_object_refs.py`, ~944 LOC). `stats`, `cleanup`, `grep`,
-`explain`, `rename`, `graph` all build on it — port + golden-test it first
-(diff against the prebuilt `irules_object_refs_graph.json`).
+**Keystone:** the BIG-IP **object reference graph** — `build_bigip_object_graph`
+in `dialects/f5/bigip/link_extract.py` (~569 LOC, range-based node/edge
+extraction). `stats`, `cleanup`, `grep`, `validate`, `graph`, and `rename` all
+build on it — port + golden-test it in isolation first (verify via
+`f5 graph --format json`). (Separate from `irules_object_refs.py` (~944 LOC),
+the iRule-command → object reference resolver used by the `irule`/query paths.)
 
 ## Prioritised remaining roadmap
 
-1. **BIG-IP ref-graph** (`tcl-bigip` extension) — unblocks ~6 f5 verbs. Highest leverage.
-2. **f5 input plumbing** (read `.conf`/`.scf`/`.ucs`, parse → `BigipConfig`) — shared by all f5 config verbs.
-3. **f5 core engines** on the model: `stats` → `grep`/`cleanup` → `diff`/`split`/`merge` → `validate`/`explain` → `graph` → `tmsh`(+delta) → `convert` → `rename`/`redact`.
-4. **`tcl-cli-serialise`** (port `tooling/cli/serialise.py`) — unblocks the tcl JSON verbs (symbols/diagram/callgraph/diff). Gated by analyser parity for full fidelity.
-5. **`registry-dump`** (port `registry_snapshot.py`) — real parity, both CLIs; finicky (field-by-field).
-6. **f5 remote** (`tcl-bigip-remote`: REST/SSH/UCS/OpenPGP/AES) and **PCAP** (`tcl-bigip-pcap`) — pure-Rust crates.
-7. **Query DSL** (`tcl-bigip-query`) and **tclpkg** — the two largest sub-systems.
+Done so far (f5, model-based, no ref-graph needed): `merge`, `split`, `diff`,
+`explain`. Remaining, in dependency order:
+
+1. **BIG-IP ref-graph** (`build_bigip_object_graph`, `tcl-bigip` extension) —
+   unblocks `stats`, `cleanup`, `grep`, `validate`, `graph`, `rename`. Highest
+   leverage; port + golden-test in isolation first.
+2. **tmsh / AS3 emit engines** → `tmsh` (+delta), `convert`; **redaction** →
+   `redact`/`unredact`.
+3. **`tcl-cli-serialise`** (port `tooling/cli/serialise.py`) — unblocks the tcl
+   JSON verbs (symbols/callgraph/symbolgraph/dataflow/diagram, tcl `diff`).
+   Gated by analyser parity for full fidelity.
+4. **`registry-dump`** (port `registry_snapshot.py`) — real parity, both CLIs; finicky (field-by-field).
+5. **f5 remote** (`tcl-bigip-remote`: REST/SSH/UCS/OpenPGP/AES) and **PCAP** (`tcl-bigip-pcap`) — pure-Rust crates; also covers `extract`/`fetch`/`push`/`pull`/`explain-flow`/`enrich-*`/`pcap-remap`.
+6. **Query DSL** (`tcl-bigip-query`) and **tclpkg** (`pkg`/`venv`/`docker`) — the two largest sub-systems.
+7. **tcl-only engine-gap verbs**: `help` (KCS SQLite), `minimize`, `find-legacy`, `explore`/`diagram` (explorer report), `compwasm` (wasm pipeline), `dis` (VM compiler).
 8. **Engine-gap closure** (separate workstreams): analyser, optimiser, lowering/VM-compiler — these flip diag/opt/dis to parity.
 9. **Cutover** — native-binary packaging, remove `[project.scripts]` entries, rework `zipapp-tcl`/`zipapp-f5`, delete CLI-exclusive Python (NOT the shared `dialects/f5/bigip` etc. still imported by the Python LSP server/analyser/ai).
 
@@ -123,13 +137,16 @@ helpers are done; the rest await engine ports.
 3. Format output to match the Python verb exactly (field order, separators;
    JSON via `serde_json::to_string_pretty` with field-ordered structs).
 4. Write via `write_text_output` / `write_highlighted_output`.
-5. Capture a golden from the Python CLI and add a test in
-   `rust/tcl-cli/tests/cli_parity.rs` — **only** for verbs whose engine is fully
-   ported (don't assert byte-parity on engine-gapped verbs).
+5. Capture a golden from the Python CLI and add a test in the matching parity
+   suite (`rust/tcl-cli/tests/cli_parity.rs` or `rust/f5-cli/tests/cli_parity.rs`)
+   — **only** for verbs whose engine is fully ported (don't assert byte-parity on
+   engine-gapped verbs; for those, verify ad-hoc against the Python CLI and note
+   the gap here).
 
 ## Verification
 
-`rust/tcl-cli/tests/cli_parity.rs` runs the built binary and diffs stdout against
-`tests/fixtures/*.golden` captured from `python -m tooling.tcl.main`. Self-contained
-(no Python at test time), so it runs under `cargo test --workspace`. `make rust-tcl`
-/ `rust-f5` / `rust-clis` build the binaries.
+Each CLI has a `tests/cli_parity.rs` that runs the built binary and diffs stdout
+against committed `tests/fixtures/*.golden` files captured from
+`python -m tooling.{tcl,f5}.main`. Self-contained (no Python at test time), so it
+runs under `cargo test --workspace`. Current coverage: 7 tcl + 8 f5 golden tests.
+`make rust-tcl` / `rust-f5` / `rust-clis` build the binaries.
