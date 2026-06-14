@@ -4322,6 +4322,28 @@ impl Interp {
         }
     }
 
+    /// Whether `obj` has any active filter (its own object filters, or a class
+    /// filter anywhere along its precedence) — so a built-in target like
+    /// `destroy` must be dispatched through the filter chain, not directly.
+    fn object_has_filters(&self, obj: &[u8]) -> bool {
+        if self
+            .oo
+            .borrow()
+            .objects
+            .get(obj)
+            .is_some_and(|o| !o.filters.is_empty())
+        {
+            return true;
+        }
+        self.method_chain(obj).iter().any(|p| {
+            self.oo
+                .borrow()
+                .classes
+                .get(p)
+                .is_some_and(|c| !c.filters.is_empty())
+        })
+    }
+
     /// Dispatch a command bound to the OO object/class FQN `fqn`.
     pub(crate) fn oo_dispatch(&mut self, fqn: &[u8], argv: &[*mut TclObj]) -> Code {
         if self.oo.borrow().classes.contains_key(fqn) {
@@ -4365,7 +4387,11 @@ impl Interp {
                 Some(m)
                     if m == b"destroy"
                         && (self.method_exported(fqn, b"destroy")
-                            || !self.method_visibility_flags(fqn, b"destroy").1) =>
+                            || !self.method_visibility_flags(fqn, b"destroy").1)
+                        // An active filter must wrap `destroy` too, so route it
+                        // through oo_invoke (which prepends the filter chain) in
+                        // that case rather than tearing down directly (oo-12.2).
+                        && !self.object_has_filters(fqn) =>
                 {
                     let code = self.oo_destroy(fqn);
                     if code == Code::Ok {
@@ -4612,6 +4638,24 @@ impl Interp {
             }
         }
         if steps.is_empty() {
+            // An active object/class filter wraps even a built-in target (e.g.
+            // `destroy`, `eval`): C's filters sit ahead of the real method, which
+            // for these is the `oo::object` built-in. Route the filter chain
+            // through `oo_run`; the filter's `next` reaches the built-in terminus
+            // in `next_cmd` (oo-12.2/12.3). Only when the built-in is reachable —
+            // otherwise the call still misses and falls to the unknown handler.
+            if external {
+                let destroy_ok = method == b"destroy"
+                    && (exported_anywhere || !self.method_visibility_flags(obj, b"destroy").1);
+                let objbuiltin_ok =
+                    matches!(method, b"eval" | b"variable" | b"varname") && exported_anywhere;
+                if destroy_ok || objbuiltin_ok {
+                    let filters = self.active_filters(obj, &providers);
+                    if !filters.is_empty() {
+                        return self.oo_run(obj, filters, 0, method, args, external);
+                    }
+                }
+            }
             // `destroy` is a built-in (overridable, PUBLIC) method on every
             // object; with no user override in the chain it tears the object
             // down. Reachable both externally (`$obj destroy`) and internally
