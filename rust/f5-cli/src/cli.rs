@@ -226,9 +226,13 @@ pub enum Command {
         kind: String,
         /// Target object full-path or short name.
         target: String,
+        /// bigip.conf / SCF files.
+        #[arg(required = true, value_name = "PATH")]
         inputs: Vec<PathBuf>,
         #[arg(long)]
         json: bool,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Emit the object reference graph as DOT, JSON, or Mermaid.

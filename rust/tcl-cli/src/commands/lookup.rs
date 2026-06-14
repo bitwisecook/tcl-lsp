@@ -62,7 +62,10 @@ pub fn run_command_info(
                 command: query.to_owned(),
                 dialect: dialect.to_owned(),
             };
-            write_text_output(&target, &serde_json::to_string_pretty(&payload)?)?;
+            write_text_output(
+                &target,
+                &tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&payload)?),
+            )?;
         } else {
             write_text_output(
                 &target,
@@ -102,7 +105,10 @@ pub fn run_command_info(
             switches,
             valid_events,
         };
-        write_text_output(&target, &serde_json::to_string_pretty(&payload)?)?;
+        write_text_output(
+            &target,
+            &tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&payload)?),
+        )?;
         return Ok(0);
     }
 

@@ -20,7 +20,8 @@ mod registry;
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{combine_sources, read_input_documents, CliError, InputDocument};
 pub use output::{
-    expand_tabs, resolve_use_colour, write_highlighted_output, write_text_output, OutputTarget,
+    ensure_ascii, expand_tabs, resolve_use_colour, write_highlighted_output, write_text_output,
+    OutputTarget,
 };
 pub use registry::registry_for_dialect;
 

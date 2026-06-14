@@ -92,7 +92,12 @@ helpers are done; the rest await engine ports.
 | `merge` | ✅ byte-parity (scf) | golden-tested; tmsh deferred |
 | `split` | ✅ byte-parity (scf) | uses `extract_blocks`/`parse_generic_header`; round-trip golden-tested; tmsh deferred |
 | `diff` (`changes`) | ✅ parity (add/remove/scalar) | ports `compute_diff` over the model; fields read from `canon_fields()`. **Gap:** object-list field *display* (pool `members`, data-group `records`) shows canonical JSON vs Python's dataclass `repr` — change *detection* is still correct. Golden-tested for add/remove + scalar modify |
-| `stats`, `cleanup`, `grep`, `validate`, `explain`, `graph`, `tmsh`, `convert`, `rename`, `redact`/`unredact`, `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `registry-dump`, `irule` group | ⛔ stub | pending engine ports |
+| `explain` (`describe`) | ✅ byte-parity | ports `compute_explain` + the `resolve_name` resolution layer; walks `canon_fields()` (`BigipList` navigation) for profiles/iRules/persistence/SNAT/pool. Verified across virtual/pool/auto/short-name/not-found, text + JSON; golden-tested |
+| `stats`, `cleanup`, `grep`, `validate`, `graph`, `tmsh`, `convert`, `rename`, `redact`/`unredact`, `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `registry-dump`, `irule` group | ⛔ stub | pending engine ports |
+
+**Shared parity helper:** `tcl_cli_support::ensure_ascii` post-processes
+`serde_json::to_string_pretty` to escape non-ASCII as `\uXXXX`, matching Python's
+`json.dumps(ensure_ascii=True)`. Applied to every JSON-emitting verb.
 
 **Keystone:** the BIG-IP **reference graph** (`build_bigip_object_graph` /
 `dialects/f5/bigip/irules_object_refs.py`, ~944 LOC). `stats`, `cleanup`, `grep`,

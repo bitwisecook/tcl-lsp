@@ -220,7 +220,7 @@ pub fn run_diff(
         !report.added.is_empty() || !report.removed.is_empty() || !report.modified.is_empty();
 
     let mut rendered = if json {
-        serde_json::to_string_pretty(&report)?
+        tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&report)?)
     } else {
         format_text(&report)
     };

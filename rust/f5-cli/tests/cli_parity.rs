@@ -100,6 +100,35 @@ fn diff_add_remove_json_matches_python() {
 }
 
 #[test]
+fn explain_virtual_text_matches_python() {
+    let conf = fixtures_dir().join("bigip.conf");
+    assert_diff_matches(
+        &[
+            "explain",
+            "virtual",
+            "/Common/www_vs",
+            conf.to_str().unwrap(),
+        ],
+        "explain-virtual.text.golden",
+    );
+}
+
+#[test]
+fn explain_virtual_json_matches_python() {
+    let conf = fixtures_dir().join("bigip.conf");
+    assert_diff_matches(
+        &[
+            "explain",
+            "virtual",
+            "/Common/www_vs",
+            conf.to_str().unwrap(),
+            "--json",
+        ],
+        "explain-virtual.json.golden",
+    );
+}
+
+#[test]
 fn diff_scalar_modify_matches_python() {
     // Scalar-field modification (load-balancing-mode) — object-list fields
     // (members/records) are excluded here since their display diverges.

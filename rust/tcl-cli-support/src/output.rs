@@ -110,6 +110,37 @@ pub fn expand_tabs(text: &str, tabsize: usize) -> String {
     out
 }
 
+/// Escape non-ASCII characters as `\uXXXX` (with surrogate pairs for astral
+/// code points), matching Python's `json.dumps(..., ensure_ascii=True)`.
+///
+/// Apply this to `serde_json::to_string_pretty` output so JSON verbs match the
+/// Python CLI byte-for-byte. Safe to apply to a whole JSON document: non-ASCII
+/// only ever appears inside already-quoted string values.
+#[must_use]
+pub fn ensure_ascii(s: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_ascii() {
+            out.push(c);
+        } else {
+            let cp = c as u32;
+            if cp > 0xFFFF {
+                let v = cp - 0x1_0000;
+                let _ = write!(
+                    out,
+                    "\\u{:04x}\\u{:04x}",
+                    0xD800 + (v >> 10),
+                    0xDC00 + (v & 0x3FF)
+                );
+            } else {
+                let _ = write!(out, "\\u{cp:04x}");
+            }
+        }
+    }
+    out
+}
+
 /// Decide whether ANSI highlighting should be applied (mirrors
 /// `_resolve_use_colour`): `--colour` forces on, `--no-colour` forces off,
 /// otherwise it is on only when writing to a TTY stdout.

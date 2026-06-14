@@ -140,7 +140,10 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     }
 
     if diag.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println!(
+            "{}",
+            tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&report)?)
+        );
     } else {
         for item in &report {
             for d in &item.diagnostics {
@@ -193,7 +196,10 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
             error_count: errors.len(),
             errors,
         };
-        println!("{}", serde_json::to_string_pretty(&payload)?);
+        println!(
+            "{}",
+            tcl_cli_support::ensure_ascii(&serde_json::to_string_pretty(&payload)?)
+        );
         return Ok(u8::from(!payload.ok));
     }
 

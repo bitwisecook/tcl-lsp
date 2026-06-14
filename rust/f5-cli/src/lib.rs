@@ -46,6 +46,13 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             json,
             output,
         } => commands::diff::run_diff(before, after, *json, output.as_deref()),
+        Command::Explain {
+            kind,
+            target,
+            inputs,
+            json,
+            output,
+        } => commands::explain::run_explain(kind, target, inputs, *json, output.as_deref()),
         Command::Split {
             input,
             output,
