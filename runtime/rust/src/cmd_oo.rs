@@ -892,12 +892,15 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     let (op, vals) = slot_op_split(&raw);
     let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
-    for s in &resolved {
+    // C resolves each via Tcl_GetObjectFromObj (→ `X does not refer to an
+    // object`, as-written) then requires it be a class (→ `only a class can be
+    // a superclass`).
+    for (s, raw) in resolved.iter().zip(vals.iter()) {
+        if !interp.oo.borrow().objects.contains_key(s) {
+            return not_object(interp, raw);
+        }
         if !interp.oo.borrow().classes.contains_key(s) {
-            let mut m = b"\"".to_vec();
-            m.extend_from_slice(s);
-            m.extend_from_slice(b"\" does not refer to a class");
-            return err(interp, &m);
+            return err(interp, b"only a class can be a superclass");
         }
     }
     let current = interp
@@ -1155,14 +1158,15 @@ fn def_filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let raw: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
     let (op, vals) = slot_op_split(&raw);
-    // Resolve each value to a class FQN and validate it is a class.
+    // Resolve each value to a class FQN and validate it (C: `X does not refer
+    // to an object`, as-written, then `may only mix in classes`).
     let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.fqn_for(v)).collect();
-    for mx in &resolved {
+    for (mx, raw) in resolved.iter().zip(vals.iter()) {
+        if !interp.oo.borrow().objects.contains_key(mx) {
+            return not_object(interp, raw);
+        }
         if !interp.oo.borrow().classes.contains_key(mx) {
-            let mut m = b"\"".to_vec();
-            m.extend_from_slice(mx);
-            m.extend_from_slice(b"\" does not refer to a class");
-            return err(interp, &m);
+            return err(interp, b"may only mix in classes");
         }
     }
     let target = match def_target(interp) {
@@ -2457,16 +2461,30 @@ impl Interp {
             DefTarget::Class(c) => (b"class", c.clone()),
             DefTarget::Object(o) => (b"object", o.clone()),
         };
+        // The errorInfo frame names the object by its *current* command name, so
+        // a `rename` inside the body is reflected (oo-18.6/18.7). The creation id
+        // is stable across rename, so we re-find the entry by it at error time.
+        let creation_id = self.oo.borrow().objects.get(&fqn).map(|o| o.creation_id);
         self.oo.borrow_mut().def_stack.push(target);
         let code = self.eval_str(body);
         self.oo.borrow_mut().def_stack.pop();
         // On error, add the `(in definition script for class/object "X" line N)`
         // errorInfo frame (C's GenerateErrorInfo).
         if code == Code::Error {
+            let current = creation_id
+                .and_then(|id| {
+                    self.oo
+                        .borrow()
+                        .objects
+                        .iter()
+                        .find(|(_, o)| o.creation_id == id)
+                        .map(|(k, _)| k.clone())
+                })
+                .unwrap_or_else(|| fqn.clone());
             let mut inner = b"in definition script for ".to_vec();
             inner.extend_from_slice(kind);
             inner.extend_from_slice(b" \"");
-            inner.extend_from_slice(&fqn);
+            inner.extend_from_slice(&current);
             inner.push(b'"');
             self.append_frame_line(&inner);
             // A frame boundary: let the enclosing `oo::define`/`oo::class create`
@@ -3824,6 +3842,47 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"can't create object \"K\": command already exists with that name"
+            );
+        });
+    }
+
+    #[test]
+    fn define_script_errorinfo_and_super_mixin_messages() {
+        leak_free(|i| {
+            // superclass/mixin: not-an-object vs not-a-class messages (as-written
+            // name; matches C's Tcl_GetObjectFromObj + ClassSuperSet/MixinSet).
+            ok(i, b"oo::object create anobj");
+            assert_eq!(
+                i.eval_str(b"oo::class create c1 { superclass nosuch }"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"nosuch does not refer to an object");
+            assert_eq!(
+                i.eval_str(b"oo::class create c2 { superclass anobj }"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"only a class can be a superclass");
+            assert_eq!(
+                i.eval_str(b"oo::class create c3 { mixin nosuch }"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"nosuch does not refer to an object");
+            assert_eq!(
+                i.eval_str(b"oo::class create c4 { mixin anobj }"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"may only mix in classes");
+            // The define-script errorInfo frame uses the *current* (renamed) name.
+            ok(i, b"oo::class create base");
+            assert_eq!(
+                i.eval_str(b"oo::class create abc { superclass base; rename abc def; error foo }"),
+                Code::Error
+            );
+            let ei = ok(i, b"set errorInfo");
+            assert!(
+                ei.windows(b"class \"::def\"".len())
+                    .any(|w| w == b"class \"::def\""),
+                "errorInfo should name the renamed class ::def, got {ei:?}"
             );
         });
     }
