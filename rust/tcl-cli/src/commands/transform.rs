@@ -66,7 +66,13 @@ pub fn run_format(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH)?;
+    write_highlighted_output(
+        &target,
+        &formatted,
+        use_colour,
+        DEFAULT_TAB_WIDTH,
+        &input.dialect,
+    )?;
     Ok(0)
 }
 
@@ -140,7 +146,13 @@ pub fn run_opt(
     }
 
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH)?;
+    write_highlighted_output(
+        &target,
+        &rendered,
+        use_colour,
+        DEFAULT_TAB_WIDTH,
+        &input.dialect,
+    )?;
 
     if !target.is_stdout() {
         eprintln!(
@@ -179,7 +191,13 @@ pub fn run_minify(
         (minify_tcl(&source, &input.dialect, registry), None)
     };
 
-    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH)?;
+    write_highlighted_output(
+        &target,
+        &rendered,
+        use_colour,
+        DEFAULT_TAB_WIDTH,
+        &input.dialect,
+    )?;
 
     if let (Some(path), Some(map)) = (symbol_map, map) {
         write_text_output(&OutputTarget::File(path.to_path_buf()), &map.format())?;

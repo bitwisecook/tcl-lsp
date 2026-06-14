@@ -59,6 +59,11 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             json,
             output,
         } => commands::lookup::run_command_info(command, dialect, *json, output.as_deref()),
+        Command::Highlight {
+            input,
+            format,
+            colour,
+        } => commands::highlight::run_highlight(input, format, colour),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();

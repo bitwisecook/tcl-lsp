@@ -11,10 +11,12 @@
 
 #![forbid(unsafe_code)]
 
+mod highlight;
 mod input;
 mod output;
 mod registry;
 
+pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{combine_sources, read_input_documents, CliError, InputDocument};
 pub use output::{
     expand_tabs, resolve_use_colour, write_highlighted_output, write_text_output, OutputTarget,

@@ -59,22 +59,22 @@ pub fn write_text_output(target: &OutputTarget, text: &str) -> Result<(), CliErr
 /// (mirrors `_write_highlighted_output`).
 ///
 /// When writing to stdout with `tab_width > 0`, tabs are expanded to spaces
-/// just as `str.expandtabs` does. ANSI highlighting is applied when
-/// `use_colour` is set.
+/// just as `str.expandtabs` does — and, matching the Python order, this happens
+/// *before* ANSI highlighting (so escape codes don't shift the tab stops). The
+/// `highlight` verb uses the opposite order; see its handler.
 pub fn write_highlighted_output(
     target: &OutputTarget,
     text: &str,
     use_colour: bool,
     tab_width: usize,
+    dialect: &str,
 ) -> Result<(), CliError> {
     let mut rendered = text.to_owned();
     if target.is_stdout() && tab_width > 0 {
         rendered = expand_tabs(&rendered, tab_width);
     }
     if use_colour {
-        // TODO(highlight): the ANSI highlighter port (the `highlight` verb)
-        // is not wired up yet; until then `--colour` degrades to plain text.
-        // Non-TTY output (the common parity-test path) resolves to no colour.
+        rendered = crate::highlight::highlight_ansi(&rendered, dialect);
     }
     write_text_output(target, &rendered)
 }

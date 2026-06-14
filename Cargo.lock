@@ -1045,6 +1045,8 @@ dependencies = [
 name = "tcl-cli-support"
 version = "0.1.0"
 dependencies = [
+ "tcl-compiler",
+ "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
  "thiserror",

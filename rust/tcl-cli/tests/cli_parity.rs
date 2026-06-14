@@ -79,3 +79,21 @@ fn command_info_json_matches_python() {
         "command-info.string.json.golden",
     );
 }
+
+#[test]
+fn highlight_ansi_matches_python() {
+    let input = fixtures_dir().join("greet.tcl");
+    assert_matches_golden(
+        &["highlight", "--colour", input.to_str().unwrap()],
+        "greet.highlight-ansi.golden",
+    );
+}
+
+#[test]
+fn highlight_html_matches_python() {
+    let input = fixtures_dir().join("greet.tcl");
+    assert_matches_golden(
+        &["highlight", "--format", "html", input.to_str().unwrap()],
+        "greet.highlight-html.golden",
+    );
+}
