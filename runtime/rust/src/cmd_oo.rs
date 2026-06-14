@@ -165,6 +165,10 @@ pub struct OoState {
     /// invocation so the `unknown`-handler frame does not mask it. Lets the
     /// unknown-method error list the in-scope private methods (TIP 500).
     unknown_scope: Option<Vec<u8>>,
+    /// Whether the unknown-method miss originated from an external (`$obj m`)
+    /// call. An internal (`my m`) miss lists the unexported methods and the
+    /// `oo::object` built-ins too; an external one lists only public methods.
+    unknown_external: bool,
 }
 
 /// Register the `oo::*` commands and the definition / context commands.
@@ -340,24 +344,42 @@ impl Interp {
         if !destroy_hidden {
             names.insert(b"destroy".to_vec());
         }
-        // Collect the public method names (declared methods minus unexported)
-        // plus explicitly-exported names (e.g. a promoted built-in like `eval`)
-        // from each provider in the chain.
-        fn collect(
-            methods: &BTreeMap<Vec<u8>, Method>,
-            unexp: &BTreeSet<Vec<u8>>,
-            exp: &BTreeSet<Vec<u8>>,
-            names: &mut BTreeSet<Vec<u8>>,
-        ) {
+        // The miss's origin: an internal (`my m`) call also lists unexported
+        // methods and the `oo::object` built-ins; an external one lists only
+        // public (exported) methods.
+        let external = self.oo.borrow().unknown_external;
+        // An internal call reaches the unexported `oo::object` built-ins too.
+        if !external {
+            for b in [
+                &b"<cloned>"[..],
+                b"eval",
+                b"unknown",
+                b"variable",
+                b"varname",
+            ] {
+                names.insert(b.to_vec());
+            }
+        }
+        // Collect method names from each provider: public always; unexported
+        // (non-private) only for an internal call; explicitly-exported names
+        // (a promoted built-in) always.
+        let collect = |methods: &BTreeMap<Vec<u8>, Method>,
+                       unexp: &BTreeSet<Vec<u8>>,
+                       exp: &BTreeSet<Vec<u8>>,
+                       priv_set: &BTreeSet<Vec<u8>>,
+                       names: &mut BTreeSet<Vec<u8>>| {
             for m in methods.keys() {
-                if !unexp.contains(m) {
+                if priv_set.contains(m) {
+                    continue; // private: handled separately (scope-gated)
+                }
+                if !unexp.contains(m) || !external {
                     names.insert(m.clone());
                 }
             }
             for m in exp {
                 names.insert(m.clone());
             }
-        }
+        };
         // A private method named is visible (and so listed) only from its own
         // declaring scope — the scope captured at the original invocation (the
         // `unknown` handler's own frame must not mask it; TIP 500). From
@@ -369,13 +391,25 @@ impl Interp {
             let oo = self.oo.borrow();
             if is_object {
                 if let Some(o) = oo.objects.get(&p) {
-                    collect(&o.methods, &o.unexported, &o.exported, &mut names);
+                    collect(
+                        &o.methods,
+                        &o.unexported,
+                        &o.exported,
+                        &o.private,
+                        &mut names,
+                    );
                     if in_scope {
                         names.extend(o.private.iter().cloned());
                     }
                 }
             } else if let Some(c) = oo.classes.get(&p) {
-                collect(&c.methods, &c.unexported, &c.exported, &mut names);
+                collect(
+                    &c.methods,
+                    &c.unexported,
+                    &c.exported,
+                    &c.private,
+                    &mut names,
+                );
                 if in_scope {
                     names.extend(c.private.iter().cloned());
                 }
@@ -2832,6 +2866,8 @@ impl Interp {
                 .borrow_mut()
                 .unknown_scope
                 .replace(caller_scope.clone().unwrap_or_default());
+            let saved_external = self.oo.borrow().unknown_external;
+            self.oo.borrow_mut().unknown_external = external;
             // A user-defined `unknown` method handles the miss (the method name
             // is prepended to the args), e.g. `oo::Slot`'s default-operation.
             let code = if method != b"unknown"
@@ -2857,6 +2893,7 @@ impl Interp {
                 self.oo_unknown_method(obj, method)
             };
             self.oo.borrow_mut().unknown_scope = saved_scope;
+            self.oo.borrow_mut().unknown_external = saved_external;
             return code;
         }
         // Filters wrap an *external* (public) call: prepend each active filter
@@ -3954,6 +3991,15 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"unknown method \"y\": must be destroy, equal or x"
+            );
+            // An internal (`my`) miss also lists the unexported oo::object
+            // built-ins and unexported methods (oo-39.8).
+            ok(i, b"oo::class create P { method m {} { my nonesuch } }");
+            ok(i, b"P create p");
+            assert_eq!(i.eval_str(b"p m"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown method \"nonesuch\": must be <cloned>, destroy, eval, m, unknown, variable or varname"
             );
         });
     }
