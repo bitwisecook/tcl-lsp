@@ -196,6 +196,12 @@ pub struct OoState {
     /// restores it), matching C's scoping of the `::oo::define` namespace.
     def_stack: Vec<(DefTarget, usize, Option<u64>)>,
     call_stack: Vec<OoFrame>,
+    /// Set while executing a filter (and everything it calls synchronously via
+    /// `my`), so those nested calls are not re-wrapped by the same filters
+    /// (C's `FILTER_HANDLING`). Cleared when a filter calls `next`, so the method
+    /// it wraps runs with filters re-enabled for *its* own calls. Inherited down
+    /// the call tree; save/restore at each boundary (oo-12.5/12.6/12.7).
+    filter_handling: bool,
     /// Non-zero while inside a `private` definition modifier — methods defined
     /// then are marked unexported (callable only via `my`).
     private_depth: usize,
@@ -2905,9 +2911,20 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"next may only be called from inside a method");
     };
     // The chain is pre-built (filters then the method steps), so `next` simply
-    // advances to the following step.
+    // advances to the following step. A `next` *from a filter step* clears
+    // `filter_handling`, so the wrapped method re-enables filters for its own
+    // `my` calls (C's FILTER_HANDLING; oo-12.7); save/restore around the call.
+    let from_filter = chain
+        .get(index)
+        .is_some_and(|s| !s.method.is_empty() && s.method != target);
     if index + 1 < chain.len() {
-        interp.oo_run(&object, chain, index + 1, &target, &argv[1..], external)
+        let saved_fh = interp.oo.borrow().filter_handling;
+        if from_filter {
+            interp.oo.borrow_mut().filter_handling = false;
+        }
+        let code = interp.oo_run(&object, chain, index + 1, &target, &argv[1..], external);
+        interp.oo.borrow_mut().filter_handling = saved_fh;
+        code
     } else if target.is_empty() {
         // Past the last constructor in the chain — a no-op (C's default).
         interp.set_result_bytes(b"");
@@ -4737,13 +4754,19 @@ impl Interp {
             self.oo.borrow_mut().unknown_external = saved_external;
             return code;
         }
-        // Filters wrap an *external* (public) call: prepend each active filter
-        // method as its own step (resolved to the provider defining it).
-        if external {
+        // Filters wrap a method call (public or `my`) — prepend each active
+        // filter as its own step — unless we're already handling a filter (C's
+        // `FILTER_HANDLING`): a filter's own synchronous calls are not
+        // re-wrapped, which avoids infinite recursion and matches the call-chain
+        // model where the wrapped method (reached via `next`) re-enables filters
+        // for *its* calls only (oo-12.x).
+        if !self.oo.borrow().filter_handling {
             let filters = self.active_filters(obj, &providers);
-            let mut chain: Vec<CallStep> = filters;
-            chain.append(&mut steps);
-            return self.oo_run(obj, chain, 0, method, args, external);
+            if !filters.is_empty() {
+                let mut chain: Vec<CallStep> = filters;
+                chain.append(&mut steps);
+                return self.oo_run(obj, chain, 0, method, args, external);
+            }
         }
         self.oo_run(obj, steps, 0, method, args, external)
     }
@@ -5629,6 +5652,16 @@ impl Interp {
         } else {
             None
         };
+        // A filter step (its method differs from the invoked target) runs with
+        // `filter_handling` set, so its own `my` calls — and everything they
+        // call — are not re-wrapped by the same filters. A `next` from the filter
+        // clears it again for the wrapped method (handled in `next_cmd`). Saved
+        // and restored so nested filter chains compose.
+        let is_filter_step = !method.is_empty() && method != target;
+        let saved_fh = self.oo.borrow().filter_handling;
+        if is_filter_step {
+            self.oo.borrow_mut().filter_handling = true;
+        }
         let code = self.run_proc(
             &params,
             &body,
@@ -5655,6 +5688,7 @@ impl Interp {
                 level_words,
             },
         );
+        self.oo.borrow_mut().filter_handling = saved_fh;
         self.oo.borrow_mut().call_stack.pop();
         code
     }
