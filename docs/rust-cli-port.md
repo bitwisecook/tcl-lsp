@@ -145,24 +145,31 @@ Keystone progress / remaining pieces:
   `build_bigip_object_graph`) → `tcl-bigip::graph` (`ObjectEdge`/`ObjectGraph`).
   Reproduces every Python legacy edge in order; 2 frozen drift edges pinned
   (`graph_edges_legacy.drift.txt`).
-- 🛠 **registry-first dispatch** (`references_via_spec` / pilot value-spec engine)
-  — **in progress, full port approved**. Wired into the edge walk (runs before
-  the legacy path, shared dedup) + `candidate_registry_kinds_for_display`. The
-  graph only consumes each `Reference`'s `(target_kind, target_path)`, so each
-  pilot spec is a **slim extractor** over the raw value (no full `ValueSpec`/
-  `BigipList` materialisation).
+- ✅ **registry-first dispatch** (`references_via_spec` / pilot value-spec engine)
+  — **complete**. Wired into the edge walk (runs before the legacy path, shared
+  dedup) + `candidate_registry_kinds_for_display`. The graph only consumes each
+  `Reference`'s `(target_kind, target_path)`, so each pilot spec is a **slim
+  extractor** over the raw value (no full `ValueSpec`/`BigipList` materialisation).
   - ✅ **all reference-producing specs ported + golden-tested**:
     `ListSpec(ObjectRefSpec)` (`rules`/`policies`/`vlans`/firewall lists),
     `Profile`/`Persistence` attachments, `MonitorExpressionSpec`, `SnatModeSpec`,
     `CertKeyChainSpec`, `FirewallRuleSpec`. Comprehensive `graph_pilot.conf`
     fixture (monitor min-of, SNAT pool, cert-key-chain, firewall source/dest
-    lists) + the realistic `bigip.conf`, both verified against the full pilot
-    table (iRule off).
+    lists) + the realistic `bigip.conf`.
   - ✅ reference-free migrated specs (`DestinationSpec`, `DataGroupRecordSpec`,
     `GtmRegionMemberSpec`, `LtmPolicyRuleSpec`) correctly fall through to legacy.
   - Drift edges (Rust legacy-section refs not cleared) pinned in
     `graph_pilot.drift.txt` / `graph_edges.drift.txt`.
-- ⛔ **irules_refs** (`extract_irules_object_references`, ~368 LOC) for iRule edges.
+- ✅ **iRule edges** (`irules_refs.py` + `irules_object_refs.py`) → new shared
+  **`tcl-irules`** crate (deps: tcl-compiler/tcl-lexer/tcl-registry; consumed by
+  both `tcl-bigip` graph and `tcl-lsp-core` semantic tokens). Ports
+  `resolve_object_ref_args` (the hand-written `_BASE_SPECS` + pool templates +
+  `class`/`persist` resolvers — the 1 MB generated graph backs only completion/
+  coverage, not edge resolution) and the `extract_irules_object_references`
+  walker with `set`-binding copy-propagation. Wired into `_build_forward_edges`
+  (`via_property = "irule:<command>"`); `tcl-lsp-core`'s span-only port migrated
+  onto it. Golden-tested: 117 resolve probes, 15 walker cases, and the full
+  `bigip.conf` graph (61 edges incl. 3 iRule) — only the 1 pinned drift edge.
 - ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
 
 > **Registry-data drift (blocks full byte-parity, separate workstream):** the
