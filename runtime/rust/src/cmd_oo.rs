@@ -4604,7 +4604,17 @@ impl Interp {
                     out
                 };
                 let ns_name = self.namespaces().qualified_name(var_ns);
+                // Run the script with an OO context frame so `self`/`my` work
+                // inside it (`$obj eval {self}` returns the object; oo-18.12).
+                self.oo.borrow_mut().call_stack.push(OoFrame {
+                    object: obj.to_vec(),
+                    chain: Vec::new(),
+                    index: 0,
+                    target: Vec::new(),
+                    external,
+                });
                 let code = self.ns_eval(&ns_name, &script);
+                self.oo.borrow_mut().call_stack.pop();
                 // C's FinalizeEval: on error append `(in "<name> eval" script
                 // line N)`, where name is the object's name for a public call
                 // and the literal `my` for an internal (non-public) one.
