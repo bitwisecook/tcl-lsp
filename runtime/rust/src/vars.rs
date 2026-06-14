@@ -147,6 +147,64 @@ pub(crate) fn home_namespace(
     }
 }
 
+/// The fully-qualified name `name` ultimately resolves to, following
+/// `global`/`variable`/`upvar`/`namespace upvar` links to the target variable
+/// (and array element). `Some("::ns::var")` / `Some("::ns::arr(elem)")` for a
+/// namespace target; `None` if it resolves to a proc-frame local. Used by the
+/// `varname` object method, which reports the real variable a link points at.
+pub(crate) fn resolved_full_name(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    base_ns: NsId,
+    name: &[u8],
+) -> Option<Vec<u8>> {
+    // Resolve as a variable of `base_ns` (the object's namespace), *not* the
+    // current proc frame — `varname` reports the object's variable regardless of
+    // where it is called from. Then follow links to the real target.
+    let (home, key) = if is_qualified(name) {
+        match ns.var_home(base_ns, name) {
+            Some((id, simple)) => (VarHome::Namespace(id), simple),
+            None => return None,
+        }
+    } else {
+        (VarHome::Namespace(base_ns), name.to_vec())
+    };
+    let mut place = Place {
+        home,
+        name: key,
+        elem: None,
+    };
+    for _ in 0..LINK_LIMIT {
+        let link = match table(frames, ns, place.home).and_then(|t| t.cell(&place.name)) {
+            Some(Var::Link(l)) => l.clone(),
+            _ => break,
+        };
+        let elem = match (place.elem.take(), link.elem) {
+            (None, e) => e,
+            (outer @ Some(_), _) => outer,
+        };
+        place = Place {
+            home: link.home,
+            name: link.name,
+            elem,
+        };
+    }
+    let VarHome::Namespace(id) = place.home else {
+        return None;
+    };
+    let mut fqn = ns.qualified_name(id);
+    if id != GLOBAL {
+        fqn.extend_from_slice(b"::"); // global's qualified name is already `::`
+    }
+    fqn.extend_from_slice(&place.name);
+    if let Some(elem) = &place.elem {
+        fqn.push(b'(');
+        fqn.extend_from_slice(elem);
+        fqn.push(b')');
+    }
+    Some(fqn)
+}
+
 // -- the public coordinator API (mirrors the old FrameStack surface) ---------
 
 /// `set name value` — write through links to wherever `name` resolves. The cell

@@ -1170,6 +1170,17 @@ impl Interp {
     /// or a qualified name), so it fires only for that namespace's variable and
     /// dies with the namespace; `None` for a proc-local trace, which matches by
     /// raw name. Used at both trace-add and trace-fire time so they agree.
+    /// The fully-qualified name `name` (resolved from namespace `base_ns`,
+    /// following links) ultimately points at — for the `varname` object method.
+    pub(crate) fn resolved_var_full_name(&self, base_ns: NsId, name: &[u8]) -> Option<Vec<u8>> {
+        crate::vars::resolved_full_name(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            base_ns,
+            name,
+        )
+    }
+
     pub(crate) fn trace_var_ns(&self, base: &[u8]) -> Option<NsId> {
         crate::vars::home_namespace(
             &self.frames.borrow(),

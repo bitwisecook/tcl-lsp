@@ -4798,9 +4798,16 @@ impl Interp {
                 // maps to its mangled storage name (TIP 500; oo-38.3).
                 let want = obj_bytes(args[0]);
                 let storage = self.private_storage_name(&want).unwrap_or(want);
-                let mut full = self.namespaces().qualified_name(var_ns);
-                full.extend_from_slice(b"::");
-                full.extend_from_slice(&storage);
+                // Follow links to the real variable the name points at, so a
+                // `namespace upvar`'d / linked name reports its target (oo-19.5).
+                let full = self
+                    .resolved_var_full_name(var_ns, &storage)
+                    .unwrap_or_else(|| {
+                        let mut f = self.namespaces().qualified_name(var_ns);
+                        f.extend_from_slice(b"::");
+                        f.extend_from_slice(&storage);
+                        f
+                    });
                 self.set_result(obj::new_string_bytes(&full));
                 Some(Code::Ok)
             }
