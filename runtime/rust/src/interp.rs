@@ -1165,6 +1165,20 @@ impl Interp {
     /// `Some(level)` for an unqualified name resolving frame-local in a proc;
     /// `None` (persistent) for qualified / global / `global`-or-`upvar`-linked
     /// names, which outlive the frame.
+    /// The home namespace a variable trace on `base` is scoped to — `Some(ns)`
+    /// for a trace on a namespace variable (registered at namespace/global scope,
+    /// or a qualified name), so it fires only for that namespace's variable and
+    /// dies with the namespace; `None` for a proc-local trace, which matches by
+    /// raw name. Used at both trace-add and trace-fire time so they agree.
+    pub(crate) fn trace_var_ns(&self, base: &[u8]) -> Option<NsId> {
+        crate::vars::home_namespace(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            base,
+        )
+    }
+
     pub(crate) fn local_trace_level(&self, base: &[u8]) -> Option<usize> {
         if tcl_syntax::naming::is_qualified(base) {
             return None;
@@ -1276,12 +1290,13 @@ impl Interp {
         if self.traces.borrow().firing > 0 {
             return false;
         }
+        let access_ns = self.trace_var_ns(base);
         let cmds: Vec<Vec<u8>> = self
             .traces
             .borrow()
             .traces
             .iter()
-            .filter(|t| crate::cmd_trace::matches(t, base, elem, op))
+            .filter(|t| crate::cmd_trace::matches(t, base, elem, op, access_ns))
             .map(|t| t.command.clone())
             .collect();
         if cmds.is_empty() {

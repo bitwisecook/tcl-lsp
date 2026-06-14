@@ -128,6 +128,25 @@ fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) 
     Resolved::Place(place)
 }
 
+/// The namespace a (possibly linked) variable ultimately lives in — `Some(ns)`
+/// if `name` resolves (following `global`/`variable`/`upvar` links) to a
+/// namespace variable, `None` if it lives in a proc-call frame. Used to scope
+/// variable traces to the concrete variable they were registered on.
+pub(crate) fn home_namespace(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Option<NsId> {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) => match p.home {
+            VarHome::Namespace(id) => Some(id),
+            VarHome::Frame(_) => None,
+        },
+        Resolved::NoNamespace => None,
+    }
+}
+
 // -- the public coordinator API (mirrors the old FrameStack surface) ---------
 
 /// `set name value` — write through links to wherever `name` resolves. The cell

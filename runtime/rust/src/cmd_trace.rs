@@ -25,6 +25,7 @@
 
 use crate::frame::split_array_ref;
 use crate::interp::{new_string, obj_bytes, Code, Interp};
+use crate::namespace::NsId;
 use crate::obj::TclObj;
 
 /// One registered variable trace.
@@ -44,6 +45,13 @@ pub struct VarTrace {
     /// trace list at frame teardown). `None` for global/namespace/qualified
     /// traces, which persist.
     pub frame_level: Option<usize>,
+    /// The home namespace of the traced variable, for a trace registered on a
+    /// namespace variable at namespace/global scope (or a qualified name). The
+    /// trace fires only for accesses resolving to that same namespace variable,
+    /// so a trace on `::a::x` doesn't fire for `::b::x` (and dies when its
+    /// namespace is deleted). `None` for proc-local traces, which match by raw
+    /// name as before (their frame disambiguates them).
+    pub ns: Option<NsId>,
 }
 
 /// The operations a command/execution trace fires on, as a bitset (mirrors C's
@@ -113,9 +121,24 @@ pub struct TraceTable {
 }
 
 /// Whether `t` fires for a `(base, elem)` access doing operation `op`.
-pub fn matches(t: &VarTrace, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
+/// `access_ns` is the home namespace the accessed variable resolves to (for a
+/// namespace variable), used to scope namespace-variable traces.
+pub fn matches(
+    t: &VarTrace,
+    base: &[u8],
+    elem: Option<&[u8]>,
+    op: &[u8],
+    access_ns: Option<NsId>,
+) -> bool {
     if t.base != base {
         return false;
+    }
+    // A namespace-variable trace fires only for accesses to that same namespace
+    // variable (matching home namespace); a proc-local trace ignores `ns`.
+    if let Some(tns) = t.ns {
+        if access_ns != Some(tns) {
+            return false;
+        }
     }
     if let Some(te) = &t.elem {
         // Element-specific trace: only that element.
@@ -400,6 +423,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
     if is_add {
         let (base, elem) = split_array_ref(&name);
         let frame_level = interp.local_trace_level(&base);
+        let ns = interp.trace_var_ns(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
             name,
             base,
@@ -407,6 +431,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             ops,
             command,
             frame_level,
+            ns,
         });
     } else {
         let pos = interp
