@@ -2065,16 +2065,43 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // `self call` — `{chain index}`: the full call chain (each step a
         // `{callType method declarer methodType}` element) and the current index.
         Some(b"call") => {
-            let (chain, index) = interp
+            let (chain, index, target) = interp
                 .oo
                 .borrow()
                 .call_stack
                 .last()
-                .map(|f| (f.chain.clone(), f.index))
+                .map(|f| (f.chain.clone(), f.index, f.target.clone()))
                 .unwrap_or_default();
             let elems: Vec<Vec<u8>> = chain
                 .iter()
-                .map(|s| call_chain_elem(interp, &s.provider, &s.method, s.provider == object))
+                .map(|s| {
+                    let is_object = s.provider == object;
+                    // A step whose method differs from the invoked target is a
+                    // filter wrapping the call.
+                    let is_filter = !s.method.is_empty() && s.method != target;
+                    // Constructors carry an empty method name, rendered
+                    // `<constructor>`; destructors use `<destructor>`.
+                    let display: &[u8] = if s.method.is_empty() {
+                        b"<constructor>"
+                    } else {
+                        &s.method
+                    };
+                    let call_type: &[u8] = if is_filter {
+                        b"filter"
+                    } else if interp.method_is_private(&s.provider, &s.method, is_object) {
+                        b"private"
+                    } else {
+                        b"method"
+                    };
+                    call_chain_elem(
+                        interp,
+                        call_type,
+                        display,
+                        &s.method,
+                        &s.provider,
+                        is_object,
+                    )
+                })
                 .collect();
             let inner_objs: Vec<*mut TclObj> =
                 elems.iter().map(|e| obj::new_string_bytes(e)).collect();
@@ -2776,59 +2803,135 @@ fn info_call(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool)
         return wrong_args(interp, u);
     }
     let method = obj_bytes(argv[4]);
-    // For a class, the chain is the instance-method MRO; for an object, its full
-    // method chain (own methods, mixins, then class MRO).
-    let providers = if class {
-        interp.mro(fqn)
-    } else {
-        interp.method_chain(fqn)
-    };
-    let mut elems: Vec<Vec<u8>> = Vec::new();
-    for p in &providers {
-        let is_object = !class && p.as_slice() == fqn;
-        if !interp.oo_has_method(p, &method, is_object) {
-            continue;
-        }
-        elems.push(call_chain_elem(interp, p, &method, is_object));
-    }
+    let elems = build_call_chain(interp, fqn, &method, class);
     set_list(interp, &elems);
     Code::Ok
 }
 
-/// One `info call` / `self call` chain element: `callType methodName declarer
-/// methodType` (a 4-word string the list quoter braces as one element).
-fn call_chain_elem(interp: &Interp, provider: &[u8], method: &[u8], is_object: bool) -> Vec<u8> {
-    let (impl_type, private): (&[u8], bool) = {
-        let oo = interp.oo.borrow();
-        let (m, unexp) = if is_object {
-            match oo.objects.get(provider) {
-                Some(o) => (o.methods.get(method), o.unexported.contains(method)),
-                None => (None, false),
-            }
-        } else {
-            match oo.classes.get(provider) {
-                Some(c) => (c.methods.get(method), c.unexported.contains(method)),
-                None => (None, false),
-            }
-        };
-        let t: &[u8] = match m {
-            Some(Method::Forward { .. }) => b"forward",
-            _ => b"method",
-        };
-        (t, unexp)
-    };
-    // A private (unexported) method reports `private` as its call-chain type.
-    let mut e: Vec<u8> = if private {
-        b"private ".to_vec()
+/// Build the rendered call chain (`{callType name declarer methodType}` per
+/// step) for `info object/class call`: filter steps (one per provider that
+/// implements an active filter, in precedence order), then either the method's
+/// own steps or — if the method is undefined — the `unknown`-handler chain.
+fn build_call_chain(interp: &Interp, fqn: &[u8], method: &[u8], class: bool) -> Vec<Vec<u8>> {
+    let providers = if class {
+        interp.class_precedence(fqn)
     } else {
-        b"method ".to_vec()
+        interp.method_chain(fqn)
     };
-    e.extend_from_slice(method);
-    e.push(b' ');
-    e.extend_from_slice(provider);
-    e.push(b' ');
-    e.extend_from_slice(impl_type);
-    e
+    let is_obj = |p: &[u8]| !class && p == fqn;
+    let mut elems: Vec<Vec<u8>> = Vec::new();
+    // Active filter method names: the object's own filters then each provider's.
+    let mut filter_names: Vec<Vec<u8>> = Vec::new();
+    let add_name = |n: &Vec<u8>, v: &mut Vec<Vec<u8>>| {
+        if !v.contains(n) {
+            v.push(n.clone());
+        }
+    };
+    if !class {
+        if let Some(o) = interp.oo.borrow().objects.get(fqn) {
+            for f in &o.filters {
+                add_name(f, &mut filter_names);
+            }
+        }
+    }
+    for p in &providers {
+        if let Some(c) = interp.oo.borrow().classes.get(p) {
+            for f in &c.filters {
+                add_name(f, &mut filter_names);
+            }
+        }
+    }
+    // Each filter contributes a step per implementing provider (precedence order).
+    for fname in &filter_names {
+        for p in &providers {
+            if interp.oo_has_method(p, fname, is_obj(p)) {
+                elems.push(call_chain_elem(
+                    interp,
+                    b"filter",
+                    fname,
+                    fname,
+                    p,
+                    is_obj(p),
+                ));
+            }
+        }
+    }
+    // The target method's steps, or the unknown-handler chain if undefined.
+    let method_steps: Vec<Vec<u8>> = providers
+        .iter()
+        .filter(|p| interp.oo_has_method(p, method, is_obj(p)))
+        .cloned()
+        .collect();
+    if method_steps.is_empty() {
+        for p in &providers {
+            if interp.oo_has_method(p, b"unknown", is_obj(p)) {
+                elems.push(call_chain_elem(
+                    interp,
+                    b"unknown",
+                    b"unknown",
+                    b"unknown",
+                    p,
+                    is_obj(p),
+                ));
+            }
+        }
+    } else {
+        for p in &method_steps {
+            let ct: &[u8] = if interp.method_is_private(p, method, is_obj(p)) {
+                b"private"
+            } else {
+                b"method"
+            };
+            elems.push(call_chain_elem(interp, ct, method, method, p, is_obj(p)));
+        }
+    }
+    elems
+}
+
+/// One `info call` / `self call` chain element: a 4-element list `{callType
+/// displayName declarer methodType}`. `type_key` is the method-table key used
+/// to determine the method type (proc `method`, `forward`, or a core builtin
+/// rendered `core method: "NAME"`); the declarer is `object` for a per-object
+/// method, else the class FQN.
+fn call_chain_elem(
+    interp: &Interp,
+    call_type: &[u8],
+    display_name: &[u8],
+    type_key: &[u8],
+    provider: &[u8],
+    is_object: bool,
+) -> Vec<u8> {
+    let mtype = method_type_name(interp, provider, type_key, is_object);
+    let declarer: Vec<u8> = if is_object {
+        b"object".to_vec()
+    } else {
+        provider.to_vec()
+    };
+    build_list(&[call_type.to_vec(), display_name.to_vec(), declarer, mtype])
+}
+
+/// The `methodType` word for a method: `forward`, `core method: "NAME"` for a
+/// native builtin, or `method` for a proc body (incl. constructor/destructor).
+fn method_type_name(interp: &Interp, provider: &[u8], key: &[u8], is_object: bool) -> Vec<u8> {
+    if key == b"<constructor>" || key == b"<destructor>" || key.is_empty() {
+        return b"method".to_vec();
+    }
+    let oo = interp.oo.borrow();
+    let m = if is_object {
+        oo.objects.get(provider).and_then(|o| o.methods.get(key))
+    } else {
+        oo.classes.get(provider).and_then(|c| c.methods.get(key))
+    };
+    match m {
+        Some(Method::Forward { .. }) => b"forward".to_vec(),
+        Some(Method::Builtin(_)) => {
+            let mut s = b"core method: \"".to_vec();
+            s.extend_from_slice(key);
+            s.push(b'"');
+            s
+        }
+        _ => b"method".to_vec(),
+    }
 }
 
 /// `info class subcommand class ?arg?`.
@@ -3842,6 +3945,21 @@ impl Interp {
         chain
     }
 
+    /// The precedence (linearization) of a *class* itself — its mixins, the
+    /// class, then its superclasses — keep-last deduped, for `info class call`.
+    fn class_precedence(&self, class: &[u8]) -> Vec<Vec<u8>> {
+        let mut seq: Vec<Vec<u8>> = Vec::new();
+        let mut path: Vec<Vec<u8>> = Vec::new();
+        self.linearize_class(class, &mut seq, &mut path);
+        let mut out: Vec<Vec<u8>> = Vec::with_capacity(seq.len());
+        for (i, c) in seq.iter().enumerate() {
+            if !seq[i + 1..].iter().any(|x| x == c) {
+                out.push(c.clone());
+            }
+        }
+        out
+    }
+
     /// Depth-first precedence of a class into `seq` (with duplicates, resolved by
     /// the caller's keep-last dedup): the class's mixins (recursively), then the
     /// class itself, then its superclasses. `path` breaks cycles in a malformed
@@ -4829,6 +4947,46 @@ mod tests {
             // Unexporting destroy hides it from `-all` (oo-17.10).
             ok(i, b"oo::define C unexport {*}[info class methods C -all]");
             assert_eq!(ok(i, b"info class methods C -all"), b"");
+        });
+    }
+
+    #[test]
+    fn info_call_chain_rendering() {
+        leak_free(|i| {
+            ok(i, b"oo::class create root");
+            // declarer is `object` for a per-object method, the class FQN else.
+            ok(
+                i,
+                b"oo::class create ::A { superclass root; method x {} {} }",
+            );
+            ok(i, b"A create y");
+            ok(i, b"oo::objdefine y method x {} {}");
+            assert_eq!(
+                ok(i, b"info object call y x"),
+                b"{method x object method} {method x ::A method}"
+            );
+            // info class call follows the full precedence, mixins first.
+            ok(i, b"oo::class create ::B { superclass A; method x {} {} }");
+            ok(i, b"oo::class create ::C { superclass A; method x {} {} }");
+            ok(
+                i,
+                b"oo::class create ::D { superclass C; mixin B; method x {} {} }",
+            );
+            assert_eq!(
+                ok(i, b"info class call D x"),
+                b"{method x ::B method} {method x ::D method} {method x ::C method} {method x ::A method}"
+            );
+            // A missing method renders the unknown chain, ending at the core
+            // oo::object handler with a `core method:` type.
+            ok(
+                i,
+                b"oo::class create ::U { superclass root; method unknown args {} }",
+            );
+            ok(i, b"U create u");
+            assert_eq!(
+                ok(i, b"info object call u nosuch"),
+                b"{unknown unknown ::U method} {unknown unknown ::oo::object {core method: \"unknown\"}}"
+            );
         });
     }
 
