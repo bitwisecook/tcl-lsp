@@ -54,6 +54,20 @@ impl BindingScope {
     }
 }
 
+/// The sorted, de-duplicated byte spans of every referenced object name — the
+/// name-range-only view the semantic-tokens layer consumes. Uses
+/// `rule_module = None` so every LTM/GTM reference is recognised.
+#[must_use]
+pub fn object_ref_spans(source: &str, registry: &CommandRegistry) -> Vec<Span> {
+    let mut spans: Vec<Span> = extract_irules_object_references(source, None, registry)
+        .into_iter()
+        .map(|r| r.range)
+        .collect();
+    spans.sort_by_key(|s| (s.start(), s.end()));
+    spans.dedup();
+    spans
+}
+
 /// Extract every BIG-IP object reference from iRules `source`, resolving both
 /// literal arguments (`pool /Common/foo`) and constants propagated through
 /// `set` (`set p /Common/foo; pool $p`). Results are sorted by source position
