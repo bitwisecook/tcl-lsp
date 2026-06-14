@@ -103,6 +103,11 @@ pub(crate) struct CallMeta<'a> {
     /// Variable names to pre-link into the call frame from its namespace (a
     /// TclOO method's declared instance variables); empty for procs/lambdas.
     pub link_vars: &'a [Vec<u8>],
+    /// Return a body-level `break`/`continue` as the raw `Code` instead of the
+    /// `invoked "break" outside of a loop` error. Set for TIP 558 property
+    /// accessor methods, whose `configure` caller maps the loop codes to its
+    /// own diagnostics.
+    pub keep_loop_codes: bool,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -2700,6 +2705,7 @@ impl Interp {
                 source: def.source.clone(),
                 body_line_base: def.body_line_base,
                 link_vars: &[],
+                keep_loop_codes: false,
             },
         )
     }
@@ -2832,8 +2838,12 @@ impl Interp {
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
         // error (C Tcl: `invoked "break" outside of a loop`).
         let settled = match self.settle_return(code) {
-            Code::Break => self.error(b"invoked \"break\" outside of a loop"),
-            Code::Continue => self.error(b"invoked \"continue\" outside of a loop"),
+            Code::Break if !meta.keep_loop_codes => {
+                self.error(b"invoked \"break\" outside of a loop")
+            }
+            Code::Continue if !meta.keep_loop_codes => {
+                self.error(b"invoked \"continue\" outside of a loop")
+            }
             other => other,
         };
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`

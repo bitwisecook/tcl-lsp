@@ -378,9 +378,12 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
     while i < argv.len() {
         let prop = obj_bytes(argv[i]);
         i += 1;
-        // Validate the property name (C's TclOOInstallStdPropertyImpls).
+        // Validate the property name (C's TclOOInstallStdPropertyImpls). Order
+        // matters: the `-` check precedes the simple-word check.
         let bad = if prop.first() == Some(&b'-') {
             Some(&b"must not begin with -"[..])
+        } else if prop.is_empty() || prop.iter().any(|c| c.is_ascii_whitespace()) {
+            Some(&b"must be a simple word"[..])
         } else if prop.windows(2).any(|w| w == b"::") {
             Some(&b"must not contain namespace separators"[..])
         } else if prop.contains(&b'(') || prop.contains(&b')') {
@@ -401,13 +404,12 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
         let mut setter: Option<Vec<u8>> = None;
         while i < argv.len() && obj_bytes(argv[i]).first() == Some(&b'-') {
             let opt = obj_bytes(argv[i]);
-            let optname: &[u8] = match opt.as_slice() {
-                b"-get" => b"-get",
-                b"-set" => b"-set",
-                b"-kind" => b"-kind",
-                other => {
+            // Options accept unambiguous prefixes (`-g`/`-k`/`-s`).
+            let optname: &[u8] = match prefix_match(&opt, &[b"-get", b"-kind", b"-set"]) {
+                Some(o) => o,
+                None => {
                     let mut m = b"bad option \"".to_vec();
-                    m.extend_from_slice(other);
+                    m.extend_from_slice(&opt);
                     m.extend_from_slice(b"\": must be -get, -kind, or -set");
                     return err(interp, &m);
                 }
@@ -430,22 +432,22 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
             match optname {
                 b"-get" => getter = Some(val),
                 b"-set" => setter = Some(val),
-                b"-kind" => match val.as_slice() {
-                    b"readable" => {
+                b"-kind" => match prefix_match(&val, &[b"readable", b"readwrite", b"writable"]) {
+                    Some(b"readable") => {
                         kind_ro = true;
                         kind_wo = false;
                     }
-                    b"writable" => {
+                    Some(b"writable") => {
                         kind_wo = true;
                         kind_ro = false;
                     }
-                    b"readwrite" => {
+                    Some(b"readwrite") => {
                         kind_ro = false;
                         kind_wo = false;
                     }
-                    other => {
+                    _ => {
                         let mut m = b"bad kind \"".to_vec();
-                        m.extend_from_slice(other);
+                        m.extend_from_slice(&val);
                         m.extend_from_slice(b"\": must be readable, readwrite, or writable");
                         return err(interp, &m);
                     }
@@ -472,18 +474,29 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 return Code::Error;
             }
         }
-        // Register `-name` in the readable / writable property set(s).
+        // Register `-name`: add to (or remove from) each set per the kind, so a
+        // later declaration with a different `-kind` replaces the membership
+        // (C's TclOORegisterProperty add/remove; ooProp-3.16).
         let mut hyph = b"-".to_vec();
         hyph.extend_from_slice(&prop);
-        if readable {
-            add_to_property_set(interp, &target, use_instance, false, &hyph);
-        }
-        if writable {
-            add_to_property_set(interp, &target, use_instance, true, &hyph);
-        }
+        set_property_membership(interp, &target, use_instance, false, &hyph, readable);
+        set_property_membership(interp, &target, use_instance, true, &hyph, writable);
     }
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+/// Unambiguous-prefix match of `arg` against `cands` (Tcl option-table style):
+/// the exact name, else the unique candidate it prefixes, else `None`.
+fn prefix_match<'a>(arg: &[u8], cands: &'a [&'a [u8]]) -> Option<&'a [u8]> {
+    if let Some(c) = cands.iter().find(|c| **c == arg) {
+        return Some(c);
+    }
+    let mut it = cands.iter().filter(|c| c.starts_with(arg));
+    match (it.next(), it.next()) {
+        (Some(c), None) => Some(c),
+        _ => None,
+    }
 }
 
 fn property_method_name(prefix: &[u8], prop: &[u8]) -> Vec<u8> {
@@ -529,18 +542,24 @@ fn install_property_method(interp: &mut Interp, name: &[u8], params: &[u8], body
     )
 }
 
-/// Append `prop` (already hyphenated) to a definition target's property set,
-/// uniquely.
-fn add_to_property_set(
+/// Add or remove `prop` (already hyphenated) in a definition target's
+/// readable/writable property set (C's `BuildPropertyList`).
+fn set_property_membership(
     interp: &mut Interp,
     target: &DefTarget,
     use_instance: bool,
     writable: bool,
     prop: &[u8],
+    member: bool,
 ) {
     let mut set = read_property_set(interp, target, use_instance, writable);
-    if !set.iter().any(|p| p.as_slice() == prop) {
+    let present = set.iter().any(|p| p.as_slice() == prop);
+    if member && !present {
         set.push(prop.to_vec());
+    } else if !member && present {
+        set.retain(|p| p.as_slice() != prop);
+    } else {
+        return; // no change
     }
     write_property_set(interp, target, use_instance, writable, set);
 }
@@ -560,8 +579,9 @@ fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
         let props = interp.object_property_list(obj, false, true);
         let mut pairs: Vec<Vec<u8>> = Vec::with_capacity(props.len() * 2);
         for p in props {
-            if read_property(interp, obj, &p) == Code::Error {
-                return Code::Error;
+            let code = read_property(interp, obj, &p);
+            if code != Code::Ok {
+                return code;
             }
             pairs.push(p);
             pairs.push(interp.result_bytes());
@@ -582,8 +602,9 @@ fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
             Ok(n) => n,
             Err(c) => return c,
         };
-        if write_property(interp, obj, &name, args[i + 1]) == Code::Error {
-            return Code::Error;
+        let code = write_property(interp, obj, &name, args[i + 1]);
+        if code != Code::Ok {
+            return code;
         }
         i += 2;
     }
@@ -592,14 +613,35 @@ fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
 }
 
 /// Read a property by invoking the object's `<ReadProp-name>` method via `my`.
+/// A `break`/`continue` from the getter is turned into an error (C's
+/// ReadProperty).
 fn read_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8]) -> Code {
     let mname = property_method_name(b"<ReadProp", prop_hyph);
-    interp.oo_invoke(obj, &mname, &[], false)
+    let code = interp.oo_invoke(obj, &mname, &[], false);
+    property_loopword_error(interp, code, b"getter", prop_hyph)
 }
 
 fn write_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8], value: *mut TclObj) -> Code {
     let mname = property_method_name(b"<WriteProp", prop_hyph);
-    interp.oo_invoke(obj, &mname, &[value], false)
+    let code = interp.oo_invoke(obj, &mname, &[value], false);
+    property_loopword_error(interp, code, b"setter", prop_hyph)
+}
+
+/// Map a property accessor's `break`/`continue` to the C error message
+/// (`property getter|setter for -x did a break|continue`).
+fn property_loopword_error(interp: &mut Interp, code: Code, role: &[u8], prop_hyph: &[u8]) -> Code {
+    let word: &[u8] = match code {
+        Code::Break => b"break",
+        Code::Continue => b"continue",
+        _ => return code,
+    };
+    let mut m = b"property ".to_vec();
+    m.extend_from_slice(role);
+    m.extend_from_slice(b" for ");
+    m.extend_from_slice(prop_hyph);
+    m.extend_from_slice(b" did a ");
+    m.extend_from_slice(word);
+    interp.set_error(&m)
 }
 
 /// Resolve a `configure` option to a property name in the object's readable /
@@ -4246,6 +4288,9 @@ impl Interp {
                 source: None,
                 body_line_base: 0,
                 link_vars: &vars,
+                // Property accessors propagate break/continue to `configure`.
+                keep_loop_codes: method.starts_with(b"<ReadProp-")
+                    || method.starts_with(b"<WriteProp-"),
             },
         );
         self.oo.borrow_mut().call_stack.pop();
@@ -4625,6 +4670,40 @@ mod tests {
             assert_eq!(ok(i, b"ro configure -r"), b"7");
             assert_eq!(i.eval_str(b"ro configure -r 9"), Code::Error);
             assert_eq!(i.result_bytes(), b"property \"-r\" is read only");
+        });
+    }
+
+    #[test]
+    fn tip558_property_custom_accessors_and_kinds() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            // Custom -get/-set bodies; option/kind prefix abbreviation.
+            ok(
+                i,
+                b"oo::configurable create Point { superclass parent; variable xyz; \
+                  property x -g {return [list $xyz $xyz]} -s {set xyz $value} }",
+            );
+            ok(i, b"Point create p");
+            ok(i, b"p configure -x 5");
+            assert_eq!(ok(i, b"p configure -x"), b"5 5");
+            // A getter doing break/continue is reported, not leaked as a loop error.
+            ok(
+                i,
+                b"oo::configurable create B { superclass parent; property y -get {return -code break} }",
+            );
+            ok(i, b"B create b");
+            assert_eq!(i.eval_str(b"b configure -y"), Code::Error);
+            assert_eq!(i.result_bytes(), b"property getter for -y did a break");
+            // A second declaration with a different -kind replaces membership.
+            ok(
+                i,
+                b"oo::configurable create R { superclass parent; variable z; \
+                  property z -kind readable -get {return $z}; property z -kind writable -set {set z $value} }",
+            );
+            ok(i, b"R create r");
+            ok(i, b"r configure -z ok");
+            assert_eq!(i.eval_str(b"r configure -z"), Code::Error);
+            assert_eq!(i.result_bytes(), b"property \"-z\" is write only");
         });
     }
 
