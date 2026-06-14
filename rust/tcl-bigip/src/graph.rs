@@ -952,3 +952,249 @@ fn endpoint_refs(sub_body: &str, out: &mut Vec<(String, String)>) {
         out.push(("security firewall address-list".to_owned(), p.to_owned()));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Graph serialisation — port of `graph_export.py` (DOT / JSON / Mermaid) for
+// the `f5 graph` verb. Operates on a built [`ObjectGraph`].
+// ---------------------------------------------------------------------------
+
+/// A serialised graph plus its node/edge counts (mirrors `GraphExport`).
+pub struct GraphExport {
+    /// The requested format (`"dot"` / `"json"` / `"mermaid"`).
+    pub fmt: String,
+    /// The serialised graph text.
+    pub text: String,
+    /// Number of nodes emitted.
+    pub node_count: usize,
+    /// Number of edges emitted.
+    pub edge_count: usize,
+}
+
+/// The supported `f5 graph` formats.
+pub const GRAPH_FORMATS: [&str; 3] = ["dot", "json", "mermaid"];
+
+/// A DOT-safe node id: `n_` + each non-alphanumeric char replaced by `_`.
+fn safe_id(node_id: &str) -> String {
+    let mut s = String::with_capacity(node_id.len() + 2);
+    s.push_str("n_");
+    for c in node_id.chars() {
+        s.push(if c.is_alphanumeric() { c } else { '_' });
+    }
+    s
+}
+
+fn node_label(node: &ObjectNode) -> String {
+    let head = node.kind.unwrap_or(node.object_type.as_str());
+    format!("{head}\\n{}", node.identifier)
+}
+
+/// Serialise `graph` to `fmt`, optionally filtered to the subgraph reachable
+/// from `seeds` (mirrors `export_graph`). `reverse` walks incoming references;
+/// `max_depth` bounds the BFS.
+///
+/// # Errors
+/// Returns `Err` when `fmt` is not one of [`GRAPH_FORMATS`].
+pub fn export_graph(
+    graph: &ObjectGraph,
+    fmt: &str,
+    seeds: &[String],
+    reverse: bool,
+    max_depth: Option<usize>,
+) -> Result<GraphExport, String> {
+    if !GRAPH_FORMATS.contains(&fmt) {
+        return Err(format!(
+            "unknown graph format {fmt:?} (expected one of {GRAPH_FORMATS:?})"
+        ));
+    }
+
+    // Flatten nodes in source order (across uris), keyed by node_id.
+    let all_nodes: Vec<&ObjectNode> = graph
+        .nodes_by_uri
+        .iter()
+        .flat_map(|(_uri, nodes)| nodes.iter())
+        .collect();
+    let (kept, edges) = filter_to_subgraph(&all_nodes, &graph.edges, seeds, reverse, max_depth);
+
+    let kept_ids: HashSet<&str> = kept.iter().map(|n| n.node_id.as_str()).collect();
+    let text = match fmt {
+        "dot" => to_dot(&kept, &edges, &kept_ids),
+        "json" => to_json(&kept, &edges, &kept_ids),
+        _ => to_mermaid(&kept, &edges, &kept_ids),
+    };
+    Ok(GraphExport {
+        fmt: fmt.to_owned(),
+        text,
+        node_count: kept.len(),
+        edge_count: edges
+            .iter()
+            .filter(|e| {
+                kept_ids.contains(e.source_id.as_str()) && kept_ids.contains(e.target_id.as_str())
+            })
+            .count(),
+    })
+}
+
+/// BFS from the seed objects (matched by identifier), returning the reached
+/// nodes (in original order) and the edges among them. With no seeds the whole
+/// graph passes through. Mirrors `_filter_to_subgraph`.
+fn filter_to_subgraph<'a>(
+    all_nodes: &[&'a ObjectNode],
+    edges: &'a [ObjectEdge],
+    seeds: &[String],
+    reverse: bool,
+    max_depth: Option<usize>,
+) -> (Vec<&'a ObjectNode>, Vec<&'a ObjectEdge>) {
+    if seeds.is_empty() {
+        return (all_nodes.to_vec(), edges.iter().collect());
+    }
+
+    let mut matched_seeds: Vec<&str> = Vec::new();
+    for path in seeds {
+        for node in all_nodes {
+            if &node.identifier == path && !matched_seeds.contains(&node.node_id.as_str()) {
+                matched_seeds.push(node.node_id.as_str());
+            }
+        }
+    }
+    if matched_seeds.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+
+    let mut adjacency: HashMap<&str, Vec<&str>> = HashMap::new();
+    for edge in edges {
+        if reverse {
+            adjacency
+                .entry(edge.target_id.as_str())
+                .or_default()
+                .push(edge.source_id.as_str());
+        } else {
+            adjacency
+                .entry(edge.source_id.as_str())
+                .or_default()
+                .push(edge.target_id.as_str());
+        }
+    }
+
+    let mut visited: HashSet<&str> = matched_seeds.iter().copied().collect();
+    let mut depth: HashMap<&str, usize> = matched_seeds.iter().map(|s| (*s, 0usize)).collect();
+    let mut queue: std::collections::VecDeque<&str> = matched_seeds.iter().copied().collect();
+    while let Some(current) = queue.pop_front() {
+        let d = depth[current];
+        if max_depth.is_some_and(|m| d >= m) {
+            continue;
+        }
+        if let Some(neighbours) = adjacency.get(current) {
+            for &neighbour in neighbours {
+                if visited.insert(neighbour) {
+                    depth.insert(neighbour, d + 1);
+                    queue.push_back(neighbour);
+                }
+            }
+        }
+    }
+
+    let kept: Vec<&ObjectNode> = all_nodes
+        .iter()
+        .copied()
+        .filter(|n| visited.contains(n.node_id.as_str()))
+        .collect();
+    let kept_ids: HashSet<&str> = kept.iter().map(|n| n.node_id.as_str()).collect();
+    let kept_edges: Vec<&ObjectEdge> = edges
+        .iter()
+        .filter(|e| {
+            kept_ids.contains(e.source_id.as_str()) && kept_ids.contains(e.target_id.as_str())
+        })
+        .collect();
+    (kept, kept_edges)
+}
+
+fn to_dot(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
+    let mut lines = vec![
+        "digraph bigip {".to_owned(),
+        "  rankdir=LR;".to_owned(),
+        "  node [shape=box, fontname=\"monospace\"];".to_owned(),
+    ];
+    for node in nodes {
+        lines.push(format!(
+            "  {} [label=\"{}\"];",
+            safe_id(&node.node_id),
+            node_label(node)
+        ));
+    }
+    for edge in edges {
+        if !kept.contains(edge.source_id.as_str()) || !kept.contains(edge.target_id.as_str()) {
+            continue;
+        }
+        lines.push(format!(
+            "  {} -> {} [label=\"{}\"];",
+            safe_id(&edge.source_id),
+            safe_id(&edge.target_id),
+            edge.via_kind
+        ));
+    }
+    lines.push("}".to_owned());
+    lines.join("\n") + "\n"
+}
+
+fn to_mermaid(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
+    let mut lines = vec!["graph LR".to_owned()];
+    for node in nodes {
+        let label = node.identifier.replace('"', "'");
+        lines.push(format!("  {}[\"{label}\"]", safe_id(&node.node_id)));
+    }
+    for edge in edges {
+        if !kept.contains(edge.source_id.as_str()) || !kept.contains(edge.target_id.as_str()) {
+            continue;
+        }
+        lines.push(format!(
+            "  {} -->|{}| {}",
+            safe_id(&edge.source_id),
+            edge.via_kind,
+            safe_id(&edge.target_id)
+        ));
+    }
+    lines.join("\n") + "\n"
+}
+
+/// Serialise to `json.dumps(indent=2)`-compatible JSON, built by hand to match
+/// Python's key order (which `serde_json`'s sorted maps wouldn't preserve).
+fn to_json(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
+    use std::fmt::Write as _;
+    // Escape a string value the way `serde_json` (and `json.dumps`) does.
+    let q = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_owned());
+    let mut out = String::from("{\n  \"nodes\": [");
+    for (i, node) in nodes.iter().enumerate() {
+        out.push_str(if i == 0 { "\n" } else { ",\n" });
+        let kind = node.kind.map_or_else(|| "null".to_owned(), q);
+        let _ = write!(
+            out,
+            "    {{\n      \"id\": {},\n      \"module\": {},\n      \"objectType\": {},\n      \"identifier\": {},\n      \"kind\": {kind},\n      \"uri\": {}\n    }}",
+            q(&node.node_id),
+            q(&node.module),
+            q(&node.object_type),
+            q(&node.identifier),
+            q(&node.uri),
+        );
+    }
+    out.push_str(if nodes.is_empty() { "],\n" } else { "\n  ],\n" });
+
+    let visible: Vec<&&ObjectEdge> = edges
+        .iter()
+        .filter(|e| kept.contains(e.source_id.as_str()) && kept.contains(e.target_id.as_str()))
+        .collect();
+    out.push_str("  \"edges\": [");
+    for (i, edge) in visible.iter().enumerate() {
+        out.push_str(if i == 0 { "\n" } else { ",\n" });
+        let _ = write!(
+            out,
+            "    {{\n      \"source\": {},\n      \"target\": {},\n      \"viaProperty\": {},\n      \"viaKind\": {}\n    }}",
+            q(&edge.source_id),
+            q(&edge.target_id),
+            q(&edge.via_property),
+            q(&edge.via_kind),
+        );
+    }
+    out.push_str(if visible.is_empty() { "]\n" } else { "\n  ]\n" });
+    out.push_str("}\n");
+    out
+}
