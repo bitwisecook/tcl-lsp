@@ -151,17 +151,17 @@ Keystone progress / remaining pieces:
   graph only consumes each `Reference`'s `(target_kind, target_path)`, so each
   pilot spec is a **slim extractor** over the raw value (no full `ValueSpec`/
   `BigipList` materialisation).
-  - ✅ `ListSpec(ObjectRefSpec)` family (`rules`/`policies`/`vlans`/firewall
-    `rule-lists`/`address-lists`) — golden-tested (pilot-only `policies`/`vlans`
-    edges verified).
-  - ✅ `ProfileAttachmentSpec` / `PersistenceAttachmentSpec` (keyed-block;
-    `profiles`/`persist`) — golden-tested (pilot-only `persist` edge verified).
-  - ✅ `DestinationSpec` — no-op (no `references()`); falls to legacy.
-  - ⛔ remaining: `MonitorExpressionSpec`, `SnatModeSpec` (need their type
-    parsers), `CertKeyChainSpec`, `DataGroupRecordSpec`, `GtmRegionMemberSpec`,
-    `LtmPolicyRuleSpec`, `FirewallRuleSpec`.
-  - Pilot-fixture drift edges (Rust legacy-section refs not cleared) pinned in
-    `graph_pilot_objectref.drift.txt`.
+  - ✅ **all reference-producing specs ported + golden-tested**:
+    `ListSpec(ObjectRefSpec)` (`rules`/`policies`/`vlans`/firewall lists),
+    `Profile`/`Persistence` attachments, `MonitorExpressionSpec`, `SnatModeSpec`,
+    `CertKeyChainSpec`, `FirewallRuleSpec`. Comprehensive `graph_pilot.conf`
+    fixture (monitor min-of, SNAT pool, cert-key-chain, firewall source/dest
+    lists) + the realistic `bigip.conf`, both verified against the full pilot
+    table (iRule off).
+  - ✅ reference-free migrated specs (`DestinationSpec`, `DataGroupRecordSpec`,
+    `GtmRegionMemberSpec`, `LtmPolicyRuleSpec`) correctly fall through to legacy.
+  - Drift edges (Rust legacy-section refs not cleared) pinned in
+    `graph_pilot.drift.txt` / `graph_edges.drift.txt`.
 - ⛔ **irules_refs** (`extract_irules_object_references`, ~368 LOC) for iRule edges.
 - ⛔ **graph_export** (`graph_export.py`, ~170 LOC) — DOT/JSON/Mermaid for `f5 graph`.
 
