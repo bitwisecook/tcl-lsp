@@ -34,6 +34,17 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"proc name args body");
     }
     let name = obj_bytes(argv[1]);
+    // A namespace-qualified proc name requires that namespace to already exist
+    // (C's `Tcl_ProcObjCmd` via `TclGetNamespaceForQualName`).
+    if let Some(i) = name.windows(2).rposition(|w| w == b"::") {
+        let qualifier = &name[..i];
+        if !qualifier.is_empty() && interp.find_namespace_id(qualifier).is_none() {
+            let mut m = b"can't create procedure \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b"\": unknown namespace");
+            return interp.set_error(&m);
+        }
+    }
     let params = match parse_params(&obj_bytes(argv[2])) {
         Ok(p) => p,
         Err(e) => return interp.set_error(&e),

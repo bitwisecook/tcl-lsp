@@ -197,7 +197,21 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(ns) => ns,
         Err(code) => return code,
     };
-    let pattern = argv.get(3).map(|&a| obj_bytes(a));
+    // The pattern matches against children's *fully-qualified* names, so a
+    // pattern without a leading `::` is qualified with the target namespace's
+    // full name first (C's `NamespaceChildrenCmd`).
+    let pattern = argv.get(3).map(|&a| obj_bytes(a)).map(|p| {
+        if p.starts_with(b"::") {
+            p
+        } else {
+            let mut full = interp.namespaces().qualified_name(ns);
+            if full != b"::" {
+                full.extend_from_slice(b"::");
+            }
+            full.extend_from_slice(&p);
+            full
+        }
+    });
     let mut names: Vec<Vec<u8>> = interp
         .namespaces()
         .children(ns)

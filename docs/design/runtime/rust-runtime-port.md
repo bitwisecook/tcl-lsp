@@ -2669,6 +2669,26 @@ fixes, both from C (`tclDictObj.c`/`tclUtil.c`):
   and the `-regexp` compile-failure prefix is `cannot compile …` to match C
   (lsearch-2.6).
 
+### SYNC inbound — 2026-06-14 (namespace/command qualification: `info commands`, `namespace children`, `proc`)
+
+Three related name-qualification fixes (namespace.test 184 → 201, proc.test 13 →
+20, info.test +1; zero regressions), all from C:
+
+- **`info commands`/`info procs` re-qualify through the namespace's canonical
+  full name** — a *relative* qualified pattern (`info commands ns::pat`) now
+  returns absolute `::ns::…` names, via a new `Interp::canonical_ns_prefix`
+  (previously the literal pattern prefix was used, so relative patterns dropped
+  the leading `::`). Fixes the `info commands ns::*` assertions in proc-1.*.
+- **`namespace children ?ns? ?pattern?` qualifies the pattern** — a pattern
+  without a leading `::` is prefixed with the target namespace's full name before
+  matching the children's fully-qualified names (C's `NamespaceChildrenCmd`).
+  This was returning empty for the extremely common `namespace children ::
+  test_ns_*` idiom used in many suites' setup/cleanup — hence the broad
+  namespace.test jump.
+- **`proc ns::name` requires the namespace to exist** — a qualified proc name
+  whose namespace is missing is `can't create procedure "…": unknown namespace`
+  (`Tcl_ProcObjCmd`), instead of silently auto-creating it (proc-1.2).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

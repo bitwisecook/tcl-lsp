@@ -238,13 +238,18 @@ fn set_list_qualified(
             .map(|i| (&p[..i], &p[i + 2..]))
     });
     if let Some((prefix, tail)) = split {
+        // Re-qualify through the namespace's canonical full name so results are
+        // absolute even for a *relative* qualifier (`info commands ns::pat`).
+        let Some(canon) = interp.canonical_ns_prefix(prefix) else {
+            interp.set_result(list::new_list_obj(&[]));
+            return Code::Ok;
+        };
         let names = in_namespace(interp, prefix);
         let objs: Vec<*mut TclObj> = names
             .iter()
             .filter(|n| glob_match(tail, n))
             .map(|n| {
-                let mut full = prefix.to_vec();
-                full.extend_from_slice(b"::");
+                let mut full = canon.clone();
                 full.extend_from_slice(n);
                 new_string(&full)
             })
