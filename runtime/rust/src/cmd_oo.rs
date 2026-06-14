@@ -152,6 +152,12 @@ pub struct OoState {
     /// Non-zero while inside a `private` definition modifier — methods defined
     /// then are marked unexported (callable only via `my`).
     private_depth: usize,
+    /// The ensemble-rewrite prefix (`oo::define <class>` / `oo::objdefine
+    /// <obj>`) active while dispatching the single-command form of a definition
+    /// (`oo::define Foo method …`). A definition subcommand's `wrong # args`
+    /// prepends it so the message names the whole original command, as C's
+    /// ensemble rewrite does. `None` inside a `{ … }` definition body.
+    def_rewrite: Option<Vec<u8>>,
 }
 
 /// Register the `oo::*` commands and the definition / context commands.
@@ -292,6 +298,12 @@ fn err(interp: &mut Interp, msg: &[u8]) -> Code {
 
 fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     let mut m = b"wrong # args: should be \"".to_vec();
+    // Single-command definition forms (`oo::define Foo method …`) report the
+    // whole original command via the active ensemble-rewrite prefix.
+    if let Some(prefix) = interp.oo.borrow().def_rewrite.clone() {
+        m.extend_from_slice(&prefix);
+        m.push(b' ');
+    }
     m.extend_from_slice(usage);
     m.push(b'"');
     interp.set_error(&m)
@@ -2421,9 +2433,17 @@ impl Interp {
             let body = obj_bytes(argv[2]);
             return self.oo_define_body(target, &body);
         }
+        // Single-command form: a subcommand's `wrong # args` names the whole
+        // original command (`oo::define Foo method …`), via the rewrite prefix
+        // `<oo::define|oo::objdefine> <as-written target>`.
+        let mut prefix = obj_bytes(argv[0]);
+        prefix.push(b' ');
+        prefix.extend_from_slice(&obj_bytes(argv[1]));
+        let saved = self.oo.borrow_mut().def_rewrite.replace(prefix);
         self.oo.borrow_mut().def_stack.push(target);
         let code = self.dispatch(&argv[2..]);
         self.oo.borrow_mut().def_stack.pop();
+        self.oo.borrow_mut().def_rewrite = saved;
         code
     }
 
@@ -3804,6 +3824,39 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"can't create object \"K\": command already exists with that name"
+            );
+        });
+    }
+
+    #[test]
+    fn define_single_command_wrong_args_names_whole_command() {
+        leak_free(|i| {
+            ok(i, b"oo::class create Foo");
+            // Single-command form: the message names the whole original command.
+            assert_eq!(
+                i.eval_str(b"oo::define Foo method missingArgs"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"wrong # args: should be \"oo::define Foo method name ?option? args body\""
+            );
+            assert_eq!(
+                i.eval_str(b"oo::objdefine Foo method missingArgs"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"wrong # args: should be \"oo::objdefine Foo method name ?option? args body\""
+            );
+            // Body form keeps the bare usage (no rewrite prefix).
+            assert_eq!(
+                i.eval_str(b"oo::define Foo { method missingArgs }"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"wrong # args: should be \"method name ?option? args body\""
             );
         });
     }
