@@ -137,6 +137,12 @@ mod imp {
             m.extend_from_slice(b"\": command already exists");
             return interp.set_error(&m);
         }
+        // A leaked coroutine may still be registered under this name with no
+        // command (e.g. a coroutine that renamed *itself* away while running).
+        // Tear its worker down cleanly before reusing the name, so overwriting
+        // the registry entry can't drop a still-parked worker (which would wake
+        // on the closed channel and run concurrently with us).
+        terminate(interp, &name);
         // The body command, captured as bytes to rebuild on the worker thread.
         let cmd_bytes: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
 
