@@ -3171,64 +3171,65 @@ impl Interp {
             .collect()
     }
 
-    /// The method-resolution chain for `obj`: the object's own methods, then its
-    /// mixins, then the class's mixins, then the class MRO (deduped, first wins).
+    /// The method-resolution (precedence) chain for `obj`: a depth-first walk —
+    /// the object's mixins, then the object itself, then its class's
+    /// linearization (each class: its mixins, then the class, then its
+    /// superclasses) — with each provider kept at its **last** occurrence. This
+    /// "keep-last" dedup defers shared bases (a diamond's apex, a mixin's
+    /// superclass shared with the class chain) to after everything that derives
+    /// from them, matching C's `TclOOComputePrecedenceList` / call-chain order
+    /// (oo-21.x C3 ordering, oo-14.x mixins).
     fn method_chain(&self, obj: &[u8]) -> Vec<Vec<u8>> {
-        let mut chain: Vec<Vec<u8>> = vec![obj.to_vec()];
-        let push = |c: &[u8], chain: &mut Vec<Vec<u8>>| {
-            if !chain.iter().any(|x| x == c) {
-                chain.push(c.to_vec());
-            }
-        };
-        let (obj_mixins, cls, cls_mixins) = {
+        let (obj_mixins, cls) = {
             let oo = self.oo.borrow();
             match oo.objects.get(obj) {
-                Some(o) => {
-                    let cls = o.class.clone();
-                    let cm = oo.classes.get(&cls).map(|c| c.mixins.clone());
-                    (o.mixins.clone(), Some(cls), cm.unwrap_or_default())
-                }
-                None => (Vec::new(), None, Vec::new()),
+                Some(o) => (o.mixins.clone(), Some(o.class.clone())),
+                None => return vec![obj.to_vec()],
             }
         };
-        let mut guard: Vec<Vec<u8>> = Vec::new();
+        let mut seq: Vec<Vec<u8>> = Vec::new();
+        let mut path: Vec<Vec<u8>> = Vec::new();
         for mx in &obj_mixins {
-            self.push_mixin_precedence(mx, &mut chain, &mut guard);
+            self.linearize_class(mx, &mut seq, &mut path);
         }
-        for mx in &cls_mixins {
-            self.push_mixin_precedence(mx, &mut chain, &mut guard);
-        }
+        seq.push(obj.to_vec());
         if let Some(cls) = cls {
-            for c in self.mro(&cls) {
-                push(&c, &mut chain);
+            self.linearize_class(&cls, &mut seq, &mut path);
+        }
+        // Keep each provider at its last occurrence (drop earlier duplicates).
+        let mut chain: Vec<Vec<u8>> = Vec::with_capacity(seq.len());
+        for (i, c) in seq.iter().enumerate() {
+            if !seq[i + 1..].iter().any(|x| x == c) {
+                chain.push(c.clone());
             }
         }
         chain
     }
 
-    /// Append a mixin's full precedence to the call chain: the mixin's own
-    /// mixins (recursively, so mixins-of-mixins are reachable — Bug 1960703,
-    /// oo-14.6), then the mixin and its superclass MRO. `guard` breaks cycles.
-    fn push_mixin_precedence(&self, mx: &[u8], chain: &mut Vec<Vec<u8>>, guard: &mut Vec<Vec<u8>>) {
-        if guard.iter().any(|g| g == mx) {
+    /// Depth-first precedence of a class into `seq` (with duplicates, resolved by
+    /// the caller's keep-last dedup): the class's mixins (recursively), then the
+    /// class itself, then its superclasses. `path` breaks cycles in a malformed
+    /// hierarchy without suppressing the legitimate re-visits keep-last relies on.
+    fn linearize_class(&self, class: &[u8], seq: &mut Vec<Vec<u8>>, path: &mut Vec<Vec<u8>>) {
+        if path.iter().any(|c| c == class) {
             return;
         }
-        guard.push(mx.to_vec());
-        let nested = self
-            .oo
-            .borrow()
-            .classes
-            .get(mx)
-            .map(|c| c.mixins.clone())
-            .unwrap_or_default();
-        for m2 in &nested {
-            self.push_mixin_precedence(m2, chain, guard);
-        }
-        for c in self.mro(mx) {
-            if !chain.iter().any(|x| x == &c) {
-                chain.push(c);
+        path.push(class.to_vec());
+        let (mixins, supers) = {
+            let oo = self.oo.borrow();
+            match oo.classes.get(class) {
+                Some(c) => (c.mixins.clone(), c.supers.clone()),
+                None => (Vec::new(), Vec::new()),
             }
+        };
+        for mx in &mixins {
+            self.linearize_class(mx, seq, path);
         }
+        seq.push(class.to_vec());
+        for s in &supers {
+            self.linearize_class(s, seq, path);
+        }
+        path.pop();
     }
 
     /// If `word` (a forward's command name) names a command in `obj`'s instance
@@ -3827,6 +3828,54 @@ mod tests {
             ok(i, b"oo::object create a; rename a b");
             assert_eq!(ok(i, b"info object isa object b"), b"1");
             i.eval_str(b"rename foo {}; rename C {}; rename b {}");
+        });
+    }
+
+    #[test]
+    fn precedence_ordering_c3_and_mixins() {
+        leak_free(|i| {
+            // oo-21.2: diamond + mixin precedence. Expected call order
+            // `Fmix Emix o D B C A` (shared bases deferred via keep-last).
+            ok(
+                i,
+                b"oo::class create A { method m {} {lappend ::result A} }",
+            );
+            ok(
+                i,
+                b"oo::class create B { superclass A; method m {} {lappend ::result B;next} }",
+            );
+            ok(
+                i,
+                b"oo::class create C { superclass A; method m {} {lappend ::result C;next} }",
+            );
+            ok(
+                i,
+                b"oo::class create D { superclass B C; method m {} {lappend ::result D;next} }",
+            );
+            ok(
+                i,
+                b"oo::class create Emix { superclass C; method m {} {lappend ::result Emix;next} }",
+            );
+            ok(i, b"oo::class create Fmix { superclass Emix; method m {} {lappend ::result Fmix;next} }");
+            ok(i, b"D create o");
+            ok(
+                i,
+                b"oo::objdefine o { method m {} {lappend ::result o;next}; mixin Fmix }",
+            );
+            ok(i, b"set ::result {}; o m");
+            assert_eq!(ok(i, b"set ::result"), b"Fmix Emix o D B C A");
+            // A class mixin runs before the class itself (oo-14.8 ordering):
+            // the mixin's method runs first and chains via `next` to the class.
+            ok(
+                i,
+                b"oo::class create mix { method t {} {lappend ::r mix; next} }",
+            );
+            ok(
+                i,
+                b"oo::class create cls { mixin mix; method t {} {lappend ::r cls; return $::r} }",
+            );
+            ok(i, b"set ::r {}");
+            assert_eq!(ok(i, b"[cls new] t"), b"mix cls");
         });
     }
 
