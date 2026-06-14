@@ -2444,16 +2444,26 @@ from the call meta, displacing the `proc` key — C's `TclInfoFrame`), landing
   single-threaded wasm build stubs the commands (a future explicit-stack
   evaluator would be the wasm route). Completing coroutines also flushed the
   cross-test pollution gated on oo-1.25 (which aborted mid-body on the missing
-  `coroutine`, leaking `A`): oo-3.7, oo-7.7. `coroutine.test` 0 → 28/77;
-  `oo.test` → 303/388.
+  `coroutine`, leaking `A`): oo-3.7, oo-7.7. `coroutine.test` 0 → 28/77.
 
-Still open (larger/foundational): builtin methods (`eval`/`variable`/`varname`/
-`destroy`) are not call-chain steps, so `next` into a builtin and filters
-wrapping them fail (oo-18.5, oo-12.2); the define body runs in the caller's
-namespace, not `::oo::define`/`::oo::objdefine` with outer-context class
-resolution (oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor `wrong # args`
-/ `info level` words (oo-2.1/2.7/2.8); class morphing (oo-13.x); coroutine
-advanced forms (`yieldto`, custom `return -code`, `info level` in coroutines).
+After coroutines, the same-session tail of OO fixes (all zero-regression) took
+`oo.test` further to **307/388**: `next` into the `oo::object` core built-ins
+(`eval`/`variable`/`varname`/`destroy`) and those built-ins appearing as call-
+chain steps in `info class/object call` (oo-18.5, oo-35.1); the two-arg
+`info object class obj className` membership test; a failed constructor running
+the destructor before re-raising (oo-2.9); and `info class methods -all`
+traversing mixin links (oo-35.5). The full Tcl 9 sweep is **11935/20494**
+(up from 11757; coroutines/event loop flipped `coroutine.test`/`event.test` and
+the OO suites from error-before-summary to passing).
+
+Still open (larger/foundational): filters wrapping the `destroy` built-in need
+it as a chain *step* in the initial dispatch (oo-12.2); the define body runs in
+the caller's namespace, not `::oo::define`/`::oo::objdefine` with outer-context
+class resolution (oo-7.4/7.5, oo-34.1); ensemble-rewrite of constructor
+`wrong # args` / `info level` words (oo-2.1/2.7/2.8); class morphing + self-mixin
+(oo-13.x); empty-superclass on a metaclass (oo-35.2); `varname` ghosts
+(oo-19.x); coroutine advanced forms (`yieldto`, custom `return -code`,
+`info level` in coroutines).
 
 ### SYNC inbound — 2026-06-13 (`ledit`/`lmap`/`lseq` + var-read-miss + eval-reset; audit re-baseline)
 
