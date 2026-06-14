@@ -63,6 +63,19 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             format,
             output,
         } => commands::merge::run_merge(paths, format, output.as_deref()),
+        Command::Extract {
+            ucs,
+            include_extras,
+            format,
+            passphrase,
+            output,
+        } => commands::extract::run_extract(
+            ucs,
+            *include_extras,
+            format,
+            passphrase,
+            output.as_deref(),
+        ),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();

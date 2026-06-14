@@ -18,6 +18,7 @@ clap_complete = "4"
 anyhow = "1"
 tcl-cli-support = { path = "../tcl-cli-support" }
 tcl-bigip = { path = "../tcl-bigip" }
+tcl-bigip-io = { path = "../tcl-bigip-io" }
 tcl-registry = { path = "../tcl-registry" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
