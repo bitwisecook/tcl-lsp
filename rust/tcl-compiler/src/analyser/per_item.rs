@@ -84,6 +84,7 @@ impl Analyser {
     /// in salsa so a body edit recomputes only that body.  Method bodies are
     /// filled in place.  Byte-identical to `analyse` whenever `body_fn` returns
     /// what [`analyse_proc_body_isolated`] would.
+    #[allow(clippy::too_many_lines)]
     pub fn analyse_per_item_with(
         &mut self,
         source: &str,
@@ -194,9 +195,45 @@ impl Analyser {
             self.result.all_procs.keys().cloned().collect();
         for db in &deferred {
             if db.is_method {
-                // Method bodies: fill in place (byte-identical; not memoised).
+                // Method bodies fill their scope in place (byte-identical for the
+                // walk itself).  But a method that *defines* a proc/class does so
+                // in pass-2 order, not the source order a whole-file walk uses —
+                // so a name it defines that is also defined elsewhere would win
+                // here yet lose (or accumulate differently) there.  Detect that
+                // and fall back.  Cheap: only snapshot when the body text
+                // actually defines a proc/class.
                 self.last_comment = String::new();
+                let before_classes = body_word_defines(&db.body_text, CLASS_DEFINERS)
+                    .then(|| self.result.all_classes.clone());
+                let before_procs = body_word_defines(&db.body_text, &["proc"])
+                    .then(|| self.result.all_procs.clone());
                 self.analyse_body(&db.body_text, db.body_tok, &db.scope_path);
+                // A method that defines/extends a class diverges like a
+                // class-defining proc body (accumulation order) — fall back.
+                if let Some(before) = before_classes {
+                    if self
+                        .result
+                        .all_classes
+                        .iter()
+                        .any(|(k, v)| before.get(k) != Some(v))
+                    {
+                        return self.fresh_full_analyse(source, dialect);
+                    }
+                }
+                // A method that (re)defines a proc whose name is defined
+                // elsewhere is a duplicate at the shared `all_procs` key.
+                if let Some(before) = before_procs {
+                    let mut collision = false;
+                    for (k, v) in &self.result.all_procs {
+                        if before.get(k) != Some(v) && !defined_procs.insert(k.clone()) {
+                            collision = true;
+                            break;
+                        }
+                    }
+                    if collision {
+                        return self.fresh_full_analyse(source, dialect);
+                    }
+                }
             } else {
                 // Proc bodies: analyse in isolation (a pure function of the
                 // body — the unit memoised by `body_fn`) and graft into shell.
@@ -529,6 +566,27 @@ fn reconstruct_proc_scope(
     path
 }
 
+/// Class-defining / object-aliasing command heads whose facts accumulate across
+/// bodies in a whole-file walk (remove → add → re-insert) — which the per-item
+/// graft's overwrite-on-key can't reproduce.
+const CLASS_DEFINERS: &[&str] = &[
+    "oo::define",
+    "oo::objdefine",
+    "oo::class",
+    "oo::copy",
+    "itcl::class",
+];
+
+/// Word-level test: does `body_text` use any of `words` as a (whitespace- or
+/// punctuation-delimited) command word?  Used as a cheap pre-filter before the
+/// more expensive snapshot/diff that confirms what a method body actually
+/// defined.  False positives only cost a snapshot, never correctness.
+fn body_word_defines(body_text: &str, words: &[&str]) -> bool {
+    body_text
+        .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
+        .any(|w| words.contains(&w))
+}
+
 /// Does an isolated proc body interact with enclosing-scope / object state in a
 /// way the per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
 /// fallback?  True when the body:
@@ -548,24 +606,14 @@ fn reconstruct_proc_scope(
 /// replayed on the shell's globals at graft time, so they stay on the fast path.
 /// Conservative — a false positive only costs a full rebuild, never correctness.
 fn body_needs_enclosing_context(body_text: &str) -> bool {
-    const DECLARERS: &[&str] = &[
-        "variable",
-        "global",
-        "upvar",
-        "namespace",
-        "oo::define",
-        "oo::objdefine",
-        "oo::class",
-        "oo::copy",
-        "itcl::class",
-    ];
+    const DECLARERS: &[&str] = &["variable", "global", "upvar", "namespace"];
     const WRITERS: &[&str] = &["set", "incr", "lappend", "append", "dict", "array"];
     let words: Vec<&str> = body_text
         .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
         .filter(|w| !w.is_empty())
         .collect();
     for (i, &w) in words.iter().enumerate() {
-        if DECLARERS.contains(&w) {
+        if DECLARERS.contains(&w) || CLASS_DEFINERS.contains(&w) {
             return true;
         }
         // A writer whose next word or two is a `::`-qualified target writes an
@@ -610,6 +658,19 @@ mod tests {
     #[test]
     fn oo_class_with_method() {
         eq("oo::class create K {\n  variable n\n  method m {a} { set n $a; return $n }\n}\n");
+    }
+
+    #[test]
+    fn method_body_defines_duplicate_proc() {
+        // A method that defines `::p`, plus a later top-level `proc p`: a
+        // whole-file walk ends with the top-level definition (source order),
+        // so the per-item path must fall back rather than let the pass-2
+        // method body win the shared `all_procs["::p"]` key.
+        eq("oo::class create C { method m {} { proc p {} { return 1 } } }\nproc p {} { return 2 }\n");
+        // Same, reversed order (top-level first, then the method).
+        eq("proc p {} { return 2 }\noo::class create C { method m {} { proc p {} { return 1 } } }\n");
+        // A method that defines a non-colliding proc stays byte-identical too.
+        eq("oo::class create C { method m {} { proc helper {} { return 1 } } }\n");
     }
 
     #[test]
