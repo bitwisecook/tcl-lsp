@@ -512,11 +512,20 @@ impl Namespaces {
     /// Deleting the global namespace clears its contents but keeps the node
     /// (it has no parent to unlink from) — matching `namespace delete ::`.
     pub fn delete_namespace_by_id(&mut self, ns: NsId) {
+        let victims = self.descendant_ids(ns);
         self.delete_subtree(ns);
         // Unlink from the parent so the name no longer resolves.
         if let Some(parent) = self.arena[ns].parent {
             let name = std::mem::take(&mut self.arena[ns].name);
             self.arena[parent].children.remove(&name);
+        }
+        // Drop the deleted namespaces from every other namespace's `namespace
+        // path` — a dangling id would otherwise resolve to the global `::`
+        // (`TclResetNamespaceParameters` / path fixup in `tclNamesp.c`).
+        for node in &mut self.arena {
+            if !node.path.is_empty() {
+                node.path.retain(|p| !victims.contains(p));
+            }
         }
     }
 

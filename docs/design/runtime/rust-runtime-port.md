@@ -2766,6 +2766,16 @@ errorInfo-frame plumbing and are deferred; namespace-50.x (rewriting target
 `wrong # args` messages to the ensemble invocation) is the documented
 ensemble-rewrite-threading rework.
 
+### SYNC inbound — 2026-06-14 (`namespace path` lifecycle + not-found)
+
+`namespace path` fixes (namespace.test 234 → 238): deleting a namespace now
+drops it from every other namespace's `namespace path` (a dangling id otherwise
+resolved to the global `::`, namespace-51.7/51.8/51.9), and `namespace path`
+given a missing namespace reports the shared `TclGetNamespaceFromObj` not-found
+error (`namespace "X" not found in "::ns"`, namespace-51.10). The remaining
+51.13–51.15 are the trace-during-deletion / path-recompute corner; namespace-50.x
+and the 53.x wrong-#-args cases are the ensemble-rewrite-threading rework.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

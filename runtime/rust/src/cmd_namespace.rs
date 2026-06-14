@@ -472,11 +472,9 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let mut path: Vec<NsId> = Vec::with_capacity(elems.len());
     for e in &elems {
-        let Some(ns) = interp.namespaces().find_namespace(cur, e) else {
-            let mut m = b"namespace \"".to_vec();
-            m.extend_from_slice(e);
-            m.extend_from_slice(b"\" not found");
-            return interp.set_error(&m);
+        let found = interp.namespaces().find_namespace(cur, e);
+        let Some(ns) = found else {
+            return ns_not_found(interp, e);
         };
         path.push(ns);
     }
