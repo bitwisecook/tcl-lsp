@@ -1067,6 +1067,30 @@ impl Analyser {
         self.emit_lexer_warning_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
+        self.canonicalize_result_order();
+    }
+
+    /// Canonicalise the order of the walk-populated, order-sensitive result
+    /// collections so the output is independent of *how* the walk was driven
+    /// (whole-file vs per-item).  Generalises the diagnostic sort in
+    /// `dedupe_diagnostics`: `command_invocations` and every `VarDef.references`
+    /// list are sorted by source position.  These are set-like for their
+    /// consumers (W123 already emitted; LSP references/rename filter by
+    /// name/position and the client orders by position), so a canonical
+    /// source order is behaviour-preserving and lets per-item analysis merge
+    /// facts without reconstructing DFS order.
+    fn canonicalize_result_order(&mut self) {
+        self.result.command_invocations.sort_by(|a, b| {
+            a.range
+                .start()
+                .cmp(&b.range.start())
+                .then(a.range.end().cmp(&b.range.end()))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+        sort_scope_refs(&mut self.result.global_scope);
+        for v in self.result.all_variables.values_mut() {
+            v.references.sort_by_key(|s| (s.start(), s.end()));
+        }
     }
 
     /// Reset transient run state so the next ``analyse`` call
@@ -1086,6 +1110,17 @@ impl Analyser {
 /// ``binary_search`` on this vector to convert a byte offset to
 /// a 0-based line number in ``O(log N)`` instead of a per-call
 /// linear scan.
+/// Recursively sort every `VarDef.references` list in a scope subtree by span,
+/// for [`Analyser::canonicalize_result_order`].
+fn sort_scope_refs(scope: &mut super::types::Scope) {
+    for v in scope.variables.values_mut() {
+        v.references.sort_by_key(|s| (s.start(), s.end()));
+    }
+    for child in &mut scope.children {
+        sort_scope_refs(child);
+    }
+}
+
 pub(super) fn compute_line_offsets(source: &str) -> Vec<usize> {
     source
         .as_bytes()
