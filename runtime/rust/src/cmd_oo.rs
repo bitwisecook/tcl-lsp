@@ -2074,8 +2074,13 @@ fn def_variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// the `exported` set (a default-unexported built-in promoted to public).
 fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
     let names: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let apply = |unexp: &mut BTreeSet<Vec<u8>>, exp: &mut BTreeSet<Vec<u8>>| {
+    // Export/unexport also clears the TIP 500 private flag: the method becomes
+    // plain public/unexported (oo-40.2/40.3).
+    let apply = |unexp: &mut BTreeSet<Vec<u8>>,
+                 exp: &mut BTreeSet<Vec<u8>>,
+                 priv_set: &mut BTreeSet<Vec<u8>>| {
         for n in &names {
+            priv_set.remove(n);
             if export {
                 unexp.remove(n);
                 exp.insert(n.clone());
@@ -2089,13 +2094,13 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
         Ok(DefTarget::Class(c)) => {
             let mut oo = interp.oo.borrow_mut();
             if let Some(cl) = oo.classes.get_mut(&c) {
-                apply(&mut cl.unexported, &mut cl.exported);
+                apply(&mut cl.unexported, &mut cl.exported, &mut cl.private);
             }
         }
         Ok(DefTarget::Object(o)) => {
             let mut oo = interp.oo.borrow_mut();
             if let Some(ob) = oo.objects.get_mut(&o) {
-                apply(&mut ob.unexported, &mut ob.exported);
+                apply(&mut ob.unexported, &mut ob.exported, &mut ob.private);
             }
         }
         Err(code) => return code,
@@ -3234,6 +3239,12 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"methods" => {
             let all = argv[4..].iter().any(|&a| obj_bytes(a) == b"-all");
             let private = argv[4..].iter().any(|&a| obj_bytes(a) == b"-private");
+            // `-scope public|unexported|private` (TIP 500) selects exactly one
+            // visibility class.
+            let scope: Option<Vec<u8>> = argv[4..]
+                .iter()
+                .position(|&a| obj_bytes(a) == b"-scope")
+                .and_then(|p| argv.get(4 + p + 1).map(|&a| obj_bytes(a)));
             let mut names: Vec<Vec<u8>> = Vec::new();
             let chain = if all {
                 interp.mro(&cls)
@@ -3243,9 +3254,18 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             for c in &chain {
                 if let Some(cl) = interp.oo.borrow().classes.get(c) {
                     for n in cl.methods.keys() {
-                        // `-private` lists unexported methods too, but never the
-                        // TIP-500 private ones; the default lists exported only.
-                        let show = if private {
+                        let show = if let Some(sc) = &scope {
+                            let s: &[u8] = if cl.private.contains(n) {
+                                b"private"
+                            } else if cl.unexported.contains(n) {
+                                b"unexported"
+                            } else {
+                                b"public"
+                            };
+                            s == sc.as_slice()
+                        } else if private {
+                            // `-private` lists unexported methods too, but never
+                            // the TIP-500 private ones; default lists exported.
                             !cl.private.contains(n)
                         } else {
                             !cl.unexported.contains(n)
@@ -5357,6 +5377,25 @@ mod tests {
             // Unexporting destroy hides it from `-all` (oo-17.10).
             ok(i, b"oo::define C unexport {*}[info class methods C -all]");
             assert_eq!(ok(i, b"info class methods C -all"), b"");
+        });
+    }
+
+    #[test]
+    fn info_methods_scope_and_export_reclassifies() {
+        leak_free(|i| {
+            ok(i, b"oo::class create cls { private method foo {} {} }");
+            assert_eq!(ok(i, b"info class methods cls -scope public"), b"");
+            assert_eq!(ok(i, b"info class methods cls -scope unexported"), b"");
+            assert_eq!(ok(i, b"info class methods cls -scope private"), b"foo");
+            // export reclassifies private -> public.
+            ok(i, b"oo::define cls { export foo }");
+            assert_eq!(ok(i, b"info class methods cls -scope public"), b"foo");
+            assert_eq!(ok(i, b"info class methods cls -scope private"), b"");
+            // unexport reclassifies private -> unexported.
+            ok(i, b"oo::class create cls2 { private method bar {} {} }");
+            ok(i, b"oo::define cls2 { unexport bar }");
+            assert_eq!(ok(i, b"info class methods cls2 -scope unexported"), b"bar");
+            assert_eq!(ok(i, b"info class methods cls2 -scope private"), b"");
         });
     }
 
