@@ -46,7 +46,7 @@ impl UnclosedDelimiter {
 }
 
 /// A single Tcl command parsed from the token stream.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SegmentedCommand {
     /// Byte span covering the whole command.
     pub span: Span,

@@ -814,6 +814,18 @@ impl Analyser {
         self.registry = Some(registry);
         self.line_offsets = Some(compute_line_offsets(source));
 
+        // Stub-directive pre-scan + overlay, matching ``analyse`` so command
+        // resolution (W123 / W307 / param-trait inference) sees the same stub
+        // surface.  Previously deferred, which left ``stub_overlay`` = ``None``
+        // here vs ``Some`` on the full ``analyse`` path — a setup divergence
+        // that made ``analyse_commands`` non-byte-identical to ``analyse`` (the
+        // `incremental == fresh` fuzzer caught it).  ``AnalysisResult`` already
+        // carries the ``stub_commands`` / ``stub_expr_defs`` fields.
+        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
+        self.result.stub_commands = stub_cmds;
+        self.result.stub_expr_defs = stub_exprs;
+
         self.analyse_commands_inner(commands);
 
         if finalise {
@@ -871,7 +883,60 @@ impl Analyser {
         }
         let cmds =
             crate::segmenter::segment_commands_incremental(prev_text, prev_commands, new_text);
-        self.analyse_commands(new_text, &cmds, dialect, true)
+        // `analyse` segments with *error recovery*; the fast path uses plain
+        // incremental segmentation.  `script_is_complete` only checks overall
+        // delimiter balance, so a locally-unbalanced brace (a stray `}` matched
+        // by a missing `{` elsewhere) passes it yet makes recovery segmentation
+        // split off a partial command — emitting E200/E102/E202 that the plain
+        // walk never sees.  Replicate the recovery segmentation `analyse` uses
+        // and fall back to a full rebuild when it differs from what the fast
+        // path would walk, or leaves any partial command.  (This also subsumes
+        // the plain-segmentation-metadata check: the recovery segmenter is the
+        // authority on the command stream + its attached comments.)
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
+            registry.load_dialect(d);
+        }
+        let known: std::collections::HashSet<&str> = registry.command_names().collect();
+        let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
+            new_text,
+            &known,
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
+        if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
+            return self.fresh_full_analyse(new_text, dialect);
+        }
+        let result = self.analyse_commands(new_text, &cmds, dialect, true);
+        // Correctness fallback (the maintainer's mandate: incremental must
+        // always converge to a full rebuild).  The pre-segmented
+        // `analyse_commands` walk is byte-identical to a full `analyse` for
+        // well-formed input (verified over the whole corpus), but it diverges
+        // from `analyse`'s error-*recovery* handling when the document carries
+        // syntax errors: `analyse` runs ghost-token re-lexing,
+        // recovery-segmentation, and body-level partial detection that the
+        // pre-segmented entry only partially mirrors.  Every observed
+        // `incremental != fresh` divergence on a well-segmented document carries
+        // at least one syntax-error (E-code) diagnostic, so when the fast path
+        // reports any such error we re-analyse fully — guaranteeing the result
+        // equals a from-scratch `analyse`.  The fast path stays the common
+        // well-formed edit; only mid-edit broken states (transient) take the
+        // slow path.
+        if result.diagnostics.iter().any(|d| d.code.starts_with('E')) {
+            return self.fresh_full_analyse(new_text, dialect);
+        }
+        result
+    }
+
+    /// Run a full [`Self::analyse`] on a *fresh* analyser carrying this one's
+    /// config.  The incremental fast path consumes per-walk state (the scope
+    /// walk leaves `var_command_sites` / `ensemble_namespaces` / … populated and
+    /// `clear_run_state` resets only the registry + line index), so a second
+    /// `analyse` on `self` would run on dirty state; a fresh analyser is the
+    /// safe way to take the full-rebuild fallback mid-call.
+    fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
+        let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
+            .with_non_ascii_mode(self.non_ascii_mode);
+        fresh.analyse(new_text, dialect)
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
@@ -910,19 +975,20 @@ impl Analyser {
                 cmd_idx += 1;
                 continue;
             }
-            // GAP-A6 follow-up: the E100 (stray `]`) / E102 (stray
-            // `}`) token checks run on the incremental / chunked
-            // path too, mirroring the top-level loop and
-            // ``analyse_body``.  Run on the original token stream
-            // before ``recover_stray_close_bracket`` repairs the
-            // clone.  (Nested bodies dispatched below are covered by
-            // ``analyse_body``'s own per-body check.)
-            let stray = super::syntax_checks::stray_closer_diagnostics(
-                cmd_ref,
-                &self.source,
-                self.registry.as_ref(),
-            );
-            self.result.diagnostics.extend(stray);
+            // Emit the same source-recovery syntax diagnostics as the
+            // top-level loop in ``analyse``: E100 / E102 stray closers
+            // *and* E201 (unterminated `[`) / E202 / E203 (unterminated
+            // `"` / `{`).  Previously this path ran only
+            // ``stray_closer_diagnostics`` (E100/E102), so
+            // ``analyse_commands`` / ``analyse_chunked`` (and the
+            // incremental path) under-reported E201/E202/E203 at the top
+            // level relative to ``analyse`` — a real divergence the
+            // `incremental == fresh` fuzzer caught.  ``analyse_commands``
+            // never runs ghost recovery, so pass ``false``.  Run on the
+            // original token stream before ``recover_stray_close_bracket``
+            // repairs the clone.  (Nested bodies dispatched below are
+            // covered by ``analyse_body``'s own per-body check.)
+            self.emit_syntax_recovery_diagnostics(cmd_ref, false);
             // **C41e4 + C41e5.** Repair stray ``]`` and missing
             // ``{`` in a clone of the segmented command before
             // dispatch — chunked analysis keeps the original
@@ -946,6 +1012,9 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 &scope_path,
             );
+            // Parity with the top-level loop: W216 (brace-then-paren
+            // name/value confusion) fires on top-level commands here too.
+            self.emit_w216_brace_then_paren(&cmd);
             self.record_arg_var_reads(&cmd, &scope_path);
             cmd_idx += 1 + consumed;
         }
