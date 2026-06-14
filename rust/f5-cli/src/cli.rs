@@ -149,10 +149,14 @@ pub enum Command {
     /// Object-aware diff between two SCF or tmsh-output files.
     #[command(visible_alias = "changes")]
     Diff {
-        left: PathBuf,
-        right: PathBuf,
+        /// The "before" config.
+        before: PathBuf,
+        /// The "after" config.
+        after: PathBuf,
         #[arg(long)]
         json: bool,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Split an SCF into per-partition files under a directory.

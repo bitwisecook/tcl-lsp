@@ -12,18 +12,34 @@ fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
-fn run_f5(args: &[&str]) -> Vec<u8> {
+/// Run f5-query, returning stdout. `diff` exits 1 when there are changes, so
+/// callers pass the set of acceptable exit codes.
+fn run_f5_codes(args: &[&str], ok_codes: &[i32]) -> Vec<u8> {
     let output = Command::new(env!("CARGO_BIN_EXE_f5-query"))
         .args(args)
         .output()
         .expect("failed to spawn f5-query binary");
+    let code = output.status.code().unwrap_or(-1);
     assert!(
-        output.status.success(),
-        "f5-query {args:?} exited {:?}\nstderr: {}",
-        output.status.code(),
+        ok_codes.contains(&code),
+        "f5-query {args:?} exited {code}\nstderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     output.stdout
+}
+
+fn run_f5(args: &[&str]) -> Vec<u8> {
+    run_f5_codes(args, &[0])
+}
+
+fn assert_diff_matches(args: &[&str], golden: &str) {
+    let expected = std::fs::read(fixtures_dir().join(golden)).expect("read golden");
+    let actual = run_f5_codes(args, &[0, 1]);
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+        "f5 diff output does not match the Python CLI ({golden})"
+    );
 }
 
 #[test]
@@ -58,5 +74,40 @@ fn split_then_merge_matches_python() {
         String::from_utf8_lossy(&actual),
         String::from_utf8_lossy(&expected),
         "f5 split→merge round-trip does not match the Python CLI"
+    );
+}
+
+#[test]
+fn diff_add_remove_text_matches_python() {
+    let dir = fixtures_dir();
+    let a = dir.join("part-a.conf");
+    let b = dir.join("part-b.conf");
+    assert_diff_matches(
+        &["diff", a.to_str().unwrap(), b.to_str().unwrap()],
+        "diff-addrm.text.golden",
+    );
+}
+
+#[test]
+fn diff_add_remove_json_matches_python() {
+    let dir = fixtures_dir();
+    let a = dir.join("part-a.conf");
+    let b = dir.join("part-b.conf");
+    assert_diff_matches(
+        &["diff", a.to_str().unwrap(), b.to_str().unwrap(), "--json"],
+        "diff-addrm.json.golden",
+    );
+}
+
+#[test]
+fn diff_scalar_modify_matches_python() {
+    // Scalar-field modification (load-balancing-mode) — object-list fields
+    // (members/records) are excluded here since their display diverges.
+    let dir = fixtures_dir();
+    let before = dir.join("diff-mod-before.conf");
+    let after = dir.join("diff-mod-after.conf");
+    assert_diff_matches(
+        &["diff", before.to_str().unwrap(), after.to_str().unwrap()],
+        "diff-mod.text.golden",
     );
 }

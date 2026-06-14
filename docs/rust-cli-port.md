@@ -91,7 +91,8 @@ helpers are done; the rest await engine ports.
 | `completion` | ✅ idiomatic | clap_complete |
 | `merge` | ✅ byte-parity (scf) | golden-tested; tmsh deferred |
 | `split` | ✅ byte-parity (scf) | uses `extract_blocks`/`parse_generic_header`; round-trip golden-tested; tmsh deferred |
-| `stats`, `cleanup`, `grep`, `diff`, `validate`, `explain`, `graph`, `tmsh`, `convert`, `rename`, `redact`/`unredact`, `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `registry-dump`, `irule` group | ⛔ stub | pending engine ports |
+| `diff` (`changes`) | ✅ parity (add/remove/scalar) | ports `compute_diff` over the model; fields read from `canon_fields()`. **Gap:** object-list field *display* (pool `members`, data-group `records`) shows canonical JSON vs Python's dataclass `repr` — change *detection* is still correct. Golden-tested for add/remove + scalar modify |
+| `stats`, `cleanup`, `grep`, `validate`, `explain`, `graph`, `tmsh`, `convert`, `rename`, `redact`/`unredact`, `query`, `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `registry-dump`, `irule` group | ⛔ stub | pending engine ports |
 
 **Keystone:** the BIG-IP **reference graph** (`build_bigip_object_graph` /
 `dialects/f5/bigip/irules_object_refs.py`, ~944 LOC). `stats`, `cleanup`, `grep`,

@@ -40,6 +40,12 @@ where
 
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
+        Command::Diff {
+            before,
+            after,
+            json,
+            output,
+        } => commands::diff::run_diff(before, after, *json, output.as_deref()),
         Command::Split {
             input,
             output,

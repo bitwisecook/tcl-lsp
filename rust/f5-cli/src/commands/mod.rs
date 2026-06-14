@@ -5,5 +5,6 @@
 //! `dialects/f5/bigip/*`); the ones here need only file I/O + the existing
 //! `tcl-bigip` parser.
 
+pub mod diff;
 pub mod merge;
 pub mod split;

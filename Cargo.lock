@@ -280,6 +280,8 @@ dependencies = [
  "anyhow",
  "clap",
  "clap_complete",
+ "serde",
+ "serde_json",
  "tcl-bigip",
  "tcl-cli-support",
  "tcl-registry",
