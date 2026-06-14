@@ -113,6 +113,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             body_line_base: 0,
             link_vars: &[],
             keep_loop_codes: false,
+            same_level: false,
         },
     )
 }

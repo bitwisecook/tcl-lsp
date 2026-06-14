@@ -110,6 +110,12 @@ pub(crate) struct CallMeta<'a> {
     /// accessor methods, whose `configure` caller maps the loop codes to its
     /// own diagnostics.
     pub keep_loop_codes: bool,
+    /// Run the body at the *current* call-frame level rather than pushing a new
+    /// one (it still gets its own locals). Set for a TclOO method reached via
+    /// `next`: every method in a single call chain shares the level of the
+    /// original invocation, so `info level` / `upvar` / `uplevel` see through
+    /// the chain to the original caller (C's call-chain execution).
+    pub same_level: bool,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -2808,6 +2814,7 @@ impl Interp {
                 body_line_base: def.body_line_base,
                 link_vars: &[],
                 keep_loop_codes: false,
+                same_level: false,
             },
         )
     }
@@ -2850,7 +2857,11 @@ impl Interp {
         }
         self.recursion_depth.set(self.recursion_depth.get() + 1);
 
-        self.frames.borrow_mut().push(ns);
+        if meta.same_level {
+            self.frames.borrow_mut().push_same_level(ns);
+        } else {
+            self.frames.borrow_mut().push(ns);
+        }
         // Record the invocation words for `info level N`: the invoked name plus
         // the supplied arguments.
         let mut words = Vec::with_capacity(call_args.len() + 1);

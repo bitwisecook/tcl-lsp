@@ -369,6 +369,22 @@ impl FrameStack {
         level
     }
 
+    /// Push a proc call frame that shares the *current* level (it still gets its
+    /// own local-variable table). Used for a TclOO method invoked via `next`:
+    /// the whole call chain runs at the level of the original invocation, so
+    /// `info level` / `upvar` / `uplevel` resolve through the chain. Returns the
+    /// (unchanged) level; the new frame becomes active and, being topmost at
+    /// that level, is what unqualified names and `info level` resolve to.
+    pub fn push_same_level(&mut self, ns: NsId) -> usize {
+        let level = self.active_level;
+        let mut f = Frame::new(level, ns);
+        f.is_proc = true;
+        f.saved_active = self.active_level;
+        self.frames.push(f);
+        self.active_level = level;
+        level
+    }
+
     /// Push a *namespace* frame (`namespace eval`/`inscope`): a new scope whose
     /// unqualified variables resolve to the namespace (not frame-local). Returns
     /// its level and makes it active.

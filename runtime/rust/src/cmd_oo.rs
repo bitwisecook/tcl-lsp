@@ -5028,6 +5028,9 @@ impl Interp {
                 // Property accessors propagate break/continue to `configure`.
                 keep_loop_codes: method.starts_with(b"<ReadProp-")
                     || method.starts_with(b"<WriteProp-"),
+                // A non-first chain step is reached via `next`: it shares the
+                // level of the original method invocation (step 0).
+                same_level: index > 0,
             },
         );
         self.oo.borrow_mut().call_stack.pop();
@@ -6517,6 +6520,28 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn next_shares_caller_frame_level() {
+        leak_free(|i| {
+            // Every method in a `next` chain runs at the level of the original
+            // invocation, so `info level` is the same and `upvar 1` from a
+            // next-invoked method reaches the original caller's frame.
+            ok(
+                i,
+                b"oo::class create A { method incr {var step} { upvar 1 $var v; ::incr v $step; return [info level] } }",
+            );
+            ok(
+                i,
+                b"oo::class create B { superclass A; method incr {var {step 1}} { list [info level] [next $var $step] } }",
+            );
+            ok(i, b"B create b");
+            ok(i, b"set x 10");
+            // Both methods report level 1; A's upvar bumps the global x to 11.
+            assert_eq!(ok(i, b"b incr x"), b"1 1");
+            assert_eq!(ok(i, b"set x"), b"11");
         });
     }
 
