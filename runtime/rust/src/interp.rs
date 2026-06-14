@@ -2899,9 +2899,41 @@ impl Interp {
                 return code;
             }
         }
-        // Command miss: dispatch through `unknown <name> <args…>` if it exists
-        // (and we're not already resolving `unknown` itself).
+        // Command miss: dispatch through the current namespace's `namespace
+        // unknown` handler if it has a custom one, else the global `unknown`
+        // command (and only if we're not already resolving `unknown` itself).
         if name != b"unknown" {
+            // A custom unknown handler is a command *prefix* (a list), invoked as
+            // `handler… name args…`. The current namespace's handler wins; a
+            // namespace with none falls back to the global namespace's (which a
+            // script can set to override `::unknown`), else the `unknown` command.
+            let ns_handler = {
+                let ns = self.namespaces.borrow();
+                let cur = self.current_ns.get();
+                ns.unknown_handler(cur).map(<[u8]>::to_vec).or_else(|| {
+                    (cur != GLOBAL)
+                        .then(|| ns.unknown_handler(GLOBAL).map(<[u8]>::to_vec))
+                        .flatten()
+                })
+            };
+            if let Some(handler) = ns_handler {
+                if let Ok(prefix) = crate::parse::split_list(&handler) {
+                    let mut new_argv: Vec<*mut TclObj> =
+                        Vec::with_capacity(prefix.len() + argv.len());
+                    for w in &prefix {
+                        let o = new_string(w);
+                        unsafe { obj::incr_ref_count(o) };
+                        new_argv.push(o);
+                    }
+                    for &a in argv {
+                        unsafe { obj::incr_ref_count(a) };
+                        new_argv.push(a);
+                    }
+                    let code = self.dispatch(&new_argv);
+                    release_all(&new_argv);
+                    return code;
+                }
+            }
             let unk = self.namespaces.borrow().resolve(GLOBAL, b"unknown");
             if let Some(unk) = unk {
                 let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);

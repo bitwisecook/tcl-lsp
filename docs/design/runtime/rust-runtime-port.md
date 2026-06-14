@@ -2735,6 +2735,22 @@ With the command-trace teardown fixed (previous entry), the ensemble work landed
   in the global table), via `remove_ensembles_for` in `delete_namespace_by_id`
   (`info command ns` is empty after `namespace delete ns`).
 
+### SYNC inbound — 2026-06-14 (`namespace unknown`)
+
+`namespace unknown ?handler?` (`NamespaceUnknownCmd`) — get/set the per-namespace
+unknown-command handler (namespace.test 223 → 230, zero regressions):
+
+- **Get** returns the namespace's stored handler; the global namespace defaults
+  to `::unknown`, a sub-namespace to the empty string (namespace-52.1).
+- **Set** stores a handler (empty resets to default), validating it is a
+  well-formed list first — a bad list errors *without* changing the current
+  handler (namespace-52.12).
+- **Dispatch**: on a command miss the current namespace's handler wins (invoked
+  as `handler… name args…`); a namespace with none falls back to the global
+  namespace's handler (so a script can override `::unknown` globally,
+  namespace-52.7), else the built-in `unknown` command (namespace-52.4–52.9).
+  The `TCL_EVAL_INVOKE`/child-interp-alias corner (52.11) is still open.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

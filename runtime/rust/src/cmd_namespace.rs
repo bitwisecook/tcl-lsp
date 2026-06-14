@@ -52,6 +52,7 @@ const NAMESPACE_SUBS: &[&[u8]] = &[
     b"path",
     b"qualifiers",
     b"tail",
+    b"unknown",
     b"upvar",
     b"which",
 ];
@@ -74,7 +75,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             _ => {
                 let mut m = b"unknown or ambiguous subcommand \"".to_vec();
                 m.extend_from_slice(&raw);
-                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
+                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which");
                 return interp.set_error(&m);
             }
         }
@@ -97,12 +98,43 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
+        b"unknown" => ns_unknown(interp, argv),
         b"upvar" => ns_upvar(interp, argv),
         _ => unreachable!("subcommand resolved to a canonical name above"),
     }
 }
 
 // -- current / eval / exists / parent / children ---------------------------
+
+/// `namespace unknown ?handler?` — get or set the current namespace's
+/// unknown-command handler. The global namespace's default is `::unknown`; a
+/// sub-namespace with no handler reports the empty string (and falls back to
+/// `::unknown` at dispatch). Mirrors `NamespaceUnknownCmd` (`tclNamesp.c`).
+fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, b"namespace unknown ?script?");
+    }
+    let cur = interp.current_ns();
+    if argv.len() == 3 {
+        let handler = obj_bytes(argv[2]);
+        // The handler must be a well-formed list (command prefix); a parse error
+        // is reported *without* changing the current handler (namespace-52.12).
+        if let Err(e) = crate::parse::split_list(&handler) {
+            return interp.set_error(e.message());
+        }
+        interp.namespaces_mut().set_unknown_handler(cur, &handler);
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    // Get: the stored handler, or the interpreter default for the global ns.
+    let h = interp.namespaces().unknown_handler(cur).map(<[u8]>::to_vec);
+    match h {
+        Some(h) => interp.set_result_bytes(&h),
+        None if cur == crate::namespace::GLOBAL => interp.set_result_bytes(b"::unknown"),
+        None => interp.set_result_bytes(b""),
+    }
+    Code::Ok
+}
 
 /// `namespace current` — the FQN of the current namespace.
 fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {

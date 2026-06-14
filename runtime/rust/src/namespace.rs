@@ -59,6 +59,10 @@ struct Namespace {
     /// namespace's holds the global variables; the variable resolver
     /// ([`crate::vars`]) routes qualified / global / namespace-eval names here.
     vars: VarTable,
+    /// `namespace unknown` handler (a command prefix). `None` ⇒ the namespace
+    /// uses the interpreter default (the global `::unknown`); an empty handler
+    /// also resets to the default.
+    unknown: Option<Vec<u8>>,
 }
 
 impl Namespace {
@@ -71,6 +75,7 @@ impl Namespace {
             path: Vec::new(),
             exports: Vec::new(),
             vars: VarTable::default(),
+            unknown: None,
         }
     }
 }
@@ -438,6 +443,22 @@ impl Namespaces {
     #[must_use]
     pub fn children(&self, ns: NsId) -> Vec<NsId> {
         self.arena[ns].children.values().copied().collect()
+    }
+
+    /// `ns`'s `namespace unknown` handler, if one is set (an empty/`None` handler
+    /// means "use the interpreter default `::unknown`").
+    #[must_use]
+    pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<&[u8]> {
+        self.arena[ns].unknown.as_deref()
+    }
+
+    /// Set `ns`'s `namespace unknown` handler (an empty handler resets to default).
+    pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]) {
+        self.arena[ns].unknown = if handler.is_empty() {
+            None
+        } else {
+            Some(handler.to_vec())
+        };
     }
 
     /// Remove every ensemble command whose configured namespace is in `victims`,
