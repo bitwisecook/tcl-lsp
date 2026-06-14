@@ -3902,7 +3902,12 @@ impl Interp {
                         m.extend_from_slice(b"\": name refers to an element in an array");
                         return Some(self.error(&m));
                     }
-                    self.make_variable(var_ns, &name);
+                    // A private variable of the caller's scope links to its
+                    // mangled storage (TIP 500; oo-38.5).
+                    match self.private_storage_name(&name) {
+                        Some(storage) => self.make_variable_mapped(var_ns, &name, &storage),
+                        None => self.make_variable(var_ns, &name),
+                    }
                 }
                 self.set_result_bytes(b"");
                 Some(Code::Ok)
@@ -3912,9 +3917,13 @@ impl Interp {
                 if args.len() != 1 {
                     return Some(wrong_args(self, b"my varname varName"));
                 }
+                // A private variable of the *calling* method's declaring scope
+                // maps to its mangled storage name (TIP 500; oo-38.3).
+                let want = obj_bytes(args[0]);
+                let storage = self.private_storage_name(&want).unwrap_or(want);
                 let mut full = self.namespaces().qualified_name(var_ns);
                 full.extend_from_slice(b"::");
-                full.extend_from_slice(&obj_bytes(args[0]));
+                full.extend_from_slice(&storage);
                 self.set_result(obj::new_string_bytes(&full));
                 Some(Code::Ok)
             }
@@ -4036,6 +4045,33 @@ impl Interp {
             }
         }
         chain
+    }
+
+    /// If `name` is a TIP 500 private instance variable of the currently-running
+    /// method's declaring scope, its mangled storage name (`"<creationEpoch> :
+    /// name"`); otherwise `None`. The scope is the provider of the call-stack's
+    /// top frame (the method that invoked the built-in).
+    fn private_storage_name(&self, name: &[u8]) -> Option<Vec<u8>> {
+        let oo = self.oo.borrow();
+        let frame = oo.call_stack.last()?;
+        let prov = frame.chain.get(frame.index)?.provider.clone();
+        let is_object = prov == frame.object;
+        let is_private = if is_object {
+            oo.objects
+                .get(&prov)
+                .is_some_and(|o| o.private_variables.iter().any(|v| v == name))
+        } else {
+            oo.classes
+                .get(&prov)
+                .is_some_and(|c| c.private_variables.iter().any(|v| v == name))
+        };
+        if !is_private {
+            return None;
+        }
+        let epoch = oo.objects.get(&prov).map(|o| o.creation_id).unwrap_or(0);
+        let mut s = format!("{epoch} : ").into_bytes();
+        s.extend_from_slice(name);
+        Some(s)
     }
 
     /// Resolve an object name to its FQN, following namespace-import aliases to
@@ -4444,40 +4480,49 @@ impl Interp {
             m.extend_from_slice(b"\" has been deleted");
             return self.error(&m);
         };
-        // The declared instance variables visible to the method: the object's
-        // own declarations plus the union over its full class hierarchy
-        // (independent of the call chain, which a filter may have reordered).
-        let mut vars: Vec<Vec<u8>> = Vec::new();
+        // The declared instance variables visible to the method, as `(local,
+        // storage)` links: public variables (the object's own plus the union
+        // over its full class hierarchy) link name→name; TIP 500 private
+        // variables of the *declaring* provider link name→a per-class mangled
+        // storage name (`"<creationEpoch> : name"`, C's PRIVATE_VARIABLE_PATTERN),
+        // so identically-named private vars in different classes don't collide.
+        let mut vars: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+        let push_public = |v: &Vec<u8>, vars: &mut Vec<(Vec<u8>, Vec<u8>)>| {
+            if !vars.iter().any(|(l, _)| l == v) {
+                vars.push((v.clone(), v.clone()));
+            }
+        };
+        // Private vars first, so a same-named public var down the chain does not
+        // shadow the declaring provider's private mapping.
+        {
+            let oo = self.oo.borrow();
+            let privates = if is_object {
+                oo.objects.get(&prov).map(|o| o.private_variables.clone())
+            } else {
+                oo.classes.get(&prov).map(|c| c.private_variables.clone())
+            };
+            // A class is also an object, so its creation id lives in `objects`.
+            let epoch = oo.objects.get(&prov).map(|o| o.creation_id).unwrap_or(0);
+            if let Some(pv) = privates {
+                for v in pv {
+                    if !vars.iter().any(|(l, _)| *l == v) {
+                        let storage = format!("{epoch} : ").into_bytes();
+                        let mut storage = storage;
+                        storage.extend_from_slice(&v);
+                        vars.push((v, storage));
+                    }
+                }
+            }
+        }
         if let Some(o) = self.oo.borrow().objects.get(obj) {
             for v in &o.variables {
-                if !vars.contains(v) {
-                    vars.push(v.clone());
-                }
+                push_public(v, &mut vars);
             }
         }
         for c in self.method_chain(obj) {
             if let Some(cl) = self.oo.borrow().classes.get(&c) {
                 for v in &cl.variables {
-                    if !vars.contains(v) {
-                        vars.push(v.clone());
-                    }
-                }
-            }
-        }
-        // TIP 500 private variables are visible only to methods of their own
-        // declaring entity — the current step's provider (`prov`).
-        {
-            let oo = self.oo.borrow();
-            let provider_privates = if is_object {
-                oo.objects.get(&prov).map(|o| o.private_variables.clone())
-            } else {
-                oo.classes.get(&prov).map(|c| c.private_variables.clone())
-            };
-            if let Some(pv) = provider_privates {
-                for v in pv {
-                    if !vars.contains(&v) {
-                        vars.push(v);
-                    }
+                    push_public(v, &mut vars);
                 }
             }
         }
@@ -4986,6 +5031,43 @@ mod tests {
             );
             assert_eq!(ok(i, b"info object properties o"), b"m n");
             assert_eq!(ok(i, b"info object properties o -all"), b"a m n x y z");
+        });
+    }
+
+    #[test]
+    fn private_variable_cross_class_mangling() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            // clsA/clsB private x, clsC public x — three independent storages
+            // (oo-38.1).
+            ok(
+                i,
+                b"oo::class create clsA { superclass parent; private variable x; \
+                  constructor {} {set x 1}; method getA {} {return $x} }",
+            );
+            ok(
+                i,
+                b"oo::class create clsB { superclass clsA; private variable x; \
+                  constructor {} {set x 2; next}; method getB {} {return $x} }",
+            );
+            ok(
+                i,
+                b"oo::class create clsC { superclass clsB; variable x; \
+                  constructor {} {set x 3; next}; method getC {} {return $x} }",
+            );
+            ok(i, b"clsC create o");
+            assert_eq!(ok(i, b"o getA"), b"1");
+            assert_eq!(ok(i, b"o getB"), b"2");
+            assert_eq!(ok(i, b"o getC"), b"3");
+            // `my varname` of a private var returns its mangled storage (oo-38.3).
+            ok(
+                i,
+                b"oo::class create V { superclass parent; private variable p; \
+                  method name {} {my varname p} }",
+            );
+            ok(i, b"V create v");
+            let n = ok(i, b"v name");
+            assert!(n.ends_with(b" : p"), "mangled storage, got {n:?}");
         });
     }
 

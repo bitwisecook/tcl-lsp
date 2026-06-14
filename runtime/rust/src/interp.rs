@@ -100,9 +100,11 @@ pub(crate) struct CallMeta<'a> {
     /// The body's `info frame` line base (file-absolute for a source-defined
     /// proc, 0 otherwise).
     pub body_line_base: u32,
-    /// Variable names to pre-link into the call frame from its namespace (a
-    /// TclOO method's declared instance variables); empty for procs/lambdas.
-    pub link_vars: &'a [Vec<u8>],
+    /// `(local, target)` instance-variable links to pre-install into the call
+    /// frame: the method's declared variables, where `target` is the namespace
+    /// storage name (== `local` for public vars, a mangled name for TIP 500
+    /// private vars). Empty for procs/lambdas.
+    pub link_vars: &'a [(Vec<u8>, Vec<u8>)],
     /// Return a body-level `break`/`continue` as the raw `Code` instead of the
     /// `invoked "break" outside of a loop` error. Set for TIP 558 property
     /// accessor methods, whose `configure` caller maps the loop codes to its
@@ -1355,6 +1357,19 @@ impl Interp {
             self.current_ns.get(),
             target_ns,
             tail,
+        );
+    }
+
+    /// Link local name `local` to `target_ns::target` (TIP 500 private instance
+    /// variables, whose storage name is mangled per declaring class).
+    pub(crate) fn make_variable_mapped(&mut self, target_ns: NsId, local: &[u8], target: &[u8]) {
+        crate::vars::make_variable_mapped(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            target_ns,
+            local,
+            target,
         );
     }
 
@@ -2775,8 +2790,8 @@ impl Interp {
         // Pre-link a TclOO method's declared instance variables: each name in
         // the frame becomes a link to the object's namespace variable (`ns`), so
         // the method sees instance state without an explicit `variable`.
-        for v in meta.link_vars {
-            self.make_variable(ns, v);
+        for (local, target) in meta.link_vars {
+            self.make_variable_mapped(ns, local, target);
         }
 
         // Bind positionals left-to-right: the supplied arg, else the default.

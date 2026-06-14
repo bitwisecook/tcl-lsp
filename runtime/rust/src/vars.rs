@@ -352,14 +352,28 @@ pub(crate) fn make_variable(
     target_ns: NsId,
     tail: &[u8],
 ) {
+    make_variable_mapped(frames, ns, current_ns, target_ns, tail, tail);
+}
+
+/// Like [`make_variable`] but links the local name `local` to a differently-
+/// named namespace variable `target` in `target_ns` (TIP 500 private instance
+/// variables, whose storage name is mangled per declaring class).
+pub(crate) fn make_variable_mapped(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    target_ns: NsId,
+    local: &[u8],
+    target: &[u8],
+) {
     link_local(
         frames,
         ns,
         current_ns,
-        tail,
+        local,
         Link {
             home: VarHome::Namespace(target_ns),
-            name: tail.to_vec(),
+            name: target.to_vec(),
             elem: None,
         },
     );
