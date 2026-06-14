@@ -2058,8 +2058,15 @@ fn slot_m_clear(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
 /// `oo::object`'s built-in `unknown` method: the standard "unknown method"
 /// error. It is the end of the `unknown` call chain, so a user `unknown` that
 /// does `next` lands here. `args[0]` is the originally-requested method name.
+/// With *no* args it was reached via a no-method invocation (`$obj`), whose
+/// default outcome is the `wrong # args` usage (C's `FORCE_UNKNOWN` path).
 fn oo_object_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
-    let method = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
+    let Some(&first) = args.first() else {
+        let mut u = obj.to_vec();
+        u.extend_from_slice(b" method ?arg ...?");
+        return wrong_args(interp, &u);
+    };
+    let method = obj_bytes(first);
     interp.oo_unknown_method(obj, &method)
 }
 
@@ -3994,6 +4001,11 @@ impl Interp {
                 // An unknown method funnels through `oo_invoke` →
                 // `oo_unknown_method` for the C error text.
                 Some(other) => self.oo_invoke(fqn, other, &argv[2..], true),
+                // No method name: C forces the unknown handler (`FORCE_UNKNOWN`)
+                // with an empty method, so a *user* `unknown` runs with no args.
+                // With only the default handler, report the `wrong # args` usage
+                // naming the command as invoked (`argv[0]`, not the FQN).
+                None if self.has_user_unknown(fqn) => self.oo_invoke(fqn, b"unknown", &[], false),
                 None => {
                     let mut u = obj_bytes(argv[0]);
                     u.extend_from_slice(b" method ?arg ...?");
@@ -4019,6 +4031,9 @@ impl Interp {
                     code
                 }
                 Some(method) => self.oo_invoke(fqn, &method, &argv[2..], true),
+                // No method name: force a *user* `unknown` (C's `FORCE_UNKNOWN`)
+                // with empty args; else the `wrong # args` usage (as invoked).
+                None if self.has_user_unknown(fqn) => self.oo_invoke(fqn, b"unknown", &[], false),
                 None => {
                     let mut u = obj_bytes(argv[0]);
                     u.extend_from_slice(b" method ?arg ...?");
@@ -4782,6 +4797,17 @@ impl Interp {
                 .get(prov)
                 .is_some_and(|c| c.methods.contains_key(method))
         }
+    }
+
+    /// Whether `obj` has a *user-defined* `unknown` method (one declared on the
+    /// object or a class other than the `oo::object` root, whose built-in
+    /// `unknown` is the default error). A no-method invocation (`$obj`) routes
+    /// to a user handler but otherwise reports the `wrong # args` usage.
+    fn has_user_unknown(&self, obj: &[u8]) -> bool {
+        self.method_chain(obj).iter().any(|p| {
+            p.as_slice() != b"::oo::object"
+                && self.oo_has_method(p, b"unknown", p.as_slice() == obj)
+        })
     }
 
     /// Whether the class `prov` defines a constructor.
@@ -6567,6 +6593,23 @@ mod tests {
     fn oo_package_is_provided() {
         leak_free(|i| {
             assert_eq!(ok(i, b"package require tcl::oo"), b"1.3.1");
+        });
+    }
+
+    #[test]
+    fn no_method_forces_user_unknown() {
+        leak_free(|i| {
+            // A no-method invocation `$obj` with a user `unknown` runs it with
+            // empty args (C's FORCE_UNKNOWN); a plain object reports usage.
+            ok(i, b"set o [oo::object new]");
+            assert_eq!(i.eval_str(b"$o"), Code::Error);
+            assert!(i.result_bytes().starts_with(b"wrong # args: should be"));
+            ok(
+                i,
+                b"oo::objdefine $o method unknown args { return \"u:>>$args<<\" }",
+            );
+            assert_eq!(ok(i, b"$o"), b"u:>><<");
+            assert_eq!(ok(i, b"$o foo bar"), b"u:>>foo bar<<");
         });
     }
 
