@@ -841,6 +841,30 @@ impl Interp {
         )
     }
 
+    /// The configuration of the ensemble command `name` resolves to, or `None`
+    /// if `name` is not an ensemble (`namespace ensemble configure`/cget).
+    pub(crate) fn ensemble_config(&self, name: &[u8]) -> Option<crate::ensemble::EnsembleConfig> {
+        match self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)
+        {
+            Some(Command::Ensemble(cfg)) => Some(cfg),
+            _ => None,
+        }
+    }
+
+    /// Rebind the ensemble command `name` with an updated configuration
+    /// (`namespace ensemble configure` set form). `name` must already resolve to
+    /// an ensemble; rebinds at the same location `create_ensemble` would choose.
+    pub(crate) fn set_ensemble_config(
+        &mut self,
+        name: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) {
+        self.create_ensemble(name, cfg);
+    }
+
     /// Every alias command's name across the whole tree (`interp aliases`).
     pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
         self.namespaces.borrow().alias_names()
@@ -1625,6 +1649,21 @@ impl Interp {
         // and mis-fire when a same-named command is later created (the stale
         // `::x → namespace delete ::` chain that wiped the global namespace).
         let cmd_victims = self.take_ns_cmd_traces(ns);
+        // Ensemble commands are tied to their namespace: delete those whose
+        // configured namespace is in the subtree (even if the command itself
+        // lives elsewhere, e.g. a default `::ns` ensemble in the global table).
+        {
+            let ids: std::collections::HashSet<NsId> = self
+                .namespaces
+                .borrow()
+                .descendant_ids(ns)
+                .into_iter()
+                .collect();
+            let removed = self.namespaces.borrow_mut().remove_ensembles_for(&ids);
+            for fqn in removed {
+                self.on_command_replaced(&fqn);
+            }
+        }
         self.namespaces.borrow_mut().delete_namespace_by_id(ns);
         self.fire_unset_callbacks(victims);
         self.fire_deleted_cmd_callbacks(cmd_victims);
@@ -3508,9 +3547,16 @@ impl Interp {
         cfg: &crate::ensemble::EnsembleConfig,
         argv: &[*mut TclObj],
     ) -> Code {
-        if argv.len() < 2 {
+        // `-parameters` formal args sit between the ensemble command and the
+        // subcommand (`ens p1 p2 sub …`), so the subcommand is at `1 + nparams`.
+        let nparams = cfg.parameters.len();
+        if argv.len() < 2 + nparams {
             let mut m = b"wrong # args: should be \"".to_vec();
             m.extend_from_slice(&obj_bytes(argv[0]));
+            for p in &cfg.parameters {
+                m.push(b' ');
+                m.extend_from_slice(p);
+            }
             m.extend_from_slice(b" subcommand ?arg ...?\"");
             return self.error(&m);
         }
@@ -3524,7 +3570,7 @@ impl Interp {
         subs.sort();
         subs.dedup();
 
-        let sub = obj_bytes(argv[1]);
+        let sub = obj_bytes(argv[1 + nparams]);
         let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) else {
             // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
             let mut m = if cfg.prefixes {
@@ -3557,15 +3603,22 @@ impl Interp {
                 vec![t]
             });
 
-        // Build [target…, argv[2..]…], each owned (+1), and re-dispatch.
-        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 2);
+        // Build [target…, params…, rest…], each owned (+1), and re-dispatch. The
+        // `-parameters` values (`argv[1..1+nparams]`) thread in right after the
+        // target prefix; the subcommand's own args follow from `2+nparams`.
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
         for w in &prefix {
             let o = new_string(w);
             // SAFETY: fresh obj; take the owning +1 the new argv holds.
             unsafe { obj::incr_ref_count(o) };
             new_argv.push(o);
         }
-        for &a in &argv[2..] {
+        for &a in &argv[1..1 + nparams] {
+            // SAFETY: live arg; take an owning +1.
+            unsafe { obj::incr_ref_count(a) };
+            new_argv.push(a);
+        }
+        for &a in &argv[2 + nparams..] {
             // SAFETY: live arg; take an owning +1.
             unsafe { obj::incr_ref_count(a) };
             new_argv.push(a);

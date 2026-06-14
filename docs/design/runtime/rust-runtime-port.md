@@ -2713,32 +2713,27 @@ that blocked the ensemble work: defining a fresh `proc x` fired a leftover
 `::x → namespace delete ::;#` trace. With the traces freed correctly, that chain
 no longer forms.
 
-### Scoped-but-blocked — `namespace ensemble configure` / `-parameters` / `-unknown`
+### SYNC inbound — 2026-06-14 (`namespace ensemble configure` / `-parameters`; ensemble command lifecycle)
 
-A full `namespace ensemble configure` (get-all dict / cget / set), `-parameters`
-(threaded through dispatch as `target p1 p2 args…`), and `-unknown` *storage*
-were implemented and byte-verified against `tclsh9.0` (namespace-53.1/53.3
-match exactly), but the work was **reverted** because it surfaces a **pre-existing
-command-trace / namespace-deletion lifecycle crash** that aborts the whole
-namespace.test run:
+With the command-trace teardown fixed (previous entry), the ensemble work landed
+(namespace.test 209 → 223, oo.test +1, zero regressions), all from
+`tclEnsemble.c`:
 
-- Root cause (independent of ensembles): after namespace.test-7.x, a command
-  delete-trace lingers with name `::x` and body `namespace delete ::;#` (the
-  `[namespace current]` in the trace body resolved to `::`, and the trace was
-  not removed when its command's namespace was torn down). Defining a *new*
-  global `proc x` then fires that stale delete-trace via `on_command_replaced`,
-  which runs `namespace delete ::` and wipes every global command (`puts`/`set`
-  vanish → hard abort). `delete_namespace_by_id` fires/removes **variable**
-  unset traces but not **command** delete traces, so they leak.
-- Why ensembles exposed it: enabling unambiguous-prefix resolution of the
-  `namespace ensemble` subcommand (`namespace ens cre …`, namespace-49.1) let
-  that test progress to its `proc x`, which had previously errored out at the
-  unresolved `cre`.
-- Re-landing plan: first fix command delete-trace cleanup on namespace deletion
-  (fire-and-ignore, then remove — mirroring `take_ns_unset_traces`) and the
-  trace-body namespace context, *then* restore the ensemble configure/parameters
-  patch. This is in the "trace is sensitive — guard it" area, so it needs its own
-  before/after trace.test diff.
+- **`namespace ensemble configure cmd …`** — subcommands now resolve by
+  unambiguous prefix (`configure`/`create`/`exists`); `configure` with no options
+  returns the `-map -namespace -parameters -prefixes -subcommands -unknown` dict,
+  with one bare `-option` returns its value (cget), and with `-option value`
+  pairs updates the live ensemble. `create`/`configure` share one option applier.
+- **`-parameters`** — formal names that precede the subcommand in a call
+  (`ens p1 … sub args`); the subcommand is read at `1 + nparams` and the
+  parameter values thread in after the resolved target (`target p1 … args`). The
+  wrong-args usage lists the parameter names (namespace-53.1/53.3).
+- **`-unknown` is stored** (round-trips through `configure`); its dispatch
+  (invoking the handler on a miss, namespace-47.x) is still a follow-up.
+- **Ensemble command tied to its namespace** — deleting a namespace now deletes
+  the ensemble commands configured for it (even a default `::ns` ensemble living
+  in the global table), via `remove_ensembles_for` in `delete_namespace_by_id`
+  (`info command ns` is empty after `namespace delete ns`).
 
 ### Outstanding
 

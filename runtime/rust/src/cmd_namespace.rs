@@ -677,14 +677,26 @@ fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"namespace ensemble subcommand ?arg ...?");
     }
-    match obj_bytes(argv[2]).as_slice() {
+    // Subcommands resolve by exact name or unambiguous prefix (Tcl's index table).
+    let sub = obj_bytes(argv[2]);
+    const ENS_SUBS: [&[u8]; 3] = [b"configure", b"create", b"exists"];
+    let resolved: &[u8] = if let Some(&exact) = ENS_SUBS.iter().find(|s| **s == sub.as_slice()) {
+        exact
+    } else {
+        let mut it = ENS_SUBS.iter().filter(|s| s.starts_with(sub.as_slice()));
+        match (it.next(), it.next()) {
+            (Some(&c), None) => c,
+            _ => b"",
+        }
+    };
+    match resolved {
         b"create" => ens_create(interp, argv),
         b"exists" => ens_exists(interp, argv),
-        other => {
-            // `configure` is a follow-up; only create/exists are modelled.
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be create, or exists");
+        b"configure" => ens_configure(interp, argv),
+        _ => {
+            let mut m = b"bad subcommand \"".to_vec();
+            m.extend_from_slice(&sub);
+            m.extend_from_slice(b"\": must be configure, create, or exists");
             interp.set_error(&m)
         }
     }
@@ -696,55 +708,197 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ns = interp.current_ns();
     // Default ensemble command is the namespace's own FQN.
     let mut command = interp.namespaces().qualified_name(ns);
-    let mut map: Option<EnsembleMap> = None;
-    let mut subcommands: Option<Vec<Vec<u8>>> = None;
-    let mut prefixes = true;
+    let mut cfg = EnsembleConfig {
+        ns,
+        map: None,
+        subcommands: None,
+        prefixes: true,
+        parameters: Vec::new(),
+        unknown: Vec::new(),
+    };
 
     let opts = &argv[3..];
     if opts.len() % 2 != 0 {
         return interp.set_error(b"missing value for option");
     }
     for pair in opts.chunks_exact(2) {
-        let (opt, val) = (obj_bytes(pair[0]), pair[1]);
-        match opt.as_slice() {
-            b"-command" => command = obj_bytes(val),
-            b"-subcommands" => match crate::parse::split_list(&obj_bytes(val)) {
-                Ok(list) => subcommands = Some(list),
-                Err(e) => return interp.set_error(e.message()),
-            },
-            b"-map" => match parse_map(&obj_bytes(val)) {
-                Ok(m) => map = Some(m),
-                Err(e) => return interp.set_error(&e),
-            },
-            b"-prefixes" => match parse_bool(&obj_bytes(val)) {
-                Some(b) => prefixes = b,
-                None => {
-                    let mut m = b"expected boolean value but got \"".to_vec();
-                    m.extend_from_slice(&obj_bytes(val));
-                    m.push(b'"');
-                    return interp.set_error(&m);
-                }
-            },
-            _ => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(&opt);
-                m.extend_from_slice(b"\": should be -command, -map, -prefixes, or -subcommands");
-                return interp.set_error(&m);
-            }
+        let opt = obj_bytes(pair[0]);
+        // `-command` (create-only) names the ensemble command; the rest are the
+        // shared configuration options.
+        if opt.as_slice() == b"-command" {
+            command = obj_bytes(pair[1]);
+            continue;
+        }
+        if let Err(e) = apply_ensemble_option(&mut cfg, &opt, &obj_bytes(pair[1])) {
+            return interp.set_error(&e);
         }
     }
 
-    interp.create_ensemble(
-        &command,
-        EnsembleConfig {
-            ns,
-            map,
-            subcommands,
-            prefixes,
-        },
-    );
+    interp.create_ensemble(&command, cfg);
     interp.set_result_bytes(&command);
     Code::Ok
+}
+
+/// Apply one `-option value` to an [`EnsembleConfig`] (shared by `namespace
+/// ensemble create` and `configure`). Returns the C error text on a bad option
+/// or value.
+fn apply_ensemble_option(cfg: &mut EnsembleConfig, opt: &[u8], val: &[u8]) -> Result<(), Vec<u8>> {
+    match opt {
+        b"-subcommands" => {
+            cfg.subcommands =
+                Some(crate::parse::split_list(val).map_err(|e| e.message().to_vec())?);
+        }
+        b"-map" => {
+            // An empty `-map` clears it (C: a zero-length dict ⇒ no map).
+            let m = parse_map(val)?;
+            cfg.map = if m.is_empty() { None } else { Some(m) };
+        }
+        b"-parameters" => {
+            cfg.parameters = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
+        }
+        b"-unknown" => {
+            cfg.unknown = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
+        }
+        b"-prefixes" => {
+            cfg.prefixes = parse_bool(val).ok_or_else(|| {
+                let mut m = b"expected boolean value but got \"".to_vec();
+                m.extend_from_slice(val);
+                m.push(b'"');
+                m
+            })?;
+        }
+        _ => {
+            let mut m = b"bad option \"".to_vec();
+            m.extend_from_slice(opt);
+            m.extend_from_slice(
+                b"\": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown",
+            );
+            return Err(m);
+        }
+    }
+    Ok(())
+}
+
+/// `namespace ensemble configure cmd ?-option? ?value …?` — read or update an
+/// existing ensemble's configuration (`tclEnsemble.c`). No options: a dict of
+/// all settings; one bare `-option`: its value; `-option value …` pairs: update.
+fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(
+            interp,
+            b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?",
+        );
+    }
+    let cmd = obj_bytes(argv[3]);
+    let Some(mut cfg) = interp.ensemble_config(&cmd) else {
+        // Distinguish a missing command from a non-ensemble one (C's wording).
+        if interp.command_exists(&cmd) {
+            let mut m = b"\"".to_vec();
+            m.extend_from_slice(&cmd);
+            m.extend_from_slice(b"\" is not an ensemble command");
+            return interp.set_error(&m);
+        }
+        let mut m = b"unknown command \"".to_vec();
+        m.extend_from_slice(&cmd);
+        m.push(b'"');
+        return interp.set_error(&m);
+    };
+    let rest = &argv[4..];
+    // Read all options as a dict.
+    if rest.is_empty() {
+        let d = ensemble_config_dict(interp, &cfg);
+        interp.set_result_bytes(&d);
+        return Code::Ok;
+    }
+    // Read a single option's value.
+    if rest.len() == 1 {
+        let opt = obj_bytes(rest[0]);
+        match ensemble_option_value(interp, &cfg, &opt) {
+            Some(v) => {
+                interp.set_result_bytes(&v);
+                Code::Ok
+            }
+            None => {
+                let mut m = b"bad option \"".to_vec();
+                m.extend_from_slice(&opt);
+                m.extend_from_slice(b"\": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown");
+                interp.set_error(&m)
+            }
+        }
+    } else {
+        // Update: `-option value` pairs.
+        if rest.len() % 2 != 0 {
+            return interp.set_error(b"missing value for option");
+        }
+        for pair in rest.chunks_exact(2) {
+            if let Err(e) =
+                apply_ensemble_option(&mut cfg, &obj_bytes(pair[0]), &obj_bytes(pair[1]))
+            {
+                return interp.set_error(&e);
+            }
+        }
+        interp.set_ensemble_config(&cmd, cfg);
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+}
+
+/// One ensemble `configure`/cget option's value (string form).
+fn ensemble_option_value(interp: &Interp, cfg: &EnsembleConfig, opt: &[u8]) -> Option<Vec<u8>> {
+    Some(match opt {
+        b"-namespace" => interp.namespaces().qualified_name(cfg.ns),
+        b"-prefixes" => {
+            if cfg.prefixes {
+                b"1".to_vec()
+            } else {
+                b"0".to_vec()
+            }
+        }
+        b"-parameters" => join_words(&cfg.parameters),
+        b"-unknown" => join_words(&cfg.unknown),
+        b"-subcommands" => cfg
+            .subcommands
+            .as_deref()
+            .map(join_words)
+            .unwrap_or_default(),
+        b"-map" => match &cfg.map {
+            Some(m) => {
+                let mut flat: Vec<Vec<u8>> = Vec::with_capacity(m.len() * 2);
+                for (k, prefix) in m {
+                    flat.push(k.clone());
+                    flat.push(join_words(prefix));
+                }
+                join_words(&flat)
+            }
+            None => Vec::new(),
+        },
+        _ => return None,
+    })
+}
+
+/// Join words into a Tcl list string.
+fn join_words(words: &[Vec<u8>]) -> Vec<u8> {
+    let strs: Vec<std::borrow::Cow<str>> =
+        words.iter().map(|w| String::from_utf8_lossy(w)).collect();
+    tcl_syntax::list::join_list(strs.iter()).into_bytes()
+}
+
+/// The full `-option value …` dict an ensemble's `configure` (no args) returns,
+/// in C's alphabetical option order.
+fn ensemble_config_dict(interp: &Interp, cfg: &EnsembleConfig) -> Vec<u8> {
+    let mut pairs: Vec<Vec<u8>> = Vec::new();
+    for opt in [
+        &b"-map"[..],
+        b"-namespace",
+        b"-parameters",
+        b"-prefixes",
+        b"-subcommands",
+        b"-unknown",
+    ] {
+        pairs.push(opt.to_vec());
+        pairs.push(ensemble_option_value(interp, cfg, opt).unwrap_or_default());
+    }
+    join_words(&pairs)
 }
 
 /// `namespace ensemble exists command` — 1 if it resolves to an ensemble.

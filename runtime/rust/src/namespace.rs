@@ -440,6 +440,40 @@ impl Namespaces {
         self.arena[ns].children.values().copied().collect()
     }
 
+    /// Remove every ensemble command whose configured namespace is in `victims`,
+    /// returning each removed command's fully-qualified name. An ensemble command
+    /// is tied to its namespace, so deleting the namespace deletes the command —
+    /// even when the command itself lives elsewhere (e.g. `::ns` in the global
+    /// table for an ensemble created inside `ns`). Mirrors C's ensemble
+    /// namespace-deletion hook.
+    pub(crate) fn remove_ensembles_for(
+        &mut self,
+        victims: &std::collections::HashSet<NsId>,
+    ) -> Vec<Vec<u8>> {
+        // Collect first (immutable borrow), then unbind (mutable).
+        let mut hits: Vec<(NsId, Vec<u8>)> = Vec::new();
+        for (id, node) in self.arena.iter().enumerate() {
+            for (name, cmd) in &node.commands {
+                if let Command::Ensemble(cfg) = cmd {
+                    if victims.contains(&cfg.ns) {
+                        hits.push((id, name.clone()));
+                    }
+                }
+            }
+        }
+        let mut fqns = Vec::with_capacity(hits.len());
+        for (id, name) in hits {
+            self.arena[id].commands.remove(&name);
+            let mut fqn = self.qualified_name(id);
+            if fqn != b"::" {
+                fqn.extend_from_slice(b"::");
+            }
+            fqn.extend_from_slice(&name);
+            fqns.push(fqn);
+        }
+        fqns
+    }
+
     /// `namespace delete name` — delete the namespace `qualified` resolves to
     /// (relative to `current`), with its child namespaces, commands, and
     /// variables. Returns `false` if it does not exist. The arena slot is
