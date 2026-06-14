@@ -8496,7 +8496,7 @@ fn w307_precise_cmd_values(
     for (qname, start, end) in func_ranges {
         if *start <= offset && offset <= *end {
             let width = end - start;
-            if best.map_or(true, |(bw, _)| width < bw) {
+            if best.is_none_or(|(bw, _)| width < bw) {
                 best = Some((width, qname.as_str()));
             }
         }
@@ -8523,7 +8523,7 @@ fn w307_precise_cmd_values(
                 continue;
             };
             let width = span.end() - span.start();
-            if best_width.map_or(true, |bw| width < bw) {
+            if best_width.is_none_or(|bw| width < bw) {
                 best_width = Some(width);
                 best_version = Some(*version);
             }

@@ -55,12 +55,26 @@ pub fn optimise_with_dialect(
         tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
     )
     .with_interprocedural(registry, dialect);
-    let interproc = cu.interproc.clone().unwrap_or_default();
-    let _ = interproc;
+    optimise_unit(&cu, registry, dialect)
+}
+
+/// Run every pass over an **already-built** [`CompilationUnit`] (one carrying
+/// its interprocedural summary) and return the overlap-resolved optimisations.
+///
+/// This is the rebuild-free core of [`optimise_with_dialect`]: callers that have
+/// already constructed a `CompilationUnit` (e.g. the LSP diagnostics path, which
+/// also runs `compiler_checks::run_all_checks` over the same unit) share it
+/// instead of lowering the source a second time.
+#[must_use]
+pub fn optimise_unit(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Optimisation> {
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
-    run_passes(&mut ctx, &cu, &PassId::all());
+    run_passes(&mut ctx, cu, &PassId::all());
     select_non_overlapping(&ctx.optimisations)
 }
 

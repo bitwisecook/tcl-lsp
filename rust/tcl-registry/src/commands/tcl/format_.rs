@@ -79,7 +79,7 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
         let conv = Conversion::parse(fmt, &mut i)?;
         // `%b` (binary) *raises* before Tcl 8.6 — fold it only when the dialect
         // is 8.6+; every other conversion here is version-invariant.
-        if conv.verb == b'b' && !version.is_some_and(|v| v >= TclVersion::V8_6) {
+        if conv.verb == b'b' && version.is_none_or(|v| v < TclVersion::V8_6) {
             return None;
         }
         let value = vals.get(ai)?;

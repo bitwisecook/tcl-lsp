@@ -1,0 +1,29 @@
+explain virtual: /Common/www_vs
+
+  destination:
+    /Common/10.0.0.1:443
+
+  profiles:
+    /Common/my_http_profile (http)
+    /Common/my_tcp_profile (tcp)
+    /Common/my_clientssl (client_ssl)
+    /Common/my_serverssl (server_ssl)
+    /Common/my_oneconnect (one_connect)
+
+  iRules:
+    /Common/route_by_host — 14 loc; events: HTTP_REQUEST
+    /Common/ip_blocklist — 5 loc; events: CLIENT_ACCEPTED
+    /Common/uri_rewrite — 6 loc; events: HTTP_REQUEST
+
+  persistence:
+    /Common/my_cookie_persist (cookie)
+
+  SNAT:
+    snatpool /Common/my_snatpool (2 member(s))
+    translation: snat
+
+  default pool:
+    /Common/web_pool (round-robin)
+      pool monitor: /Common/my_http_monitor
+      member /Common/web1:80 addr=10.0.1.10
+      member /Common/web2:80 addr=10.0.1.11

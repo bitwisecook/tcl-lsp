@@ -174,7 +174,7 @@ pub fn references(
                 inv.range.start(),
             );
             let simple_ok = inv.name == proc_def.name
-                && resolved_norm.map_or(true, |r| r == target_q || r == proc_def.name)
+                && resolved_norm.is_none_or(|r| r == target_q || r == proc_def.name)
                 && call_ns == target_ns;
             if simple_ok
                 || inv.name == proc_def.qualified_name

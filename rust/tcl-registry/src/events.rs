@@ -284,6 +284,47 @@ impl EventRegistry {
     }
 }
 
+/// True when an event's [`EventProps`] satisfy a command's [`EventRequires`].
+///
+/// The single canonical implementation of the event-validity test —
+/// mirrors Python `event_satisfies` in `namespace_data.py`.  Used both
+/// by the per-command "valid events" hover list and by
+/// [`crate::CommandRegistry::valid_irules_commands_for_event`].
+#[must_use]
+pub fn event_satisfies(
+    props: &EventProps,
+    requires: &EventRequires,
+    event_name: &str,
+    profiles: &crate::profiles::ProfileRegistry,
+) -> bool {
+    if requires.init_only {
+        return event_name == "RULE_INIT";
+    }
+    if requires.also_in.contains(&event_name) {
+        return true;
+    }
+    if requires.flow && !props.flow {
+        return false;
+    }
+    if requires.client_side && !props.client_side {
+        return false;
+    }
+    if requires.server_side && !props.server_side {
+        return false;
+    }
+    if let Some(t) = requires.transport {
+        if !props.transport.contains(&t) {
+            return false;
+        }
+    }
+    if !requires.profiles.is_empty()
+        && !profiles.stack_satisfies(requires.profiles, props.implied_profiles)
+    {
+        return false;
+    }
+    true
+}
+
 // Full static data — auto-generated from Python namespace_data.py
 
 // AUTO-GENERATED from Python namespace_data.py — do not edit manually

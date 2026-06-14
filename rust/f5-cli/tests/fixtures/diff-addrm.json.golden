@@ -1,0 +1,22 @@
+{
+  "added": [
+    {
+      "fullPath": "/Common/p1",
+      "kind": "pool",
+      "status": "added"
+    }
+  ],
+  "removed": [
+    {
+      "fullPath": "/Common/n1",
+      "kind": "node",
+      "status": "removed"
+    }
+  ],
+  "modified": [],
+  "summary": {
+    "added": 1,
+    "removed": 1,
+    "modified": 0
+  }
+}

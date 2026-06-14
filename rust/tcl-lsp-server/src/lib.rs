@@ -50,6 +50,7 @@ use tcl_lsp_core::signature_help::{
 };
 use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::workspace_index as core_workspace_index;
+use tcl_lsp_db::TclDb as _;
 // type_hierarchy core provider lands when tower-lsp's
 // LanguageServer trait exposes the type-hierarchy methods.
 // Module is registered in `tcl_lsp_core` for downstream
@@ -89,14 +90,13 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
     RelatedFullDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
-    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
@@ -141,6 +141,152 @@ impl DocumentState {
     }
 }
 
+/// Debounce interval before a scheduled diagnostics run starts work.  A burst
+/// of keystrokes within this window collapses to a single analysis (the
+/// generation check supersedes earlier scheduled runs).  Small enough that
+/// diagnostics still feel immediate after typing stops.
+const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// Owned inputs for a detached diagnostics run — everything
+/// [`run_diagnostics_core`] needs without borrowing `Backend`, so the work can
+/// run on a `tokio::spawn`ed task off the LSP event loop.
+struct DiagInputs {
+    client: Client,
+    registry: Arc<CommandRegistry>,
+    disabled: HashSet<String>,
+    non_ascii_mode: NonAsciiMode,
+    optimiser_enabled: bool,
+    opt_disabled: HashSet<String>,
+    documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
+    workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
+    gate: Arc<Mutex<()>>,
+}
+
+/// Run the analyser + diagnostic lifts for one document and publish the result,
+/// off the LSP event loop.  This is the detached body the old synchronous
+/// `publish_analyser_diagnostics` became.
+///
+/// Crucially, the diagnostics path computes its base analysis with a *direct*
+/// `Analyser::analyse` rather than the salsa `file_analysis` query.  salsa's
+/// `set_text` write takes global write-exclusivity over the database, so a
+/// diagnostic read-handle held across the (uncancellable) analyse would block
+/// the next edit's write and, under concurrent load, stall worker threads.
+/// Decoupling diagnostics from salsa keeps editing responsive; the interactive
+/// read handlers still use the memoised queries.  (Sharing the two behind one
+/// cancellation-aware query is the later per-item/MVCC step.)
+async fn run_diagnostics_core(
+    inputs: DiagInputs,
+    uri: Url,
+    text: String,
+    dialect: String,
+    revision: u64,
+    version: Option<i32>,
+) {
+    let DiagInputs {
+        client,
+        registry,
+        disabled,
+        non_ascii_mode,
+        optimiser_enabled,
+        opt_disabled,
+        documents,
+        workspace_index,
+        gate,
+    } = inputs;
+
+    // F5 BIG-IP config is not Tcl source — publish an empty set and stop.
+    if Backend::is_bigip_dialect(&dialect) {
+        let is_current = documents
+            .lock()
+            .await
+            .get(&uri)
+            .is_some_and(|doc| doc.revision == revision);
+        if is_current {
+            client.publish_diagnostics(uri, Vec::new(), version).await;
+        }
+        return;
+    }
+
+    let started = std::time::Instant::now();
+    let uri_str = uri.to_string();
+    let line_count = text.lines().count();
+
+    // Base analysis: a direct analyse on a blocking worker (no salsa handle —
+    // see the function doc), off the LSP event loop.
+    let analysis: Arc<AnalysisResult> = {
+        let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
+        tokio::task::spawn_blocking(move || {
+            Arc::new(
+                Backend::configured_analyser(a_disabled, non_ascii_mode)
+                    .analyse(&a_text, &a_dialect)
+                    .clone(),
+            )
+        })
+        .await
+        .unwrap_or_default()
+    };
+
+    let analysis_lifts = Arc::clone(&analysis);
+    let lift_text = text.clone();
+    let lift_dialect = dialect.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
+        diagnostics.extend(lift_compiler_diagnostics(
+            &lift_text,
+            &registry,
+            &lift_dialect,
+            optimiser_enabled,
+            &opt_disabled,
+        ));
+        diagnostics.extend(lift_source_style_diagnostics(
+            &lift_text,
+            &analysis_lifts.suppressed_lines,
+            &disabled,
+        ));
+        diagnostics
+    })
+    .await;
+
+    match result {
+        Ok(diags) => {
+            {
+                let _gate = gate.lock().await;
+                let is_current = documents
+                    .lock()
+                    .await
+                    .get(&uri)
+                    .is_some_and(|doc| doc.revision == revision);
+                if !is_current {
+                    return;
+                }
+                let mut index = workspace_index.lock().await;
+                index.remove_document(uri.as_str());
+                index.add_document(uri.as_str(), &analysis);
+            }
+            let diag_count = diags.len();
+            client.publish_diagnostics(uri, diags, version).await;
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+            client
+                .log_message(
+                    MessageType::LOG,
+                    format!(
+                        "[timing] workspace_state.update {elapsed_ms:.0}ms \
+                         (uri={uri_str}, lines={line_count}, diags={diag_count})"
+                    ),
+                )
+                .await;
+        }
+        Err(err) => {
+            client
+                .log_message(
+                    MessageType::WARNING,
+                    format!("diagnostics worker panicked: {err}"),
+                )
+                .await;
+        }
+    }
+}
+
 /// LSP server backend.
 ///
 /// Holds the LSP `Client` for outbound notifications, a document
@@ -156,23 +302,25 @@ impl DocumentState {
 /// with the `Backend` rather than leaked for the process lifetime.
 pub struct Backend {
     client: Client,
-    documents: Mutex<HashMap<Url, DocumentState>>,
-    /// Serialises the critical section that couples the live document
-    /// revision to the derived analysis cache, workspace index, hover
-    /// cache, semantic-token cache, and diagnostics publication.
-    ///
-    /// The expensive analyser work still runs outside this lock.  The
-    /// gate only covers revision checks and state publication, so an
-    /// older worker cannot finish late and overwrite state for newer
-    /// text.
-    document_analysis_gate: Mutex<()>,
+    /// Open documents. `Arc` so the detached diagnostics task can hold it.
+    documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
+    /// Serialises the small critical section that couples the live document
+    /// revision to the workspace index update + diagnostics publication.
+    /// The expensive analyser work runs outside this lock, on a detached
+    /// task, so an older worker cannot finish late and overwrite state for
+    /// newer text.  `Arc` so the detached task can hold it.
+    document_analysis_gate: Arc<Mutex<()>>,
+    /// Per-URI diagnostics generation counter for debouncing: each edit bumps
+    /// it, and a scheduled diagnostics task only proceeds if its generation is
+    /// still current after the debounce interval — coalescing a burst of
+    /// keystrokes into one analysis instead of one per character.
+    diag_gen: Arc<Mutex<HashMap<Url, u64>>>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
     /// ``workspace/didChangeConfiguration`` has been received yet.
     /// Updated by ``did_change_configuration`` so editor reconfigures
     /// take effect for subsequently-opened documents.
     default_dialect: Mutex<String>,
-    dialect_registries: Mutex<HashMap<String, Arc<CommandRegistry>>>,
     /// Workspace folder roots received from `initialize` /
     /// `workspace/didChangeWorkspaceFolders`.  Stored as
     /// `Url` (typically `file://...` directories).
@@ -200,32 +348,13 @@ pub struct Backend {
     /// = false`). Threaded into every analyser build so the disabled
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
-    /// Cached `AnalysisResult` per document, populated by
-    /// `did_open` / `did_change` and consumed by request
-    /// handlers that previously re-analysed on every call.
-    /// `S-async-diagnostics` cached-analysis surface — once
-    /// this entry exists, request handlers consult it before
-    /// falling back to a fresh `analyser.analyse(...)`.
-    analyses: Mutex<HashMap<Url, tcl_compiler::analyser::AnalysisResult>>,
-    /// `S-hover-sync11`: LRU(256) cache of hover responses
-    /// keyed on `(uri, line, character)`.  Invalidated per
-    /// URI on `did_change` / `did_close` so stale answers
-    /// don't outlive the document version that produced them.
-    /// `None` entries record "no hover here" so repeated
-    /// requests for the same empty position are also fast.
-    hover_cache: Mutex<HoverCache>,
-    /// Per-URI semantic-tokens delta cache.  Records the last
-    /// `result_id` and packed token stream we returned for
-    /// each document so `semanticTokens/full/delta` can short-
-    /// circuit when nothing changed.  Invalidated on
-    /// `did_change` / `did_close`.
-    semantic_tokens_cache: Mutex<HashMap<Url, SemanticTokensEntry>>,
     /// Cross-document proc / class definition index, maintained
     /// incrementally as documents open / change / close.  Lets
     /// completion enumerate procs from sibling files and
     /// (later) cross-document go-to-definition resolve symbols
     /// defined elsewhere.
-    workspace_index: Mutex<core_workspace_index::WorkspaceIndex>,
+    /// `Arc` so the detached diagnostics task can update it off the event loop.
+    workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
     /// Per-feature provider toggles (`tclLsp.features.*`).  Absent
     /// keys default to enabled, so a config that names only some
     /// features leaves the rest on.  Consulted by each provider
@@ -250,6 +379,18 @@ pub struct Backend {
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
+    /// Incremental query database (salsa 0.26) — the single memoised store of
+    /// derived facts that is replacing the hand-maintained caches above.  The
+    /// `db` handle is the write side (set inputs); reads clone it onto a
+    /// worker thread and catch `salsa::Cancelled` when a newer edit supersedes
+    /// the request.
+    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    /// Per-URI salsa `SourceFile` input handles — the input-of-record the
+    /// query graph reads.  Kept current by `did_open` / `did_change`.
+    db_files: Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>,
+    /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
+    /// mode); `set_*` on `workspace/didChangeConfiguration`.
+    db_config: Mutex<tcl_lsp_db::AnalyserConfig>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -316,95 +457,6 @@ impl FeatureToggles {
     }
 }
 
-/// Cached semantic-tokens result keyed on the URI.
-#[derive(Debug, Clone)]
-struct SemanticTokensEntry {
-    /// `result_id` returned to the client; bumped on every
-    /// recompute so clients can request deltas against the
-    /// stored snapshot.
-    result_id: String,
-    /// Packed `(deltaLine, deltaCol, length, type, modifiers)`
-    /// stream — same shape `tcl_lsp_core::semantic_tokens`
-    /// emits.
-    data: Vec<u32>,
-}
-
-/// Result of a `HoverCache::get` lookup.
-#[derive(Debug, Clone)]
-enum HoverLookup {
-    /// Cache miss — the caller must compute the hover.
-    Miss,
-    /// Cached "no hover here" answer (the provider returned
-    /// `None` for this position last time).
-    HitEmpty,
-    /// Cached hover response.
-    Hit(tcl_lsp_core::hover::Hover),
-}
-
-/// LRU cache of hover responses bounded at 256 entries.
-/// Keys are `(uri, line, character)`.  Stored values
-/// distinguish between "no entry" and "entry with empty
-/// hover" so repeated requests on positions that have no
-/// hover are also fast.  On capacity overflow the oldest
-/// entry is evicted.
-#[derive(Debug, Default)]
-struct HoverCache {
-    /// FIFO queue of cache keys in insertion order.  Doubles
-    /// as the eviction order — bounded LRU; reads don't
-    /// promote.  256 is the SYNC11-mandated cap.
-    order: std::collections::VecDeque<(Url, u32, u32)>,
-    entries: HashMap<(Url, u32, u32), Option<tcl_lsp_core::hover::Hover>>,
-}
-
-impl HoverCache {
-    const CAP: usize = 256;
-
-    fn get(&self, key: &(Url, u32, u32)) -> HoverLookup {
-        match self.entries.get(key) {
-            None => HoverLookup::Miss,
-            Some(None) => HoverLookup::HitEmpty,
-            Some(Some(h)) => HoverLookup::Hit(h.clone()),
-        }
-    }
-
-    fn put(&mut self, key: (Url, u32, u32), value: Option<tcl_lsp_core::hover::Hover>) {
-        use std::collections::hash_map::Entry;
-        match self.entries.entry(key.clone()) {
-            Entry::Occupied(mut e) => {
-                e.insert(value);
-            }
-            Entry::Vacant(slot) => {
-                if self.order.len() >= Self::CAP {
-                    if let Some(old) = self.order.pop_front() {
-                        // The slot we're about to fill matches
-                        // `key`; the popped key is different, so
-                        // remove it via a direct lookup.
-                        if old != key {
-                            // The Vacant binding holds the entry,
-                            // so we can't remove via the same map
-                            // without giving it up.  Stash the key,
-                            // drop the entry, then evict, then
-                            // re-insert.
-                            drop(slot);
-                            self.entries.remove(&old);
-                            self.order.push_back(key.clone());
-                            self.entries.insert(key, value);
-                            return;
-                        }
-                    }
-                }
-                slot.insert(value);
-                self.order.push_back(key);
-            }
-        }
-    }
-
-    fn invalidate_uri(&mut self, uri: &Url) {
-        self.order.retain(|(u, _, _)| u != uri);
-        self.entries.retain(|(u, _, _), _| u != uri);
-    }
-}
-
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish_non_exhaustive()
@@ -425,36 +477,133 @@ impl Backend {
     /// providers when the document store has no override.
     #[must_use]
     pub fn new(client: Client) -> Self {
+        let db = tcl_lsp_db::TclDatabase::default();
+        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
         Self {
             client,
-            documents: Mutex::new(HashMap::new()),
-            document_analysis_gate: Mutex::new(()),
+            documents: Arc::new(Mutex::new(HashMap::new())),
+            document_analysis_gate: Arc::new(Mutex::new(())),
+            diag_gen: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
-            dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            analyses: Mutex::new(HashMap::new()),
-            hover_cache: Mutex::new(HoverCache::default()),
-            semantic_tokens_cache: Mutex::new(HashMap::new()),
-            workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
+            workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            db: Arc::new(Mutex::new(db)),
+            db_files: Mutex::new(HashMap::new()),
+            db_config: Mutex::new(db_config),
         }
     }
 
-    /// Read the cached `AnalysisResult` for `uri` if one
-    /// exists.  Returns a clone so the caller can run on a
-    /// `spawn_blocking` worker without holding the mutex.
-    /// Falls back to `None` when no cache entry exists; the
-    /// caller is expected to compute a fresh analysis in
-    /// that case.
+    /// Create or update the salsa `SourceFile` input for `uri`.  Called by
+    /// `did_open` / `did_change` so the query graph always reads current text.
+    /// Lock order is always `db` then `db_files`.
+    async fn db_set_source(&self, uri: &Url, text: String, dialect: String) {
+        use salsa::Setter as _;
+        let mut db = self.db.lock().await;
+        let mut files = self.db_files.lock().await;
+        if let Some(&file) = files.get(uri) {
+            file.set_text(&mut *db).to(text);
+            file.set_dialect(&mut *db).to(dialect);
+        } else {
+            let file = tcl_lsp_db::SourceFile::new(&*db, text, dialect);
+            files.insert(uri.clone(), file);
+        }
+    }
+
+    /// Drop the salsa `SourceFile` input for `uri` (on `did_close`).
+    async fn db_remove_source(&self, uri: &Url) {
+        self.db_files.lock().await.remove(uri);
+    }
+
+    /// Mirror the editor analyser config (disabled diagnostics + non-ASCII
+    /// mode) onto the salsa `AnalyserConfig` input.  The disabled set is
+    /// sorted so the input value is stable (a `HashSet` iteration order change
+    /// must not look like an edit to salsa).
+    async fn sync_db_config(&self) {
+        use salsa::Setter as _;
+        let mut disabled: Vec<String> = self
+            .disabled_diagnostics
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect();
+        disabled.sort();
+        let mode = *self.non_ascii_mode.lock().await;
+        let config = *self.db_config.lock().await;
+        let mut db = self.db.lock().await;
+        config.set_disabled_diagnostics(&mut *db).to(disabled);
+        config.set_non_ascii_mode(&mut *db).to(mode);
+    }
+
+    /// Run the salsa `document_symbols` query for `uri` on a worker thread,
+    /// reading the current `SourceFile` input.  Returns `None` when the input
+    /// is absent or a concurrent edit cancels the read, so the caller can fall
+    /// back to a direct computation (behaviour preserved).
+    async fn db_document_symbols(
+        &self,
+        uri: &Url,
+    ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = *self.db_config.lock().await;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&snapshot, file, config)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Run the salsa `file_analysis` query for `uri` on a worker thread,
+    /// reading the current `SourceFile` input.  Returns `None` when the input
+    /// is absent or a concurrent edit cancels the read.  The returned `Arc`
+    /// shares the memoised analysis (no deep clone of `AnalysisResult`).
+    async fn db_file_analysis(
+        &self,
+        uri: &Url,
+    ) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let config = *self.db_config.lock().await;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::file_analysis(&snapshot, file, config)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Run the salsa `semantic_tokens` query for `uri` on a worker thread.
+    /// `None` when the input is absent or a concurrent edit cancels the read.
+    async fn db_semantic_tokens(
+        &self,
+        uri: &Url,
+    ) -> Option<tcl_lsp_core::semantic_tokens::SemanticTokens> {
+        let file = (*self.db_files.lock().await).get(uri).copied()?;
+        let snapshot = self.db.lock().await.clone();
+        tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::semantic_tokens(&snapshot, file)).ok()
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
+    /// Read the memoised `AnalysisResult` for `uri` from the query database, if
+    /// the document has a `SourceFile` input.  Returns an owned clone so the
+    /// caller can move it into a `spawn_blocking` worker.  `None` when there is
+    /// no input (the caller analyses fresh) or a concurrent edit cancelled the
+    /// read.
     async fn cached_analysis(&self, uri: &Url) -> Option<tcl_compiler::analyser::AnalysisResult> {
-        self.analyses.lock().await.get(uri).cloned()
+        self.db_file_analysis(uri).await.map(|a| (*a).clone())
     }
 
     /// Resolve an analysis for the document.  Consults the
@@ -1324,24 +1473,24 @@ impl Backend {
             .to_owned();
         let events = tcl_registry::events::EventRegistry::build();
         let known = !event.is_empty() && events.is_known(&event);
-        let (count, sample, deprecated) = if known {
+        let (count, sample) = if known {
             let registry = self.registry_for_dialect("f5-irules").await;
-            let mut names: Vec<&str> = registry
-                .command_names()
-                .filter(|&n| {
-                    registry.get(n).is_some_and(|s| {
-                        s.event_requires.is_some() && !s.excluded_events.iter().any(|&e| event == e)
-                    })
-                })
-                .collect();
-            names.sort_unstable();
+            let profiles = tcl_registry::profiles::ProfileRegistry::build();
+            // Mirror Python `_build_event_set`: every f5-irules command valid
+            // in the event, not just those that carry `event_requires`.
+            let names = registry.valid_irules_commands_for_event(&event, &events, &profiles);
             let count = names.len();
             let sample: Vec<String> = names.into_iter().take(80).map(str::to_owned).collect();
-            let deprecated = events.get_props(&event).is_some_and(|p| p.deprecated);
-            (count, sample, deprecated)
+            (count, sample)
         } else {
-            (0, Vec::new(), false)
+            (0, Vec::new())
         };
+        // The contract derives `deprecated` from the `when` event-completion
+        // detail (`get_event_detail`), which never contains the word — so the
+        // describe-event surface always reports false, deliberately *not*
+        // `EventProps.deprecated` (the orthogonal F5 deprecation fact).  See
+        // `server/commands.py::on_describe_irule_event`.
+        let deprecated = false;
         Ok(Some(serde_json::json!({
             "event": event,
             "known": known,
@@ -1613,6 +1762,9 @@ impl Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
+        // Mirror the applied analyser knobs onto the salsa config input so the
+        // query graph recomputes against the latest settings.
+        self.sync_db_config().await;
     }
 
     /// Whether the named `tclLsp.features.*` provider is enabled.
@@ -1770,38 +1922,12 @@ impl Backend {
     /// they share a single cached "plain Tcl" registry rather than
     /// leaking a fresh allocation per typo.
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
-        let parsed = DialectSet::parse(dialect);
-        // Canonicalise the cache key: parseable dialects keep
-        // their string; unparseable / plain-Tcl collapse to "".
-        let key = if parsed.is_some() { dialect } else { "" };
-        self.cached_registry(key, parsed).await
-    }
-
-    /// Cache helper for [`Self::registry_for_dialect`].
-    ///
-    /// Builds (or fetches) a registry holding the base specs plus,
-    /// when `dialect` is `Some`, the dialect-loaded specs. The
-    /// cache owns the registries via `Arc`, so they are dropped
-    /// when the `Backend` is dropped instead of living for the
-    /// process lifetime.
-    async fn cached_registry(
-        &self,
-        key: &str,
-        dialect: Option<DialectSet>,
-    ) -> Arc<CommandRegistry> {
-        if let Some(r) = self.dialect_registries.lock().await.get(key).cloned() {
-            return r;
-        }
-        let mut r = CommandRegistry::build_default();
-        if let Some(d) = dialect {
-            r.load_dialect(d);
-        }
-        let arc = Arc::new(r);
-        let mut cache = self.dialect_registries.lock().await;
-        let entry = cache
-            .entry(key.to_owned())
-            .or_insert_with(|| Arc::clone(&arc));
-        Arc::clone(entry)
+        // The dialect-loaded registry lives on the query database as a durable
+        // (non-salsa) value, built once per canonical dialect key and shared.
+        // Clone the db handle (cheap; shares the registry map) so the lookup /
+        // one-time build doesn't hold the db mutex.
+        let db = self.db.lock().await.clone();
+        db.registry(dialect)
     }
 
     /// Run the analyser on `text` and push the resulting
@@ -1811,70 +1937,15 @@ impl Backend {
     /// event loop stays responsive.  `S-async-diagnostics`
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
-    async fn publish_analyser_diagnostics(
-        &self,
-        uri: Url,
-        text: String,
-        dialect: String,
-        revision: u64,
-        version: Option<i32>,
-    ) {
-        // GAP-C1: the base analyser only surfaces `Analyser::analyse`
-        // diagnostics.  The optimiser O-codes, GVN redundancies,
-        // shimmer/thunking, taint (W2xx / T1xx), and the iRules
-        // control-flow checks are all implemented in `tcl-compiler`
-        // but, until now, reached no server caller — only the PyO3
-        // bridge.  Run `compiler_checks::run_all_checks` +
-        // `optimiser::optimise_with_dialect` on the same worker and
-        // merge their diagnostics into the published set.  Both need
-        // the dialect-aware registry, so resolve it before the
-        // blocking hop and move an `Arc` clone in.
-        //
-        // Lifecycle/timing instrumentation routed to the client as
-        // `window/logMessage` (mirrors the Python server's `[timing]` lines so
-        // the same logs appear in editors' LSP output channels — and so the
-        // e2e harness can await the per-URI snapshot-built marker).
-        // F5 BIG-IP config (`bigip.conf`, …) is not Tcl source. The
-        // general Tcl analyser must never run on it — doing so mis-reads
-        // BIG-IP encrypted-string markers (`$M$…$`) as Tcl `$var`
-        // references (W210) and flags stanza syntax like `ltm pool …` as
-        // bad Tcl (W123 / E002). Publish an empty (no general-Tcl)
-        // diagnostic set keyed on the document version and return before
-        // any analysis, mirroring the Python `f5-bigip` diagnostics skip
-        // (#571). The Tcl `workspace_state.update` timing marker is
-        // deliberately *not* emitted on this path — there is no Tcl
-        // analysis snapshot to advertise.
-        if Self::is_bigip_dialect(&dialect) {
-            let is_current = {
-                let docs = self.documents.lock().await;
-                docs.get(&uri).is_some_and(|doc| doc.revision == revision)
-            };
-            if is_current {
-                self.client
-                    .publish_diagnostics(uri, Vec::new(), version)
-                    .await;
-            }
-            return;
-        }
-        let started = std::time::Instant::now();
-        let uri_str = uri.to_string();
-        let line_count = text.lines().count();
-        let registry = self.registry_for_dialect(&dialect).await;
-        let (disabled, na_mode) = self.analyser_config().await;
-        // The optimiser O-codes the diagnostics path must suppress: the active
-        // profile's disabled categories, then per-code user overrides applied on
-        // top (`tclLsp.optimiser.O111=false` adds, `=true` removes). The master
-        // `tclLsp.optimiser.enabled=false` switch suppresses every O-code.
-        // Mirrors Python's `disabled_optimisations` + `optimiser_enabled`.
-        let optimiser_enabled = *self.optimiser_enabled.lock().await;
-        let opt_disabled: std::collections::HashSet<String> = {
-            let mut set: std::collections::HashSet<String> =
-                tcl_compiler::optimiser::profiles::profile_to_disabled(
-                    *self.optimiser_profile.lock().await,
-                )
-                .into_iter()
-                .map(str::to_owned)
-                .collect();
+    /// Gather the owned inputs a detached diagnostics run needs.
+    async fn diag_inputs(&self, dialect: &str) -> DiagInputs {
+        let opt_disabled: HashSet<String> = {
+            let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
+                *self.optimiser_profile.lock().await,
+            )
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
             for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
                 if *enabled {
                     set.remove(code);
@@ -1884,80 +1955,74 @@ impl Backend {
             }
             set
         };
-        let result = tokio::task::spawn_blocking(move || {
-            let mut analyser = Self::configured_analyser(disabled.clone(), na_mode);
-            let analysis = analyser.analyse(&text, &dialect).clone();
-            let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
-            diagnostics.extend(lift_compiler_diagnostics(
-                &text,
-                &registry,
-                &dialect,
-                optimiser_enabled,
-                &opt_disabled,
-            ));
-            // GAP-C1 strip 2: source-style pass (W111 / W112 / W115
-            // / W118), suppression-filtered via the analyser's
-            // `suppressed_lines` and the user's disabled-diagnostics set.
-            diagnostics.extend(lift_source_style_diagnostics(
-                &text,
-                &analysis.suppressed_lines,
-                &disabled,
-            ));
-            (analysis, diagnostics)
-        })
-        .await;
-        match result {
-            Ok((analysis, diags)) => {
-                {
-                    let _gate = self.document_analysis_gate.lock().await;
-                    let is_current = {
-                        let docs = self.documents.lock().await;
-                        docs.get(&uri).is_some_and(|doc| doc.revision == revision)
-                    };
-                    if !is_current {
-                        return;
-                    }
-                    // Cache the analysis so the per-method
-                    // handlers don't have to re-run it on every
-                    // request.
-                    {
-                        // Refresh the cross-document workspace index
-                        // for this URI (remove stale entries, then
-                        // re-add the fresh definitions).
-                        let mut index = self.workspace_index.lock().await;
-                        index.remove_document(uri.as_str());
-                        index.add_document(uri.as_str(), &analysis);
-                    }
-                    self.analyses.lock().await.insert(uri.clone(), analysis);
-                }
-                // The LSP version is attached to normal analyser
-                // diagnostics, so clients can discard this publish if a
-                // newer edit overtakes it after the cache/index update.
-                let diag_count = diags.len();
-                self.client.publish_diagnostics(uri, diags, version).await;
-                // Snapshot-built marker: emitted once the analysis cache +
-                // workspace index are populated and diagnostics published, so
-                // analysis-backed handlers (hover, definition, …) are ready.
-                let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
-                self.client
-                    .log_message(
-                        MessageType::LOG,
-                        format!(
-                            "[timing] workspace_state.update {elapsed_ms:.0}ms \
-                             (uri={uri_str}, lines={line_count}, diags={diag_count})"
-                        ),
-                    )
-                    .await;
-            }
-            Err(err) => {
-                self.client
-                    .log_message(
-                        MessageType::WARNING,
-                        format!("diagnostics worker panicked: {err}"),
-                    )
-                    .await;
-            }
+        let (disabled, non_ascii_mode) = self.analyser_config().await;
+        let registry = self.registry_for_dialect(dialect).await;
+        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        DiagInputs {
+            client: self.client.clone(),
+            registry,
+            disabled,
+            non_ascii_mode,
+            optimiser_enabled,
+            opt_disabled,
+            documents: Arc::clone(&self.documents),
+            workspace_index: Arc::clone(&self.workspace_index),
+            gate: Arc::clone(&self.document_analysis_gate),
         }
+    }
+
+    /// Compute and publish diagnostics synchronously (awaited).  Used by the
+    /// on-close/disk paths and tests; the interactive open/change paths use the
+    /// detached [`Self::schedule_diagnostics`] instead so they never block the
+    /// LSP message loop.
+    #[cfg_attr(not(test), allow(dead_code))]
+    async fn publish_analyser_diagnostics(
+        &self,
+        uri: Url,
+        text: String,
+        dialect: String,
+        revision: u64,
+        version: Option<i32>,
+    ) {
+        let inputs = self.diag_inputs(&dialect).await;
+        run_diagnostics_core(inputs, uri, text, dialect, revision, version).await;
+    }
+
+    /// Schedule a debounced, detached diagnostics run for `uri`.  Returns
+    /// immediately (the analyser work runs on a `tokio::spawn`ed task), so
+    /// `did_open` / `did_change` never block the message loop on analysis —
+    /// the fix for editing latency, where every keystroke previously awaited a
+    /// full re-analysis.  A burst of edits collapses to one run via the
+    /// per-URI generation check after the debounce interval.
+    async fn schedule_diagnostics(
+        &self,
+        uri: Url,
+        text: String,
+        dialect: String,
+        revision: u64,
+        version: Option<i32>,
+    ) {
+        let my_gen = {
+            let mut gens = self.diag_gen.lock().await;
+            let slot = gens.entry(uri.clone()).or_insert(0);
+            *slot += 1;
+            *slot
+        };
+        let inputs = self.diag_inputs(&dialect).await;
+        let diag_gen = Arc::clone(&self.diag_gen);
+        tokio::spawn(async move {
+            // Debounce: a burst of edits all sleep here first, so none holds a
+            // salsa read while the next edit's `set_text` write runs — only the
+            // surviving (latest-generation) task then runs one analysis.  This
+            // is load-bearing: without it, concurrent per-edit analyses make
+            // each write block a worker thread waiting for in-flight reads,
+            // stalling the message loop after a dozen edits.
+            tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
+            if diag_gen.lock().await.get(&uri).copied() != Some(my_gen) {
+                return;
+            }
+            run_diagnostics_core(inputs, uri, text, dialect, revision, version).await;
+        });
     }
 
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
@@ -2098,17 +2163,19 @@ impl LanguageServer for Backend {
                 uri.clone(),
                 DocumentState::with_version(params.text_document.text, dialect, version),
             );
+            // Set the salsa input while holding the `documents` lock — same
+            // reasoning as `did_change`: a reader must never see the new
+            // `doc.text` with a stale query result for the old text.
+            self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
+                .await;
             drop(docs);
-            self.hover_cache.lock().await.invalidate_uri(&uri);
-            self.semantic_tokens_cache.lock().await.remove(&uri);
-            self.analyses.lock().await.remove(&uri);
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
             (0, Some(version))
         };
-        self.publish_analyser_diagnostics(uri, text, dialect_for_diags, revision, version)
+        self.schedule_diagnostics(uri, text, dialect_for_diags, revision, version)
             .await;
     }
 
@@ -2141,31 +2208,26 @@ impl LanguageServer for Backend {
             let dialect = entry.dialect.clone();
             let revision = entry.revision;
             let version = entry.version;
+            // Update the salsa `SourceFile` input WHILE still holding the
+            // `documents` lock, so no concurrent request can observe the new
+            // `doc.text` (from `read_document`) together with a stale
+            // `file_analysis`/`document_symbols`/`semantic_tokens` query result
+            // for the old text. (db_set_source locks db→db_files, never
+            // documents, so this nesting introduces no new lock-order cycle.)
+            self.db_set_source(&uri, text.clone(), dialect.clone())
+                .await;
             drop(docs);
-            // `S-hover-sync11`: drop every cached hover response
-            // for this URI so subsequent requests return answers
-            // against the freshly-edited source rather than stale
-            // pre-edit results.
-            self.hover_cache.lock().await.invalidate_uri(&uri);
-            // `S-semantic-tokens-rich` delta: drop the cached
-            // token snapshot so the next `semanticTokens/full/delta`
-            // returns a fresh full result instead of an empty edit
-            // list against an outdated baseline.
-            self.semantic_tokens_cache.lock().await.remove(&uri);
-            // Evict the stale `AnalysisResult` so any request that
-            // arrives before `publish_analyser_diagnostics` finishes
-            // re-running the analyser falls through to a fresh
-            // run via `analysis_for` rather than serving pre-edit
-            // results (PR #454 Codex review P1).  `publish_*` will
-            // reinsert the fresh entry when it completes.
-            self.analyses.lock().await.remove(&uri);
+            // The per-document analysis is no longer cached on the server — it
+            // lives in the query database, invalidated by the `db_set_source`
+            // above bumping the `SourceFile` input. The cross-document index is
+            // still refreshed by the diagnostics run below.
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
             (text, dialect, revision, version)
         };
-        self.publish_analyser_diagnostics(uri, text, dialect, revision, version)
+        self.schedule_diagnostics(uri, text, dialect, revision, version)
             .await;
     }
 
@@ -2209,9 +2271,6 @@ impl LanguageServer for Backend {
         {
             let _gate = self.document_analysis_gate.lock().await;
             self.documents.lock().await.remove(uri);
-            self.analyses.lock().await.remove(uri);
-            self.hover_cache.lock().await.invalidate_uri(uri);
-            self.semantic_tokens_cache.lock().await.remove(uri);
             self.workspace_index
                 .lock()
                 .await
@@ -2224,6 +2283,7 @@ impl LanguageServer for Backend {
                 .publish_diagnostics(uri.clone(), Vec::new(), None)
                 .await;
         }
+        self.db_remove_source(uri).await;
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
         // the on-disk index, so cross-document definition /
@@ -2268,8 +2328,21 @@ impl LanguageServer for Backend {
         // ever carries an empty `name` (#534).
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
             core_bigip::document_symbols(&doc.text)
+        } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
+            // Served from the salsa query graph (memoised; reuses the tracked
+            // file_analysis instead of re-running the full analyser).
+            symbols
         } else {
-            core_symbols::document_symbols(&doc.text, &doc.dialect)
+            // Cold / cancelled fallback: compute directly so the request never
+            // returns empty due to a concurrent edit (behaviour preserved).
+            let analysis = self
+                .analysis_for(
+                    &params.text_document.uri,
+                    doc.text.clone(),
+                    doc.dialect.clone(),
+                )
+                .await;
+            core_symbols::document_symbols_from_analysis(&doc.text, &analysis)
         };
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
@@ -2886,19 +2959,15 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        // `S-semantic-tokens-rich`: real classification.  The
-        // packed integer stream is 5 ints per token
-        // `[deltaLine, deltaCol, length, type, modifiers]`.
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
+        // `S-semantic-tokens-rich`: real classification, served from the
+        // memoised `semantic_tokens` query (packed integer stream, 5 ints per
+        // token `[deltaLine, deltaCol, length, type, modifiers]`).  The
+        // cold/cancelled fallback computes directly.
+        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await { tokens.data } else {
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+        };
         let result_id = next_semantic_tokens_id();
-        self.semantic_tokens_cache.lock().await.insert(
-            uri,
-            SemanticTokensEntry {
-                result_id: result_id.clone(),
-                data: core_data.clone(),
-            },
-        );
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
             result_id: Some(result_id),
             data: lift_semantic_token_data(&core_data),
@@ -2913,51 +2982,18 @@ impl LanguageServer for Backend {
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
-        let previous_result_id = params.previous_result_id;
-        let registry = self.registry_for_dialect(&doc.dialect).await;
-        let new_data = core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data;
-        let new_result_id = next_semantic_tokens_id();
-
-        // Compare against the cached snapshot.  When the client's
-        // `previous_result_id` matches the stream we last handed
-        // out for this URI, return the minimal token-aligned edit
-        // that turns the cached stream into the new one (an empty
-        // edit list when nothing changed).  When the ids don't
-        // line up (stale / unknown previous result) fall back to a
-        // fresh full token set, which the LSP spec accepts.
-        let mut cache = self.semantic_tokens_cache.lock().await;
-        let prev_match = cache
-            .get(&uri)
-            .filter(|entry| entry.result_id == previous_result_id)
-            .map(|entry| entry.data.clone());
-        cache.insert(
-            uri,
-            SemanticTokensEntry {
-                result_id: new_result_id.clone(),
-                data: new_data.clone(),
-            },
-        );
-        drop(cache);
-        if let Some(prev_data) = prev_match {
-            let edits = match core_semantic_tokens::diff(&prev_data, &new_data) {
-                None => Vec::new(),
-                Some(edit) => vec![SemanticTokensEdit {
-                    start: edit.start,
-                    delete_count: edit.delete_count,
-                    data: Some(lift_semantic_token_data(&edit.data)),
-                }],
-            };
-            return Ok(Some(SemanticTokensFullDeltaResult::TokensDelta(
-                SemanticTokensDelta {
-                    result_id: Some(new_result_id),
-                    edits,
-                },
-            )));
-        }
+        // The server no longer keeps a per-URI token snapshot to diff against
+        // (that hand-invalidated cache is gone).  A `full/delta` request is
+        // answered with the full token set from the memoised query — the LSP
+        // spec accepts `Tokens` in place of `TokensDelta`.
+        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await { tokens.data } else {
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+        };
         Ok(Some(SemanticTokensFullDeltaResult::Tokens(
             LspSemanticTokens {
-                result_id: Some(new_result_id),
-                data: lift_semantic_token_data(&new_data),
+                result_id: Some(next_semantic_tokens_id()),
+                data: lift_semantic_token_data(&core_data),
             },
         )))
     }
@@ -3285,7 +3321,7 @@ impl LanguageServer for Backend {
         let lifted: Vec<CodeActionOrCommand> = actions
             .into_iter()
             .filter(|a| {
-                only.as_ref().map_or(true, |wanted| {
+                only.as_ref().is_none_or(|wanted| {
                     let k = a.kind.as_str();
                     // Keep an action when its kind exactly matches a requested
                     // kind, or is a *subtype* of one (`refactor.extract`
@@ -3724,27 +3760,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
-        // `S-hover-sync11`: consult the LRU(256) result cache
-        // first.  Cache hits return the previous hover for
-        // `(uri, line, character)` directly without re-running
-        // the provider.  The cache is invalidated by URI in
-        // `did_change` / `did_close`, so the stored entry is
-        // always pinned to the source text the editor last sent.
-        let cache_key = (uri.clone(), pos.line, pos.character);
-        match self.hover_cache.lock().await.get(&cache_key) {
-            HoverLookup::HitEmpty => return Ok(None),
-            HoverLookup::Hit(h) => return Ok(Some(lift_hover(h))),
-            HoverLookup::Miss => {}
-        }
-        // Cache miss: run the provider.  Consults the cached
-        // analysis from `did_open` / `did_change`; the
-        // `analysis_for` helper falls back to a fresh
-        // `analyser.analyse(...)` when the publisher hasn't
-        // populated the cache yet.  Worker-offload via
+        // Run the provider over the memoised `file_analysis` query (no separate
+        // hover result cache — walking the cached analysis is cheap, and the
+        // query graph already avoids re-analysing).  Worker-offload via
         // `spawn_blocking` keeps the LSP event loop responsive.
-        // SYNC11's debounce + `[timing] hover` debug logs are
-        // documented but not yet wired — they need an upgraded
-        // logging layer beyond the bare `Client::log_message`.
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
@@ -3764,7 +3783,6 @@ impl LanguageServer for Backend {
             message: format!("hover worker panicked: {err}").into(),
             data: None,
         })?;
-        self.hover_cache.lock().await.put(cache_key, result.clone());
         Ok(result.map(lift_hover))
     }
 }
@@ -4197,7 +4215,7 @@ fn lift_compiler_diagnostics(
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
-    use tcl_compiler::optimiser::optimise_with_dialect;
+    use tcl_compiler::optimiser::optimise_unit;
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
 
     let line_index = tcl_lexer::LineIndex::new(text);
@@ -4249,7 +4267,10 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic; the fix plumbing itself is GAP-C3). The
     // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
     // block, mirroring Python's `if optimiser_enabled:` gate.
-    for o in optimise_with_dialect(text, registry, dialect_opt)
+    // Share the single CompilationUnit already built above for `run_all_checks`
+    // instead of letting `optimise_with_dialect` lower the source a second time
+    // (~129 ms saved per document on large files — E7).
+    for o in optimise_unit(&cu, registry, dialect_opt)
         .into_iter()
         .filter(|_| optimiser_enabled)
     {
@@ -5281,29 +5302,31 @@ mod tests {
     /// fresh `Backend` with reset state.
     fn test_backend() -> Backend {
         let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+        let db = tcl_lsp_db::TclDatabase::default();
+        let db_config = tcl_lsp_db::AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
         Backend {
             client: service.inner().client.clone(),
-            documents: Mutex::new(HashMap::new()),
-            document_analysis_gate: Mutex::new(()),
+            documents: Arc::new(Mutex::new(HashMap::new())),
+            document_analysis_gate: Arc::new(Mutex::new(())),
+            diag_gen: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
-            dialect_registries: Mutex::new(HashMap::new()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
-            analyses: Mutex::new(HashMap::new()),
-            hover_cache: Mutex::new(HoverCache::default()),
-            semantic_tokens_cache: Mutex::new(HashMap::new()),
-            workspace_index: Mutex::new(core_workspace_index::WorkspaceIndex::new()),
+            workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
+            db: Arc::new(Mutex::new(db)),
+            db_files: Mutex::new(HashMap::new()),
+            db_config: Mutex::new(db_config),
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn stale_diagnostics_worker_cannot_overwrite_current_analysis() {
         let backend = test_backend();
         let uri = Url::parse("file:///stale.tcl").unwrap();
@@ -5312,6 +5335,11 @@ mod tests {
 
         let mut analyser = Analyser::new();
         let current_analysis = analyser.analyse(current_src, "tcl8.6").clone();
+        // The current document is at revision 2; its analysis lives in the
+        // query database (set via the SourceFile input) and the workspace index.
+        backend
+            .db_set_source(&uri, current_src.to_owned(), "tcl8.6".to_owned())
+            .await;
         {
             let _gate = backend.document_analysis_gate.lock().await;
             let mut doc =
@@ -5319,17 +5347,13 @@ mod tests {
             doc.revision = 2;
             backend.documents.lock().await.insert(uri.clone(), doc);
             backend
-                .analyses
-                .lock()
-                .await
-                .insert(uri.clone(), current_analysis.clone());
-            backend
                 .workspace_index
                 .lock()
                 .await
                 .add_document(uri.as_str(), &current_analysis);
         }
 
+        // A stale worker (revision 1) must not overwrite state for revision 2.
         backend
             .publish_analyser_diagnostics(
                 uri.clone(),
@@ -5340,13 +5364,12 @@ mod tests {
             )
             .await;
 
+        // The query database still reflects the current document (its input was
+        // never changed to the stale text).
         let analysis = backend
-            .analyses
-            .lock()
+            .cached_analysis(&uri)
             .await
-            .get(&uri)
-            .cloned()
-            .expect("current analysis remains cached");
+            .expect("current analysis available from the query database");
         assert!(analysis.all_procs.contains_key("::current"));
         assert!(!analysis.all_procs.contains_key("::stale"));
 
@@ -5745,69 +5768,6 @@ mod tests {
         let got = out.len();
         std::fs::remove_dir_all(&root).ok();
         assert_eq!(got, 3);
-    }
-
-    #[test]
-    fn hover_cache_round_trips_an_entry() {
-        let mut cache = HoverCache::default();
-        let uri = Url::parse("file:///x.tcl").unwrap();
-        let key = (uri.clone(), 0, 5);
-        // Miss before insertion.
-        assert!(matches!(cache.get(&key), HoverLookup::Miss));
-        // Insert and read back.
-        let h = tcl_lsp_core::hover::Hover {
-            value: "demo".to_owned(),
-            kind: tcl_lsp_core::hover::HoverKind::Markdown,
-        };
-        cache.put(key.clone(), Some(h.clone()));
-        match cache.get(&key) {
-            HoverLookup::Hit(got) => assert_eq!(got.value, "demo"),
-            other => panic!("expected Hit, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn hover_cache_records_empty_hovers() {
-        let mut cache = HoverCache::default();
-        let uri = Url::parse("file:///x.tcl").unwrap();
-        let key = (uri, 0, 5);
-        cache.put(key.clone(), None);
-        // An empty hover is distinct from a miss.
-        assert!(matches!(cache.get(&key), HoverLookup::HitEmpty));
-    }
-
-    #[test]
-    fn hover_cache_invalidates_by_uri() {
-        let mut cache = HoverCache::default();
-        let uri_a = Url::parse("file:///a.tcl").unwrap();
-        let uri_b = Url::parse("file:///b.tcl").unwrap();
-        let h = tcl_lsp_core::hover::Hover {
-            value: "x".to_owned(),
-            kind: tcl_lsp_core::hover::HoverKind::Markdown,
-        };
-        cache.put((uri_a.clone(), 0, 0), Some(h.clone()));
-        cache.put((uri_b.clone(), 0, 0), Some(h));
-        cache.invalidate_uri(&uri_a);
-        assert!(matches!(cache.get(&(uri_a, 0, 0)), HoverLookup::Miss));
-        assert!(matches!(cache.get(&(uri_b, 0, 0)), HoverLookup::Hit(_)));
-    }
-
-    #[test]
-    fn hover_cache_caps_at_256_entries() {
-        let mut cache = HoverCache::default();
-        let uri = Url::parse("file:///x.tcl").unwrap();
-        let h = tcl_lsp_core::hover::Hover {
-            value: "x".to_owned(),
-            kind: tcl_lsp_core::hover::HoverKind::Markdown,
-        };
-        for i in 0..300 {
-            cache.put((uri.clone(), 0, i), Some(h.clone()));
-        }
-        assert_eq!(cache.entries.len(), HoverCache::CAP);
-        // Earliest insertions were evicted.
-        assert!(matches!(cache.get(&(uri.clone(), 0, 0)), HoverLookup::Miss,));
-        // Most-recent insertions survive.
-        assert!(matches!(cache.get(&(uri, 0, 299)), HoverLookup::Hit(_),));
     }
 
     #[tokio::test]

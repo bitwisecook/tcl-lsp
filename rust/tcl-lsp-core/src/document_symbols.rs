@@ -25,7 +25,7 @@
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
 use tcl_compiler::analyser::{
-    Analyser, ClassDef, MethodDef, ProcDef, PropertyDef, Scope, ScopeKind, VarDef,
+    Analyser, AnalysisResult, ClassDef, MethodDef, ProcDef, PropertyDef, Scope, ScopeKind, VarDef,
 };
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lexer::{LineIndex, Span};
@@ -137,8 +137,25 @@ pub fn document_symbols(source: &str, dialect: &str) -> Vec<DocumentSymbol> {
 
     let mut analyser = Analyser::new();
     let analysis = analyser.analyse(source, dialect);
-    let line_index = LineIndex::new(source);
+    document_symbols_from_analysis(source, &analysis)
+}
 
+/// Build the outline from an *already-computed* [`AnalysisResult`].
+///
+/// The server caches a per-document analysis (populated by didOpen /
+/// didChange); reusing it here avoids a full re-analysis on every
+/// `textDocument/documentSymbol` request — the standalone
+/// [`document_symbols`] re-runs the analyser, which dominates the
+/// request cost on large files.
+#[must_use]
+pub fn document_symbols_from_analysis(
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<DocumentSymbol> {
+    if source.is_empty() {
+        return Vec::new();
+    }
+    let line_index = LineIndex::new(source);
     scope_symbols(source, &analysis.global_scope, &line_index)
 }
 

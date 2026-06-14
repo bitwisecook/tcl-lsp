@@ -47,9 +47,13 @@ members = [
     "rust/tcl-compiler",
     "rust/tcl-bigip",
     "rust/tcl-lsp-core",
+    "rust/tcl-lsp-db",
     "rust/tcl-lsp-server",
     "rust/tcl-lsp-py",
     "rust/tcl-lsp-rust",
+    "rust/tcl-cli-support",
+    "rust/tcl-cli",
+    "rust/f5-cli",
 ]
 exclude = [
     "editors/zed",
@@ -66,6 +70,9 @@ exclude = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+# Bumped from 1.80 for salsa 0.26 (edition 2024 → rustc ≥ 1.85), the
+# incremental query engine adopted for the LSP query database (tcl-lsp-db);
+# the runtime/rust port independently needs ≥ 1.85 for is_none_or et al.
 rust-version = "1.85"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"

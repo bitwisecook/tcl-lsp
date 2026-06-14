@@ -788,7 +788,7 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
         }
     }
 
-    if segments.as_ref().map_or(true, |s| s.len() < 2) {
+    if segments.as_ref().is_none_or(|s| s.len() < 2) {
         let quoted = find_quoted_string_spaces(line, indent_len);
         if !quoted.is_empty() {
             let mut all: std::collections::BTreeSet<usize> =
@@ -797,7 +797,7 @@ fn split_long_line(line: &str, config: &FormatterConfig, cont_indent: &str) -> O
             let positions: Vec<usize> = all.into_iter().collect();
             segments = greedy_split(line, &positions, max_len, cont_indent);
         }
-        if segments.as_ref().map_or(true, |s| s.len() < 2) {
+        if segments.as_ref().is_none_or(|s| s.len() < 2) {
             return None;
         }
     }

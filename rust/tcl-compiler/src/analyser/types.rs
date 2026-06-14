@@ -475,7 +475,7 @@ pub struct UnknownProcInfo {
 /// strip default to empty / `None` — they're carried in the shape
 /// so the `PyO3` binding (**C41f3**) can serialise the full result
 /// dict from day one without follow-up plumbing.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct AnalysisResult {
     /// Root scope tree (`::`).
     pub global_scope: Scope,

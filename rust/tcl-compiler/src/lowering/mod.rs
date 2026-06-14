@@ -739,7 +739,7 @@ impl<'r> Lowerer<'r> {
         let no_expand = seg
             .expand_word
             .as_ref()
-            .map_or(true, |ew| !ew.iter().any(|&e| e));
+            .is_none_or(|ew| !ew.iter().any(|&e| e));
         if !no_expand {
             return;
         }
