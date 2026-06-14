@@ -3156,17 +3156,21 @@ impl Interp {
                 }
             }
         }
-        // Resolve each filter name to the first provider defining it as a method.
+        // Each filter name contributes a step for *every* provider in the
+        // precedence that implements it (in precedence order), so a filter
+        // method overridden along the chain wraps once per implementation —
+        // e.g. `Emix.f` then `B.f` (oo-21.3).
         names
             .iter()
-            .filter_map(|fname| {
+            .flat_map(|fname| {
                 providers
                     .iter()
-                    .find(|p| self.oo_has_method(p, fname, p.as_slice() == obj))
+                    .filter(|p| self.oo_has_method(p, fname, p.as_slice() == obj))
                     .map(|p| CallStep {
                         provider: p.clone(),
                         method: fname.clone(),
                     })
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
@@ -3876,6 +3880,17 @@ mod tests {
             );
             ok(i, b"set ::r {}");
             assert_eq!(ok(i, b"[cls new] t"), b"mix cls");
+            // A filter method defined by several providers wraps once per
+            // implementation, in precedence order (oo-21.3): F.flt then G.flt.
+            ok(
+                i,
+                b"oo::class create G { method flt {} {lappend ::r G-flt; next} }",
+            );
+            ok(i, b"oo::class create F { superclass G; method flt {} {lappend ::r F-flt; next}; method go {} {lappend ::r go} }");
+            ok(i, b"F create gf");
+            ok(i, b"oo::objdefine gf filter flt");
+            ok(i, b"set ::r {}; gf go");
+            assert_eq!(ok(i, b"set ::r"), b"F-flt G-flt go");
         });
     }
 
