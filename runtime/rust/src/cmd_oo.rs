@@ -3628,8 +3628,11 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .position(|&a| obj_bytes(a) == b"-scope")
                 .and_then(|p| argv.get(4 + p + 1).map(|&a| obj_bytes(a)));
             let mut names: Vec<Vec<u8>> = Vec::new();
+            // `-all` traverses the class's full precedence (its mixins and the
+            // mixins of its superclasses too), not just the superclass MRO
+            // (oo-35.5).
             let chain = if all {
-                interp.mro(&cls)
+                interp.class_precedence(&cls)
             } else {
                 vec![cls.clone()]
             };
