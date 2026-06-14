@@ -469,15 +469,30 @@ fn resolve_arg_ns(
             let found = interp.namespaces().find_namespace(current, &name);
             match found {
                 Some(ns) => Ok(ns),
-                None => {
-                    let mut m = b"namespace \"".to_vec();
-                    m.extend_from_slice(&name);
-                    m.extend_from_slice(b"\" not found");
-                    Err(interp.set_error(&m))
-                }
+                None => Err(ns_not_found(interp, &name)),
             }
         }
     }
+}
+
+/// The `TclGetNamespaceFromObj` not-found error: a *relative* name names the
+/// current namespace context (`… not found in "::ns"`), an absolute one does not
+/// (`… not found`). Sets `-errorcode TCL LOOKUP NAMESPACE <name>`.
+fn ns_not_found(interp: &mut Interp, name: &[u8]) -> Code {
+    let mut m = b"namespace \"".to_vec();
+    m.extend_from_slice(name);
+    if name.starts_with(b"::") {
+        m.extend_from_slice(b"\" not found");
+    } else {
+        m.extend_from_slice(b"\" not found in \"");
+        let cur = interp.namespaces().qualified_name(interp.current_ns());
+        m.extend_from_slice(&cur);
+        m.push(b'"');
+    }
+    let code = tcl_syntax::list::join_list(
+        ["TCL", "LOOKUP", "NAMESPACE", &String::from_utf8_lossy(name)].iter(),
+    );
+    interp.error_with_code(&m, code.as_bytes())
 }
 
 /// Does the dest namespace hold a command of this name?
@@ -626,10 +641,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .namespaces()
         .find_namespace(interp.current_ns(), &ns_name)
     else {
-        let mut m = b"namespace \"".to_vec();
-        m.extend_from_slice(&ns_name);
-        m.extend_from_slice(b"\" not found");
-        return interp.set_error(&m);
+        return ns_not_found(interp, &ns_name);
     };
 
     let mut i = 3;

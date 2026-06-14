@@ -2689,6 +2689,17 @@ Three related name-qualification fixes (namespace.test 184 → 201, proc.test 13
   whose namespace is missing is `can't create procedure "…": unknown namespace`
   (`Tcl_ProcObjCmd`), instead of silently auto-creating it (proc-1.2).
 
+### SYNC inbound — 2026-06-14 (namespace not-found error: `TclGetNamespaceFromObj`)
+
+`namespace children`/`namespace upvar` (and friends) now report the
+`TclGetNamespaceFromObj` not-found error faithfully: a *relative* name names the
+current namespace context (`namespace "X" not found in "::ns"`), an absolute one
+does not (`namespace "X" not found`), with `-errorcode TCL LOOKUP NAMESPACE X`
+(namespace.test 201 → 207; namespace-14.2/14.4/14.6). The remaining
+namespace-14.* cases are multi-colon collapsing and the "trailing `::` is a
+significant empty var name" rules, which live in the shared name parser
+(deferred).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
