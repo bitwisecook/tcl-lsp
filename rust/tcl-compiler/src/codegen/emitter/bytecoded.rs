@@ -721,7 +721,7 @@ mod tests {
         // Wire it through CodegenCtx: the ctx's registry field is
         // what try_bytecoded reads.
         let ctx = CodegenCtx::new(true, &[], &irules);
-        assert!(std::ptr::eq(ctx.registry, &irules));
+        assert!(std::ptr::eq(ctx.registry, &raw const irules));
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
 }

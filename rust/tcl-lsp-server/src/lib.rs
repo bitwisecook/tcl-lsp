@@ -2963,12 +2963,9 @@ impl LanguageServer for Backend {
         // memoised `semantic_tokens` query (packed integer stream, 5 ints per
         // token `[deltaLine, deltaCol, length, type, modifiers]`).  The
         // cold/cancelled fallback computes directly.
-        let core_data = match self.db_semantic_tokens(&uri).await {
-            Some(tokens) => tokens.data,
-            None => {
-                let registry = self.registry_for_dialect(&doc.dialect).await;
-                core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
-            }
+        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await { tokens.data } else {
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
         };
         let result_id = next_semantic_tokens_id();
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
@@ -2989,12 +2986,9 @@ impl LanguageServer for Backend {
         // (that hand-invalidated cache is gone).  A `full/delta` request is
         // answered with the full token set from the memoised query — the LSP
         // spec accepts `Tokens` in place of `TokensDelta`.
-        let core_data = match self.db_semantic_tokens(&uri).await {
-            Some(tokens) => tokens.data,
-            None => {
-                let registry = self.registry_for_dialect(&doc.dialect).await;
-                core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
-            }
+        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await { tokens.data } else {
+            let registry = self.registry_for_dialect(&doc.dialect).await;
+            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
         };
         Ok(Some(SemanticTokensFullDeltaResult::Tokens(
             LspSemanticTokens {
@@ -3327,7 +3321,7 @@ impl LanguageServer for Backend {
         let lifted: Vec<CodeActionOrCommand> = actions
             .into_iter()
             .filter(|a| {
-                only.as_ref().map_or(true, |wanted| {
+                only.as_ref().is_none_or(|wanted| {
                     let k = a.kind.as_str();
                     // Keep an action when its kind exactly matches a requested
                     // kind, or is a *subtype* of one (`refactor.extract`
