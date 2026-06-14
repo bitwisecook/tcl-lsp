@@ -179,24 +179,15 @@ Keystone progress / remaining pieces:
   byte-identical to the Python CLI across all 3 formats × the full flag matrix
   (`--seed` / `--reverse` / `--max-depth`).
 
-> **Registry-data drift (blocks full byte-parity, separate workstream):** the
-> generated Rust registry **data** (`tcl-registry/src/bigip/data`, a
-> `gen_bigip_rust.py` baseline) has drifted from current Python for ~14
-> properties' `references` lists (e.g. `monitor` on `cm traffic-group`; `pool`
-> /`last-hop-pool` on `gtm listener*`; `prober-pool` on `gtm datacenter`/`server`;
-> `fw-enforced-policy`/`fw-staged-policy`/`service-policy` on `ltm virtual`;
-> `gw` on `net route`). The query *logic* matches Python; these edges will
-> diverge until the data baseline is regenerated. Pinned in
-> `tcl-registry/tests/fixtures/object_query.drift.txt`.
->
-> A second drift class surfaced via the graph edges: properties Python
-> **migrated to the pilot specs** had their *legacy* `references` cleared (so
-> `candidate_kinds_for_key` returns empty), but the generated Rust data still
-> carries them — e.g. `persist` on `ltm virtual`. These show up as *extra* Rust
-> legacy edges (pinned in `graph_edges_legacy.drift.txt`). The object-query
-> golden didn't catch this class because it only recorded Python-non-empty rows;
-> regenerating the registry data (or expanding that golden to probe every Rust
-> property name) is the fix.
+> **Registry-data drift — RESOLVED.** The generated Rust registry **data**
+> (`tcl-registry/src/bigip/data`) had drifted from current Python (a stale
+> 992-kind baseline; current Python has 798). It has been **regenerated** from
+> the reconciled Python `OBJECT_SPECS` by the restored
+> `scripts/registry-audit/gen_bigip_rust.py`. All drift is gone: `candidate_kinds_*`
+> and `candidate_registry_kinds_for_display` match Python on every probe (drift
+> pins deleted), and the BIG-IP graph is byte-identical to the Python `f5 graph`
+> on real configs. Re-run the generator whenever the Python `OBJECT_SPECS`
+> baseline moves.
 
 ## Prioritised remaining roadmap
 
