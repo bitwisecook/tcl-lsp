@@ -926,17 +926,22 @@ fn prop_slot_op(
 /// are native so they add no call frame (the `info level` the ops observe
 /// matches C). The default operation is `-append` (subclasses override it).
 fn install_slot_class(interp: &mut Interp) {
+    // `--default-operation` is a forward (`my -append`) and `unknown` is a
+    // native method (`slot_m_unknown`): like C's `TclOONewForwardMethod` /
+    // `Slot_Unknown`, neither adds a Tcl call frame, so the `info level` the
+    // overridable `Get`/`Set`/`Resolve` observe is the same as for a direct
+    // operation. `destroy` is hidden too, so calling it on a slot is just
+    // another datum routed through the default operation.
     let _ = interp.eval_str(
         b"oo::class create ::oo::Slot {\n\
             method Get {} { return {} }\n\
             method Set list { return }\n\
             method Resolve x { return $x }\n\
-            method --default-operation args { my -append {*}$args }\n\
-            method unknown args { my --default-operation {*}$args }\n\
-            unexport Get Set Resolve --default-operation unknown\n\
+            forward --default-operation my -append\n\
+            unexport Get Set Resolve --default-operation unknown destroy\n\
           }",
     );
-    // Inject the native list operations as methods on the class.
+    // Inject the native list operations + unknown handler as class methods.
     let ops: &[(&[u8], NativeMethod)] = &[
         (b"-set", slot_m_set),
         (b"-append", slot_m_append),
@@ -944,6 +949,7 @@ fn install_slot_class(interp: &mut Interp) {
         (b"-remove", slot_m_remove),
         (b"-appendifnew", slot_m_appendifnew),
         (b"-clear", slot_m_clear),
+        (b"unknown", slot_m_unknown),
     ];
     if let Some(cl) = interp
         .oo
@@ -955,6 +961,19 @@ fn install_slot_class(interp: &mut Interp) {
             cl.methods.insert(name.to_vec(), Method::Builtin(*f));
         }
     }
+}
+
+/// C's `Slot_Unknown`: the method-miss handler for slots. `args[0]` is the
+/// missed method name (prepended by the dispatcher). With no args, or a first
+/// arg that does not start with `-`, dispatch the slot's default operation over
+/// all the args; a leading `-flag` that is not a known operation chains (as C's
+/// `next` would) to the standard unknown-method error.
+fn slot_m_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+    let first = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
+    if !args.is_empty() && first.first() == Some(&b'-') {
+        return interp.oo_unknown_method(obj, &first);
+    }
+    interp.oo_invoke(obj, b"--default-operation", args, false)
 }
 
 fn err(interp: &mut Interp, msg: &[u8]) -> Code {
@@ -979,13 +998,10 @@ impl Interp {
     /// error, listing the callable methods (sorted, `a, b or c` style).
     fn oo_unknown_method(&mut self, obj: &[u8], requested: &[u8]) -> Code {
         // `destroy` is a real (overridable, unexportable) method on every
-        // object; it is visible unless the object unexports it.
-        let destroy_hidden = self
-            .oo
-            .borrow()
-            .objects
-            .get(obj)
-            .is_some_and(|o| o.unexported.contains(b"destroy".as_slice()));
+        // object; it is visible unless unexported anywhere in the method chain
+        // (e.g. `::oo::Slot`) without a re-export.
+        let (destroy_exp, destroy_unexp, _) = self.method_visibility_flags(obj, b"destroy");
+        let destroy_hidden = destroy_unexp && !destroy_exp;
         let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
         if self.oo.borrow().classes.contains_key(obj) {
             // A class object responds to the class built-ins. `::oo::class`
@@ -3787,9 +3803,16 @@ impl Interp {
             }
         } else if self.oo.borrow().objects.contains_key(fqn) {
             match argv.get(1).map(|&a| obj_bytes(a)) {
-                Some(m) if m == b"destroy" => {
-                    // Explicit `obj destroy` propagates a destructor error to
-                    // its caller; on success the method yields the empty string.
+                // Explicit `obj destroy` propagates a destructor error to its
+                // caller; on success the method yields the empty string. A
+                // class that unexports `destroy` (e.g. `::oo::Slot`) hides it
+                // from external calls, which then funnel through `oo_invoke` to
+                // the unknown handler instead of tearing the object down.
+                Some(m)
+                    if m == b"destroy"
+                        && (self.method_exported(fqn, b"destroy")
+                            || !self.method_visibility_flags(fqn, b"destroy").1) =>
+                {
                     let code = self.oo_destroy(fqn);
                     if code == Code::Ok {
                         self.set_result_bytes(b"");
@@ -4001,10 +4024,16 @@ impl Interp {
             }
         }
         if steps.is_empty() {
-            // `destroy` is a built-in (overridable) method on every object; with
-            // no user override in the chain it tears the object down. Reachable
-            // both externally (`$obj destroy`) and internally (`my destroy`).
-            if method == b"destroy" {
+            // `destroy` is a built-in (overridable, PUBLIC) method on every
+            // object; with no user override in the chain it tears the object
+            // down. Reachable both externally (`$obj destroy`) and internally
+            // (`my destroy`). When a class unexports it (e.g. `::oo::Slot`), an
+            // external call misses and falls through to the unknown handler.
+            if method == b"destroy"
+                && (!enforce
+                    || exported_anywhere
+                    || !self.method_visibility_flags(obj, b"destroy").1)
+            {
                 let code = self.oo_destroy(obj);
                 if code == Code::Ok {
                     self.set_result_bytes(b"");
@@ -4031,7 +4060,10 @@ impl Interp {
             self.oo.borrow_mut().unknown_external = external;
             // A user-defined `unknown` method handles the miss (the method name
             // is prepended to the args), e.g. `oo::Slot`'s default-operation.
-            let code = if method != b"unknown"
+            // An *external* call of a hidden `unknown` (e.g. `$slot unknown`)
+            // also routes here; only the internal fallback invocation (where the
+            // handler itself missed) bypasses it, so we never recurse.
+            let code = if (method != b"unknown" || external)
                 && providers
                     .iter()
                     .any(|p| self.oo_has_method(p, b"unknown", p.as_slice() == obj))
