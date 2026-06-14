@@ -155,6 +155,10 @@ struct OoFrame {
     /// constructor). `self method` reports the *current* step's method; `self
     /// target` reports this.
     target: Vec<u8>,
+    /// Whether the original invocation was external (`$obj m`) vs internal
+    /// (`my m`) — so a built-in reached via `next` (e.g. `eval`) labels its
+    /// error frame with the object name vs the literal `my`.
+    external: bool,
 }
 
 /// A definition target: a class (`oo::define`) or an object (`oo::objdefine`).
@@ -2767,19 +2771,33 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             frame.chain.clone(),
             frame.index,
             frame.target.clone(),
+            frame.external,
         )
     });
-    let Some((object, chain, index, target)) = ctx else {
+    let Some((object, chain, index, target, external)) = ctx else {
         return err(interp, b"next may only be called from inside a method");
     };
     // The chain is pre-built (filters then the method steps), so `next` simply
     // advances to the following step.
     if index + 1 < chain.len() {
-        interp.oo_run(&object, chain, index + 1, &target, &argv[1..])
+        interp.oo_run(&object, chain, index + 1, &target, &argv[1..], external)
     } else if target.is_empty() {
         // Past the last constructor in the chain — a no-op (C's default).
         interp.set_result_bytes(b"");
         Code::Ok
+    } else if let Some(code) = interp.oo_builtin_method(&object, &target, &argv[1..], external) {
+        // Past the last user method: the `oo::object` built-ins (`eval`/
+        // `variable`/`varname`) are the terminal implementations of those names,
+        // so a user override that calls `next` reaches them (oo-18.5).
+        code
+    } else if target == b"destroy" {
+        // `destroy` likewise has a built-in terminus (a filter/override chain
+        // ending in the real teardown).
+        let code = interp.oo_destroy(&object);
+        if code == Code::Ok {
+            interp.set_result_bytes(b"");
+        }
+        code
     } else {
         err(interp, b"no next method implementation")
     }
@@ -2795,9 +2813,10 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             frame.chain.clone(),
             frame.index,
             frame.target.clone(),
+            frame.external,
         )
     });
-    let Some((object, chain, index, target)) = ctx else {
+    let Some((object, chain, index, target, external)) = ctx else {
         return err(interp, b"nextto may only be called from inside a method");
     };
     if argv.len() < 2 {
@@ -2825,7 +2844,7 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Search forward (past the current step) for the class's implementation.
     for i in index + 1..chain.len() {
         if chain[i].provider == class && is_target(&chain[i]) {
-            return interp.oo_run(&object, chain, i, &target, &argv[2..]);
+            return interp.oo_run(&object, chain, i, &target, &argv[2..], external);
         }
     }
     // Not reachable ahead: distinguish "behind us" from "not in the chain".
@@ -4217,7 +4236,7 @@ impl Interp {
             })
             .collect();
         if !chain.is_empty() {
-            let code = self.oo_run(&fqn, chain, 0, b"", args);
+            let code = self.oo_run(&fqn, chain, 0, b"", args, false);
             if code == Code::Error {
                 self.oo.borrow_mut().objects.remove(&fqn);
                 self.oo.borrow_mut().classes.remove(&fqn);
@@ -4394,9 +4413,9 @@ impl Interp {
             let filters = self.active_filters(obj, &providers);
             let mut chain: Vec<CallStep> = filters;
             chain.append(&mut steps);
-            return self.oo_run(obj, chain, 0, method, args);
+            return self.oo_run(obj, chain, 0, method, args, external);
         }
-        self.oo_run(obj, steps, 0, method, args)
+        self.oo_run(obj, steps, 0, method, args, external)
     }
 
     /// The unexported object built-in methods (`variable`/`varname`/`eval`),
@@ -4981,6 +5000,7 @@ impl Interp {
         index: usize,
         target: &[u8],
         args: &[*mut TclObj],
+        external: bool,
     ) -> Code {
         let prov = chain[index].provider.clone();
         let method = chain[index].method.clone();
@@ -5040,6 +5060,7 @@ impl Interp {
                 chain,
                 index,
                 target: target.to_vec(),
+                external,
             });
             let code = f(self, obj, args);
             self.oo.borrow_mut().call_stack.pop();
@@ -5073,6 +5094,7 @@ impl Interp {
                 chain,
                 index,
                 target: target.to_vec(),
+                external,
             });
             let code = self.dispatch(&new_argv);
             self.oo.borrow_mut().call_stack.pop();
@@ -5158,6 +5180,7 @@ impl Interp {
             chain,
             index,
             target: target.to_vec(),
+            external,
         });
         // A method defined while sourcing a file carries that file + the body's
         // line base, so `info frame` reports file-absolute lines (TIP 280).
@@ -5288,7 +5311,7 @@ impl Interp {
         // The destructor result is returned to the caller: explicit `obj
         // destroy` propagates it (C's `AfterNRDestructor`); implicit teardown
         // ignores it (routing to `bgerror`).
-        self.oo_run(obj, chain, 0, b"<destructor>", &[])
+        self.oo_run(obj, chain, 0, b"<destructor>", &[], false)
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
