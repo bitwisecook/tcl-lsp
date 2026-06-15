@@ -247,6 +247,27 @@ fn count_newlines(s: &[u8]) -> u32 {
     s.iter().filter(|&&b| b == b'\n').count() as u32
 }
 
+/// For each element of the list literal `src`, its `(newlines-before-the-element,
+/// is-literal)` — the offset-aware complement to `split_list`, used to line-track
+/// `{*}`-expanded literal elements (C's `TclListLines`). Returns `None` for a
+/// non-UTF-8 / malformed list (the caller then falls back to body-relative).
+fn scan_list_offsets(src: &[u8]) -> Option<Vec<(u32, bool)>> {
+    let s = core::str::from_utf8(src).ok()?;
+    let mut out = Vec::new();
+    let mut pos = 0;
+    loop {
+        match tcl_syntax::list::find_element(s, pos) {
+            Ok(Some(e)) => {
+                out.push((count_newlines(&src[..e.value.start]), e.literal));
+                pos = e.next;
+            }
+            Ok(None) => break,
+            Err(_) => return None,
+        }
+    }
+    Some(out)
+}
+
 /// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
 /// `errorInfo`/`errorCode`/`errorLine`/`ERR_ALREADY_LOGGED` (PC-4). The trace is
 /// built **incrementally as the error unwinds** (`TclLogCommandInfo` +
@@ -2904,8 +2925,23 @@ impl Interp {
 
     /// Substitute each word of a command (with `{*}` expansion), then dispatch.
     fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
+        // The command's reported line + source file (for TIP 280 argument-line
+        // tracking and the LABC literal-location table), and the first word's
+        // offset (to measure each word's line within the command).
+        let cmd_line = self.cmd_frames.borrow().last().map_or(0, |f| f.line);
+        let file = self.cmd_frames.borrow().last().and_then(|f| f.file.clone());
+        let w0 = words.first().map_or(0, |w| w.start);
+
         let mut argv: Vec<*mut TclObj> = Vec::new();
+        // Per-**argv-element** file-absolute line (aligned with `argv`, so `{*}`
+        // expansion stays correct), and the argv indices of literal arguments to
+        // record in the LABC table (`eval`/`uplevel`/proc body source locations).
+        let mut arg_lines: Vec<u32> = Vec::new();
+        let mut labc: Vec<usize> = Vec::new();
+
         for w in words {
+            let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
+            let is_literal = matches!(w.body, parse::WordBody::Literal(_));
             let obj = match self.substitute_word(src, &w.body) {
                 Ok(o) => o, // owned (+1)
                 Err(code) => {
@@ -2917,21 +2953,40 @@ impl Interp {
                 // Split the substituted value as a list; each element is an arg.
                 let bytes = obj_bytes(obj);
                 unsafe { obj::decr_ref_count(obj) }; // done with the word obj
-                match parse::split_list(&bytes) {
-                    Ok(elems) => {
-                        for e in elems {
-                            let eo = new_string(&e);
-                            unsafe { obj::incr_ref_count(eo) };
-                            argv.push(eo);
-                        }
-                    }
+                let elems = match parse::split_list(&bytes) {
+                    Ok(e) => e,
                     Err(e) => {
                         release_all(&argv);
                         return self.error(e.message());
                     }
+                };
+                // For a `{*}` of a *literal* word, each element keeps its source
+                // line (its offset within the literal — C's `TclListLines`), so a
+                // body-defining element (`namespace {*}{eval ns {proc …}}`) is
+                // `type source`. A dynamic `{*}$v` has no per-element location.
+                let offsets = is_literal.then(|| scan_list_offsets(&bytes)).flatten();
+                for (k, e) in elems.iter().enumerate() {
+                    let eo = new_string(e);
+                    unsafe { obj::incr_ref_count(eo) };
+                    let idx = argv.len();
+                    argv.push(eo);
+                    let (nl, lit) = offsets
+                        .as_ref()
+                        .and_then(|o| o.get(k))
+                        .copied()
+                        .unwrap_or((0, false));
+                    arg_lines.push(word_line + nl);
+                    if file.is_some() && lit {
+                        labc.push(idx);
+                    }
                 }
             } else {
+                let idx = argv.len();
                 argv.push(obj); // already owned (+1)
+                arg_lines.push(word_line);
+                if file.is_some() && is_literal {
+                    labc.push(idx);
+                }
             }
         }
 
@@ -2939,33 +2994,14 @@ impl Interp {
             return Code::Ok;
         }
 
-        // TIP 280 argument lines: each word's file-absolute source line, for a
-        // body-defining command (`proc`/`method`/`oo::define`/…) to stamp its
-        // body so `info frame` reports file-relative lines even when the body
-        // begins on a later line than the command. Computed relative to the
-        // command's already-set line (cheap), and aligned with `words` (the
-        // body-definers do not use `{*}`, so word index == argv index). Set
-        // *after* substitution so a nested `[cmd]` cannot clobber it.
-        let cmd_line = self.cmd_frames.borrow().last().map_or(0, |f| f.line);
-        let w0 = words.first().map_or(0, |w| w.start);
-        let arg_lines: Vec<u32> = words
-            .iter()
-            .map(|w| cmd_line + count_newlines(&src[w0..w.start.min(src.len())]))
-            .collect();
-
-        // TIP 280 LABC: in a sourced context, record each literal word's obj →
-        // (file, line) so a later `eval`/`uplevel` of that obj reports `type
-        // source`. Gated to commands without `{*}` (so word index == argv index)
-        // and popped after dispatch (dynamic scope; the objs live until then).
-        let file = self.cmd_frames.borrow().last().and_then(|f| f.file.clone());
-        let mut pushed = 0usize;
-        if file.is_some() && words.iter().all(|w| !w.expand) {
+        // TIP 280 LABC: record each literal argument's obj → (file, line) so a
+        // later `eval`/`uplevel`/`proc`-body of that obj reports `type source`.
+        // Popped after dispatch (dynamic scope; the objs live until then).
+        let pushed = labc.len();
+        if pushed > 0 {
             let mut locs = self.arg_locs.borrow_mut();
-            for (i, w) in words.iter().enumerate() {
-                if matches!(w.body, parse::WordBody::Literal(_)) {
-                    locs.push((argv[i], file.clone(), arg_lines[i]));
-                    pushed += 1;
-                }
+            for &idx in &labc {
+                locs.push((argv[idx], file.clone(), arg_lines[idx]));
             }
         }
         *self.arg_lines.borrow_mut() = arg_lines;

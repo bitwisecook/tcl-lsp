@@ -41,8 +41,11 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
         return wrong_args(interp, b"catch script ?resultVarName? ?optionsVarName?");
     }
-    let body = obj_bytes(argv[1]);
-    let code = interp.eval_str(&body);
+    // `catch` evaluates its script as its own `info frame` level (C bumps
+    // `cmdFramePtr` like `eval`), so a located literal body reports `type source`
+    // at its own line — `eval_body_obj` pushes that frame and picks up the body
+    // object's TIP 280 location.
+    let code = interp.eval_body_obj(argv[1]);
     // Snapshot the body's result BEFORE we overwrite the interp result with the
     // catch return value (the Zig "read before clear" discovery). `var_set`
     // retains it into the result var, so it survives the later `set_result`.

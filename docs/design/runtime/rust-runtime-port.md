@@ -2976,6 +2976,26 @@ Remaining `info-30`/`info-33` failures are the `{*}` literal-expansion locations
 `info-31` (script-in-variable nuances), and a few `info-24`/`info-22` interaction
 cases (dict for/with/filter, traces).
 
+### SYNC inbound — 2026-06-15 (`{*}` literal-element locations + `catch` body frame)
+
+`info.test` 195 → 205 (zero regressions; error 261, trace 199, oo 357,
+ooProp 55/55, namespace 238, eval 12, proc 20, switch 54, subst 21 all held).
+Two fixes:
+
+- **`{*}` expansion of a literal keeps each element's source line.** `eval_words`
+  now tracks lines per **argv element** (not per word), so expansion no longer
+  desyncs the line table, and it records an LABC entry for each braced element of
+  a `{*}`-expanded literal (line = the word's line + newlines before the element,
+  the shared `scan_list_offsets`/`TclListLines` computation). So
+  `namespace {*}{eval ns {proc bar {} {info frame 0}}}` defines `bar` with
+  `type source` at the body's real line. A dynamic `{*}$v` has no per-element
+  location and stays body-relative.
+- **`catch` evaluates its script as its own `info frame` level.** C bumps
+  `cmdFramePtr` for the `catch` body (depth advances like `eval`), and a located
+  literal body reports `type source` at its own line. `catch_cmd` now uses
+  `eval_body_obj` (push frame + pick up the body object's TIP 280 location)
+  instead of a bare `eval_str`.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
