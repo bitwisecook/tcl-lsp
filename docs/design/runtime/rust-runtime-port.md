@@ -3030,6 +3030,18 @@ always pushes a cmdframe, so the body runs as its own `type eval` level with
 dynamic fallback now uses `eval_unlocated_body` (push a `type eval`, no-file frame
 with `line_base = 0`) — covering the `info-31` script-in-variable family.
 
+### SYNC inbound — 2026-06-15 (dynamic `eval` bodies are body-relative `type eval`)
+
+`info.test` 221 → 225 (zero regressions; eval 12/12, uplevel 41, error 261,
+trace 199, oo 357, namespace 238, proc 20, apply 21 held). A dynamic `eval` body
+— multi-arg `eval info frame 0` (space-joined) or single-arg `eval $script` — was
+evaluated through `inherited_cmd_frame`, so it inherited the enclosing `type
+source` + file and reported file-absolute lines. C's `TclEvalObjEx` of a
+non-literal is `type eval` with body-relative lines. `eval_body` (multi-arg) now
+delegates to `eval_unlocated_body`, and `eval_body_obj`'s dynamic arm sets
+`type eval` / no file / `line_base = 0` (the located-literal arm is unchanged).
+Covers the `info-23.4/5` and `info-31.6` `eval`-of-dynamic-script cases.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

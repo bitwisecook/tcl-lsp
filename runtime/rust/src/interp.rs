@@ -2773,12 +2773,13 @@ impl Interp {
         self.eval_framed(body, frame)
     }
 
-    /// Evaluate an `eval`/`uplevel` body as its own `info frame` level (it
-    /// inherits the enclosing proc/level). The errorInfo `("eval" body line N)`
+    /// Evaluate a multi-arg `eval`/`uplevel` body (the args were space-joined
+    /// into a fresh dynamic script) as its own `info frame` level. Such a body has
+    /// no source location, so it is `type eval` with body-relative lines (C's
+    /// `TclEvalObjEx` of a non-literal). The errorInfo `("eval" body line N)`
     /// frame is appended separately by the caller.
     pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
-        let frame = self.inherited_cmd_frame();
-        self.eval_framed(script, frame)
+        self.eval_unlocated_body(script)
     }
 
     /// Evaluate a `[...]` command substitution's inner `script`. A `[cmd]` is
@@ -2834,10 +2835,20 @@ impl Interp {
             return self.dispatch_list_obj(obj);
         }
         let mut frame = self.inherited_cmd_frame();
-        if let Some((file, line)) = self.arg_loc(obj) {
-            frame.kind = FrameKind::Source;
-            frame.file = file;
-            frame.line_base = line.saturating_sub(1);
+        match self.arg_loc(obj) {
+            // A located literal body keeps its file+line (`type source`).
+            Some((file, line)) => {
+                frame.kind = FrameKind::Source;
+                frame.file = file;
+                frame.line_base = line.saturating_sub(1);
+            }
+            // A dynamic body (`eval $script`) is `type eval`, body-relative — it
+            // does not inherit the enclosing file's lines (C's `TclEvalObjEx`).
+            None => {
+                frame.kind = FrameKind::Eval;
+                frame.file = None;
+                frame.line_base = 0;
+            }
         }
         let bytes = obj_bytes(obj);
         self.eval_framed(&bytes, frame)
