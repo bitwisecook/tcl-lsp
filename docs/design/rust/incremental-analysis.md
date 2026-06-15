@@ -313,33 +313,53 @@ practcl.tcl from ~1 s to low-ms).
 >   for tcl8.4 / iRules) — a larger architecture step, *not* the diagnostic-tail
 >   memoisation the original plan named.
 >
-> **Still falling back (fallback-reason census over the corpus, production
-> settings): `duplicate` 86, `variable_ns` 44, `proc_collision` 12,
-> `syntax_error` 11.**
-> - **Duplicate definitions** (`duplicate` + `proc_collision` ≈ 98 files, incl.
->   `practcl.tcl`'s twice-defined `::clay::uuid::generate`) are the biggest
->   remaining fallback class — and, like the Phase-B/C enclosing fallback, are
->   *mostly over-conservative*: bypassing the fallback leaves **0 diagnostic
->   divergence** and only ~19 internal symbol-table struct-diffs.  But the
->   residual is a genuine nest of **last-definition-wins** semantics that the
->   graft's position-independent merge can't cheaply reproduce: a whole-file
->   `define_var` *overwrites* `all_variables` on each redefinition (discarding the
->   earlier body's references — *including params*), and duplicate **class**
->   definitions accumulate (`all_classes` / `instance_classes` / `global_scope`,
->   e.g. `clay.tcl`, `practcl.tcl`).  A partial "`all_variables` last-wins" graft
->   cut the residual to ~8 files but mishandled duplicate-proc param references —
->   so the duplicate fast-path needs a dedicated, carefully-gated pass, not a
->   quick patch.
-> - **OO method bodies** are walked *in place* in the shell pass (not deferred /
->   memoised — 0 deferred methods on every file profiled); OO-heavy files
->   (`practcl`: 244 methods vs 132 procs) see little body-memo benefit even once
->   on the fast path.  Memoising them means routing `is_method` bodies through an
->   isolated+grafted analysis like procs (with class / `self` / instance-var
->   context), then handling the class-accumulation fallback.
+> **Shared `CompilationUnit` build (shipped).** The unit was built twice per
+> edit (once per diagnostics query).  A tracked `compilation_unit(file, cfg)`
+> query keyed on an interned `LexerCfgKey` lets the analyser tail
+> (`file_analysis_incremental`) and the optimiser/compiler-checks
+> (`compiler_check_diagnostics`) **share one build per edit** whenever their
+> lexer configs coincide — every dialect but `tcl8.4` / `f5-irules`.  Combined
+> per-edit latency on `parse_lemon.tcl` (7.4 kLOC) drops ~287 ms → ~202 ms (one
+> build eliminated).  `CompilationUnit` gained `PartialEq` so salsa returns
+> `Arc<CompilationUnit>`; gated by `compilation_unit_shared_across_consumers`.
+
+> **Duplicate procs + multi-method classes on the fast path (shipped).** The
+> remaining fallback census (`duplicate` 86, `variable_ns` 44, `proc_collision`
+> 12, `syntax_error` 11) was dominated by two avoidable causes:
 >
-> So `practcl` specifically needs *all three* — duplicate fast-path **and** method
-> memoisation **and** a cheaper unit build — before it leaves the full-rebuild
-> floor; each is a substantial, independently-gated piece.
+> - **Multi-method classes were a false duplicate** — method deferred-bodies had
+>   an empty `scope_name`, so the duplicate detector treated every method after
+>   the first as a duplicate of `(is_method, "", "")`; *any* class with 2+
+>   methods fell back.  Methods now carry their qualified name, so distinct
+>   methods are distinct (only a genuinely twice-defined method falls back).
+> - **Genuine proc duplicates** now graft byte-identically: a whole-file
+>   `define_var` unions each definition's locals with last-definition-wins on
+>   shared keys, reproduced by overwrite-on-collision for body-owned
+>   `all_variables` keys while param keys keep the shell's real definition span
+>   (taking only the last body's references).
+>
+> The cross-item facts an isolated/in-place body can't reproduce are handled
+> precisely (not by a blanket fallback): **object instances** (`[Cls new]` /
+> `Cls create v`) are captured in the isolated proc body and replayed against the
+> shell's full `all_classes` at graft (no memo-key change), with a per-method
+> snapshot fallback for in-place method bodies; **class extension** (`oo::define`)
+> falls back only on an `all_classes` key collision.  Result: fast-path coverage
+> **86.6% → 92.2%**, 100% byte-identical, 0 diagnostic divergence.
+>
+> **Still not won.**
+> - **OO method *bodies* are walked in place** (not memoised), so method-heavy
+>   files now take the fast path (proc + lattice memo engages) but their own
+>   per-edit latency stays high until `is_method` bodies are routed through an
+>   isolated+grafted+memoised analysis like procs (class / `self` / instance-var
+>   context).  The cleanest next step.
+> - **The `variable ns::x` (`variable_ns`) + `syntax_error` fallbacks** remain
+>   (correct, narrow).
+> - **The `CompilationUnit` lowering floor** (~80 ms O(file) `lower_to_ir` +
+>   module `build_cfg`) is the per-edit floor for fast-path files; lowering them
+>   incrementally is the remaining architecture-level lever.
+> - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
+>   definer and is OO-heavy, so it needs method-body memoisation + the lowering
+>   floor before it leaves the full-rebuild path.
 
 > **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
 > (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now
