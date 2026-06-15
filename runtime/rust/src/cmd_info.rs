@@ -42,15 +42,19 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"cmdtype",
         b"commands",
         b"complete",
+        b"constant",
+        b"consts",
         b"coroutine",
         b"default",
+        b"errorstack",
         b"exists",
         b"frame",
         b"functions",
         b"globals",
+        b"hostname",
         b"level",
-        b"loaded",
         b"library",
+        b"loaded",
         b"locals",
         b"nameofexecutable",
         b"object",
@@ -91,9 +95,24 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Interp::procs_in_namespace,
             Interp::visible_proc_names,
         ),
-        b"vars" => set_list(interp, argv, Interp::visible_var_names),
-        b"globals" => set_list(interp, argv, Interp::global_var_names),
-        b"locals" => set_list(interp, argv, Interp::local_var_names),
+        b"vars" => set_list(
+            interp,
+            argv,
+            b"info vars ?pattern?",
+            Interp::visible_var_names,
+        ),
+        b"globals" => set_list(
+            interp,
+            argv,
+            b"info globals ?pattern?",
+            Interp::global_var_names,
+        ),
+        b"locals" => set_list(
+            interp,
+            argv,
+            b"info locals ?pattern?",
+            Interp::local_var_names,
+        ),
         b"level" => info_level(interp, argv),
         b"frame" => info_frame(interp, argv),
         b"coroutine" => {
@@ -105,8 +124,10 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"object" => crate::cmd_oo::info_object(interp, argv),
         b"class" => crate::cmd_oo::info_class(interp, argv),
-        b"tclversion" => fixed(interp, argv, b"info tclversion", b"9.0"),
-        b"patchlevel" => fixed(interp, argv, b"info patchlevel", b"9.0.3"),
+        // `info tclversion`/`patchlevel` *read* the globals (C reads
+        // `tcl_version`/`tcl_patchLevel`), so unsetting them makes these error.
+        b"tclversion" => info_global(interp, argv, b"info tclversion", b"tcl_version"),
+        b"patchlevel" => info_global(interp, argv, b"info patchlevel", b"tcl_patchLevel"),
         // The host shared-library suffix (`$::tcl_platform(platform)` is unix).
         b"sharedlibextension" => fixed(interp, argv, b"info sharedlibextension", b".so"),
         b"complete" => {
@@ -146,10 +167,20 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() > 3 {
                 return wrong_args(interp, b"info script ?filename?");
             }
-            interp.set_result_bytes(&interp.current_script());
+            if argv.len() == 3 {
+                // Set the current script name and return it (C's `info script F`).
+                let name = obj_bytes(argv[2]);
+                interp.set_current_script(&name);
+                interp.set_result_bytes(&name);
+            } else {
+                interp.set_result_bytes(&interp.current_script());
+            }
             Code::Ok
         }
         b"nameofexecutable" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info nameofexecutable");
+            }
             let exe = std::env::current_exe()
                 .ok()
                 .map(|p| p.to_string_lossy().into_owned())
@@ -157,22 +188,70 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(exe.as_bytes());
             Code::Ok
         }
-        b"library" => match interp.var_get(b"::tcl_library") {
-            Some(o) => {
-                interp.set_result(o);
-                Code::Ok
+        b"library" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info library");
             }
-            None => interp.set_error(b"variable \"::tcl_library\" undefined"),
-        },
+            match interp.var_get(b"::tcl_library") {
+                Some(o) => {
+                    interp.set_result(o);
+                    Code::Ok
+                }
+                None => interp.set_error(b"variable \"::tcl_library\" undefined"),
+            }
+        }
+        b"hostname" => {
+            if argv.len() != 2 {
+                return wrong_args(interp, b"info hostname");
+            }
+            interp.set_result_bytes(&hostname());
+            Code::Ok
+        }
+        b"errorstack" => {
+            // TIP 348: the error stack (`-errorstack` of the last error). Not yet
+            // tracked — report empty (`?interp?` accepted).
+            if argv.len() > 3 {
+                return wrong_args(interp, b"info errorstack ?interp?");
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        b"constant" => {
+            // TIP 677: whether a variable is a `const`. No const variables yet ⇒ 0.
+            if argv.len() != 3 {
+                return wrong_args(interp, b"info constant varName");
+            }
+            interp.set_result_bytes(b"0");
+            Code::Ok
+        }
+        b"consts" => {
+            // TIP 677: the const variables (glob-filtered). None yet ⇒ empty.
+            if argv.len() > 3 {
+                return wrong_args(interp, b"info consts ?pattern?");
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(
-                b"\": must be args, body, class, cmdcount, cmdtype, commands, complete, default, exists, frame, functions, globals, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars",
-            );
+            m.extend_from_slice(b"\": must be ");
+            let subs: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
+            m.extend_from_slice(&crate::ensemble::must_be(&subs));
             interp.set_error(&m)
         }
     }
+}
+
+/// The host name (`info hostname`, `Tcl_GetHostName`) — best-effort from
+/// `/proc/sys/kernel/hostname`, else `/etc/hostname`, else empty.
+fn hostname() -> Vec<u8> {
+    for path in ["/proc/sys/kernel/hostname", "/etc/hostname"] {
+        if let Ok(s) = std::fs::read_to_string(path) {
+            return s.trim().as_bytes().to_vec();
+        }
+    }
+    Vec::new()
 }
 
 /// `info cmdtype command` — the kind of command (`native`/`proc`/`alias`/…).
@@ -208,9 +287,14 @@ fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>
 }
 
 /// `info <sub> ?pattern?` over a name producer.
-fn set_list(interp: &mut Interp, argv: &[*mut TclObj], names: fn(&Interp) -> Vec<Vec<u8>>) -> Code {
+fn set_list(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    usage: &[u8],
+    names: fn(&Interp) -> Vec<Vec<u8>>,
+) -> Code {
     if argv.len() > 3 {
-        return wrong_args(interp, b"info <subcommand> ?pattern?");
+        return wrong_args(interp, usage);
     }
     let pattern = argv.get(2).map(|&a| obj_bytes(a));
     let list = names(interp);
@@ -421,6 +505,30 @@ fn fixed(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], value: &[u8]) 
     Code::Ok
 }
 
+/// `info tclversion`/`patchlevel` — read the **global** `var` (C uses
+/// `TCL_GLOBAL_ONLY`), erroring `can't read "VAR": no such variable` if it has
+/// been unset (info-14.3/18.3). `var` is the unqualified name (for the message);
+/// the read is `::`-qualified so it works inside a proc/eval frame.
+fn info_global(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], var: &[u8]) -> Code {
+    if argv.len() != 2 {
+        return wrong_args(interp, usage);
+    }
+    let mut qualified = b"::".to_vec();
+    qualified.extend_from_slice(var);
+    match interp.var_get(&qualified) {
+        Some(o) => {
+            interp.set_result(o);
+            Code::Ok
+        }
+        None => {
+            let mut m = b"can't read \"".to_vec();
+            m.extend_from_slice(var);
+            m.extend_from_slice(b"\": no such variable");
+            interp.set_error(&m)
+        }
+    }
+}
+
 fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"info body procname");
@@ -470,17 +578,19 @@ fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         m.push(b'"');
         return interp.set_error(&m);
     };
-    match &param.default {
-        Some(d) => {
-            let o = new_string(d);
-            if interp.var_set(&var, o).is_err() {
-                crate::interp::drop_fresh(o);
-                return interp.set_error(b"couldn't store default value");
-            }
-            interp.set_result_bytes(b"1");
-        }
-        None => interp.set_result_bytes(b"0"),
+    // With a default, store it and return 1; without one, store the empty string
+    // and return 0 (C's `InfoDefaultCmd`). A store failure (e.g. the target is an
+    // array) is the variable error verbatim (`can't set "a": variable is array`).
+    let (val, has): (&[u8], &[u8]) = match &param.default {
+        Some(d) => (d, b"1"),
+        None => (b"", b"0"),
+    };
+    let o = new_string(val);
+    if let Err(e) = interp.var_set(&var, o) {
+        crate::interp::drop_fresh(o);
+        return crate::builtins::var_error(interp, &var, e);
     }
+    interp.set_result_bytes(has);
     Code::Ok
 }
 
@@ -658,6 +768,9 @@ mod tests {
     #[test]
     fn info_version_and_procs() {
         leak_free(|i| {
+            // `info tclversion`/`patchlevel` read the globals (set by a full
+            // interp's init; a bare test interp seeds them here).
+            run(i, b"set ::tcl_version 9.0; set ::tcl_patchLevel 9.0.3");
             assert_eq!(run(i, b"info tclversion"), b"9.0");
             assert_eq!(run(i, b"info patchlevel"), b"9.0.3");
             run(i, b"proc greet {name {g hi}} {return $g-$name}");

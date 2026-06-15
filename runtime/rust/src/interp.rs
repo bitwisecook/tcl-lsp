@@ -1042,6 +1042,17 @@ impl Interp {
             .unwrap_or_default()
     }
 
+    /// `info script filename` — set the current script name (C's
+    /// `iPtr->scriptFile`), replacing the innermost entry (or seeding one at the
+    /// top level).
+    pub(crate) fn set_current_script(&self, name: &[u8]) {
+        let mut s = self.script_stack.borrow_mut();
+        match s.last_mut() {
+            Some(last) => *last = name.to_vec(),
+            None => s.push(name.to_vec()),
+        }
+    }
+
     /// The file currently being sourced, as a shared handle (`None` at the top
     /// level) — for stamping a definition/method body's source provenance.
     pub(crate) fn current_source_file(&self) -> Option<Rc<[u8]>> {
@@ -1993,14 +2004,18 @@ impl Interp {
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
     pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
-        match self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)
-        {
-            Some(Command::Proc(def)) => Some(def),
-            _ => None,
+        let ns = self.namespaces.borrow();
+        let mut cmd = ns.resolve(self.current_ns.get(), name)?;
+        // Follow `namespace import` redirects to the underlying proc, so
+        // `info args`/`body`/`default` work on an imported proc (info-1.7/2.4).
+        for _ in 0..64 {
+            match cmd {
+                Command::Proc(def) => return Some(def),
+                Command::Imported { source } => cmd = ns.resolve(GLOBAL, &source)?,
+                _ => return None,
+            }
         }
+        None
     }
 
     /// `upvar` — link `local` in the current frame to the resolved `target`.

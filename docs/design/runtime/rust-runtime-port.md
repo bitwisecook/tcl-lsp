@@ -2830,6 +2830,31 @@ the sweep reports it as a timeout even though it finishes (perf, not a hang; a
 separate follow-up). Large *float* `int`/`entier` (bignum result, e.g.
 `int(1e30)`) is still deferred.
 
+### SYNC inbound — 2026-06-15 (`info` non-frame surface)
+
+`info.test` 106 → 126 (zero regressions), the tractable non-`info frame` items
+(the big `info-30`/`info-33`/`info-24` clusters remain the TIP-280 line-tracking
+rework):
+
+- **Subcommand surface** — added Tcl 9's `constant`/`consts` (TIP 677, stubbed:
+  no const vars yet), `errorstack` (TIP 348, stubbed empty), and `hostname`
+  (best-effort from `/proc/sys/kernel/hostname`). The "unknown subcommand … must
+  be …" list is now generated from the (alphabetical) subcommand table, fixing
+  its wording (info-21.2–21.5).
+- **Per-subcommand usage / arg-count** — `info globals|vars|locals ?pattern?`,
+  `info library`, `info nameofexecutable` now report their own
+  `wrong # args` usage and reject extra args (info-8.3, 10.1, 13.1).
+- **`info tclversion`/`patchlevel` read the globals** (`::tcl_version`/
+  `::tcl_patchLevel`, `TCL_GLOBAL_ONLY`) instead of a hard-coded constant, so
+  unsetting them errors `can't read "…": no such variable` (info-14.3, 18.3).
+- **`info args`/`body`/`default` follow `namespace import`** to the underlying
+  proc (`proc_def` chases `Command::Imported`; info-1.7, 2.4).
+- **`info default`** stores the empty string and returns 0 for an argument with
+  no default, and surfaces the variable error verbatim when the target is an
+  array (`can't set "a": variable is array`; info-6.2, 6.9).
+- **`info script ?filename?`** set-form sets (and returns) the current script
+  name (info-16.6/16.7/16.8).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
