@@ -34,12 +34,22 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"proc name args body");
     }
     let name = obj_bytes(argv[1]);
+    // A namespace-qualified proc name requires that namespace to already exist
+    // (C's `Tcl_ProcObjCmd` via `TclGetNamespaceForQualName`).
+    if let Some(i) = name.windows(2).rposition(|w| w == b"::") {
+        let qualifier = &name[..i];
+        if !qualifier.is_empty() && interp.find_namespace_id(qualifier).is_none() {
+            let mut m = b"can't create procedure \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b"\": unknown namespace");
+            return interp.set_error(&m);
+        }
+    }
     let params = match parse_params(&obj_bytes(argv[2])) {
         Ok(p) => p,
         Err(e) => return interp.set_error(&e),
     };
-    let body = obj_bytes(argv[3]);
-    interp.define_proc(&name, params, body);
+    interp.define_proc(&name, params, argv[3]);
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -100,6 +110,12 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         crate::namespace::GLOBAL
     };
+    // A literal lambda in a sourced file reports `type source` at its body's line
+    // (element 1 of the lambda list — TIP 280); a dynamic lambda is body-relative.
+    let (source, body_line_base) = match interp.list_element_location(argv[1], 1) {
+        Some((file, line)) => (Some(file), line.saturating_sub(1)),
+        None => (None, 0),
+    };
     interp.run_proc(
         &params,
         &parts[1],
@@ -109,8 +125,8 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         CallMeta {
             err: ProcFrame::Lambda(&lambda),
             fqn: None,
-            source: None,
-            body_line_base: 0,
+            source,
+            body_line_base,
             link_vars: &[],
             keep_loop_codes: false,
             same_level: false,

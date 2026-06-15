@@ -80,7 +80,7 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         i += 1;
 
         match crate::builtins::eval_bool_expr(interp, &cond) {
-            Ok(true) => return interp.eval_str(&obj_bytes(body)),
+            Ok(true) => return interp.eval_control_body(body),
             Ok(false) => {}
             Err(code) => return code,
         }
@@ -101,10 +101,10 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return interp
                         .set_error(b"wrong # args: no script following \"else\" argument");
                 }
-                return interp.eval_str(&obj_bytes(argv[i]));
+                return interp.eval_control_body(argv[i]);
             }
             // A bare trailing body is the implicit else (`if {0} a b`).
-            _ => return interp.eval_str(&obj_bytes(argv[i])),
+            _ => return interp.eval_control_body(argv[i]),
         }
     }
 }
@@ -118,14 +118,14 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"while test command");
     }
     let cond = obj_bytes(argv[1]);
-    let body = obj_bytes(argv[2]);
+    let body = argv[2];
     loop {
         match crate::builtins::eval_bool_expr(interp, &cond) {
             Ok(true) => {}
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             other => return other, // return / error propagate
@@ -143,13 +143,11 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(interp, b"for start test next command");
     }
-    let (init, cond, next, body) = (
-        obj_bytes(argv[1]),
-        obj_bytes(argv[2]),
-        obj_bytes(argv[3]),
-        obj_bytes(argv[4]),
-    );
-    match interp.eval_str(&init) {
+    let (init, cond, next, body) = (argv[1], obj_bytes(argv[2]), argv[3], argv[4]);
+    // `start`/`next` are scripts too — run them through `eval_control_body` so a
+    // located literal reports `type source` at its own line (TIP 280), matching
+    // the body. (Their result is discarded; only their completion code matters.)
+    match interp.eval_control_body(init) {
         Code::Ok => {}
         other => return other,
     }
@@ -159,12 +157,12 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
             other => return other,
         }
-        match interp.eval_str(&next) {
+        match interp.eval_control_body(next) {
             Code::Ok => {}
             other => return other,
         }
@@ -205,7 +203,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
         };
         return wrong_args(interp, usage);
     }
-    let body = obj_bytes(argv[argv.len() - 1]);
+    let body = argv[argv.len() - 1];
 
     // Parse each group's variable names + values; track the iteration count.
     // A group is `(variable names, values)`.
@@ -245,7 +243,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 }
             }
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(body) {
             Code::Ok => {
                 if collect {
                     collected.push(obj_bytes(interp.get_obj_result()));

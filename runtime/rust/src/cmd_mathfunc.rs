@@ -49,6 +49,34 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"unknown math function");
     };
 
+    // Argument-count check first (C reports this before operand conversion), with
+    // `-errorcode TCL WRONGARGS`.
+    let lname = fname.to_ascii_lowercase();
+    let (amin, amax) = arity(&lname);
+    let n = argv.len() - 1;
+    if n < amin {
+        return wrong_func_args(interp, b"not enough arguments for math function \"", fname);
+    }
+    if amax.is_some_and(|m| n > m) {
+        return wrong_func_args(interp, b"too many arguments for math function \"", fname);
+    }
+
+    // `wide`/`int`/`entier` on an *integer* operand work on the tower directly,
+    // not via the f64-limited shared dispatch: `wide` wraps a too-big integer to
+    // a 64-bit signed value (C's truncation), and `int`/`entier` keep the
+    // (possibly bignum) integer exactly. (A *float* operand falls through to the
+    // shared dispatch.)
+    if matches!(lname.as_str(), "wide" | "int" | "entier") && crate::bignum::is_integer(argv[1]) {
+        if lname == "wide" {
+            interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
+                argv[1],
+            )));
+        } else {
+            interp.set_result(argv[1]); // integer is its own int/entier
+        }
+        return Code::Ok;
+    }
+
     // Operands → Num (object-preserving: a bignum/double keeps its rep).
     let nums: Option<Vec<Num>> = argv[1..]
         .iter()
@@ -59,7 +87,7 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    match dispatch(&fname.to_ascii_lowercase(), &nums) {
+    match dispatch(&lname, &nums) {
         Some(Num::Int(i)) => {
             interp.set_result(obj::new_wide_int_obj(i));
             Code::Ok
@@ -68,10 +96,33 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(obj::new_double_obj(f));
             Code::Ok
         }
-        // A *registered* name reaching `None` is a domain / arg-count error
-        // (unknown names never resolve to this builtin — they miss the table).
-        None => interp.set_error(b"domain error: argument not in valid range"),
+        // A registered name with the right arity reaching `None` is a domain
+        // error (e.g. `sqrt(-1)`), with `-errorcode ARITH DOMAIN`.
+        None => interp.error_with_code(
+            b"domain error: argument not in valid range",
+            b"ARITH DOMAIN {domain error: argument not in valid range}",
+        ),
     }
+}
+
+/// `(min, max)` argument count for a math function (`max` = `None` ⇒ unbounded).
+/// Every name reaching the builtin is registered, so unknowns can't occur; the
+/// default is the unary `(1, 1)`.
+fn arity(name: &str) -> (usize, Option<usize>) {
+    match name {
+        "min" | "max" => (1, None),
+        "atan2" | "hypot" | "fmod" | "pow" => (2, Some(2)),
+        _ => (1, Some(1)),
+    }
+}
+
+/// `{not enough|too many} arguments for math function "NAME"` with
+/// `-errorcode TCL WRONGARGS`.
+fn wrong_func_args(interp: &mut Interp, prefix: &[u8], fname: &str) -> Code {
+    let mut m = prefix.to_vec();
+    m.extend_from_slice(fname.as_bytes());
+    m.push(b'"');
+    interp.error_with_code(&m, b"TCL WRONGARGS")
 }
 
 #[cfg(test)]

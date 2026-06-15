@@ -37,7 +37,15 @@ pub fn install(interp: &mut Interp) {
 type BinOpFn = fn(*mut TclObj, *mut TclObj) -> Result<*mut TclObj, ArithError>;
 
 fn arith_error(interp: &mut Interp, e: ArithError) -> Code {
-    interp.set_error(&crate::expr::arith_err(e).0)
+    expr_error(interp, crate::expr::arith_err(e))
+}
+
+/// Raise an `ExprError`, honouring its optional `-errorcode`.
+fn expr_error(interp: &mut Interp, e: crate::expr::ExprError) -> Code {
+    match e.code {
+        Some(c) => interp.error_with_code(&e.msg, &c),
+        None => interp.set_error(&e.msg),
+    }
 }
 
 /// `wrong # args: should be "::tcl::mathop::<op> <usage>"`.
@@ -92,7 +100,7 @@ fn mathop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             match crate::expr::to_bool(args[0]) {
                 Ok(b) => bool_result(interp, !b),
-                Err(e) => interp.set_error(&e.0),
+                Err(e) => expr_error(interp, e),
             }
         }
         // Chained comparisons (vacuously true for <2 args).

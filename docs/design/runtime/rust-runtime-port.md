@@ -2595,6 +2595,490 @@ the same engine; `lseq` against `Tcl_LseqObjCmd`/`TclNewArithSeriesObj`
   here so it is not lost. The top-of-doc mirror hash is intentionally left at
   `8150eca` until a deliberate re-baseline.
 
+### SYNC inbound — 2026-06-14 (`string is` full port)
+
+`string is` rewritten from C's `StringIsCmd` (`tmp/tcl9.0.3/generic/tclCmdMZ.c`),
+taking `string.test` 564 → 618 (all 54 `string-6.*` failures cleared, zero
+regressions in the broad sweep). The old implementation only matched class names
+exactly, set the `-failindex` var even on success, and rejected surrounding
+whitespace on numeric classes; the port fixes all three plus the message order.
+
+- **Class/option lookup is `Tcl_GetIndexFromObj`** — exact name or unambiguous
+  prefix, with `bad class`/`ambiguous class` distinguished (and the `must be …`
+  list in C declaration order: `…, control, boolean, …`). Abbreviated classes
+  (`bool`, `gra`, `int`) and options (`-fail`) now resolve (string-6.5, 6.6,
+  6.22/6.23, 6.86, 6.90, …). The `-failindex`-without-var error names the
+  resolved class (`string is double …`, string-6.3).
+- **`-failindex` var is set only when the result is 0** (C's `if (result==0 &&
+  failVarObj)`), so a successful `string is … -failindex var` leaves `var` unset
+  (string-6.9).
+- **Numeric classes via the shared `tcl_syntax::number` (`TclParseNumber`)** —
+  `integer`/`wideinteger`/`entier`/`double` allow a leading/trailing whitespace
+  run, report the fail index at the byte where parsing stopped, accept bignums
+  for `integer`/`entier`, and report `-1` for a `wideinteger` value that parses
+  but overflows a wide (string-6.31–6.59, 6.100–6.131).
+- **Boolean classes via `ParseBoolean` (`tclObj.c`)** — `0`/`1` or a
+  case-insensitive unambiguous prefix of `true`/`false`/`yes`/`no`/`on`/`off`
+  (so `25`, `1.0`, `o` are not booleans), failing at index 0 (string-6.45–6.47,
+  6.72–6.74).
+
+### SYNC inbound — 2026-06-14 (`dict` usage messages + dict-parse errors/codes)
+
+`dict.test` 276 → 304 (zero regressions in the broad sweep), in two themed
+fixes, both from C (`tclDictObj.c`/`tclUtil.c`):
+
+- **Usage strings matched to C verbatim** — the argument-count messages used
+  `dictValue`/`{keyVar valueVar}`; C uses `dictionary`/`{keyVarName
+  valueVarName}` (`get`/`exists`/`size`/`keys`/`values`/`for`/`map`/`filter`;
+  dict-24.1–4, dict-17 syntax, …).
+- **Faithful dict string-parse errors with `-errorcode`** — a malformed dict
+  value now reports the dict-typed `FindElement` diagnostics instead of the
+  generic `missing value to go with key`: `dict element in
+  braces/quotes followed by "X" instead of space` (`TCL VALUE DICTIONARY JUNK`,
+  with the offending fragment), `unmatched open brace/quote in dict` (`… BRACE`/
+  `… QUOTE`), and the odd-count `missing value to go with key` (`TCL VALUE
+  DICTIONARY`). A new runtime `dict_find_element`/`scan_dict_pairs` ports
+  `tclUtil.c`'s `FindElement` with the `dict`/`DICTIONARY` type strings (the list
+  splitter stays untouched), feeding `error_with_code` (dict-4.13–4.17 + the
+  `…a` error-code variants).
+- **`dict filter … script` completion-code handling + var-list parse** — the
+  body's code now drives the loop (`DictFilterCmd`): `OK` keeps iff the result is
+  true, `continue` skips, `break` stops (returning what's kept), and
+  `error`/`return`/other propagate out (dict-17.16). The two variable names are
+  parsed as a list, so a malformed list surfaces its own message (dict-17.20)
+  and a wrong count is `must have exactly two variable names` (`TCL SYNTAX dict
+  filter`, dict-17.19). `dict with`/`dict update` usage strings matched to C
+  (`dictVarName`/`script`). dict.test reaches 315/373.
+
+### SYNC inbound — 2026-06-14 (`lsearch -subindices` + `-index` validation)
+
+`lsearch.test` 133 → **165/165** (zero regressions), from C's `Tcl_LsearchObjCmd`
+(`tclCmdIL.c`) + `SelectObjFromSublist`:
+
+- **`-subindices` returns the resolved path / leaf** — non-inline now emits the
+  group base plus each *decoded* remaining `-index` value (`TclIndexDecode`
+  against the top list count, matching C, incl. `end`); `-inline -subindices`
+  returns the matched *leaf* drilled through the sub-path (or the in-group key
+  element when `-stride` consumed the only index), not the top element. Fixes the
+  `-subindices` ± `-stride` ± `-inline` ± `-sorted` clusters (lsearch-19.7/19.8,
+  25.*, 26.*, 27.*, 28.7–28.9).
+- **`-index` value scale validated at parse time** (`TclIndexEncode`): a negative
+  or `end+N` spec is `index "X" out of range` (`TCL VALUE INDEX OUTOFRANGE`),
+  a syntactically-bad spec is `bad index …` (lsearch-17.12–17.16).
+- **`-subindices` without `-index`** is the `BAD_OPTION_MIX` error (lsearch-3.7),
+  and the `-regexp` compile-failure prefix is `cannot compile …` to match C
+  (lsearch-2.6).
+
+### SYNC inbound — 2026-06-14 (namespace/command qualification: `info commands`, `namespace children`, `proc`)
+
+Three related name-qualification fixes (namespace.test 184 → 201, proc.test 13 →
+20, info.test +1; zero regressions), all from C:
+
+- **`info commands`/`info procs` re-qualify through the namespace's canonical
+  full name** — a *relative* qualified pattern (`info commands ns::pat`) now
+  returns absolute `::ns::…` names, via a new `Interp::canonical_ns_prefix`
+  (previously the literal pattern prefix was used, so relative patterns dropped
+  the leading `::`). Fixes the `info commands ns::*` assertions in proc-1.*.
+- **`namespace children ?ns? ?pattern?` qualifies the pattern** — a pattern
+  without a leading `::` is prefixed with the target namespace's full name before
+  matching the children's fully-qualified names (C's `NamespaceChildrenCmd`).
+  This was returning empty for the extremely common `namespace children ::
+  test_ns_*` idiom used in many suites' setup/cleanup — hence the broad
+  namespace.test jump.
+- **`proc ns::name` requires the namespace to exist** — a qualified proc name
+  whose namespace is missing is `can't create procedure "…": unknown namespace`
+  (`Tcl_ProcObjCmd`), instead of silently auto-creating it (proc-1.2).
+
+### SYNC inbound — 2026-06-14 (namespace not-found error: `TclGetNamespaceFromObj`)
+
+`namespace children`/`namespace upvar` (and friends) now report the
+`TclGetNamespaceFromObj` not-found error faithfully: a *relative* name names the
+current namespace context (`namespace "X" not found in "::ns"`), an absolute one
+does not (`namespace "X" not found`), with `-errorcode TCL LOOKUP NAMESPACE X`
+(namespace.test 201 → 207; namespace-14.2/14.4/14.6). The remaining
+namespace-14.* cases are multi-colon collapsing and the "trailing `::` is a
+significant empty var name" rules, which live in the shared name parser
+(deferred).
+
+### SYNC inbound — 2026-06-14 (command traces freed on namespace deletion)
+
+`delete_namespace_by_id` now collects, removes, and (for `delete`-op) fires the
+command traces on every command in the deleted namespace tree — the command
+analogue of the existing variable-unset-trace teardown (namespace.test 207 →
+209, trace.test unchanged at 199, zero regressions). Previously only variable
+unset traces were cleaned up, so a command delete-trace on `::ns::cmd` *lingered*
+after `ns` was deleted and mis-fired when a same-named command was later created
+(namespace-7.4/7.6). That stale trace was the root of the global-namespace wipe
+that blocked the ensemble work: defining a fresh `proc x` fired a leftover
+`::x → namespace delete ::;#` trace. With the traces freed correctly, that chain
+no longer forms.
+
+### SYNC inbound — 2026-06-14 (`namespace ensemble configure` / `-parameters`; ensemble command lifecycle)
+
+With the command-trace teardown fixed (previous entry), the ensemble work landed
+(namespace.test 209 → 223, oo.test +1, zero regressions), all from
+`tclEnsemble.c`:
+
+- **`namespace ensemble configure cmd …`** — subcommands now resolve by
+  unambiguous prefix (`configure`/`create`/`exists`); `configure` with no options
+  returns the `-map -namespace -parameters -prefixes -subcommands -unknown` dict,
+  with one bare `-option` returns its value (cget), and with `-option value`
+  pairs updates the live ensemble. `create`/`configure` share one option applier.
+- **`-parameters`** — formal names that precede the subcommand in a call
+  (`ens p1 … sub args`); the subcommand is read at `1 + nparams` and the
+  parameter values thread in after the resolved target (`target p1 … args`). The
+  wrong-args usage lists the parameter names (namespace-53.1/53.3).
+- **`-unknown` is stored** (round-trips through `configure`); its dispatch
+  (invoking the handler on a miss, namespace-47.x) is still a follow-up.
+- **Ensemble command tied to its namespace** — deleting a namespace now deletes
+  the ensemble commands configured for it (even a default `::ns` ensemble living
+  in the global table), via `remove_ensembles_for` in `delete_namespace_by_id`
+  (`info command ns` is empty after `namespace delete ns`).
+
+### SYNC inbound — 2026-06-14 (`namespace unknown`)
+
+`namespace unknown ?handler?` (`NamespaceUnknownCmd`) — get/set the per-namespace
+unknown-command handler (namespace.test 223 → 230, zero regressions):
+
+- **Get** returns the namespace's stored handler; the global namespace defaults
+  to `::unknown`, a sub-namespace to the empty string (namespace-52.1).
+- **Set** stores a handler (empty resets to default), validating it is a
+  well-formed list first — a bad list errors *without* changing the current
+  handler (namespace-52.12).
+- **Dispatch**: on a command miss the current namespace's handler wins (invoked
+  as `handler… name args…`); a namespace with none falls back to the global
+  namespace's handler (so a script can override `::unknown` globally,
+  namespace-52.7), else the built-in `unknown` command (namespace-52.4–52.9).
+  The `TCL_EVAL_INVOKE`/child-interp-alias corner (52.11) is still open.
+
+### SYNC inbound — 2026-06-14 (ensemble `-unknown` handler dispatch)
+
+The ensemble `-unknown` handler now dispatches on a subcommand miss
+(`EnsembleUnknownCallback`, namespace.test 230 → 234): the handler is invoked
+once as `handler… ensembleFQN argv[1..]…`; a non-empty `TCL_OK` result is the
+replacement command prefix (dispatched with the usual params/rest threading), an
+empty result reparses the call (the handler defined the subcommand), and an
+error/bad-code result fails with C's wording (`unknown subcommand handler
+returned bad code: …`). Fixes namespace-47.1/47.3/47.7/47.8. The remaining 47.x
+(47.2/47.4/47.6) only differ in the `$::errorInfo` trace frames (the
+`(ensemble unknown subcommand handler)` + handler-command lines), which need the
+errorInfo-frame plumbing and are deferred; namespace-50.x (rewriting target
+`wrong # args` messages to the ensemble invocation) is the documented
+ensemble-rewrite-threading rework.
+
+### SYNC inbound — 2026-06-14 (`namespace path` lifecycle + not-found)
+
+`namespace path` fixes (namespace.test 234 → 238): deleting a namespace now
+drops it from every other namespace's `namespace path` (a dangling id otherwise
+resolved to the global `::`, namespace-51.7/51.8/51.9), and `namespace path`
+given a missing namespace reports the shared `TclGetNamespaceFromObj` not-found
+error (`namespace "X" not found in "::ns"`, namespace-51.10). The remaining
+51.13–51.15 are the trace-during-deletion / path-recompute corner; namespace-50.x
+and the 53.x wrong-#-args cases are the ensemble-rewrite-threading rework.
+
+### SYNC inbound — 2026-06-14 (`expr` operand-type errors)
+
+`expr`'s operand-type errors now match C's `IllegalExprOperandType`
+(`tclExecute.c`), taking expr-old.test 358 → 390:
+
+- `cannot use floating-point value "V" as [left/right ]operand of "OP"` and
+  `cannot use non-numeric string "V" as …` — carrying the offending operand's
+  value, the operator symbol, and (for binary ops) which operand is at fault
+  (left checked first), built in `expr.rs`'s `arith`/`unary` where the operator
+  and operands are in scope (expr-old-3.*, expr-old-5.*).
+- `%` is now integer-only like the other bit/shift ops: a float operand is a
+  `NonInteger` error instead of computing a float modulo (`divmod` only floats
+  for `/`).
+
+### SYNC inbound — 2026-06-14 (`format %g` significant-digits)
+
+`format %g`/`%G` now uses **significant**-digit precision like C's `printf`
+(expr-old.test 390 → 398): pick `%e` when the decimal exponent is `< -4` or
+`>= p`, else `%f`, each at the precision giving `p` significant figures, then
+trim trailing zeros unless `#`. Previously it used `p-1` *fractional* digits, so
+`format %.6g [expr asin(0.5)]` gave `0.5236` instead of `0.523599`. The decimal
+exponent is read from a `%.{p-1}e` rendering (robust vs `log10` rounding); fixes
+the expr-old-32.* math-function-formatting cases (the functions were already
+correct — only the `%g` rendering was wrong).
+
+### SYNC inbound — 2026-06-14 (math-function arg-count + arith `-errorcode`)
+
+`expr` math errors now carry C's `-errorcode` and the right arg-count wording
+(expr-old.test 398 → 405):
+
+- **Math-function arity** (`cmd_mathfunc`): `not enough`/`too many arguments for
+  math function "NAME"` with `-errorcode TCL WRONGARGS` (checked before operand
+  conversion), and a domain error (e.g. `sqrt(-1)`) carries `ARITH DOMAIN
+  {domain error: argument not in valid range}` (expr-old-34.7/8, 40.3, 41.3).
+- **Arithmetic `-errorcode`** — `ExprError` gained an optional `-errorcode`;
+  divide-by-zero is `ARITH DIVZERO {divide by zero}`, and `expr`/`::tcl::mathop`
+  now re-raise math/arith errors *with* their code instead of dropping it via
+  `set_error` (expr-old-26.8/26.9). `%` shares the divide-by-zero path.
+
+### SYNC inbound — 2026-06-14 (`wide()`/`int()`/`entier()` over the tower)
+
+`wide`/`int`/`entier` on an **integer** operand now work over the numeric tower
+instead of the f64-limited shared math dispatch: `wide` wraps a too-big integer
+to a signed 64-bit value (C's truncation, `wide(2**63)` ⇒ `i64::MIN`, via
+libtommath `mp_get_i64`), and `int`/`entier` keep the (possibly bignum) integer
+exactly. Previously these domain-errored on anything exceeding `i64`. This
+un-aborts expr.test, whose `wideIs64bit` constraint computes
+`wide(0x8000000000000000) < 0` at top level: **expr.test now runs to completion
+at 1836/2168** (it was an early-abort `ERR` before). The run is *slow* — the
+heavy bignum `**` loops in expr-23.5x exceed the sweep's default per-file cap, so
+the sweep reports it as a timeout even though it finishes (perf, not a hang; a
+separate follow-up). Large *float* `int`/`entier` (bignum result, e.g.
+`int(1e30)`) is still deferred.
+
+### SYNC inbound — 2026-06-15 (`info` non-frame surface)
+
+`info.test` 106 → 127 (zero regressions), the tractable non-`info frame` items
+(the big `info-30`/`info-33`/`info-24` clusters remain the TIP-280 line-tracking
+rework):
+
+- **Subcommand surface** — added Tcl 9's `constant`/`consts` (TIP 677, stubbed:
+  no const vars yet), `errorstack` (TIP 348, stubbed empty), and `hostname`
+  (best-effort from `/proc/sys/kernel/hostname`). The "unknown subcommand … must
+  be …" list is now generated from the (alphabetical) subcommand table, fixing
+  its wording (info-21.2–21.5).
+- **Per-subcommand usage / arg-count** — `info globals|vars|locals ?pattern?`,
+  `info library`, `info nameofexecutable` now report their own
+  `wrong # args` usage and reject extra args (info-8.3, 10.1, 13.1).
+- **`info tclversion`/`patchlevel` read the globals** (`::tcl_version`/
+  `::tcl_patchLevel`, `TCL_GLOBAL_ONLY`) instead of a hard-coded constant, so
+  unsetting them errors `can't read "…": no such variable` (info-14.3, 18.3).
+- **`info args`/`body`/`default` follow `namespace import`** to the underlying
+  proc (`proc_def` chases `Command::Imported`; info-1.7, 2.4).
+- **`info default`** stores the empty string and returns 0 for an argument with
+  no default, and surfaces the variable error verbatim when the target is an
+  array (`can't set "a": variable is array`; info-6.2, 6.9).
+- **`info script ?filename?`** set-form sets (and returns) the current script
+  name (info-16.6/16.7/16.8).
+- **`info library`** with `tcl_library` unset reports `no library has been
+  specified for Tcl` (info-10.3).
+
+### SYNC inbound — 2026-06-15 (base-layer: Tcl_Obj identity through eval / TIP 280 literal locations)
+
+Digging into the `info frame` failures surfaced a **base-layer smell**: scripts
+were evaluated as raw *bytes*, discarding the `Tcl_Obj` identity that C uses to
+carry a literal's source location (the `lineLABCPtr` table) — so an eval'd body
+literal (tcltest's `uplevel 1 $script`) reported `type eval` instead of `type
+source`. The fix is structural, not a patch (info.test 127 → 132, var.test
+59 → 72, expr-old 405; zero regressions across namespace/trace/oo/dict/string/
+list/lsearch/proc):
+
+- **TIP 280 literal-argument locations** (`Interp::arg_locs`, C's `lineLABCPtr`):
+  each literal word of a command running in a *sourced* context records
+  `objPtr → (file, line)` (dynamic scope: pushed before dispatch, popped after).
+  A later `eval`/`uplevel` of that same object reports `type source` at the
+  literal's original file+line.
+- **`eval`/`uplevel` evaluate by object, not bytes** (`eval_body_obj`/
+  `eval_uplevel_obj`): a single body argument keeps its object identity for the
+  LABC lookup; multiple args concatenate to a dynamic (`type eval`) script.
+- **Pure lists evaluate by element identity** (`dispatch_list_obj`): a *canonical*
+  list (`TclListObjIsCanonical`) is dispatched as one command from its element
+  objects — no stringify/re-parse — so `uplevel 1 [list cmd $bodyVar]` preserves
+  the nested body's source location (the tcltest `Eval`/`RunTest` chain). A new
+  `canonical` flag on the list rep distinguishes a list built from objects
+  (`new_list_obj`/append, pure) from one shimmered from a string (re-parsed).
+- **`array set` preserves value identity** — it stores the element *objects*
+  (via `list_elements`) instead of re-creating fresh strings, so a value kept in
+  an array (tcltest's option array) keeps its rep and source location (this is
+  what lifted var.test).
+
+Inline control-command bodies (`if`/`while`/`for`/`foreach`) now also advance
+the `info frame` line via `eval_control_body` (a located literal body runs as its
+own line-advancing source frame; info.test → 138).
+
+### SYNC inbound — 2026-06-15 (command-substitution line advancement)
+
+`info.test` 138 → 158 (zero regressions; trace 199, oo 357, ooProp 55/55,
+eval 12/12 all held). This closes the `info-30`/`info-33` *line digit* gap: a
+command inside `[…]` now reports the line it actually appears on, even when the
+bracket spans lines or follows a `\`-newline continuation, and through **nested**
+substitutions.
+
+The insight that made it a few lines instead of C's `TclAdvanceContinuations`
+bookkeeping: a `[…]`'s inner script is a borrowed sub-slice of the enclosing
+parsed buffer (`WordPart::Command(&'s [u8])`), so its start offset — and thus
+its file-absolute line — comes straight from the original source via the shared
+`line_of` helper. Backslash-newline continuations are *real* newlines in that
+buffer, so plain newline counting already matches C's continuation-adjusted
+result; no separate continuation-position table is needed.
+
+Mechanically (`eval_command_subst`): a `[cmd]` is **not** a new `info frame`
+level — C compiles it into the enclosing command's bytecode, so `info frame`
+depth is unchanged — but it *does* advance the reported `line`. So rather than
+pushing a frame, the substitution shares the enclosing frame and temporarily
+shifts its `line_base` to `(enclosing line_base + line_of(src, bracket_offset))
+- 1`, evaluates the inner script in a new `eval_script_mode(.., advance_shared:
+true)` that advances `line`/`cmd` without pushing a level, then restores the
+enclosing frame's `line_base`/`line`/`cmd`. Nested substitutions compose
+naturally: each inner buffer's offset is taken against *its* enclosing `src`,
+and the `line_base` it inherits already carries the outer shift.
+
+### SYNC inbound — 2026-06-15 (`namespace eval` is its own `info frame` level)
+
+`info.test` 158 → 161 (zero regressions; trace 199, oo 357, ooProp 55/55,
+eval 12/12, namespace 238 all held). C's `namespace eval` pushes a `CmdFrame`
+for its body (depth and `info level` both advance), with `proc` cleared and
+`level` reported relative to the new scope; the runtime previously evaluated the
+body in the *enclosing* frame, so `info frame 0` inside `namespace eval` leaked
+the caller's `proc`/`level` and reported the wrong depth. `ns_eval` now pushes a
+body `CmdFrame` like a proc body — `proc: None`, `level` = the new namespace
+scope's level, and (for a single located-literal body, via the new `ns_eval_obj`
+obj-aware path) `type source` at the body's file+line so commands defined inside
+report file-absolute lines. A multi-arg (concatenated, dynamic) body stays
+`type eval`. Remaining `info-30`/`info-33` failures are now the `switch`-body
+and `[subst]` line-tracking clusters and `{*}` literal-expansion locations.
+
+### SYNC inbound — 2026-06-15 (`switch` body lines + proc body location via LABC)
+
+`info.test` 161 → 172 (zero regressions; trace 199, oo 357, ooProp 55/55,
+namespace 238, switch 54, proc/apply/eval/if/while/for/foreach/error all held).
+Two linked fixes:
+
+- **`switch` branch bodies are TIP 280 located.** The inline form (`switch s pat
+  body …`) keeps each body's `Tcl_Obj` and runs it through `eval_control_body`
+  (the `if`/`while` path), so a located literal is `type source` at its line. The
+  single-list form (`switch s {pat body …}`) re-splits the literal and derives
+  each body's line from its byte offset within the list word (C's `TclListLines`):
+  `scan_elements` walks `tcl_syntax`'s element scanner for offsets + the `literal`
+  flag, and a matched literal body evaluates via `eval_located_body` at `list
+  word line + newlines-before-element`. A dynamically built list body (no word
+  location) reverts to `eval_unlocated_body` — `type eval`, no file — so a `proc`
+  defined inside is body-relative (C's `line = -1`).
+
+- **A `proc`'s body location now comes from the body word's LABC entry**, not a
+  whole-file "am I sourcing" flag. `define_proc` takes the body `Tcl_Obj` and
+  reads `arg_loc(body)`: a located literal → `type source` at the body word's
+  file+line (correct even when the body opens on a later line than the `proc`
+  command, and when `proc` runs inside a located `switch`/`eval` body); a dynamic
+  body → body-relative `type proc`. This is the same obj-identity location
+  mechanism as command-subst/`eval`/`namespace eval`, replacing the prior
+  `script_stack` + proc-command-line heuristic.
+
+### SYNC inbound — 2026-06-15 (`[subst]` command-substitution line tracking)
+
+`info.test` 172 → 195 (zero regressions; trace 199, oo 357, ooProp 55/55,
+namespace 238, subst 21, eval 12, proc 20, switch 54 all held). A `[...]` inside
+a `subst` argument now reports the line it sits on (C compiles `subst` with the
+argument's line table). `do_subst` gained a located variant that reads the
+argument word's TIP 280 location (`arg_location`), aligns the enclosing frame's
+`line_base`/`file` to it for the duration, and routes each `WordPart::Command`
+through `eval_command_subst` (the shared command-substitution line-advance path)
+instead of a bare `eval_str`. The argument's `[...]` slices borrow from the
+argument bytes, so their offsets — and thus file-absolute lines — follow from the
+same `line_of` helper. Internal callers (`dict map` key subst) pass `None` and
+track relative to the enclosing frame.
+
+Remaining `info-30`/`info-33` failures are the `{*}` literal-expansion locations,
+`info-31` (script-in-variable nuances), and a few `info-24`/`info-22` interaction
+cases (dict for/with/filter, traces).
+
+### SYNC inbound — 2026-06-15 (`{*}` literal-element locations + `catch` body frame)
+
+`info.test` 195 → 205 (zero regressions; error 261, trace 199, oo 357,
+ooProp 55/55, namespace 238, eval 12, proc 20, switch 54, subst 21 all held).
+Two fixes:
+
+- **`{*}` expansion of a literal keeps each element's source line.** `eval_words`
+  now tracks lines per **argv element** (not per word), so expansion no longer
+  desyncs the line table, and it records an LABC entry for each braced element of
+  a `{*}`-expanded literal (line = the word's line + newlines before the element,
+  the shared `scan_list_offsets`/`TclListLines` computation). So
+  `namespace {*}{eval ns {proc bar {} {info frame 0}}}` defines `bar` with
+  `type source` at the body's real line. A dynamic `{*}$v` has no per-element
+  location and stays body-relative.
+- **`catch` evaluates its script as its own `info frame` level.** C bumps
+  `cmdFramePtr` for the `catch` body (depth advances like `eval`), and a located
+  literal body reports `type source` at its own line. `catch_cmd` now uses
+  `eval_body_obj` (push frame + pick up the body object's TIP 280 location)
+  instead of a bare `eval_str`.
+
+### SYNC inbound — 2026-06-15 (`dict for`/`map`/`filter`/`update`/`with` body frames)
+
+`info.test` 205 → 212 (zero regressions; dict 315, error 261, trace 199, oo 357,
+ooProp 55/55, namespace 238, eval 12 all held). The script-body `dict`
+subcommands evaluated their body with a bare `eval_str` (shared frame, no level,
+no location). They now route through `eval_control_body` (the `if`/`while`/
+`foreach` path), so each body is its own `info frame` level and a located literal
+reports `type source` at its own line — covering the `info-24.7/8/9`
+(`dict for`/`with`/`filter` interaction) and `{*}`-expanded `dict for`/`map`
+bodies.
+
+### SYNC inbound — 2026-06-15 (`for` start/next script frames)
+
+`info.test` 212 → 214 (zero regressions; for 51, while 45, foreach 38, trace 199,
+oo 357 held). `for`'s `start` and `next` scripts were evaluated with a bare
+`eval_str`; they now route through `eval_control_body` like the body, so a located
+literal (including a `{*}`-expanded element) reports `type source` at its own
+line. Remaining `info-33` failures are a distinct issue — `return`/non-OK codes
+propagating out of a `for`/`while` **test expression**'s command substitution
+(`for {*}{… {[return …]} …}`), not line tracking.
+
+### SYNC inbound — 2026-06-15 (dynamic control bodies are body-relative `type eval`)
+
+`info.test` 214 → 221 (zero regressions; if 59, while 45, for 51, foreach 38,
+switch 54, dict 315, eval 12, trace 199, oo 357, ooProp 55/55, namespace 238,
+proc 20, apply 21, uplevel 41, error 261 all held). A *dynamic* control body (a
+script held in a variable, `if 1 $body` / `while … $body` / `foreach … $body` /
+`for … $body` / `dict for … $body`) was evaluated with a frame-sharing `eval_str`,
+so `info frame 0` leaked the enclosing command's line/type. C's `TclEvalObjEx`
+always pushes a cmdframe, so the body runs as its own `type eval` level with
+**body-relative** lines (the body's 3rd line reports `line 3`). `eval_control_body`'s
+dynamic fallback now uses `eval_unlocated_body` (push a `type eval`, no-file frame
+with `line_base = 0`) — covering the `info-31` script-in-variable family.
+
+### SYNC inbound — 2026-06-15 (dynamic `eval` bodies are body-relative `type eval`)
+
+`info.test` 221 → 225 (zero regressions; eval 12/12, uplevel 41, error 261,
+trace 199, oo 357, namespace 238, proc 20, apply 21 held). A dynamic `eval` body
+— multi-arg `eval info frame 0` (space-joined) or single-arg `eval $script` — was
+evaluated through `inherited_cmd_frame`, so it inherited the enclosing `type
+source` + file and reported file-absolute lines. C's `TclEvalObjEx` of a
+non-literal is `type eval` with body-relative lines. `eval_body` (multi-arg) now
+delegates to `eval_unlocated_body`, and `eval_body_obj`'s dynamic arm sets
+`type eval` / no file / `line_base = 0` (the located-literal arm is unchanged).
+Covers the `info-23.4/5` and `info-31.6` `eval`-of-dynamic-script cases.
+
+### SYNC inbound — 2026-06-15 (`apply` lambda `info frame`: `lambda` key + body source)
+
+`info.test` 225 → 227 (zero regressions; apply 21, proc 20, oo 357, ooProp 55/55,
+trace 199, namespace 238, eval 12 held). An `apply` body's `info frame` now
+reports `lambda <expr>` (the whole lambda expression) in place of `proc` — a new
+`lambda` field on `CmdFrame`, set from `ProcFrame::Lambda` in `run_proc` and
+rendered like the `oo` (method) key. A *literal* lambda in a sourced file is also
+`type source` at its body's line: `apply_cmd` derives the body element's location
+via the new `list_element_location` (the list word's line + newlines before
+element 1, the shared `TclListLines` computation); a dynamic lambda stays
+body-relative `type proc`.
+
+### SYNC inbound — 2026-06-15 (canonical-list bodies push a `type eval` frame)
+
+A body that arrives as a canonical list object (`eval [list info frame 0]`,
+`if 1 $body` / `uplevel $body` where the var holds a pure list) was dispatched by
+element identity *without* pushing a `CmdFrame`, so `info frame` and error traces
+reported the caller's frame instead of a `type eval` level for the list command.
+`dispatch_list_obj` now takes the caller's `CmdFrame`, pushes it (cmd = the list
+string, body-relative `line 1`), and *then* dispatches by element identity — so
+both the eval-frame reporting and the identity-preserved nested-body locations
+hold. The pure-list arms of `eval_body_obj`/`eval_control_body`/`eval_uplevel_obj`
+supply a `type eval` (`unlocated_frame`) frame; `uplevel` redirects its level.
+(Found by Codex review on PR #607; `info-37.0`'s two `type eval` frames are now
+correct, its remaining gap is the unrelated `etrace`/`while` line.)
+
+### SYNC inbound — 2026-06-15 (`namespace ensemble configure` rebinds the resolved command)
+
+`namespace ensemble configure cmd …` (set form) recreated the ensemble relative
+to the *current* namespace, so reconfiguring an ensemble reached via `namespace
+path` (e.g. `namespace eval b { namespace path ::a; namespace ensemble configure
+a -prefixes 0 }`) created/overwrote a shadow `::b::a` and left the real `::a`
+untouched. `set_ensemble_config` now uses a new `NamespaceArena::rebind_resolved`
+(rebind in place at the namespace `home_of`/`resolve` selects, incl. `namespace
+path`) instead of `create_ensemble`. Found by Codex review on PR #607; verified
+vs `tclsh9.0`, namespace 238 held.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
