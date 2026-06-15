@@ -3054,6 +3054,20 @@ via the new `list_element_location` (the list word's line + newlines before
 element 1, the shared `TclListLines` computation); a dynamic lambda stays
 body-relative `type proc`.
 
+### SYNC inbound — 2026-06-15 (canonical-list bodies push a `type eval` frame)
+
+A body that arrives as a canonical list object (`eval [list info frame 0]`,
+`if 1 $body` / `uplevel $body` where the var holds a pure list) was dispatched by
+element identity *without* pushing a `CmdFrame`, so `info frame` and error traces
+reported the caller's frame instead of a `type eval` level for the list command.
+`dispatch_list_obj` now takes the caller's `CmdFrame`, pushes it (cmd = the list
+string, body-relative `line 1`), and *then* dispatches by element identity — so
+both the eval-frame reporting and the identity-preserved nested-body locations
+hold. The pure-list arms of `eval_body_obj`/`eval_control_body`/`eval_uplevel_obj`
+supply a `type eval` (`unlocated_frame`) frame; `uplevel` redirects its level.
+(Found by Codex review on PR #607; `info-37.0`'s two `type eval` frames are now
+correct, its remaining gap is the unrelated `etrace`/`while` line.)
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

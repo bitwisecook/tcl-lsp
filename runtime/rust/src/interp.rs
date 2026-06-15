@@ -2732,7 +2732,8 @@ impl Interp {
     /// not the enclosing command's line).
     pub(crate) fn eval_control_body(&mut self, body: *mut TclObj) -> Code {
         if crate::list::is_pure_list(body) {
-            return self.dispatch_list_obj(body);
+            let frame = self.unlocated_frame();
+            return self.dispatch_list_obj(body, frame);
         }
         if let Some((file, line)) = self.arg_loc(body) {
             let mut frame = self.inherited_cmd_frame();
@@ -2787,15 +2788,23 @@ impl Interp {
         self.eval_framed(body, frame)
     }
 
+    /// A `type eval`, no-file, body-relative `CmdFrame` (inheriting the enclosing
+    /// proc/level) — the frame for a body with no source location (a dynamic
+    /// script, or a canonical-list body).
+    fn unlocated_frame(&self) -> CmdFrame {
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Eval;
+        frame.file = None;
+        frame.line_base = 0;
+        frame
+    }
+
     /// Evaluate a body whose source location is unknown (C's switch `line = -1`
     /// case: a dynamically-built list body). It runs as `type eval` with **no
     /// file**, so a command defined inside (e.g. `proc`) is body-relative
     /// (`type proc`, line 1) rather than inheriting the enclosing file's lines.
     pub(crate) fn eval_unlocated_body(&mut self, body: &[u8]) -> Code {
-        let mut frame = self.inherited_cmd_frame();
-        frame.kind = FrameKind::Eval;
-        frame.file = None;
-        frame.line_base = 0;
+        let frame = self.unlocated_frame();
         self.eval_framed(body, frame)
     }
 
@@ -2856,9 +2865,11 @@ impl Interp {
     /// `type eval`.
     pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
         // A pure list is one command, dispatched by element identity (so a
-        // contained literal keeps its source location — C's list-eval path).
+        // contained literal keeps its source location — C's list-eval path),
+        // inside its own `type eval` frame.
         if crate::list::is_pure_list(obj) {
-            return self.dispatch_list_obj(obj);
+            let frame = self.unlocated_frame();
+            return self.dispatch_list_obj(obj, frame);
         }
         let mut frame = self.inherited_cmd_frame();
         match self.arg_loc(obj) {
@@ -2884,7 +2895,7 @@ impl Interp {
     /// objects directly (no stringify/re-parse) — this preserves each element's
     /// `Tcl_Obj` identity, so a nested `eval`/`uplevel $bodyVar` still finds the
     /// body's TIP 280 source location.
-    fn dispatch_list_obj(&mut self, obj: *mut TclObj) -> Code {
+    fn dispatch_list_obj(&mut self, obj: *mut TclObj, frame: CmdFrame) -> Code {
         let elems = match crate::list::list_elements(obj) {
             Ok(e) => e,
             Err(e) => return self.error(e.message()),
@@ -2893,12 +2904,21 @@ impl Interp {
             self.set_result_bytes(b"");
             return Code::Ok;
         }
+        // The pure list is exactly one command; push its `info frame` level (a
+        // canonical-list body has no source location, so the frame is the
+        // `type eval`, body-relative one the caller supplies) and report the list
+        // string as the executing command, before dispatching by element identity.
+        let mut owned = frame;
+        owned.cmd = obj_bytes(obj);
+        owned.line = owned.line_base + 1;
+        self.cmd_frames.borrow_mut().push(owned);
         for &e in &elems {
             // SAFETY: live element; take an owning +1 for the call.
             unsafe { obj::incr_ref_count(e) };
         }
         let code = self.dispatch(&elems);
         release_all(&elems);
+        self.cmd_frames.borrow_mut().pop();
         code
     }
 
@@ -2912,8 +2932,12 @@ impl Interp {
         self.current_ns
             .set(self.frames.borrow().frame_ns(target_level));
         let code = if crate::list::is_pure_list(obj) {
-            // Pure list → one command by element identity (see `dispatch_list_obj`).
-            self.dispatch_list_obj(obj)
+            // Pure list → one command by element identity (see `dispatch_list_obj`),
+            // in a `type eval` frame redirected to the target level.
+            let mut frame = self.unlocated_frame();
+            frame.level = target_level;
+            frame.omit_level = true;
+            self.dispatch_list_obj(obj, frame)
         } else {
             let mut frame = self.inherited_cmd_frame();
             frame.level = target_level;
