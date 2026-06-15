@@ -3017,6 +3017,19 @@ line. Remaining `info-33` failures are a distinct issue — `return`/non-OK code
 propagating out of a `for`/`while` **test expression**'s command substitution
 (`for {*}{… {[return …]} …}`), not line tracking.
 
+### SYNC inbound — 2026-06-15 (dynamic control bodies are body-relative `type eval`)
+
+`info.test` 214 → 221 (zero regressions; if 59, while 45, for 51, foreach 38,
+switch 54, dict 315, eval 12, trace 199, oo 357, ooProp 55/55, namespace 238,
+proc 20, apply 21, uplevel 41, error 261 all held). A *dynamic* control body (a
+script held in a variable, `if 1 $body` / `while … $body` / `foreach … $body` /
+`for … $body` / `dict for … $body`) was evaluated with a frame-sharing `eval_str`,
+so `info frame 0` leaked the enclosing command's line/type. C's `TclEvalObjEx`
+always pushes a cmdframe, so the body runs as its own `type eval` level with
+**body-relative** lines (the body's 3rd line reports `line 3`). `eval_control_body`'s
+dynamic fallback now uses `eval_unlocated_body` (push a `type eval`, no-file frame
+with `line_base = 0`) — covering the `info-31` script-in-variable family.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

@@ -2717,7 +2717,10 @@ impl Interp {
     /// …). A body that is a located literal (TIP 280) runs as its own
     /// line-advancing source frame at the body's file line, so `info frame`
     /// reports the executing command's true line; a pure list dispatches by
-    /// element identity; a dynamic body keeps the cheap no-frame eval.
+    /// element identity; a dynamic body (a script in a variable) runs as its own
+    /// `type eval` level with body-relative lines (C's `TclEvalObjEx` always
+    /// pushes a cmdframe — `info frame` reports `line 3` for the body's 3rd line,
+    /// not the enclosing command's line).
     pub(crate) fn eval_control_body(&mut self, body: *mut TclObj) -> Code {
         if crate::list::is_pure_list(body) {
             return self.dispatch_list_obj(body);
@@ -2730,7 +2733,7 @@ impl Interp {
             let bytes = obj_bytes(body);
             return self.eval_framed(&bytes, frame);
         }
-        self.eval_str(&obj_bytes(body))
+        self.eval_unlocated_body(&obj_bytes(body))
     }
 
     /// The TIP 280 source location recorded for `obj` (the literal-argument
