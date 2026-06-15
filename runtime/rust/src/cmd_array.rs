@@ -47,13 +47,99 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"get" => array_get(interp, argv, &name),
         b"set" => array_set(interp, argv, &name),
         b"unset" => array_unset(interp, argv, &name),
+        b"for" => array_for(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be exists, get, names, set, size, or unset");
+            m.extend_from_slice(b"\": must be exists, for, get, names, set, size, or unset");
             interp.set_error(&m)
         }
     }
+}
+
+/// `array for {key value} arrayName script` — iterate the array's elements,
+/// binding the two variables and running `script` each time (C's `ArrayForNRCmd`
+/// / `ArrayForLoopCallback`). A structural change to the array (an element added
+/// or removed) during iteration is an error, matching the invalidated hash
+/// search; changing an existing element's value is fine.
+fn array_for(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 5 {
+        return wrong_args(interp, b"array for {key value} arrayName script");
+    }
+    let varlist = obj_bytes(argv[2]);
+    let vars = match crate::parse::split_list(&varlist) {
+        Ok(v) => v,
+        Err(e) => return interp.set_error(e.message()),
+    };
+    if vars.len() != 2 {
+        return interp.error_with_code(b"must have two variable names", b"TCL SYNTAX array for");
+    }
+    let kvar = vars[0].clone();
+    let vvar = vars[1].clone();
+    let name = obj_bytes(argv[3]);
+    if !interp.var_is_array(&name) {
+        return not_array(interp, &name);
+    }
+    let body = argv[4];
+
+    // Snapshot the element names; the iteration order is the snapshot order and a
+    // change to the *set* of keys (not their values) aborts the loop.
+    let snapshot = interp.array_names(&name).unwrap_or_default();
+    let snapshot_set: std::collections::BTreeSet<Vec<u8>> = snapshot.iter().cloned().collect();
+
+    for idx in 0..=snapshot.len() {
+        // Detect a structural change since the snapshot (C's search invalidation).
+        let current: std::collections::BTreeSet<Vec<u8>> = interp
+            .array_names(&name)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        if current != snapshot_set {
+            return interp
+                .error_with_code(b"array changed during iteration", b"TCL READ array for");
+        }
+        if idx == snapshot.len() {
+            break;
+        }
+        let key = &snapshot[idx];
+        // Read the value through the trace-firing path (var-23.13 counts reads).
+        if let Some(c) = interp.fire_read_trace(&name, Some(key)) {
+            return c;
+        }
+        let Some(value) = interp.var_get_elem(&name, key) else {
+            continue; // element became undefined mid-iteration
+        };
+        let ko = new_string(key);
+        if let Err(e) = interp.var_set(&kvar, ko) {
+            crate::interp::drop_fresh(ko);
+            return crate::builtins::var_error(interp, &kvar, e);
+        }
+        // `value` is borrowed from the store; `var_set` retains it (no drop here).
+        if let Err(e) = interp.var_set(&vvar, value) {
+            return crate::builtins::var_error(interp, &vvar, e);
+        }
+        match interp.eval_control_body(body) {
+            Code::Ok | Code::Continue => {}
+            Code::Break => break,
+            Code::Error => {
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"array for");
+                }
+                return Code::Error;
+            }
+            other => return other,
+        }
+    }
+    interp.set_result_bytes(b"");
+    Code::Ok
+}
+
+/// `"<name>" isn't an array`.
+fn not_array(interp: &mut Interp, name: &[u8]) -> Code {
+    let mut m = b"\"".to_vec();
+    m.extend_from_slice(name);
+    m.extend_from_slice(b"\" isn't an array");
+    interp.set_error(&m)
 }
 
 /// `array names arrayName ?pattern?` — element names (glob-filtered).
