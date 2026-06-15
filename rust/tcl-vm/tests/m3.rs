@@ -255,3 +255,29 @@ fn catch_body_suppressed_until_eval() {
         "1 boom\n",
     );
 }
+
+#[test]
+fn info_exists_local_scalar() {
+    // `info exists` on a proc local compiles to `existScalar`/`existStk`.
+    out_eq(
+        "proc f {} { set x 1; return [info exists x] }\nputs [f]\n",
+        "1\n",
+    );
+    out_eq("proc f {} { return [info exists nope] }\nputs [f]\n", "0\n");
+    out_eq(
+        "proc f {} { set x 1; unset x; return [info exists x] }\nputs [f]\n",
+        "0\n",
+    );
+}
+
+#[test]
+fn info_exists_local_array_elem() {
+    out_eq(
+        "proc f {} { set a(x) 1; return [info exists a(x)] }\nputs [f]\n",
+        "1\n",
+    );
+    out_eq(
+        "proc f {} { set a(x) 1; return [info exists a(y)] }\nputs [f]\n",
+        "0\n",
+    );
+}

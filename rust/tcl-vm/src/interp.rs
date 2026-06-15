@@ -245,6 +245,20 @@ impl Vm {
         )
     }
 
+    /// Whether `name` exists, resolving an `arr(key)` element reference to the
+    /// element — the `info exists` / `existStk` semantic.
+    pub(crate) fn exists_var(&self, name: &str) -> bool {
+        if let Some(open) = name.find('(')
+            && name.ends_with(')')
+            && open > 0
+        {
+            return self
+                .get_array_elem(&name[..open], &name[open + 1..name.len() - 1])
+                .is_some();
+        }
+        self.has_var(name)
+    }
+
     // -- arrays (link-aware via `locate`) --
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {

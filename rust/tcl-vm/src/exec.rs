@@ -520,6 +520,17 @@ impl Vm {
                 let name = lvt_name(imm0(instr));
                 try_op!(self.incr_var(f, &name, i64::from(imm_at(instr, 1))));
             }
+            Op::EXIST_SCALAR => {
+                // The slot name may be an `arr(key)` element reference baked
+                // into the LVT (the codegen names the slot `a(x)`), so resolve
+                // it element-aware.
+                let name = lvt_name(imm0(instr));
+                f.stack.push(Value::bool(self.exists_var(&name)));
+            }
+            Op::EXIST_STK => {
+                let name = pop(f).to_str();
+                f.stack.push(Value::bool(self.exists_var(&name)));
+            }
 
             // -- arrays --
             Op::LOAD_ARRAY_STK => {
