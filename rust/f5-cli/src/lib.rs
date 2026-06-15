@@ -211,6 +211,23 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             modify,
             include,
         } => commands::tmsh::run_tmsh(path, output.as_deref(), *modify, include),
+        Command::Convert {
+            format,
+            path,
+            output,
+            tenant,
+            application,
+            report,
+            passphrase,
+        } => commands::convert::run_convert(
+            format,
+            path,
+            output.as_deref(),
+            tenant,
+            application,
+            *report,
+            passphrase,
+        ),
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Completion { shell } => {
             use clap::CommandFactory;

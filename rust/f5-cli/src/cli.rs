@@ -322,19 +322,25 @@ pub enum Command {
 
     /// Convert between UCS / SCF / AS3 declaration formats.
     Convert {
-        /// Conversion direction.
+        /// Conversion to perform.
         #[arg(value_parser = ["ucs2scf", "scf2as3"])]
         format: String,
-        inputs: Vec<PathBuf>,
-        /// AS3 tenant name (scf2as3).
-        #[arg(long, value_name = "NAME")]
-        tenant: Option<String>,
-        /// AS3 application name (scf2as3).
-        #[arg(long, value_name = "NAME")]
-        application: Option<String>,
-        /// Emit a coverage report instead of the conversion.
+        /// Input file (`-` for stdin; UCS must be a real file).
+        path: String,
+        /// Write here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        /// (scf2as3) Tenant name in the AS3 declaration (default: Common).
+        #[arg(long, default_value = "Common", value_name = "NAME")]
+        tenant: String,
+        /// (scf2as3) Application name in the AS3 declaration (default: app).
+        #[arg(long, default_value = "app", value_name = "NAME")]
+        application: String,
+        /// (scf2as3) Print a coverage report on stderr listing unmapped objects.
         #[arg(long)]
         report: bool,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// jq-flavoured DSL for inspecting and rewriting BIG-IP configs.

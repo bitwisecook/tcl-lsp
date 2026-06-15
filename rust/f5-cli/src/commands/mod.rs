@@ -6,6 +6,7 @@
 //! `tcl-bigip` parser.
 
 pub mod cleanup;
+pub mod convert;
 pub mod diff;
 pub mod difflib;
 pub mod emit;

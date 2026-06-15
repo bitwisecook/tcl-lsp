@@ -8,6 +8,7 @@
 pub mod enums;
 pub mod r#gen;
 pub mod minimal;
+pub mod port_names;
 
 pub use enums::{DataGroupType, ProfileType};
 pub use r#gen::*;

@@ -18,6 +18,7 @@
 pub mod apl;
 pub mod canonical;
 pub mod cleanup;
+pub mod convert;
 pub mod graph;
 pub mod grep;
 pub mod jsonfmt;
