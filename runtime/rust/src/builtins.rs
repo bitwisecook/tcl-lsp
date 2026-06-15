@@ -433,24 +433,27 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// unset variable or a failing command substitution propagate.
 fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
-    let mut flags = crate::subst::SubstFlags::default();
-    let mut i = 1;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-nobackslashes" => flags.backslashes = false,
-            b"-nocommands" => flags.cmds = false,
-            b"-novariables" => flags.vars = false,
-            _ => break,
-        }
-        i += 1;
-    }
-    if i != argv.len() - 1 {
+    if argv.len() < 2 {
         return wrong_args(interp, USAGE);
     }
-    let src = obj_bytes(argv[i]);
+    // Every argument before the last is an option (C's `TclSubstOptions` over
+    // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
+    let mut flags = crate::subst::SubstFlags::default();
+    for &opt in &argv[1..argv.len() - 1] {
+        let name = obj_bytes(opt);
+        match subst_option_index(&name) {
+            SubstOpt::Backslashes => flags.backslashes = false,
+            SubstOpt::Commands => flags.cmds = false,
+            SubstOpt::Variables => flags.vars = false,
+            SubstOpt::Bad => return subst_bad_option(interp, b"bad", &name),
+            SubstOpt::Ambiguous => return subst_bad_option(interp, b"ambiguous", &name),
+        }
+    }
+    let last = argv[argv.len() - 1];
+    let src = obj_bytes(last);
     // TIP 280: a `[...]` inside the substituted string reports the line it sits
     // on, derived from the argument word's recorded source location.
-    let loc = interp.arg_location(argv[i]);
+    let loc = interp.arg_location(last);
     match interp.do_subst_located(&src, flags, loc) {
         Ok(bytes) => {
             interp.set_result_bytes(&bytes);
@@ -458,6 +461,48 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Err(code) => code, // the failing sub already set the result
     }
+}
+
+/// The resolution of a `subst` option word against `{-nobackslashes,
+/// -nocommands, -novariables}` (Tcl's exact-or-unique-prefix matching).
+enum SubstOpt {
+    Backslashes,
+    Commands,
+    Variables,
+    Bad,
+    Ambiguous,
+}
+
+fn subst_option_index(name: &[u8]) -> SubstOpt {
+    const NAMES: [&[u8]; 3] = [b"-nobackslashes", b"-nocommands", b"-novariables"];
+    let mut found = None;
+    let mut count = 0;
+    for (k, n) in NAMES.iter().enumerate() {
+        if *n == name {
+            count = 1;
+            found = Some(k);
+            break;
+        }
+        if n.starts_with(name) {
+            found = Some(k);
+            count += 1;
+        }
+    }
+    match (count, found) {
+        (1, Some(0)) => SubstOpt::Backslashes,
+        (1, Some(1)) => SubstOpt::Commands,
+        (1, Some(2)) => SubstOpt::Variables,
+        (0, _) => SubstOpt::Bad,
+        _ => SubstOpt::Ambiguous,
+    }
+}
+
+fn subst_bad_option(interp: &mut Interp, kind: &[u8], name: &[u8]) -> Code {
+    let mut m = kind.to_vec();
+    m.extend_from_slice(b" option \"");
+    m.extend_from_slice(name);
+    m.extend_from_slice(b"\": must be -nobackslashes, -nocommands, or -novariables");
+    interp.set_error(&m)
 }
 
 // -- helpers ---------------------------------------------------------------

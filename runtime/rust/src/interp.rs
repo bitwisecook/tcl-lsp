@@ -4600,11 +4600,18 @@ impl Interp {
                     }
                 }
                 WordPart::Command(script) => {
-                    let code = self.eval_command_subst(src, script);
-                    if code != Code::Ok {
-                        return Err(code);
+                    // `subst`'s per-`[...]` completion-code rule (C's compiled
+                    // subst / `TclSubstTokens`): `break` ends the whole
+                    // substitution (returning what's accumulated), `continue`
+                    // contributes nothing for this bracket, and any other
+                    // non-error code (`return`, custom) substitutes its result.
+                    // Only a genuine error propagates.
+                    match self.eval_command_subst(src, script) {
+                        Code::Ok | Code::Return => out.extend_from_slice(&self.result_bytes()),
+                        Code::Break => break,
+                        Code::Continue => {}
+                        Code::Error => return Err(Code::Error),
                     }
-                    out.extend_from_slice(&self.result_bytes());
                 }
             }
         }
