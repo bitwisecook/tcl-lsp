@@ -95,18 +95,31 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Interp::procs_in_namespace,
             Interp::visible_proc_names,
         ),
-        b"vars" => set_list(
+        b"vars" => set_list_qualified(
             interp,
             argv,
             b"info vars ?pattern?",
+            Interp::vars_in_namespace,
             Interp::visible_var_names,
         ),
-        b"globals" => set_list(
-            interp,
-            argv,
-            b"info globals ?pattern?",
-            Interp::global_var_names,
-        ),
+        b"globals" => {
+            if argv.len() > 3 {
+                return wrong_args(interp, b"info globals ?pattern?");
+            }
+            // Strip leading global-namespace qualifiers (Bug 1057461): only when
+            // the pattern starts with `::` — then drop *all* leading colons, so
+            // `::x`/`:::x` match global `x` but a lone `:x` does not.
+            let pattern = argv.get(2).map(|&a| obj_bytes(a)).map(|p| {
+                if p.starts_with(b"::") {
+                    let n = p.iter().position(|&c| c != b':').unwrap_or(p.len());
+                    p[n..].to_vec()
+                } else {
+                    p
+                }
+            });
+            let list = interp.global_var_names();
+            set_filtered(interp, list, pattern.as_deref())
+        }
         b"locals" => set_list(
             interp,
             argv,

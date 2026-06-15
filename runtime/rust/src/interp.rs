@@ -126,6 +126,11 @@ pub(crate) struct CallMeta<'a> {
     /// constructor (the `create`/`new` invocation, e.g. `oo::object create foo`)
     /// so `info level 0` reflects the instantiation, not `<constructor>`.
     pub level_words: Option<Vec<Vec<u8>>>,
+    /// List-quote the command name in a `wrong # args` message (Bug 942757) — a
+    /// genuine single-word proc name (`a b  c` → `{a b  c}`, `` → `{}`). Off for
+    /// `apply`/TclOO whose `usage_called`/`usage_prefix` is a pre-joined
+    /// multi-word string (`apply lambdaExpr`, `obj method`) that must stay raw.
+    pub quote_name: bool,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -153,6 +158,12 @@ struct CmdFrame {
     /// current var-scope chain, which is the `uplevel` case (its body runs in a
     /// redirected scope).
     omit_level: bool,
+    /// The **stack index** (identity, not logical level) of the CallFrame this
+    /// cmd-frame runs in — C's `framePtr->framePtr`. `level` alone can't identify
+    /// the frame (an `uplevel`-invoked proc shares its caller's level), so the
+    /// `info frame` `level` reachability test (TclInfoFrame) walks the caller
+    /// chain by this index. `0` is the global frame.
+    frame_index: usize,
     /// Added to a body-relative line to get the reported `line`. `0` for
     /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
     /// for a proc defined in a `source`d file it is the file line where the body
@@ -216,6 +227,7 @@ impl CmdFrame {
             proc: None,
             level: 0,
             omit_level: false,
+            frame_index: 0,
             line_base: 0,
             cmd: Vec::new(),
             line: 1,
@@ -1200,12 +1212,17 @@ impl Interp {
             Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
             None => (FrameKind::Eval, None, 0),
         };
+        let (ns_level, ns_index) = {
+            let f = self.frames.borrow();
+            (f.current_level(), f.current_frame_index())
+        };
         let frame = CmdFrame {
             kind,
             file,
             proc: None,
-            level: self.frames.borrow().current_level(),
+            level: ns_level,
             omit_level: false,
+            frame_index: ns_index,
             line_base,
             cmd: Vec::new(),
             line: 1,
@@ -2079,6 +2096,26 @@ impl Interp {
         }
     }
 
+    /// Variable names in the namespace named `qualifier` (`info vars
+    /// ::ns::pattern`), or empty if it does not exist. An empty qualifier (a
+    /// leading `::pattern`) addresses the global namespace.
+    pub(crate) fn vars_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.var_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Proc names visible from the current namespace (`info procs`).
     pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
@@ -2506,6 +2543,26 @@ impl Interp {
         self.exc.borrow_mut().already_logged = false;
     }
 
+    /// Append `"\n    (parsing lambda expression \"<name>\")"` to errorInfo — the
+    /// `apply` lambda-parse failure frame (C's `Tcl_AppendObjToErrorInfo` in
+    /// `Tcl_ApplyObjCmd`). Unlike [`append_frame_line`](Self::append_frame_line)
+    /// it carries no `line N` suffix. Clears `already_logged` so the enclosing
+    /// `apply` command still logs its own `invoked from within` frame.
+    pub(crate) fn append_lambda_parse_frame(&mut self, name: &[u8]) {
+        if self.exc.borrow().info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        {
+            let mut exc = self.exc.borrow_mut();
+            let buf = exc.info.as_mut().expect("seeded above");
+            buf.extend_from_slice(b"\n    (parsing lambda expression \"");
+            buf.extend_from_slice(name);
+            buf.extend_from_slice(b"\")");
+        }
+        self.exc.borrow_mut().already_logged = false;
+    }
+
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
         let line = self.exc.borrow().line;
         if self.exc.borrow().info.is_none() {
@@ -2567,11 +2624,19 @@ impl Interp {
         } else if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
-        // `level` is the distance from the current call level (omitted for a
-        // redirected `uplevel` scope, matching C's reachability check).
+        // `level` is the distance from the current call level — but C only adds
+        // it when the frame's CallFrame is *reachable* from the current var frame
+        // by walking the caller chain (`TclInfoFrame`). A frame bypassed by an
+        // `uplevel` redirection (e.g. the proc that called `uplevel`, when viewed
+        // from the uplevel'd callee) is off the chain and omits `level`, even
+        // though it shares a level with a chain frame. `omit_level` short-circuits
+        // the explicit `uplevel`-body case (C's `framePtr->framePtr == NULL`).
         if !f.omit_level {
-            let level = self.frames.borrow().current_level().saturating_sub(f.level);
-            pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+            let frames = self.frames.borrow();
+            if frames.caller_chain_indices().contains(&f.frame_index) {
+                let level = frames.current_level().saturating_sub(f.level);
+                pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+            }
         }
         Some(pairs)
     }
@@ -2725,6 +2790,10 @@ impl Interp {
             // Inherit the enclosing frame's level-reachability (an inline body
             // of an `uplevel`-redirected script also omits `level`).
             omit_level: top.is_some_and(|f| f.omit_level),
+            // An `eval`/body frame runs in the enclosing call frame — inherit its
+            // identity so the `info frame` `level` reachability test sees it as
+            // the same CallFrame.
+            frame_index: top.map_or(0, |f| f.frame_index),
             line_base,
             cmd: Vec::new(),
             line: 1,
@@ -2747,6 +2816,15 @@ impl Interp {
             return self.dispatch_list_obj(body, frame);
         }
         if let Some((file, line)) = self.arg_loc(body) {
+            // Inside a proc the enclosing command (`while`/`for`/`if`/`foreach`/
+            // `try`) is compiled inline, so its literal body runs in the **same**
+            // `info frame` level — no new frame, the shared frame's line just
+            // advances to each body command (C's bytecode inlining). At the top
+            // level (uncompiled command form) the body is evaluated as its own
+            // frame (`TclEvalObjEx`), matching tclsh's `info frame` depth.
+            if self.in_proc() {
+                return self.eval_shared_located_body(body, line);
+            }
             let mut frame = self.inherited_cmd_frame();
             frame.kind = FrameKind::Source;
             frame.file = file;
@@ -2757,12 +2835,61 @@ impl Interp {
         self.eval_unlocated_body(&obj_bytes(body))
     }
 
+    /// Evaluate a located-literal control body that is **inlined** into the
+    /// enclosing frame (the in-proc case of [`eval_control_body`]). The enclosing
+    /// frame is shared (no new `info frame` level); its `line_base` is shifted so
+    /// the body's commands report their own file-absolute lines, then restored.
+    /// The body literal lives in the same source as the enclosing frame, so the
+    /// frame's `kind`/`file` already match — only the line mapping changes.
+    fn eval_shared_located_body(&mut self, body: *mut TclObj, line: u32) -> Code {
+        let saved = {
+            let mut frames = self.cmd_frames.borrow_mut();
+            frames.last_mut().map(|top| {
+                let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                top.line_base = line.saturating_sub(1);
+                saved
+            })
+        };
+        let Some((line_base, line, cmd)) = saved else {
+            // No enclosing frame to share (shouldn't happen under `in_proc`) —
+            // fall back to a body-relative eval rather than panic.
+            return self.eval_unlocated_body(&obj_bytes(body));
+        };
+        let bytes = obj_bytes(body);
+        let code = self.eval_script_mode(&bytes, None, true);
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            top.line_base = line_base;
+            top.line = line;
+            top.cmd = cmd;
+        }
+        code
+    }
+
     /// The TIP 280 source location recorded for `obj` (the literal-argument
     /// location table), or `None` for a dynamic value. Lets a command that
     /// re-splits a literal (e.g. `switch`'s single-list-arg form) recover the
     /// enclosing file + the list word's line, to derive its sub-bodies' lines.
     pub(crate) fn arg_location(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
         self.arg_loc(obj)
+    }
+
+    /// Point the current shared frame's `line_base` at `line` (a condition word's
+    /// source line) so command substitutions inside an `if`/`while`/`for`
+    /// expression report their file-absolute line (TIP 280). Returns the previous
+    /// `line_base` to hand back to [`restore_line_base`](Self::restore_line_base).
+    pub(crate) fn push_cond_line_base(&self, line: u32) -> Option<u32> {
+        self.cmd_frames.borrow_mut().last_mut().map(|top| {
+            let old = top.line_base;
+            top.line_base = line.saturating_sub(1);
+            old
+        })
+    }
+
+    /// Restore a `line_base` saved by [`push_cond_line_base`](Self::push_cond_line_base).
+    pub(crate) fn restore_line_base(&self, old: u32) {
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            top.line_base = old;
+        }
     }
 
     /// The `(file, line)` of list element `index` within the literal `obj` — for
@@ -3814,6 +3941,7 @@ impl Interp {
                 same_level: false,
                 usage_prefix: None,
                 level_words: None,
+                quote_name: true,
             },
         )
     }
@@ -3851,7 +3979,7 @@ impl Interp {
         let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&self.proc_wrong_args(usage, params, supplied));
+            return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth.get() >= RECURSION_LIMIT {
@@ -3907,7 +4035,7 @@ impl Interp {
                 self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&self.proc_wrong_args(usage, params, supplied));
+                return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
             };
             if stored.is_err() {
                 self.frames.borrow_mut().pop();
@@ -3947,6 +4075,10 @@ impl Interp {
             ProcFrame::Lambda(expr) => Some(expr.to_vec()),
             _ => None,
         };
+        let (proc_lvl, proc_idx) = {
+            let f = self.frames.borrow();
+            (f.current_level(), f.current_frame_index())
+        };
         let proc_frame = CmdFrame {
             kind: if meta.source.is_some() {
                 FrameKind::Source
@@ -3955,8 +4087,9 @@ impl Interp {
             },
             file: meta.source,
             proc: meta.fqn.map(<[u8]>::to_vec),
-            level: self.frames.borrow().current_level(),
+            level: proc_lvl,
             omit_level: false,
+            frame_index: proc_idx,
             line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
@@ -4509,6 +4642,7 @@ impl Interp {
         called: &[u8],
         params: &[Param],
         supplied: usize,
+        quote_name: bool,
     ) -> Vec<u8> {
         if let Some(rw) = self.ensemble_rewrite() {
             // How many trailing words of `source` were the user's own arguments,
@@ -4527,7 +4661,7 @@ impl Interp {
                 return proc_usage_words(&prefix, &params[drop..], params);
             }
         }
-        proc_usage(called, params)
+        proc_usage(called, params, quote_name)
     }
 }
 
@@ -4559,9 +4693,16 @@ fn proc_usage_words(words: &[&[u8]], shown: &[Param], all: &[Param]) -> Vec<u8> 
     m
 }
 
-fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
+fn proc_usage(called: &[u8], params: &[Param], quote_name: bool) -> Vec<u8> {
     let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(called);
+    // A single-word proc name is list-quoted if it needs it — `a b  c` → `{a b  c}`,
+    // `` → `{}` (C's `Tcl_WrongNumArgs` via `TclScanElement`, Bug 942757). `apply`
+    // and TclOO pass a pre-joined multi-word usage prefix that must stay raw.
+    if quote_name {
+        crate::list::append_list_element(&mut m, called, false);
+    } else {
+        m.extend_from_slice(called);
+    }
     let n = params.len();
     for (i, p) in params.iter().enumerate() {
         m.push(b' ');

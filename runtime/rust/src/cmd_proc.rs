@@ -62,14 +62,20 @@ pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
         let parts = split_list(e).map_err(|er| er.message().to_vec())?;
         match parts.len() {
             0 => return Err(b"argument with no name".to_vec()),
-            1 => params.push(Param {
-                name: parts[0].clone(),
-                default: None,
-            }),
-            2 => params.push(Param {
-                name: parts[0].clone(),
-                default: Some(parts[1].clone()),
-            }),
+            1 => {
+                check_param_name(&parts[0])?;
+                params.push(Param {
+                    name: parts[0].clone(),
+                    default: None,
+                });
+            }
+            2 => {
+                check_param_name(&parts[0])?;
+                params.push(Param {
+                    name: parts[0].clone(),
+                    default: Some(parts[1].clone()),
+                });
+            }
             _ => {
                 let mut m = b"too many fields in argument specifier \"".to_vec();
                 m.extend_from_slice(e);
@@ -79,6 +85,36 @@ pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
         }
     }
     Ok(params)
+}
+
+/// A formal parameter name must be a scalar simple name: not an array element
+/// (`a(1)`) and not namespace-qualified (`a::b`). Mirrors the scan in C's
+/// `TclCreateProc` (`tclProc.c`): an `(` anywhere before the final char with a
+/// trailing `)` is an array element; a `::` anywhere before the final char makes
+/// the name non-simple.
+fn check_param_name(name: &[u8]) -> Result<(), Vec<u8>> {
+    if name.is_empty() {
+        return Ok(());
+    }
+    let last = name.len() - 1;
+    let mut i = 0;
+    while i < last {
+        if name[i] == b'(' {
+            if name[last] == b')' {
+                let mut m = b"formal parameter \"".to_vec();
+                m.extend_from_slice(name);
+                m.extend_from_slice(b"\" is an array element");
+                return Err(m);
+            }
+        } else if name[i] == b':' && name[i + 1] == b':' {
+            let mut m = b"formal parameter \"".to_vec();
+            m.extend_from_slice(name);
+            m.extend_from_slice(b"\" is not a simple name");
+            return Err(m);
+        }
+        i += 1;
+    }
+    Ok(())
 }
 
 // -- apply -----------------------------------------------------------------
@@ -103,10 +139,37 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let params = match parse_params(&parts[0]) {
         Ok(p) => p,
-        Err(e) => return interp.set_error(&e),
+        Err(e) => {
+            // A malformed parameter list: report the parse error, then add the
+            // `(parsing lambda expression "<lambda>")` errorInfo frame (C's
+            // `Tcl_ApplyObjCmd` after a failed `TclCreateProc`).
+            let code = interp.set_error(&e);
+            interp.append_lambda_parse_frame(&lambda);
+            return code;
+        }
     };
     let ns = if parts.len() == 3 {
-        interp.ensure_namespace(&parts[2])
+        // C prepends `::` to a non-global-qualified namespace name, then resolves
+        // it (`TclGetNamespaceFromObj`); a missing namespace is an error — apply
+        // does **not** create it.
+        let full: Vec<u8> = if parts[2].starts_with(b"::") {
+            parts[2].clone()
+        } else {
+            let mut f = b"::".to_vec();
+            f.extend_from_slice(&parts[2]);
+            f
+        };
+        match interp.find_namespace_id(&full) {
+            Some(id) => id,
+            None => {
+                let mut m = b"namespace \"".to_vec();
+                m.extend_from_slice(&full);
+                m.extend_from_slice(b"\" not found");
+                let mut ecode = b"TCL LOOKUP NAMESPACE ".to_vec();
+                ecode.extend_from_slice(&full);
+                return interp.error_with_code(&m, &ecode);
+            }
+        }
     } else {
         crate::namespace::GLOBAL
     };
@@ -116,6 +179,10 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some((file, line)) => (Some(file), line.saturating_sub(1)),
         None => (None, 0),
     };
+    // `info level N` of a lambda reports the actual invocation words
+    // (`apply <lambdaExpr> ?arg ...?`), not the `apply lambdaExpr` usage prefix
+    // used for `wrong # args` (C records `objv` verbatim for the lambda frame).
+    let level_words: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
     interp.run_proc(
         &params,
         &parts[1],
@@ -131,7 +198,8 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
-            level_words: None,
+            level_words: Some(level_words),
+            quote_name: false,
         },
     )
 }

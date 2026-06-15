@@ -3119,6 +3119,77 @@ Out of scope here (blocked elsewhere): bignum `string index` arithmetic
 (`cmd_list::index_spec`), surrogate `\u` distinctness (lexer collapses to
 U+FFFD), and `tcl::prefix -error` return options (interp return-options).
 
+### SYNC inbound — 2026-06-15 (info frame: try bodies, inline-body sharing, condition `[cmd]` lines, expr code propagation)
+
+Chunk: TIP 280 `info frame` line-correctness follow-ups on top of PR #607, in
+`runtime/rust/src/{cmd_error.rs,cmd_control.rs,builtins.rs,interp.rs}`, written
+against `tclCmdMZ.c` (`Tcl_TryObjCmd`), `tclCmdAH.c`/`tclExecute.c` (inline
+`while`/`for`/`if`/`foreach` compilation), and `tclCmdIL.c` (`TclInfoFrame`).
+`info.test` 227→241 / 287; zero regressions (trace 199, oo 357, namespace 238,
+dict 325, error 261, eval 12/12 held).
+
+- **`try` body/handler/finally** kept their argument *objects* (not flattened
+  bytes) and run through `eval_control_body`, so a literal body's source location
+  is recovered for `info frame` (info-33.23–33.31, 8 tests).
+- **Inline control bodies share the frame.** In a proc, `while`/`for`/`if`/
+  `foreach`/`try` are compiled inline, so their literal bodies run in the *same*
+  `info frame` level — the runtime had pushed a new `CmdFrame` per body,
+  inflating depth by one (3 where tclsh reports 2) and freezing the proc frame's
+  reported line/cmd. Now an in-proc located-literal body shares the enclosing
+  frame (shift `line_base`, restore after) via `eval_shared_located_body`;
+  top-level and dynamic/pure-list bodies still get their own frame (C's
+  uncompiled `TclEvalObjEx`). Fixes the absolute-level `info frame $level` corner
+  (info-38.1, etrace/while line) and verified `info frame` depth vs tclsh9.0.
+- **Condition `[cmd]` source line.** `eval_bool_expr` now takes the condition
+  *object* and, for a located literal, shifts the shared frame's `line_base` to
+  the condition word while the expression evaluates, so a `[cmd]` substitution in
+  an `if`/`while`/`for` condition reports its file-absolute line (info-33.11/14/21).
+- **expr command-subst code propagation.** A `[cmd]` operand inside an expression
+  that completes with `return`/`break`/`continue` (codes 2/3/4) now propagates
+  that code out of the whole expression instead of raising "expected boolean
+  value" — matching C, where the substitution's bytecode unwinds the
+  expr-bearing command. Threaded as `propagated_code` through `InterpExprCtx`.
+
+Adjacent `apply`/`proc` parameter + diagnostic fixes (same session), in
+`cmd_proc.rs`/`interp.rs` against `tclProc.c` (`TclCreateProc`,
+`Tcl_ApplyObjCmd`, `ProcWrongNumArgs`) and `tclIndexObj.c` (`Tcl_WrongNumArgs`).
+apply.test 21→31, proc.test 20→24; no regressions.
+
+- A malformed lambda parameter list adds the `(parsing lambda expression
+  "<lambda>")` errorInfo frame after the parse error.
+- `parse_params` rejects non-scalar formal names: `a(1)` (array element) and
+  `a::b` (not a simple name) — shared by `proc` and `apply`.
+- `apply` resolves its namespace (prepending `::`) and errors `namespace "<n>"
+  not found` instead of creating it.
+- `info level N` of a lambda reports the real `apply <lambdaExpr> ?arg ...?`
+  invocation, not the `apply lambdaExpr` usage prefix.
+- A `wrong # args` message list-quotes a genuine single-word proc name (Bug
+  942757: `a b  c` → `{a b  c}`, `` → `{}`), gated by `CallMeta.quote_name` so
+  `apply`/TclOO multi-word usage prefixes stay raw.
+
+`info` introspection follow-ups (same session), against `tclVar.c`
+(`TclInfoGlobalsCmd`/`TclInfoVarsCmd`) and `tclCmdIL.c` (`TclInfoFrame`).
+info.test 241→246, var.test 73→76; no regressions.
+
+- `info globals` strips leading global-namespace qualifiers when the pattern
+  starts with `::` (Bug 1057461) — `::x`/`:::x` match global `x`, a lone `:x`
+  does not (info-8.4).
+- `info vars` handles a namespace-qualified pattern via the shared
+  qualified-lookup path (`vars_in_namespace`), re-qualifying matches to their
+  full names (info-19.9).
+- `info frame` `level`-omission **reachability** for `uplevel`-bypassed frames:
+  each `CmdFrame` records its CallFrame stack index (`frame_index`), and the
+  `level` key is gated on caller-chain membership (`caller_chain_indices` walks
+  `saved_active` by identity, so an `uplevel` redirection's chain skips the frame
+  it bypassed even when levels coincide). info-38.3/38.5.
+
+Out of scope here (deliberately deferred): info-38.2/4/6 (blocked on `interp
+debug`), `switch -regexp` (info-30.16/17/19/20), `info cmdtype`/`cmdcount`
+(info-40/info-3), the alias-rewrite `wrong # args` prefix (apply-4.3–4.5), and
+insertion-ordered `info locals` (apply-8.2/8.3 — the var table is a sorted
+`BTreeMap`). Untouched per the parallel-work exclusion: `cmd_string.rs` and the
+`string` helpers in `rust/tcl-syntax/src/`.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

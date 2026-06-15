@@ -132,20 +132,22 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- try / throw -----------------------------------------------------------
 
-/// A `try` handler clause.
+/// A `try` handler clause. The handler `script` is kept as its argument object
+/// (not flattened to bytes) so it evaluates through `eval_control_body`, which
+/// recovers the literal's TIP 280 source location for `info frame`.
 enum Handler {
     /// `on code varList script` — matches the body's completion code.
     On {
         code: Vec<u8>,
         vars: Vec<u8>,
-        script: Vec<u8>,
+        script: *mut TclObj,
     },
     /// `trap pattern varList script` — matches an error whose `-errorcode`
     /// has `pattern` (a list) as a leading sublist.
     Trap {
         pattern: Vec<u8>,
         vars: Vec<u8>,
-        script: Vec<u8>,
+        script: *mut TclObj,
     },
 }
 
@@ -183,10 +185,10 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, USAGE);
     }
-    let body = obj_bytes(argv[1]);
+    let body = argv[1];
 
     let mut handlers: Vec<Handler> = Vec::new();
-    let mut finally: Option<Vec<u8>> = None;
+    let mut finally: Option<*mut TclObj> = None;
     let mut j = 2;
     while j < argv.len() {
         match obj_bytes(argv[j]).as_slice() {
@@ -196,14 +198,14 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         b"wrong # args to finally clause: must be \"... finally script\"",
                     );
                 }
-                finally = Some(obj_bytes(argv[j + 1]));
+                finally = Some(argv[j + 1]);
                 j += 2;
             }
             b"on" if j + 4 <= argv.len() => {
                 handlers.push(Handler::On {
                     code: obj_bytes(argv[j + 1]),
                     vars: obj_bytes(argv[j + 2]),
-                    script: obj_bytes(argv[j + 3]),
+                    script: argv[j + 3],
                 });
                 j += 4;
             }
@@ -211,7 +213,7 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 handlers.push(Handler::Trap {
                     pattern: obj_bytes(argv[j + 1]),
                     vars: obj_bytes(argv[j + 2]),
-                    script: obj_bytes(argv[j + 3]),
+                    script: argv[j + 3],
                 });
                 j += 4;
             }
@@ -224,7 +226,9 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     // Run the body, snapshotting its completion code, result, and -errorcode.
-    let body_code = interp.eval_str(&body);
+    // `eval_control_body` recovers the body literal's TIP 280 source location so
+    // an `info frame` inside reports the right `type source` line.
+    let body_code = interp.eval_control_body(body);
     let body_result = interp.result_bytes();
     let errorcode = if body_code == Code::Error {
         interp.error_code()
@@ -278,14 +282,14 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if body_code == Code::Error {
             interp.publish_and_reset_error();
         }
-        outcome_code = interp.eval_str(script);
+        outcome_code = interp.eval_control_body(*script);
         outcome_result = interp.result_bytes();
         break;
     }
 
     // `finally` always runs; only its error overrides the result.
     if let Some(fin) = finally {
-        let fc = interp.eval_str(&fin);
+        let fc = interp.eval_control_body(fin);
         if fc != Code::Ok {
             return fc; // finally's result is already the interp result
         }
