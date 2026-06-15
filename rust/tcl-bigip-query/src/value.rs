@@ -341,6 +341,23 @@ fn sorted_object_pairs(v: &Value) -> Vec<(String, Value)> {
     pairs
 }
 
+/// Resolve a possibly-negative index against a length; `None` if out of
+/// range. Mirrors Python's `-len <= i < len` slice-index check.
+#[must_use]
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+pub fn resolve_index_pub(i: i64, len: usize) -> Option<usize> {
+    let len_i = len as i64;
+    if i >= -len_i && i < len_i {
+        Some(if i < 0 {
+            (len_i + i) as usize
+        } else {
+            i as usize
+        })
+    } else {
+        None
+    }
+}
+
 /// Coerce a `PathRef` to its full-path string for scalar operators — port
 /// of the evaluator's `_coerce_scalar`.
 #[must_use]

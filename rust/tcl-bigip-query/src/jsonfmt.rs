@@ -20,7 +20,7 @@ use crate::value::Value;
 #[must_use]
 pub fn to_pretty(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, Some(0));
+    write_value(&mut out, value, Some(0), false);
     out
 }
 
@@ -28,7 +28,16 @@ pub fn to_pretty(value: &Value) -> String {
 #[must_use]
 pub fn to_compact(value: &Value) -> String {
     let mut out = String::new();
-    write_value(&mut out, value, None);
+    write_value(&mut out, value, None, false);
+    out
+}
+
+/// Compact serialisation with `sort_keys=True` — the spelling `tostring`
+/// uses for composite values.
+#[must_use]
+pub fn to_compact_sorted(value: &Value) -> String {
+    let mut out = String::new();
+    write_value(&mut out, value, None, true);
     out
 }
 
@@ -39,7 +48,7 @@ fn indent(out: &mut String, level: usize) {
     }
 }
 
-fn write_value(out: &mut String, value: &Value, level: Option<usize>) {
+fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys: bool) {
     match value {
         Value::Null | Value::Drop => out.push_str("null"),
         Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
@@ -47,9 +56,14 @@ fn write_value(out: &mut String, value: &Value, level: Option<usize>) {
         Value::Float(f) => out.push_str(&py_float_repr(*f)),
         Value::Str(s) => write_string(out, s),
         Value::PathRef(p) => write_string(out, &p.full_path),
-        Value::List(items) | Value::Stream(items) => write_array(out, items, level),
+        Value::List(items) | Value::Stream(items) => write_array(out, items, level, sort_keys),
         Value::Object(map) => {
-            write_object(out, map.iter().map(|(k, v)| (k.as_str(), v)), level);
+            write_object(
+                out,
+                map.iter().map(|(k, v)| (k.as_str(), v)),
+                level,
+                sort_keys,
+            );
         }
         Value::ObjectRef(o) => {
             // `_to_json(ObjectRef)` → {"kind", "full-path", "fields": {...}}.
@@ -59,12 +73,12 @@ fn write_value(out: &mut String, value: &Value, level: Option<usize>) {
                 ("full-path", Value::Str(o.full_path.clone())),
                 ("fields", fields),
             ];
-            write_object(out, entries.iter().map(|(k, v)| (*k, v)), level);
+            write_object(out, entries.iter().map(|(k, v)| (*k, v)), level, sort_keys);
         }
     }
 }
 
-fn write_array(out: &mut String, items: &[Value], level: Option<usize>) {
+fn write_array(out: &mut String, items: &[Value], level: Option<usize>, sort_keys: bool) {
     if items.is_empty() {
         out.push_str("[]");
         return;
@@ -78,7 +92,7 @@ fn write_array(out: &mut String, items: &[Value], level: Option<usize>) {
         if let Some(l) = inner {
             indent(out, l);
         }
-        write_value(out, item, inner);
+        write_value(out, item, inner, sort_keys);
     }
     if let Some(l) = level {
         indent(out, l);
@@ -90,8 +104,12 @@ fn write_object<'a>(
     out: &mut String,
     entries: impl Iterator<Item = (&'a str, &'a Value)>,
     level: Option<usize>,
+    sort_keys: bool,
 ) {
-    let entries: Vec<(&str, &Value)> = entries.collect();
+    let mut entries: Vec<(&str, &Value)> = entries.collect();
+    if sort_keys {
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+    }
     if entries.is_empty() {
         out.push_str("{}");
         return;
@@ -109,7 +127,7 @@ fn write_object<'a>(
         // With `indent` set, Python's key separator is `": "`; compact mode
         // uses `":"`.
         out.push_str(if level.is_some() { ": " } else { ":" });
-        write_value(out, val, inner);
+        write_value(out, val, inner, sort_keys);
     }
     if let Some(l) = level {
         indent(out, l);
