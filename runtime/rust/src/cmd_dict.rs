@@ -614,13 +614,14 @@ fn dict_path_set(
     dict::dict_set(dict, *head, sub)
 }
 
-/// `dict unset dictVarName key` — remove from the dict held by the variable.
+/// `dict unset dictVarName key ?key ...?` — remove the value at a (possibly
+/// nested) key path from the dict held by the variable.
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 4 {
+    if argv.len() < 4 {
         return wrong_args(interp, b"dict unset dictVarName key ?key ...?");
     }
     let name = obj_bytes(argv[2]);
-    let key = obj_bytes(argv[3]);
+    let keys = &argv[3..];
 
     if let Some(c) = interp.const_write_check(&name) {
         return c;
@@ -630,11 +631,20 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
     };
-    if let Err(e) = dict::dict_unset(target, &key) {
-        if is_new {
-            drop_fresh(target);
+    match dict_path_unset(target, keys) {
+        Ok(()) => {}
+        Err(PathErr::KeyMissing(k)) => {
+            if is_new {
+                drop_fresh(target);
+            }
+            return key_not_known(interp, &k);
         }
-        return bad_dict(interp, e);
+        Err(PathErr::Bad(e)) => {
+            if is_new {
+                drop_fresh(target);
+            }
+            return bad_dict(interp, e);
+        }
     }
     if is_new && dict_var_set(interp, &name, target).is_err() {
         drop_fresh(target);
@@ -642,6 +652,31 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result(target);
     Code::Ok
+}
+
+/// A `dict_path_unset` failure: a malformed dict on the path, or a missing
+/// intermediate path segment (`key "X" not known in dictionary`).
+enum PathErr {
+    Bad(dict::DictError),
+    KeyMissing(Vec<u8>),
+}
+
+/// Remove the value at the key path `keys` (len ≥ 1) within the **unshared**
+/// dict `dict`, descending through (and re-binding) intermediate sub-dicts. A
+/// missing intermediate segment errors; a missing final key is a no-op.
+fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathErr> {
+    if let [last] = keys {
+        dict::dict_unset(dict, &obj_bytes(*last)).map_err(PathErr::Bad)?;
+        return Ok(());
+    }
+    let (head, rest) = keys.split_first().expect("len >= 2 here");
+    let sub = match dict::dict_get(dict, &obj_bytes(*head)).map_err(PathErr::Bad)? {
+        Some(s) if !obj::is_shared(s) => s,
+        Some(s) => obj::duplicate(s), // rc 0
+        None => return Err(PathErr::KeyMissing(obj_bytes(*head))),
+    };
+    dict_path_unset(sub, rest)?;
+    dict::dict_set(dict, *head, sub).map_err(PathErr::Bad)
 }
 
 // -- iteration -------------------------------------------------------------
