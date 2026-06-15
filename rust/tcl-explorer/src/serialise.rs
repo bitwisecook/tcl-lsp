@@ -11,6 +11,8 @@
 
 use serde_json::{Map, Value, json};
 
+use tcl_compiler::cfg::{Function, Terminator};
+use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_lexer::{LineIndex, Span};
 use tcl_registry::available_dialects;
@@ -184,6 +186,106 @@ pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
     })
 }
 
+/// Serialise a block terminator. Mirrors `_terminator_dict`.
+fn terminator_dict(term: Option<&Terminator>, li: &LineIndex, source: &str) -> Value {
+    match term {
+        None => Value::Null,
+        Some(Terminator::Goto { target, span }) => json!({
+            "type": "goto",
+            "target": target,
+            "range": range_or_null(*span, li, source),
+        }),
+        Some(Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            span,
+        }) => json!({
+            "type": "branch",
+            "condition": preview(&render_expr(condition), 80),
+            "trueTarget": true_target,
+            "falseTarget": false_target,
+            "range": range_or_null(*span, li, source),
+        }),
+        Some(Terminator::Return { value, span, .. }) => json!({
+            "type": "return",
+            "value": value.as_ref().map(|v| preview(v, 60)),
+            "range": range_or_null(*span, li, source),
+        }),
+    }
+}
+
+/// The successor block names of a terminator (terminator-only, no
+/// exception edges) — mirrors Python's `_block_successors`.
+fn block_successors(term: Option<&Terminator>) -> Vec<&str> {
+    term.map(Terminator::successors).unwrap_or_default()
+}
+
+/// Serialise the routed control-flow edges of `func`. Mirrors
+/// `_serialise_cfg_edges`; lanes come from the shared `cfg_layout`.
+fn serialise_cfg_edges(func: &Function, order: &[String]) -> Value {
+    let edges: Vec<Value> = build_cfg_edges(func, order)
+        .into_iter()
+        .map(|e| {
+            json!({
+                "from": e.src,
+                "to": e.dst,
+                "fromPos": e.src_pos,
+                "toPos": e.dst_pos,
+                "kind": e.kind.as_str(),
+                "lane": e.lane,
+            })
+        })
+        .collect();
+    Value::Array(edges)
+}
+
+/// Serialise the pre-SSA CFG view. Mirrors `_serialise_cfg_pre_ssa`:
+/// one entry per function, blocks in creation order, with routed edges.
+#[must_use]
+pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .map(|snap| {
+            let cfg = &snap.unit.cfg;
+            let order = ordered_block_names(cfg);
+            let blocks: Vec<Value> = order
+                .iter()
+                .map(|bn| {
+                    let block = &cfg.blocks[bn];
+                    let statements: Vec<Value> = block
+                        .statements
+                        .iter()
+                        .map(|stmt| {
+                            json!({
+                                "summary": stmt_summary(stmt),
+                                "colorClass": stmt_color_class(stmt),
+                                "range": range_dict(stmt.span(), li, source),
+                            })
+                        })
+                        .collect();
+                    json!({
+                        "name": bn,
+                        "isEntry": *bn == cfg.entry,
+                        "statements": statements,
+                        "terminator": terminator_dict(block.terminator.as_ref(), li, source),
+                        "successors": block_successors(block.terminator.as_ref()),
+                    })
+                })
+                .collect();
+            json!({
+                "name": snap.name,
+                "entry": cfg.entry,
+                "blockCount": cfg.blocks.len(),
+                "blocks": blocks,
+                "edges": serialise_cfg_edges(cfg, &order),
+            })
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise a full pipeline result to the explorer contract JSON.
 ///
 /// Currently emits the ported view families; subsequent EXP-* increments
@@ -197,6 +299,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert(
         "ir".to_owned(),
         serialise_ir(&result.unit.ir_module, &li, &result.source),
+    );
+    out.insert(
+        "cfgPreSsa".to_owned(),
+        serialise_cfg_pre_ssa(result, &li, &result.source),
     );
     Value::Object(out)
 }
@@ -245,6 +351,32 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn cfg_pre_ssa_has_entry_block_and_branch_terminator() {
+        let result = run_pipeline("if {$x} { puts a } else { puts b }", "tcl8.6");
+        let cfg = serialise_result(&result)["cfgPreSsa"].clone();
+        let top = &cfg[0];
+        assert_eq!(top["name"], "::top");
+        assert_eq!(top["entry"], "entry_1");
+        let entry = top["blocks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|b| b["name"] == "entry_1")
+            .unwrap();
+        assert_eq!(entry["isEntry"], true);
+        // The entry block branches on the `if` condition.
+        assert_eq!(entry["terminator"]["type"], "branch");
+        // Edges carry routing lanes from cfg_layout.
+        assert!(
+            top["edges"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|e| e["lane"].is_u64())
+        );
     }
 
     #[test]

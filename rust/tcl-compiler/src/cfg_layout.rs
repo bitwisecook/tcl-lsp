@@ -93,6 +93,30 @@ pub fn assign_lanes(spans: &[(usize, usize)]) -> Vec<usize> {
     result
 }
 
+/// Block names in their canonical display order.
+///
+/// Block names are minted as `{prefix}_{counter}` with a monotonically
+/// increasing counter (`cfg_builder::new_block`), so the creation order —
+/// which is the insertion order Python's `CFGFunction.blocks` dict
+/// preserves and the explorer renders in — is recovered by sorting on the
+/// trailing numeric suffix. Rust's `Function.blocks` is a `HashMap`, so
+/// callers that need Python-parity ordering (the CFG view, the edge
+/// router) go through this rather than iterating the map.
+#[must_use]
+pub fn ordered_block_names(func: &Function) -> Vec<String> {
+    let mut names: Vec<String> = func.blocks.keys().cloned().collect();
+    names.sort_by_key(|name| (suffix_ordinal(name), name.clone()));
+    names
+}
+
+/// Parse the trailing `_<n>` counter from a block name; `u64::MAX` when
+/// absent so unnumbered names sort last (and then lexicographically).
+fn suffix_ordinal(name: &str) -> u64 {
+    name.rsplit_once('_')
+        .and_then(|(_, n)| n.parse::<u64>().ok())
+        .unwrap_or(u64::MAX)
+}
+
 /// Extract control-flow edges from `func` with routing lanes assigned.
 ///
 /// `order` is the block-name ordering the caller wants ordinals computed
