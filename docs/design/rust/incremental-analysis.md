@@ -211,6 +211,7 @@ practcl.tcl from ~1 s to low-ms).
 | Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
 | Salsa-native per-procedure lattice graph (`function_lattice` query interning each proc's offset-0 body + `CfgContext`); both consumers (analyser tail + optimiser via `compiler_check_diagnostics`) on salsa; process-wide content cache retired | **shipped** (byte-identical; offset-invariant firewall + e2e parity) |
 | Per-item walk Phase B — widen the fast path: qualified `$::g` reads captured + replayed on the shell's globals at graft; the enclosing-context fallback narrowed from "any namespace/global/`variable`/qualified-read body" to **duplicate definitions** (top-level + nested self-redefinition) and **class-defining / qualified-writer bodies** | **shipped** (≈42% of corpus files now take the incremental fast path, up from the qualified-read-trigger floor; byte-identical — corpus + fuzzer gated) |
+| Per-item walk Phase C — widen the fast path to the enclosing-variable class: the three residual divergences made byte-identical (W120 anchored at the source-earliest invocation; W002 disabled-command shadow check deferred to the tail over the merged `all_procs`; W304 `$var` resolution deferred to the tail over the full source); qualified-read replay gated on source-order visibility; `body_needs_enclosing_context` narrowed to just `variable ns::x`; post-walk `E…` syntax-error backstop added (mirrors `analyse_incremental`) | **shipped** (≈42%→**86.6%** of corpus files take the fast path; byte-identical — `per_item_corpus` *and* the new `per_item_matches_analyse_under_edits` edit fuzzer + `differential_incremental` + e2e gated) |
 
 > **Phase B — what the fast path now covers, and what still falls back.**
 > The per-item walk's enclosing-context fallback (`body_needs_enclosing_context`)
@@ -233,13 +234,68 @@ practcl.tcl from ~1 s to low-ms).
 > Result: ~42% of corpus files take the incremental fast path (a body edit
 > recomputes one body + shell + tail).  The remaining ~58% — those that
 > **declare/write** enclosing variables (`variable` / `global` / `set ::x`) or
-> define classes in a body, including marquee files like `practcl.tcl` and
-> `init.tcl` — still fall back, because making them byte-identical needs the
-> isolated body to *pre-seed* its enclosing const-strings + variable defs (so
-> `warn_if_unused`, definition spans, and const-string-dependent diagnostics like
-> W304 resolve identically).  That pre-seeding — keyed so a body invalidates only
-> when its enclosing context changes — is the next step toward a fully
-> incremental analyser walk.
+> define classes in a body — still fell back (addressed in **Phase C** below).
+
+> **Phase C — the enclosing-variable / class class joins the fast path
+> (shipped).**  A probe (`tcl-compiler/examples/per_item_divergence`,
+> analyse-vs-per-item over the `tmp/` corpus with the enclosing-context fallback
+> bypassed) showed the broad Phase-B fallback was ~98.6% unnecessary: bypassing
+> it left only **three** diagnostic-divergence classes and two book-keeping nits,
+> all narrow and reproducible.  Each was made byte-identical at the
+> isolated-body / graft / tail seam — the rust-analyzer "cross-item facts live in
+> the aggregate, not the body" split — so the fallback could be narrowed to
+> almost nothing:
+>
+> - **W120** (missing `package require`) now anchors at each command's
+>   *source-earliest* invocation instead of the first in walk order, making it
+>   independent of whole-file-DFS vs per-item shell-order (it is emitted before
+>   `canonicalize_result_order`).  Applies to both paths — no behaviour change for
+>   `analyse` beyond determinism.
+> - **W002** (disabled-in-dialect command) — its user-proc-shadowing suppression
+>   reads the file's whole `all_procs`, which an isolated body lacks.  The body now
+>   *captures* would-be-W002 sites (`pending_disabled_commands`) and the tail
+>   re-applies the shadow check against the merged `all_procs`
+>   (`flush_disabled_command_diagnostics`) — mirroring `pending_arity` /
+>   `capture_global_reads`.
+> - **W304** (missing `--`) — only its `$var` branch is source-dependent
+>   (`last_literal_set_value_for_var` scans the *whole* source for the most-recent
+>   literal `set`).  That branch is deferred (`pending_w304`) and classified in the
+>   tail where `self.source` is the full file; every other W304 branch stays
+>   inline.
+> - **Qualified-read replay** is now gated on source-order visibility: a captured
+>   `$::ns::v` is replayed only when its enclosing definition *precedes the body*
+>   (a whole-file DFS walks a proc body before a later top-level `set ::ns::v`, so
+>   it records no reference there).
+> - **`body_needs_enclosing_context`** is narrowed from "any
+>   `variable`/`global`/`set ::x`/class body" to just **`variable ns::x`** (a
+>   `variable` linking to a *sub-namespace* variable — the lone residual whose
+>   merged `warn_if_unused` / `definition_span` is walk-order-sensitive).  Plain
+>   `variable x`, `global`, `upvar`, qualified writes, and class definitions all
+>   take the fast path.
+> - A post-walk **`E…` syntax-error backstop** (mirroring `analyse_incremental`)
+>   re-analyses fully whenever the per-item result carries any error diagnostic —
+>   locally-unbalanced braces that pass `script_is_complete` engage `analyse`'s
+>   error-recovery machinery, which the per-item walk does not reproduce.
+>
+> Result: **86.6%** of corpus files take the fast path (up from ~42%), 100%
+> byte-identical; large *non-duplicate* files (e.g. `pki.tcl`, 3.3 kLOC) drop from
+> ~360 ms full-analyse to ~115 ms per warm edit.  Gated by the unedited
+> `per_item_corpus` test **and** a new edit fuzzer
+> (`per_item_matches_analyse_under_edits`, the `incremental == fresh` contract for
+> the per-item walk under random edits — which the older `differential_incremental`
+> does not cover, as it exercises `analyse_commands`-based `analyse_incremental`).
+>
+> **Still falling back / not yet won (the next steps).**
+> - **Duplicate definitions** (e.g. `practcl.tcl` defines `::clay::uuid::generate`
+>   twice) remain a genuine correctness fallback — last-def-wins (DFS) vs the
+>   graft's merge.
+> - **OO method bodies** are walked *in place* in the shell pass (not deferred /
+>   memoised); OO-heavy files (practcl: 244 methods vs 132 procs) therefore see
+>   little body-memo benefit even on the fast path.
+> - **The whole-file tail** (`run_diagnostic_emitters`: `emit_cfg_ssa` +
+>   W123 / arity) still re-runs every edit and dominates per-edit latency on the
+>   largest files; making it incremental is the remaining lever (the original
+>   task's sub-tasks #1–#4).
 
 > **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
 > (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now

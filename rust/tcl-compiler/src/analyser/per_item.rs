@@ -94,6 +94,7 @@ impl Analyser {
         use std::collections::HashSet;
         use tcl_registry::CommandRegistry;
 
+        self.took_fast_path = false;
         // Recovery / stub overlays are only modelled on the full `analyse`
         // path; fall back so the per-item result can never diverge.
         if !tcl_lexer::script_is_complete(source) || source.contains("tcl-lsp: stub") {
@@ -182,9 +183,10 @@ impl Analyser {
                 !seen.insert((db.is_method, db.namespace.as_str(), db.scope_name.as_str()))
             });
             duplicate_top_level
-                || deferred
-                    .iter()
-                    .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text))
+                || (!self.probe_skip_enclosing_fallback
+                    && deferred
+                        .iter()
+                        .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text)))
         };
         if structural_fallback {
             return self.fresh_full_analyse(source, dialect);
@@ -252,6 +254,24 @@ impl Analyser {
         // --- tail (cross-item passes; canonicalises order) ---
         self.run_diagnostic_emitters(source);
 
+        // Correctness backstop (mirrors `analyse_incremental`): a syntax error
+        // (`E…` diagnostic) means `analyse` engaged its error-*recovery* machinery
+        // (ghost-token re-lexing, recovery segmentation, body-level partial
+        // detection) that the per-item walk only partially reproduces — a
+        // locally-unbalanced `}` that `script_is_complete` still accepts is the
+        // classic case.  Re-analyse fully so the result is byte-identical to a
+        // from-scratch `analyse`.  Well-formed edits (the common case) carry no
+        // E-codes and stay on the fast path.
+        if self
+            .result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.starts_with('E'))
+        {
+            return self.fresh_full_analyse(source, dialect);
+        }
+
+        self.took_fast_path = true;
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
         result
@@ -313,8 +333,44 @@ impl Analyser {
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
+        // Replay each captured qualified read on the shell's real globals — but
+        // only when the enclosing definition **precedes this body** in source
+        // order.  A whole-file DFS walks a proc body at the proc's definition
+        // point, so a top-level `set ::ns::v` that appears *after* the proc is
+        // not yet defined when the body's `$::ns::v` read runs (no reference
+        // recorded).  The per-item shell processes every top-level `set` before
+        // any deferred body, so without this guard a later definition would
+        // spuriously absorb the read.  Gate on the body token start (the proc
+        // header precedes it, and no top-level command can fall inside the body).
+        let body_start = db.body_tok.span.start();
         for (name, span) in frag.global_reads {
-            self.record_var_read(&name, shift(span, delta), &[]);
+            let base = crate::naming::normalise_var_name(&name);
+            let visible = self
+                .result
+                .global_scope
+                .variables
+                .get(base)
+                .is_some_and(|v| v.definition_span.start() < body_start);
+            if visible {
+                self.record_var_read(&name, shift(span, delta), &[]);
+            }
+        }
+        // Re-defer the body's would-be-W002 sites with rebased spans; the tail
+        // re-applies the shadow check against the merged `all_procs`.
+        for (qname, mut diag) in frag.disabled_commands {
+            diag.span = shift(diag.span, delta);
+            self.pending_disabled_commands.push((qname, diag));
+        }
+        // Re-defer the body's source-dependent W304 sites, rebasing the token,
+        // fix, and diagnostic spans to absolute; the tail classifies each `$var`
+        // against the full file source.
+        for (mut tok, label, mut fixes, diag_span) in frag.w304 {
+            tok.span = shift(tok.span, delta);
+            for fix in &mut fixes {
+                fix.span = shift(fix.span, delta);
+            }
+            self.pending_w304
+                .push((tok, label, fixes, shift(diag_span, delta)));
         }
     }
 }
@@ -332,6 +388,22 @@ pub struct BodyFragment {
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
     /// enclosing global scope; replayed on the shell's real globals at graft.
     global_reads: Vec<(String, tcl_lexer::Span)>,
+    /// W002 (disabled-in-dialect command) sites whose user-proc-shadowing
+    /// suppression depends on the file's full `all_procs` (a cross-item fact the
+    /// isolated body lacks): `(qualified call name, deferred diagnostic)`.  The
+    /// graft rebases the diagnostic span and re-defers it; the tail re-checks the
+    /// shadow against the merged `all_procs`.
+    disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// Deferred W304 (missing `--`) sites whose `$var` classification needs the
+    /// whole-file most-recent-`set` resolution (invisible to an isolated body).
+    /// The graft rebases the token + fix + diagnostic spans; the tail classifies
+    /// them against the full source.
+    w304: Vec<(
+        tcl_lexer::Token,
+        String,
+        Vec<super::types::CodeFix>,
+        tcl_lexer::Span,
+    )>,
 }
 
 /// Analyse one `proc` body as an isolated unit at **offset 0** — a pure
@@ -391,6 +463,8 @@ pub fn analyse_proc_body_isolated(
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
         global_reads: a.capture_global_reads.unwrap_or_default(),
+        disabled_commands: a.pending_disabled_commands,
+        w304: a.pending_w304,
     }
 }
 
@@ -586,39 +660,42 @@ fn body_word_defines(body_text: &str, words: &[&str]) -> bool {
         .any(|w| words.contains(&w))
 }
 
-/// Does an isolated proc body interact with enclosing-scope / object state in a
-/// way the per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
-/// fallback?  True when the body:
+/// Does an isolated proc body interact with enclosing-scope state in a way the
+/// per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
+/// fallback?  True when the body declares a link to a **qualified (sub-namespace)
+/// variable** — a `variable ns::name` command inside the body.
 ///
-/// * **defines or extends a class / aliased object** (`oo::class` / `oo::define`
-///   / `itcl::class` / `oo::copy`) — class facts accumulate across bodies in a
-///   whole-file walk (remove → add → re-insert), which the graft's
-///   overwrite-on-key can't reproduce; **or**
-/// * **declares or writes an enclosing-scope variable** (`variable` / `global` /
-///   `upvar` / `namespace`, or a writer command — `set`/`incr`/`lappend`/
-///   `append`/`dict`/`array` — targeting a `::`-qualified name).  Such a body's
-///   `all_variables` / global-scope effect (definition span, `warn_if_unused`,
-///   const-string-dependent diagnostics like W304) depends on enclosing context
-///   the isolated analysis can't see.
+/// Such a name resolves to a variable owned by *another* item (the
+/// `namespace eval ns { variable name … }` body), so its `all_variables` entry
+/// accumulates a definition from both this body and that namespace block.  The
+/// order-sensitive facts of the merged entry — `warn_if_unused` and the winning
+/// `definition_span` — depend on the cross-item walk order, which the whole-file
+/// DFS and the per-item shell-first walk disagree on; the graft's
+/// position-independent merge can't reproduce the DFS result.  (The visible
+/// *diagnostics* already match; only this internal book-keeping diverges, but the
+/// correctness contract is full-`AnalysisResult` byte-identity.)
 ///
-/// Qualified variable *reads* (`$::g`) are **not** listed: they are captured and
-/// replayed on the shell's globals at graft time, so they stay on the fast path.
-/// Conservative — a false positive only costs a full rebuild, never correctness.
+/// Everything else an enclosing-touching body does is reproduced on the fast
+/// path and proven byte-identical over the corpus: `global` / `upvar` / plain
+/// `variable x` declarations, qualified writes (`set ::x`), class definitions
+/// (`oo::class` / `oo::define`), and qualified reads (`$::g`, captured and
+/// replayed at graft).  Backstopped by the differential `incremental == fresh`
+/// fuzzer + this fallback — a false positive costs only a redundant rebuild.
+///
+/// Line-scoped so it doesn't trip on a plain `variable x` whose body merely also
+/// mentions a `::`-qualified name elsewhere (which would needlessly defeat the
+/// fast path on large files like `practcl.tcl`).
 fn body_needs_enclosing_context(body_text: &str) -> bool {
-    const DECLARERS: &[&str] = &["variable", "global", "upvar", "namespace"];
-    const WRITERS: &[&str] = &["set", "incr", "lappend", "append", "dict", "array"];
-    let words: Vec<&str> = body_text
-        .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
-        .filter(|w| !w.is_empty())
-        .collect();
-    for (i, &w) in words.iter().enumerate() {
-        if DECLARERS.contains(&w) || CLASS_DEFINERS.contains(&w) {
-            return true;
-        }
-        // A writer whose next word or two is a `::`-qualified target writes an
-        // enclosing-scope variable.
-        if WRITERS.contains(&w) && words[i + 1..].iter().take(2).any(|t| t.contains("::")) {
-            return true;
+    for line in body_text.lines() {
+        let mut words = line.split_whitespace();
+        while let Some(w) = words.next() {
+            // A `variable` command (anywhere on the line) with a `::`-qualified
+            // argument links to a sub-namespace variable.  Checking the rest of
+            // the line is deliberately conservative (it may include a following
+            // `;`-separated command), which only over-triggers the fallback.
+            if w == "variable" && words.clone().any(|a| a.contains("::")) {
+                return true;
+            }
         }
     }
     false
