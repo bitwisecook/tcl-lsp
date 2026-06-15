@@ -228,6 +228,15 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             *report,
             passphrase,
         ),
+        Command::RegistryDump {
+            section,
+            json: _,
+            output,
+        } => {
+            // `--output -` (the default) means stdout, mirroring the Python verb.
+            let path = (output != "-").then(|| std::path::Path::new(output));
+            commands::registry_dump::run_registry_dump(section, path)
+        }
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Completion { shell } => {
             use clap::CommandFactory;

@@ -17,6 +17,7 @@ pub mod grep;
 pub mod merge;
 pub mod query;
 pub mod redact;
+pub mod registry_dump;
 pub mod rename;
 pub mod scf;
 pub mod split;

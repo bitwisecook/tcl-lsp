@@ -622,6 +622,12 @@ pub enum Command {
         /// Registry section to dump.
         #[arg(long, default_value = "all", value_parser = ["commands", "events", "profiles", "objects", "all"])]
         section: String,
+        /// Emit JSON (default and only format).
+        #[arg(long)]
+        json: bool,
+        /// Output path ('-' for stdout).
+        #[arg(long, short, value_name = "FILE", default_value = "-")]
+        output: String,
     },
 
     /// Print a bash / fish / zsh completion script for the f5 CLI.
