@@ -38,6 +38,7 @@ where
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
         Command::Diff {
@@ -114,6 +115,19 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             *max_depth,
             output.as_deref(),
             passphrase,
+        ),
+        Command::Validate {
+            inputs,
+            category,
+            severity,
+            format,
+            output,
+        } => commands::validate::run_validate(
+            inputs,
+            category.as_deref(),
+            severity.as_deref(),
+            format,
+            output.as_deref(),
         ),
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Completion { shell } => {

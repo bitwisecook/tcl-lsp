@@ -20,6 +20,7 @@ pub mod canonical;
 pub mod cleanup;
 pub mod graph;
 pub mod jsonfmt;
+pub mod lint;
 pub mod model;
 pub mod parser;
 pub mod range;

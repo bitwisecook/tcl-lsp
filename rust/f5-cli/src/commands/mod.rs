@@ -16,3 +16,4 @@ pub mod query;
 pub mod scf;
 pub mod split;
 pub mod stats;
+pub mod validate;
