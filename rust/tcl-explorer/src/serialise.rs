@@ -31,8 +31,8 @@ use tcl_syntax::expr::ast::render_expr;
 
 use crate::ExplorerResult;
 use crate::formatters::{
-    format_return_shape, format_taint, format_type, preview, range_dict, stmt_color_class,
-    stmt_kind, stmt_summary, type_kind_name,
+    format_lattice, format_return_shape, format_taint, format_type, preview, range_dict,
+    stmt_color_class, stmt_kind, stmt_summary, type_kind_name,
 };
 use crate::views::{Severity, VIEW_META};
 
@@ -551,6 +551,190 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
+/// Per-SSA-value `{version, lattice?, type?}` detail used by the post-SSA
+/// CFG view's `uses`/`defs` maps. Mirrors the inline dict in
+/// `_serialise_cfg_post_ssa`.
+fn ssa_value_detail(
+    refs: &std::collections::HashMap<String, tcl_compiler::ssa::Version>,
+    sccp: &tcl_compiler::sccp::SccpResult,
+    types: &std::collections::HashMap<
+        tcl_compiler::ssa::ValueKey,
+        tcl_compiler::types::TypeLattice,
+    >,
+) -> Value {
+    let mut keys: Vec<(&String, &u32)> = refs.iter().collect();
+    keys.sort();
+    let mut out = Map::new();
+    for (name, &ver) in keys {
+        let mut d = Map::new();
+        d.insert("version".to_owned(), json!(ver));
+        if let Some(lat) = sccp.values.get(&(name.clone(), ver)) {
+            d.insert("lattice".to_owned(), json!(format_lattice(lat)));
+        }
+        if let Some(tl) = types.get(&(name.clone(), ver))
+            && tl.kind != tcl_compiler::types::TypeKind::Unknown
+        {
+            d.insert("type".to_owned(), json!(format_type(tl)));
+        }
+        out.insert(name.clone(), Value::Object(d));
+    }
+    Value::Object(out)
+}
+
+/// Serialise the post-SSA CFG view (`cfgPostSsa`): per-block phi nodes and
+/// per-statement SSA `uses`/`defs` with lattice + type detail, plus a
+/// function-level `analysis` block. Mirrors `_serialise_cfg_post_ssa`.
+///
+/// `_NO_PARITY`: `analysis.deadStores` is always `[]` (the Rust liveness
+/// pass is unported) and the lattice/type detail comes from the divergent
+/// Rust analyses; `constantBranches`/`unreachableBlocks`/`inferredTypes`
+/// come from SCCP + the type lattice.
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .map(|snap| {
+            let cfg = &snap.unit.cfg;
+            let ssa = &snap.unit.ssa;
+            let sccp = &snap.unit.sccp;
+            let types = &snap.unit.types;
+            let order = ordered_block_names(cfg);
+
+            let blocks: Vec<Value> = order
+                .iter()
+                .map(|bn| {
+                    let block = &cfg.blocks[bn];
+                    let ssa_block = ssa.blocks.get(bn);
+
+                    let phis: Vec<Value> = ssa_block
+                        .map(|sb| {
+                            sb.phis
+                                .iter()
+                                .map(|phi| {
+                                    let mut inc: Vec<(&String, &u32)> =
+                                        phi.incoming.iter().collect();
+                                    inc.sort();
+                                    let incoming: Map<String, Value> = inc
+                                        .into_iter()
+                                        .map(|(pred, &ver)| {
+                                            (pred.clone(), json!(format!("{}#{ver}", phi.name)))
+                                        })
+                                        .collect();
+                                    let phi_type = types
+                                        .get(&(phi.name.clone(), phi.version))
+                                        .map_or(Value::Null, |tl| json!(format_type(tl)));
+                                    json!({
+                                        "name": phi.name,
+                                        "version": phi.version,
+                                        "incoming": incoming,
+                                        "type": phi_type,
+                                    })
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    let statements: Vec<Value> = block
+                        .statements
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, stmt)| {
+                            let (uses, defs) =
+                                ssa_block.and_then(|sb| sb.statements.get(idx)).map_or_else(
+                                    || (json!({}), json!({})),
+                                    |ss| {
+                                        (
+                                            ssa_value_detail(&ss.uses, sccp, types),
+                                            ssa_value_detail(&ss.defs, sccp, types),
+                                        )
+                                    },
+                                );
+                            json!({
+                                "summary": stmt_summary(stmt),
+                                "colorClass": stmt_color_class(stmt),
+                                "range": range_dict(stmt.span(), li, source),
+                                "uses": uses,
+                                "defs": defs,
+                            })
+                        })
+                        .collect();
+
+                    json!({
+                        "name": bn,
+                        "isEntry": *bn == cfg.entry,
+                        "isUnreachable": !sccp.executable_blocks.contains(bn),
+                        "phis": phis,
+                        "statements": statements,
+                        "terminator": terminator_dict(block.terminator.as_ref(), li, source),
+                        "successors": block_successors(block.terminator.as_ref()),
+                    })
+                })
+                .collect();
+
+            json!({
+                "name": snap.name,
+                "entry": cfg.entry,
+                "blockCount": cfg.blocks.len(),
+                "blocks": blocks,
+                "edges": serialise_cfg_edges(cfg, &order),
+                "analysis": post_ssa_analysis(snap),
+            })
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
+/// The function-level `analysis` block of the post-SSA CFG view.
+fn post_ssa_analysis(snap: &crate::FunctionSnapshot) -> Value {
+    let sccp = &snap.unit.sccp;
+    let constant_branches: Vec<Value> = sccp
+        .constant_branches
+        .iter()
+        .map(|b| {
+            json!({
+                "block": b.block,
+                "condition": preview(&b.condition, 60),
+                "value": b.value,
+                "takenTarget": b.taken_target,
+                "notTakenTarget": b.not_taken_target,
+            })
+        })
+        .collect();
+
+    let mut unreachable: Vec<&String> = snap
+        .unit
+        .cfg
+        .blocks
+        .keys()
+        .filter(|b| !sccp.executable_blocks.contains(*b))
+        .collect();
+    unreachable.sort();
+
+    // `inferredTypes`: known/shimmered SSA-value types keyed by `name#ver`.
+    let mut tkeys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
+    tkeys.sort();
+    let mut inferred = Map::new();
+    for key in tkeys {
+        let tl = &snap.unit.types[key];
+        if matches!(
+            tl.kind,
+            tcl_compiler::types::TypeKind::Known | tcl_compiler::types::TypeKind::Shimmered
+        ) {
+            inferred.insert(format!("{}#{}", key.0, key.1), json!(format_type(tl)));
+        }
+    }
+
+    json!({
+        "constantBranches": constant_branches,
+        // The Rust liveness pass that fills dead stores is unported.
+        "deadStores": Vec::<Value>::new(),
+        "unreachableBlocks": unreachable,
+        "inferredTypes": Value::Object(inferred),
+    })
+}
+
 /// Serialise the `interprocedural` view: per-procedure summaries followed
 /// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
 #[must_use]
@@ -977,6 +1161,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "cfgPreSsa".to_owned(),
         serialise_cfg_pre_ssa(result, &li, &result.source),
     );
+    out.insert(
+        "cfgPostSsa".to_owned(),
+        serialise_cfg_post_ssa(result, &li, &result.source),
+    );
     if let Some(interproc) = &result.unit.interproc {
         out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
     }
@@ -1024,6 +1212,12 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "cfgPreSsaOptimised".to_owned(),
         opt.as_ref().map_or(Value::Null, |(r, s)| {
             serialise_cfg_pre_ssa(r, &LineIndex::new(s), s)
+        }),
+    );
+    out.insert(
+        "cfgPostSsaOptimised".to_owned(),
+        opt.as_ref().map_or(Value::Null, |(r, s)| {
+            serialise_cfg_post_ssa(r, &LineIndex::new(s), s)
         }),
     );
     out.insert(
@@ -1138,6 +1332,31 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn cfg_post_ssa_has_phis_uses_defs_and_analysis() {
+        let result = run_pipeline("set x 1\nset y [expr {$x + 1}]\nputs $y", "tcl8.6");
+        let post = serialise_result(&result)["cfgPostSsa"].clone();
+        let top = &post.as_array().unwrap()[0];
+        assert_eq!(top["name"], "::top");
+        assert!(top["analysis"]["constantBranches"].is_array());
+        assert!(top["analysis"]["deadStores"].is_array());
+        assert!(top["analysis"]["inferredTypes"].is_object());
+        let block = &top["blocks"].as_array().unwrap()[0];
+        assert!(block["phis"].is_array());
+        assert!(block["isEntry"].as_bool().unwrap());
+        // A statement carries SSA uses/defs maps.
+        let stmt = &block["statements"].as_array().unwrap()[0];
+        assert!(stmt["uses"].is_object());
+        assert!(stmt["defs"].is_object());
+    }
+
+    #[test]
+    fn cfg_post_ssa_optimised_present_when_source_changes() {
+        let result = run_pipeline("set x [expr {1 + 2}]\nputs $x", "tcl8.6");
+        let v = serialise_result(&result);
+        assert!(v["cfgPostSsaOptimised"].is_array());
     }
 
     #[test]

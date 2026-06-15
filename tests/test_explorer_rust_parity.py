@@ -87,6 +87,10 @@ _NO_PARITY_KEYS = {
     "optimisedSource",
     "irOptimised",
     "cfgPreSsaOptimised",
+    # Post-SSA CFG: analysis.deadStores is [] (Rust liveness unported) and
+    # the lattice/type detail comes from the divergent Rust analyses.
+    "cfgPostSsa",
+    "cfgPostSsaOptimised",
     "renderedProperties",
     "taintWarnings",
     "gvn",

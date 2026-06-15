@@ -8,6 +8,7 @@
 
 use serde_json::{Value, json};
 
+use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::interprocedural::{ConstantReturn, ProcSummary};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::shimmer::type_name;
@@ -313,5 +314,29 @@ pub fn format_taint(tl: &TaintLattice) -> String {
         "tainted".to_owned()
     } else {
         format!("tainted({})", colours.join(","))
+    }
+}
+
+/// Python `repr()` of a single SCCP constant value.
+fn const_value_repr(c: &ConstValue) -> String {
+    match c {
+        ConstValue::Int(n) => n.to_string(),
+        ConstValue::Bool(b) => if *b { "True" } else { "False" }.to_owned(),
+        ConstValue::String(s) => py_repr_str(s),
+        ConstValue::Float(f) => format!("{f:?}"),
+    }
+}
+
+/// Project an SCCP lattice value to its display string. Mirrors
+/// `formatters.format_lattice` (`unknown` / `overdefined` / `const(<repr>)`).
+/// A `ConstSet` renders as `const(None)`, matching Python where the
+/// constset's scalar `value` field is `None`.
+#[must_use]
+pub fn format_lattice(value: &LatticeValue) -> String {
+    match value {
+        LatticeValue::Unknown => "unknown".to_owned(),
+        LatticeValue::Overdefined => "overdefined".to_owned(),
+        LatticeValue::Const(c) => format!("const({})", const_value_repr(c)),
+        LatticeValue::ConstSet(_) => "const(None)".to_owned(),
     }
 }
