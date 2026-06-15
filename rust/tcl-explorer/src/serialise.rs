@@ -534,6 +534,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
     }
     out.insert("types".to_owned(), serialise_types(result));
+    out.insert("cst".to_owned(), crate::cst::serialise_cst(&result.source));
     out.insert("segments".to_owned(), serialise_segments(&result.source));
     out.insert("intervals".to_owned(), serialise_intervals(result));
     out.insert(
