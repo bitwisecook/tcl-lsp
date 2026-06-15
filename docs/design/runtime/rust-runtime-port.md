@@ -3119,6 +3119,44 @@ Out of scope here (blocked elsewhere): bignum `string index` arithmetic
 (`cmd_list::index_spec`), surrogate `\u` distinctness (lexer collapses to
 U+FFFD), and `tcl::prefix -error` return options (interp return-options).
 
+### SYNC inbound — 2026-06-15 (info frame: try bodies, inline-body sharing, condition `[cmd]` lines, expr code propagation)
+
+Chunk: TIP 280 `info frame` line-correctness follow-ups on top of PR #607, in
+`runtime/rust/src/{cmd_error.rs,cmd_control.rs,builtins.rs,interp.rs}`, written
+against `tclCmdMZ.c` (`Tcl_TryObjCmd`), `tclCmdAH.c`/`tclExecute.c` (inline
+`while`/`for`/`if`/`foreach` compilation), and `tclCmdIL.c` (`TclInfoFrame`).
+`info.test` 227→241 / 287; zero regressions (trace 199, oo 357, namespace 238,
+dict 325, error 261, eval 12/12 held).
+
+- **`try` body/handler/finally** kept their argument *objects* (not flattened
+  bytes) and run through `eval_control_body`, so a literal body's source location
+  is recovered for `info frame` (info-33.23–33.31, 8 tests).
+- **Inline control bodies share the frame.** In a proc, `while`/`for`/`if`/
+  `foreach`/`try` are compiled inline, so their literal bodies run in the *same*
+  `info frame` level — the runtime had pushed a new `CmdFrame` per body,
+  inflating depth by one (3 where tclsh reports 2) and freezing the proc frame's
+  reported line/cmd. Now an in-proc located-literal body shares the enclosing
+  frame (shift `line_base`, restore after) via `eval_shared_located_body`;
+  top-level and dynamic/pure-list bodies still get their own frame (C's
+  uncompiled `TclEvalObjEx`). Fixes the absolute-level `info frame $level` corner
+  (info-38.1, etrace/while line) and verified `info frame` depth vs tclsh9.0.
+- **Condition `[cmd]` source line.** `eval_bool_expr` now takes the condition
+  *object* and, for a located literal, shifts the shared frame's `line_base` to
+  the condition word while the expression evaluates, so a `[cmd]` substitution in
+  an `if`/`while`/`for` condition reports its file-absolute line (info-33.11/14/21).
+- **expr command-subst code propagation.** A `[cmd]` operand inside an expression
+  that completes with `return`/`break`/`continue` (codes 2/3/4) now propagates
+  that code out of the whole expression instead of raising "expected boolean
+  value" — matching C, where the substitution's bytecode unwinds the
+  expr-bearing command. Threaded as `propagated_code` through `InterpExprCtx`.
+
+Out of scope here (deliberately deferred): the `info frame` `level`-omission
+reachability rule for `uplevel`-redirected frames (info-38.2–38.6 — needs
+cmd-frame↔CallFrame reachability threading), `switch -regexp` and `interp debug`
+features (info-30.13/14/16/17/19/20), and `info cmdtype`/`cmdcount`
+(info-40/info-3). Untouched per the parallel-work exclusion: `cmd_string.rs` and
+the `string` helpers in `rust/tcl-syntax/src/`.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
