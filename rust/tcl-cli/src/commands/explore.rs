@@ -17,10 +17,15 @@ pub fn run_explore(
     input: &InputArgs,
     show: &[String],
     json: bool,
+    tui: bool,
     _colour: &ColourArgs,
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let source = combine_sources(&documents);
+
+    if tui {
+        return run_tui(&source, &input.dialect);
+    }
 
     let result = tcl_explorer::run_pipeline(&source, &input.dialect);
     let value = tcl_explorer::serialise_result(&result);
@@ -33,6 +38,18 @@ pub fn run_explore(
     };
     write_text_output(&target, &text)?;
     Ok(0)
+}
+
+/// Launch the interactive TUI (feature `tui`), or explain how to enable it.
+#[cfg(feature = "tui")]
+fn run_tui(source: &str, dialect: &str) -> anyhow::Result<u8> {
+    crate::tui::run(source, dialect)?;
+    Ok(0)
+}
+
+#[cfg(not(feature = "tui"))]
+fn run_tui(_source: &str, _dialect: &str) -> anyhow::Result<u8> {
+    anyhow::bail!("the TUI is not compiled in — rebuild with `--features tui`");
 }
 
 /// A one-line description of a view's payload.

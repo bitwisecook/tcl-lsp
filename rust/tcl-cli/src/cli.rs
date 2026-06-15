@@ -260,6 +260,9 @@ pub enum Command {
         /// Emit the full machine-readable JSON (the explorer contract shape).
         #[arg(long)]
         json: bool,
+        /// Launch the interactive terminal UI (requires the `tui` feature).
+        #[arg(long)]
+        tui: bool,
         #[command(flatten)]
         colour: ColourArgs,
     },

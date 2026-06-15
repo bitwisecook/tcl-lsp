@@ -15,6 +15,8 @@
 
 mod cli;
 mod commands;
+#[cfg(feature = "tui")]
+mod tui;
 
 use std::ffi::OsString;
 use std::process::ExitCode;
@@ -126,8 +128,9 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             input,
             show,
             json,
+            tui,
             colour,
-        } => commands::explore::run_explore(input, show, *json, colour),
+        } => commands::explore::run_explore(input, show, *json, *tui, colour),
         // Verbs not yet ported fall through to a clear not-implemented error.
         other => {
             let verb = other.verb_name();
