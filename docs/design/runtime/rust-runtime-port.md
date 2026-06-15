@@ -2996,6 +2996,17 @@ Two fixes:
   `eval_body_obj` (push frame + pick up the body object's TIP 280 location)
   instead of a bare `eval_str`.
 
+### SYNC inbound — 2026-06-15 (`dict for`/`map`/`filter`/`update`/`with` body frames)
+
+`info.test` 205 → 212 (zero regressions; dict 315, error 261, trace 199, oo 357,
+ooProp 55/55, namespace 238, eval 12 all held). The script-body `dict`
+subcommands evaluated their body with a bare `eval_str` (shared frame, no level,
+no location). They now route through `eval_control_body` (the `if`/`while`/
+`foreach` path), so each body is its own `info frame` level and a located literal
+reports `type source` at its own line — covering the `info-24.7/8/9`
+(`dict for`/`with`/`filter` interaction) and `{*}`-expanded `dict for`/`map`
+bodies.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

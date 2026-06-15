@@ -339,7 +339,6 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"TCL SYNTAX dict filter",
                 );
             }
-            let body = obj_bytes(argv[5]);
             for (k, v) in pairs {
                 if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
                     return interp.set_error(b"couldn't set dict filter variable");
@@ -348,7 +347,7 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // script case): OK ⇒ keep iff its result is true; CONTINUE ⇒ skip;
                 // BREAK ⇒ stop, return what's kept; ERROR / RETURN / other ⇒
                 // propagate the code (and result) out of `dict filter`.
-                match interp.eval_str(&body) {
+                match interp.eval_control_body(argv[5]) {
                     Code::Ok => {
                         if is_true(&obj_bytes(interp.get_obj_result())) {
                             kept.push((k, v));
@@ -582,7 +581,6 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
     };
-    let body = obj_bytes(argv[4]);
 
     for (k, v) in pairs {
         if interp.var_set(&kvar, k).is_err() {
@@ -591,7 +589,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if interp.var_set(&vvar, v).is_err() {
             return cant_set(interp, &vvar);
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(argv[4]) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             other => return other, // Return / Error propagate (result already set)
@@ -619,7 +617,6 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
     };
-    let body = obj_bytes(argv[4]);
     let acc = dict::new_dict_obj(&[]);
     unsafe { obj::incr_ref_count(acc) };
     for (k, v) in pairs {
@@ -627,7 +624,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             unsafe { obj::decr_ref_count(acc) };
             return cant_set(interp, &vars[0]);
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(argv[4]) {
             Code::Ok => {
                 let _ = dict::dict_set(acc, k, interp.get_obj_result());
             }
@@ -656,7 +653,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     }
     let dict_var = obj_bytes(argv[2]);
-    let body = obj_bytes(argv[argv.len() - 1]);
+    let body_obj = argv[argv.len() - 1];
     let pairs_args = &argv[3..argv.len() - 1];
 
     let Some(d) = interp.var_get(&dict_var) else {
@@ -679,7 +676,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
 
-    let code = interp.eval_str(&body);
+    let code = interp.eval_control_body(body_obj);
 
     // Write-back: re-read the dict (the body may have replaced it), then apply
     // each local var (set if it exists, drop the key if it was unset).
@@ -713,7 +710,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"dict with dictVarName ?key ...? script");
     }
     let dict_var = obj_bytes(argv[2]);
-    let body = obj_bytes(argv[argv.len() - 1]);
+    let body_obj = argv[argv.len() - 1];
     let path = &argv[3..argv.len() - 1];
 
     let Some(d) = interp.var_get(&dict_var) else {
@@ -740,7 +737,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
 
-    let code = interp.eval_str(&body);
+    let code = interp.eval_control_body(body_obj);
 
     // Write-back: rebuild the sub-dict from the locals, then store it through
     // the key path (only the no-path case writes back nested updates here).
