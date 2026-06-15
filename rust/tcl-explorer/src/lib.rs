@@ -17,6 +17,7 @@
 pub mod asm;
 pub mod cst;
 pub mod formatters;
+pub mod render;
 pub mod serialise;
 pub mod view_tree;
 pub mod views;
