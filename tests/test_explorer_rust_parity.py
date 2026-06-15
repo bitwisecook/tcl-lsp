@@ -53,6 +53,7 @@ _CORPUS: dict[str, str] = {
     "opt_constfold": "set x [expr {1 + 2}]\nputs $x",
     "opt_deadcode": "proc f {} {\n  set unused 5\n  return 1\n}\nf",
     "shimmer_intrep": "set x [list 1 2 3]\nincr x",
+    "taint_tracking": "set x [exec ls]\nset y $x",
 }
 
 _DIALECT = "tcl8.6"

@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use tcl_compiler::interprocedural::{ConstantReturn, ProcSummary};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::shimmer::type_name;
+use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::{LineIndex, Span};
 use tcl_syntax::expr::ast::render_expr;
@@ -291,4 +292,26 @@ pub fn format_type(tl: &TypeLattice) -> String {
 #[must_use]
 pub fn type_kind_name(kind: TypeKind) -> String {
     format!("{kind:?}").to_ascii_lowercase()
+}
+
+/// Project a taint lattice to its display string. Mirrors
+/// `formatters.format_taint`: `untainted`, `tainted`, or
+/// `tainted(<colours>)` with the non-`TAINTED` colour names lowercased in
+/// declaration order.
+#[must_use]
+pub fn format_taint(tl: &TaintLattice) -> String {
+    if !tl.colours.contains(TaintColour::TAINTED) {
+        return "untainted".to_owned();
+    }
+    let colours: Vec<String> = tl
+        .colours
+        .iter_names()
+        .filter(|(name, _)| *name != "TAINTED")
+        .map(|(name, _)| name.to_ascii_lowercase())
+        .collect();
+    if colours.is_empty() {
+        "tainted".to_owned()
+    } else {
+        format!("tainted({})", colours.join(","))
+    }
 }

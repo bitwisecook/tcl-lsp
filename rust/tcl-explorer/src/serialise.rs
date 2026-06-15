@@ -31,8 +31,8 @@ use tcl_syntax::expr::ast::render_expr;
 
 use crate::ExplorerResult;
 use crate::formatters::{
-    format_return_shape, format_type, preview, range_dict, stmt_color_class, stmt_kind,
-    stmt_summary, type_kind_name,
+    format_return_shape, format_taint, format_type, preview, range_dict, stmt_color_class,
+    stmt_kind, stmt_summary, type_kind_name,
 };
 use crate::views::{Severity, VIEW_META};
 
@@ -525,6 +525,32 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
+/// Serialise the `taintTracking` view: every tainted SSA value's taint
+/// lattice per function. Mirrors `_serialise_taint_tracking` — only
+/// tainted entries, functions with none omitted.
+#[must_use]
+pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .filter_map(|snap| {
+            let mut keys: Vec<&(String, u32)> = snap.unit.taints.keys().collect();
+            keys.sort();
+            let entries: Vec<Value> = keys
+                .iter()
+                .filter_map(|key| {
+                    let tl = &snap.unit.taints[*key];
+                    tl.colours
+                        .contains(tcl_compiler::taint::TaintColour::TAINTED)
+                        .then(|| json!({ "variable": key.0, "version": key.1, "taint": format_taint(tl) }))
+                })
+                .collect();
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise the `interprocedural` view: per-procedure summaries followed
 /// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
 #[must_use]
@@ -694,6 +720,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_taint(result, &li, &result.source),
     );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
+    out.insert("taintTracking".to_owned(), serialise_taint_tracking(result));
 
     // Double-pipeline keys: re-run on the optimiser's rewritten source.
     let opt = optimised_result(result);
@@ -808,6 +835,22 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn taint_tracking_marks_exec_tainted_vars() {
+        let result = run_pipeline("set x [exec ls]\nset y $x", "tcl8.6");
+        let tracking = serialise_result(&result)["taintTracking"].clone();
+        let top = &tracking.as_array().unwrap()[0];
+        let vars: Vec<&str> = top["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["variable"].as_str().unwrap())
+            .collect();
+        assert!(vars.contains(&"x"));
+        assert!(vars.contains(&"y"));
+        assert_eq!(top["entries"][0]["taint"], "tainted");
     }
 
     #[test]
