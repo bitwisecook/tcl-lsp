@@ -328,6 +328,7 @@ impl Vm {
             let act = acts.pop().expect("unwinding a non-empty stack");
             if act.is_proc {
                 self.pop_call_frame();
+                self.pop_ns();
                 if c.code == Code::Return {
                     c = ok(c.result);
                 }
@@ -374,6 +375,9 @@ impl Vm {
             self.pop_call_frame();
             return Err(err(proc_usage(proc)));
         }
+        // The body resolves names in the proc's defining namespace. Pushed only
+        // on success; `unwind` pops it together with the call-frame.
+        self.push_ns(proc.namespace.clone());
         Ok(())
     }
 

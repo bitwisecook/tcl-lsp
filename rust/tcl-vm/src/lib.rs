@@ -21,6 +21,8 @@ mod cmd_format;
 mod cmd_info;
 mod cmd_list;
 mod cmd_math;
+mod cmd_namespace;
+mod cmd_package;
 mod cmd_string;
 mod cmd_switch;
 mod command;

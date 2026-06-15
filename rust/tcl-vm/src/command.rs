@@ -27,8 +27,10 @@ pub struct Param {
 
 /// A user procedure: parameters plus the pre-compiled body.
 pub struct ProcDef {
-    /// Fully-qualified proc name (for `errorInfo`).
+    /// Canonical (namespace-qualified, no leading `::`) proc name.
     pub name: String,
+    /// The namespace the body executes in (canonical; `""` = global).
+    pub namespace: String,
     /// Formal parameters in order.
     pub params: Vec<Param>,
     /// Whether the last parameter is the `args` catch-all.
@@ -73,6 +75,8 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm);
+    crate::cmd_namespace::register(vm);
+    crate::cmd_package::register(vm);
     crate::cmd_switch::register(vm);
 }
 
@@ -201,22 +205,32 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"proc name args body\"");
     };
     let name_s = name.to_str();
-    let qname = if name_s.starts_with("::") {
+    // The pre-compiled body is keyed by the name as the compiler saw it
+    // (global-qualified with a leading `::`), independent of the namespace the
+    // `proc` runs in.
+    let body_key = if name_s.starts_with("::") {
         name_s.to_string()
     } else {
         format!("::{name_s}")
     };
+    // The registration / activation name is qualified with the *current*
+    // namespace (so `namespace eval foo { proc bar … }` defines `foo::bar`).
+    let reg_name = vm.qualify_name(&name_s);
+    let namespace = reg_name
+        .rsplit_once("::")
+        .map_or_else(String::new, |(ns, _)| ns.to_string());
     let (params_vec, has_args) = match parse_params(&params.to_str()) {
         Ok(p) => p,
         Err(e) => return err(e),
     };
-    let Some(body) = vm.module_proc(&qname) else {
+    let Some(body) = vm.module_proc(&body_key) else {
         return err(format!(
             "proc \"{name_s}\": no pre-compiled body (dynamic proc bodies unsupported)"
         ));
     };
     vm.define_proc(ProcDef {
-        name: qname,
+        name: reg_name,
+        namespace,
         params: params_vec,
         has_args,
         body,

@@ -189,6 +189,50 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn namespace_eval_and_procs() {
+    out_eq(
+        "namespace eval foo { proc bar {} { return hi } }\nputs [foo::bar]\n",
+        "hi\n",
+    );
+    out_eq(
+        "namespace eval foo { proc bar {} { return hi } }\nputs [::foo::bar]\n",
+        "hi\n",
+    );
+    // A proc resolves a sibling proc in its own namespace.
+    out_eq(
+        "namespace eval a { proc f {} { return [g] }\nproc g {} { return in } }\nputs [a::f]\n",
+        "in\n",
+    );
+}
+
+#[test]
+fn namespace_introspection() {
+    out_eq("puts [namespace current]\n", "::\n");
+    out_eq(
+        "namespace eval foo { puts [namespace current] }\n",
+        "::foo\n",
+    );
+    out_eq("puts [namespace qualifiers ::a::b::c]\n", "::a::b\n");
+    out_eq("puts [namespace tail ::a::b::c]\n", "c\n");
+    out_eq(
+        "namespace eval foo {}\nputs [namespace exists foo]\n",
+        "1\n",
+    );
+    out_eq("puts [namespace exists nope]\n", "0\n");
+}
+
+#[test]
+fn package_stubs() {
+    out_eq("puts [package require Tcl 8.5-]\n", "9.0\n");
+    out_eq("puts [package vsatisfies 9.0 9.0-]\n", "1\n");
+    out_eq("puts [package vsatisfies 8.4 8.5-]\n", "0\n");
+    out_eq(
+        "package provide Foo 1.2\nputs [package require Foo]\n",
+        "1.2\n",
+    );
+}
+
+#[test]
 fn linsert_lreplace_inline() {
     out_eq("puts [linsert {a c} 1 b]\n", "a b c\n");
     out_eq("puts [linsert {a b} end c]\n", "a b c\n");

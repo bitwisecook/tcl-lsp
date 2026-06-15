@@ -41,10 +41,20 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
 pub struct Vm {
     /// Call-frame stack; `frames[0]` is the global scope.
     frames: Vec<CallFrame>,
-    /// Command table (builtins + user procs), keyed by simple name.
+    /// Command table (builtins + user procs), keyed by canonical name — a
+    /// builtin's simple name, or a proc's namespace-qualified name without the
+    /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
     commands: HashMap<String, Command>,
     /// Pre-compiled proc bodies from the module(s), keyed by qualified name.
     module_procs: HashMap<String, Rc<FunctionAsm>>,
+    /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
+    /// top governs `proc`/command/variable name resolution. `namespace eval`
+    /// and proc activation push/pop it.
+    ns_stack: Vec<String>,
+    /// Existing namespaces (canonical names; `""` global is implicit).
+    namespaces: std::collections::HashSet<String>,
+    /// Provided packages → version (`package provide`/`require`).
+    packages: HashMap<String, String>,
     out: Box<dyn Write>,
     compiler: Option<Box<dyn CompileService>>,
 }
@@ -63,6 +73,9 @@ impl Vm {
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
             commands: HashMap::new(),
             module_procs: HashMap::new(),
+            ns_stack: vec![String::new()],
+            namespaces: std::collections::HashSet::new(),
+            packages: HashMap::new(),
             out,
             compiler: None,
         };
@@ -76,18 +89,113 @@ impl Vm {
     }
 
     pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {
-        self.commands.insert(name.to_owned(), Command::Builtin(f));
+        self.register_command(name, Command::Builtin(f));
     }
 
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) {
-        self.commands.insert(name.to_owned(), cmd);
+        // The table is keyed by canonical names (no leading `::`).
+        let key = name.strip_prefix("::").unwrap_or(name);
+        self.commands.insert(key.to_owned(), cmd);
     }
 
+    /// Resolve a command name to its definition, honouring the current
+    /// namespace: an absolute `::a::b` name resolves exactly; an unqualified /
+    /// relatively-qualified name is tried in the current namespace, then the
+    /// global namespace (where builtins live).
     pub(crate) fn lookup_command(&self, name: &str) -> Option<Command> {
-        self.commands
-            .get(name)
-            .or_else(|| self.commands.get(name.strip_prefix("::").unwrap_or(name)))
+        if let Some(abs) = name.strip_prefix("::") {
+            return self.commands.get(abs).cloned();
+        }
+        let cur = self.current_ns();
+        if !cur.is_empty()
+            && let Some(c) = self.commands.get(&format!("{cur}::{name}"))
+        {
+            return Some(c.clone());
+        }
+        self.commands.get(name).cloned()
+    }
+
+    /// The current namespace (canonical, no leading `::`; `""` = global).
+    pub(crate) fn current_ns(&self) -> &str {
+        self.ns_stack.last().map_or("", String::as_str)
+    }
+
+    /// Push a namespace onto the resolution stack (created if new).
+    pub(crate) fn push_ns(&mut self, ns: String) {
+        if !ns.is_empty() {
+            self.namespaces.insert(ns.clone());
+        }
+        self.ns_stack.push(ns);
+    }
+
+    /// Pop the current namespace (the global base is never popped).
+    pub(crate) fn pop_ns(&mut self) {
+        if self.ns_stack.len() > 1 {
+            self.ns_stack.pop();
+        }
+    }
+
+    /// Canonicalise a name (no leading `::`) relative to the current namespace:
+    /// an absolute `::a::b` drops the leading `::`; anything else is qualified
+    /// with the current namespace.
+    pub(crate) fn qualify_name(&self, name: &str) -> String {
+        if let Some(abs) = name.strip_prefix("::") {
+            return abs.to_string();
+        }
+        let cur = self.current_ns();
+        if cur.is_empty() {
+            name.to_string()
+        } else {
+            format!("{cur}::{name}")
+        }
+    }
+
+    /// Register an existing namespace (and its ancestors).
+    pub(crate) fn declare_namespace(&mut self, ns: &str) {
+        if ns.is_empty() {
+            return;
+        }
+        self.namespaces.insert(ns.to_string());
+        if let Some((parent, _)) = ns.rsplit_once("::") {
+            self.declare_namespace(parent);
+        }
+    }
+
+    /// Whether a canonical namespace name exists.
+    pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
+        ns.is_empty() || self.namespaces.contains(ns)
+    }
+
+    /// Immediate child namespaces of `parent` (canonical names).
+    pub(crate) fn child_namespaces(&self, parent: &str) -> Vec<String> {
+        let prefix = if parent.is_empty() {
+            String::new()
+        } else {
+            format!("{parent}::")
+        };
+        self.namespaces
+            .iter()
+            .filter(|ns| {
+                ns.strip_prefix(&prefix)
+                    .is_some_and(|rest| !rest.is_empty() && !rest.contains("::"))
+            })
             .cloned()
+            .collect()
+    }
+
+    /// Record a provided package version.
+    pub(crate) fn provide_package(&mut self, name: &str, version: &str) {
+        self.packages.insert(name.to_string(), version.to_string());
+    }
+
+    /// The provided version of a package, if any.
+    pub(crate) fn package_version(&self, name: &str) -> Option<&str> {
+        self.packages.get(name).map(String::as_str)
+    }
+
+    /// Names of all provided packages.
+    pub(crate) fn package_names(&self) -> Vec<String> {
+        self.packages.keys().cloned().collect()
     }
 
     pub(crate) fn module_proc(&self, qname: &str) -> Option<Rc<FunctionAsm>> {
@@ -364,16 +472,15 @@ impl Vm {
         let _ = self.out.flush();
     }
 
-    /// Register a user procedure.
+    /// Register a user procedure under its canonical (namespace-qualified)
+    /// name, and ensure its namespace exists.
     pub(crate) fn define_proc(&mut self, proc: ProcDef) {
-        let simple = proc
-            .name
-            .rsplit("::")
-            .next()
-            .unwrap_or(&proc.name)
-            .to_owned();
+        let key = proc.name.clone();
+        if let Some((ns, _)) = key.rsplit_once("::") {
+            self.declare_namespace(ns);
+        }
         let cmd = Command::Proc(Rc::new(proc));
-        self.register_command(&simple, cmd);
+        self.register_command(&key, cmd);
     }
 
     /// Dispatch a *builtin* command by name (no proc activation). Returns `None`
