@@ -349,12 +349,28 @@ practcl.tcl from ~1 s to low-ms).
 > **Still not won.**
 > - **The `variable ns::x` (`variable_ns`) + `syntax_error` fallbacks** remain
 >   (correct, narrow).
-> - **The `CompilationUnit` lowering floor** (~80 ms O(file) `lower_to_ir` +
->   module `build_cfg`) is the per-edit floor for fast-path files; lowering them
->   incrementally is the remaining architecture-level lever.
+> - **The `CompilationUnit` per-edit floor is architecture-level.** Phase-timed
+>   on `parse_lemon.tcl` (7.4 kLOC, 177 procs), the per-edit CU rebuild splits
+>   into: `lower_to_ir` ~26 ms + module `build_cfg` ~10 ms (both O(file)) + the
+>   **per-procedure loop ~52 ms** + `with_interprocedural` ~19 ms.  The
+>   per-procedure 52 ms is *not* lattice compute — the lattices are memoised
+>   (`function_lattice`) — it is the **offset-invariant plumbing run for every
+>   procedure on every edit**: clone the proc's offset-0 IR body + `rebase_script`
+>   it, then deep-clone the memoised `FunctionUnit` + `rebase_function_unit` it to
+>   the proc's real offset.  Because the rebase target (the offset) changes
+>   whenever an edit shifts a procedure, the rebased unit can't be cached across
+>   edits, so this plumbing is irreducible without either **incremental
+>   lowering/CFG** or making the diagnostic consumers **offset-aware** (consume
+>   offset-0 units + a per-proc offset, no rebase) — both large refactors.
+>   - *Tried and reverted:* folding interprocedural `param_constants` into the
+>     `function_lattice` key (so param-constant procedures memoise too, instead of
+>     the fresh-build bypass).  It is byte-identical but a net **regression**: the
+>     added clone+rebase+body-normalise plumbing for those procedures costs more
+>     than the fresh lattice build it replaced (parse_lemon BOTH-queries
+>     ~202 ms → ~245 ms), confirming the plumbing — not the compute — is the floor.
 > - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
->   definer and is OO-heavy, so it needs the lowering floor before it leaves the
->   full-rebuild path.
+>   definer and is OO-heavy, so it needs that architectural step before it leaves
+>   the full-rebuild path.
 
 > **OO method-body memoisation (shipped).** Method bodies were walked *in place*
 > in pass 2 (not memoised), so a body edit re-walked every method.  They are now
