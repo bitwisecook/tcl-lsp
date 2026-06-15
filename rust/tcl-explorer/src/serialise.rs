@@ -678,6 +678,238 @@ pub fn serialise_segments(source: &str) -> Value {
     Value::Array(segments)
 }
 
+/// One source-callout annotation, before serialisation.
+struct Ann {
+    span: Span,
+    label: String,
+    kind: &'static str,
+    severity: &'static str,
+    priority: i32,
+}
+
+/// Collect compiler-barrier annotations from a script, recursing into
+/// If/For/Switch bodies only — mirroring Python's `_walk_barriers`.
+fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Barrier { span, reason, .. } => out.push(Ann {
+                span: *span,
+                label: format!("{scope}: compiler barrier ({reason})"),
+                kind: "barrier",
+                severity: "warning",
+                priority: 2,
+            }),
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for c in clauses {
+                    walk_barriers(&c.body, scope, out);
+                }
+                if let Some(e) = else_body {
+                    walk_barriers(e, scope, out);
+                }
+            }
+            Statement::For {
+                init, body, next, ..
+            } => {
+                walk_barriers(init, scope, out);
+                walk_barriers(body, scope, out);
+                walk_barriers(next, scope, out);
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for a in arms {
+                    if let Some(b) = &a.body {
+                        walk_barriers(b, scope, out);
+                    }
+                }
+                if let Some(d) = default_body {
+                    walk_barriers(d, scope, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Serialise the `annotations` + `annotationsByLine` source-callout views.
+/// Mirrors `collect_annotations` (all sources, GUI default), then
+/// `_serialise_annotation` + `_group_annotations_by_line`.
+///
+/// `_NO_PARITY`: aggregates the optimiser / shimmer / gvn / taint sources
+/// (which diverge from Python) and **omits dead-store callouts** — the Rust
+/// liveness pass that fills `FunctionAnalysis.dead_stores` is unported.
+/// constant-branch + unreachable-block callouts come from `sccp`.
+#[allow(clippy::too_many_lines)]
+fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
+    let registry = registry_for_dialect(&result.dialect);
+    let dialect = Some(result.dialect.as_str());
+    let mut anns: Vec<Ann> = Vec::new();
+
+    // Barriers (IR walk).
+    walk_barriers(&result.unit.ir_module.top_level, "::top", &mut anns);
+    let mut qnames: Vec<&String> = result.unit.ir_module.procedures.keys().collect();
+    qnames.sort();
+    for qname in qnames {
+        walk_barriers(
+            &result.unit.ir_module.procedures[qname].body,
+            qname,
+            &mut anns,
+        );
+    }
+
+    // Constant branches + unreachable blocks (from SCCP), per function.
+    for snap in result.snapshots() {
+        for branch in &snap.unit.sccp.constant_branches {
+            if let Some(span) = branch.span {
+                let dir = if branch.value { "true" } else { "false" };
+                anns.push(Ann {
+                    span,
+                    label: format!(
+                        "{}: branch is always {dir}; takes {}",
+                        snap.name, branch.taken_target
+                    ),
+                    kind: "constantBranch",
+                    severity: "info",
+                    priority: 0,
+                });
+            }
+        }
+        let mut unreachable: Vec<&String> = snap
+            .unit
+            .cfg
+            .blocks
+            .keys()
+            .filter(|b| !snap.unit.sccp.executable_blocks.contains(*b))
+            .collect();
+        unreachable.sort();
+        for bn in unreachable {
+            let block = &snap.unit.cfg.blocks[bn];
+            let span = block
+                .statements
+                .first()
+                .map(Statement::span)
+                .or_else(|| block.terminator.as_ref().and_then(Terminator::span));
+            if let Some(span) = span {
+                anns.push(Ann {
+                    span,
+                    label: format!("{}: unreachable block {bn}", snap.name),
+                    kind: "unreachable",
+                    severity: "warning",
+                    priority: 3,
+                });
+            }
+        }
+    }
+
+    // Optimiser rewrites.
+    for o in optimise(source, registry) {
+        anns.push(Ann {
+            span: o.span,
+            label: format!(
+                "{}: {} -> {}",
+                o.code,
+                o.message,
+                preview(&o.replacement, 40)
+            ),
+            kind: "optimisation",
+            severity: "info",
+            priority: -1,
+        });
+    }
+    // Shimmer + thunking.
+    for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
+        let sev = shimmer_severity(&w.code);
+        anns.push(Ann {
+            span: w.span,
+            label: format!("{}: {}", w.code, w.message),
+            kind: "shimmer",
+            severity: sev,
+            priority: if sev == "error" { 1 } else { 2 },
+        });
+    }
+    for w in find_thunking_warnings_for_cu(&result.unit) {
+        let sev = shimmer_severity(&w.code);
+        anns.push(Ann {
+            span: w.span,
+            label: format!("{}: {}", w.code, w.message),
+            kind: "thunking",
+            severity: sev,
+            priority: if sev == "error" { 1 } else { 2 },
+        });
+    }
+    // GVN.
+    let mut gvn = find_redundancies_for_cu(&result.unit, registry, dialect);
+    gvn.extend(find_partial_redundancies_for_cu(
+        &result.unit,
+        registry,
+        dialect,
+    ));
+    gvn.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
+    for w in gvn {
+        let label = if w.message.is_empty() {
+            format!("{}: {}", w.code, w.expression_text)
+        } else {
+            format!("{}: {}", w.code, w.message)
+        };
+        anns.push(Ann {
+            span: w.span,
+            label,
+            kind: "gvn",
+            severity: "info",
+            priority: 1,
+        });
+    }
+    // Taint.
+    for w in find_taint_warnings_for_cu(&result.unit, registry, dialect) {
+        anns.push(Ann {
+            span: w.span,
+            label: format!("{}: {}", w.code, w.message),
+            kind: "taint",
+            severity: taint_severity(&w.code),
+            priority: 0,
+        });
+    }
+
+    // Sort: (start_offset, priority, span_width, label).
+    anns.sort_by(|a, b| {
+        a.span
+            .start()
+            .cmp(&b.span.start())
+            .then(a.priority.cmp(&b.priority))
+            .then((a.span.end() - a.span.start()).cmp(&(b.span.end() - b.span.start())))
+            .then(a.label.cmp(&b.label))
+    });
+
+    let dicts: Vec<Value> = anns
+        .iter()
+        .map(|a| {
+            json!({
+                "range": range_dict(a.span, li, source),
+                "label": a.label,
+                "kind": a.kind,
+                "severity": a.severity,
+                "priority": a.priority,
+            })
+        })
+        .collect();
+
+    // Group annotation indices by 0-based source line.
+    let mut by_line: Map<String, Value> = Map::new();
+    for (idx, a) in anns.iter().enumerate() {
+        let line = li.position_at(a.span.start()).line.to_string();
+        by_line
+            .entry(line)
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .unwrap()
+            .push(json!(idx));
+    }
+
+    (Value::Array(dicts), Value::Object(by_line))
+}
+
 /// Serialise a full pipeline result to the explorer contract JSON.
 ///
 /// Currently emits the ported view families; subsequent EXP-* increments
@@ -758,6 +990,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     // until the emitter chunk lands.
     out.insert("wasm".to_owned(), Value::Null);
     out.insert("wasmOptimised".to_owned(), Value::Null);
+
+    let (annotations, by_line) = serialise_annotations(result, &li, &result.source);
+    out.insert("annotations".to_owned(), annotations);
+    out.insert("annotationsByLine".to_owned(), by_line);
     Value::Object(out)
 }
 
@@ -852,6 +1088,26 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn annotations_collect_callouts_and_group_by_line() {
+        let result = run_pipeline(
+            "set a 5\nset b [expr {$a + 1}]\nset c [expr {$a + 1}]\nputs $b$c",
+            "tcl8.6",
+        );
+        let v = serialise_result(&result);
+        let anns = v["annotations"].as_array().unwrap();
+        assert!(!anns.is_empty(), "expected source callouts");
+        for a in anns {
+            assert!(a["range"]["startOffset"].is_number());
+            assert!(a["label"].is_string());
+            assert!(a["kind"].is_string());
+        }
+        // byLine groups annotation indices under string line keys.
+        let by_line = v["annotationsByLine"].as_object().unwrap();
+        let total: usize = by_line.values().map(|v| v.as_array().unwrap().len()).sum();
+        assert_eq!(total, anns.len());
     }
 
     #[test]

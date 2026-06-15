@@ -101,6 +101,12 @@ _NO_PARITY_KEYS = {
     # disassembly); they degrade gracefully and light up when the emitter lands.
     "wasm",
     "wasmOptimised",
+    # Source callouts aggregate the divergent optimiser/shimmer/gvn/taint
+    # sources and omit dead-store callouts (the Rust liveness pass that
+    # fills FunctionAnalysis.dead_stores is unported), so they are pinned by
+    # a Rust unit test rather than the Python differential.
+    "annotations",
+    "annotationsByLine",
 }
 
 
