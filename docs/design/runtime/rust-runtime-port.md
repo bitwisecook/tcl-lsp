@@ -3068,6 +3068,17 @@ supply a `type eval` (`unlocated_frame`) frame; `uplevel` redirects its level.
 (Found by Codex review on PR #607; `info-37.0`'s two `type eval` frames are now
 correct, its remaining gap is the unrelated `etrace`/`while` line.)
 
+### SYNC inbound — 2026-06-15 (`namespace ensemble configure` rebinds the resolved command)
+
+`namespace ensemble configure cmd …` (set form) recreated the ensemble relative
+to the *current* namespace, so reconfiguring an ensemble reached via `namespace
+path` (e.g. `namespace eval b { namespace path ::a; namespace ensemble configure
+a -prefixes 0 }`) created/overwrote a shadow `::b::a` and left the real `::a`
+untouched. `set_ensemble_config` now uses a new `NamespaceArena::rebind_resolved`
+(rebind in place at the namespace `home_of`/`resolve` selects, incl. `namespace
+path`) instead of `create_ensemble`. Found by Codex review on PR #607; verified
+vs `tclsh9.0`, namespace 238 held.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

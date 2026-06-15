@@ -902,14 +902,25 @@ impl Interp {
     }
 
     /// Rebind the ensemble command `name` with an updated configuration
-    /// (`namespace ensemble configure` set form). `name` must already resolve to
-    /// an ensemble; rebinds at the same location `create_ensemble` would choose.
+    /// (`namespace ensemble configure` set form). `name` already resolves to an
+    /// ensemble (the caller read it via [`ensemble_config`](Self::ensemble_config)),
+    /// so the update lands at the namespace where it *resolves* — which may be
+    /// reached via `namespace path`, not the current namespace — rather than
+    /// creating a shadowing copy in the current namespace.
     pub(crate) fn set_ensemble_config(
         &mut self,
         name: &[u8],
         cfg: crate::ensemble::EnsembleConfig,
     ) {
-        self.create_ensemble(name, cfg);
+        if !self.namespaces.borrow_mut().rebind_resolved(
+            self.current_ns.get(),
+            name,
+            Command::Ensemble(cfg.clone()),
+        ) {
+            // Should not happen (the caller verified it resolves); create at the
+            // current-namespace location as a fallback.
+            self.create_ensemble(name, cfg);
+        }
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).

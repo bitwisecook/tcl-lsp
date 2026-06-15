@@ -124,6 +124,23 @@ impl Namespaces {
             .map(|(ns, simple)| self.arena[ns].commands[&simple].clone())
     }
 
+    /// Rebind an existing command in place at the namespace where it actually
+    /// resolves (the full resolution order, incl. `namespace path`) — the
+    /// `namespace ensemble configure` set form. Unlike [`bind`](Self::bind),
+    /// which always targets `current`, this updates the command `resolve` would
+    /// hit, so reconfiguring an ensemble reached via `namespace path` mutates the
+    /// real binding rather than shadowing it. Returns `false` if `name` does not
+    /// resolve (the caller has already verified it does).
+    pub fn rebind_resolved(&mut self, current: NsId, name: &[u8], command: Command) -> bool {
+        match self.home_of(current, name) {
+            Some((ns, simple)) => {
+                self.arena[ns].commands.insert(simple, command);
+                true
+            }
+            None => false,
+        }
+    }
+
     /// The canonical fully-qualified name a (relative/absolute) command `name`
     /// resolves to, following the full resolution order — or `None` if no such
     /// command exists. Used to key command/execution traces so they address the
