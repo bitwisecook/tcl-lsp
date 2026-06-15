@@ -8,6 +8,7 @@
 
 use serde_json::{Value, json};
 
+use tcl_compiler::interprocedural::{ConstantReturn, ProcSummary};
 use tcl_compiler::ir::Statement;
 use tcl_lexer::{LineIndex, Span};
 use tcl_syntax::expr::ast::render_expr;
@@ -205,4 +206,65 @@ pub fn stmt_summary(stmt: &Statement) -> String {
         // through to the class name, mirroring Python's default.
         other => stmt_kind(other).to_owned(),
     }
+}
+
+/// Python `repr()` of a constant string — the form `format_return_shape`
+/// embeds via `{constant_return!r}`. Chooses the quote Python would
+/// (double quotes when the string has a `'` but no `"`, else single) and
+/// escapes backslash, the chosen quote, and the common control chars.
+fn py_repr_str(s: &str) -> String {
+    let quote = if s.contains('\'') && !s.contains('"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push(quote);
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c == quote => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(quote);
+    out
+}
+
+/// Python `repr()` of a constant return value.
+fn py_repr_constant(c: &ConstantReturn) -> String {
+    match c {
+        ConstantReturn::Int(n) => n.to_string(),
+        ConstantReturn::Bool(b) => if *b { "True" } else { "False" }.to_owned(),
+        ConstantReturn::Str(s) => py_repr_str(s),
+        // Rust's Debug for f64 is shortest-round-trip with a decimal point,
+        // matching Python `repr` for the common cases.
+        ConstantReturn::Float(f) => format!("{f:?}"),
+    }
+}
+
+/// Project a [`ProcSummary`]'s return facts to a display string. Mirrors
+/// `formatters.format_return_shape`.
+#[must_use]
+pub fn format_return_shape(s: &ProcSummary) -> String {
+    if s.returns_constant {
+        let r = s
+            .constant_return
+            .as_ref()
+            .map_or_else(|| "None".to_owned(), py_repr_constant);
+        return format!("const({r})");
+    }
+    if let Some(param) = &s.return_passthrough_param {
+        return format!("passthrough({param})");
+    }
+    if !s.return_depends_on_params.is_empty() {
+        return format!("depends({})", s.return_depends_on_params.join(","));
+    }
+    "unknown".to_owned()
 }

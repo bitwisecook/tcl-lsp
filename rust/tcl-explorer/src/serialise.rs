@@ -13,13 +13,16 @@ use serde_json::{Map, Value, json};
 
 use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
+use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_lexer::{LineIndex, Span};
 use tcl_registry::available_dialects;
 use tcl_syntax::expr::ast::render_expr;
 
 use crate::ExplorerResult;
-use crate::formatters::{preview, range_dict, stmt_color_class, stmt_kind, stmt_summary};
+use crate::formatters::{
+    format_return_shape, preview, range_dict, stmt_color_class, stmt_kind, stmt_summary,
+};
 use crate::views::{Severity, VIEW_META};
 
 /// Serialise the `meta` view: dialect list, view-tab table, and the
@@ -286,6 +289,62 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
     Value::Array(funcs)
 }
 
+/// Format a declared arity. Mirrors `_serialise_interproc`'s arity string:
+/// `"{min}+"` when unlimited (`max == u32::MAX`), else `"{min}..{max}"`.
+fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
+    if arity.max == u32::MAX {
+        format!("{}+", arity.min)
+    } else {
+        format!("{}..{}", arity.min, arity.max)
+    }
+}
+
+/// Serialise the `interprocedural` view: per-procedure summaries followed
+/// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
+#[must_use]
+pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
+    let mut out: Vec<Value> = Vec::new();
+
+    let mut qnames: Vec<&String> = interproc.procedures.keys().collect();
+    qnames.sort();
+    for qname in qnames {
+        let s = &interproc.procedures[qname];
+        out.push(json!({
+            "name": qname,
+            "arity": arity_str(s.arity),
+            "pure": s.pure,
+            "foldable": s.can_fold_static_calls,
+            "returnShape": format_return_shape(s),
+            "calls": s.calls,
+            "hasBarrier": s.has_barrier,
+            "hasUnknownCalls": s.has_unknown_calls,
+            "writesGlobal": s.writes_global,
+        }));
+    }
+
+    let mut mqnames: Vec<&String> = interproc.methods.keys().collect();
+    mqnames.sort();
+    for mqname in mqnames {
+        let m = &interproc.methods[mqname];
+        let mut writes_instance: Vec<&String> = m.writes_instance_vars.iter().collect();
+        writes_instance.sort();
+        out.push(json!({
+            "name": mqname,
+            "kind": "method",
+            "methodKind": m.method_kind,
+            "className": m.class_name,
+            "pure": m.base.pure,
+            "calls": m.base.calls,
+            "hasBarrier": m.base.has_barrier,
+            "hasUnknownCalls": m.base.has_unknown_calls,
+            "writesGlobal": m.base.writes_global,
+            "writesInstanceVars": writes_instance,
+        }));
+    }
+
+    Value::Array(out)
+}
+
 /// Serialise a full pipeline result to the explorer contract JSON.
 ///
 /// Currently emits the ported view families; subsequent EXP-* increments
@@ -304,6 +363,9 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "cfgPreSsa".to_owned(),
         serialise_cfg_pre_ssa(result, &li, &result.source),
     );
+    if let Some(interproc) = &result.unit.interproc {
+        out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
+    }
     Value::Object(out)
 }
 
@@ -351,6 +413,22 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn interproc_summarises_procs_with_arity_and_return_shape() {
+        let result = run_pipeline("proc id {x} { return $x }\nid 5", "tcl8.6");
+        let interproc = serialise_result(&result)["interprocedural"].clone();
+        let add = interproc
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["name"] == "::id")
+            .expect("::id summary present");
+        assert_eq!(add["arity"], "1..1");
+        assert_eq!(add["returnShape"], "passthrough(x)");
+        assert!(add["pure"].is_boolean());
+        assert!(add["calls"].is_array());
     }
 
     #[test]
