@@ -81,16 +81,23 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             top,
             json,
             output,
-        } => commands::stats::run_stats(inputs, *top, *json, output.as_deref()),
+            passphrase,
+        } => commands::stats::run_stats(inputs, *top, *json, output.as_deref(), passphrase),
         Command::Cleanup {
             inputs,
             keep,
             no_keep_common,
             json,
             output,
-        } => {
-            commands::cleanup::run_cleanup(inputs, keep, *no_keep_common, *json, output.as_deref())
-        }
+            passphrase,
+        } => commands::cleanup::run_cleanup(
+            inputs,
+            keep,
+            *no_keep_common,
+            *json,
+            output.as_deref(),
+            passphrase,
+        ),
         Command::Graph {
             inputs,
             format,
@@ -98,6 +105,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             reverse,
             max_depth,
             output,
+            passphrase,
         } => commands::graph::run_graph(
             inputs,
             format,
@@ -105,6 +113,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             *reverse,
             *max_depth,
             output.as_deref(),
+            passphrase,
         ),
         Command::Completion { shell } => {
             use clap::CommandFactory;

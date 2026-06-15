@@ -17,8 +17,9 @@ pub fn run_cleanup(
     no_keep_common: bool,
     json: bool,
     output: Option<&Path>,
+    passphrase: &crate::cli::PassphraseArgs,
 ) -> anyhow::Result<u8> {
-    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let opts = passphrase.to_options();
     let paths: Vec<String> = inputs
         .iter()
         .map(|p| p.to_string_lossy().into_owned())

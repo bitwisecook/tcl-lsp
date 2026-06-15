@@ -402,7 +402,7 @@ pub fn run_explain(
     // Resolve inputs via the UCS-aware loader (mirrors `load_paths`), so a
     // `.ucs` — plain or encrypted — is transparently extracted to SCF and
     // parsed just like a `.conf`/`.scf`.
-    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let opts = crate::cli::PassphraseArgs::default().to_options();
     let paths: Vec<String> = inputs
         .iter()
         .map(|p| p.to_string_lossy().into_owned())

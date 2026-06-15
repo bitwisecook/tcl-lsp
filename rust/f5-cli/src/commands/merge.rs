@@ -38,7 +38,7 @@ pub fn run_merge(
 
     // Read each file via the UCS-aware resolver (mirrors `read_path`) so a
     // `.ucs` member is transparently extracted to SCF before concatenation.
-    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let opts = crate::cli::PassphraseArgs::default().to_options();
     let mut chunks: Vec<String> = Vec::with_capacity(files.len());
     for f in &files {
         let (_uri, src) = tcl_bigip_io::read_path(&f.to_string_lossy(), false, &opts)

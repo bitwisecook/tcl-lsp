@@ -11,8 +11,8 @@
 
 use std::path::Path;
 
+use tcl_bigip_io::resolve_passphrase;
 use tcl_bigip_io::ucs::{is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf};
-use tcl_bigip_io::{resolve_passphrase, PassphraseOptions, DEFAULT_PASSPHRASE_ENV};
 use tcl_cli_support::{write_text_output, OutputTarget};
 
 use crate::cli::{FormatArgs, PassphraseArgs};
@@ -39,14 +39,7 @@ pub fn run_extract(
         );
     }
 
-    let opts = PassphraseOptions {
-        explicit: None,
-        env_var: passphrase
-            .passphrase_env
-            .clone()
-            .unwrap_or_else(|| DEFAULT_PASSPHRASE_ENV.to_owned()),
-        allow_prompt: !passphrase.no_passphrase_prompt,
-    };
+    let opts = passphrase.to_options();
     let provider = || resolve_passphrase(&opts);
 
     let label = ucs.display().to_string();

@@ -32,6 +32,7 @@ fn no_passphrase() -> PassphraseOptions {
         explicit: None,
         env_var: String::new(),
         allow_prompt: false,
+        ..PassphraseOptions::default()
     }
 }
 
@@ -118,4 +119,53 @@ fn read_path_extracts_encrypted_ucs_file() {
     let path = fixtures().join("sample-encrypted.ucs");
     let (_uri, source) = read_path(path.to_str().unwrap(), false, &with_passphrase()).unwrap();
     assert_eq!(source, read_text("sample.scf.golden"));
+}
+
+// --- Passphrase resolution order (explicit → env → prompt → error) ----------
+
+fn prompt_sentinel() -> Result<String, String> {
+    Ok("FROM_PROMPT".to_owned())
+}
+
+#[test]
+fn env_var_takes_precedence_over_prompt() {
+    // Even with a TTY-style prompt wired in, a set env var wins and the prompt
+    // is never consulted.
+    std::env::set_var("F5_UCS_PRECEDENCE_TEST", "FROM_ENV");
+    let opts = PassphraseOptions {
+        explicit: None,
+        env_var: "F5_UCS_PRECEDENCE_TEST".to_owned(),
+        allow_prompt: true,
+        prompt: Some(prompt_sentinel),
+    };
+    assert_eq!(
+        tcl_bigip_io::resolve_passphrase(&opts).expect("env passphrase"),
+        "FROM_ENV"
+    );
+    std::env::remove_var("F5_UCS_PRECEDENCE_TEST");
+}
+
+#[test]
+fn prompt_used_only_when_env_absent() {
+    let opts = PassphraseOptions {
+        explicit: None,
+        env_var: "F5_UCS_UNSET_FOR_PROMPT_TEST".to_owned(),
+        allow_prompt: true,
+        prompt: Some(prompt_sentinel),
+    };
+    assert_eq!(
+        tcl_bigip_io::resolve_passphrase(&opts).expect("prompt passphrase"),
+        "FROM_PROMPT"
+    );
+}
+
+#[test]
+fn prompt_skipped_when_disabled() {
+    let opts = PassphraseOptions {
+        explicit: None,
+        env_var: "F5_UCS_UNSET_FOR_DISABLED_TEST".to_owned(),
+        allow_prompt: false,
+        prompt: Some(prompt_sentinel),
+    };
+    assert!(tcl_bigip_io::resolve_passphrase(&opts).is_err());
 }

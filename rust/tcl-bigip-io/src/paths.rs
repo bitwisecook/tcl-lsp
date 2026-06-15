@@ -47,9 +47,15 @@ pub struct PassphraseOptions {
     pub explicit: Option<String>,
     /// Environment variable consulted when no explicit value is given.
     pub env_var: String,
-    /// Whether interactive prompting is permitted (reserved; the pure library
-    /// itself never prompts — a binary may layer a TTY prompt on top).
+    /// Whether interactive prompting is permitted.
     pub allow_prompt: bool,
+    /// Interactive-prompt callback, supplied by a binary. The pure library
+    /// performs no I/O itself; when `allow_prompt` is set and neither
+    /// `explicit` nor the env var resolved a value, this is invoked as the last
+    /// resort (a binary wires a secure TTY prompt here). `Err`/empty falls
+    /// through to the standard "set the env var" error — e.g. when there is no
+    /// controlling terminal — matching the Python provider's TTY fallback.
+    pub prompt: Option<fn() -> Result<String, String>>,
 }
 
 impl Default for PassphraseOptions {
@@ -58,16 +64,18 @@ impl Default for PassphraseOptions {
             explicit: None,
             env_var: DEFAULT_PASSPHRASE_ENV.to_owned(),
             allow_prompt: true,
+            prompt: None,
         }
     }
 }
 
-/// Resolve a passphrase: explicit → `$env_var` → error.
+/// Resolve a passphrase: explicit → `$env_var` → interactive prompt → error.
 ///
 /// Mirrors `resolve_passphrase`'s resolution order and its
-/// `UcsPassphraseError` message. Interactive prompting is intentionally not
-/// performed here (the core stays pure / non-interactive); a binary that wants
-/// a TTY prompt can supply the value via [`PassphraseOptions::explicit`].
+/// `UcsPassphraseError` message. The pure library never performs I/O itself; the
+/// interactive step calls [`PassphraseOptions::prompt`] (a binary-supplied
+/// secure TTY prompt) only when [`PassphraseOptions::allow_prompt`] is set and
+/// nothing earlier resolved a value.
 pub fn resolve_passphrase(opts: &PassphraseOptions) -> Result<String, UcsError> {
     if let Some(p) = &opts.explicit {
         if !p.is_empty() {
@@ -78,6 +86,15 @@ pub fn resolve_passphrase(opts: &PassphraseOptions) -> Result<String, UcsError> 
         if let Ok(v) = std::env::var(&opts.env_var) {
             if !v.is_empty() {
                 return Ok(v);
+            }
+        }
+    }
+    if opts.allow_prompt {
+        if let Some(prompt) = opts.prompt {
+            if let Ok(p) = prompt() {
+                if !p.is_empty() {
+                    return Ok(p);
+                }
             }
         }
     }

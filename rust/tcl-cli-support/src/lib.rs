@@ -15,6 +15,7 @@ pub mod chrome;
 mod highlight;
 mod input;
 mod output;
+pub mod prompt;
 mod registry;
 
 pub use highlight::{highlight_ansi, highlight_html};

@@ -16,12 +16,13 @@ pub fn run_graph(
     reverse: bool,
     max_depth: Option<usize>,
     output: Option<&Path>,
+    passphrase: &crate::cli::PassphraseArgs,
 ) -> anyhow::Result<u8> {
     // Resolve inputs via the UCS-aware loader (mirrors `load_paths`) — each
     // loaded config carries its uri + original source text, both of which the
     // graph builder needs (the source for the node/edge walk, the parsed config
     // for reference resolution).
-    let opts = tcl_bigip_io::PassphraseOptions::default();
+    let opts = passphrase.to_options();
     let paths: Vec<String> = inputs
         .iter()
         .map(|p| p.to_string_lossy().into_owned())
