@@ -1068,6 +1068,96 @@ pub fn serialise_segments(source: &str) -> Value {
     Value::Array(segments)
 }
 
+/// Serialise the `eventOrder` view: iRules `when EVENT [priority N] { body }`
+/// handlers in canonical firing order. Faithful port of `extract_event_order`
+/// (`compiler/irules_flow.py`) composed with `_serialise_event_order`.
+///
+/// Reuses the segmenter to find `when` commands (the body must be a braced
+/// block) and the reuse-positive `EventRegistry::{order_events,
+/// event_multiplicity}` for the canonical ordering / multiplicity class. Empty
+/// for ordinary Tcl (no `when` blocks), so it is strictly gateable against the
+/// Tcl corpus; the `when`-handler behaviour is pinned by a Rust unit test.
+#[must_use]
+pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
+    use std::collections::HashMap;
+
+    use tcl_registry::events::EventRegistry;
+
+    /// One discovered `when` handler.
+    struct Handler {
+        priority: i64,
+        /// File-order index among matched handlers (tie-breaker).
+        idx: usize,
+        /// The `EVENT` token's span (for the navigable range).
+        span: Span,
+    }
+
+    let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
+    let mut matched = 0usize;
+    for seg in segment_commands(source) {
+        if seg.texts.first().map(String::as_str) != Some("when") || seg.argv.len() < 3 {
+            continue;
+        }
+        // The body (last word) must be a braced block (`Str`), matching the
+        // Python `body_tok.type is TokenType.STR` guard.
+        let Some(body) = seg.argv.last() else {
+            continue;
+        };
+        if body.kind != TokenType::Str {
+            continue;
+        }
+        let event = seg.texts[1].clone();
+        let span = seg.argv[1].span;
+        // `when EVENT priority N { body }` — base priority defaults to 500.
+        // `when EVENT priority N { body }`; a missing/non-integer priority
+        // keeps the 500 default (matching Python).
+        let mut priority = 500;
+        if seg.texts.len() >= 5
+            && seg.texts[2] == "priority"
+            && let Ok(parsed) = seg.texts[3].parse::<i64>()
+        {
+            priority = parsed;
+        }
+        per_event.entry(event).or_default().push(Handler {
+            priority,
+            idx: matched,
+            span,
+        });
+        matched += 1;
+    }
+
+    // Each event's handlers fire lowest-priority first, file order breaking ties.
+    for handlers in per_event.values_mut() {
+        handlers.sort_by_key(|h| (h.priority, h.idx));
+    }
+
+    let registry = EventRegistry::build();
+    let keys: Vec<String> = per_event.keys().cloned().collect();
+    let mut entries = Vec::new();
+    for event in registry.order_events(&keys) {
+        let multiplicity = registry.event_multiplicity(&event);
+        let handlers = &per_event[&event];
+        let mut prev_priority: Option<i64> = None;
+        let mut offset = 0;
+        for handler in handlers {
+            if prev_priority == Some(handler.priority) {
+                offset += 1;
+            } else {
+                offset = 0;
+                prev_priority = Some(handler.priority);
+            }
+            entries.push(json!({
+                "event": event,
+                "base_priority": handler.priority,
+                "priority_offset": offset,
+                "multiplicity": multiplicity,
+                "range": range_dict(handler.span, line_index, source),
+            }));
+        }
+    }
+    Value::Array(entries)
+}
+
 /// Serialise the `stats` summary. Mirrors `compute_stats`.
 ///
 /// `_NO_PARITY`: `deadStores` is `0` (the Rust liveness pass is unported)
@@ -1404,6 +1494,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_irules_flow(result, &li, &result.source),
     );
     out.insert(
+        "eventOrder".to_owned(),
+        serialise_event_order(&result.source, &li),
+    );
+    out.insert(
         "asm".to_owned(),
         crate::asm::serialise_asm(result, &li, &result.source),
     );
@@ -1551,6 +1645,54 @@ mod tests {
     fn irules_flow_empty_for_plain_tcl() {
         let result = run_pipeline("set x 1\nputs $x", "tcl8.6");
         assert_eq!(serialise_result(&result)["irulesFlow"], json!([]));
+    }
+
+    #[test]
+    fn event_order_empty_for_plain_tcl() {
+        let result = run_pipeline("set x 1\nputs $x", "tcl8.6");
+        assert_eq!(serialise_result(&result)["eventOrder"], json!([]));
+    }
+
+    #[test]
+    fn event_order_orders_when_handlers_by_firing_order() {
+        // Two HTTP_REQUEST handlers (one with explicit priority) plus
+        // RULE_INIT and HTTP_RESPONSE. Verified byte-for-byte against Python
+        // `_serialise_event_order` for this snippet.
+        let src = "when RULE_INIT { set ::x 1 }\n\
+                   when HTTP_REQUEST priority 100 { log local0. a }\n\
+                   when HTTP_REQUEST { log local0. b }\n\
+                   when HTTP_RESPONSE { log local0. c }";
+        let result = run_pipeline(src, "f5-irules");
+        let order = serialise_result(&result)["eventOrder"].clone();
+        let rows = order.as_array().expect("eventOrder is an array");
+        assert_eq!(rows.len(), 4);
+
+        // RULE_INIT fires first (init), then HTTP_REQUEST (priority 100 before
+        // the default 500), then the default HTTP_REQUEST, then HTTP_RESPONSE.
+        assert_eq!(rows[0]["event"], "RULE_INIT");
+        assert_eq!(rows[0]["multiplicity"], "init");
+        assert_eq!(rows[1]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[1]["base_priority"], 100);
+        assert_eq!(rows[1]["multiplicity"], "per_request");
+        assert_eq!(rows[2]["event"], "HTTP_REQUEST");
+        assert_eq!(rows[2]["base_priority"], 500);
+        assert_eq!(rows[3]["event"], "HTTP_RESPONSE");
+        // The range points at the `EVENT` token, not `when`.
+        assert_eq!(rows[0]["range"]["startOffset"], 5);
+    }
+
+    #[test]
+    fn event_order_tie_break_increments_offset() {
+        // Two handlers for the same event at the same (default) priority: the
+        // second gets priority_offset 1.
+        let src = "when HTTP_REQUEST { log local0. a }\n\
+                   when HTTP_REQUEST { log local0. b }";
+        let result = run_pipeline(src, "f5-irules");
+        let order = serialise_result(&result)["eventOrder"].clone();
+        let rows = order.as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["priority_offset"], 0);
+        assert_eq!(rows[1]["priority_offset"], 1);
     }
 
     #[test]
