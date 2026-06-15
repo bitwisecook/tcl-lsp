@@ -64,7 +64,8 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if i >= argv.len() {
             return interp.set_error(b"wrong # args: no expression after \"if\" argument");
         }
-        let cond = obj_bytes(argv[i]);
+        let cond_obj = argv[i];
+        let cond = obj_bytes(cond_obj);
         i += 1;
         // optional `then` keyword.
         if i < argv.len() && obj_bytes(argv[i]).as_slice() == b"then" {
@@ -79,7 +80,7 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let body = argv[i];
         i += 1;
 
-        match crate::builtins::eval_bool_expr(interp, &cond) {
+        match crate::builtins::eval_bool_expr(interp, cond_obj) {
             Ok(true) => return interp.eval_control_body(body),
             Ok(false) => {}
             Err(code) => return code,
@@ -117,10 +118,10 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"while test command");
     }
-    let cond = obj_bytes(argv[1]);
+    let cond = argv[1];
     let body = argv[2];
     loop {
-        match crate::builtins::eval_bool_expr(interp, &cond) {
+        match crate::builtins::eval_bool_expr(interp, cond) {
             Ok(true) => {}
             Ok(false) => break,
             Err(code) => return code,
@@ -143,7 +144,7 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(interp, b"for start test next command");
     }
-    let (init, cond, next, body) = (argv[1], obj_bytes(argv[2]), argv[3], argv[4]);
+    let (init, cond, next, body) = (argv[1], argv[2], argv[3], argv[4]);
     // `start`/`next` are scripts too — run them through `eval_control_body` so a
     // located literal reports `type source` at its own line (TIP 280), matching
     // the body. (Their result is discarded; only their completion code matters.)
@@ -152,7 +153,7 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         other => return other,
     }
     loop {
-        match crate::builtins::eval_bool_expr(interp, &cond) {
+        match crate::builtins::eval_bool_expr(interp, cond) {
             Ok(true) => {}
             Ok(false) => break,
             Err(code) => return code,

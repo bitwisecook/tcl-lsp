@@ -692,13 +692,21 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     }
 }
 
-/// Evaluate `src` as a Tcl expression and coerce the result to a boolean — the
-/// condition evaluator `if`/`while`/`for` share. `Err(code)` carries the
-/// completion code (with the interp result already set to the error message).
+/// Evaluate the condition object `cond` as a Tcl expression and coerce the result
+/// to a boolean — the condition evaluator `if`/`while`/`for` share. `Err(code)`
+/// carries the completion code (with the interp result already set to the error
+/// message). A located-literal condition shifts the shared frame's `line_base` to
+/// the condition word so a `[cmd]` substitution inside reports its file-absolute
+/// line (TIP 280); the base is restored afterward.
 #[cfg(have_tommath)]
-pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Code> {
-    let Ok(s) = core::str::from_utf8(src) else {
+pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<bool, Code> {
+    let src = obj_bytes(cond);
+    let Ok(s) = core::str::from_utf8(&src) else {
         return Err(interp.set_error(b"expr operand is not valid UTF-8"));
+    };
+    let saved = match interp.arg_location(cond) {
+        Some((_, line)) => interp.push_cond_line_base(line),
+        None => None,
     };
     let node = tcl_syntax::expr::parse_expr(s, None);
     let mut ctx = InterpExprCtx {
@@ -709,6 +717,9 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Co
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
     let propagated_code = ctx.propagated_code;
+    if let Some(old) = saved {
+        interp.restore_line_base(old);
+    }
     match result {
         Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.msg)),
         // A propagated sub-eval code unwinds the condition: an error keeps its

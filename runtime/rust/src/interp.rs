@@ -2804,6 +2804,25 @@ impl Interp {
         self.arg_loc(obj)
     }
 
+    /// Point the current shared frame's `line_base` at `line` (a condition word's
+    /// source line) so command substitutions inside an `if`/`while`/`for`
+    /// expression report their file-absolute line (TIP 280). Returns the previous
+    /// `line_base` to hand back to [`restore_line_base`](Self::restore_line_base).
+    pub(crate) fn push_cond_line_base(&self, line: u32) -> Option<u32> {
+        self.cmd_frames.borrow_mut().last_mut().map(|top| {
+            let old = top.line_base;
+            top.line_base = line.saturating_sub(1);
+            old
+        })
+    }
+
+    /// Restore a `line_base` saved by [`push_cond_line_base`](Self::push_cond_line_base).
+    pub(crate) fn restore_line_base(&self, old: u32) {
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            top.line_base = old;
+        }
+    }
+
     /// The `(file, line)` of list element `index` within the literal `obj` — for
     /// a body that is a sub-element of a located list literal (an `apply` lambda's
     /// body, C's `TclListLines`). The element's line is the list word's line plus
