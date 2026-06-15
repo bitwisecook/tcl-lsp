@@ -1498,8 +1498,11 @@ uv run python -m tooling.wasm.main --source 'set x [expr {1+2}]' --format both
 
 ### Compiler explorer (web GUI)
 
-A standalone web UI for the compiler explorer, available in two variants:
-offline (bundles Pyodide) and CDN (loads Pyodide from jsDelivr).
+A standalone web UI for the compiler explorer. The pipeline runs entirely in
+the browser via a Rust → WebAssembly module (`make explorer-wasm`); no Python
+at runtime. The same `.wasm` is bundled into the VS Code and JetBrains panels,
+which compile in the webview itself — offline, with no LSP roundtrip. (The
+legacy Pyodide-bundling zipapp targets remain during the transition.)
 
 ```sh
 # Standalone (offline, ~100 MB)

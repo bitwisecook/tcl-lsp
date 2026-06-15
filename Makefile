@@ -1114,6 +1114,16 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	@mkdir -p $(OUT_DIR)/chat/canonical
 	@cp $(CANONICAL_DIR)/* $(OUT_DIR)/chat/canonical/
 	@cp $(EXPLORER_STATIC)/explorer-core.js $(OUT_DIR)/explorer-core.js
+	@# Bundle the Rust → WASM explorer module so the webview compiles in-process
+	@# (no LSP roundtrip). Best-effort: built by `make explorer-wasm`; when it is
+	@# absent the webview degrades to host-brokered compilation.
+	@if [ -f $(EXPLORER_STATIC)/tcl_explorer_wasm.js ] && [ -f $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm ]; then \
+		cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(OUT_DIR)/tcl_explorer_wasm.js; \
+		cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(OUT_DIR)/tcl_explorer_wasm_bg.wasm; \
+		echo "==> Bundled tcl-explorer-wasm into $(OUT_DIR)"; \
+	else \
+		echo "==> tcl-explorer-wasm not built — webview will use host-brokered compile (run 'make explorer-wasm')"; \
+	fi
 
 # Python environment
 
