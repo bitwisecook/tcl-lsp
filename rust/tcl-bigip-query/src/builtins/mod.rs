@@ -637,14 +637,22 @@ pub(crate) fn safe_regex_compile(pattern: &str, name: &str) -> Result<Regex, Que
     let patho = pathological_regex();
     if patho.is_match(pattern) {
         return Err(QueryError::builtin(format!(
-            "{name}: pattern {pattern:?} contains a nested quantifier shape \
+            "{name}: pattern {} contains a nested quantifier shape \
              (``(...+)+``, ``(...*)*``, …) that triggers catastrophic backtracking — \
              refused to keep the engine responsive.  Rewrite to use possessive \
-             quantifiers, atomic groups, or a non-nested form"
+             quantifiers, atomic groups, or a non-nested form",
+            crate::lexer::py_repr_str(pattern)
         )));
     }
-    Regex::new(pattern)
-        .map_err(|e| QueryError::builtin(format!("{name}: invalid pattern {pattern:?}: {e}")))
+    // The `regex` crate's parse error wording differs from Python `re`'s, so
+    // the `: {e}` tail is not byte-identical (documented divergence); the
+    // `{pattern!r}` spelling still matches Python's repr quoting.
+    Regex::new(pattern).map_err(|e| {
+        QueryError::builtin(format!(
+            "{name}: invalid pattern {}: {e}",
+            crate::lexer::py_repr_str(pattern)
+        ))
+    })
 }
 
 fn pathological_regex() -> &'static Regex {
