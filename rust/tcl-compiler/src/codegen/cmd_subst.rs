@@ -349,7 +349,16 @@ impl CodegenCtx<'_> {
                 } else if let Some(var_name) = parse_simple_var_ref(arg) {
                     self.load_var(var_name);
                 } else {
-                    self.push_lit(arg);
+                    // Bare `$name` / `$name(idx)` — load the variable rather
+                    // than pushing the unsubstituted literal.
+                    let rest = &arg[1..];
+                    let is_bare = !rest.is_empty()
+                        && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
+                    if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
+                        self.load_var(rest);
+                    } else {
+                        self.push_lit(arg);
+                    }
                 }
             } else if *braced && (arg.contains('$') || arg.contains('[')) {
                 self.push_lit(&format!("{{{arg}}}"));

@@ -107,7 +107,38 @@ impl Vm {
             compiler: None,
         };
         register_builtins(&mut vm);
+        vm.bootstrap_globals();
         vm
+    }
+
+    /// Populate the predefined global variables a fresh interpreter exposes:
+    /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
+    /// so library scripts (tcltest) that read them at load time work.
+    fn bootstrap_globals(&mut self) {
+        let plat = [
+            ("platform", "unix"),
+            ("os", "Linux"),
+            ("osVersion", ""),
+            ("machine", std::env::consts::ARCH),
+            ("byteOrder", "littleEndian"),
+            ("wordSize", "8"),
+            ("pointerSize", "8"),
+            ("pathSeparator", ":"),
+            ("engine", "Tcl"),
+            ("threaded", "1"),
+            ("user", ""),
+        ];
+        for (k, v) in plat {
+            let _ = self.write_array_raw("tcl_platform", k, Value::string(v));
+        }
+        for (k, v) in std::env::vars() {
+            let _ = self.write_array_raw("env", &k, Value::string(v));
+        }
+        self.write_scalar_raw("argv", Value::list(Vec::new()));
+        self.write_scalar_raw("argv0", Value::string("tcltest"));
+        self.write_scalar_raw("argc", Value::int(0));
+        self.write_scalar_raw("tcl_version", Value::string("9.0"));
+        self.write_scalar_raw("tcl_patchLevel", Value::string("9.0.0"));
     }
 
     /// Inject the compiler used for runtime `eval` / command substitution.

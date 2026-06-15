@@ -73,6 +73,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);
+    crate::cmd_file::register(vm);
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm);

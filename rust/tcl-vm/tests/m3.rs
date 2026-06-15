@@ -189,6 +189,34 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn file_path_ops() {
+    out_eq("puts [file join /a b c]\n", "/a/b/c\n");
+    out_eq("puts [file join a /b c]\n", "/b/c\n");
+    out_eq("puts [file dirname /a/b/c]\n", "/a/b\n");
+    out_eq("puts [file tail /a/b/c.txt]\n", "c.txt\n");
+    out_eq("puts [file extension foo.tcl]\n", ".tcl\n");
+    out_eq("puts [file rootname foo.tcl]\n", "foo\n");
+    out_eq("puts [file exists /nonexistent/xyz]\n", "0\n");
+}
+
+#[test]
+fn bootstrap_globals_present() {
+    out_eq("puts $::tcl_platform(platform)\n", "unix\n");
+    out_eq("puts [info exists ::env]\n", "1\n");
+    out_eq("puts $::tcl_version\n", "9.0\n");
+}
+
+#[test]
+fn cmd_subst_substitutes_proc_param() {
+    // A bare `$param` arg to a *generic* command inside a command substitution
+    // must load the variable, not push the literal `$param`.
+    out_eq(
+        "proc f {a b} { return [file join $a $b] }\nputs [f /x y]\n",
+        "/x/y\n",
+    );
+}
+
+#[test]
 fn source_command() {
     let mut path = std::env::temp_dir();
     path.push(format!("tclvm_source_{}.tcl", std::process::id()));
