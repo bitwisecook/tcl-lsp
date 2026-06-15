@@ -283,10 +283,11 @@ fn remove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict get` over a key path, but returns `default` if any key is absent.
 fn getdef(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 5 {
-        return wrong_args(
-            interp,
-            b"dict getwithdefault dictionary ?key ...? key default",
-        );
+        // The usage echoes the actual sub-name (`getdef` or `getwithdefault`).
+        let mut usage = b"dict ".to_vec();
+        usage.extend_from_slice(&obj_bytes(argv[1]));
+        usage.extend_from_slice(b" dictionary ?key ...? key default");
+        return wrong_args(interp, &usage);
     }
     let default = argv[argv.len() - 1];
     let keys = &argv[3..argv.len() - 1];
@@ -482,7 +483,16 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(c) => return c,
     };
     let mut elems: Vec<*mut TclObj> = match dict::dict_get(target, &obj_bytes(key)) {
-        Ok(Some(v)) => crate::list::list_elements(v).unwrap_or_default(),
+        Ok(Some(v)) => match crate::list::list_elements(v) {
+            Ok(e) => e,
+            // The existing value must be a valid list (e.g. `{` is not).
+            Err(e) => {
+                if is_new {
+                    drop_fresh(target);
+                }
+                return interp.set_error(e.message());
+            }
+        },
         _ => Vec::new(),
     };
     elems.extend_from_slice(&argv[4..]);
@@ -512,10 +522,13 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(Some(v)) => match parse_i64(&obj_bytes(v)) {
             Some(n) => n,
             None => {
+                // Capture the value bytes *before* dropping `target` — `v` is
+                // owned by `target`, so the drop would free it (use-after-free).
+                let bytes = obj_bytes(v);
                 if is_new {
                     drop_fresh(target);
                 }
-                return not_integer(interp, &obj_bytes(v));
+                return not_integer(interp, &bytes);
             }
         },
         _ => 0,
