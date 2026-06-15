@@ -2059,6 +2059,35 @@ impl Interp {
         self.frames.borrow().local_names_no_links()
     }
 
+    /// `info consts` — the `const` scalar names visible in the current scope.
+    /// Filters the visible variables by constness (following links), so an OO
+    /// instance variable linked to a `const` namespace variable is included.
+    pub(crate) fn visible_const_names(&self) -> Vec<Vec<u8>> {
+        self.visible_var_names()
+            .into_iter()
+            .filter(|n| self.is_constant(n))
+            .collect()
+    }
+
+    /// `info consts ns::pat` — the `const` scalar names in the namespace named
+    /// `qualifier` (absolute or relative to the current namespace).
+    pub(crate) fn consts_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.const_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// `info globals` — the global namespace's variable names.
     pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
         self.namespaces.borrow().var_names(GLOBAL)

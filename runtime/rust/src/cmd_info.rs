@@ -243,21 +243,21 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"constant" => {
-            // TIP 677: whether a variable is a `const`. No const variables yet ⇒ 0.
+            // TIP 677: whether `varName` resolves to a `const` scalar.
             if argv.len() != 3 {
                 return wrong_args(interp, b"info constant varName");
             }
-            interp.set_result_bytes(b"0");
+            let is_const = interp.is_constant(&obj_bytes(argv[2]));
+            interp.set_result_bytes(if is_const { b"1" } else { b"0" });
             Code::Ok
         }
-        b"consts" => {
-            // TIP 677: the const variables (glob-filtered). None yet ⇒ empty.
-            if argv.len() > 3 {
-                return wrong_args(interp, b"info consts ?pattern?");
-            }
-            interp.set_result_bytes(b"");
-            Code::Ok
-        }
+        b"consts" => set_list_qualified(
+            interp,
+            argv,
+            b"info consts ?pattern?",
+            Interp::consts_in_namespace,
+            Interp::visible_const_names,
+        ),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);

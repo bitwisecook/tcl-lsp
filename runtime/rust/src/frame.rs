@@ -134,6 +134,11 @@ impl VarTable {
         self.consts.contains(name)
     }
 
+    /// Names of the `const` scalars in this table (`info consts`).
+    pub(crate) fn const_names(&self) -> Vec<&[u8]> {
+        self.consts.iter().map(|k| k.as_slice()).collect()
+    }
+
     /// Flag the scalar `name` `const` (the `const` command, after its value is
     /// stored). A no-op if already flagged.
     pub(crate) fn mark_constant(&mut self, name: &[u8]) {
