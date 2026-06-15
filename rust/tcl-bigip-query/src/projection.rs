@@ -718,25 +718,29 @@ fn project_rule(o: &BigipRule, root: &Rc<Root>) -> IndexMap<String, Value> {
         .s("full-path", &o.full_path)
         .s("body", &o.source)
         .s("description", &o.description)
-        // `.refs` is the synthesised reference sub-object — deferred this
-        // increment (see module docs); projected as an empty rule-refs
-        // object so navigation stays well-typed.
+        // `.refs` is the synthesised reference sub-object — the same
+        // forward-walk (`max_depth=1`) `f5 grep` uses, classified into
+        // pool / persistence / data-group buckets.
         .v("refs", rule_refs_value(o, root))
         .done()
 }
 
-/// The synthesised `ltm rule .refs` sub-object — DEFERRED.
+/// The synthesised `ltm rule .refs` sub-object — port of
+/// `_engine._rule_refs_value` / `_extract_rule_refs`.
 ///
-/// Python computes this lazily via the full-config reference graph
-/// (`compute_grep`); porting that walk is out of scope for this read-only
-/// projection increment. We project an empty `ltm rule-refs` object so the
-/// shape (`.refs.pools` / `.refs.persists` / `.refs.data-groups` are
-/// lists) is preserved, but the lists are always empty here.
+/// Each ref slot is a list of [`PathRef`]s drawn from the same reference
+/// graph `f5 grep` walks (forward, `max_depth=1`), so the query DSL and the
+/// grep verb always agree on what an iRule "uses". The graph is built once
+/// per [`Root`] and memoised (see [`Root::graph`]).
 fn rule_refs_value(o: &BigipRule, root: &Rc<Root>) -> Value {
+    let (pools, persists, data_groups) = crate::builtins::extract_rule_refs(&o.full_path, root);
     let fields = Fields::new()
-        .v("pools", Value::List(Vec::new()))
-        .v("persists", Value::List(Vec::new()))
-        .v("data-groups", Value::List(Vec::new()))
+        .v("pools", path_ref_list_strs(&pools, "ltm pool"))
+        .v("persists", path_ref_list_strs(&persists, "ltm persistence"))
+        .v(
+            "data-groups",
+            path_ref_list_strs(&data_groups, "ltm data-group"),
+        )
         .done();
     Value::ObjectRef(Rc::new(ObjectRef {
         kind: "ltm rule-refs".to_owned(),

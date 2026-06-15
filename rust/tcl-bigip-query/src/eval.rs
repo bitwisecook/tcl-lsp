@@ -50,6 +50,12 @@ pub struct Root {
     /// `Root._object_cache`; the compound key disambiguates objects that
     /// share a full-path across kinds.
     pub object_cache: RefCell<HashMap<(String, String), Rc<ObjectRef>>>,
+    /// Lazily built BIG-IP reference graph, memoised on first use by the
+    /// graph builtins (`refs` / `referenced_by` / …) and the rule `.refs`
+    /// projection. Mirrors Python's per-call `compute_grep`, but caches the
+    /// expensive `build_bigip_object_graph` step so repeated per-object
+    /// queries don't rebuild the whole graph each time.
+    pub object_graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
 }
 
 impl std::fmt::Debug for Root {
@@ -71,6 +77,7 @@ impl Root {
             json_value: Some(value),
             config: BigipConfig::default(),
             object_cache: RefCell::new(HashMap::new()),
+            object_graph: RefCell::new(None),
         })
     }
 
@@ -89,12 +96,34 @@ impl Root {
             json_value: None,
             config,
             object_cache: RefCell::new(HashMap::new()),
+            object_graph: RefCell::new(None),
         })
     }
 
     #[must_use]
     pub fn is_json(&self) -> bool {
         self.json_value.is_some()
+    }
+
+    /// Return this root's BIG-IP reference graph, building it on first use
+    /// and memoising it for subsequent graph-builtin / projection calls.
+    ///
+    /// Mirrors Python's `compute_grep`, which rebuilds the graph each call;
+    /// we cache the (expensive) `build_bigip_object_graph` result so a query
+    /// touching `refs` / `referenced_by` / `.refs` per object stays cheap.
+    #[must_use]
+    pub fn graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
+        if let Some(g) = self.object_graph.borrow().as_ref() {
+            return Rc::clone(g);
+        }
+        let ctx = tcl_bigip::graph::GraphContext::new();
+        let sources = [(self.uri.clone(), self.source.clone())];
+        let configs = [(self.uri.clone(), &self.config)];
+        let graph = Rc::new(tcl_bigip::graph::build_bigip_object_graph(
+            &sources, &configs, &ctx,
+        ));
+        *self.object_graph.borrow_mut() = Some(Rc::clone(&graph));
+        graph
     }
 }
 
@@ -816,7 +845,7 @@ fn eval_call(
     }
 
     if !spec.stream_aware
-        && !spec.with_ctx
+        && (!spec.with_ctx || spec.broadcasts)
         && let Some(plan) = broadcast_call_args(name, &evaluated)?
     {
         let mut out = Vec::with_capacity(plan.len());

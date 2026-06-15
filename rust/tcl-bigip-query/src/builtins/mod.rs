@@ -35,8 +35,11 @@ use crate::jsonfmt;
 use crate::value::{self, Value};
 
 mod encoding;
+mod graph;
 mod math;
 mod net;
+
+pub(crate) use graph::extract_rule_refs;
 mod regex_str;
 mod string;
 mod time_dt;
@@ -54,6 +57,10 @@ pub enum Builtin {
 
 /// The registry entry for one builtin (port of `builtins.BuiltinSpec`, minus
 /// the doc-only `summary` / `signatures` / `examples` / `details` fields).
+///
+/// The flag set mirrors Python's `BuiltinSpec` dispatch flags one-for-one, so
+/// the several bools are intrinsic rather than a state-machine smell.
+#[allow(clippy::struct_excessive_bools)]
 pub struct BuiltinSpec {
     pub name: &'static str,
     pub category: &'static str,
@@ -62,6 +69,11 @@ pub struct BuiltinSpec {
     pub special_form: bool,
     pub with_ctx: bool,
     pub stream_aware: bool,
+    /// Whether stream arguments broadcast element-wise (the scalar-builtin
+    /// default). `with_ctx` builtins normally skip broadcast; `refs` /
+    /// `referenced_by` are the exception (plain — and so broadcasting — in
+    /// Python, but need `ctx` for the config here).
+    pub broadcasts: bool,
     pub imp: Builtin,
 }
 
@@ -91,7 +103,55 @@ fn plain(
             special_form: false,
             with_ctx: false,
             stream_aware,
+            broadcasts: true,
             imp: Builtin::Plain(f),
+        },
+    )
+}
+
+pub(crate) fn ctx(
+    name: &'static str,
+    category: &'static str,
+    min_args: usize,
+    max_args: Option<usize>,
+    f: fn(&[Value], &mut EvalContext) -> Result<Value, QueryError>,
+) -> (&'static str, BuiltinSpec) {
+    ctx_spec(name, category, min_args, max_args, false, f)
+}
+
+/// Like [`ctx`] but with stream arguments broadcasting element-wise — for the
+/// `refs` / `referenced_by` builtins, which are plain (broadcasting) in
+/// Python but need `ctx` for config access in this port.
+pub(crate) fn ctx_broadcast(
+    name: &'static str,
+    category: &'static str,
+    min_args: usize,
+    max_args: Option<usize>,
+    f: fn(&[Value], &mut EvalContext) -> Result<Value, QueryError>,
+) -> (&'static str, BuiltinSpec) {
+    ctx_spec(name, category, min_args, max_args, true, f)
+}
+
+fn ctx_spec(
+    name: &'static str,
+    category: &'static str,
+    min_args: usize,
+    max_args: Option<usize>,
+    broadcasts: bool,
+    f: fn(&[Value], &mut EvalContext) -> Result<Value, QueryError>,
+) -> (&'static str, BuiltinSpec) {
+    (
+        name,
+        BuiltinSpec {
+            name,
+            category,
+            min_args,
+            max_args,
+            special_form: false,
+            with_ctx: true,
+            stream_aware: false,
+            broadcasts,
+            imp: Builtin::Ctx(f),
         },
     )
 }
@@ -112,6 +172,7 @@ pub(crate) fn special(
             special_form: true,
             with_ctx: false,
             stream_aware: false,
+            broadcasts: false,
             imp: Builtin::Special,
         },
     )
@@ -171,6 +232,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r.extend(regex_str::registrations());
     r.extend(value2::registrations());
     r.extend(encoding::registrations());
+    r.extend(graph::registrations());
     r.extend(crate::special::registrations());
     r
 }
