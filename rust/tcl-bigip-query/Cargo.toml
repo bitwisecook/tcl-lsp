@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 indexmap = "2"
+ipnet = "2"
 libm = "0.2"
 regex = "1"
 
