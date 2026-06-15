@@ -18,9 +18,11 @@ pub mod asm;
 pub mod cst;
 pub mod formatters;
 pub mod serialise;
+pub mod view_tree;
 pub mod views;
 
 pub use serialise::{serialise_meta, serialise_result};
+pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_registry::registry_for_dialect;

@@ -216,7 +216,7 @@ pub fn stmt_summary(stmt: &Statement) -> String {
 /// embeds via `{constant_return!r}`. Chooses the quote Python would
 /// (double quotes when the string has a `'` but no `"`, else single) and
 /// escapes backslash, the chosen quote, and the common control chars.
-fn py_repr_str(s: &str) -> String {
+pub(crate) fn py_repr_str(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') {
         '"'
     } else {
