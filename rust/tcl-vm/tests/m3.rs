@@ -189,6 +189,16 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn format_command() {
+    out_eq("puts [format %05d 42]\n", "00042\n");
+    out_eq("puts [format \"%d-%s\" 5 hi]\n", "5-hi\n");
+    out_eq("puts [format %x 255]\n", "ff\n");
+    out_eq("puts [format %.2f 3.14159]\n", "3.14\n");
+    out_eq("puts [format %-5d| 42]\n", "42   |\n");
+    out_eq("set n 3\nputs [format \"n=%d\" $n]\n", "n=3\n");
+}
+
+#[test]
 fn expr_ternary_string_branches() {
     // `tryCvtToNumeric` must pass non-numeric results through, not error.
     out_eq("puts [expr {1 ? \"a\" : \"b\"}]\n", "a\n");
