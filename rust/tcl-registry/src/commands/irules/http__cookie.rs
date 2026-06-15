@@ -22,40 +22,85 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get/set cookie value.",
         synopsis: "HTTP::cookie value <name> ?string?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "version",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie version.",
         synopsis: "HTTP::cookie version <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "path",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie path.",
         synopsis: "HTTP::cookie path <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "domain",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie domain.",
         synopsis: "HTTP::cookie domain <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "ports",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie ports.",
         synopsis: "HTTP::cookie ports <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "insert",
@@ -64,7 +109,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "HTTP::cookie insert name <name> value <value> ?path <path>? ?domain <domain>? ?version <0 | 1 | 2>?",
         mutator: true,
         credential_arg: Some(2),
-        sensitive_headers: &["authorization", "proxy-authorization", "x-api-key", "x-auth-token", "x-secret"],
+        sensitive_headers: &[
+            "authorization",
+            "proxy-authorization",
+            "x-api-key",
+            "x-auth-token",
+            "x-secret",
+        ],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -94,40 +145,85 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get/set cookie max-age.",
         synopsis: "HTTP::cookie maxage <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "expires",
         arity: Arity::new(1, 3),
         detail: "Get/set cookie expires.",
         synopsis: "HTTP::cookie expires <name> ?seconds? ?absolute | relative?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "comment",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie comment.",
         synopsis: "HTTP::cookie comment <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "secure",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie secure flag.",
         synopsis: "HTTP::cookie secure <name> ?enable|disable?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "commenturl",
         arity: Arity::new(1, 2),
         detail: "Get/set cookie comment URL.",
         synopsis: "HTTP::cookie commenturl <name> ?value?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "encrypt",
@@ -148,8 +244,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Get/set cookie httponly flag.",
         synopsis: "HTTP::cookie httponly <name> ?enable|disable?",
-                subcommand_forms: &[SubCommandForm { name: "getter", ..SubCommandForm::DEFAULT }, SubCommandForm { name: "setter", ..SubCommandForm::DEFAULT }],
-..SubCommand::DEFAULT
+        subcommand_forms: &[
+            SubCommandForm {
+                name: "getter",
+                ..SubCommandForm::DEFAULT
+            },
+            SubCommandForm {
+                name: "setter",
+                ..SubCommandForm::DEFAULT
+            },
+        ],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "attribute",
@@ -165,7 +270,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "HTTP::cookie replace <name> <value>",
         mutator: true,
         credential_arg: Some(2),
-        sensitive_headers: &["authorization", "proxy-authorization", "x-api-key", "x-auth-token", "x-secret"],
+        sensitive_headers: &[
+            "authorization",
+            "proxy-authorization",
+            "x-api-key",
+            "x-auth-token",
+            "x-secret",
+        ],
         ..SubCommand::DEFAULT
     },
 ];
@@ -173,10 +284,12 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::cookie",
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE).union(Traits::DIAGRAM_ACTION),
+        traits: Traits::PURE
+            .union(Traits::CSE_CANDIDATE)
+            .union(Traits::DIAGRAM_ACTION),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Queries for or manipulates cookies in HTTP requests and responses.",
             synopsis: &["HTTP::cookie <subcommand> ?arg ...?"],
             snippet: "Queries for or manipulates cookies in HTTP requests and responses. This command replaces the BIG-IP 4.X variable http_cookie.",
@@ -200,18 +313,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP::cookie <subcommand> ?arg ...?" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP::cookie <subcommand> ?arg ...?",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpCookie,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpCookie,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

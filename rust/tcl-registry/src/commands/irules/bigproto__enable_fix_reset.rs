@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BIGPROTO::enable_fix_reset",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enable or Disable Reset of FIX Protocol Connections",
             synopsis: &["BIGPROTO::enable_fix_reset BOOLEAN"],
             snippet: "When set to disabled, TCP RST frame will not be sent when BIG-IP detects there is a hash collision on ePVA offloading of FIX flows. Instead, it will try to re-offload the connection.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    BIGPROTO::enable_fix_reset true\n    BIGPROTO::enable_fix_reset false\n            }",
             return_value: "none",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BIGPROTO::enable_fix_reset BOOLEAN" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BIGPROTO::enable_fix_reset BOOLEAN",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ACCESS2::access2_proc",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command is used to get the TCL procedure registered for currently executing per-request policy expression.",
             synopsis: &["ACCESS2::access2_proc"],
             snippet: "This command will return the TCL procedure registered for currently executing per-request policy expression.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ACCESS2::access2_proc" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ACCESS2::access2_proc",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

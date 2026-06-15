@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PROFILE::oneconnect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the value of a Oneconnect profile setting.",
             synopsis: &["PROFILE::oneconnect ATTR"],
             snippet: "Returns the current value of the specified setting in the assigned Oneconnect profile.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in the assigned Oneconnect profile.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::oneconnect ATTR" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::BigipConfig,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROFILE::oneconnect ATTR",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::BigipConfig,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

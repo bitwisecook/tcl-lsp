@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "RTSP::status",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the HTTP style status code from the current RTSP response.",
             synopsis: &["RTSP::status"],
             snippet: "Returns the HTTP style status code (for example, 200 or 401) from the\ncurrent RTSP response.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_RESPONSE {\n        puts [RTSP::status]\n    }",
             return_value: "Returns the HTTP style status code from the current RTSP response.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "RTSP::status" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RTSP::status",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

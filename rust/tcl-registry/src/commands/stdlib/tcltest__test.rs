@@ -90,9 +90,12 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::test",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(2),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Define and run a single test case.",
-            synopsis: &["tcltest::test name description ?option value ...?", "tcltest::test name description ?constraints? body result"],
+            synopsis: &[
+                "tcltest::test name description ?option value ...?",
+                "tcltest::test name description ?constraints? body result",
+            ],
             snippet: "The primary command for defining tests.  Options include ``-body``, ``-result``, ``-output``, ``-errorOutput``, ``-returnCodes``, ``-match``, ``-setup``, ``-cleanup``, and ``-constraints``.",
             source: "Tcl stdlib tcltest package",
             examples: "",

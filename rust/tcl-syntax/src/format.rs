@@ -146,9 +146,10 @@ mod tests {
     #[test]
     fn flags_width_precision() {
         let (s, i) = parse("-+08.3f").unwrap();
-        assert!(s
-            .flags
-            .contains(FmtFlags::MINUS | FmtFlags::PLUS | FmtFlags::ZERO));
+        assert!(
+            s.flags
+                .contains(FmtFlags::MINUS | FmtFlags::PLUS | FmtFlags::ZERO)
+        );
         assert_eq!(s.width, Some(8));
         assert_eq!(s.precision, Some(3));
         assert_eq!(s.verb, b'f');

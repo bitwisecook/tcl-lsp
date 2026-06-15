@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CLASSIFY::defer",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Defers the classification of the flow to response.",
             synopsis: &["CLASSIFY::defer"],
             snippet: "This command defers the classification of the flow to response (for\nHTTP - response message, for non-HTTP, opposite traffic direction from\ntraffic initiator)\n\n* Note: APM / AFM / PEM license is required for functionality to work.\n\nCLASSIFY::defer",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFY::defer" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CLASSIFY::defer",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

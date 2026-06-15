@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BOTDEFENSE::bot_categories",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the list of category names to which the current client belongs.",
             synopsis: &["BOTDEFENSE::bot_categories"],
             snippet: "Returns the list of category names to which the current client belongs. These categories are determined by the anomalies found for the respective client. Note these categories are additional to the bot signature category which is applicable if a bot signature was found.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::bot_categories" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BOTDEFENSE::bot_categories",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -12,7 +12,7 @@ use crate::ir::Statement;
 
 use super::cmd_subst::parse_cmd_parts;
 use super::values::is_qualified;
-use super::{bytecode_imm, CodegenCtx, Op, Operand};
+use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
 // ---------------------------------------------------------------------------
 // Constant expression error detection
@@ -24,19 +24,16 @@ use super::{bytecode_imm, CodegenCtx, Op, Operand};
 /// fully constant expression that would raise a known error at runtime.
 #[must_use]
 pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
-    if let ExprNode::Binary { op, left, right } = node {
-        if matches!(op, BinOp::Div | BinOp::Mod) {
-            if let (ExprNode::Literal { .. }, ExprNode::Literal { text: rv, .. }) =
-                (left.as_ref(), right.as_ref())
-            {
-                if rv == "0" {
-                    return Some((
-                        "divide by zero".to_owned(),
-                        "-code 1 -level 0 -errorcode {ARITH DIVZERO {divide by zero}}".to_owned(),
-                    ));
-                }
-            }
-        }
+    if let ExprNode::Binary { op, left, right } = node
+        && matches!(op, BinOp::Div | BinOp::Mod)
+        && let (ExprNode::Literal { .. }, ExprNode::Literal { text: rv, .. }) =
+            (left.as_ref(), right.as_ref())
+        && rv == "0"
+    {
+        return Some((
+            "divide by zero".to_owned(),
+            "-code 1 -level 0 -errorcode {ARITH DIVZERO {divide by zero}}".to_owned(),
+        ));
     }
     None
 }
@@ -66,10 +63,11 @@ impl CodegenCtx<'_> {
         };
 
         // Pre-intern result_var so it gets a lower LVT slot
-        if let Some(rv) = result_var {
-            if self.is_proc && !is_qualified(rv) {
-                self.lvt.intern(rv);
-            }
+        if let Some(rv) = result_var
+            && self.is_proc
+            && !is_qualified(rv)
+        {
+            self.lvt.intern(rv);
         }
 
         // beginCatch4 with current nesting depth.
@@ -615,18 +613,18 @@ impl CodegenCtx<'_> {
 
     /// Emit a statement in try-body context.
     pub fn emit_try_body_stmt(&mut self, stmt: &Statement) {
-        if let Statement::Call { command, args, .. } = stmt {
-            if command == "error" {
-                if let Some(arg) = args.first() {
-                    self.emit_value(arg, false);
-                } else {
-                    self.push_lit("");
-                }
+        if let Statement::Call { command, args, .. } = stmt
+            && command == "error"
+        {
+            if let Some(arg) = args.first() {
+                self.emit_value(arg, false);
+            } else {
                 self.push_lit("");
-                self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
-                self.cmd_index += 1;
-                return;
             }
+            self.push_lit("");
+            self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
+            self.cmd_index += 1;
+            return;
         }
         let mut ugi = false;
         self.emit_stmt(stmt, &mut ugi);

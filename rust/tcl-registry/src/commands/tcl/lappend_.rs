@@ -36,14 +36,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Append list elements onto a variable",
-    synopsis: &["lappend varName ?value value value ...?"],
-    snippet: "This command treats the variable given by varName as a list and appends each of the value arguments to that list as a separate element, with spaces between elements.",
-    source: "Tcl man page lappend.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Append list elements onto a variable",
+            synopsis: &["lappend varName ?value value value ...?"],
+            snippet: "This command treats the variable given by varName as a list and appends each of the value arguments to that list as a separate element, with spaces between elements.",
+            source: "Tcl man page lappend.n",
+            examples: "",
+            return_value: "",
+        }),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
         forms: FORMS,
         ..CommandSpec::DEFAULT

@@ -13,12 +13,12 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::alias::{detect_interp_alias, resolve_alias, CommandAliasMap};
+use crate::alias::{CommandAliasMap, detect_interp_alias, resolve_alias};
 use crate::ir::{CommandTokens, MethodDef, MethodKind, Module, Procedure, Script, Statement};
-use crate::lowering_hooks::{try_lower_hook, ArgTokenKind, LoweringCommand};
+use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::segmenter::{
-    segment_commands, segment_commands_with_offset_and_config, SegmentedCommand,
+    SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };
 
 pub(crate) mod hooks;
@@ -104,11 +104,7 @@ fn is_oo_definition_shape(
 /// Full-argv index of the body word for an OO definition form
 /// (`oo::class create Name {body}` → 3, `oo::define Name {body}` → 2).
 fn oo_body_word_idx(form: &str) -> usize {
-    if form == "oo::class" {
-        3
-    } else {
-        2
-    }
+    if form == "oo::class" { 3 } else { 2 }
 }
 
 /// True iff `command` (`::`-stripped) is `namespace` and the args are
@@ -198,10 +194,10 @@ fn parse_param_names(param_str: &str) -> Vec<String> {
                 i += 1;
             }
             let inner = &text[start..i.saturating_sub(1)].trim();
-            if !inner.is_empty() {
-                if let Some(name) = inner.split_whitespace().next() {
-                    params.push(name.to_owned());
-                }
+            if !inner.is_empty()
+                && let Some(name) = inner.split_whitespace().next()
+            {
+                params.push(name.to_owned());
             }
         } else {
             // Bare word parameter.
@@ -1338,10 +1334,11 @@ impl<'r> Lowerer<'r> {
         self.proc_depth -= 1;
 
         let mut base_priority: u32 = 500;
-        if args.len() >= 4 && args[1] == "priority" {
-            if let Ok(p) = args[2].parse::<u32>() {
-                base_priority = p;
-            }
+        if args.len() >= 4
+            && args[1] == "priority"
+            && let Ok(p) = args[2].parse::<u32>()
+        {
+            base_priority = p;
         }
 
         let n = self
@@ -1931,12 +1928,11 @@ impl<'r> Lowerer<'r> {
                     args,
                     ..
                 } = st
+                    && canonical_matches(command, canonical_command.as_deref(), "variable")
                 {
-                    if canonical_matches(command, canonical_command.as_deref(), "variable") {
-                        for nm in args {
-                            if is_instance_var_name(nm) {
-                                method_ivars.insert(normalise_var_name(nm).to_string());
-                            }
+                    for nm in args {
+                        if is_instance_var_name(nm) {
+                            method_ivars.insert(normalise_var_name(nm).to_string());
                         }
                     }
                 }
@@ -2949,10 +2945,11 @@ mod tests {
         let m = lower_to_ir("namespace eval ::tcltest { namespace export test }", &reg());
         // The export was inside a ``namespace eval`` body so the
         // context namespace is ``::tcltest``.
-        assert!(m
-            .namespace_exports
-            .iter()
-            .any(|(ns, pat)| ns == "::tcltest" && pat == "test"));
+        assert!(
+            m.namespace_exports
+                .iter()
+                .any(|(ns, pat)| ns == "::tcltest" && pat == "test")
+        );
     }
 
     #[test]

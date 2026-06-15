@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "WAM::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables Web Accelerator plugin processing on the connection.",
             synopsis: &["WAM::enable"],
             snippet: "Enables the WAM plugin for the current TCP connection. WAM will remain\nenabled on the current TCP connection until it is closed or\nWAM::disable is called.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WAM::enable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WAM::enable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         deprecated_replacement: Some("(removed)"),
         ..CommandSpec::DEFAULT
     }

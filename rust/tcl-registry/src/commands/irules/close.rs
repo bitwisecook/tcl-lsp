@@ -13,7 +13,7 @@ pub const fn spec() -> CommandSpec {
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel)],
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Closes an existing sideband connection.",
             synopsis: &["close CONNECTION"],
             snippet: "This command closes an existing sideband connection. It is one of several commands that make up the ability to create sideband connections from iRules.",
@@ -21,17 +21,16 @@ hover: Some(HoverSnippet {
             examples: "# Open a sideband connection with a connection timeout of 100 ms and an idle timeout of 30 seconds\n#   to a local virtual server name sideband_virtual_server\nset conn_id [connect -timeout 100 -idle 30 -status conn_status sideband_virtual_server]\n\n# Same as above, but use an external host IP:port instead of a virtual server name\nset conn_id [connect -timeout 100 -idle 30 -status conn_status 10.0.0.10:80]\n\n# close the connection\nclose conn_id",
             return_value: "close <connection> closes an existing connection",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "close CONNECTION" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "close CONNECTION",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

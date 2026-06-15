@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "WEBSSO::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Forwards a request without doing SSO processing on it.",
             synopsis: &["WEBSSO::disable"],
             snippet: "This command causes APM to forward a request without doing SSO\nprocessing on it. If APM receives HTTP 401 response from server, 401\nresponse is forwarded to the end user. The scope of this iRule command\nis per HTTP request. Admin needs to execute it for each HTTP request.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WEBSSO::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WEBSSO::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

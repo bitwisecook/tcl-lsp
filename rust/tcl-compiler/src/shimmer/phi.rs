@@ -23,7 +23,7 @@ use crate::types::{TypeKind, TypeLattice};
 use super::graph::loop_body_blocks;
 use super::span::{def_range_map, phi_span};
 use super::thunking::{destructure_foreach_blocks, empty_value_versions, per_loop_body_types};
-use super::{type_name, ShimmerWarning};
+use super::{ShimmerWarning, type_name};
 
 /// Find phi-node shimmer warnings for a function.
 ///

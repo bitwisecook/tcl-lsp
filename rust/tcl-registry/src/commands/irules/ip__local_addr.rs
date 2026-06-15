@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the IP address of the virtual server the client is connected to or the self-ip LTM is connected from.",
             synopsis: &["IP::local_addr (clientside | serverside)?"],
             snippet: "When called in a clientside context, this command returns the IP address of the virtual server the client is connected to. When called in a serverside context it returns the self-ip address or spoofed client IP address LTM is using for the serverside connection.\n\nThis command is primarily useful for generic rules that are re-used. Also, it is useful in reusing the connected endpoint in another statement (such as with the listen command) or to make routing type decisions. You can also specify the IP::client_addr and IP::server_addr commands.\n\nThis command in BIG-IP 10.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "IP::local_addr (clientside | serverside)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "IP::local_addr (clientside | serverside)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -14,11 +14,9 @@ pub const fn spec() -> CommandSpec {
         // frame, so the default `BodyKind::Plain` applies.
         arg_roles: &[(0, ArgRole::Body)],
         hover: Some(HoverSnippet {
-            summary:
-                "Causes the specified iRule commands to be evaluated under the peer-side context.",
+            summary: "Causes the specified iRule commands to be evaluated under the peer-side context.",
             synopsis: &["peer ANY_CHARS"],
-            snippet:
-                "Causes the specified iRule commands to be evaluated under the peer-side context.",
+            snippet: "Causes the specified iRule commands to be evaluated under the peer-side context.",
             source: "https://clouddocs.f5.com/api/irules/peer.html",
             examples: "when SERVER_CONNECTED {\n  peer { TCP::collect }\n}",
             return_value: "",

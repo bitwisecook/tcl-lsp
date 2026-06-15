@@ -7,18 +7,18 @@ use std::path::Path;
 
 use anyhow::Context;
 use tcl_cli_support::{
-    combine_sources, read_input_documents, registry_for_dialect, write_highlighted_output,
-    write_text_output, OutputTarget,
+    OutputTarget, combine_sources, read_input_documents, registry_for_dialect,
+    write_highlighted_output, write_text_output,
 };
-use tcl_lsp_core::formatting::{formatting_with, FormatterConfig, IndentStyle};
+use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
 use tcl_lsp_core::minify::{
-    minify_tcl, minify_tcl_aggressive, minify_tcl_compact, remap_line_references, unminify_error,
-    SymbolMap,
+    SymbolMap, minify_tcl, minify_tcl_aggressive, minify_tcl_compact, remap_line_references,
+    unminify_error,
 };
 
 use std::collections::HashSet;
 
-use tcl_compiler::optimiser::profiles::{profile_to_disabled, OptimisationProfile};
+use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
 use tcl_compiler::optimiser::{apply_optimisations, optimise_with_dialect};
 
 use crate::cli::{ColourArgs, InputArgs};

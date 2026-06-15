@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CATEGORY::filetype",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get mime type and mime subtype of payload.",
             synopsis: &["CATEGORY::filetype HTTP_PAYLOAD"],
             snippet: "Checks for the mime type and mime subtype of an HTTP request payload and returns the values to specified variables; use one or both to specify them name of the variable that you want the value to be given to.",
@@ -23,21 +23,32 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::filetype HTTP_PAYLOAD ?options?" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CATEGORY::filetype HTTP_PAYLOAD ?options?",
+        }],
         options: &[
-            OptionSpec { name: "-mimetype", takes_value: true, value_hint: "TYPE", detail: "Variable name to store MIME type.", dialects: None },
-            OptionSpec { name: "-mimesubtype", takes_value: true, value_hint: "SUBTYPE", detail: "Variable name to store MIME subtype.", dialects: None },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
+            OptionSpec {
+                name: "-mimetype",
+                takes_value: true,
+                value_hint: "TYPE",
+                detail: "Variable name to store MIME type.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-mimesubtype",
+                takes_value: true,
+                value_hint: "SUBTYPE",
+                detail: "Variable name to store MIME subtype.",
+                dialects: None,
             },
         ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

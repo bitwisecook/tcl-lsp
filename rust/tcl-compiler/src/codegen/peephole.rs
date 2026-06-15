@@ -94,12 +94,12 @@ impl CodegenCtx<'_> {
         // Collect literal indices still referenced by surviving pushes.
         let mut live_indices: std::collections::HashSet<usize> = std::collections::HashSet::new();
         for instr in &self.instructions {
-            if matches!(instr.op, Op::PUSH1 | Op::PUSH4) {
-                if let Some(&Operand::Imm(idx)) = instr.operands.first() {
-                    let idx = idx as usize;
-                    if idx < entries.len() {
-                        live_indices.insert(idx);
-                    }
+            if matches!(instr.op, Op::PUSH1 | Op::PUSH4)
+                && let Some(&Operand::Imm(idx)) = instr.operands.first()
+            {
+                let idx = idx as usize;
+                if idx < entries.len() {
+                    live_indices.insert(idx);
                 }
             }
         }

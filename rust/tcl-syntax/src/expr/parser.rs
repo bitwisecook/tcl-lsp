@@ -25,7 +25,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tcl_lexer::{tokenise_expr_checked, ExprToken, ExprTokenType};
+use tcl_lexer::{ExprToken, ExprTokenType, tokenise_expr_checked};
 
 use crate::expr::ast::{BinOp, ExprNode, UnaryOp};
 use crate::naming::normalise_var_name;
@@ -204,15 +204,15 @@ impl<'a> PrattParser<'a> {
         let tok = self.peek().ok_or(ParseError)?;
 
         // Unary operators
-        if tok.kind == ExprTokenType::Operator {
-            if let Some(op) = unaryop_from_text(&tok.text) {
-                self.advance();
-                let operand = self.expression(UNARY_BP)?;
-                return Ok(ExprNode::Unary {
-                    op,
-                    operand: Box::new(operand),
-                });
-            }
+        if tok.kind == ExprTokenType::Operator
+            && let Some(op) = unaryop_from_text(&tok.text)
+        {
+            self.advance();
+            let operand = self.expression(UNARY_BP)?;
+            return Ok(ExprNode::Unary {
+                op,
+                operand: Box::new(operand),
+            });
         }
 
         // Parenthesised sub-expression
@@ -293,16 +293,16 @@ impl<'a> PrattParser<'a> {
         let mut args = Vec::new();
 
         // Check for empty argument list
-        if let Some(peek) = self.peek() {
-            if peek.kind == ExprTokenType::ParenClose {
-                let close_tok = self.advance();
-                return Ok(ExprNode::Call {
-                    function: func_name,
-                    args,
-                    start: func_start,
-                    end: close_tok.end,
-                });
-            }
+        if let Some(peek) = self.peek()
+            && peek.kind == ExprTokenType::ParenClose
+        {
+            let close_tok = self.advance();
+            return Ok(ExprNode::Call {
+                function: func_name,
+                args,
+                start: func_start,
+                end: close_tok.end,
+            });
         }
 
         // Parse first argument
@@ -420,12 +420,11 @@ impl ExprCache {
         // of the deque; per-entry O(N) but N is bounded at 4096
         // and the alternative (a doubly-linked-list-with-cursors
         // shape) needs `unsafe` or a third-party LRU crate.
-        if let Some(pos) = self.order.iter().position(|k| k == key) {
-            if pos + 1 < self.order.len() {
-                if let Some(k) = self.order.remove(pos) {
-                    self.order.push_back(k);
-                }
-            }
+        if let Some(pos) = self.order.iter().position(|k| k == key)
+            && pos + 1 < self.order.len()
+            && let Some(k) = self.order.remove(pos)
+        {
+            self.order.push_back(k);
         }
         Some(value)
     }
@@ -434,17 +433,17 @@ impl ExprCache {
         if self.map.contains_key(&key) {
             self.map.insert(key.clone(), value);
             // Refresh recency.
-            if let Some(pos) = self.order.iter().position(|k| k == &key) {
-                if let Some(k) = self.order.remove(pos) {
-                    self.order.push_back(k);
-                }
+            if let Some(pos) = self.order.iter().position(|k| k == &key)
+                && let Some(k) = self.order.remove(pos)
+            {
+                self.order.push_back(k);
             }
             return;
         }
-        if self.map.len() >= EXPR_CACHE_CAPACITY {
-            if let Some(old) = self.order.pop_front() {
-                self.map.remove(&old);
-            }
+        if self.map.len() >= EXPR_CACHE_CAPACITY
+            && let Some(old) = self.order.pop_front()
+        {
+            self.map.remove(&old);
         }
         self.map.insert(key.clone(), value);
         self.order.push_back(key);

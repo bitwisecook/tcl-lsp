@@ -467,14 +467,14 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         options: CMD_OPTIONS,
-hover: Some(HoverSnippet {
-    summary: "Read, write and manipulate channels.",
-    synopsis: &["chan subcommand ?arg ...?"],
-    snippet: "Unified interface for channel operations (`configure`, `gets`, `puts`, `read`, etc.).",
-    source: "Tcl man page chan.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Read, write and manipulate channels.",
+            synopsis: &["chan subcommand ?arg ...?"],
+            snippet: "Unified interface for channel operations (`configure`, `gets`, `puts`, `read`, etc.).",
+            source: "Tcl man page chan.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

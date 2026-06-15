@@ -3214,7 +3214,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "target-virtual",
                 value_type: ValueKind::Enum,
                 allow_none: true,
-                enum_values: &["host-match-all", "host-match-no-isession", "none", "virtual-match-all"],
+                enum_values: &[
+                    "host-match-all",
+                    "host-match-no-isession",
+                    "none",
+                    "virtual-match-all",
+                ],
                 default: Some("virtual-match-all"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -3413,7 +3418,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "filter-mode",
                 value_type: ValueKind::Enum,
                 enum_values: &["exclude", "include"],
-                default: Some("exclude with no IP addresses specified, which means that all advertised routes that conform to the specified attributes are discovered"),
+                default: Some(
+                    "exclude with no IP addresses specified, which means that all advertised routes that conform to the specified attributes are discovered",
+                ),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

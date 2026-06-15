@@ -12,12 +12,12 @@
 
 use tcl_irules::extract_irules_object_references;
 use tcl_lexer::LineIndex;
-use tcl_registry::bigip::default_registry;
 use tcl_registry::BigipRegistry;
+use tcl_registry::bigip::default_registry;
 
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
-use crate::parser::header::{parse_generic_header, ObjectTypeIndex};
+use crate::parser::header::{ObjectTypeIndex, parse_generic_header};
 use crate::parser::helpers::extract_blocks;
 use crate::range::Range;
 
@@ -210,10 +210,10 @@ fn resolve_generic_object<'a>(
         return None;
     }
     for (key, obj) in &cfg.generic_objects {
-        if let Some(m) = module {
-            if obj.module != m {
-                continue;
-            }
+        if let Some(m) = module
+            && obj.module != m
+        {
+            continue;
         }
         // The Python always passes the spec's (never-None) object-types tuple,
         // so the membership check always applies.
@@ -272,10 +272,10 @@ pub fn resolve_kind_in_configs(
             // For a table-backed kind every object shares the kind's module
             // (`ks.module`), so it stands in for the per-object `obj.module` the
             // Python reads; the `spec.module` self-check never fires.
-            if let (Some(pm), Some(om)) = (preferred_module, ks.module) {
-                if om != pm {
-                    continue;
-                }
+            if let (Some(pm), Some(om)) = (preferred_module, ks.module)
+                && om != pm
+            {
+                continue;
             }
             if let Some(rk) = range_key_of(&placed.object) {
                 return Some(((*uri).clone(), rk));
@@ -289,12 +289,11 @@ pub fn resolve_kind_in_configs(
         if preferred_module.is_some() && module.is_none() && kind == "pool" {
             module = preferred_module;
         }
-        if let Some(key) = resolve_generic_object(cfg, clean, module, ks.object_types) {
-            if let Some((_, gobj)) = cfg.generic_objects.iter().find(|(k, _)| k == key) {
-                if let Some(range) = gobj.range {
-                    return Some(((*uri).clone(), range_key_from(range)));
-                }
-            }
+        if let Some(key) = resolve_generic_object(cfg, clean, module, ks.object_types)
+            && let Some((_, gobj)) = cfg.generic_objects.iter().find(|(k, _)| k == key)
+            && let Some(range) = gobj.range
+        {
+            return Some(((*uri).clone(), range_key_from(range)));
         }
     }
     None
@@ -385,12 +384,13 @@ fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
         kind,
         "node" | "virtual_address" | "ltm_node" | "ltm_virtual_address"
     );
-    if is_addr_kind && reference.matches(':').count() == 1 {
-        if let Some((left, right)) = reference.rsplit_once(':') {
-            if !right.is_empty() && right.bytes().all(|b| b.is_ascii_digit()) {
-                reference = left.to_owned();
-            }
-        }
+    if is_addr_kind
+        && reference.matches(':').count() == 1
+        && let Some((left, right)) = reference.rsplit_once(':')
+        && !right.is_empty()
+        && right.bytes().all(|b| b.is_ascii_digit())
+    {
+        reference = left.to_owned();
     }
     reference
 }

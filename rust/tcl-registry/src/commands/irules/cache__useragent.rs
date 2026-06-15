@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CACHE::useragent",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Overrides the useragent value used by the cache to reference the cached content.",
             synopsis: &["CACHE::useragent AGENT"],
             snippet: "By default, cached content is stored with a unique key that\nconsists of the Host header, URI, Accept-Encoding and User-Agent.\nIf the content is generated the same for multiple User-Agents,\nthis command can be used to group various User-Agent values into a single\ngroup, thus minimizing duplicated cached content.\n\nCACHE::useragent <string>\n\n     * Overrides the useragent value used by the cache to store the cached\n       content.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CACHE::useragent AGENT" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CACHE::useragent AGENT",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

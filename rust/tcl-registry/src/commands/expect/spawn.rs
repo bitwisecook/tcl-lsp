@@ -76,7 +76,7 @@ pub fn spec() -> CommandSpec {
         name: "spawn",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Start a new process and prepare it for interaction.",
             synopsis: &["spawn ?-option ...? program ?args ...?"],
             snippet: "Starts a new process and connects its stdin/stdout to the Expect channel. Returns the spawn id in the variable `spawn_id`.",

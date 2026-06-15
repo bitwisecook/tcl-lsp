@@ -42,7 +42,7 @@
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
 
-use crate::definition::{utf16_col_to_char_col, LspRange};
+use crate::definition::{LspRange, utf16_col_to_char_col};
 
 /// LSP code-action kind.  Maps to the dotted strings the editor / e2e
 /// `only` filter use (`quickfix`, `refactor.extract`, …).
@@ -165,10 +165,10 @@ pub fn code_actions(
         // $var`, so offer that as a one-click fix.  The diag
         // span starts at `unset`; we splice ` -nocomplain`
         // immediately after the keyword (offset +5).
-        if diag.code == "W213" {
-            if let Some(action) = build_unset_nocomplain_action(source, diag, &line_index) {
-                actions.push(action);
-            }
+        if diag.code == "W213"
+            && let Some(action) = build_unset_nocomplain_action(source, diag, &line_index)
+        {
+            actions.push(action);
         }
         for fix in &diag.fixes {
             let fix_start = line_index.position_at_utf16(fix.span.start(), source);
@@ -575,13 +575,12 @@ fn ip_conversion_actions(
     if let Some(rest) = addr
         .strip_prefix("::ffff:")
         .or_else(|| addr.strip_prefix("::FFFF:"))
+        && is_ipv4(rest)
     {
-        if is_ipv4(rest) {
-            return vec![make(
-                "Convert to IPv4 address".to_string(),
-                rest.to_string(),
-            )];
-        }
+        return vec![make(
+            "Convert to IPv4 address".to_string(),
+            rest.to_string(),
+        )];
     }
     Vec::new()
 }
@@ -660,15 +659,15 @@ fn demorgan_transform(sel: &str) -> Option<String> {
         return None;
     }
     // Reverse: `!X || !Y` → `!(X && Y)`, `!X && !Y` → `!(X || Y)`.
-    if let Some((l, r)) = split_top_logical(t, "||") {
-        if let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!')) {
-            return Some(format!("!({} && {})", li.trim(), ri.trim()));
-        }
+    if let Some((l, r)) = split_top_logical(t, "||")
+        && let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!'))
+    {
+        return Some(format!("!({} && {})", li.trim(), ri.trim()));
     }
-    if let Some((l, r)) = split_top_logical(t, "&&") {
-        if let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!')) {
-            return Some(format!("!({} || {})", li.trim(), ri.trim()));
-        }
+    if let Some((l, r)) = split_top_logical(t, "&&")
+        && let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!'))
+    {
+        return Some(format!("!({} || {})", li.trim(), ri.trim()));
     }
     None
 }
@@ -1019,11 +1018,11 @@ fn compute_required_profiles(
         }
     }
     for inv in &analysis.command_invocations {
-        if let Some(spec) = registry.get(&inv.name) {
-            if let Some(req) = spec.event_requires.as_ref() {
-                for p in req.profiles {
-                    profiles.insert((*p).to_string());
-                }
+        if let Some(spec) = registry.get(&inv.name)
+            && let Some(req) = spec.event_requires.as_ref()
+        {
+            for p in req.profiles {
+                profiles.insert((*p).to_string());
             }
         }
     }
@@ -1051,15 +1050,15 @@ fn scan_profile_directive(source: &str) -> Option<(std::collections::BTreeSet<St
         }
         let body = t.trim_start_matches('#').trim();
         let lower = body.to_ascii_lowercase();
-        if lower.starts_with("profile") {
-            if let Some(colon) = body.find(':') {
-                let set: std::collections::BTreeSet<String> = body[colon + 1..]
-                    .split(|c: char| c == ',' || c.is_whitespace())
-                    .filter(|s| !s.is_empty())
-                    .map(str::to_ascii_uppercase)
-                    .collect();
-                return Some((set, u32::try_from(i).unwrap_or(0)));
-            }
+        if lower.starts_with("profile")
+            && let Some(colon) = body.find(':')
+        {
+            let set: std::collections::BTreeSet<String> = body[colon + 1..]
+                .split(|c: char| c == ',' || c.is_whitespace())
+                .filter(|s| !s.is_empty())
+                .map(str::to_ascii_uppercase)
+                .collect();
+            return Some((set, u32::try_from(i).unwrap_or(0)));
         }
     }
     None

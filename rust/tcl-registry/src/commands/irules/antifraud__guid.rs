@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::guid",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns GUID value, only in context of ANTIFRAUD_LOGIN event.",
             synopsis: &["ANTIFRAUD::guid"],
             snippet: "Returns GUID value, only in context of ANTIFRAUD_LOGIN event.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::guid" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::guid",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

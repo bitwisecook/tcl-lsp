@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MR::flow_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns a unique identifier for the current connection.",
             synopsis: &["MR::flow_id"],
             snippet: "Returns a unique identifier for the current connection. This identifier can be used to generate the lasthop and nexthop of a message.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when MR_INGRESS {\n    set orig_flowid [MR::flow_id]\n    MR::store orig_flowid\n}",
             return_value: "Returns a unique identifier for the current connection.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MR::flow_id" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::MessageState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MR::flow_id",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::MessageState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

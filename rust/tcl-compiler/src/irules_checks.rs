@@ -19,8 +19,8 @@
 //! "each diagnostic is its own sub-strip" sequencing.
 
 use tcl_lexer::Span;
-use tcl_registry::events::EventRegistry;
 use tcl_registry::CommandRegistry;
+use tcl_registry::events::EventRegistry;
 
 use crate::cfg_builder::build_cfg;
 use crate::compilation_unit::CompilationUnit;
@@ -286,11 +286,11 @@ fn scan_when_body_for_drops(fu: &crate::compilation_unit::FunctionUnit) -> Vec<I
         // After the block's statements: check the terminator.  A
         // `Return` clears all pending drops; otherwise pending state
         // carries across.
-        if let Some(term) = &block.terminator {
-            if matches!(term, crate::cfg::Terminator::Return { .. }) {
-                pending_drop = None;
-                pending_dns = None;
-            }
+        if let Some(term) = &block.terminator
+            && matches!(term, crate::cfg::Terminator::Return { .. })
+        {
+            pending_drop = None;
+            pending_dns = None;
         }
     }
 

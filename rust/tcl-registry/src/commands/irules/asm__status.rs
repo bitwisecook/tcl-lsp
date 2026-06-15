@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::status",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the current status of the request or response.",
             synopsis: &["ASM::status"],
             snippet: "Returns the current status of the request or response\nReturns one of the following values:\n  + Alarm - there are violations and alarm has been raised, but\n    request or response is not blocked. This does not apply to\n    violations that are in staging mode. This value will also be\n    returned if the request had violations but was unblocked using\n    a previously called ASM::unblock command.\n  + Blocked - violations caused the request/response to be\n    blocked. This does not apply to violations that are in staging\n    mode.\n  + Clear - no violations found",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::status" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::status",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

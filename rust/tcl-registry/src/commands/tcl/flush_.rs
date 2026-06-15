@@ -21,14 +21,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Flush buffered output for a channel",
-    synopsis: &["flush channel"],
-    snippet: "The flush command has been superceded by the chan flush command which supports the same syntax and options.",
-    source: "Tcl man page flush.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Flush buffered output for a channel",
+            synopsis: &["flush channel"],
+            snippet: "The flush command has been superceded by the chan flush command which supports the same syntax and options.",
+            source: "Tcl man page flush.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

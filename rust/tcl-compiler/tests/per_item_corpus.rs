@@ -91,5 +91,7 @@ fn per_item_matches_analyse_over_corpus() {
         mismatches.len(),
         mismatches.join("\n")
     );
-    eprintln!("slice-2b gate: {checked} files, analyse_per_item == analyse ({fellback} trivially-fellback)");
+    eprintln!(
+        "slice-2b gate: {checked} files, analyse_per_item == analyse ({fellback} trivially-fellback)"
+    );
 }

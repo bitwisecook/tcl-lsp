@@ -55,23 +55,23 @@ impl CodegenCtx<'_> {
 
         if used_generic_invoke {
             // Tag this startCommand as wrapping a generic invoke
-            if let Some(idx) = sc_idx {
-                if !self.is_proc {
-                    SC_GENERIC_TAG.clone_into(&mut self.instructions[idx].comment);
-                }
+            if let Some(idx) = sc_idx
+                && !self.is_proc
+            {
+                SC_GENERIC_TAG.clone_into(&mut self.instructions[idx].comment);
             }
         }
 
-        if let Some(ref label) = end_label {
-            if deferred_end_label.is_none() {
-                // Place end label before the trailing pop (or at end)
-                let pos = if self.instructions.last().is_some_and(|i| i.op == Op::POP) {
-                    self.instructions.len() - 1
-                } else {
-                    self.instructions.len()
-                };
-                self.label_positions.insert(label.clone(), pos);
-            }
+        if let Some(ref label) = end_label
+            && deferred_end_label.is_none()
+        {
+            // Place end label before the trailing pop (or at end)
+            let pos = if self.instructions.last().is_some_and(|i| i.op == Op::POP) {
+                self.instructions.len() - 1
+            } else {
+                self.instructions.len()
+            };
+            self.label_positions.insert(label.clone(), pos);
         }
 
         self.cmd_index += 1;
@@ -330,17 +330,17 @@ impl CodegenCtx<'_> {
     /// Emit a regular command call.
     pub fn emit_call(&mut self, cmd: &str, args: &[String], used_generic_invoke: &mut bool) {
         // break/continue inside loops: emit jump instead of invokeStk
-        if cmd == "continue" {
-            if let Some(cont_lbl) = self.continue_target.clone() {
-                self.emit_comment(Op::JUMP4, vec![Operand::Label(cont_lbl)], "continue");
-                return;
-            }
+        if cmd == "continue"
+            && let Some(cont_lbl) = self.continue_target.clone()
+        {
+            self.emit_comment(Op::JUMP4, vec![Operand::Label(cont_lbl)], "continue");
+            return;
         }
-        if cmd == "break" {
-            if let Some(brk_lbl) = self.break_target.clone() {
-                self.emit_comment(Op::JUMP4, vec![Operand::Label(brk_lbl)], "break");
-                return;
-            }
+        if cmd == "break"
+            && let Some(brk_lbl) = self.break_target.clone()
+        {
+            self.emit_comment(Op::JUMP4, vec![Operand::Label(brk_lbl)], "break");
+            return;
         }
 
         // C21: try a registered per-command codegen hook before the

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "html_encode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "HTML-encode a string (alias for HTML::encode).",
             synopsis: &["html_encode STRING"],
             snippet: "Replaces HTML-special characters with their entity\nequivalents.  This is a convenience alias for\n``HTML::encode``.",
@@ -18,9 +18,10 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/html_encode.py`.
         taint_transform: Some(TaintColour::HTML_ESCAPED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::HTML_ESCAPED),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "html_encode STRING" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "html_encode STRING",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

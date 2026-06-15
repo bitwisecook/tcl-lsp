@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::unblock",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Overrides the blocking action for a request that had blocking violation.",
             synopsis: &["ASM::unblock"],
             snippet: "Overrides the blocking action for a request that had blocking\nviolations. Consequently, the request will be forwarded to the origin\nserver and also marked with a special \"unblocked\" flag which can be\nviewed in the request log. If the present request was not supposed to\nbe blocked then the command has no effect.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::unblock" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::unblock",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

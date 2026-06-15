@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CLASSIFICATION::username",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Provides username associated with classification results.",
             synopsis: &["CLASSIFICATION::username"],
             snippet: "CLASSIFICATION::username",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFICATION::username" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CLASSIFICATION::username",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

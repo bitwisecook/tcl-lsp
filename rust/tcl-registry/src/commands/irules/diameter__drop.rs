@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::drop",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Drops the current message quietly.",
             synopsis: &["DIAMETER::drop"],
             snippet: "This iRule command drops the current Diameter message quietly.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::drop" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::drop",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

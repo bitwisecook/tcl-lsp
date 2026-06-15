@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "LDAP::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enable LDAP STARTTLS.",
             synopsis: &["LDAP::enable"],
             snippet: "Enable LDAP STARTTLS",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "LDAP::enable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LDAP::enable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

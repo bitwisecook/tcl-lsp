@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Context;
-use tcl_bigip::parser::header::{parse_generic_header, ObjectTypeIndex};
+use tcl_bigip::parser::header::{ObjectTypeIndex, parse_generic_header};
 use tcl_bigip::parser::helpers::extract_blocks;
 use tcl_registry::BigipRegistry;
 

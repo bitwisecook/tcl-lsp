@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CATEGORY::analytics",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Controls response analytics engine.",
             synopsis: &["CATEGORY::analytics BOOL_VALUE"],
             snippet: "Enables or disables the analytics server on a per request basis (requires SWG license)",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::analytics BOOL_VALUE" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CATEGORY::analytics BOOL_VALUE",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

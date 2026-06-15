@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::username",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "request username from a login attempt throughout the login session.",
             synopsis: &["ASM::username"],
             snippet: "Returns the username from a login attempt throughout the login session. If there is no login session or the login page in the policy does not extract credentials, then an empty string is returned.;",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::username" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::username",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

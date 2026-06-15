@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "AUTH::cert_credential",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets the peer certificate credential to the value of a peer certificate for a future AUTH::authenticate call.",
             synopsis: &["AUTH::cert_credential AUTH_ID PEER_CERTIFICATE"],
             snippet: "Sets the peer certificate credential to the value of ''' for a\nfuture AUTH::authenticate call. See also the SSL::cert\ncommand. This command returns an error if attempted for a standby\nsystem.\n\nAUTH::cert_credential authid <peer certificate>\n\n     * Sets the peer certificate credential to the value of ''' for a\n       future AUTH::authenticate call.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENTSSL_CLIENTCERT {\n  set ldap_sid [AUTH::start pam $myprofilename]\n  AUTH::cert_credential $ldap_sid [SSL::cert 0]\n  AUTH::authenticate $ldap_sid\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "AUTH::cert_credential AUTH_ID PEER_CERTIFICATE" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AUTH::cert_credential AUTH_ID PEER_CERTIFICATE",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

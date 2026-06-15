@@ -54,19 +54,25 @@ pub fn spec() -> CommandSpec {
         assigns_variable_at: Some(0),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
-hover: Some(HoverSnippet {
-    summary: "Change an element in a list",
-    synopsis: &["lset varName ?index ...? newValue"],
-    snippet: "The lset command accepts a parameter, varName, which it interprets as the name of a variable containing a Tcl list.",
-    source: "Tcl man page lset.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Change an element in a list",
+            synopsis: &["lset varName ?index ...? newValue"],
+            snippet: "The lset command accepts a parameter, varName, which it interprets as the name of a variable containing a Tcl list.",
+            source: "Tcl man page lset.n",
+            examples: "",
+            return_value: "",
+        }),
         codegen_hook: Some(CodegenHookId::Lset),
         command_forms: &[LSET_REPLACE, LSET_SINGLE_INDEX, LSET_FLAT_PATH],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::List), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::List),
+                shimmers: true,
+            },
+        )],
         ..CommandSpec::DEFAULT
     }
 }

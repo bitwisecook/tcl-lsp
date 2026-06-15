@@ -28,7 +28,7 @@ pub mod port_set;
 pub mod route_domain;
 pub mod snat_mode;
 
-pub use address::{parse_address, try_parse_address, Address, IPAddress, FQDN};
+pub use address::{Address, FQDN, IPAddress, parse_address, try_parse_address};
 pub use attachments::{PersistenceAttachment, ProfileAttachment};
 pub use bigip_list::{BigipList, ListItem, ListItemValue, ListSyntax, SourceSpan};
 pub use cert_key_chain::CertKeyChain;

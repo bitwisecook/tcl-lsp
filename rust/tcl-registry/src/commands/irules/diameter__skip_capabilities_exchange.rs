@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::skip_capabilities_exchange",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Instructs DIAMETER protocol to skip capabilities exchange when establishing a peering relationship.",
             synopsis: &["DIAMETER::skip_capabilities_exchange ( HOSTNAME )?"],
             snippet: "Once called, the current connection will skip DIAMETER capabilities exchange message communication with the peer device and will immediately be able to receive DIAMETER messaegs.\n\nIf the HOSTNAME parameter is provided, the provided name will be used as the peer device's origin-host attribute for logging.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::skip_capabilities_exchange ( HOSTNAME )?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::skip_capabilities_exchange ( HOSTNAME )?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "vlan_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the VLAN tag of the packet.",
             synopsis: &["vlan_id"],
             snippet: "Returns the VLAN tag of the packet. This is a BIG-IP 4.X variable,\nprovided for backward-compatibility. You can use the equivalent 9.X\ncommand LINK::vlan_id instead.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "vlan_id" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "vlan_id",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         deprecated_replacement: Some("VLAN::id"),
         ..CommandSpec::DEFAULT
     }

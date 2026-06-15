@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DNS::is_wideip",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns status (true/false) if a string is a configured wide IP.",
             synopsis: &["DNS::is_wideip DNS_STRING"],
             snippet: "This iRules command returns status (true/false) if a string is a\nconfigured wide IP.\n\nNote: This command functions only in the context of LTM iRules and\nrequires the DNS Profile, which is only enabled as part of GTM or the\nDNS Services add-on.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DNS::is_wideip DNS_STRING" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::DnsState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DNS::is_wideip DNS_STRING",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

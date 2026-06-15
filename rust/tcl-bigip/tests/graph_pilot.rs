@@ -10,7 +10,7 @@
 //! reproduces the Python edge set exactly — the registry-data regen cleared the
 //! former drift. Self-contained — no Python at test time.
 
-use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
+use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]

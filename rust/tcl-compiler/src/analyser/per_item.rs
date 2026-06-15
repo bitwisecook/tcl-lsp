@@ -210,15 +210,14 @@ impl Analyser {
                 self.analyse_body(&db.body_text, db.body_tok, &db.scope_path);
                 // A method that defines/extends a class diverges like a
                 // class-defining proc body (accumulation order) — fall back.
-                if let Some(before) = before_classes {
-                    if self
+                if let Some(before) = before_classes
+                    && self
                         .result
                         .all_classes
                         .iter()
                         .any(|(k, v)| before.get(k) != Some(v))
-                    {
-                        return self.fresh_full_analyse(source, dialect);
-                    }
+                {
+                    return self.fresh_full_analyse(source, dialect);
                 }
                 // A method that (re)defines a proc whose name is defined
                 // elsewhere is a duplicate at the shared `all_procs` key.
@@ -666,9 +665,13 @@ mod tests {
         // whole-file walk ends with the top-level definition (source order),
         // so the per-item path must fall back rather than let the pass-2
         // method body win the shared `all_procs["::p"]` key.
-        eq("oo::class create C { method m {} { proc p {} { return 1 } } }\nproc p {} { return 2 }\n");
+        eq(
+            "oo::class create C { method m {} { proc p {} { return 1 } } }\nproc p {} { return 2 }\n",
+        );
         // Same, reversed order (top-level first, then the method).
-        eq("proc p {} { return 2 }\noo::class create C { method m {} { proc p {} { return 1 } } }\n");
+        eq(
+            "proc p {} { return 2 }\noo::class create C { method m {} { proc p {} { return 1 } } }\n",
+        );
         // A method that defines a non-colliding proc stays byte-identical too.
         eq("oo::class create C { method m {} { proc helper {} { return 1 } } }\n");
     }
@@ -691,7 +694,9 @@ mod tests {
     fn duplicate_top_level_proc_falls_back() {
         // Platform-conditional redefinition: last-def-wins in a whole-file walk;
         // the per-item path detects the duplicate and falls back, so equal.
-        eq("if {1} {\n  proc p {} { set file a; puts $file }\n} else {\n  proc p {} { return 2 }\n}\n");
+        eq(
+            "if {1} {\n  proc p {} { set file a; puts $file }\n} else {\n  proc p {} { return 2 }\n}\n",
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SIP::respond",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Terminates a SIP response and responds with one of your creation.",
             synopsis: &["SIP::respond RESPONSE_CODE (PHRASE (HEADER_NAME HEADER_VALUE)*)?"],
             snippet: "This command allows you to terminate a SIP request and send a custom\nformatted response directly from the iRule.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SIP::respond RESPONSE_CODE (PHRASE (HEADER_NAME HEADER_VALUE)*)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SIP::respond RESPONSE_CODE (PHRASE (HEADER_NAME HEADER_VALUE)*)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

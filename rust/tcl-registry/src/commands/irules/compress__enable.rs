@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "COMPRESS::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables compression for the current HTTP response.",
             synopsis: &["COMPRESS::enable (request | response)?"],
             snippet: "COMPRESS::enable\n    Enables compression for the current HTTP response. Note that when using this command, you must set the HTTP profile setting Compression to Selective.\n\nCOMPRESS::enable request\n    Enables compression for the current HTTP request. As with the normal COMPRESS::enable, you must enable the HTTP compression profile setting Selective Compression (version 11.x). You must also enable an HTTP profile with \"request-chunking selective\" selected.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "COMPRESS::enable (request | response)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "COMPRESS::enable (request | response)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SCTP::local_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the local SCTP port/service number.",
             synopsis: &["SCTP::local_port (clientside | serverside)?"],
             snippet: "Returns the local SCTP port/service number. Can specify the port value on clientside or serverside.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        SCTP::collect\n        log local0.info \"Sctp local port is [SCTP::local_port]\"\n        log local0.info \"Sctp client port is [SCTP::client_port]\"\n        log local0.info \"Sctp mss is [SCTP::mss]\"\n        log local0.info \"sctp ppi is [SCTP::ppi]\"\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SCTP::local_port (clientside | serverside)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SCTP::local_port (clientside | serverside)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

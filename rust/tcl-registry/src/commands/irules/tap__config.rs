@@ -6,15 +6,12 @@ pub const fn spec() -> CommandSpec {
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
-            summary:
-                "Returns the current value of the specified setting in an assigned TAP Application.",
+            summary: "Returns the current value of the specified setting in an assigned TAP Application.",
             synopsis: &["TAP::config APPLICATION ENTITY"],
-            snippet:
-                "Returns the current value of the specified setting in an assigned TAP Application.",
+            snippet: "Returns the current value of the specified setting in an assigned TAP Application.",
             source: "https://clouddocs.f5.com/api/irules/TAP__config.html",
             examples: "",
-            return_value:
-                "Returns the current value of the specified setting in an assigned TAP Application.",
+            return_value: "Returns the current value of the specified setting in an assigned TAP Application.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

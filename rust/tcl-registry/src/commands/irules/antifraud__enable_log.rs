@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::enable_log",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables Anti-Fraud TMM logs for the current transaction.",
             synopsis: &["ANTIFRAUD::enable_log (LOG_LEVEL)?"],
             snippet: "ANTIFRAUD::enable_log\n                Enables Anti-Fraud TMM logs at 'Informational' (default) log level for the current transaction.\n\n            ANTIFRAUD::enable_log LOG_LEVEL ;\n                Enables Anti-Fraud TMM logs at 'LOG_LEVEL' (can be any of: 'Error'/'Warning'/'Notice'/'Informational'/'Debug') log level for the current transaction.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n                if { [HTTP::header exists \"Antifraud-Enable-log\" ] } {\n                    ANTIFRAUD::enable_log\n                    log local0. \"Logs enabled\"\n                }\n            }",
             return_value: "ANTIFRAUD::enable_log No return value (enables Anti-Fraud TMM logs at default log level for the current transaction).",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::enable_log (LOG_LEVEL)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::enable_log (LOG_LEVEL)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

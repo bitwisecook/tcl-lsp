@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "UDP::mss",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the on-wire Maximum Segment Size (MSS) for a UDP connection.",
             synopsis: &["UDP::mss"],
             snippet: "Returns the on-wire Maximum Segment Size (MSS) for a UDP connection.",
@@ -28,17 +28,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "UDP::mss" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::UdpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::mss",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

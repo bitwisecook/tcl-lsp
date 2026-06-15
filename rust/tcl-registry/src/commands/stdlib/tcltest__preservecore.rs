@@ -6,8 +6,7 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
-            summary:
-                "Get or set core file preservation.  Deprecated: use ``configure -preservecore``.",
+            summary: "Get or set core file preservation.  Deprecated: use ``configure -preservecore``.",
             synopsis: &["tcltest::preserveCore ?level?"],
             snippet: "",
             source: "Tcl stdlib tcltest package (deprecated)",

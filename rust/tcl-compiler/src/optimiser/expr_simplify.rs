@@ -40,7 +40,7 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
-use crate::tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env};
+use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
 use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::try_unwrap_expr_in_expr;
@@ -228,16 +228,16 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     // form (the source span on `ExprEval` does not always cover
     // the trailing `}` of a braced body — see
     // `lowering::structured` for the token-span limitation).
-    if let ExprNode::Command { text, .. } = expr {
-        if let Some(unwrapped) = try_unwrap_expr_in_expr(text) {
-            ctx.report(Optimisation::new(
-                "O115",
-                "Remove redundant nested expr",
-                span,
-                format!("expr {{{unwrapped}}}"),
-            ));
-            return;
-        }
+    if let ExprNode::Command { text, .. } = expr
+        && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
+    {
+        ctx.report(Optimisation::new(
+            "O115",
+            "Remove redundant nested expr",
+            span,
+            format!("expr {{{unwrapped}}}"),
+        ));
+        return;
     }
 
     // O101: fold a fully constant expression. Only report when

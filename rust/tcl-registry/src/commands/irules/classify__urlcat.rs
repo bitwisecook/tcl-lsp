@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CLASSIFY::urlcat",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Allows to set or add an url category to the classification.",
             synopsis: &["CLASSIFY::urlcat ('set' | 'add') CLASSIFY_URL_CATEGORY_NAME"],
             snippet: "This command allows you to set or add an url category to the\nclassification.\n\n* Note: APM / AFM / PEM license is required for functionality to work.\n\nCLASSIFY::urlcat set <URL_Category>\n\n     * will immediately classify flow as URL_category.\n\nCLASSIFY::application add <app_name>\n\n     * adds an URL Category to the URL classification token to the final\n       classification result issued by the classification engine. This can\n       be issued multiple times in order to add multiple tokens to the classification result.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFY::urlcat ('set' | 'add') CLASSIFY_URL_CATEGORY_NAME" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CLASSIFY::urlcat ('set' | 'add') CLASSIFY_URL_CATEGORY_NAME",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

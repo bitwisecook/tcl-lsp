@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disables the anti-fraud plugin.",
             synopsis: &["ANTIFRAUD::disable"],
             snippet: "Disables the anti-fraud plugin.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n                # Disable request with Antifraud-Disable header (bypass antifraud plugin)\n                if { [HTTP::header exists \"Antifraud-Disable\" ] } {\n                    ANTIFRAUD::disable\n                }\n            }",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

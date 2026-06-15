@@ -127,12 +127,11 @@ pub fn definition(
     // declaration.  Checked before the proc lookup so a method
     // call resolves to the method even when a same-named proc
     // exists.
-    if let Some((inst, method)) = instance_method_at_cursor(source, line, character) {
-        if let Some(class_q) = analysis.instance_classes.get(&inst) {
-            if let Some(span) = lookup_method_in_class(analysis, class_q, &method) {
-                return vec![span_to_range(source, &line_index, span)];
-            }
-        }
+    if let Some((inst, method)) = instance_method_at_cursor(source, line, character)
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(span) = lookup_method_in_class(analysis, class_q, &method)
+    {
+        return vec![span_to_range(source, &line_index, span)];
     }
     for (qname, proc_def) in &analysis.all_procs {
         if proc_def.name == word || qname == &word || qname == &format!("::{word}") {
@@ -200,26 +199,26 @@ fn lookup_class_member(
         if let Some(p) = class_def.properties.get(word) {
             return Some(p.name_span);
         }
-        if word == "constructor" {
-            if let Some(c) = class_def.constructors.first() {
-                if !c.name_span.is_empty() {
-                    return Some(c.name_span);
-                }
-                // Analyser doesn't store a name span for the
-                // constructor keyword (it has no name token).
-                // Fall back to the body span's start so the
-                // editor at least lands on the constructor's
-                // body opener.
-                return Some(c.body_span);
+        if word == "constructor"
+            && let Some(c) = class_def.constructors.first()
+        {
+            if !c.name_span.is_empty() {
+                return Some(c.name_span);
             }
+            // Analyser doesn't store a name span for the
+            // constructor keyword (it has no name token).
+            // Fall back to the body span's start so the
+            // editor at least lands on the constructor's
+            // body opener.
+            return Some(c.body_span);
         }
-        if word == "destructor" {
-            if let Some(d) = &class_def.destructor {
-                if !d.name_span.is_empty() {
-                    return Some(d.name_span);
-                }
-                return Some(d.body_span);
+        if word == "destructor"
+            && let Some(d) = &class_def.destructor
+        {
+            if !d.name_span.is_empty() {
+                return Some(d.name_span);
             }
+            return Some(d.body_span);
         }
     }
     None

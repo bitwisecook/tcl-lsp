@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTTP2::concurrency",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command can be used to determine the number of active concurrent streams in the current HTTP/2 session.",
             synopsis: &["HTTP2::concurrency"],
             snippet: "Returns number of active concurrent streams in the current HTTP/2 session.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::concurrency" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Http2State,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP2::concurrency",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Http2State,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

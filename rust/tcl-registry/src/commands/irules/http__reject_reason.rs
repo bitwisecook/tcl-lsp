@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTTP::reject_reason",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the reason HTTP is aborting",
             synopsis: &["HTTP::reject_reason ('as_num')?"],
             snippet: "This returns the reason HTTP aborted the connection, either as a string, or as a numeric id suitable for an error code.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP::reject_reason ('as_num')?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP::reject_reason ('as_num')?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_forbidden_added_element",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Deprecated: For the external_sources alert: returns forbidden added HTML element and its content, in an escaped base64 format.",
             synopsis: &["ANTIFRAUD::alert_forbidden_added_element"],
             snippet: "For the external_sources alert: returns forbidden added HTML element and its content, in an escaped base64 format.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::alert_forbidden_added_element" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::alert_forbidden_added_element",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         deprecated_replacement: Some("ANTIFRAUD::alert_details"),
         ..CommandSpec::DEFAULT
     }

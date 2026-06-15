@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::alert_fingerprint",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns or sets fingerprint data collected on client side.",
             synopsis: &["ANTIFRAUD::alert_fingerprint (VALUE)?"],
             snippet: "ANTIFRAUD::alert_fingerprint ;\n                Returns fingerprint data collected on client side.\n\n            ANTIFRAUD::alert_fingerprint VALUE ;\n                Sets fingerprint data collected on client side.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::alert_fingerprint (VALUE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::alert_fingerprint (VALUE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

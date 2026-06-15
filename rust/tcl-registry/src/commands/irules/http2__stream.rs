@@ -35,7 +35,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 2),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets or sets the stream attributes including id and priority.",
             synopsis: &["HTTP2::stream (id | (priority (PRIORITY)?))?"],
             snippet: "This command can be used to determine the stream attributes including id and priority. This command can also be used to set the priority for a current active stream.\n\nHTTP2::stream\n    Returns the stream id. Returns 0 if HTTP/2 is not active.\n\nHTTP2::stream id\n    Returns the stream id. Returns 0 if HTTP/2 is not active.\n\nHTTP2::stream priority\n    Returns the priority of the current stream.\n\nHTTP2::stream priority <priority>\n    Sets the priority of the current active stream. The return is 0 is the priority was set. Return is an error if the priority is out of bounds (exceeding 8 bits).",
@@ -53,18 +53,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Getter, synopsis: "HTTP2::stream" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Getter,
+            synopsis: "HTTP2::stream",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Http2State,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Http2State,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

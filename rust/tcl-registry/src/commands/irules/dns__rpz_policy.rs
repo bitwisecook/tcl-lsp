@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DNS::rpz_policy",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the RPZ policy associated with the DNS cache.",
             synopsis: &["DNS::rpz_policy"],
             snippet: "Returns the RPZ (Response Policy Zones) policy associated with the DNS cache.\n\nThe possible return values are:\n    * \"\" (empty string) if RPZ is not configured.\n    * \"NXDOMAIN\" if RPZ is configured to return an NXDOMAIN response on a match.\n    * \"WG <walled garden name>\" if RPZ is configured to return a Walled Garden redirect on a match.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DNS::rpz_policy" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::DnsState,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DNS::rpz_policy",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

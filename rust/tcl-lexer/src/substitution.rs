@@ -86,10 +86,10 @@ fn push_simple(out: &mut String, resolved: char, chars: &mut CharIndices<'_>) {
 
 fn consume_line_continuation(out: &mut String, first: char, chars: &mut CharIndices<'_>) {
     chars.next(); // consume the LF or CR
-    if first == '\r' {
-        if let Some(&(_, '\n')) = chars.peek() {
-            chars.next();
-        }
+    if first == '\r'
+        && let Some(&(_, '\n')) = chars.peek()
+    {
+        chars.next();
     }
     while let Some(&(_, c)) = chars.peek() {
         if c == ' ' || c == '\t' {

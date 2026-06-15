@@ -33,7 +33,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
-use crate::types::{type_join, TypeKind, TypeLattice};
+use crate::types::{TypeKind, TypeLattice, type_join};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 // Float literal pattern matching Python's `_FLOAT_RE`: requires a decimal
@@ -99,13 +99,13 @@ pub(crate) fn return_type_for_command(
 
     // Subcommand commands: check sub's return_type.
     if !spec.subcommands.is_empty() {
-        if let Some(sub_name) = args.first() {
-            if let Some(sub) = spec.subcommand(sub_name) {
-                return match sub.return_type {
-                    Some(t) => TypeLattice::of(t),
-                    None => TypeLattice::overdefined(),
-                };
-            }
+        if let Some(sub_name) = args.first()
+            && let Some(sub) = spec.subcommand(sub_name)
+        {
+            return match sub.return_type {
+                Some(t) => TypeLattice::of(t),
+                None => TypeLattice::overdefined(),
+            };
         }
         // Unknown subcommand.
         return TypeLattice::overdefined();
@@ -316,22 +316,23 @@ fn evaluate_type_def(
             // Pure variable reference: inherit source type.
             if is_pure_var_ref(stripped) {
                 let name = normalise_var_name(stripped);
-                if let Some(&ver) = uses.get(name) {
-                    if ver > 0 {
-                        return types
-                            .get(&(name.to_owned(), ver))
-                            .cloned()
-                            .unwrap_or_else(TypeLattice::unknown);
-                    }
+                if let Some(&ver) = uses.get(name)
+                    && ver > 0
+                {
+                    return types
+                        .get(&(name.to_owned(), ver))
+                        .cloned()
+                        .unwrap_or_else(TypeLattice::unknown);
                 }
                 return TypeLattice::unknown();
             }
             // Command substitution: [cmd ...].
-            if stripped.starts_with('[') && stripped.ends_with(']') {
-                if let Some((cmd, args)) = parse_command_substitution(stripped) {
-                    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                    return return_type_for_command(registry, &cmd, &arg_refs);
-                }
+            if stripped.starts_with('[')
+                && stripped.ends_with(']')
+                && let Some((cmd, args)) = parse_command_substitution(stripped)
+            {
+                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                return return_type_for_command(registry, &cmd, &arg_refs);
             }
             // String interpolation or complex value.
             if value.contains('$') || value.contains('[') {
@@ -557,11 +558,12 @@ fn infer_return_value_type(
             .unwrap_or_else(TypeLattice::unknown);
     }
     // Command substitution: `[cmd ...]`.
-    if stripped.starts_with('[') && stripped.ends_with(']') {
-        if let Some((cmd, args)) = parse_command_substitution(stripped) {
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            return return_type_for_command(registry, &cmd, &arg_refs);
-        }
+    if stripped.starts_with('[')
+        && stripped.ends_with(']')
+        && let Some((cmd, args)) = parse_command_substitution(stripped)
+    {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        return return_type_for_command(registry, &cmd, &arg_refs);
     }
     // String interpolation or other complex value.
     if value.contains('$') || value.contains('[') {

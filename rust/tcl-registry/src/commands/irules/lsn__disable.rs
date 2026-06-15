@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "LSN::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disables LSN translation for the current connection if LSN translation has been configured.",
             synopsis: &["LSN::disable"],
             snippet: "Disables LSN translation for the current connection if LSN translation has been configured.\n\nArguments:\n    LSN::disable - If LSN translation is configured, disables translation for this connection.",
@@ -42,17 +42,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "LSN::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LsnState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LSN::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LsnState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

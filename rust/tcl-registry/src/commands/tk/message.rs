@@ -139,7 +139,7 @@ pub fn spec() -> CommandSpec {
         name: "message",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a message widget.",
             synopsis: &["message pathName ?option value ...?"],
             snippet: "Displays a multi-line text string using a single font. Similar to a label but automatically wraps text to fit a given aspect ratio or width.",

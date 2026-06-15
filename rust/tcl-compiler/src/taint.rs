@@ -71,7 +71,7 @@ use std::collections::{HashMap, HashSet};
 
 use bitflags::bitflags;
 
-use tcl_lexer::{backslash_subst, Lexer, SourceMap, Span, TokenType};
+use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::{CommandRegistry, Traits};
 
@@ -81,7 +81,7 @@ use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
-use crate::sccp::{cfg_order, SccpResult};
+use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
@@ -327,12 +327,11 @@ fn transform_colour(
     args: &[&str],
 ) -> Option<TaintColour> {
     let spec = registry.get(command)?;
-    if let Some(sub_name) = args.first() {
-        if let Some(sub) = spec.subcommand(sub_name) {
-            if let Some(colour) = sub.taint_transform {
-                return Some(reg_colour(colour));
-            }
-        }
+    if let Some(sub_name) = args.first()
+        && let Some(sub) = spec.subcommand(sub_name)
+        && let Some(colour) = sub.taint_transform
+    {
+        return Some(reg_colour(colour));
     }
     spec.taint_transform.map(reg_colour)
 }
@@ -440,10 +439,10 @@ fn word_taint(
         // tainted result (e.g. `uri::encode` → `URL_ENCODED`), so a
         // later pass through the same encoder is detectable as a
         // double-encode (T106).  Mirrors `_derive_transform_colours`.
-        if t.is_tainted() {
-            if let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs) {
-                t = t.with(colour);
-            }
+        if t.is_tainted()
+            && let Some(colour) = transform_colour(ctx.registry, &cmd, &arg_refs)
+        {
+            t = t.with(colour);
         }
         return t;
     }
@@ -796,22 +795,21 @@ fn reachable_writes_global(
     let mut visited: HashSet<String> = HashSet::new();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
-            if let Statement::Call { command, .. } = stmt {
-                if let Some(target) = crate::interprocedural::resolve_internal_call(
+            if let Statement::Call { command, .. } = stmt
+                && let Some(target) = crate::interprocedural::resolve_internal_call(
                     command,
                     ssa.name.as_str(),
                     &known,
-                ) {
-                    if let Some(summary) = ia.procedures.get(&target) {
-                        if summary.writes_global {
+                )
+                && let Some(summary) = ia.procedures.get(&target)
+            {
+                if summary.writes_global {
+                    return true;
+                }
+                if visited.insert(target) {
+                    for c in &summary.calls {
+                        if ia.procedures.get(c).is_some_and(|s| s.writes_global) {
                             return true;
-                        }
-                        if visited.insert(target) {
-                            for c in &summary.calls {
-                                if ia.procedures.get(c).is_some_and(|s| s.writes_global) {
-                                    return true;
-                                }
-                            }
                         }
                     }
                 }
@@ -912,12 +910,12 @@ pub(crate) fn propagate_taints(
     // *every* block's entry_versions (plus statement uses / phi
     // incomings) ensures we discover globals even when the entry
     // block has no seeded versions.
-    if let Some(ia) = interproc {
-        if reachable_writes_global(ssa, cfg, ia) {
-            let globals = collect_global_reads(ssa);
-            for name in globals {
-                taints.entry((name, 0)).or_insert(TaintLattice::tainted());
-            }
+    if let Some(ia) = interproc
+        && reachable_writes_global(ssa, cfg, ia)
+    {
+        let globals = collect_global_reads(ssa);
+        for name in globals {
+            taints.entry((name, 0)).or_insert(TaintLattice::tainted());
         }
     }
 
@@ -993,10 +991,10 @@ pub(crate) fn propagate_taints(
                     let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &taints, ctx);
                     // Enrich the inferred taint with rendered-property
                     // colours when available.
-                    if let Some(rp) = rendered_props {
-                        if let Some(p) = rp.get(&(var.clone(), ver)) {
-                            inferred = colour_from_rendered(inferred, *p);
-                        }
+                    if let Some(rp) = rendered_props
+                        && let Some(p) = rp.get(&(var.clone(), ver))
+                    {
+                        inferred = colour_from_rendered(inferred, *p);
                     }
                     let key = (var.clone(), ver);
                     let merged = match taints.get(&key) {
@@ -1055,10 +1053,10 @@ fn classify_sink(
     // iRules-dialect sinks. Kept after registry-driven T100/T101 so
     // shared commands (currently none) would prefer the generic
     // classification.
-    if is_irules_dialect(dialect) {
-        if let Some(hit) = classify_irules_sink(command, args) {
-            return Some(hit);
-        }
+    if is_irules_dialect(dialect)
+        && let Some(hit) = classify_irules_sink(command, args)
+    {
+        return Some(hit);
     }
 
     None
@@ -1120,10 +1118,10 @@ fn classify_network_interp_sinks(
     if spec.taint_network_sink_args.is_some() {
         out.push(("T104", command.to_owned()));
     }
-    if let Some(sub) = args.first() {
-        if spec.taint_interp_eval_subcommands.contains(&sub.as_str()) {
-            out.push(("T105", format!("{command} {sub}")));
-        }
+    if let Some(sub) = args.first()
+        && spec.taint_interp_eval_subcommands.contains(&sub.as_str())
+    {
+        out.push(("T105", format!("{command} {sub}")));
     }
     out
 }
@@ -1259,12 +1257,12 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
             i += 1;
             continue;
         }
-        if bytes.get(i + 1) == Some(&b'{') {
-            if let Some(rel) = arg[i + 2..].find('}') {
-                names.insert(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
-                i = i + 2 + rel + 1;
-                continue;
-            }
+        if bytes.get(i + 1) == Some(&b'{')
+            && let Some(rel) = arg[i + 2..].find('}')
+        {
+            names.insert(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
+            i = i + 2 + rel + 1;
+            continue;
         }
         let start = i + 1;
         let mut j = start;
@@ -1400,10 +1398,11 @@ fn extract_var_name(arg: &str) -> Option<String> {
     if let Some(inner) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
         return Some(inner.to_owned());
     }
-    if let Some(name) = text.strip_prefix('$') {
-        if !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-            return Some(name.to_owned());
-        }
+    if let Some(name) = text.strip_prefix('$')
+        && !name.is_empty()
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    {
+        return Some(name.to_owned());
     }
     None
 }

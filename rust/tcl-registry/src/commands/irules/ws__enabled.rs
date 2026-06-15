@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "WS::enabled",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command can be used to turn off WebSocket processing.",
             synopsis: &["WS::enabled ( 'false' )?"],
             snippet: "WS::enabled\n    This can be used to determine whether the Websocket processing is enabled or disabled for a particular connection.\n\nWS::enabled false\n    This can be used to disable the Websocket processing for a particular connection.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WS::enabled ( 'false' )?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WS::enabled ( 'false' )?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

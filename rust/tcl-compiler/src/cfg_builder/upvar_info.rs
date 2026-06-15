@@ -147,10 +147,10 @@ impl UpvarInfo {
             push(caller_lit.clone());
         }
         for param_name in self.param_targets.values() {
-            if let Some(idx) = params.iter().position(|p| p == param_name) {
-                if let Some(arg) = call_args.get(idx) {
-                    push(crate::naming::normalise_var_name(arg).to_owned());
-                }
+            if let Some(idx) = params.iter().position(|p| p == param_name)
+                && let Some(arg) = call_args.get(idx)
+            {
+                push(crate::naming::normalise_var_name(arg).to_owned());
             }
         }
         if !self.args_tail_upvar.is_empty() {

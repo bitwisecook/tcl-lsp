@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns true if this HTTP transaction has been prematurely completed by an iRule command or other filter logic.",
             synopsis: &["HTTP::has_responded"],
             snippet: "This can be triggered by HTTP::respond, HTTP::redirect, HTTP::retry, and some ACCESS commands.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::has_responded" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ResponseCommit,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Getter,
+            synopsis: "HTTP::has_responded",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ResponseCommit,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

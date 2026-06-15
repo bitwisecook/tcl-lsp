@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MQTT::disconnect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disconnect the MQTT connection.",
             synopsis: &["MQTT::disconnect"],
             snippet: "This command disconnects the MQTT connection.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MQTT::disconnect" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MQTT::disconnect",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

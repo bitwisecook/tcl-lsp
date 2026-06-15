@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "This command returns type of DHCPv4 message.",
             synopsis: &["DHCPv4::type"],
-            snippet:
-                "This command returns type of DHCPv4 message\n\nDetails (syntax):\nDHCPv4::type",
+            snippet: "This command returns type of DHCPv4 message\n\nDetails (syntax):\nDHCPv4::type",
             source: "https://clouddocs.f5.com/api/irules/DHCPv4__type.html",
             examples: "when CLIENT_DATA {\n        log local0. \"Type [DHCPv4::type]\"\n    }",
             return_value: "This command returns type of DHCPv4 message",

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BOTDEFENSE::cookie_status",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the status of the Bot Defense cookie.",
             synopsis: &["BOTDEFENSE::cookie_status"],
             snippet: "Returns the status of the Bot Defense cookie that is received on the request. The returned value is one of the following strings:\n    * not_received - the cookie did not appear in the request\n    * valid - the cookie is valid and not expired\n    * invalid - the cookie cannot be parsed; this could mean that it was modified by an attacker, or that it is older than two days, or due to a configuration change\n    * expired - the cookie is valid, but is expired\n    * valid_redirect_challenge - the cookie of the redirect was validated\n    * renewal - browser challenge answer is about to expire",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::cookie_status" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BOTDEFENSE::cookie_status",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

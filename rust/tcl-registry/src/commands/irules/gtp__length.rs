@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["GTP::length ('-message' MESSAGE)?"],
             snippet: "This value is returned as read from the message header.",
             source: "https://clouddocs.f5.com/api/irules/GTP__length.html",
-            examples:
-                "when GTP_SIGNALLING_INGRESS {\n    log local0. \"GTP length [GTP::length]\"\n}",
+            examples: "when GTP_SIGNALLING_INGRESS {\n    log local0. \"GTP length [GTP::length]\"\n}",
             return_value: "",
         }),
         forms: &[FormSpec {

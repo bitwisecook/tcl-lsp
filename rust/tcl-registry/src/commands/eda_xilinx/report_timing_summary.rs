@@ -1,15 +1,22 @@
 //! `report_timing_summary` command.
 use crate::prelude::*;
-const FORMS: &[FormSpec] = &[
-    FormSpec { kind: FormKind::Default, synopsis: "report_timing_summary ?-delay_type type? ?-max_paths n? ?-check_timing_verbose? ?-file file? ?-name name?" },
-];
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "report_timing_summary ?-delay_type type? ?-max_paths n? ?-check_timing_verbose? ?-file file? ?-name name?",
+}];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "report_timing_summary",
         dialects: Some(DialectSet::XILINX),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief("Report comprehensive timing summary.", &["report_timing_summary ?-delay_type type? ?-max_paths n? ?-check_timing_verbose? ?-file file? ?-name name?"], "F5")),
+        hover: Some(HoverSnippet::brief(
+            "Report comprehensive timing summary.",
+            &[
+                "report_timing_summary ?-delay_type type? ?-max_paths n? ?-check_timing_verbose? ?-file file? ?-name name?",
+            ],
+            "F5",
+        )),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

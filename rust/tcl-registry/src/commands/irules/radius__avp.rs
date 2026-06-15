@@ -5,9 +5,12 @@ pub const fn spec() -> CommandSpec {
         name: "RADIUS::avp",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command returns or adds/changes/removes RADIUS attribute-value pairs.",
-            synopsis: &["RADIUS::avp (ATTR_NAME|ATTR_CODE) (ATTR_TYPE)? ('index' INDEX)?", "RADIUS::avp 'insert' (ATTR_NAME|ATTR_CODE)"],
+            synopsis: &[
+                "RADIUS::avp (ATTR_NAME|ATTR_CODE) (ATTR_TYPE)? ('index' INDEX)?",
+                "RADIUS::avp 'insert' (ATTR_NAME|ATTR_CODE)",
+            ],
             snippet: "This command returns or adds/changes/removes RADIUS attribute-value pairs. Radius profile must be applied for access to this command.",
             source: "https://clouddocs.f5.com/api/irules/RADIUS__avp.html",
             examples: "when RULE_INIT {\n        set static::secret \"linus\"\n    }",
@@ -30,17 +33,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "RADIUS::avp (ATTR_NAME|ATTR_CODE) (ATTR_TYPE)? ('index' INDEX)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RADIUS::avp (ATTR_NAME|ATTR_CODE) (ATTR_TYPE)? ('index' INDEX)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

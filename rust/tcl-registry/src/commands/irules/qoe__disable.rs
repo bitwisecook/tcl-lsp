@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "QOE::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Deprecated: Disables the video QOE filter from processing any video or non-video traffic on a connection basis.",
             synopsis: &["QOE::disable"],
             snippet: "This command disables the video QOE filter from processing any video or non-video traffic on a connection basis.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "QOE::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "QOE::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         deprecated_replacement: Some("(removed)"),
         ..CommandSpec::DEFAULT
     }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "COMPRESS::buffer_size",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets the compression buffer size.",
             synopsis: &["COMPRESS::buffer_size (request | response)? NONNEGATIVE_INTEGER"],
             snippet: "COMPRESS::buffer_size <value>\n    Sets the compression buffer size according to the value you specify in bytes.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "COMPRESS::buffer_size (request | response)? NONNEGATIVE_INTEGER" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "COMPRESS::buffer_size (request | response)? NONNEGATIVE_INTEGER",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

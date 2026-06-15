@@ -12,7 +12,7 @@ pub fn spec() -> CommandSpec {
         name: "safe::interpCreate",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create a safe child interpreter with restricted capabilities.",
             synopsis: &["safe::interpCreate ?child? ?options...?"],
             snippet: "Creates a safe interpreter.  Options include ``-accessPath``, ``-statics``, ``-noStatics``, ``-nested``, ``-noNested``, ``-deleteHook``.",

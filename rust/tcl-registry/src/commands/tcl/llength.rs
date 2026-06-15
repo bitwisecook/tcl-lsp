@@ -23,14 +23,14 @@ pub fn spec() -> CommandSpec {
                 shimmers: true,
             },
         )],
-hover: Some(HoverSnippet {
-    summary: "Count the number of elements in a list",
-    synopsis: &["llength list"],
-    snippet: "Treats list as a list and returns a decimal string giving the number of elements in it.",
-    source: "Tcl man page llength.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Count the number of elements in a list",
+            synopsis: &["llength list"],
+            snippet: "Treats list as a list and returns a decimal string giving the number of elements in it.",
+            source: "Tcl man page llength.n",
+            examples: "",
+            return_value: "",
+        }),
         codegen_hook: Some(CodegenHookId::Llength),
         forms: FORMS,
         ..CommandSpec::DEFAULT

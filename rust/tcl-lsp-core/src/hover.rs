@@ -180,12 +180,10 @@ pub fn hover(
     // a same-named proc.
     if let Some((inst, method)) =
         crate::definition::instance_method_at_cursor(source, line, character)
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(text) = obj_method_hover_text(analysis, class_q, &method)
     {
-        if let Some(class_q) = analysis.instance_classes.get(&inst) {
-            if let Some(text) = obj_method_hover_text(analysis, class_q, &method) {
-                return Some(Hover::markdown(text));
-            }
-        }
+        return Some(Hover::markdown(text));
     }
 
     // Command alias (`interp alias {} = {} expr`) — show the resolved target.
@@ -281,10 +279,10 @@ fn builtin_command_hover_text(
         // namespace declares profiles (e.g. `ACCESS::log` → ACCESS), surface
         // a `**Requires**` profile line.  Mirrors the Python info path.
         let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
-        if let Some(ns) = profile_reg.get_namespace(prefix) {
-            if !ns.profiles.is_empty() {
-                let _ = write!(out, "\n\n**Requires**: {} profile", ns.profiles.join(", "));
-            }
+        if let Some(ns) = profile_reg.get_namespace(prefix)
+            && !ns.profiles.is_empty()
+        {
+            let _ = write!(out, "\n\n**Requires**: {} profile", ns.profiles.join(", "));
         }
     }
     Some(out)
@@ -1625,18 +1623,18 @@ fn scan_regex_group(chars: &[char], i: usize) -> Option<RegexComp> {
     if c != '(' {
         return None;
     }
-    if chars.get(i + 1) == Some(&'?') {
-        if let Some(trail) = chars.get(i + 2) {
-            let pair = match trail {
-                ':' => Some(("(?:", "Non-capturing group")),
-                '=' => Some(("(?=", "Positive lookahead")),
-                '!' => Some(("(?!", "Negative lookahead")),
-                '>' => Some(("(?>", "Atomic (possessive) group")),
-                _ => None,
-            };
-            if let Some((tok, desc)) = pair {
-                return Some((3, tok.to_string(), tok.to_string(), desc.to_string()));
-            }
+    if chars.get(i + 1) == Some(&'?')
+        && let Some(trail) = chars.get(i + 2)
+    {
+        let pair = match trail {
+            ':' => Some(("(?:", "Non-capturing group")),
+            '=' => Some(("(?=", "Positive lookahead")),
+            '!' => Some(("(?!", "Negative lookahead")),
+            '>' => Some(("(?>", "Atomic (possessive) group")),
+            _ => None,
+        };
+        if let Some((tok, desc)) = pair {
+            return Some((3, tok.to_string(), tok.to_string(), desc.to_string()));
         }
     }
     Some((1, "(".into(), "(".into(), "Capture group open".into()))
@@ -1728,20 +1726,20 @@ fn ip_address_hover_text(word: &str) -> Option<String> {
     if let Ok(v4) = addr.parse::<std::net::Ipv4Addr>() {
         let class = classify_ipv4(v4);
         let mut out = format!("**IPv4 address** `{addr}`\n\n* Classification: {class}\n");
-        if let Some(p) = prefix {
-            if p <= 32 {
-                let _ = writeln!(out, "* CIDR network: `{addr}/{p}`");
-            }
+        if let Some(p) = prefix
+            && p <= 32
+        {
+            let _ = writeln!(out, "* CIDR network: `{addr}/{p}`");
         }
         return Some(out);
     }
     if let Ok(v6) = addr.parse::<std::net::Ipv6Addr>() {
         let class = classify_ipv6(v6);
         let mut out = format!("**IPv6 address** `{addr}`\n\n* Classification: {class}\n");
-        if let Some(p) = prefix {
-            if p <= 128 {
-                let _ = writeln!(out, "* CIDR network: `{addr}/{p}`");
-            }
+        if let Some(p) = prefix
+            && p <= 128
+        {
+            let _ = writeln!(out, "* CIDR network: `{addr}/{p}`");
         }
         // IPv4-mapped form (`::ffff:x.x.x.x`).
         if let Some(mapped) = v6.to_ipv4_mapped() {
@@ -2655,9 +2653,11 @@ mod tests {
             &["DIAMETER", "DIAMETERSESSION", "DIAMETER_ENDPOINT"]
         );
         // No `::` qualifier → unchanged (still empty).
-        assert!(super::effective_event_requires("puts", &base)
-            .profiles
-            .is_empty());
+        assert!(
+            super::effective_event_requires("puts", &base)
+                .profiles
+                .is_empty()
+        );
         // Already-populated profiles are left as-is.
         let with = tcl_registry::events::EventRequires {
             profiles: &["HTTP"],

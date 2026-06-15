@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DHCPv6::transaction_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command returns transaction id field from DHCPv6 message.",
             synopsis: &["DHCPv6::transaction_id"],
             snippet: "This command returns transaction id field from DHCPv6 message\n\nDetails (syntax):\nDHCPv6::transaction_id",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Transaction_id [DHCPv6::transaction_id]\"\n    }",
             return_value: "This command returns transaction id field from DHCPv6 message",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::transaction_id" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DHCPv6::transaction_id",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

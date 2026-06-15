@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::host",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets or sets the value of the origin-host or destination-host AVP.",
             synopsis: &["DIAMETER::host ( ('origin' | 'dest' ) (DIAMETER_HOST)? )"],
             snippet: "This iRule command gets or sets the value of the origin-host (code\n264) or destination-host (code 293) AVP in the current message.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::host ( ('origin' | 'dest' ) (DIAMETER_HOST)? )" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::host ( ('origin' | 'dest' ) (DIAMETER_HOST)? )",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

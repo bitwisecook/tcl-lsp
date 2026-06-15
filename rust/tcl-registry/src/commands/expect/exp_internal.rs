@@ -18,7 +18,7 @@ pub fn spec() -> CommandSpec {
         name: "exp_internal",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Control Expect internal diagnostic output.",
             synopsis: &["exp_internal ?-f file? 0|1"],
             snippet: "With ``1``, Expect prints diagnostic information about pattern matching and other internal activity. Useful for debugging scripts.",

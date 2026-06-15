@@ -22,8 +22,8 @@ use pyo3::prelude::*;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::gvn::{
-    find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
-    RedundantComputation,
+    RedundantComputation, find_loop_invariants_for_cu, find_partial_redundancies_for_cu,
+    find_redundancies_for_cu,
 };
 
 type GvnTuple = (String, u32, u32, u32, u32, String, String);

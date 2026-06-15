@@ -23,14 +23,14 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Replace the current procedure with another command",
-    synopsis: &["tailcall command ?arg ...?"],
-    snippet: "The tailcall command replaces the currently executing procedure, lambda application, or method with another command.",
-    source: "Tcl man page tailcall.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Replace the current procedure with another command",
+            synopsis: &["tailcall command ?arg ...?"],
+            snippet: "The tailcall command replaces the currently executing procedure, lambda application, or method with another command.",
+            source: "Tcl man page tailcall.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

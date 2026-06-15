@@ -24,8 +24,8 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{Function as CfgFunction, Terminator};
@@ -34,7 +34,7 @@ use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::ssa::{Phi, SsaFunction, SsaStatement, ValueKey, Version};
-use crate::taint::{is_irules_dialect, TaintWarning};
+use crate::taint::{TaintWarning, is_irules_dialect};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
 /// Maximum depth for backward SSA tracing (prevents infinite loops on
@@ -75,10 +75,10 @@ pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
 pub fn uri_families(registry: &CommandRegistry) -> UriFamilies {
     let mut all_names: HashSet<String> = HashSet::new();
     for name in registry.command_names() {
-        if let Some(spec) = registry.get(name) {
-            if spec.supports_dialect(DialectSet::IRULES) {
-                all_names.insert(name.to_owned());
-            }
+        if let Some(spec) = registry.get(name)
+            && spec.supports_dialect(DialectSet::IRULES)
+        {
+            all_names.insert(name.to_owned());
         }
     }
 
@@ -379,12 +379,12 @@ fn arg_traces_to_uri_family(
         return trace_to_uri_family(var_name, ver, ctx, 0);
     }
 
-    if input_arg.starts_with('[') && input_arg.ends_with(']') {
-        if let Some((cmd, args)) = parse_command_substitution(input_arg) {
-            if is_uri_getter(ctx.families, &cmd, &args) {
-                return Some(cmd);
-            }
-        }
+    if input_arg.starts_with('[')
+        && input_arg.ends_with(']')
+        && let Some((cmd, args)) = parse_command_substitution(input_arg)
+        && is_uri_getter(ctx.families, &cmd, &args)
+    {
+        return Some(cmd);
     }
     None
 }
@@ -442,21 +442,21 @@ fn comparison_message(
     component: &str,
 ) -> String {
     let (path_cmd, query_cmd) = uri_siblings(families, uri_cmd);
-    if component == "path" {
-        if let Some(p) = path_cmd {
-            return format!(
-                "{uri_cmd} used with {op_name} on a path-like pattern; \
+    if component == "path"
+        && let Some(p) = path_cmd
+    {
+        return format!(
+            "{uri_cmd} used with {op_name} on a path-like pattern; \
                  use {p} instead for clearer intent and to avoid query-string interference.",
-            );
-        }
+        );
     }
-    if component == "query" {
-        if let Some(q) = query_cmd {
-            return format!(
-                "{uri_cmd} used with {op_name} on a query-like pattern; \
+    if component == "query"
+        && let Some(q) = query_cmd
+    {
+        return format!(
+            "{uri_cmd} used with {op_name} on a query-like pattern; \
                  use {q} instead for direct access to the query string.",
-            );
-        }
+        );
     }
     let mut parts = Vec::new();
     if let Some(p) = path_cmd {
@@ -606,23 +606,20 @@ fn check_expr_binary(
     }
 
     // Pattern: <uri_expr> op <literal>
-    if let Some(uri_cmd) = expr_traces_to_uri(left, ssa_versions, ctx) {
-        if let Some(lit) = expr_literal_text(right) {
-            if let Some(component) = classify_operand_for_op(op, &lit) {
-                return Some((uri_cmd, op.as_str().to_owned(), component.to_owned()));
-            }
-        }
+    if let Some(uri_cmd) = expr_traces_to_uri(left, ssa_versions, ctx)
+        && let Some(lit) = expr_literal_text(right)
+        && let Some(component) = classify_operand_for_op(op, &lit)
+    {
+        return Some((uri_cmd, op.as_str().to_owned(), component.to_owned()));
     }
 
     // Reversed operand order (uncommon but possible with eq/equals/==).
-    if matches!(op, BinOp::StrEq | BinOp::StrEquals | BinOp::Eq) {
-        if let Some(uri_cmd) = expr_traces_to_uri(right, ssa_versions, ctx) {
-            if let Some(lit) = expr_literal_text(left) {
-                if let Some(component) = classify_operand_for_op(op, &lit) {
-                    return Some((uri_cmd, op.as_str().to_owned(), component.to_owned()));
-                }
-            }
-        }
+    if matches!(op, BinOp::StrEq | BinOp::StrEquals | BinOp::Eq)
+        && let Some(uri_cmd) = expr_traces_to_uri(right, ssa_versions, ctx)
+        && let Some(lit) = expr_literal_text(left)
+        && let Some(component) = classify_operand_for_op(op, &lit)
+    {
+        return Some((uri_cmd, op.as_str().to_owned(), component.to_owned()));
     }
     None
 }
@@ -857,54 +854,46 @@ fn check_statement<S: std::hash::BuildHasher>(
     let stmt_span = stmt.span();
 
     // 1. split detection.
-    if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values) {
-        if sep.chars().any(|c| QUERY_CHARS.contains(&c)) {
-            if let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx) {
-                warnings.push(TaintWarning {
-                    span: stmt_span,
-                    variable: String::new(),
-                    sink_command: "split".to_owned(),
-                    code: "IRULE3103".to_owned(),
-                    message: split_message(ctx.families, &uri_cmd, &sep),
-                    replacement: None,
-                });
-                return;
-            }
-        }
+    if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values)
+        && sep.chars().any(|c| QUERY_CHARS.contains(&c))
+        && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
+    {
+        warnings.push(TaintWarning {
+            span: stmt_span,
+            variable: String::new(),
+            sink_command: "split".to_owned(),
+            code: "IRULE3103".to_owned(),
+            message: split_message(ctx.families, &uri_cmd, &sep),
+            replacement: None,
+        });
+        return;
     }
 
     // 2. string match / string first.
     if let Some((sub_cmd, Some(pattern), input_arg)) =
         extract_string_match_info(stmt, ssa_stmt, sccp_values)
+        && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
-        if let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx) {
-            if sub_cmd == "string match" {
-                if let Some(component) = classify_glob_pattern(&pattern) {
-                    warnings.push(TaintWarning {
-                        span: stmt_span,
-                        variable: String::new(),
-                        sink_command: "string match".to_owned(),
-                        code: "IRULE3103".to_owned(),
-                        message: comparison_message(
-                            ctx.families,
-                            &uri_cmd,
-                            "string match",
-                            component,
-                        ),
-                        replacement: None,
-                    });
-                }
-            } else if sub_cmd == "string first" && pattern.chars().any(|c| QUERY_CHARS.contains(&c))
-            {
+        if sub_cmd == "string match" {
+            if let Some(component) = classify_glob_pattern(&pattern) {
                 warnings.push(TaintWarning {
                     span: stmt_span,
                     variable: String::new(),
-                    sink_command: "string first".to_owned(),
+                    sink_command: "string match".to_owned(),
                     code: "IRULE3103".to_owned(),
-                    message: string_first_message(ctx.families, &uri_cmd, &pattern),
+                    message: comparison_message(ctx.families, &uri_cmd, "string match", component),
                     replacement: None,
                 });
             }
+        } else if sub_cmd == "string first" && pattern.chars().any(|c| QUERY_CHARS.contains(&c)) {
+            warnings.push(TaintWarning {
+                span: stmt_span,
+                variable: String::new(),
+                sink_command: "string first".to_owned(),
+                code: "IRULE3103".to_owned(),
+                message: string_first_message(ctx.families, &uri_cmd, &pattern),
+                replacement: None,
+            });
         }
     }
 

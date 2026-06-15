@@ -149,7 +149,9 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
             for d in &item.diagnostics {
                 println!(
                     "{}",
-                    format_line(&item.file, d.line, d.column, d.severity, &d.code, &d.message)
+                    format_line(
+                        &item.file, d.line, d.column, d.severity, &d.code, &d.message
+                    )
                 );
             }
         }

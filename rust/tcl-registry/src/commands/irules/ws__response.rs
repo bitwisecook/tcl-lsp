@@ -80,7 +80,7 @@ pub const fn spec() -> CommandSpec {
         name: "WS::response",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command returns the values of the various Websocket header fields seen in a server response.",
             synopsis: &["WS::response ('protocol' | 'extension' | 'version' | 'key' | 'valid' )"],
             snippet: "WS::response protocol\n    Returns the value of Sec-WebSocket-Protocol header field in server response.\n\nWS::response extension\n    Returns the value of Sec-WebSocket-Extensions header field in server response.\n\nWS::response version\n    Returns the value of Sec-WebSocket-Version header field in server response.\n\nWS::response key\n    Returns the value of Sec-WebSocket-Accept header field in server response.\n\nWS::response valid\n    Returns whether the client request and server response resulted in a successful Websocket upgrade.",
@@ -98,18 +98,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WS::response <field>" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WS::response <field>",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

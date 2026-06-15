@@ -369,7 +369,7 @@ pub(crate) fn fold_dict_values(args: &[&str]) -> Option<String> {
 /// value wins, original insertion position preserved), matching Tcl 9's
 /// `Tcl_DictObjPut`.
 pub(crate) fn fold_dict_create(args: &[&str]) -> Option<String> {
-    if args.len() % 2 != 0 {
+    if !args.len().is_multiple_of(2) {
         return None;
     }
     let mut order: Vec<String> = Vec::new();

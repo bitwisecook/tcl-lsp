@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTML::encode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "HTML-encodes a string, escaping special characters.",
             synopsis: &["HTML::encode STRING"],
             snippet: "Replaces HTML-special characters (``<``, ``>``, ``&``,\n``\"``, ``'``) with their entity equivalents so the\nstring is safe to embed in an HTML text context.",
@@ -18,9 +18,10 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/html__encode.py`.
         taint_transform: Some(TaintColour::HTML_ESCAPED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::HTML_ESCAPED),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTML::encode STRING" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTML::encode STRING",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

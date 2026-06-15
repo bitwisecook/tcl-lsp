@@ -1105,13 +1105,12 @@ fn extract_var_name(text: &str) -> Option<&str> {
 fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut LocalFacts) {
     let mut start = 0;
     let mut level = "1";
-    if let Some(first) = args.first() {
-        if first.starts_with('#')
-            || (!first.is_empty() && first.bytes().all(|b| b.is_ascii_digit()))
-        {
-            level = first;
-            start = 1;
-        }
+    if let Some(first) = args.first()
+        && (first.starts_with('#')
+            || (!first.is_empty() && first.bytes().all(|b| b.is_ascii_digit())))
+    {
+        level = first;
+        start = 1;
     }
     let caller_frame = level == "1";
     let mut i = start;
@@ -1119,28 +1118,28 @@ fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut L
         let other_var = &args[i];
         let my_var = &args[i + 1];
         i += 2;
-        if let Some(other_vn) = extract_var_name(other_var) {
-            if params.contains(other_vn) {
+        if let Some(other_vn) = extract_var_name(other_var)
+            && params.contains(other_vn)
+        {
+            facts
+                .param_trait_flags
+                .entry(other_vn.to_owned())
+                .or_default()
+                .insert(ProcArgTrait::VarRead);
+            if caller_frame {
                 facts
-                    .param_trait_flags
-                    .entry(other_vn.to_owned())
-                    .or_default()
-                    .insert(ProcArgTrait::VarRead);
-                if caller_frame {
-                    facts
-                        .upvar_aliases
-                        .insert(my_var.clone(), other_vn.to_owned());
-                }
+                    .upvar_aliases
+                    .insert(my_var.clone(), other_vn.to_owned());
             }
         }
-        if let Some(my_vn) = extract_var_name(my_var) {
-            if params.contains(my_vn) {
-                facts
-                    .param_trait_flags
-                    .entry(my_vn.to_owned())
-                    .or_default()
-                    .insert(ProcArgTrait::VarWrite);
-            }
+        if let Some(my_vn) = extract_var_name(my_var)
+            && params.contains(my_vn)
+        {
+            facts
+                .param_trait_flags
+                .entry(my_vn.to_owned())
+                .or_default()
+                .insert(ProcArgTrait::VarWrite);
         }
     }
 }
@@ -1535,10 +1534,10 @@ fn text_references_name(text: &str, name: &str) -> bool {
             while i < bytes.len() && bytes[i] != b'}' {
                 i += 1;
             }
-            if let Ok(n) = std::str::from_utf8(&bytes[start..i]) {
-                if n == name {
-                    return true;
-                }
+            if let Ok(n) = std::str::from_utf8(&bytes[start..i])
+                && n == name
+            {
+                return true;
             }
             if i < bytes.len() {
                 i += 1;
@@ -1556,10 +1555,10 @@ fn text_references_name(text: &str, name: &str) -> bool {
                 break;
             }
         }
-        if let Ok(n) = std::str::from_utf8(&bytes[start..i]) {
-            if n == name {
-                return true;
-            }
+        if let Ok(n) = std::str::from_utf8(&bytes[start..i])
+            && n == name
+        {
+            return true;
         }
     }
     false
@@ -1653,10 +1652,10 @@ fn classify_return(
     if v.parse::<i64>().is_ok() || is_bare_word(v) {
         return ReturnKind::Literal(v.to_owned());
     }
-    if let Some(inside) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
-        if !inside.contains(['$', '[', '\\']) {
-            return ReturnKind::Literal(inside.to_owned());
-        }
+    if let Some(inside) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
+        && !inside.contains(['$', '[', '\\'])
+    {
+        return ReturnKind::Literal(inside.to_owned());
     }
     if let Some(inside) = v.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
         return ReturnKind::Literal(inside.to_owned());
@@ -1671,15 +1670,15 @@ fn classify_return(
         return ReturnKind::Literal(v.to_owned());
     }
     // Passthrough of `$param`.
-    if let Some(name) = v.strip_prefix('$') {
-        if params.contains(name) {
-            return ReturnKind::Passthrough(name.to_owned());
-        }
+    if let Some(name) = v.strip_prefix('$')
+        && params.contains(name)
+    {
+        return ReturnKind::Passthrough(name.to_owned());
     }
-    if let Some(name) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        if params.contains(name) {
-            return ReturnKind::Passthrough(name.to_owned());
-        }
+    if let Some(name) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}'))
+        && params.contains(name)
+    {
+        return ReturnKind::Passthrough(name.to_owned());
     }
     ReturnKind::Other
 }
@@ -1699,10 +1698,10 @@ fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<Strin
             .unwrap_or(text);
         return ReturnKind::Literal(inside.to_owned());
     }
-    if let ExprNode::Var { name, .. } = node {
-        if params.contains(name) {
-            return ReturnKind::Passthrough(name.clone());
-        }
+    if let ExprNode::Var { name, .. } = node
+        && params.contains(name)
+    {
+        return ReturnKind::Passthrough(name.clone());
     }
     // Walk the AST collecting var references against the param
     // set; any match → UsesParam.
@@ -1777,27 +1776,25 @@ fn summarise_returns(
     }
     // Constant-return: every return must be a Literal with the
     // same text.
-    if let ReturnKind::Literal(first) = &returns[0] {
-        if returns
+    if let ReturnKind::Literal(first) = &returns[0]
+        && returns
             .iter()
             .all(|r| matches!(r, ReturnKind::Literal(v) if v == first))
-        {
-            return (
-                true,
-                Some(literal_to_constant_return(first)),
-                None,
-                Vec::new(),
-            );
-        }
+    {
+        return (
+            true,
+            Some(literal_to_constant_return(first)),
+            None,
+            Vec::new(),
+        );
     }
     // Passthrough: every return is Passthrough of the same param.
-    if let ReturnKind::Passthrough(first) = &returns[0] {
-        if returns
+    if let ReturnKind::Passthrough(first) = &returns[0]
+        && returns
             .iter()
             .all(|r| matches!(r, ReturnKind::Passthrough(v) if v == first))
-        {
-            return (false, None, Some(first.clone()), vec![first.clone()]);
-        }
+    {
+        return (false, None, Some(first.clone()), vec![first.clone()]);
     }
     // Depends on params: union of all ParamRefs + Passthrough
     // targets.

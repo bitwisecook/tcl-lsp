@@ -195,7 +195,7 @@ fn topological_order(candidates: &HashMap<&str, &ObjectNode>, edges: &[ObjectEdg
 
     let mut ready: Vec<&str> = in_degree
         .iter()
-        .filter(|(_, &d)| d == 0)
+        .filter(|&(_, &d)| d == 0)
         .map(|(n, _)| *n)
         .collect();
     ready.sort_by_key(|n| sort_key(n));

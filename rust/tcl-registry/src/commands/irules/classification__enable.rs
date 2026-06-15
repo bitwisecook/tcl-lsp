@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CLASSIFICATION::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Deprecated: Enables classification for the current flow.",
             synopsis: &["CLASSIFICATION::enable"],
             snippet: "This command enables classification for the current flow.\n\nCLASSIFICATION::enable",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFICATION::enable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CLASSIFICATION::enable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

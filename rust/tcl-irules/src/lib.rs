@@ -21,7 +21,7 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 
 mod walker;
-pub use walker::{extract_irules_object_references, object_ref_spans, IrulesObjectReference};
+pub use walker::{IrulesObjectReference, extract_irules_object_references, object_ref_spans};
 
 mod specs {
     use super::Deserialize;
@@ -293,15 +293,15 @@ pub fn resolve_object_ref_args(
         if spec.command != lower {
             continue;
         }
-        if let Some(wm) = &spec.when_module {
-            if !(rule_module.is_none() || rule_module == Some(wm.as_str())) {
-                continue;
-            }
+        if let Some(wm) = &spec.when_module
+            && !(rule_module.is_none() || rule_module == Some(wm.as_str()))
+        {
+            continue;
         }
-        if let Some(sc) = &spec.sub_command {
-            if !args[0].eq_ignore_ascii_case(sc) {
-                continue;
-            }
+        if let Some(sc) = &spec.sub_command
+            && !args[0].eq_ignore_ascii_case(sc)
+        {
+            continue;
         }
         let kinds: Vec<&str> = spec.kinds.iter().map(String::as_str).collect();
         consider(&spec.position, kinds, &mut matches, &mut seen);

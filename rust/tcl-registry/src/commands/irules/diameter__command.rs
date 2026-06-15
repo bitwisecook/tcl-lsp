@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::command",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets or sets the command-code.",
             synopsis: &["DIAMETER::command (DIAMETER_COMMAND_CODE)?"],
             snippet: "The DIAMETER::command gets or sets the command code in the Diameter message header.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::command (DIAMETER_COMMAND_CODE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::command (DIAMETER_COMMAND_CODE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

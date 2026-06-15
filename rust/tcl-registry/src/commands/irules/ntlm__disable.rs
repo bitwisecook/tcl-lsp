@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "NTLM::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disables processing for NTLM.",
             synopsis: &["NTLM::disable"],
             snippet: "Disables processing for NTLM",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_RESPONSE {\n    if { [string tolower [HTTP::header values \"WWW-Authenticate\"]] contains \"negotiate\"} {\n        ONECONNECT::detach disable\n        NTLM::disable\n    }\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "NTLM::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "NTLM::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

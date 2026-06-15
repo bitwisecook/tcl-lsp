@@ -30,14 +30,14 @@ pub fn spec() -> CommandSpec {
         ],
         lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
         return_type: Some(TclType::Int),
-hover: Some(HoverSnippet {
-    summary: "Evaluate script and trap exceptional returns",
-    synopsis: &["catch script ?resultVarName? ?optionsVarName?"],
-    snippet: "The catch command may be used to prevent errors from aborting command interpretation.",
-    source: "Tcl man page catch.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Evaluate script and trap exceptional returns",
+            synopsis: &["catch script ?resultVarName? ?optionsVarName?"],
+            snippet: "The catch command may be used to prevent errors from aborting command interpretation.",
+            source: "Tcl man page catch.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

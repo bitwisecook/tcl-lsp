@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "URI::encode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns an encoded version of a given URI.",
             synopsis: &["URI::encode URI_STRING"],
             snippet: "Returns the encoded version of the given URI.\nFor details on URI encoding, see RFC3986, section 2.1. Percent-Encoding.\n\nThis command is equivalent to the BIG-IP 4.X variable encode_uri.",
@@ -18,17 +18,16 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/uri__encode.py`.
         taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "URI::encode URI_STRING" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpUri,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "URI::encode URI_STRING",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpUri,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

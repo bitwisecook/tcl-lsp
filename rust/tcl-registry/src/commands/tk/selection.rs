@@ -88,9 +88,15 @@ pub fn spec() -> CommandSpec {
         name: "selection",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Manipulate the X selection.",
-            synopsis: &["selection clear ?-displayof window? ?-selection selection?", "selection get ?-displayof window? ?-selection selection? ?-type type?", "selection handle ?-selection selection? ?-type type? ?-format format? window command", "selection own ?-displayof window? ?-selection selection?", "selection own ?-command command? ?-selection selection? window"],
+            synopsis: &[
+                "selection clear ?-displayof window? ?-selection selection?",
+                "selection get ?-displayof window? ?-selection selection? ?-type type?",
+                "selection handle ?-selection selection? ?-type type? ?-format format? window command",
+                "selection own ?-displayof window? ?-selection selection?",
+                "selection own ?-command command? ?-selection selection? window",
+            ],
             snippet: "",
             source: "Tk man page selection.n",
             examples: "",

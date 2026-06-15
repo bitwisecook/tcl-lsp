@@ -366,19 +366,19 @@ fn scope_symbols(source: &str, scope: &Scope, line_index: &LineIndex) -> Vec<Doc
     }
 
     for child in &scope.children {
-        if matches!(child.kind, ScopeKind::Namespace) {
-            if let Some(span) = child.body_span {
-                let ns_range = span_to_range(source, line_index, span);
-                let child_syms = scope_symbols(source, child, line_index);
-                symbols.push(DocumentSymbol {
-                    name: child.name.clone(),
-                    detail: None,
-                    kind: SymbolKind::Namespace,
-                    range: ns_range,
-                    selection_range: ns_range,
-                    children: child_syms,
-                });
-            }
+        if matches!(child.kind, ScopeKind::Namespace)
+            && let Some(span) = child.body_span
+        {
+            let ns_range = span_to_range(source, line_index, span);
+            let child_syms = scope_symbols(source, child, line_index);
+            symbols.push(DocumentSymbol {
+                name: child.name.clone(),
+                detail: None,
+                kind: SymbolKind::Namespace,
+                range: ns_range,
+                selection_range: ns_range,
+                children: child_syms,
+            });
         }
     }
 

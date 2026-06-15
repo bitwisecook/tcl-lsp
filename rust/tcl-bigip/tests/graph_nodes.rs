@@ -6,7 +6,7 @@
 //! captured from the Python graph builder. Self-contained — no Python at test
 //! time. (Edges are a separate, later increment.)
 
-use tcl_bigip::graph::{build_objects_for_source, GraphContext};
+use tcl_bigip::graph::{GraphContext, build_objects_for_source};
 
 #[test]
 fn graph_nodes_match_python() {

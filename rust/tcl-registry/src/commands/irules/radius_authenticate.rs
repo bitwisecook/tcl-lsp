@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "radius_authenticate",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "radius_authenticate command creates a RADIUS access request message, sends to the given RADIUS server and returns the request result.",
             synopsis: &["radius_authenticate"],
             snippet: "radius_authenticate command creates a RADIUS access request message, sends to the given RADIUS server and returns the request result.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "radius_authenticate" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "radius_authenticate",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

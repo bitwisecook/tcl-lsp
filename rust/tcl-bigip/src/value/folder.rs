@@ -2,7 +2,7 @@
 //! object paths. Rust port of `_folder.py`.
 
 use super::error::ValueError;
-use super::partition::{is_partition_valid_char, Partition};
+use super::partition::{Partition, is_partition_valid_char};
 use super::port::py_repr;
 use std::fmt;
 

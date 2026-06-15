@@ -57,10 +57,10 @@ fn switch_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
     // List form: pattern body pairs.
     while i + 1 < args.len() {
-        if args[i + 1] != "-" {
-            if let Ok(idx) = u8::try_from(i + 1) {
-                roles.push((idx, ArgRole::Body));
-            }
+        if args[i + 1] != "-"
+            && let Ok(idx) = u8::try_from(i + 1)
+        {
+            roles.push((idx, ArgRole::Body));
         }
         i += 2;
     }

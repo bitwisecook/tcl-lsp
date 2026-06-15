@@ -142,7 +142,7 @@ pub mod var_scoping;
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
 pub use expr_parser::parse_expr;
 pub use ir::{Module, Procedure, Script, Statement};
-pub use tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env, EnvValue, TclValue};
+pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value};
 
 /// Crate version string, useful for migration diagnostics.
 ///

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "LSN::inbound",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disable inbound mapping for translation address and port associated with the current connection.",
             synopsis: &["LSN::inbound disable"],
             snippet: "Disable inbound mapping for translation address and port associated with the current connection.",
@@ -42,17 +42,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "LSN::inbound disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LsnState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LSN::inbound disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LsnState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

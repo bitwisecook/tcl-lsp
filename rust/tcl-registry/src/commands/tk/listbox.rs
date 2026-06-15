@@ -167,7 +167,7 @@ pub fn spec() -> CommandSpec {
         name: "listbox",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a listbox widget.",
             synopsis: &["listbox pathName ?option value ...?"],
             snippet: "Displays a list of strings, one per line, and allows the user to select one or more of them.",

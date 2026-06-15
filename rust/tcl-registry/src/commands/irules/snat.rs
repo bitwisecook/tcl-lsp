@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Assigns the specified SNAT translation address to the current connection.",
             synopsis: &["snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))"],
             snippet: "Causes the system to assign the specified source address to the\nserverside connection(s). The assignment is valid for the duration of\nthe clientside connection or until 'snat none' is called. The iRule\nSNAT command overrides the SNAT configuration of the virtual server or\na SNAT pool. It does not override the 'Allow SNAT' setting of a pool.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SnatSelection,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Server,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SnatSelection,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

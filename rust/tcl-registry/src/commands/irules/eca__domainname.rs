@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Returns NTLM authenticating user's domain name.",
             synopsis: &["ECA::domainname"],
-            snippet:
-                "The ECA::domainname command returns NTLM returns authenticating user's domain name",
+            snippet: "The ECA::domainname command returns NTLM returns authenticating user's domain name",
             source: "https://clouddocs.f5.com/api/irules/ECA__domainname.html",
             examples: "",
             return_value: "",

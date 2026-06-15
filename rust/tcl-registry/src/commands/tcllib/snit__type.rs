@@ -15,17 +15,19 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "snit::type",
-        traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::CREATES_DYNAMIC_BARRIER,
+        traits: Traits::CREATES_BARRIER
+            | Traits::NEVER_INLINE_BODY
+            | Traits::CREATES_DYNAMIC_BARRIER,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(2),
-hover: Some(HoverSnippet {
-    summary: "Define a new snit type (class).",
-    synopsis: &["snit::type name definition"],
-    snippet: "Defines a new object type. The definition body contains option, variable, constructor, destructor, method, and typemethod declarations.",
-    source: "tcllib snit package",
-    examples: "snit::type Dog {\n    option -name Fido\n    method bark {} { return \"Woof!\" }\n}",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Define a new snit type (class).",
+            synopsis: &["snit::type name definition"],
+            snippet: "Defines a new object type. The definition body contains option, variable, constructor, destructor, method, and typemethod declarations.",
+            source: "tcllib snit package",
+            examples: "snit::type Dog {\n    option -name Fido\n    method bark {} { return \"Woof!\" }\n}",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_roles: &[(1, ArgRole::Body)],

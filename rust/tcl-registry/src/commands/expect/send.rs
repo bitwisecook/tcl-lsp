@@ -62,7 +62,7 @@ pub fn spec() -> CommandSpec {
         name: "send",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Send a string to the current spawned process.",
             synopsis: &["send ?-flags? string"],
             snippet: "Sends *string* to the process identified by the current ``spawn_id``. Use ``-s`` for slow sending or ``-h`` for human-like typing.",

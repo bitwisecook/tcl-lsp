@@ -233,11 +233,7 @@ fn parse_stub_name(body: &str) -> Option<&str> {
     let end = after
         .find(|c: char| c.is_whitespace())
         .unwrap_or(after.len());
-    if end == 0 {
-        None
-    } else {
-        Some(&after[..end])
-    }
+    if end == 0 { None } else { Some(&after[..end]) }
 }
 
 /// Scan `source` for inline ``# tcl-lsp: stub NAME {ARGS} ?FLAGS?`` and
@@ -1092,9 +1088,10 @@ proc foo {} {}
         assert!(stub.flags.contains(super::super::types::StubFlags::BARRIER));
         assert!(stub.flags.contains(super::super::types::StubFlags::UNSAFE));
         assert!(stub.flags.contains(super::super::types::StubFlags::MUTATOR));
-        assert!(stub
-            .flags
-            .contains(super::super::types::StubFlags::SCOPE_ALIAS));
+        assert!(
+            stub.flags
+                .contains(super::super::types::StubFlags::SCOPE_ALIAS)
+        );
         assert!(!stub.flags.contains(super::super::types::StubFlags::PURE));
         assert!(!stub.flags.contains(super::super::types::StubFlags::LOOP));
     }
@@ -1205,9 +1202,11 @@ proc foo {} {}
         assert_eq!(foreach.args[0].role, "var");
         assert_eq!(foreach.args[2].role, "body");
         let myeval = cmds.iter().find(|c| c.name == "my_eval").unwrap();
-        assert!(myeval
-            .flags
-            .contains(super::super::types::StubFlags::BARRIER));
+        assert!(
+            myeval
+                .flags
+                .contains(super::super::types::StubFlags::BARRIER)
+        );
         assert!(!myeval.flags.contains(super::super::types::StubFlags::LOOP));
     }
 

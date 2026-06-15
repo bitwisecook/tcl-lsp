@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Allow client-side ingress to flow following a call to UDP::hold.",
             synopsis: &["UDP::release"],
-            snippet:
-                "Called at some point after UDP::hold was called.  Unblock ingress on client side.",
+            snippet: "Called at some point after UDP::hold was called.  Unblock ingress on client side.",
             source: "https://clouddocs.f5.com/api/irules/UDP__release.html",
             examples: "when LB_SELECTED {\n    UDP::release\n}",
             return_value: "",

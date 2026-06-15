@@ -148,33 +148,21 @@ fn backslash_end(bytes: &[u8], start: usize) -> usize {
             while j < n && j < start + 4 && bytes[j].is_ascii_hexdigit() {
                 j += 1;
             }
-            if j > start + 2 {
-                j
-            } else {
-                start + 2
-            }
+            if j > start + 2 { j } else { start + 2 }
         }
         b'u' => {
             let mut j = start + 2;
             while j < n && j < start + 6 && bytes[j].is_ascii_hexdigit() {
                 j += 1;
             }
-            if j > start + 2 {
-                j
-            } else {
-                start + 2
-            }
+            if j > start + 2 { j } else { start + 2 }
         }
         b'U' => {
             let mut j = start + 2;
             while j < n && j < start + 10 && bytes[j].is_ascii_hexdigit() {
                 j += 1;
             }
-            if j > start + 2 {
-                j
-            } else {
-                start + 2
-            }
+            if j > start + 2 { j } else { start + 2 }
         }
         b'0'..=b'7' => {
             let mut j = start + 1;

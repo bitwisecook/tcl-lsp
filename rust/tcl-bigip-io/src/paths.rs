@@ -11,10 +11,10 @@
 use std::io::Read;
 use std::path::Path;
 
-use tcl_bigip::parser::{parse_bigip_conf, BigipConfig};
+use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
 use crate::ucs::{
-    is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf, UcsError, DEFAULT_PASSPHRASE_ENV,
+    DEFAULT_PASSPHRASE_ENV, UcsError, is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf,
 };
 
 /// An error resolving a path input. Rendered as `error: {msg}` (exit 2) by the
@@ -77,26 +77,23 @@ impl Default for PassphraseOptions {
 /// secure TTY prompt) only when [`PassphraseOptions::allow_prompt`] is set and
 /// nothing earlier resolved a value.
 pub fn resolve_passphrase(opts: &PassphraseOptions) -> Result<String, UcsError> {
-    if let Some(p) = &opts.explicit {
-        if !p.is_empty() {
-            return Ok(p.clone());
-        }
+    if let Some(p) = &opts.explicit
+        && !p.is_empty()
+    {
+        return Ok(p.clone());
     }
-    if !opts.env_var.is_empty() {
-        if let Ok(v) = std::env::var(&opts.env_var) {
-            if !v.is_empty() {
-                return Ok(v);
-            }
-        }
+    if !opts.env_var.is_empty()
+        && let Ok(v) = std::env::var(&opts.env_var)
+        && !v.is_empty()
+    {
+        return Ok(v);
     }
-    if opts.allow_prompt {
-        if let Some(prompt) = opts.prompt {
-            if let Ok(p) = prompt() {
-                if !p.is_empty() {
-                    return Ok(p);
-                }
-            }
-        }
+    if opts.allow_prompt
+        && let Some(prompt) = opts.prompt
+        && let Ok(p) = prompt()
+        && !p.is_empty()
+    {
+        return Ok(p);
     }
     Err(UcsError(format!(
         "this UCS archive is encrypted and requires a passphrase; set the {} \

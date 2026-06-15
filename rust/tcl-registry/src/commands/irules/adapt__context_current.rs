@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ADAPT::context_current",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets the current context.",
             synopsis: &["ADAPT::context_current"],
             snippet: "Obtains a handle for the current context. The current context\nis usually that in which the event occurred from which this\ncommand was issued.\n\nSyntax:\n\nADAPT::context_current",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::context_current" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IcapState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ADAPT::context_current",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IcapState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

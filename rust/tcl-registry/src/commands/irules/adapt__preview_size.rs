@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ADAPT::preview_size",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets or returns the preview-size attribute.",
             synopsis: &["ADAPT::preview_size (ADAPT_CTX)? (ADAPT_SIDE)? (SIZE)?"],
             snippet: "The ADAPT::preview_size command sets or returns the preview-size\nattribute of the ADAPT filter on the current or specified side of\nthe virtual server connection for which the iRule is being executed.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::preview_size (ADAPT_CTX)? (ADAPT_SIDE)? (SIZE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IcapState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ADAPT::preview_size (ADAPT_CTX)? (ADAPT_SIDE)? (SIZE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IcapState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

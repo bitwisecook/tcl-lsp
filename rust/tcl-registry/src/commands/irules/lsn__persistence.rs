@@ -5,9 +5,12 @@ pub const fn spec() -> CommandSpec {
         name: "LSN::persistence",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Set the translation address and port selection mode for the current connection, and the translation entry timeout.",
-            synopsis: &["LSN::persistence none (TIMEOUT)?", "LSN::persistence (address | address-port) TIMEOUT"],
+            synopsis: &[
+                "LSN::persistence none (TIMEOUT)?",
+                "LSN::persistence (address | address-port) TIMEOUT",
+            ],
             snippet: "Set the translation address and port selection mode for the current connection, and the translation entry timeout.\n\nLSN::persistence <none|address|address-port|strict-address-port> <timeout>",
             source: "https://clouddocs.f5.com/api/irules/LSN__persistence.html",
             examples: "",
@@ -42,17 +45,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "LSN::persistence none (TIMEOUT)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LsnState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LSN::persistence none (TIMEOUT)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LsnState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

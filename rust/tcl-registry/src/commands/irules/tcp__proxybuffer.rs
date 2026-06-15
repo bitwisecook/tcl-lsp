@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "TCP::proxybuffer",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets proxy buffer low and high thresholds.",
             synopsis: &["TCP::proxybuffer ('auto' | (LOW HIGH))"],
             snippet: "Sets thresholds at which the proxy buffer accepts (low) and stops accepting (high) new data, in bytes.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::proxybuffer ('auto' | (LOW HIGH))" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::proxybuffer ('auto' | (LOW HIGH))",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

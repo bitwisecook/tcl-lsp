@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BOTDEFENSE::device_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the Device ID of the client, as retrieved from the request.",
             synopsis: &["BOTDEFENSE::device_id"],
             snippet: "Returns a number, representing the Device ID of the client, as retrieved from the request. If the Device ID is unknown, 0 is returned. By default, the Device ID is collected from the client, if it is enabled in the configuration. However, this can be overridden using the BOTDEFENSE::cs_attribute command.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::device_id" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BOTDEFENSE::device_id",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

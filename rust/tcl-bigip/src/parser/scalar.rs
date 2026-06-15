@@ -82,7 +82,7 @@ pub fn get_int(props: &HashMap<String, String>, key: &str) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::gen::parsers::parse_bigip_ltm_nat;
+    use crate::model::r#gen::parsers::parse_bigip_ltm_nat;
     use crate::range::Range;
 
     #[test]

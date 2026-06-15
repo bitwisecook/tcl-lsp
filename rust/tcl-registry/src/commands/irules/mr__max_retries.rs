@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MR::max_retries",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the number of retries allows for this router instance.",
             synopsis: &["MR::max_retries"],
             snippet: "returns the number of retries allowed",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when MR_FAILED {\n    if {[MR::message retry_count] < [MR::max_retries]} {\n        MR::message nexthop none\n        MR::retry\n    }\n}",
             return_value: "returns the number of retries allowed",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MR::max_retries" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::MessageState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MR::max_retries",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::MessageState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

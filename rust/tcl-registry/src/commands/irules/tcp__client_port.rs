@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the client port of the TCP connection.",
             synopsis: &["TCP::client_port"],
             snippet: "Returns the TCP port/service number of the clientside TCP\nconnection. This command is equivalent to the TCP::remote_port\ncommand in a clientside context, and to the BIG-IP 4.x variable\nclient_port.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::client_port" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::client_port",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         taint_source: Some(TaintColour::TAINTED.union(TaintColour::PORT)),
         ..CommandSpec::DEFAULT
     }

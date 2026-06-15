@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MQTT::packet_id",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get or set packet-id of MQTT message",
             synopsis: &["MQTT::packet_id (PACKETID)?"],
             snippet: "This command can be used to get or set packet-id field of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    PUBLISH (if QoS > 0)\n    PUBACK\n    PUBREC\n    PUBREL\n    PUBCOMP\n    SUBSCRIBE\n    SUBACK\n    UNSUBSCRIBE\n    UNSUBACK\n    PINGREQ\n    PINGRESP\n    DISCONNECT",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MQTT::packet_id (PACKETID)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MQTT::packet_id (PACKETID)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

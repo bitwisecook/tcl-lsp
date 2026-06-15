@@ -23,7 +23,7 @@ use tcl_lexer::LexerConfig;
 
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::red::SyntaxTree;
-use tcl_compiler::segmenter::{segment_commands_with_offset_and_config, SegmentedCommand};
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 
 /// Repo root — two directories above `CARGO_MANIFEST_DIR`.
 fn repo_root() -> PathBuf {
@@ -288,7 +288,7 @@ fn recovery_known_commands_smoke() {
 mod frozen_oracle {
     use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 
-    use tcl_compiler::segmenter::{word_piece, SegmentedCommand};
+    use tcl_compiler::segmenter::{SegmentedCommand, word_piece};
 
     fn command_span(tokens: &[Token], sm: &SourceMap<'_>) -> Span {
         if tokens.is_empty() {

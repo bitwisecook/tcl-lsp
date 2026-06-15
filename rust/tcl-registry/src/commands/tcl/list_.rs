@@ -16,14 +16,14 @@ pub fn spec() -> CommandSpec {
             | Traits::PRODUCES_CANONICAL_LIST,
         arity: Arity::any(),
         return_type: Some(TclType::List),
-hover: Some(HoverSnippet {
-    summary: "Create a list",
-    synopsis: &["list ?arg arg ...?", "list ?arg ...?"],
-    snippet: "This command returns a list comprised of all the args, or an empty string if no args are specified.",
-    source: "Tcl man page list.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Create a list",
+            synopsis: &["list ?arg arg ...?", "list ?arg ...?"],
+            snippet: "This command returns a list comprised of all the args, or an empty string if no args are specified.",
+            source: "Tcl man page list.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use tcl_bigip::cleanup::{compute_cleanup, report_to_json};
-use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
+use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 
 fn build() -> (GraphContext, tcl_bigip::parser::BigipConfig, String) {

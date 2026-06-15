@@ -32,7 +32,7 @@ use tcl_registry::CommandRegistry;
 use crate::cfg;
 use crate::ir::{CommandTokens, Statement};
 use crate::naming::normalise_var_name;
-use crate::var_refs::{vars_in_expr, VarReferenceScanner, VarScanOptions};
+use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
 
 /// SSA version number — each definition of a variable gets a unique version.
 pub type Version = u32;
@@ -167,10 +167,10 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // but not a scope alias, so `trace add variable x` must
             // still surface its `VarWrite` def.
             if let Some(reg) = registry {
-                if let Some(spec) = reg.get(command) {
-                    if spec.traits.contains(Traits::CREATES_SCOPE_ALIAS) {
-                        return Vec::new();
-                    }
+                if let Some(spec) = reg.get(command)
+                    && spec.traits.contains(Traits::CREATES_SCOPE_ALIAS)
+                {
+                    return Vec::new();
                 }
                 let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
                 let indices = reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite);
@@ -886,11 +886,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                     .iter()
                     .filter_map(|v| {
                         let t = top(&stacks, v);
-                        if t > 0 {
-                            Some((v.clone(), t))
-                        } else {
-                            None
-                        }
+                        if t > 0 { Some((v.clone(), t)) } else { None }
                     })
                     .collect();
                 *entry_versions.get_mut(&bn).unwrap() = ev;
@@ -927,11 +923,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                     .iter()
                     .filter_map(|v| {
                         let t = top(&stacks, v);
-                        if t > 0 {
-                            Some((v.clone(), t))
-                        } else {
-                            None
-                        }
+                        if t > 0 { Some((v.clone(), t)) } else { None }
                     })
                     .collect();
                 *exit_versions.get_mut(&bn).unwrap() = xv;

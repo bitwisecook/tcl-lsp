@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CLASSIFICATION::urlcat",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Deprecated: provides classification url category name.",
             synopsis: &["CLASSIFICATION::urlcat"],
             snippet: "This command provides classification url category name.\n\n* Note: APM / AFM / PEM license is required for functionality to work.\n\nCLASSIFICATION::urlcat",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CLASSIFICATION::urlcat" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CLASSIFICATION::urlcat",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

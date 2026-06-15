@@ -160,17 +160,16 @@ pub fn prepare_rename(
     let def_byte = crate::definition::byte_offset_at(source, line, character);
     if let Some(var_name) =
         crate::definition::var_name_at_definition_offset(&analysis.global_scope, def_byte)
-    {
-        if let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+        && let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
             &analysis.global_scope,
             def_byte,
             &var_name,
-        ) {
-            return Some(PrepareRename {
-                range: span_to_range(source, &line_index, var_def.definition_span),
-                placeholder: var_def.name.clone(),
-            });
-        }
+        )
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, var_def.definition_span),
+            placeholder: var_def.name.clone(),
+        });
     }
     // Proc?
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
@@ -223,29 +222,27 @@ pub fn prepare_rename(
     // of that name exists.
     if let Some((inst, method)) =
         crate::definition::instance_method_at_cursor(source, line, character)
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(class_def) = analysis.all_classes.get(class_q)
     {
-        if let Some(class_q) = analysis.instance_classes.get(&inst) {
-            if let Some(class_def) = analysis.all_classes.get(class_q) {
-                let member = class_def
-                    .methods
-                    .get(&method)
-                    .or_else(|| class_def.class_methods.get(&method));
-                if let Some(m) = member {
-                    // Anchor the placeholder range on the call
-                    // site's method token so the editor's rename
-                    // box opens where the cursor is.
-                    let (_, mstart, mend) = find_word_span_at_position(source, line, character)?;
-                    return Some(PrepareRename {
-                        range: LspRange {
-                            start_line: line,
-                            start_character: mstart,
-                            end_line: line,
-                            end_character: mend,
-                        },
-                        placeholder: m.name.clone(),
-                    });
-                }
-            }
+        let member = class_def
+            .methods
+            .get(&method)
+            .or_else(|| class_def.class_methods.get(&method));
+        if let Some(m) = member {
+            // Anchor the placeholder range on the call
+            // site's method token so the editor's rename
+            // box opens where the cursor is.
+            let (_, mstart, mend) = find_word_span_at_position(source, line, character)?;
+            return Some(PrepareRename {
+                range: LspRange {
+                    start_line: line,
+                    start_character: mstart,
+                    end_line: line,
+                    end_character: mend,
+                },
+                placeholder: m.name.clone(),
+            });
         }
     }
     None
@@ -316,22 +313,19 @@ pub fn rename(
     // declaration + all call sites (intra-class + external).
     if let Some((inst, method)) =
         crate::definition::instance_method_at_cursor(source, line, character)
+        && method == word
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some(edits) = rename_method_in_class(
+            source,
+            dialect,
+            class_q,
+            &method,
+            new_name,
+            analysis,
+            &line_index,
+        )
     {
-        if method == word {
-            if let Some(class_q) = analysis.instance_classes.get(&inst) {
-                if let Some(edits) = rename_method_in_class(
-                    source,
-                    dialect,
-                    class_q,
-                    &method,
-                    new_name,
-                    analysis,
-                    &line_index,
-                ) {
-                    return edits;
-                }
-            }
-        }
+        return edits;
     }
     // Method rename — match `word` against any class's methods
     // / classmethods / properties at the cursor's byte offset.
@@ -405,10 +399,9 @@ fn rename_var(
     // scope) — renaming would merge two distinct variables.
     if let Some(existing) =
         crate::definition::lookup_var_in_scope_chain(&analysis.global_scope, byte_offset, new_name)
+        && existing.definition_span != var_def.definition_span
     {
-        if existing.definition_span != var_def.definition_span {
-            return Vec::new();
-        }
+        return Vec::new();
     }
     let mut edits = Vec::with_capacity(1 + var_def.references.len());
     // Preserve any namespace qualifier on the declaration token itself
@@ -455,10 +448,10 @@ fn rename_proc(
     let (qname, proc_def) = analysis.all_procs.iter().find(|(qname, p)| {
         p.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
     })?;
-    if let Some(registry) = registry {
-        if is_builtin_command_name(new_name, registry) {
-            return Some(Vec::new());
-        }
+    if let Some(registry) = registry
+        && is_builtin_command_name(new_name, registry)
+    {
+        return Some(Vec::new());
     }
     let namespace_prefix = namespace_prefix_of(&proc_def.qualified_name);
     let (new_qualified, qualified_decl) = qualified_and_decl_text(namespace_prefix, new_name);
@@ -526,10 +519,10 @@ fn rename_class(
     let (qname, class_def) = analysis.all_classes.iter().find(|(qname, c)| {
         c.name == word || qname.as_str() == word || qname.as_str() == format!("::{word}")
     })?;
-    if let Some(registry) = registry {
-        if is_builtin_command_name(new_name, registry) {
-            return Some(Vec::new());
-        }
+    if let Some(registry) = registry
+        && is_builtin_command_name(new_name, registry)
+    {
+        return Some(Vec::new());
     }
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
     let namespace_prefix = namespace_prefix_of(&class_def.qualified_name);

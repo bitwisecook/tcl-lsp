@@ -30,14 +30,14 @@ pub fn spec() -> CommandSpec {
                 connection_side: ConnectionSide::None,
             },
         ],
-hover: Some(HoverSnippet {
-    summary: "Read a line from a channel",
-    synopsis: &["gets channel ?varName?"],
-    snippet: "The gets command has been superceded by the chan gets command which supports the same syntax and options.",
-    source: "Tcl man page gets.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Read a line from a channel",
+            synopsis: &["gets channel ?varName?"],
+            snippet: "The gets command has been superceded by the chan gets command which supports the same syntax and options.",
+            source: "Tcl man page gets.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

@@ -20,8 +20,8 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-use tcl_registry::prelude::Traits;
 use tcl_registry::CommandRegistry;
+use tcl_registry::prelude::Traits;
 
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CACHE::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disables caching for this request.",
             synopsis: &["CACHE::disable"],
             snippet: "Disables caching for this request.\n\nCACHE::disable\n\n     * Disables caching for this request.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CACHE::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CACHE::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

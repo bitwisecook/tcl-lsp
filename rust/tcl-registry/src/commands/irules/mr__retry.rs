@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MR::retry",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Send the current message to the router for routing.",
             synopsis: &["MR::retry"],
             snippet: "The MR::retry command instructs the Message Routing Framework submit the current message to the router to retry routing. This will clear the message's route status. The script may need to clear the message's existing nexthop and route fields if a new routetable lookup is desired. If a persistence record exists for this message, it may also need to be reset.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MR::retry" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::MessageState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MR::retry",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::MessageState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

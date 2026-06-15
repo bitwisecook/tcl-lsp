@@ -17,7 +17,7 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::Value;
 use tcl_bigip::canonical::Canon;
-use tcl_bigip::parser::{parse_bigip_conf, BigipConfig};
+use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 
 /// Fields compared inside a modified object (mirrors `_INTERESTING_FIELDS`).
 const INTERESTING_FIELDS: &[&str] = &[

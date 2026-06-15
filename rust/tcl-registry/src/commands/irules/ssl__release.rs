@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::release",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Releases the collected plaintext data.",
             synopsis: &["SSL::release (LENGTH)?"],
             snippet: "Releases the collected plaintext data to the next layer/filter up.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SSL::release (LENGTH)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SslState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SSL::release (LENGTH)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

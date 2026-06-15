@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::sessionsecret",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Return data about SSL handshake master secret.",
             synopsis: &["SSL::sessionsecret"],
             snippet: "Return data about SSL handshake master secret.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SSL::sessionsecret" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SslState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SSL::sessionsecret",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -4,8 +4,8 @@
 #![allow(clippy::match_same_arms, clippy::too_many_lines)]
 #![allow(clippy::doc_markdown, clippy::wildcard_imports)]
 
-use super::parsers::*;
 use super::ModelObject;
+use super::parsers::*;
 use crate::model::BigipMinimalObject;
 use crate::parser::scalar::{description, name_leaf, props_map};
 use crate::range::Range;

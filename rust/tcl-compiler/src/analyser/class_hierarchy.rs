@@ -152,14 +152,13 @@ fn build_method_providers(
         }
         for method_name in all_methods {
             for ancestor_name in &mro {
-                if let Some(ancestor) = classes.get(ancestor_name) {
-                    if ancestor.methods.contains_key(&method_name)
-                        || ancestor.class_methods.contains_key(&method_name)
-                    {
-                        method_providers
-                            .insert((qname.clone(), method_name.clone()), ancestor_name.clone());
-                        break;
-                    }
+                if let Some(ancestor) = classes.get(ancestor_name)
+                    && (ancestor.methods.contains_key(&method_name)
+                        || ancestor.class_methods.contains_key(&method_name))
+                {
+                    method_providers
+                        .insert((qname.clone(), method_name.clone()), ancestor_name.clone());
+                    break;
                 }
             }
         }

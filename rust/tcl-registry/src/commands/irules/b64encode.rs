@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "b64encode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns a string that is base-64 encoded, or if an error occurs, an empty string.",
             synopsis: &["b64encode ANY_CHARS"],
             snippet: "Returns a string that is base-64 encoded, or if an error occurs, an empty string.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when RULE_INIT {\n    set ::key [AES::key]\n}",
             return_value: "b64encode <string> Returns a string that is base-64 encoded, or if an error occurs, an empty string.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "b64encode ANY_CHARS" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Unknown,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "b64encode ANY_CHARS",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

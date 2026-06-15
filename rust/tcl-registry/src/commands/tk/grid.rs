@@ -129,8 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-sticky",
         takes_value: true,
         value_hint: "nsew",
-        detail:
-            "Specifies which edges of the cell the slave sticks to (combination of n, s, e, w).",
+        detail: "Specifies which edges of the cell the slave sticks to (combination of n, s, e, w).",
         dialects: None,
     },
     OptionSpec {

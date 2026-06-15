@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "xff_list",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Return a sorted, deduplicated list of valid non-loopback IP addresses from the X-Forwarded-For header.",
             synopsis: &["call xff_list", "call xff_list \"X-Real-IP\""],
             snippet: "Also known as `xff_uniq_sorted_ip_list`.  Collects all addresses from the named header (default `X-Forwarded-For`), even when the header appears multiple times.\n\n  - Entries that are not IPv4 or IPv6 are removed\n  - Both IPv4 and IPv6 addresses are collected and returned\n  - The result is sorted; duplicate IPs are collapsed\n  - FQDNs are not valid IPs and are therefore removed\n  - Loopback / zero addresses (`127.0.0.0/8`, `0.0.0.0/32`, `::/127`) are filtered out\n\nUseful for geolocation or blacklist lookups against forwarded addresses.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "xff_list ?xff_header_name?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpHeader,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "xff_list ?xff_header_name?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -14,11 +14,11 @@
 use std::collections::HashSet;
 
 use tcl_lexer::Span;
+use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::CommandRegistry;
 
-use crate::alias::{expr_alias_names, CommandAliasMap};
+use crate::alias::{CommandAliasMap, expr_alias_names};
 use crate::expr_parser::parse_expr;
 use crate::ir::{CommandTokens, Statement};
 use crate::naming::normalise_var_name;
@@ -204,14 +204,14 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 // form different from the canonical produces no
                 // fold.  Mirrors upstream commit ``31f5357f``
                 // (PR #341).
-                if let Some(int_val) = parse_decimal_int(value) {
-                    if value.as_str() == int_val {
-                        return Statement::AssignConst {
-                            span: cmd.span,
-                            name: name.clone(),
-                            value: int_val,
-                        };
-                    }
+                if let Some(int_val) = parse_decimal_int(value)
+                    && value.as_str() == int_val
+                {
+                    return Statement::AssignConst {
+                        span: cmd.span,
+                        name: name.clone(),
+                        value: int_val,
+                    };
                 }
                 let needs_backsubst = value.contains('\\');
                 return Statement::AssignValue {

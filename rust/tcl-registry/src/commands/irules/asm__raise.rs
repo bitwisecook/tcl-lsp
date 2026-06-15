@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::raise",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Issues a user-defined violation on the request.",
             synopsis: &["ASM::raise VIOLATION_NAME (VIOLATION_DETAILS)?"],
             snippet: "Issues a user-defined violation on the request. The violation\nis added to other possible violations, either raised by the ASM or by\nprevious invocations of this command. The consequent action is\ndetermined by the blocking setting per the raised violation, e.g. if\nthe violation was set to block, then the request will be blocked.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::raise VIOLATION_NAME (VIOLATION_DETAILS)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::raise VIOLATION_NAME (VIOLATION_DETAILS)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

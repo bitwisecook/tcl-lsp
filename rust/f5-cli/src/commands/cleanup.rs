@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use tcl_bigip::cleanup::{compute_cleanup, report_to_json};
-use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
-use tcl_cli_support::{write_text_output, OutputTarget};
+use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
+use tcl_cli_support::{OutputTarget, write_text_output};
 
 /// Build the reference graph from `inputs` (UCS-aware) and emit a cleanup script
 /// (or JSON report). `--keep` entries ending in `/` are partition prefixes;

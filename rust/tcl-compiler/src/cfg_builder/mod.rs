@@ -17,7 +17,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 
-use self::upvar_info::{collect_upvar_targets, UpvarInfo};
+use self::upvar_info::{UpvarInfo, collect_upvar_targets};
 
 mod cfg_lower;
 pub mod upvar_info;
@@ -288,25 +288,25 @@ impl CfgBuilder {
         for s in self.apply_upvar_invalidation(stmt.clone()) {
             self.block_mut(current).statements.push(s);
         }
-        if let Statement::Call { command, span, .. } = stmt {
-            if is_block_terminating_command(command) && self.block_mut(current).terminator.is_none()
+        if let Statement::Call { command, span, .. } = stmt
+            && is_block_terminating_command(command)
+            && self.block_mut(current).terminator.is_none()
+        {
+            // A catchable `error` / `throw` (not `exit`, which leaves the
+            // process) is a throw point: record the current block so an
+            // enclosing `try`'s on-error edge can be sourced from here,
+            // where the body's prior defs are live.
+            if is_catchable_throw(command)
+                && let Some(blocks) = self.throw_blocks.as_mut()
             {
-                // A catchable `error` / `throw` (not `exit`, which leaves the
-                // process) is a throw point: record the current block so an
-                // enclosing `try`'s on-error edge can be sourced from here,
-                // where the body's prior defs are live.
-                if is_catchable_throw(command) {
-                    if let Some(blocks) = self.throw_blocks.as_mut() {
-                        blocks.push(current.to_owned());
-                    }
-                }
-                self.block_mut(current).terminator = Some(Terminator::Return {
-                    value: None,
-                    span: Some(*span),
-                    expr: None,
-                    braced: false,
-                });
+                blocks.push(current.to_owned());
             }
+            self.block_mut(current).terminator = Some(Terminator::Return {
+                value: None,
+                span: Some(*span),
+                expr: None,
+                braced: false,
+            });
         }
     }
 
@@ -701,10 +701,10 @@ pub fn detect_upvar_procs(module: &Module) -> HashMap<String, UpvarInfo> {
         if info.is_empty() {
             continue;
         }
-        if let Some((_, short)) = qname.rsplit_once("::") {
-            if !short.is_empty() {
-                result.insert(short.to_owned(), info.clone());
-            }
+        if let Some((_, short)) = qname.rsplit_once("::")
+            && !short.is_empty()
+        {
+            result.insert(short.to_owned(), info.clone());
         }
         result.insert(qname.clone(), info);
     }
@@ -723,10 +723,10 @@ pub fn prepare_cfg_context(
     let upvar_procs = detect_upvar_procs(module);
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
     for (qname, proc) in &module.procedures {
-        if let Some((_, short)) = qname.rsplit_once("::") {
-            if !short.is_empty() {
-                proc_params.insert(short.to_owned(), proc.params.clone());
-            }
+        if let Some((_, short)) = qname.rsplit_once("::")
+            && !short.is_empty()
+        {
+            proc_params.insert(short.to_owned(), proc.params.clone());
         }
         proc_params.insert(qname.clone(), proc.params.clone());
     }
@@ -1046,10 +1046,9 @@ mod tests {
                     foreach_groups,
                     ..
                 } = stmt
+                    && command == "foreach"
                 {
-                    if command == "foreach" {
-                        found_groups = foreach_groups.clone();
-                    }
+                    found_groups = foreach_groups.clone();
                 }
             }
         }
@@ -1081,10 +1080,9 @@ mod tests {
                 if let Statement::Call {
                     command: c, defs, ..
                 } = stmt
+                    && c == command
                 {
-                    if c == command {
-                        return Some(defs);
-                    }
+                    return Some(defs);
                 }
             }
         }
@@ -1271,10 +1269,10 @@ mod tests {
     fn find_call_with_def<'a>(func: &'a Function, def: &str) -> Option<&'a str> {
         for block in func.blocks.values() {
             for stmt in &block.statements {
-                if let Statement::Call { command, defs, .. } = stmt {
-                    if defs.iter().any(|d| d == def) {
-                        return Some(command);
-                    }
+                if let Statement::Call { command, defs, .. } = stmt
+                    && defs.iter().any(|d| d == def)
+                {
+                    return Some(command);
                 }
             }
         }

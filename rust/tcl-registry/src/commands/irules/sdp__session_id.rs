@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["SDP::session_id"],
             snippet: "This command allows you to get SDP session id for the current\nconnection",
             source: "https://clouddocs.f5.com/api/irules/SDP__session_id.html",
-            examples:
-                "when SIP_RESPONSE {\n    log local0. \"SDP SessionID: [SDP::session_id]\"\n}",
+            examples: "when SIP_RESPONSE {\n    log local0. \"SDP SessionID: [SDP::session_id]\"\n}",
             return_value: "Returns the value of the SDP session id.",
         }),
         forms: &[FormSpec {

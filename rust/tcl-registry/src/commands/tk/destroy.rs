@@ -17,7 +17,7 @@ pub fn spec() -> CommandSpec {
         name: "destroy",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Destroy one or more windows and all their descendants.",
             synopsis: &["destroy ?window window ...?"],
             snippet: "Destroys the specified windows and all of their descendants. If the main window (\".\") is destroyed the entire application is terminated.",

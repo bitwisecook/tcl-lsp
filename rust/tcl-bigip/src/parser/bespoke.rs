@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
 
-use crate::model::gen::parsers::*;
+use crate::model::r#gen::parsers::*;
 use crate::model::{
     BigipApmOauthDbInstance, BigipApmPolicyItem, BigipAuthPartition, BigipCmDevice,
     BigipCmDeviceGroup, BigipCmTrafficGroup, BigipCmTrustDomain, BigipDataGroup,
@@ -45,13 +45,13 @@ use crate::model::{
 use crate::range::Range;
 use crate::value::bigip_list::SourceSpan;
 use crate::value::{
-    try_parse_address, BigipList, FirewallRule, IPAddress, ListItem, ListItemValue, ListSyntax,
-    Network, PersistenceAttachment, ProfileAttachment, FQDN,
+    BigipList, FQDN, FirewallRule, IPAddress, ListItem, ListItemValue, ListSyntax, Network,
+    PersistenceAttachment, ProfileAttachment, try_parse_address,
 };
 
 use super::helpers::{
-    parse_keyed_block_entries, parse_keyed_block_entries_with_offsets, parse_list_block,
-    parse_properties, parse_properties_with_spans, unquote, Property,
+    Property, parse_keyed_block_entries, parse_keyed_block_entries_with_offsets, parse_list_block,
+    parse_properties, parse_properties_with_spans, unquote,
 };
 use super::scalar::{description, props_map, state_flag};
 
@@ -518,10 +518,11 @@ fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> 
         };
         let addr = props.get("address").cloned().unwrap_or_default();
         let mut port: i64 = 0;
-        if name.contains(':') && addr.is_empty() {
-            if let Some(tail) = name.rsplit(':').next() {
-                port = tail.parse().unwrap_or(0);
-            }
+        if name.contains(':')
+            && addr.is_empty()
+            && let Some(tail) = name.rsplit(':').next()
+        {
+            port = tail.parse().unwrap_or(0);
         }
         if port == 0 {
             port = props.get("port").map_or(0, |p| p.parse().unwrap_or(0));
@@ -555,20 +556,20 @@ pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) ->
     let props_with_spans = parse_properties_with_spans(body);
     let members_prop = props_with_spans.iter().find(|(k, _)| k == "members");
     let mut members: Vec<BigipPoolMember> = Vec::new();
-    if let Some((_, prop)) = members_prop {
-        if !prop.value.is_empty() {
-            let members_abs = ctx.block_start + 1 + prop.value_start.unwrap_or(0);
-            members = parse_pool_members(&prop.value, members_abs);
-            // `field_offsets` are absolute source offsets; Python stores
-            // them as code-point indices (str indexing), so convert the
-            // byte offsets to code points for non-ASCII fidelity.
-            for m in &mut members {
-                for span in m.field_offsets.values_mut() {
-                    *span = (
-                        byte_to_cp(ctx.source, span.0),
-                        byte_to_cp(ctx.source, span.1),
-                    );
-                }
+    if let Some((_, prop)) = members_prop
+        && !prop.value.is_empty()
+    {
+        let members_abs = ctx.block_start + 1 + prop.value_start.unwrap_or(0);
+        members = parse_pool_members(&prop.value, members_abs);
+        // `field_offsets` are absolute source offsets; Python stores
+        // them as code-point indices (str indexing), so convert the
+        // byte offsets to code points for non-ASCII fidelity.
+        for m in &mut members {
+            for span in m.field_offsets.values_mut() {
+                *span = (
+                    byte_to_cp(ctx.source, span.0),
+                    byte_to_cp(ctx.source, span.1),
+                );
             }
         }
     }
@@ -690,15 +691,15 @@ pub fn parse_virtual(
 
     // pool_range: first scalar token span of the pool property value.
     obj.pool_range = None;
-    if let Some((_, pool_prop)) = props_with_spans.iter().find(|(k, _)| k == "pool") {
-        if let (Some(vs), Some(ve)) = (pool_prop.value_start, pool_prop.value_end) {
-            let raw_value = &body[vs..ve];
-            if let Some((ts, te)) = first_scalar_token_span(raw_value) {
-                let body_base = ctx.block_start + 1;
-                let abs_start = body_base + vs + ts;
-                let abs_end = body_base + vs + te;
-                obj.pool_range = Some(range_from_token_offsets(ctx, abs_start, abs_end));
-            }
+    if let Some((_, pool_prop)) = props_with_spans.iter().find(|(k, _)| k == "pool")
+        && let (Some(vs), Some(ve)) = (pool_prop.value_start, pool_prop.value_end)
+    {
+        let raw_value = &body[vs..ve];
+        if let Some((ts, te)) = first_scalar_token_span(raw_value) {
+            let body_base = ctx.block_start + 1;
+            let abs_start = body_base + vs + ts;
+            let abs_end = body_base + vs + te;
+            obj.pool_range = Some(range_from_token_offsets(ctx, abs_start, abs_end));
         }
     }
 
@@ -742,16 +743,15 @@ pub fn parse_virtual(
 
     // source-address-translation: parse the inner block for type / pool.
     obj.source_address_translation = String::new();
-    if let Some(sat_block) = props.get("source-address-translation") {
-        if !sat_block.is_empty() {
-            let sat_props: HashMap<String, String> =
-                parse_properties(strip_outer_braces(sat_block))
-                    .into_iter()
-                    .collect();
-            obj.source_address_translation = sat_props.get("type").cloned().unwrap_or_default();
-            if obj.snatpool.is_empty() {
-                obj.snatpool = sat_props.get("pool").cloned().unwrap_or_default();
-            }
+    if let Some(sat_block) = props.get("source-address-translation")
+        && !sat_block.is_empty()
+    {
+        let sat_props: HashMap<String, String> = parse_properties(strip_outer_braces(sat_block))
+            .into_iter()
+            .collect();
+        obj.source_address_translation = sat_props.get("type").cloned().unwrap_or_default();
+        if obj.snatpool.is_empty() {
+            obj.snatpool = sat_props.get("pool").cloned().unwrap_or_default();
         }
     }
 
@@ -809,14 +809,13 @@ pub fn parse_node(full_path: &str, body: &str, range: Range) -> BigipNode {
     let mut obj = parse_bigip_node(full_path, body, range);
     let props = props_map(body);
     let mut fqdn_raw = String::new();
-    if let Some(fqdn_block) = props.get("fqdn") {
-        if fqdn_block.starts_with('{') {
-            let fqdn_props: HashMap<String, String> =
-                parse_properties(strip_outer_braces(fqdn_block))
-                    .into_iter()
-                    .collect();
-            fqdn_raw = fqdn_props.get("name").cloned().unwrap_or_default();
-        }
+    if let Some(fqdn_block) = props.get("fqdn")
+        && fqdn_block.starts_with('{')
+    {
+        let fqdn_props: HashMap<String, String> = parse_properties(strip_outer_braces(fqdn_block))
+            .into_iter()
+            .collect();
+        fqdn_raw = fqdn_props.get("name").cloned().unwrap_or_default();
     }
     let addr_raw = props.get("address").cloned().unwrap_or_default();
     obj.address = if addr_raw.is_empty() {
@@ -1060,25 +1059,23 @@ fn parse_policy_rule(name: &str, body: &str) -> BigipPolicyRule {
         .map_or(0, |p| p.value.trim().parse().unwrap_or(0));
 
     let mut conditions: Vec<BigipPolicyCondition> = Vec::new();
-    if let Some(cond_prop) = props.get("conditions") {
-        if !cond_prop.value.is_empty() {
-            for (idx_str, prop) in parse_properties_with_spans(strip_outer_braces(&cond_prop.value))
-            {
-                if let Ok(idx) = idx_str.parse::<i64>() {
-                    conditions.push(parse_policy_condition(idx, strip_outer_braces(&prop.value)));
-                }
+    if let Some(cond_prop) = props.get("conditions")
+        && !cond_prop.value.is_empty()
+    {
+        for (idx_str, prop) in parse_properties_with_spans(strip_outer_braces(&cond_prop.value)) {
+            if let Ok(idx) = idx_str.parse::<i64>() {
+                conditions.push(parse_policy_condition(idx, strip_outer_braces(&prop.value)));
             }
         }
     }
 
     let mut actions: Vec<BigipPolicyAction> = Vec::new();
-    if let Some(act_prop) = props.get("actions") {
-        if !act_prop.value.is_empty() {
-            for (idx_str, prop) in parse_properties_with_spans(strip_outer_braces(&act_prop.value))
-            {
-                if let Ok(idx) = idx_str.parse::<i64>() {
-                    actions.push(parse_policy_action(idx, strip_outer_braces(&prop.value)));
-                }
+    if let Some(act_prop) = props.get("actions")
+        && !act_prop.value.is_empty()
+    {
+        for (idx_str, prop) in parse_properties_with_spans(strip_outer_braces(&act_prop.value)) {
+            if let Ok(idx) = idx_str.parse::<i64>() {
+                actions.push(parse_policy_action(idx, strip_outer_braces(&prop.value)));
             }
         }
     }
@@ -1110,14 +1107,14 @@ pub fn parse_policy(full_path: &str, body: &str, range: Range) -> BigipPolicy {
     obj.controls = list_from(props.get("controls"));
 
     let mut rules: Vec<BigipPolicyRule> = Vec::new();
-    if let Some(rules_block) = props.get("rules") {
-        if !rules_block.is_empty() {
-            for (rule_name, prop) in parse_properties_with_spans(strip_outer_braces(rules_block)) {
-                rules.push(parse_policy_rule(
-                    &rule_name,
-                    strip_outer_braces(&prop.value),
-                ));
-            }
+    if let Some(rules_block) = props.get("rules")
+        && !rules_block.is_empty()
+    {
+        for (rule_name, prop) in parse_properties_with_spans(strip_outer_braces(rules_block)) {
+            rules.push(parse_policy_rule(
+                &rule_name,
+                strip_outer_braces(&prop.value),
+            ));
         }
     }
     rules.sort_by(|a, b| (a.ordinal, &a.name).cmp(&(b.ordinal, &b.name)));

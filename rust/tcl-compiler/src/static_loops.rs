@@ -10,10 +10,10 @@
 
 use std::collections::HashMap;
 
-use crate::expr_ast::{expr_text, ExprNode};
+use crate::expr_ast::{ExprNode, expr_text};
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{eval_tcl_expr, Env, EnvValue, TclValue};
+use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr};
 
 /// Default cap on iteration count — beyond this we give up and
 /// return `None` rather than simulate any further.

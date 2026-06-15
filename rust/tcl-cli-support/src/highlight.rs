@@ -91,16 +91,15 @@ fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, Hash
         if let Some(first) = command.argv.first() {
             command_spans.insert((first.span.start(), first.span.end()));
         }
-        if command.texts.len() >= 2 {
-            if let Some(spec) = registry.get(&command.texts[0]) {
-                let candidate = &command.texts[1];
-                if !spec.subcommands.is_empty()
-                    && spec.subcommands.iter().any(|s| s.name == candidate)
-                {
-                    if let Some(second) = command.argv.get(1) {
-                        subcommand_spans.insert((second.span.start(), second.span.end()));
-                    }
-                }
+        if command.texts.len() >= 2
+            && let Some(spec) = registry.get(&command.texts[0])
+        {
+            let candidate = &command.texts[1];
+            if !spec.subcommands.is_empty()
+                && spec.subcommands.iter().any(|s| s.name == candidate)
+                && let Some(second) = command.argv.get(1)
+            {
+                subcommand_spans.insert((second.span.start(), second.span.end()));
             }
         }
     }

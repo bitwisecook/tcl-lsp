@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DNS::drop",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Drops the current DNS packet after the execution of the event.",
             synopsis: &["DNS::drop"],
             snippet: "This iRules command drops the current DNS packet after the execution of\nthe event.\n\nNote: This command functions only in the context of LTM iRules and\nrequires the DNS Profile, which is only enabled as part of GTM or the\nDNS Services add-on.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DNS::drop" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::DnsState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DNS::drop",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

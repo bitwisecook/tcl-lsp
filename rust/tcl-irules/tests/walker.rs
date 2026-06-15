@@ -4,8 +4,8 @@
 //! conditions, and GTM pool fan-out. Self-contained — no Python at test time.
 
 use tcl_irules::extract_irules_object_references;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 
 #[test]
 fn walker_matches_python() {

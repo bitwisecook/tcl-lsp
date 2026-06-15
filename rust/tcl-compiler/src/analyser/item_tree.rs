@@ -400,10 +400,11 @@ mod tests {
         let (tree, decls) = build(src);
         assert!(decls.classes.contains("::Shape"));
         assert!(decls.ensembles.contains("::e"));
-        assert!(tree
-            .items
-            .iter()
-            .any(|it| it.sig.id.kind == ItemKind::Method && it.sig.id.key.contains("area")));
+        assert!(
+            tree.items
+                .iter()
+                .any(|it| it.sig.id.kind == ItemKind::Method && it.sig.id.key.contains("area"))
+        );
     }
 
     #[test]

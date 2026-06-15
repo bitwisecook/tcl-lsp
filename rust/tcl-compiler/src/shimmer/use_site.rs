@@ -32,7 +32,7 @@ use crate::value_shapes::is_pure_var_ref;
 use super::graph::loop_body_blocks;
 use super::hints::{arg_shimmer_type, is_numeric_compatible};
 use super::span::def_range_map;
-use super::{type_name, ShimmerWarning};
+use super::{ShimmerWarning, type_name};
 
 /// Find use-site shimmer warnings for a function.
 ///

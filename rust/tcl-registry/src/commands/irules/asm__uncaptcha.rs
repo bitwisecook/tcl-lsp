@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::uncaptcha",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Overrides the CAPTCHA action.",
             synopsis: &["ASM::uncaptcha"],
             snippet: "Overrides the CAPTCHA action for a request mitigated during a Brute-Force attack. \n            Consequently, the request will be forwarded to the origin server. \n            If the present request was not supposed to be mitigated by CAPTCHA then the command has no effect.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::uncaptcha" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::uncaptcha",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

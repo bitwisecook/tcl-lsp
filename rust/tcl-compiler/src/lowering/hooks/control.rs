@@ -18,11 +18,11 @@
 //! expression is attached to the [`Statement::Return`] so codegen
 //! can emit the value directly.
 
-use crate::alias::{expr_alias_names, CommandAliasMap};
+use crate::alias::{CommandAliasMap, expr_alias_names};
 use crate::expr_parser::parse_expr;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
-    extract_single_expr_arg, has_expansion, ArgTokenKind, LoweringCommand,
+    ArgTokenKind, LoweringCommand, extract_single_expr_arg, has_expansion,
 };
 
 /// Lower `expr` to [`Statement::ExprEval`] when the call is the
@@ -247,11 +247,12 @@ mod tests {
         assert!(m.procedures.contains_key("::f"));
         let body = &m.procedures["::f"].body.statements;
         assert!(body.iter().any(|s| matches!(s, Statement::Return { .. })));
-        assert!(m
-            .top_level
-            .statements
-            .iter()
-            .any(|s| matches!(s, Statement::ExprEval { .. })));
+        assert!(
+            m.top_level
+                .statements
+                .iter()
+                .any(|s| matches!(s, Statement::ExprEval { .. }))
+        );
     }
 
     // ── Unit-level coverage of the hook entry points ──────────────

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MQTT::clean_session",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get or set clean_session flag of MQTT CONNECT message.",
             synopsis: &["MQTT::clean_session ('0' | '1')?"],
             snippet: "This command can be used to get or set clean_session flag of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    CONNECT",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MQTT::clean_session ('0' | '1')?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MQTT::clean_session ('0' | '1')?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -6,7 +6,7 @@
 //! `_format_constant`.
 
 use crate::analyses::ConstValue;
-use crate::tcl_expr_eval::{format_tcl_value, TclValue};
+use crate::tcl_expr_eval::{TclValue, format_tcl_value};
 
 /// Grammar of a word that can be emitted into Tcl source without
 /// needing brace quoting. Matches Python's `_SAFE_WORD_RE`:

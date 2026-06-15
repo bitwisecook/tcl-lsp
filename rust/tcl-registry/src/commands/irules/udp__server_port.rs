@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "UDP::server_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the UDP port/service number of a server system.",
             synopsis: &["UDP::server_port"],
             snippet: "Returns the UDP port/service number of the server. This command is\nequivalent to the command serverside { UDP::remote_port }.",
@@ -28,17 +28,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "UDP::server_port" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::UdpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Server,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::server_port",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

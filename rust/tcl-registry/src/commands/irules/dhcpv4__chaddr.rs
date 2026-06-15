@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DHCPv4::chaddr",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command returns chaddr (client hardware address) from DHCPv4 message.",
             synopsis: &["DHCPv4::chaddr"],
             snippet: "This command returns chaddr (client hardware address) from DHCPv4 message\n\nDetails (syntax):\nDHCPv4::chaddr",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Chaddr [DHCPv4::chaddr]\"\n    }",
             return_value: "This command returns chaddr (client hardware address) from DHCPv4 message",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DHCPv4::chaddr" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DHCPv4::chaddr",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

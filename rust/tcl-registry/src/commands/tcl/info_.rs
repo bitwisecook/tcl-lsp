@@ -187,8 +187,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info library",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "loaded",
@@ -216,8 +216,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info nameofexecutable",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "object",
@@ -254,8 +254,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info script ?filename?",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "sharedlibextension",
@@ -300,14 +300,14 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Information about the state of the Tcl interpreter",
-    synopsis: &["info option ?arg arg ...?"],
-    snippet: "Available commands: info args procname Returns the names of the parameters to the procedure named procname.",
-    source: "Tcl man page info.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Information about the state of the Tcl interpreter",
+            synopsis: &["info option ?arg arg ...?"],
+            snippet: "Available commands: info args procname Returns the names of the parameters to the procedure named procname.",
+            source: "Tcl man page info.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

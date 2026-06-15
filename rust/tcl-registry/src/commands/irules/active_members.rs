@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "active_members",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the number or list of active members in the specified pool.",
             synopsis: &["active_members ('-list')? POOL_OBJ"],
             snippet: "Returns the number or list of active members in the specified pool.",
@@ -23,20 +23,23 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "active_members ('-list')? POOL_OBJ" },
-        ],
-        options: &[
-            OptionSpec { name: "-list", takes_value: false, value_hint: "", detail: "Return as list instead of count.", dialects: None },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::PoolSelection,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "active_members ('-list')? POOL_OBJ",
+        }],
+        options: &[OptionSpec {
+            name: "-list",
+            takes_value: false,
+            value_hint: "",
+            detail: "Return as list instead of count.",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PoolSelection,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

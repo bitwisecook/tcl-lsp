@@ -18,7 +18,7 @@
 use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_lexer::LineIndex;
 
-use crate::definition::{byte_offset_at, span_to_range, LspRange};
+use crate::definition::{LspRange, byte_offset_at, span_to_range};
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 
 /// Compute "go-to-type-definition" locations for the symbol at the
@@ -34,10 +34,10 @@ pub fn type_definition(
 
     // 1. Variable receiver: `$obj` with a known instance class.
     if let Some(var_name) = find_var_at_position(source, line, character) {
-        if let Some(class_q) = analysis.instance_classes.get(&var_name) {
-            if let Some(cd) = find_class(analysis, class_q) {
-                return vec![span_to_range(source, &line_index, cd.name_span)];
-            }
+        if let Some(class_q) = analysis.instance_classes.get(&var_name)
+            && let Some(cd) = find_class(analysis, class_q)
+        {
+            return vec![span_to_range(source, &line_index, cd.name_span)];
         }
         return Vec::new();
     }
@@ -48,10 +48,10 @@ pub fn type_definition(
         return Vec::new();
     };
     let cursor = byte_offset_at(source, line, character);
-    if let Some(cd) = innermost_class_containing(analysis, cursor) {
-        if cd.methods.contains_key(&word) || cd.class_methods.contains_key(&word) {
-            return vec![span_to_range(source, &line_index, cd.name_span)];
-        }
+    if let Some(cd) = innermost_class_containing(analysis, cursor)
+        && (cd.methods.contains_key(&word) || cd.class_methods.contains_key(&word))
+    {
+        return vec![span_to_range(source, &line_index, cd.name_span)];
     }
     Vec::new()
 }

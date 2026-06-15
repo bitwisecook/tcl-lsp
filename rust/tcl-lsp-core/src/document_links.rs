@@ -157,10 +157,10 @@ pub fn document_links_with_home(
             // Skip non-literal paths (variable substitution /
             // command substitution / multi-token).  The
             // `single_token_word[idx]` is `false` for those.
-            if let Some(&single) = seg.single_token_word.get(idx) {
-                if !single {
-                    continue;
-                }
+            if let Some(&single) = seg.single_token_word.get(idx)
+                && !single
+            {
+                continue;
             }
             path.clone()
         };

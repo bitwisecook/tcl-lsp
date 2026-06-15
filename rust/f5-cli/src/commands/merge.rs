@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use tcl_cli_support::{write_text_output, OutputTarget};
+use tcl_cli_support::{OutputTarget, write_text_output};
 
 use crate::cli::FormatArgs;
 

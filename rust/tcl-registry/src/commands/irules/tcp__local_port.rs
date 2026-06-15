@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the local port of a TCP connection.",
             synopsis: &["TCP::local_port (clientside | serverside)?"],
             snippet: "Returns the local port/service number of the specified side, or the current context (client or server) if there is no argument.\nThis command is equivalent to the BIG-IP 4.X variable local_port. When used\nin a clientside context, this command returns the client-side TCP\ndestination port. When used in a serverside context, this command\nreturns the server-side TCP source port.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::local_port (clientside | serverside)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::local_port (clientside | serverside)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

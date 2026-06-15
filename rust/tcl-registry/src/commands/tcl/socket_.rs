@@ -68,14 +68,19 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Open a TCP client or server socket channel.",
-    synopsis: &["socket ?options? host port", "socket -server command ?options? port", "socket -server command ?-option value ...? port", "socket ?-option value ...? host port"],
-    snippet: "`-server` creates a listening socket and invokes the callback with `channel clientaddr clientport` for each accepted connection.",
-    source: "Tcl socket(3tcl)",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Open a TCP client or server socket channel.",
+            synopsis: &[
+                "socket ?options? host port",
+                "socket -server command ?options? port",
+                "socket -server command ?-option value ...? port",
+                "socket ?-option value ...? host port",
+            ],
+            snippet: "`-server` creates a listening socket and invokes the callback with `channel clientaddr clientport` for each accepted connection.",
+            source: "Tcl socket(3tcl)",
+            examples: "",
+            return_value: "",
+        }),
         // GAP-D2: `host`/`port` are network-address args — SSRF sink
         // (T104). Mirrors `tcl/socket_.py`.
         taint_network_sink_args: Some(&[0, 1]),

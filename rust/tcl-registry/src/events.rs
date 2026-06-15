@@ -312,10 +312,10 @@ pub fn event_satisfies(
     if requires.server_side && !props.server_side {
         return false;
     }
-    if let Some(t) = requires.transport {
-        if !props.transport.contains(&t) {
-            return false;
-        }
+    if let Some(t) = requires.transport
+        && !props.transport.contains(&t)
+    {
+        return false;
     }
     if !requires.profiles.is_empty()
         && !profiles.stack_satisfies(requires.profiles, props.implied_profiles)

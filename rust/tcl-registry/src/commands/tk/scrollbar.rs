@@ -153,7 +153,7 @@ pub fn spec() -> CommandSpec {
         name: "scrollbar",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a scrollbar widget.",
             synopsis: &["scrollbar pathName ?option value ...?"],
             snippet: "Displays a scrollbar and allows the user to control the viewing area of an associated widget.",

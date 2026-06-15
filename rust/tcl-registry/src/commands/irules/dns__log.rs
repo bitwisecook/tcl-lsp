@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DNS::log",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Controls log publisher in DNS log profile.",
             synopsis: &["DNS::log (MESSAGE)?"],
             snippet: "There are two version of this command.  DNS::log by itself returns a boolean indicating whether a DNS Logging Profile is configured in the DNS profile.  DNS::log with an argument logs a message to that log publisher.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DNS::log (MESSAGE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LogIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DNS::log (MESSAGE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LogIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

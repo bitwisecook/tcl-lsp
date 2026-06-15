@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::fingerprint",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the fingerprint (device id) of the client device.",
             synopsis: &["ASM::fingerprint"],
             snippet: "Get the fingerprint of the client device as seen by ASM when it's available.\nThe fingerprint is a unique identifier given to specific client machine. The fingerprint will be available to iRule only for web application that have web scraping turned on with the finger print usage activated.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::fingerprint" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::fingerprint",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

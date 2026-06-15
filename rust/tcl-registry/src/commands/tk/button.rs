@@ -110,8 +110,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-compound",
         takes_value: true,
         value_hint: "",
-        detail:
-            "Whether to display both image and text: none, bottom, top, left, right, or center.",
+        detail: "Whether to display both image and text: none, bottom, top, left, right, or center.",
         dialects: None,
     },
     OptionSpec {
@@ -255,8 +254,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a button widget.",
             synopsis: &["button pathName ?option value ...?"],
-            snippet:
-                "Displays a textual string, bitmap, or image. When pressed, invokes a Tcl command.",
+            snippet: "Displays a textual string, bitmap, or image. When pressed, invokes a Tcl command.",
             source: "Tk man page button.n",
             examples: "",
             return_value: "",

@@ -73,10 +73,10 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // built-in commands (`pool`, `puts`, …) that cannot invoke
     // user procs.
     for qname in &reachable {
-        if let Some(summary) = ctx.interproc.procedures.get(qname) {
-            if summary.has_barrier {
-                return;
-            }
+        if let Some(summary) = ctx.interproc.procedures.get(qname)
+            && summary.has_barrier
+        {
+            return;
         }
     }
 
@@ -253,8 +253,8 @@ mod tests {
         dialect: Option<&str>,
         ip: InterproceduralAnalysis,
     ) -> Vec<Optimisation> {
-        use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
+        use tcl_registry::prelude::DialectSet;
         let mut registry = CommandRegistry::build_default();
         // C43 sub-strip 4 fallout: `when` (and any other dialect-
         // gated structured command) is registry-resolved now, so

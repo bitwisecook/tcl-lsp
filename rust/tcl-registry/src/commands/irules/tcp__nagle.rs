@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "TCP::nagle",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Toggles the Nagle mode.",
             synopsis: &["TCP::nagle (enable | disable | auto)"],
             snippet: "Enables or disables the Nagle algorithm on the current TCP connection.\nNagle waits for additional data before sending undersized packets, see RFC896 for details.\nThe auto option enables or disables Nagle based on connection conditions.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::nagle (enable | disable | auto)" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::nagle (enable | disable | auto)",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

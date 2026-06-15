@@ -248,23 +248,23 @@ pub fn normalise_qualified_name(name: &str) -> String {
 pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
     // `${…}` brace form: only the chars inside the braces are the reference;
     // an `(idx)` *inside* the braces is an element, one *after* `}` is not.
-    if let Some(after) = name.strip_prefix("${") {
-        if let Some(rel) = after.find('}') {
-            let inner = &after[..rel];
-            if inner.ends_with(')') {
-                if let Some(idx) = inner.find('(') {
-                    return (&inner[..idx], Some(&inner[idx + 1..inner.len() - 1]));
-                }
-            }
-            return (inner, None);
+    if let Some(after) = name.strip_prefix("${")
+        && let Some(rel) = after.find('}')
+    {
+        let inner = &after[..rel];
+        if inner.ends_with(')')
+            && let Some(idx) = inner.find('(')
+        {
+            return (&inner[..idx], Some(&inner[idx + 1..inner.len() - 1]));
         }
-        // No closing brace — fall through (Python gates on `"}" in base`).
+        return (inner, None);
     }
+    // No closing brace — fall through (Python gates on `"}" in base`).
     let base = name.strip_prefix('$').unwrap_or(name);
-    if base.ends_with(')') {
-        if let Some(idx) = base.find('(') {
-            return (&base[..idx], Some(&base[idx + 1..base.len() - 1]));
-        }
+    if base.ends_with(')')
+        && let Some(idx) = base.find('(')
+    {
+        return (&base[..idx], Some(&base[idx + 1..base.len() - 1]));
     }
     (base, None)
 }

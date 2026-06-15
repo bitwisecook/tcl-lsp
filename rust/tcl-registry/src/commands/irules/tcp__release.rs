@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Release data gathered by TCP::collect to the upper layer.",
             synopsis: &["TCP::release (LENGTH)?"],
             snippet: "Causes TCP to release and flush collected data, and allow other\nprotocol layers to resume processing the connection.\n\nReturns the number of bytes actually released. If specified, up to length bytes are released; the return value will tell you how many bytes actually were.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::release (LENGTH)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::release (LENGTH)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

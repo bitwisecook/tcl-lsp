@@ -6,8 +6,8 @@
 //! is the Python order for this verb specifically.
 
 use tcl_cli_support::{
-    combine_sources, expand_tabs, highlight_ansi, highlight_html, read_input_documents,
-    resolve_use_colour, write_text_output, OutputTarget,
+    OutputTarget, combine_sources, expand_tabs, highlight_ansi, highlight_html,
+    read_input_documents, resolve_use_colour, write_text_output,
 };
 
 use crate::cli::{ColourArgs, InputArgs};

@@ -123,6 +123,9 @@ fn read_path_extracts_encrypted_ucs_file() {
 
 // --- Passphrase resolution order (explicit → env → prompt → error) ----------
 
+// The `Result` is required to match the `PassphraseOptions::prompt` fn-pointer
+// type, so the always-`Ok` wrap is intentional.
+#[allow(clippy::unnecessary_wraps)]
 fn prompt_sentinel() -> Result<String, String> {
     Ok("FROM_PROMPT".to_owned())
 }
@@ -130,19 +133,20 @@ fn prompt_sentinel() -> Result<String, String> {
 #[test]
 fn env_var_takes_precedence_over_prompt() {
     // Even with a TTY-style prompt wired in, a set env var wins and the prompt
-    // is never consulted.
-    std::env::set_var("F5_UCS_PRECEDENCE_TEST", "FROM_ENV");
-    let opts = PassphraseOptions {
-        explicit: None,
-        env_var: "F5_UCS_PRECEDENCE_TEST".to_owned(),
-        allow_prompt: true,
-        prompt: Some(prompt_sentinel),
-    };
-    assert_eq!(
-        tcl_bigip_io::resolve_passphrase(&opts).expect("env passphrase"),
-        "FROM_ENV"
-    );
-    std::env::remove_var("F5_UCS_PRECEDENCE_TEST");
+    // is never consulted. `temp_env` scopes the env mutation (and serialises it
+    // against other env-touching tests) so the crate stays unsafe-free.
+    temp_env::with_var("F5_UCS_PRECEDENCE_TEST", Some("FROM_ENV"), || {
+        let opts = PassphraseOptions {
+            explicit: None,
+            env_var: "F5_UCS_PRECEDENCE_TEST".to_owned(),
+            allow_prompt: true,
+            prompt: Some(prompt_sentinel),
+        };
+        assert_eq!(
+            tcl_bigip_io::resolve_passphrase(&opts).expect("env passphrase"),
+            "FROM_ENV"
+        );
+    });
 }
 
 #[test]

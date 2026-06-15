@@ -41,7 +41,8 @@ fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
-        traits: Traits::BYTE_COMPILED | Traits::WARN_WITHOUT_TERMINATOR
+        traits: Traits::BYTE_COMPILED
+            | Traits::WARN_WITHOUT_TERMINATOR
             | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         return_type: Some(TclType::Int),
@@ -130,7 +131,7 @@ pub fn spec() -> CommandSpec {
                 dialects: None,
             },
         ],
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Match a regular expression against a string.",
             synopsis: &["regexp ?switches? exp string ?matchVar? ?subMatchVar ...?"],
             snippet: "Returns 1 if *exp* matches part of *string*, 0 otherwise. Matching substrings are stored in *matchVar* and *subMatchVar*.\n\n**Security**: Use `--` before the pattern when it comes from a variable to prevent option injection. Avoid nested quantifiers like `(a+)+` which can cause catastrophic backtracking (ReDoS) on crafted input.",

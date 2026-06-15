@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::cfg::{Block, CfgModule, Function as CfgFunction, Terminator};
-use tcl_compiler::codegen::{codegen_function, codegen_module, Op};
+use tcl_compiler::codegen::{Op, codegen_function, codegen_module};
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::ir::{Module as IrModule, Script, Statement};
 use tcl_lexer::Span;

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "FLOW::idle_duration",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the time in seconds when the flow was last used.",
             synopsis: &["FLOW::idle_duration ANY_CHARS"],
             snippet: "Returns the time in seconds when the flow was last used.",
@@ -30,17 +30,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "FLOW::idle_duration ANY_CHARS" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FlowState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FLOW::idle_duration ANY_CHARS",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FlowState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

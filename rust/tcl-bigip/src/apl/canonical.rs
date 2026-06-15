@@ -2,7 +2,7 @@
 //! the Python `dialects.f5.bigip.parser._rust_bridge.rebuild_apl`
 //! reconstructs the `AplModel` dataclasses from.
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use super::model::{AplField, AplModel, AplSection, AplTable};
 use crate::canonical::range as range_value;

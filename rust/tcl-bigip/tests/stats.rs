@@ -1,7 +1,7 @@
 //! Byte-parity for `compute_stats` (text report + JSON) against the Python
 //! `dialects.f5.bigip.stats`, on a realistic `bigip.conf`. Self-contained.
 
-use tcl_bigip::graph::{build_bigip_object_graph, GraphContext};
+use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 use tcl_bigip::stats::{compute_stats, report_to_json};
 

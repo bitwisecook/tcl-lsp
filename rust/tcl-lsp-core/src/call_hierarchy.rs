@@ -515,10 +515,10 @@ pub fn incoming_calls_for_target(
             continue;
         }
         // Skip the proc's own declaration site in this document.
-        if let Some(decl) = target_name_span {
-            if span_contains(decl, inv.range) || span_contains(inv.range, decl) {
-                continue;
-            }
+        if let Some(decl) = target_name_span
+            && (span_contains(decl, inv.range) || span_contains(inv.range, decl))
+        {
+            continue;
         }
         let inv_range = span_to_range(source, &line_index, inv.range);
         let caller_key = enclosing_proc(analysis, inv.range)

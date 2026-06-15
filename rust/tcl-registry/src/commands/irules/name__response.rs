@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "NAME::response",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Deprecated: Returns a list of records received in response to a DNS query.",
             synopsis: &["NAME::response"],
             snippet: "Returns a list of records received in response to a DNS query made with the NAME_ _lookup command.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "NAME::response" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::DnsState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "NAME::response",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         deprecated_replacement: Some("RESOLV::lookup"),
         ..CommandSpec::DEFAULT
     }

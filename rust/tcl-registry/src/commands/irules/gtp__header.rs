@@ -140,29 +140,37 @@ pub const fn spec() -> CommandSpec {
         name: "GTP::header",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Allows for the parsing of GTP header information.",
-            synopsis: &["GTP::header ('version' | 'type') ('-message' MESSAGE)?", "GTP::header ('teid' | 'npdu' | 'sequence') ('-message' MESSAGE)?", "GTP::header ('teid' | 'npdu' | 'sequence') 'set' ('-message' MESSAGE)? VALUE", "GTP::header ('teid' | 'npdu' | 'sequence') 'remove' ('-message' MESSAGE)?"],
+            synopsis: &[
+                "GTP::header ('version' | 'type') ('-message' MESSAGE)?",
+                "GTP::header ('teid' | 'npdu' | 'sequence') ('-message' MESSAGE)?",
+                "GTP::header ('teid' | 'npdu' | 'sequence') 'set' ('-message' MESSAGE)? VALUE",
+                "GTP::header ('teid' | 'npdu' | 'sequence') 'remove' ('-message' MESSAGE)?",
+            ],
             snippet: "Allows for the parsing of GTP header information. UINT -- Unsigned\ninteger value of n bits. For n > 8, appropriate network to host byte\norder conversion happens transparently.",
             source: "https://clouddocs.f5.com/api/irules/GTP__header.html",
             examples: "when GTP_SIGNALLING_INGRESS {\n    log local0. \"GTP version [GTP::header version]\"\n    log local0. \"GTP type [GTP::header type]\"\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "GTP::header <field> ?set|remove? ?-message msg? ?value?" },
-        ],
-        options: &[
-            OptionSpec { name: "-message", takes_value: true, value_hint: "MESSAGE", detail: "Operate on specific message.", dialects: None },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "GTP::header <field> ?set|remove? ?-message msg? ?value?",
+        }],
+        options: &[OptionSpec {
+            name: "-message",
+            takes_value: true,
+            value_hint: "MESSAGE",
+            detail: "Operate on specific message.",
+            dialects: None,
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

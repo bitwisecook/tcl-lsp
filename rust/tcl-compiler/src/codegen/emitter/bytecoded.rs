@@ -14,11 +14,11 @@
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::hooks::CodegenHookId;
 
-use super::super::values::is_qualified;
 use super::super::CodegenCtx;
 use super::super::Op;
 use super::super::Operand;
-use super::super::{bytecode_imm, parse_tcl_index, INDEX_END};
+use super::super::values::is_qualified;
+use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
 /// command hook. Returns `true` if the hook handled the command;
@@ -427,11 +427,12 @@ mod tests {
         assert!(try_bytecoded(&mut ctx, "array", &args, &mut used));
         assert!(used);
         // Should push the FQ name as a literal.
-        assert!(ctx
-            .literals
-            .entries()
-            .iter()
-            .any(|e| e == "::tcl::array::names"));
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|e| e == "::tcl::array::names")
+        );
     }
 
     #[test]
@@ -694,13 +695,15 @@ mod tests {
         // so resolve_call returns None and try_bytecoded would skip
         // the hook path even if one existed.
         let default = CommandRegistry::build_default();
-        assert!(default
-            .resolve_call(
-                "HTTP::header",
-                &["names"],
-                tcl_registry::dialects::DialectSet::IRULES,
-            )
-            .is_none());
+        assert!(
+            default
+                .resolve_call(
+                    "HTTP::header",
+                    &["names"],
+                    tcl_registry::dialects::DialectSet::IRULES,
+                )
+                .is_none()
+        );
 
         // A registry with iRules loaded sees the same name. The
         // CodegenCtx built from this registry would see whatever

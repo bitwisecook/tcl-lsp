@@ -14,8 +14,7 @@ pub const fn spec() -> CommandSpec {
             snippet: "The PSC::attr commands get/set/remove the custom attributes.",
             source: "https://clouddocs.f5.com/api/irules/PSC__attr.html",
             examples: "",
-            return_value:
-                "* PSC::attr Return the list of custom attribute names when no argument is given.",
+            return_value: "* PSC::attr Return the list of custom attribute names when no argument is given.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

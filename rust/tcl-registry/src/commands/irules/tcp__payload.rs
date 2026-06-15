@@ -25,9 +25,13 @@ pub const fn spec() -> CommandSpec {
         name: "TCP::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 4),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns or changes the data collected by TCP::collect.",
-            synopsis: &["TCP::payload ?<size>?", "TCP::payload replace <offset> <length> <data>", "TCP::payload length"],
+            synopsis: &[
+                "TCP::payload ?<size>?",
+                "TCP::payload replace <offset> <length> <data>",
+                "TCP::payload length",
+            ],
             snippet: "Returns the accumulated TCP data content, or replaces collected payload with the specified data.",
             source: "https://clouddocs.f5.com/api/irules/TCP__payload.html",
             examples: "when CLIENT_ACCEPTED {\n  TCP::collect\n}",
@@ -43,18 +47,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Getter, synopsis: "TCP::payload ?<size>?" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Getter,
+            synopsis: "TCP::payload ?<size>?",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

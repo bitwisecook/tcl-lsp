@@ -9,10 +9,10 @@ use crate::prelude::*;
 /// Mirrors `_when_arg_roles` in
 /// `core/commands/registry/irules/when.py:25-29`.
 fn when_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 2 {
-        if let Ok(idx) = u8::try_from(args.len() - 1) {
-            return vec![(idx, ArgRole::Body)];
-        }
+    if args.len() >= 2
+        && let Ok(idx) = u8::try_from(args.len() - 1)
+    {
+        return vec![(idx, ArgRole::Body)];
     }
     Vec::new()
 }

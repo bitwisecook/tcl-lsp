@@ -71,11 +71,12 @@ exclude = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
-# Bumped from 1.80 for salsa 0.26 (edition 2024 → rustc ≥ 1.85), the
-# incremental query engine adopted for the LSP query database (tcl-lsp-db);
-# the runtime/rust port independently needs ≥ 1.85 for is_none_or et al.
-rust-version = "1.85"
+edition = "2024"
+# 2024 is the current Rust edition (editions ship ~every 3 years: 2015 / 2018 /
+# 2021 / 2024). MSRV moved forward to a recent stable now that the workspace is
+# on the 2024 edition and built/tested against rustc 1.96 (≥ 1.85 was already
+# required for salsa 0.26 / tcl-lsp-db and the runtime/rust port's is_none_or).
+rust-version = "1.94"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 authors = ["tcl-lsp contributors"]

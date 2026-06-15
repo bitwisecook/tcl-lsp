@@ -146,7 +146,7 @@ pub fn spec() -> CommandSpec {
         name: "frame",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a frame widget.",
             synopsis: &["frame pathName ?option value ...?"],
             snippet: "A frame is a simple container widget used primarily to group and organise other widgets.",

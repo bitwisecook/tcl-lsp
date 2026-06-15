@@ -30,7 +30,7 @@ use std::io::Read;
 use digest::Digest;
 use flate2::read::{DeflateDecoder, ZlibDecoder};
 
-use crate::aes_cfb::{cfb_decrypt, Aes};
+use crate::aes_cfb::{Aes, cfb_decrypt};
 
 const BLOCK: usize = 16;
 
@@ -357,7 +357,9 @@ fn decompress(algo: u8, data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
         3 => Err(OpenPgpError::new(
             "BZIP2 inner compression is unsupported by the bundled decryptor — install gpg/gpg2 to decrypt this archive",
         )),
-        other => Err(OpenPgpError::new(format!("unsupported compression algorithm {other}"))),
+        other => Err(OpenPgpError::new(format!(
+            "unsupported compression algorithm {other}"
+        ))),
     }
 }
 

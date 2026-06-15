@@ -69,9 +69,14 @@ pub fn spec() -> CommandSpec {
         name: "expect",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Wait for output matching a pattern from a spawned process.",
-            synopsis: &["expect ?-opts? pattern body ?pattern body ...?", "expect -re {regexp} { actions }", "expect timeout { timeout_actions }", "expect eof { eof_actions }"],
+            synopsis: &[
+                "expect ?-opts? pattern body ?pattern body ...?",
+                "expect -re {regexp} { actions }",
+                "expect timeout { timeout_actions }",
+                "expect eof { eof_actions }",
+            ],
             snippet: "Waits until one of the patterns matches the output of the current spawned process, then executes the corresponding body. Special patterns: ``timeout``, ``eof``, ``default``, ``full_buffer``, ``null``.",
             source: "Expect expect(1)",
             examples: "",

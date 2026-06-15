@@ -945,12 +945,12 @@ fn append_word_arg(
             col += 1;
         }
         let trailing = estimate_trailing_len(args, i + 1);
-        if col + raw.len() + trailing > config.max_line_length {
-            if let Some(wrapped) = wrap_braced_expr(&arg.text, config, indent_level) {
-                maybe_space(parts, false, config.space_between_braces);
-                parts.push(format!("{{{wrapped}}}"));
-                return true;
-            }
+        if col + raw.len() + trailing > config.max_line_length
+            && let Some(wrapped) = wrap_braced_expr(&arg.text, config, indent_level)
+        {
+            maybe_space(parts, false, config.space_between_braces);
+            parts.push(format!("{{{wrapped}}}"));
+            return true;
         }
     }
     if !parts.is_empty() {

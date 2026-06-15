@@ -239,10 +239,10 @@ pub fn classify_escape(
     command: &str,
     categories: &[SubstitutionCategory],
 ) -> EscapeClass {
-    if let Some(spec) = registry.get(command) {
-        if spec.traits.contains(Traits::CREATES_BARRIER) {
-            return EscapeClass::MayEscape;
-        }
+    if let Some(spec) = registry.get(command)
+        && spec.traits.contains(Traits::CREATES_BARRIER)
+    {
+        return EscapeClass::MayEscape;
     }
     if categories.iter().any(|c| {
         matches!(
@@ -363,11 +363,11 @@ pub fn build_function_execution_intent(
     let mut out = FunctionExecutionIntent::new();
     for (block_name, block) in &cfg.blocks {
         for (idx, stmt) in block.statements.iter().enumerate() {
-            if let Statement::AssignValue { value, .. } = stmt {
-                if let Some(parsed) = parse_command_substitution(registry, value, dialect) {
-                    out.command_substitutions
-                        .insert((block_name.clone(), idx), parsed);
-                }
+            if let Statement::AssignValue { value, .. } = stmt
+                && let Some(parsed) = parse_command_substitution(registry, value, dialect)
+            {
+                out.command_substitutions
+                    .insert((block_name.clone(), idx), parsed);
             }
         }
     }

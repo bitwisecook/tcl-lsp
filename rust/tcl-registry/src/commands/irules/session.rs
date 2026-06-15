@@ -66,9 +66,12 @@ pub const fn spec() -> CommandSpec {
         name: "session",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Utilizes the persistence table to store arbitrary information based on the same keys as persistence.",
-            synopsis: &["session add SESSION_MODE", "session (lookup | delete) SESSION_MODE"],
+            synopsis: &[
+                "session add SESSION_MODE",
+                "session (lookup | delete) SESSION_MODE",
+            ],
             snippet: "Utilizes the persistence table to store arbitrary information based on\nthe same keys as persistence. This information does not affect the\npersistence itself.",
             source: "https://clouddocs.f5.com/api/irules/session.html",
             examples: "when HTTP_REQUEST {\nset value [session lookup uie [list $myVar any virtual]]\n}",
@@ -84,18 +87,17 @@ hover: Some(HoverSnippet {
             flow: true,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "session add SESSION_MODE" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "session add SESSION_MODE",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::PersistenceTable,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::PersistenceTable,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

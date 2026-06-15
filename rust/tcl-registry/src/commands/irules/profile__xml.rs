@@ -8,12 +8,10 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Returns the value of an XML profile setting.",
             synopsis: &["PROFILE::xml ATTR"],
-            snippet:
-                "Returns the current value of the specified setting in an assigned XML profile.",
+            snippet: "Returns the current value of the specified setting in an assigned XML profile.",
             source: "https://clouddocs.f5.com/api/irules/PROFILE__xml.html",
             examples: "",
-            return_value:
-                "Returns the current value of the specified setting in an assigned XML profile.",
+            return_value: "Returns the current value of the specified setting in an assigned XML profile.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

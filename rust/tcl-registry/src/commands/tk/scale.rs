@@ -230,7 +230,7 @@ pub fn spec() -> CommandSpec {
         name: "scale",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a scale (slider) widget.",
             synopsis: &["scale pathName ?option value ...?"],
             snippet: "Displays a slider that allows the user to select a numerical value from a specified range.",

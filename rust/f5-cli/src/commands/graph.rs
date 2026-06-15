@@ -3,8 +3,8 @@
 
 use std::path::Path;
 
-use tcl_bigip::graph::{build_bigip_object_graph, export_graph, GraphContext};
-use tcl_cli_support::{write_text_output, OutputTarget};
+use tcl_bigip::graph::{GraphContext, build_bigip_object_graph, export_graph};
+use tcl_cli_support::{OutputTarget, write_text_output};
 
 /// Build the reference graph from `inputs` (UCS-aware, via `load_paths`) and
 /// serialise it to `format`, optionally filtered to the subgraph reachable from

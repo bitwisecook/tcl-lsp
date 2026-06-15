@@ -6,8 +6,7 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
-            summary:
-                "Get or set directory skip patterns.  Deprecated: use ``configure -asidefromdir``.",
+            summary: "Get or set directory skip patterns.  Deprecated: use ``configure -asidefromdir``.",
             synopsis: &["tcltest::skipDirectories ?patternList?"],
             snippet: "",
             source: "Tcl stdlib tcltest package (deprecated)",

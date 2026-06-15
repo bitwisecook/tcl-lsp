@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ADAPT::select",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets or returns the internal virtual server (IVS) selection.",
             synopsis: &["ADAPT::select (ADAPT_CTX)? (ADAPT_SIDE)? (NAME)?"],
             snippet: "The ADAPT::select command returns or selects the name of\nthe internal virtual server (IVS) associated with the ADAPT\nfilter on the current or specified side of the virtual server\nconnection for which the iRule is being executed.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::select (ADAPT_CTX)? (ADAPT_SIDE)? (NAME)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IcapState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ADAPT::select (ADAPT_CTX)? (ADAPT_SIDE)? (NAME)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IcapState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

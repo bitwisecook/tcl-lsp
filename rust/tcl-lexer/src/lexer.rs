@@ -887,12 +887,10 @@ impl<'src> Lexer<'src> {
         if self.config.expand_syntax
             && self.peek_byte(1) == Some(b'*')
             && self.peek_byte(2) == Some(b'}')
+            && let Some(after) = self.peek_byte(3)
+            && !is_separator_byte(after)
         {
-            if let Some(after) = self.peek_byte(3) {
-                if !is_separator_byte(after) {
-                    return Ok(self.parse_expand());
-                }
-            }
+            return Ok(self.parse_expand());
         }
         self.parse_brace()
     }
@@ -910,9 +908,9 @@ impl<'src> Lexer<'src> {
     fn parse_expand(&mut self) -> Token {
         let start = self.pos;
         self.pos += 3; // skip `{*}`
-                       // Emit an empty span anchored at the `{` position —
-                       // matching Python's `_end = _start` (zero-width marker)
-                       // where `Token.text` is empty.
+        // Emit an empty span anchored at the `{` position —
+        // matching Python's `_end = _start` (zero-width marker)
+        // where `Token.text` is empty.
         Token::new(TokenType::Expand, Span::empty(start))
     }
 
@@ -1011,21 +1009,21 @@ impl<'src> Lexer<'src> {
         if has_close_brace {
             self.pos += 1;
             // Check for extra characters after close-brace.
-            if let Some(after) = self.current_byte() {
-                if !is_separator_byte(after) {
-                    // Backslash-newline after close-brace is fine
-                    let is_bs_nl = after == b'\\'
-                        && matches!(
-                            self.source().as_bytes().get(self.pos as usize + 1),
-                            Some(b'\n' | b'\r')
-                        );
-                    if !is_bs_nl {
-                        if self.config.irules_brace_separator && after == b'{' {
-                            let sep_span = Span::empty(self.pos);
-                            self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
-                        } else {
-                            self.warn_or_error("extra characters after close-brace")?;
-                        }
+            if let Some(after) = self.current_byte()
+                && !is_separator_byte(after)
+            {
+                // Backslash-newline after close-brace is fine
+                let is_bs_nl = after == b'\\'
+                    && matches!(
+                        self.source().as_bytes().get(self.pos as usize + 1),
+                        Some(b'\n' | b'\r')
+                    );
+                if !is_bs_nl {
+                    if self.config.irules_brace_separator && after == b'{' {
+                        let sep_span = Span::empty(self.pos);
+                        self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
+                    } else {
+                        self.warn_or_error("extra characters after close-brace")?;
                     }
                 }
             }

@@ -80,10 +80,10 @@ pub fn codegen_module(
         let ir_proc = ir_module.procedures.get(qname);
         // Skip procs defined inside namespace eval — tclsh compiles
         // them lazily at runtime, not at compile time.
-        if let Some(p) = ir_proc {
-            if p.namespace_scoped {
-                continue;
-            }
+        if let Some(p) = ir_proc
+            && p.namespace_scoped
+        {
+            continue;
         }
         let params: Vec<&str> = ir_proc
             .map(|p| p.params.iter().map(String::as_str).collect())

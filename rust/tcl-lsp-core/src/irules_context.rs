@@ -80,12 +80,11 @@ fn scan_when_context(
         }
         best = Some(cmd.texts[1].to_uppercase());
         // Descend into the braced body for a deeper nested `when`.
-        if let Some((inner, inner_base)) = brace_body(full_source, body_tok) {
-            if let Some(nested) =
+        if let Some((inner, inner_base)) = brace_body(full_source, body_tok)
+            && let Some(nested) =
                 scan_when_context(full_source, inner, inner_base, cursor_line, dialect, li)
-            {
-                best = Some(nested);
-            }
+        {
+            best = Some(nested);
         }
     }
     best
@@ -102,10 +101,10 @@ fn collect_when_events(full: &str, text: &str, base: u32, dialect: &str, out: &m
             out.push(cmd.texts[1].to_uppercase());
         }
         for tok in &cmd.argv {
-            if tok.kind == TokenType::Str {
-                if let Some((inner, inner_base)) = brace_body(full, tok) {
-                    collect_when_events(full, inner, inner_base, dialect, out);
-                }
+            if tok.kind == TokenType::Str
+                && let Some((inner, inner_base)) = brace_body(full, tok)
+            {
+                collect_when_events(full, inner, inner_base, dialect, out);
             }
         }
     }

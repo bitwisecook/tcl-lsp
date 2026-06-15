@@ -5,25 +5,27 @@ pub const fn spec() -> CommandSpec {
         name: "FLOWTABLE::limit",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns configured connection limits.",
-            synopsis: &["FLOWTABLE::limit virtual (VIRTUAL_SERVER_OBJ)?", "FLOWTABLE::limit route_domain (ROUTE_DOMAIN_NAME)?"],
+            synopsis: &[
+                "FLOWTABLE::limit virtual (VIRTUAL_SERVER_OBJ)?",
+                "FLOWTABLE::limit route_domain (ROUTE_DOMAIN_NAME)?",
+            ],
             snippet: "This iRules command returns configured connection limits\nNote: When virtual server or route domain name is omitted the commands\nuse virtual or route domain of the current connection. Specifying the\nname incurs significant performance hit.",
             source: "https://clouddocs.f5.com/api/irules/FLOWTABLE__limit.html",
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "FLOWTABLE::limit virtual (VIRTUAL_SERVER_OBJ)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FlowState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FLOWTABLE::limit virtual (VIRTUAL_SERVER_OBJ)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FlowState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

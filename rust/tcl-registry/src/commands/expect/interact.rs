@@ -97,7 +97,7 @@ pub fn spec() -> CommandSpec {
         name: "interact",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Give control of the current process to the user for interactive use.",
             synopsis: &["interact ?-opts? ?string body ...?", "interact"],
             snippet: "Connects the user's terminal to the spawned process. With string/body pairs, intercepts matching input and executes the body instead.",

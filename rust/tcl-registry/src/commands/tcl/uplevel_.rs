@@ -24,19 +24,20 @@ pub fn spec() -> CommandSpec {
             | Traits::CREATES_BARRIER
             | Traits::EVALUATES_CODE
             | Traits::TAINT_SINK
-            | Traits::UNSAFE | Traits::CREATES_DYNAMIC_BARRIER
+            | Traits::UNSAFE
+            | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         lowering_hook: Some(crate::hooks::LoweringHookId::Uplevel),
         return_type: Some(TclType::String),
-hover: Some(HoverSnippet {
-    summary: "Execute a script in a different stack frame",
-    synopsis: &["uplevel ?level? arg ?arg ...?"],
-    snippet: "All of the arg arguments are concatenated as if they had been passed to concat; the result is then evaluated in the variable context indicated by level.",
-    source: "Tcl man page uplevel.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Execute a script in a different stack frame",
+            synopsis: &["uplevel ?level? arg ?arg ...?"],
+            snippet: "All of the arg arguments are concatenated as if they had been passed to concat; the result is then evaluated in the variable context indicated by level.",
+            source: "Tcl man page uplevel.n",
+            examples: "",
+            return_value: "",
+        }),
         // GAP-D2: a `LIST_CANONICAL` value preserves element
         // boundaries and suppresses T100. Mirrors `tcl/uplevel.py`.
         taint_sink_safe_colour: Some(TaintColour::LIST_CANONICAL),

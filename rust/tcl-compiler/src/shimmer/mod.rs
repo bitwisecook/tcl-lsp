@@ -166,15 +166,17 @@ mod tests {
         let ssa = crate::ssa::build_ssa(&f, &registry());
         let sccp = crate::sccp::sccp(&f, &ssa, None);
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-        assert!(find_shimmer_warnings(
-            &f,
-            &ssa,
-            &types,
-            &sccp.executable_blocks,
-            &registry(),
-            &sccp.values
-        )
-        .is_empty());
+        assert!(
+            find_shimmer_warnings(
+                &f,
+                &ssa,
+                &types,
+                &sccp.executable_blocks,
+                &registry(),
+                &sccp.values
+            )
+            .is_empty()
+        );
         assert!(find_thunking_warnings(&f, &ssa, &types, &sccp.executable_blocks).is_empty());
     }
 }

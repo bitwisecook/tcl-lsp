@@ -84,10 +84,11 @@ pub fn expr_alias_names(aliases: &CommandAliasMap) -> HashSet<String> {
     for (name, (target, prepended)) in aliases {
         if target == "expr" && prepended.is_empty() {
             result.insert(name.clone());
-            if let Some(short) = name.rsplit("::").next() {
-                if !short.is_empty() && name.starts_with("::") {
-                    result.insert(short.to_owned());
-                }
+            if let Some(short) = name.rsplit("::").next()
+                && !short.is_empty()
+                && name.starts_with("::")
+            {
+                result.insert(short.to_owned());
             }
         }
     }

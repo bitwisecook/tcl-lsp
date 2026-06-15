@@ -146,7 +146,7 @@ pub fn spec() -> CommandSpec {
         name: "toplevel",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a toplevel widget.",
             synopsis: &["toplevel pathName ?option value ...?"],
             snippet: "Creates a new toplevel window that acts as a separate window manager frame, suitable for dialogue boxes and secondary windows.",

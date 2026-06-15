@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "AUTH::wantcredential_prompt",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns a string for an authorization session authidXs credential prompt.",
             synopsis: &["AUTH::wantcredential_prompt AUTH_ID"],
             snippet: "Returns the authorization session authid’s credential prompt string\nthat the system last requested (when the system generated an\nAUTH_WANTCREDENTIAL event). An example of a promopt string is\nUsername:. The AUTH::wantcredential_prompt command is especially\nhelpful in providing authentication services to interactive protocols\n(for example, telnet and ftp), where the actual text prompts and\nresponses may be directly communicated with the remote user.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "AUTH::wantcredential_prompt AUTH_ID" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AUTH::wantcredential_prompt AUTH_ID",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

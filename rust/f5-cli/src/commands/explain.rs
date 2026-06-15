@@ -13,7 +13,7 @@ use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
 use tcl_bigip::parser::BigipConfig;
-use tcl_cli_support::{write_text_output, OutputTarget};
+use tcl_cli_support::{OutputTarget, write_text_output};
 
 /// Map a `Placed.table_name` to the kinds explain resolves against.
 fn table_to_kind(table: &str) -> Option<&'static str> {
@@ -257,10 +257,10 @@ fn explain_pool_lines(pool: &Value) -> Vec<String> {
         {
             let _ = write!(line, " addr={addr}");
         }
-        if let Some(port) = d.and_then(|d| d.get("port")).and_then(Value::as_i64) {
-            if port != 0 {
-                let _ = write!(line, " port={port}");
-            }
+        if let Some(port) = d.and_then(|d| d.get("port")).and_then(Value::as_i64)
+            && port != 0
+        {
+            let _ = write!(line, " port={port}");
         }
         if let Some(mon) = non_empty_str(d.and_then(|d| d.get("monitor"))) {
             let _ = write!(line, " monitor={mon}");
@@ -358,15 +358,16 @@ fn full_path_of(report: &ExplainReport, cfg: &BigipConfig, kind_hint: Option<&st
     // Re-resolve to recover the matched object's full_path for the header.
     let model = Model::build(cfg);
     let target = &report.target;
-    if (kind_hint.is_none() || kind_hint == Some("virtual")) && report.kind == "virtual" {
-        if let Some(p) = model.resolve("virtual", target) {
-            return p;
-        }
+    if (kind_hint.is_none() || kind_hint == Some("virtual"))
+        && report.kind == "virtual"
+        && let Some(p) = model.resolve("virtual", target)
+    {
+        return p;
     }
-    if report.kind == "pool" {
-        if let Some(p) = model.resolve("pool", target) {
-            return p;
-        }
+    if report.kind == "pool"
+        && let Some(p) = model.resolve("pool", target)
+    {
+        return p;
     }
     target.clone()
 }

@@ -6,10 +6,10 @@ pub mod header;
 pub mod helpers;
 pub mod scalar;
 
-pub use driver::{parse_bigip_conf, BigipConfig, Placed};
+pub use driver::{BigipConfig, Placed, parse_bigip_conf};
 
-pub use header::{parse_generic_header, ObjectTypeIndex};
+pub use header::{ObjectTypeIndex, parse_generic_header};
 pub use helpers::{
-    extract_blocks, parse_keyed_block_entries, parse_list_block, parse_properties,
-    parse_properties_with_spans, tokenise_header, Block, Property,
+    Block, Property, extract_blocks, parse_keyed_block_entries, parse_list_block, parse_properties,
+    parse_properties_with_spans, tokenise_header,
 };

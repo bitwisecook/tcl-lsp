@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "FLOW::refresh",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Refresh the flow.",
             synopsis: &["FLOW::refresh ANY_CHARS"],
             snippet: "Updates the last used time on the flow to now.",
@@ -30,17 +30,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "FLOW::refresh ANY_CHARS" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FlowState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FLOW::refresh ANY_CHARS",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FlowState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -21,15 +21,15 @@ use tcl_registry::CommandRegistry;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::build_cfg;
-use crate::def_use::{build_def_use_chains, DefUseResult};
+use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
 use crate::lowering::lower_to_ir_with_config;
-use crate::memory_ssa::{build_memory_ssa, MemorySSAFunction};
-use crate::rendered_properties::{propagate_rendered_props, RenderedValueProps};
-use crate::sccp::{sccp, SccpResult};
-use crate::ssa::{build_ssa, SsaFunction, ValueKey};
-use crate::taint::{propagate_taints, TaintLattice};
+use crate::memory_ssa::{MemorySSAFunction, build_memory_ssa};
+use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
+use crate::sccp::{SccpResult, sccp};
+use crate::ssa::{SsaFunction, ValueKey, build_ssa};
+use crate::taint::{TaintLattice, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 
@@ -650,11 +650,12 @@ mod tests {
         let cu = CompilationUnit::build_for("set x 1", &registry(), false);
         assert!(!cu.top_level.cfg.blocks.is_empty());
         // SCCP should mark entry executable for a non-empty CFG.
-        assert!(cu
-            .top_level
-            .sccp
-            .executable_blocks
-            .contains(&cu.top_level.ssa.entry));
+        assert!(
+            cu.top_level
+                .sccp
+                .executable_blocks
+                .contains(&cu.top_level.ssa.entry)
+        );
     }
 
     #[test]

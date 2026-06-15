@@ -66,7 +66,7 @@ pub const fn spec() -> CommandSpec {
         name: "WS::request",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command returns the values of the various Websocket header fields seen in a client request.",
             synopsis: &["WS::request ('protocol' | 'extension' | 'version' | 'key' )"],
             snippet: "WS::request protocol\n    Returns the value of Sec-WebSocket-Protocol header field in client request.\n\nWS::request extension\n    Returns the value of Sec-WebSocket-Extensions header field in client request.\n\nWS::request version\n    Returns the value of Sec-WebSocket-Version header field in client request.\n\nWS::request key\n    Returns the value of Sec-WebSocket-Key header field in client request.",
@@ -84,18 +84,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WS::request <field>" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WS::request <field>",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

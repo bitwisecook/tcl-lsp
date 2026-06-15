@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "X509::version",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the version number of an X509 certificate.",
             synopsis: &["X509::version CERTIFICATE"],
             snippet: "Returns the version number of the specified X509 certificate (an\ninteger).",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n  log local0. \"Cert version - [X509::version ssl_cert]\"\n  if { [X509::version ssl_cert] eq 3 } {\n    pool v3_pool\n  } else {\n    pool default_pool\n  }\n}",
             return_value: "Returns the version number of an X509 certificate.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "X509::version CERTIFICATE" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SslState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "X509::version CERTIFICATE",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -38,7 +38,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -79,7 +85,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -118,7 +130,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -148,7 +166,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             module: Some("analytics"),
             object_types: &["application-security-anomalies scheduled-report"],
         },
-        header_types: &[("analytics", "application-security-anomalies scheduled-report")],
+        header_types: &[(
+            "analytics",
+            "application-security-anomalies scheduled-report",
+        )],
         properties: &[
             BigipPropertySpec {
                 name: "device-group",
@@ -171,7 +192,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -212,7 +239,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -251,7 +284,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -304,7 +343,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -345,7 +390,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -384,7 +435,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -437,7 +494,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -478,7 +541,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -517,7 +586,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -570,7 +645,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -611,7 +692,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -650,7 +737,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -703,7 +796,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -744,7 +843,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -783,7 +888,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -836,7 +947,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -877,7 +994,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -916,7 +1039,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -969,7 +1098,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1010,7 +1145,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1049,7 +1190,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1102,7 +1249,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1143,7 +1296,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1182,7 +1341,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1235,7 +1400,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1276,7 +1447,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1315,7 +1492,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1368,7 +1551,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1409,7 +1598,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1448,7 +1643,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1501,7 +1702,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1542,7 +1749,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1581,7 +1794,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1634,7 +1853,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1675,7 +1900,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1714,7 +1945,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1767,7 +2004,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1808,7 +2051,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1847,7 +2096,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1900,7 +2155,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1941,7 +2202,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -1980,7 +2247,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2044,7 +2317,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2085,7 +2364,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2124,7 +2409,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2177,7 +2468,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2218,7 +2515,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2257,7 +2560,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2310,7 +2619,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2351,7 +2666,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2390,7 +2711,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2443,7 +2770,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2484,7 +2817,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2523,7 +2862,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2576,7 +2921,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2617,7 +2968,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2656,7 +3013,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2709,7 +3072,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2750,7 +3119,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2789,7 +3164,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2842,7 +3223,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2883,7 +3270,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -2922,7 +3315,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -2975,7 +3374,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3016,7 +3421,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3055,7 +3466,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3108,7 +3525,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3149,7 +3572,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3188,7 +3617,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3241,7 +3676,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3282,7 +3723,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3321,7 +3768,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3374,7 +3827,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3415,7 +3874,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3454,7 +3919,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3507,7 +3978,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3548,7 +4025,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3587,7 +4070,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3640,7 +4129,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3681,7 +4176,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3720,7 +4221,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3773,7 +4280,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3814,7 +4327,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3853,7 +4372,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3883,7 +4408,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             module: Some("analytics"),
             object_types: &["ssl-orchestrator-service-virtual scheduled-report"],
         },
-        header_types: &[("analytics", "ssl-orchestrator-service-virtual scheduled-report")],
+        header_types: &[(
+            "analytics",
+            "ssl-orchestrator-service-virtual scheduled-report",
+        )],
         properties: &[
             BigipPropertySpec {
                 name: "device-group",
@@ -3906,7 +4434,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -3947,7 +4481,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -3986,7 +4526,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4039,7 +4585,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4080,7 +4632,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4119,7 +4677,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4172,7 +4736,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4213,7 +4783,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4252,7 +4828,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4305,7 +4887,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4346,7 +4934,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4385,7 +4979,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4438,7 +5038,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4479,7 +5085,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4518,7 +5130,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4571,7 +5189,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4612,7 +5236,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4651,7 +5281,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4704,7 +5340,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4745,7 +5387,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4784,7 +5432,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4815,13 +5469,11 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["uri-type"],
         },
         header_types: &[("analytics", "uri-type")],
-        properties: &[
-            BigipPropertySpec {
-                name: "file-extensions",
-                value_type: ValueKind::Unknown,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "file-extensions",
+            value_type: ValueKind::Unknown,
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -4854,7 +5506,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4895,7 +5553,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -4934,7 +5598,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -4987,7 +5657,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "frequency",
                 value_type: ValueKind::Enum,
-                enum_values: &["every-12-hours", "every-24-hours", "every-6-hours", "every-month", "every-week"],
+                enum_values: &[
+                    "every-12-hours",
+                    "every-24-hours",
+                    "every-6-hours",
+                    "every-month",
+                    "every-week",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -5028,7 +5704,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "time-diff",
                         value_type: ValueKind::Enum,
                         in_sections: &["multi-leveled-report"],
-                        enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                        enum_values: &[
+                            "last-day",
+                            "last-hour",
+                            "last-month",
+                            "last-week",
+                            "last-year",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -5067,7 +5749,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "time-diff",
                 value_type: ValueKind::Enum,
                 in_sections: &["multi-leveled-report"],
-                enum_values: &["last-day", "last-hour", "last-month", "last-week", "last-year"],
+                enum_values: &[
+                    "last-day",
+                    "last-hour",
+                    "last-month",
+                    "last-week",
+                    "last-year",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -5157,7 +5845,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "max-concurrent-subsessions",
                 value_type: ValueKind::Integer,
-                default: Some("0, which sets the maximum number of concurrent subsessions to 5 times the licensed access session limit"),
+                default: Some(
+                    "0, which sets the maximum number of concurrent subsessions to 5 times the licensed access session limit",
+                ),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -5509,15 +6199,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::List,
                 allow_none: true,
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
-                block: &[
-                    BigipPropertySpec {
-                        name: "ip",
-                        value_type: ValueKind::String,
-                        in_sections: &["domain-controllers"],
-                        shape_kind: Some(ValueKind::IpAddress),
-                        ..BigipPropertySpec::DEFAULT
-                    },
-                ],
+                block: &[BigipPropertySpec {
+                    name: "ip",
+                    value_type: ValueKind::String,
+                    in_sections: &["domain-controllers"],
+                    shape_kind: Some(ValueKind::IpAddress),
+                    ..BigipPropertySpec::DEFAULT
+                }],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -5549,7 +6237,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "pool",
                 value_type: ValueKind::Reference,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 default: Some("none"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -5601,15 +6305,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::List,
                 required: true,
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
-                block: &[
-                    BigipPropertySpec {
-                        name: "active-directory",
-                        value_type: ValueKind::Reference,
-                        in_sections: &["trusted-domains"],
-                        references: &["apm_aaa_active_directory"],
-                        ..BigipPropertySpec::DEFAULT
-                    },
-                ],
+                block: &[BigipPropertySpec {
+                    name: "active-directory",
+                    value_type: ValueKind::Reference,
+                    in_sections: &["trusted-domains"],
+                    references: &["apm_aaa_active_directory"],
+                    ..BigipPropertySpec::DEFAULT
+                }],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -5690,7 +6392,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "pool",
                 value_type: ValueKind::Reference,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -6205,7 +6923,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "transport",
                 value_type: ValueKind::Reference,
                 required: true,
-                references: &["apm_aaa_http_connector_transport", "ltm_message_routing_diameter_transport_config", "ltm_message_routing_generic_transport_config", "ltm_message_routing_mqtt_transport_config", "ltm_message_routing_sip_transport_config"],
+                references: &[
+                    "apm_aaa_http_connector_transport",
+                    "ltm_message_routing_diameter_transport_config",
+                    "ltm_message_routing_generic_transport_config",
+                    "ltm_message_routing_mqtt_transport_config",
+                    "ltm_message_routing_sip_transport_config",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -6365,7 +7089,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "pool",
                 value_type: ValueKind::Reference,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 default: Some("none"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -6469,7 +7209,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "serverssl-profile",
                 value_type: ValueKind::Enum,
                 allow_none: true,
-                enum_values: &["none", "serverssl", "serverssl-insecure-compatible", "wom-default-serverssl"],
+                enum_values: &[
+                    "none",
+                    "serverssl",
+                    "serverssl-insecure-compatible",
+                    "wom-default-serverssl",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -6752,14 +7497,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "headers",
                 value_type: ValueKind::List,
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
-                block: &[
-                    BigipPropertySpec {
-                        name: "value",
-                        value_type: ValueKind::Unknown,
-                        in_sections: &["headers"],
-                        ..BigipPropertySpec::DEFAULT
-                    },
-                ],
+                block: &[BigipPropertySpec {
+                    name: "value",
+                    value_type: ValueKind::Unknown,
+                    in_sections: &["headers"],
+                    ..BigipPropertySpec::DEFAULT
+                }],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -6896,7 +7639,19 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "rules",
                 value_type: ValueKind::String,
                 allow_none: true,
-                references: &["gtm_rule", "ltm_cipher_rule", "ltm_global_settings_rule", "ltm_rule", "ltm_rule_profiler", "security_firewall_matching_rule", "security_firewall_on_demand_rule_deploy", "security_firewall_rule_list", "security_firewall_rule_stat", "security_packet_filter_rule_stat", "sys_file_rewrite_rule"],
+                references: &[
+                    "gtm_rule",
+                    "ltm_cipher_rule",
+                    "ltm_global_settings_rule",
+                    "ltm_rule",
+                    "ltm_rule_profiler",
+                    "security_firewall_matching_rule",
+                    "security_firewall_on_demand_rule_deploy",
+                    "security_firewall_rule_list",
+                    "security_firewall_rule_stat",
+                    "security_packet_filter_rule_stat",
+                    "sys_file_rewrite_rule",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -7136,7 +7891,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "transport",
                 value_type: ValueKind::Reference,
                 required: true,
-                references: &["apm_aaa_http_connector_transport", "ltm_message_routing_diameter_transport_config", "ltm_message_routing_generic_transport_config", "ltm_message_routing_mqtt_transport_config", "ltm_message_routing_sip_transport_config"],
+                references: &[
+                    "apm_aaa_http_connector_transport",
+                    "ltm_message_routing_diameter_transport_config",
+                    "ltm_message_routing_generic_transport_config",
+                    "ltm_message_routing_mqtt_transport_config",
+                    "ltm_message_routing_sip_transport_config",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
         ],
@@ -7214,7 +7975,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "pool",
                 value_type: ValueKind::String,
                 allow_none: true,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 default: Some("none"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -7233,7 +8010,20 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "service-type",
                 value_type: ValueKind::Enum,
-                enum_values: &["administrative", "authenticate-only", "call-check", "callback-administrative", "callback-framed", "callback-login", "callback-nas-promit", "default", "framed", "login", "nas-prompt", "outbound"],
+                enum_values: &[
+                    "administrative",
+                    "authenticate-only",
+                    "call-check",
+                    "callback-administrative",
+                    "callback-framed",
+                    "callback-login",
+                    "callback-nas-promit",
+                    "default",
+                    "framed",
+                    "login",
+                    "nas-prompt",
+                    "outbound",
+                ],
                 default: Some("default, which behaves as authenticate-only"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -7282,14 +8072,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::List,
                 allow_none: true,
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
-                block: &[
-                    BigipPropertySpec {
-                        name: "attribute-consuming-service-index",
-                        value_type: ValueKind::Integer,
-                        in_sections: &["attribute-consuming-services"],
-                        ..BigipPropertySpec::DEFAULT
-                    },
-                ],
+                block: &[BigipPropertySpec {
+                    name: "attribute-consuming-service-index",
+                    value_type: ValueKind::Integer,
+                    in_sections: &["attribute-consuming-services"],
+                    ..BigipPropertySpec::DEFAULT
+                }],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -7839,7 +8627,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::Enum,
                 required: true,
                 allow_none: true,
-                enum_values: &["arap", "enable", "fwproxy", "login", "nasi", "none", "ppp", "pt", "rcmd", "x25"],
+                enum_values: &[
+                    "arap", "enable", "fwproxy", "login", "nasi", "none", "ppp", "pt", "rcmd",
+                    "x25",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -7874,7 +8665,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "pool",
                 value_type: ValueKind::String,
                 allow_none: true,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 default: Some("none"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -7894,7 +8701,10 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "protocol",
                 value_type: ValueKind::Enum,
-                enum_values: &["atalk", "deccp", "ftp", "http", "ip", "ipx", "lat", "lcp", "osicp", "pad", "rlogin", "telnet", "tn3270", "unknown", "vines", "vpdn", "xremote"],
+                enum_values: &[
+                    "atalk", "deccp", "ftp", "http", "ip", "ipx", "lat", "lcp", "osicp", "pad",
+                    "rlogin", "telnet", "tn3270", "unknown", "vines", "vpdn", "xremote",
+                ],
                 default: Some("unknown"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -7909,7 +8719,17 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "service",
                 value_type: ValueKind::Enum,
                 allow_none: true,
-                enum_values: &["arap", "connection", "firewall", "none", "ppp", "shell", "slip", "system", "tty-daemon"],
+                enum_values: &[
+                    "arap",
+                    "connection",
+                    "firewall",
+                    "none",
+                    "ppp",
+                    "shell",
+                    "slip",
+                    "system",
+                    "tty-daemon",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -8220,7 +9040,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "captcha-theme",
                 value_type: ValueKind::Enum,
-                enum_values: &["theme-blackglass", "theme-clean", "theme-custom", "theme-red", "theme-white"],
+                enum_values: &[
+                    "theme-blackglass",
+                    "theme-clean",
+                    "theme-custom",
+                    "theme-red",
+                    "theme-white",
+                ],
                 usage_flags: &["deprecated"],
                 ..BigipPropertySpec::DEFAULT
             },
@@ -8368,49 +9194,63 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "access-control",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
                         name: "access-per-request",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
                         name: "apm-acl",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
                         name: "eca",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
                         name: "paa",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
                         name: "sso",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
                         name: "swg",
                         value_type: ValueKind::Enum,
                         in_sections: &["access", "log-level"],
-                        enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                        enum_values: &[
+                            "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                 ],
@@ -8420,49 +9260,63 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "access-control",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "access-per-request",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "apm-acl",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "eca",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "paa",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "sso",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "swg",
                 value_type: ValueKind::Enum,
                 in_sections: &["access", "log-level"],
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -9380,7 +10234,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "response",
                 value_type: ValueKind::Reference,
-                references: &["api_protection_response", "apm_policy_agent_response_selection", "apm_policy_agent_server_cert_response_control", "asm_response_code", "ltm_profile_response_adapt", "sys_crypto_cert_validation_response_ocsp"],
+                references: &[
+                    "api_protection_response",
+                    "apm_policy_agent_response_selection",
+                    "apm_policy_agent_server_cert_response_control",
+                    "asm_response_code",
+                    "ltm_profile_response_adapt",
+                    "sys_crypto_cert_validation_response_ocsp",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -9397,7 +10258,27 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "server",
                 value_type: ValueKind::Reference,
-                references: &["api_protection_server", "apm_aaa_oauth_server", "apm_oauth_oauth_resource_server", "apm_policy_agent_api_server_selection", "apm_policy_agent_server_cert_response_control", "apm_policy_agent_server_cert_status", "auth_radius_server", "gtm_listener_doh_server", "gtm_monitor_real_server", "gtm_server", "ltm_auth_crldp_server", "ltm_auth_radius_server", "ltm_monitor_real_server", "ltm_profile_doh_server", "ltm_profile_server_ldap", "ltm_profile_server_ssl", "sys_crypto_server", "sys_smtp_server", "wom_server_discovery"],
+                references: &[
+                    "api_protection_server",
+                    "apm_aaa_oauth_server",
+                    "apm_oauth_oauth_resource_server",
+                    "apm_policy_agent_api_server_selection",
+                    "apm_policy_agent_server_cert_response_control",
+                    "apm_policy_agent_server_cert_status",
+                    "auth_radius_server",
+                    "gtm_listener_doh_server",
+                    "gtm_monitor_real_server",
+                    "gtm_server",
+                    "ltm_auth_crldp_server",
+                    "ltm_auth_radius_server",
+                    "ltm_monitor_real_server",
+                    "ltm_profile_doh_server",
+                    "ltm_profile_server_ldap",
+                    "ltm_profile_server_ssl",
+                    "sys_crypto_server",
+                    "sys_smtp_server",
+                    "wom_server_discovery",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -9636,15 +10517,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent api-authentication"],
         },
         header_types: &[("apm", "policy agent api-authentication")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -9741,15 +10620,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent ending-allow"],
         },
         header_types: &[("apm", "policy agent ending-allow")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -9923,13 +10800,31 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "items",
                 value_type: ValueKind::Enum,
-                enum_values: &["db-age", "db-version", "last-scan", "missing-updates", "platform", "product_id", "state", "vendor_id", "version"],
+                enum_values: &[
+                    "db-age",
+                    "db-version",
+                    "last-scan",
+                    "missing-updates",
+                    "platform",
+                    "product_id",
+                    "state",
+                    "vendor_id",
+                    "version",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Enum,
-                enum_values: &["antispyware", "antivirus", "firewall", "hard-disk-encryption", "health-agent", "patch-management", "peer-to-peer"],
+                enum_values: &[
+                    "antispyware",
+                    "antivirus",
+                    "firewall",
+                    "hard-disk-encryption",
+                    "health-agent",
+                    "patch-management",
+                    "peer-to-peer",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
         ],
@@ -10092,15 +10987,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent endpoint-machine-info"],
         },
         header_types: &[("apm", "policy agent endpoint-machine-info")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -10317,15 +11210,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent endpoint-windows-info-os"],
         },
         header_types: &[("apm", "policy agent endpoint-windows-info-os")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -10541,7 +11432,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "header-operation",
                         value_type: ValueKind::Enum,
                         in_sections: &["header-entries"],
-                        enum_values: &["header-append", "header-insert", "header-remove", "header-replace"],
+                        enum_values: &[
+                            "header-append",
+                            "header-insert",
+                            "header-remove",
+                            "header-replace",
+                        ],
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -10579,7 +11475,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "header-operation",
                 value_type: ValueKind::Enum,
                 in_sections: &["header-entries"],
-                enum_values: &["header-append", "header-insert", "header-remove", "header-replace"],
+                enum_values: &[
+                    "header-append",
+                    "header-insert",
+                    "header-remove",
+                    "header-replace",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -10600,15 +11501,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent ip-geolocation-lookup"],
         },
         header_types: &[("apm", "policy agent ip-geolocation-lookup")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -10619,15 +11518,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent ip-reputation-lookup"],
         },
         header_types: &[("apm", "policy agent ip-reputation-lookup")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -10700,15 +11597,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent l7-protocol-lookup"],
         },
         header_types: &[("apm", "policy agent l7-protocol-lookup")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -11370,15 +12265,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent request-classification"],
         },
         header_types: &[("apm", "policy agent request-classification")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -11401,7 +12294,19 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "rules",
                 value_type: ValueKind::Unknown,
                 allow_none: true,
-                references: &["gtm_rule", "ltm_cipher_rule", "ltm_global_settings_rule", "ltm_rule", "ltm_rule_profiler", "security_firewall_matching_rule", "security_firewall_on_demand_rule_deploy", "security_firewall_rule_list", "security_firewall_rule_stat", "security_packet_filter_rule_stat", "sys_file_rewrite_rule"],
+                references: &[
+                    "gtm_rule",
+                    "ltm_cipher_rule",
+                    "ltm_global_settings_rule",
+                    "ltm_rule",
+                    "ltm_rule_profiler",
+                    "security_firewall_matching_rule",
+                    "security_firewall_on_demand_rule_deploy",
+                    "security_firewall_rule_list",
+                    "security_firewall_rule_stat",
+                    "security_packet_filter_rule_stat",
+                    "sys_file_rewrite_rule",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -11498,7 +12403,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "action",
                 value_type: ValueKind::Integer,
-                default: Some("ignore which specifies that the system ignores untrusted/expired certificate and may allow the connection"),
+                default: Some(
+                    "ignore which specifies that the system ignores untrusted/expired certificate and may allow the connection",
+                ),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -11519,15 +12426,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent server-cert-status"],
         },
         header_types: &[("apm", "policy agent server-cert-status")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -11538,15 +12443,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent session-check"],
         },
         header_types: &[("apm", "policy agent session-check")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -11557,15 +12460,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["policy agent ssl-check"],
         },
         header_types: &[("apm", "policy agent ssl-check")],
-        properties: &[
-            BigipPropertySpec {
-                name: "app-service",
-                value_type: ValueKind::String,
-                allow_none: true,
-                default: Some("none"),
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "app-service",
+            value_type: ValueKind::String,
+            allow_none: true,
+            default: Some("none"),
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -11619,7 +12520,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Enum,
-                enum_values: &["citrix-smart-access", "general", "intranet-webtop", "sso-cred-mapping", "virtual-keyboard"],
+                enum_values: &[
+                    "citrix-smart-access",
+                    "general",
+                    "intranet-webtop",
+                    "sso-cred-mapping",
+                    "virtual-keyboard",
+                ],
                 default: Some("general"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -11890,7 +12797,18 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Enum,
-                enum_values: &["all", "identity-service", "ltm-apm", "oauth-resource-server", "rdg-rap", "ssl-vpn", "sso", "swg-explicit", "swg-transparent", "system-authentication"],
+                enum_values: &[
+                    "all",
+                    "identity-service",
+                    "ltm-apm",
+                    "oauth-resource-server",
+                    "rdg-rap",
+                    "ssl-vpn",
+                    "sso",
+                    "swg-explicit",
+                    "swg-transparent",
+                    "system-authentication",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -13162,7 +14080,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "compress-gzip-level",
                 value_type: ValueKind::Integer,
-                default: Some("6, which provides a higher amount of compression at the expense of more CPU processing time"),
+                default: Some(
+                    "6, which provides a higher amount of compression at the expense of more CPU processing time",
+                ),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -13217,7 +14137,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "defaults",
                 value_type: ValueKind::Reference,
                 allow_none: true,
-                references: &["ltm_default_node_monitor", "security_firewall_uuid_default_autogenerate", "security_packet_filter_default_rules", "sys_default_config"],
+                references: &[
+                    "ltm_default_node_monitor",
+                    "security_firewall_uuid_default_autogenerate",
+                    "security_packet_filter_default_rules",
+                    "sys_default_config",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -13883,7 +14808,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Enum,
-                enum_values: &["app-tunnel", "last", "network-access", "remote-desktop", "web-application"],
+                enum_values: &[
+                    "app-tunnel",
+                    "last",
+                    "network-access",
+                    "remote-desktop",
+                    "web-application",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
         ],
@@ -14641,7 +15572,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Enum,
-                enum_values: &["app-tunnel", "last", "network-access", "remote-desktop", "web-application"],
+                enum_values: &[
+                    "app-tunnel",
+                    "last",
+                    "network-access",
+                    "remote-desktop",
+                    "web-application",
+                ],
                 default: Some("network-access"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -14919,7 +15856,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "pool",
                 value_type: ValueKind::Reference,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -15153,7 +16106,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "pool",
                 value_type: ValueKind::Reference,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -15425,7 +16394,23 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "pool",
                 value_type: ValueKind::Reference,
-                references: &["analytics_lsn_pool_report", "analytics_lsn_pool_scheduled_report", "analytics_pool_traffic_report", "analytics_pool_traffic_scheduled_report", "gtm_pool_a", "gtm_pool_aaaa", "gtm_pool_cname", "gtm_pool_https", "gtm_pool_mx", "gtm_pool_naptr", "gtm_pool_srv", "gtm_pool_svcb", "gtm_prober_pool", "ltm_lsn_pool", "ltm_pool"],
+                references: &[
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -16623,7 +17608,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "log-level",
                 value_type: ValueKind::Enum,
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 usage_flags: &["deprecated"],
                 ..BigipPropertySpec::DEFAULT
             },
@@ -17228,7 +18215,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "log-level",
                 value_type: ValueKind::Enum,
-                enum_values: &["alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"],
+                enum_values: &[
+                    "alert", "crit", "debug", "emerg", "err", "info", "notice", "warn",
+                ],
                 usage_flags: &["deprecated"],
                 ..BigipPropertySpec::DEFAULT
             },
@@ -17280,7 +18269,14 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "subject-type",
                 value_type: ValueKind::Enum,
-                enum_values: &["entity", "kerberos", "persistent", "transient", "unspecified", "x509-subject"],
+                enum_values: &[
+                    "entity",
+                    "kerberos",
+                    "persistent",
+                    "transient",
+                    "unspecified",
+                    "x509-subject",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -17384,14 +18380,12 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::List,
                 allow_none: true,
                 list_operators: &["add", "delete", "modify", "replace-all-with"],
-                block: &[
-                    BigipPropertySpec {
-                        name: "url-value",
-                        value_type: ValueKind::String,
-                        in_sections: &["metadata-urls"],
-                        ..BigipPropertySpec::DEFAULT
-                    },
-                ],
+                block: &[BigipPropertySpec {
+                    name: "url-value",
+                    value_type: ValueKind::String,
+                    in_sections: &["metadata-urls"],
+                    ..BigipPropertySpec::DEFAULT
+                }],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -17740,13 +18734,11 @@ pub static SPECS: &[BigipObjectSpec] = &[
             object_types: &["apm-auth"],
         },
         header_types: &[("auth", "apm-auth")],
-        properties: &[
-            BigipPropertySpec {
-                name: "profile-access",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
+        properties: &[BigipPropertySpec {
+            name: "profile-access",
+            value_type: ValueKind::String,
+            ..BigipPropertySpec::DEFAULT
+        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -17813,7 +18805,16 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "filter",
                 value_type: ValueKind::Reference,
                 allow_none: true,
-                references: &["apm_url_filter", "net_packet_filter", "net_packet_filter_trusted", "security_packet_filter_default_rules", "security_packet_filter_policy", "security_packet_filter_rule_stat", "sys_air_filter_reset", "sys_log_config_filter"],
+                references: &[
+                    "apm_url_filter",
+                    "net_packet_filter",
+                    "net_packet_filter_trusted",
+                    "security_packet_filter_default_rules",
+                    "security_packet_filter_policy",
+                    "security_packet_filter_rule_stat",
+                    "sys_air_filter_reset",
+                    "sys_log_config_filter",
+                ],
                 default: Some("none"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -17864,7 +18865,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "port",
                 value_type: ValueKind::Reference,
-                references: &["net_port_list", "net_port_mirror", "security_firewall_port_list", "security_firewall_port_misuse_policy", "sys_log_config_destination_management_port"],
+                references: &[
+                    "net_port_list",
+                    "net_port_mirror",
+                    "security_firewall_port_list",
+                    "security_firewall_port_misuse_policy",
+                    "sys_log_config_destination_management_port",
+                ],
                 default: Some("ldap"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18050,7 +19057,16 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "filter",
                 value_type: ValueKind::Reference,
                 allow_none: true,
-                references: &["apm_url_filter", "net_packet_filter", "net_packet_filter_trusted", "security_packet_filter_default_rules", "security_packet_filter_policy", "security_packet_filter_rule_stat", "sys_air_filter_reset", "sys_log_config_filter"],
+                references: &[
+                    "apm_url_filter",
+                    "net_packet_filter",
+                    "net_packet_filter_trusted",
+                    "security_packet_filter_default_rules",
+                    "security_packet_filter_policy",
+                    "security_packet_filter_rule_stat",
+                    "sys_air_filter_reset",
+                    "sys_log_config_filter",
+                ],
                 default: Some("none"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18104,7 +19120,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "port",
                 value_type: ValueKind::Reference,
-                references: &["net_port_list", "net_port_mirror", "security_firewall_port_list", "security_firewall_port_misuse_policy", "sys_log_config_destination_management_port"],
+                references: &[
+                    "net_port_list",
+                    "net_port_mirror",
+                    "security_firewall_port_list",
+                    "security_firewall_port_misuse_policy",
+                    "sys_log_config_destination_management_port",
+                ],
                 default: Some("ldap"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18388,7 +19410,20 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "service-type",
                 value_type: ValueKind::Enum,
-                enum_values: &["administrative", "authenticate-only", "call-check", "callback-administrative", "callback-framed", "callback-login", "callback-nas-promit", "default", "framed", "login", "nas-prompt", "outbound"],
+                enum_values: &[
+                    "administrative",
+                    "authenticate-only",
+                    "call-check",
+                    "callback-administrative",
+                    "callback-framed",
+                    "callback-login",
+                    "callback-nas-promit",
+                    "default",
+                    "framed",
+                    "login",
+                    "nas-prompt",
+                    "outbound",
+                ],
                 default: Some("default, which behaves as authenticate-only"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18419,7 +19454,13 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "port",
                 value_type: ValueKind::Reference,
-                references: &["net_port_list", "net_port_mirror", "security_firewall_port_list", "security_firewall_port_misuse_policy", "sys_log_config_destination_management_port"],
+                references: &[
+                    "net_port_list",
+                    "net_port_mirror",
+                    "security_firewall_port_list",
+                    "security_firewall_port_misuse_policy",
+                    "sys_log_config_destination_management_port",
+                ],
                 default: Some("1812"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18507,7 +19548,26 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         name: "role",
                         value_type: ValueKind::Enum,
                         in_sections: &["role-info"],
-                        enum_values: &["acceleration-policy-editor", "admin", "application-editor", "auditor", "certificate-manager", "firewall-manager", "fraud-protection-manager", "guest", "irule-manager", "log-manager", "manager", "no-access", "operator", "resource-admin", "user-manager", "web-application-security-administrator", "web-application-security-editor", "web-application-security-operations-administrator"],
+                        enum_values: &[
+                            "acceleration-policy-editor",
+                            "admin",
+                            "application-editor",
+                            "auditor",
+                            "certificate-manager",
+                            "firewall-manager",
+                            "fraud-protection-manager",
+                            "guest",
+                            "irule-manager",
+                            "log-manager",
+                            "manager",
+                            "no-access",
+                            "operator",
+                            "resource-admin",
+                            "user-manager",
+                            "web-application-security-administrator",
+                            "web-application-security-editor",
+                            "web-application-security-operations-administrator",
+                        ],
                         default: Some("no-access"),
                         ..BigipPropertySpec::DEFAULT
                     },
@@ -18563,7 +19623,26 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "role",
                 value_type: ValueKind::Enum,
                 in_sections: &["role-info"],
-                enum_values: &["acceleration-policy-editor", "admin", "application-editor", "auditor", "certificate-manager", "firewall-manager", "fraud-protection-manager", "guest", "irule-manager", "log-manager", "manager", "no-access", "operator", "resource-admin", "user-manager", "web-application-security-administrator", "web-application-security-editor", "web-application-security-operations-administrator"],
+                enum_values: &[
+                    "acceleration-policy-editor",
+                    "admin",
+                    "application-editor",
+                    "auditor",
+                    "certificate-manager",
+                    "firewall-manager",
+                    "fraud-protection-manager",
+                    "guest",
+                    "irule-manager",
+                    "log-manager",
+                    "manager",
+                    "no-access",
+                    "operator",
+                    "resource-admin",
+                    "user-manager",
+                    "web-application-security-administrator",
+                    "web-application-security-editor",
+                    "web-application-security-operations-administrator",
+                ],
                 default: Some("no-access"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18596,7 +19675,25 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "default-role",
                 value_type: ValueKind::Enum,
-                enum_values: &["acceleration-policy-editor", "admin", "application-editor", "auditor", "firewall-manager", "fraud-protection-manager", "guest", "irule-manager", "log-manager", "manager", "no-access", "operator", "resource-admin", "user-manager", "web-application-security-administrator", "web-application-security-editor", "web-application-security-operations-administrator"],
+                enum_values: &[
+                    "acceleration-policy-editor",
+                    "admin",
+                    "application-editor",
+                    "auditor",
+                    "firewall-manager",
+                    "fraud-protection-manager",
+                    "guest",
+                    "irule-manager",
+                    "log-manager",
+                    "manager",
+                    "no-access",
+                    "operator",
+                    "resource-admin",
+                    "user-manager",
+                    "web-application-security-administrator",
+                    "web-application-security-editor",
+                    "web-application-security-operations-administrator",
+                ],
                 default: Some("no-access"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18635,7 +19732,15 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "type",
                 value_type: ValueKind::Enum,
-                enum_values: &["active-directory", "apm-auth", "cert-ldap", "ldap", "local", "radius", "tacacs"],
+                enum_values: &[
+                    "active-directory",
+                    "apm-auth",
+                    "cert-ldap",
+                    "ldap",
+                    "local",
+                    "radius",
+                    "tacacs",
+                ],
                 default: Some("local"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -18717,7 +19822,19 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::Reference,
                 required: true,
                 allow_none: true,
-                references: &["analytics_ssl_orchestrator_service_virtual_report", "analytics_ssl_orchestrator_service_virtual_scheduled_report", "apm_aaa_f5_service_connector", "apm_saml_artifact_resolution_service", "apm_saml_attribute_consuming_service", "net_service_policy", "pem_service_chain_endpoint", "security_bot_defense_micro_service", "security_protocol_inspection_service", "sys_application_service", "sys_service"],
+                references: &[
+                    "analytics_ssl_orchestrator_service_virtual_report",
+                    "analytics_ssl_orchestrator_service_virtual_scheduled_report",
+                    "apm_aaa_f5_service_connector",
+                    "apm_saml_artifact_resolution_service",
+                    "apm_saml_attribute_consuming_service",
+                    "net_service_policy",
+                    "pem_service_chain_endpoint",
+                    "security_bot_defense_micro_service",
+                    "security_protocol_inspection_service",
+                    "sys_application_service",
+                    "sys_service",
+                ],
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

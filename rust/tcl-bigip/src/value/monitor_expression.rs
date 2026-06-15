@@ -263,15 +263,13 @@ impl<'a> IntoIterator for &'a MonitorExpression {
 
 impl fmt::Display for MonitorExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.raw.is_empty() {
-            if let Some(reparsed) = MonitorExpression::try_parse(&self.raw) {
-                if reparsed.mode == self.mode
-                    && reparsed.monitors == self.monitors
-                    && reparsed.minimum == self.minimum
-                {
-                    return f.write_str(&self.raw);
-                }
-            }
+        if !self.raw.is_empty()
+            && let Some(reparsed) = MonitorExpression::try_parse(&self.raw)
+            && reparsed.mode == self.mode
+            && reparsed.monitors == self.monitors
+            && reparsed.minimum == self.minimum
+        {
+            return f.write_str(&self.raw);
         }
         match self.mode {
             MonitorMode::Default => f.write_str("default"),

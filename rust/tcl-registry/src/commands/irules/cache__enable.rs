@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CACHE::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Forces the document to be cached.",
             synopsis: &["CACHE::enable"],
             snippet: "Forces the document to be cached. You can also use this command to\ncache non-GET requests.\n\nNote: Should be used with extreme caution, as it allows caching of content marked private by server.\n\nCACHE::enable\n\n     * Forces the document to be cached.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CACHE::enable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CACHE::enable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "XLAT::src_nat_valid_range",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Return a list of valid source-translation endpoint ranges.",
             synopsis: &["XLAT::src_nat_valid_range"],
             snippet: "Returns a list of lists containing valid source-translation addresses and port-ranges (source-translation endpoints). This command must be called every time a new connection/listener needs to be created to retrieve the valid source translation information. This data must not be cached. Only the source-translation address used by the parent with a valid port-range is returned, not all of the endpoints in the source-translation object/pool. In PBA mode multiple source-translation addresses and port-ranges can be returned if the client has multiple active blocks.",
@@ -28,17 +28,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "XLAT::src_nat_valid_range" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LsnState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "XLAT::src_nat_valid_range",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LsnState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

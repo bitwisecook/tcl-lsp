@@ -25,7 +25,7 @@ use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
-use crate::tcl_expr_eval::{eval_tcl_expr, Env, EnvValue, TclValue};
+use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr};
 
 // ---------------------------------------------------------------------------
 // Public aliases (C25a)
@@ -727,10 +727,8 @@ pub fn evaluate_branch(
             continue;
         }
         let v0_live = ssa_block.exit_versions.get(&name).copied().unwrap_or(0) == 0;
-        if v0_live {
-            if let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), 0)) {
-                env.insert(name, const_to_env_value(c));
-            }
+        if v0_live && let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), 0)) {
+            env.insert(name, const_to_env_value(c));
         }
     }
     let v = eval_tcl_expr(condition, &env)?;
@@ -864,10 +862,11 @@ fn fold_assign_value(
         return resolved;
     }
     // Command substitution.
-    if stripped.starts_with('[') && stripped.ends_with(']') {
-        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values) {
-            return lv;
-        }
+    if stripped.starts_with('[')
+        && stripped.ends_with(']')
+        && let Some(lv) = try_fold_cmd_subst(stripped, uses, values)
+    {
+        return lv;
     }
     LatticeValue::Overdefined
 }
@@ -918,11 +917,11 @@ fn try_fold_cmd_subst(
     if cmd == "string" {
         if let Some(after_cmd) = rest {
             let (sub, sub_rest) = split_head(after_cmd.trim());
-            if sub == "length" {
-                if let Some(arg) = sub_rest.map(|s| strip_one_level(s.trim())) {
-                    let len = i64::try_from(arg.chars().count()).unwrap_or(i64::MAX);
-                    return Some(LatticeValue::Const(ConstValue::Int(len)));
-                }
+            if sub == "length"
+                && let Some(arg) = sub_rest.map(|s| strip_one_level(s.trim()))
+            {
+                let len = i64::try_from(arg.chars().count()).unwrap_or(i64::MAX);
+                return Some(LatticeValue::Const(ConstValue::Int(len)));
             }
         }
         return None;

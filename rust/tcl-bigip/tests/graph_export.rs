@@ -2,7 +2,7 @@
 //! `graph_export.export_graph`, on a drift-free fixture (so the Rust and Python
 //! edge sets are identical and the serialised text matches exactly).
 
-use tcl_bigip::graph::{build_bigip_object_graph, export_graph, GraphContext};
+use tcl_bigip::graph::{GraphContext, build_bigip_object_graph, export_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]

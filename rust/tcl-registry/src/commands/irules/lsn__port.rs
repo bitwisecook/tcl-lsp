@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "LSN::port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Explicitly set the translation address regardless of the configured LSN pool.",
             synopsis: &["LSN::port TRANSLATION_PORT"],
             snippet: "Explicitly set the translation address regardless of the configured LSN pool.\n\nThe LSN::port command can be used while processing CLIENT_DATA. This event can occur before and after address translation. If this command is used after translation has occurred an error is thrown.\n\nLSN::port <translation_port>",
@@ -42,17 +42,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "LSN::port TRANSLATION_PORT" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LsnState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "LSN::port TRANSLATION_PORT",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LsnState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

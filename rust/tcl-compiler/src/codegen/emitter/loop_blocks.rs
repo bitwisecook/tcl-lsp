@@ -60,18 +60,18 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
             continue;
         };
         for stmt in &blk.statements {
-            if let Statement::Call { command, args, .. } = stmt {
-                if command == "foreach" || command == "lmap" {
-                    info.insert(
-                        bn.clone(),
-                        ForeachInfo {
-                            body: true_target.clone(),
-                            end: false_target.clone(),
-                            list_args: args.clone(),
-                        },
-                    );
-                    break;
-                }
+            if let Statement::Call { command, args, .. } = stmt
+                && (command == "foreach" || command == "lmap")
+            {
+                info.insert(
+                    bn.clone(),
+                    ForeachInfo {
+                        body: true_target.clone(),
+                        end: false_target.clone(),
+                        list_args: args.clone(),
+                    },
+                );
+                break;
             }
         }
     }

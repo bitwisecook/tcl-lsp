@@ -491,10 +491,10 @@ fn intervening_is_safe(
             _ => {}
         }
         // A redefinition of any read name invalidates the forward.
-        if let Some(sb) = ssa_block.statements.get(idx) {
-            if def_read_names.iter().any(|n| sb.defs.contains_key(n)) {
-                return false;
-            }
+        if let Some(sb) = ssa_block.statements.get(idx)
+            && def_read_names.iter().any(|n| sb.defs.contains_key(n))
+        {
+            return false;
         }
     }
     true
@@ -819,16 +819,16 @@ fn try_fold_return_terminator(
                 .strip_prefix('{')
                 .and_then(|b| b.strip_suffix('}'))
                 .unwrap_or(body);
-            if let Some(folded) = super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect) {
-                if !folded.contains(['$', '[']) {
-                    ctx.report(Optimisation::new(
-                        "O101",
-                        "Fold constant expression",
-                        span,
-                        format!("return {}", render_propagation_word(&folded)),
-                    ));
-                    return;
-                }
+            if let Some(folded) = super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                && !folded.contains(['$', '['])
+            {
+                ctx.report(Optimisation::new(
+                    "O101",
+                    "Fold constant expression",
+                    span,
+                    format!("return {}", render_propagation_word(&folded)),
+                ));
+                return;
             }
         }
     }
@@ -885,7 +885,7 @@ fn try_substitute_assign_expr(
     };
     use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr;
-    use crate::tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env};
+    use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
 
     if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
         return;
@@ -1010,16 +1010,15 @@ fn visit_call_cmd_subst_folds(
                     .unwrap_or(body);
                 if let Some(folded) =
                     super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                    && !folded.contains(['$', '['])
                 {
-                    if !folded.contains(['$', '[']) {
-                        ctx.report(Optimisation::new(
-                            "O101",
-                            "Fold constant expression",
-                            full_word_span(ctx.source, *argv_span),
-                            folded,
-                        ));
-                        continue;
-                    }
+                    ctx.report(Optimisation::new(
+                        "O101",
+                        "Fold constant expression",
+                        full_word_span(ctx.source, *argv_span),
+                        folded,
+                    ));
+                    continue;
                 }
             }
         }
@@ -1027,26 +1026,25 @@ fn visit_call_cmd_subst_folds(
         // through the registry `const_fold` callback (no interproc
         // needed). Checked before the O103 interproc bail so it fires
         // even when no interprocedural summary is available.
-        if let Some(reg) = ctx.registry {
-            if let Some(folded) =
+        if let Some(reg) = ctx.registry
+            && let Some(folded) =
                 try_o129_fold(reg, &ctx.command_mutations, constants, inner, ctx.dialect)
-            {
-                // `list` / `lindex` keep their historical diagnostic codes
-                // (O116 / O118) for editor granularity; everything else reports
-                // the general O129.  Mirrors `_propagation.py:335`.
-                let (code, message) = match inner.split_whitespace().next() {
-                    Some("list") => ("O116", "Fold constant list command"),
-                    Some("lindex") => ("O118", "Fold constant lindex command"),
-                    _ => ("O129", "Fold constant builtin command substitution"),
-                };
-                ctx.report(Optimisation::new(
-                    code,
-                    message,
-                    full_word_span(ctx.source, *argv_span),
-                    folded,
-                ));
-                continue;
-            }
+        {
+            // `list` / `lindex` keep their historical diagnostic codes
+            // (O116 / O118) for editor granularity; everything else reports
+            // the general O129.  Mirrors `_propagation.py:335`.
+            let (code, message) = match inner.split_whitespace().next() {
+                Some("list") => ("O116", "Fold constant list command"),
+                Some("lindex") => ("O118", "Fold constant lindex command"),
+                _ => ("O129", "Fold constant builtin command substitution"),
+            };
+            ctx.report(Optimisation::new(
+                code,
+                message,
+                full_word_span(ctx.source, *argv_span),
+                folded,
+            ));
+            continue;
         }
         // O103 (below) folds a pure-proc cmd-sub to its constant return.
         let Some(ia) = cu.interproc.as_ref() else {
@@ -1689,9 +1687,10 @@ mod tests {
         assert_eq!(opts[0].group, opts[1].group);
         assert!(opts[0].group.is_some());
         // One edit inlines `[set x [llength $y]]`; the other deletes.
-        assert!(opts
-            .iter()
-            .any(|o| o.replacement.contains("[set x [llength $y]]")));
+        assert!(
+            opts.iter()
+                .any(|o| o.replacement.contains("[set x [llength $y]]"))
+        );
         assert!(opts.iter().any(|o| o.replacement.is_empty()));
     }
 

@@ -515,8 +515,8 @@ impl Analyser {
     /// registry build when the cache is cold so the recovery
     /// path doesn't need exclusive access to the analyser.
     fn builtin_command_names_const(&self) -> std::collections::HashSet<String> {
-        use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
+        use tcl_registry::prelude::DialectSet;
         if let Some(cached) = self.builtin_names.as_ref() {
             return cached.clone();
         }
@@ -563,17 +563,17 @@ fn find_stray_close_bracket(tokens: &[Token], source: &str) -> Option<(usize, us
         }
         let text = &source[start..end];
         // ``]`` must be the trailing character.
-        if let Some(idx) = text.rfind(']') {
-            if idx == text.len() - 1 {
-                // Char index within the token (relative to
-                // span start, not content start) — the Python
-                // code computes ``idx == len(tok.text) - 1``
-                // and then offsets from ``tok.start.offset``;
-                // mirror that arithmetic by adding the content
-                // offset back.
-                let char_idx = idx + tok.content_offset as usize;
-                return Some((ti, char_idx));
-            }
+        if let Some(idx) = text.rfind(']')
+            && idx == text.len() - 1
+        {
+            // Char index within the token (relative to
+            // span start, not content start) — the Python
+            // code computes ``idx == len(tok.text) - 1``
+            // and then offsets from ``tok.start.offset``;
+            // mirror that arithmetic by adding the content
+            // offset back.
+            let char_idx = idx + tok.content_offset as usize;
+            return Some((ti, char_idx));
         }
     }
     None
@@ -637,10 +637,10 @@ pub fn looks_like_switch_case(
         return false;
     }
     // Body must be brace-quoted (Str) or fall-through dash.
-    if let Some(last_tok) = cmd.argv.last() {
-        if last_tok.kind == TokenType::Str {
-            return true;
-        }
+    if let Some(last_tok) = cmd.argv.last()
+        && last_tok.kind == TokenType::Str
+    {
+        return true;
     }
     cmd.texts.last().map(String::as_str) == Some("-")
 }

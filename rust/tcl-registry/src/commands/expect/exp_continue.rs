@@ -18,7 +18,7 @@ pub fn spec() -> CommandSpec {
         name: "exp_continue",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::new(0, 1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Continue matching within an expect body instead of returning.",
             synopsis: &["exp_continue ?-continue_timer?"],
             snippet: "Used inside an ``expect`` body to re-enter the pattern matching loop. With ``-continue_timer``, the timeout timer is not restarted.",

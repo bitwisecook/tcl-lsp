@@ -14,10 +14,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a decimal string giving the time at which file name was last accessed.",
         synopsis: "file atime name ?time?",
         return_type: Some(TclType::Int),
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: true, writes: true, connection_side: ConnectionSide::None },
-        ],
-..SubCommand::DEFAULT
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "attributes",
@@ -48,20 +51,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
         ],
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: false, writes: true, connection_side: ConnectionSide::None },
-        ],
-..SubCommand::DEFAULT
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "delete",
@@ -76,21 +82,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
         ],
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: false, writes: true, connection_side: ConnectionSide::None },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
         destructive: true,
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "dirname",
@@ -99,8 +108,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file dirname name",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "executable",
@@ -125,8 +134,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file extension name",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "home",
@@ -135,8 +144,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file home ?username?",
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL90),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "isdirectory",
@@ -164,8 +173,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // GAP-D2: `[file join]` yields a portable (but not
         // canonicalised) path. Mirrors `tcl/file.py`.
         taint_transform: Some(TaintColour::PATH_JOINED),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "link",
@@ -179,15 +188,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
             OptionSpec {
                 name: "-hard",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
         ],
         ..SubCommand::DEFAULT
     },
@@ -198,11 +207,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file lstat name ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: true, writes: false, connection_side: ConnectionSide::None },
-            SideEffect { target: SideEffectTarget::Variable, reads: false, writes: true, connection_side: ConnectionSide::None },
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FileIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::None,
+            },
+            SideEffect {
+                target: SideEffectTarget::Variable,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
         ],
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "mkdir",
@@ -211,11 +230,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file mkdir ?dir ...?",
         return_type: Some(TclType::String),
         mutator: true,
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: false, writes: true, connection_side: ConnectionSide::None },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
         destructive: true,
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "mtime",
@@ -223,10 +245,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns a decimal string giving the time at which file name was last modified.",
         synopsis: "file mtime name ?time?",
         return_type: Some(TclType::Int),
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: true, writes: true, connection_side: ConnectionSide::None },
-        ],
-..SubCommand::DEFAULT
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "nativename",
@@ -235,8 +260,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file nativename name",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "normalize",
@@ -247,8 +272,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // GAP-D2: `[file normalize]` canonicalises the path
         // (traversal-safe). Mirrors `tcl/file.py`.
         taint_transform: Some(TaintColour::PATH_NORMALISED),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "owned",
@@ -281,8 +306,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the value of the symbolic link given by name.",
         synopsis: "file readlink name",
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "rename",
@@ -297,21 +322,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
             OptionSpec {
                 name: "--",
                 takes_value: false,
                 value_hint: "",
                 detail: "",
-            dialects: None,
-        },
+                dialects: None,
+            },
         ],
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: false, writes: true, connection_side: ConnectionSide::None },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
         destructive: true,
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "rootname",
@@ -320,8 +348,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file rootname name",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "separator",
@@ -356,11 +384,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file stat name ?varName?",
         return_type: Some(TclType::String),
         arg_roles: &[(1, ArgRole::VarWrite)],
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: true, writes: false, connection_side: ConnectionSide::None },
-            SideEffect { target: SideEffectTarget::Variable, reads: false, writes: true, connection_side: ConnectionSide::None },
+        side_effects: &[
+            SideEffect {
+                target: SideEffectTarget::FileIo,
+                reads: true,
+                writes: false,
+                connection_side: ConnectionSide::None,
+            },
+            SideEffect {
+                target: SideEffectTarget::Variable,
+                reads: false,
+                writes: true,
+                connection_side: ConnectionSide::None,
+            },
         ],
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "system",
@@ -377,8 +415,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file tail name",
         pure: true,
         return_type: Some(TclType::String),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "tempdir",
@@ -388,11 +426,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         mutator: true,
         dialects: Some(DialectSet::TCL90),
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: false, writes: true, connection_side: ConnectionSide::None },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
         returns_path: true,
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "tempfile",
@@ -403,11 +444,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_roles: &[(0, ArgRole::VarWrite)],
         dialects: Some(DialectSet::TCL86_PLUS),
-                side_effects: &[
-            SideEffect { target: SideEffectTarget::FileIo, reads: false, writes: true, connection_side: ConnectionSide::None },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::None,
+        }],
         returns_path: true,
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "tildeexpand",
@@ -416,8 +460,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file tildeexpand name",
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL90),
-                returns_path: true,
-..SubCommand::DEFAULT
+        returns_path: true,
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "type",

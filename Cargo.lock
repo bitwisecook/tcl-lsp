@@ -1317,6 +1317,7 @@ dependencies = [
  "sha2",
  "tar",
  "tcl-bigip",
+ "temp-env",
  "thiserror",
 ]
 
@@ -1359,6 +1360,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+ "temp-env",
  "thiserror",
  "unicode-general-category",
 ]
@@ -1434,6 +1436,7 @@ dependencies = [
  "tcl-lsp-core",
  "tcl-lsp-db",
  "tcl-registry",
+ "temp-env",
  "tokio",
  "tower-lsp",
 ]
@@ -1452,6 +1455,15 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
  "tcl-lexer",
+]
+
+[[package]]
+name = "temp-env"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
+dependencies = [
+ "parking_lot",
 ]
 
 [[package]]

@@ -15,8 +15,7 @@ pub const fn spec() -> CommandSpec {
             ],
             snippet: "Returns the accumulated SIP data content.",
             source: "https://clouddocs.f5.com/api/irules/SIP__payload.html",
-            examples:
-                "when SIP_REQUEST {\n    log local0. \"unmodified request [SIP::payload]\"\n}",
+            examples: "when SIP_REQUEST {\n    log local0. \"unmodified request [SIP::payload]\"\n}",
             return_value: "Returns the SIP data accumulated so far",
         }),
         event_requires: Some(EventRequires {

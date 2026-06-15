@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CACHE::priority",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Adds a priority to cached documents.",
             synopsis: &["CACHE::priority CACHE_PRIORITY"],
             snippet: "Assigns a priority to cached documents. The priority value can be\nbetween 1 and 10 inclusive. This command allows users to designate\ndocuments that are costly to produce as being more important than\nothers to cache. This is particularly useful when you have a document\nthat is not requested often, but is expensive to produce (such as a\nserver-compressed document.) By increasing the priority, you are\nincreasing its likelihood of being served from the cache\n\nThe default priority value for entries in the cache is zero (0 = cache\npriority disabled).\n\nCACHE::priority <1 ..",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CACHE::priority CACHE_PRIORITY" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CACHE::priority CACHE_PRIORITY",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

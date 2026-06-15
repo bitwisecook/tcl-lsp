@@ -31,8 +31,8 @@ const fn count_taint_sources(specs: &[CommandSpec]) -> usize {
 /// Build the taint-source index at compile time by scanning the const
 /// [`crate::commands::irules::IRULES_SPECS`] array for every spec's
 /// [`crate::CommandSpec::taint_source`].
-const fn build_taint_source_index(
-) -> [(&'static str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] {
+const fn build_taint_source_index()
+-> [(&'static str, crate::taint::TaintColour); TAINT_SOURCE_COUNT] {
     let specs = crate::commands::irules::IRULES_SPECS;
     let mut out = [("", crate::taint::TaintColour::empty()); TAINT_SOURCE_COUNT];
     let mut i = 0;
@@ -257,10 +257,10 @@ impl CommandRegistry {
                 if spec.excluded_events.contains(&event) {
                     return None;
                 }
-                if let Some(req) = spec.event_requires.as_ref() {
-                    if !crate::events::event_satisfies(props, req, event, profiles) {
-                        return None;
-                    }
+                if let Some(req) = spec.event_requires.as_ref()
+                    && !crate::events::event_satisfies(props, req, event, profiles)
+                {
+                    return None;
                 }
                 Some(name.as_str())
             })
@@ -343,26 +343,27 @@ impl CommandRegistry {
         let n = args.len();
 
         // Check subcommand
-        if !spec.subcommands.is_empty() && !args.is_empty() {
-            if let Some(sub) = spec.subcommand(args[0]) {
-                // Try dynamic resolver first
-                if let Some(resolver) = sub.arg_role_resolver {
-                    return resolver(&args[1..])
-                        .into_iter()
-                        .filter(|(_, r)| *r == role)
-                        .map(|(i, _)| i as usize + 1) // +1 for subcommand word
-                        .filter(|&idx| idx < n)
-                        .collect();
-                }
-                // Static roles (offset by +1 for subcommand word)
-                return sub
-                    .arg_roles
-                    .iter()
+        if !spec.subcommands.is_empty()
+            && !args.is_empty()
+            && let Some(sub) = spec.subcommand(args[0])
+        {
+            // Try dynamic resolver first
+            if let Some(resolver) = sub.arg_role_resolver {
+                return resolver(&args[1..])
+                    .into_iter()
                     .filter(|(_, r)| *r == role)
-                    .map(|(i, _)| *i as usize + 1)
+                    .map(|(i, _)| i as usize + 1) // +1 for subcommand word
                     .filter(|&idx| idx < n)
                     .collect();
             }
+            // Static roles (offset by +1 for subcommand word)
+            return sub
+                .arg_roles
+                .iter()
+                .filter(|(_, r)| *r == role)
+                .map(|(i, _)| *i as usize + 1)
+                .filter(|&idx| idx < n)
+                .collect();
         }
 
         // Top-level: try dynamic resolver first
@@ -415,27 +416,26 @@ impl CommandRegistry {
             codegen_hook: spec.codegen_hook,
         };
 
-        if !spec.subcommands.is_empty() {
-            if let Some(first) = args.first() {
-                if let Some(sub) = spec.subcommand(first) {
-                    // Re-slice rather than allocating a fresh `Vec<&str>`
-                    // — `resolve_call` is on the lowering / codegen /
-                    // analysis hot path.
-                    let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
-                    let form = pick_form(sub.subcommand_forms, sub_args, dialect);
-                    resolved.sub = Some(sub);
-                    resolved.lowering_hook = form
-                        .and_then(|f| f.lowering_hook)
-                        .or(sub.lowering_hook)
-                        .or(spec.lowering_hook);
-                    resolved.codegen_hook = form
-                        .and_then(|f| f.codegen_hook)
-                        .or(sub.codegen_hook)
-                        .or(spec.codegen_hook);
-                    resolved.form = form;
-                    return Some(resolved);
-                }
-            }
+        if !spec.subcommands.is_empty()
+            && let Some(first) = args.first()
+            && let Some(sub) = spec.subcommand(first)
+        {
+            // Re-slice rather than allocating a fresh `Vec<&str>`
+            // — `resolve_call` is on the lowering / codegen /
+            // analysis hot path.
+            let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
+            let form = pick_form(sub.subcommand_forms, sub_args, dialect);
+            resolved.sub = Some(sub);
+            resolved.lowering_hook = form
+                .and_then(|f| f.lowering_hook)
+                .or(sub.lowering_hook)
+                .or(spec.lowering_hook);
+            resolved.codegen_hook = form
+                .and_then(|f| f.codegen_hook)
+                .or(sub.codegen_hook)
+                .or(spec.codegen_hook);
+            resolved.form = form;
+            return Some(resolved);
         }
 
         let form = pick_form(spec.command_forms, args, dialect);
@@ -493,17 +493,16 @@ impl CommandRegistry {
         let warn_flag = spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR);
 
         // Subcommand-scoped first.
-        if let Some(first) = args.first() {
-            if let Some(sub) = spec.subcommand(first) {
-                if sub.options.iter().any(|o| o.name == "--") {
-                    return Some(ResolvedTerminator {
-                        scan_start: 1,
-                        subcommand: Some(sub.name),
-                        options: sub.options,
-                        warn_without_terminator: warn_flag,
-                    });
-                }
-            }
+        if let Some(first) = args.first()
+            && let Some(sub) = spec.subcommand(first)
+            && sub.options.iter().any(|o| o.name == "--")
+        {
+            return Some(ResolvedTerminator {
+                scan_start: 1,
+                subcommand: Some(sub.name),
+                options: sub.options,
+                warn_without_terminator: warn_flag,
+            });
         }
 
         // Form-level fallback — Python iterates `spec.forms`; the
@@ -545,10 +544,10 @@ impl CommandRegistry {
         }
         // Compound form ``"cmd sub"`` — split into head + sub.
         if let Some((head, sub_name)) = name.split_once(' ') {
-            if let Some(spec) = self.get(head) {
-                if let Some(sub) = spec.subcommand(sub_name) {
-                    return sub.return_type == Some(crate::types::TclType::List);
-                }
+            if let Some(spec) = self.get(head)
+                && let Some(sub) = spec.subcommand(sub_name)
+            {
+                return sub.return_type == Some(crate::types::TclType::List);
             }
             return false;
         }
@@ -1113,11 +1112,12 @@ mod tests {
         }
         // `set` does NOT carry the trait — its VarWrite at arg 0 is
         // a single-target def, not a vararg list.
-        assert!(!reg
-            .get("set")
-            .unwrap()
-            .traits
-            .contains(Traits::CREATES_DYNAMIC_BARRIER));
+        assert!(
+            !reg.get("set")
+                .unwrap()
+                .traits
+                .contains(Traits::CREATES_DYNAMIC_BARRIER)
+        );
     }
 
     /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
@@ -1317,9 +1317,10 @@ mod tests {
     #[test]
     fn resolve_call_unknown_command_returns_none() {
         let reg = CommandRegistry::build_default();
-        assert!(reg
-            .resolve_call("no_such_cmd", &[], DialectSet::empty())
-            .is_none());
+        assert!(
+            reg.resolve_call("no_such_cmd", &[], DialectSet::empty())
+                .is_none()
+        );
     }
 
     #[test]
@@ -1347,9 +1348,10 @@ mod tests {
     fn resolve_call_dialect_filter_blocks_tcl84_dict() {
         let reg = CommandRegistry::build_default();
         // dict is tcl8.5+; resolving against tcl8.4 must fail.
-        assert!(reg
-            .resolve_call("dict", &["create"], DialectSet::TCL84)
-            .is_none());
+        assert!(
+            reg.resolve_call("dict", &["create"], DialectSet::TCL84)
+                .is_none()
+        );
     }
 
     #[test]
@@ -1405,18 +1407,20 @@ mod tests {
     #[test]
     fn resolve_option_terminator_returns_none_for_unknown_command() {
         let reg = CommandRegistry::build_default();
-        assert!(reg
-            .resolve_option_terminator("unknownthing", &[], DialectSet::empty())
-            .is_none());
+        assert!(
+            reg.resolve_option_terminator("unknownthing", &[], DialectSet::empty())
+                .is_none()
+        );
     }
 
     #[test]
     fn resolve_option_terminator_returns_none_for_command_without_terminator() {
         let reg = CommandRegistry::build_default();
         // ``set`` does not declare a ``--`` terminator option.
-        assert!(reg
-            .resolve_option_terminator("set", &["x", "1"], DialectSet::empty())
-            .is_none());
+        assert!(
+            reg.resolve_option_terminator("set", &["x", "1"], DialectSet::empty())
+                .is_none()
+        );
     }
 
     #[test]
@@ -1432,14 +1436,18 @@ mod tests {
         // ``-start`` takes a value; ``-nocase`` does not.  The
         // resolver returns the borrowed options slice; callers
         // filter via ``OptionSpec::takes_value``.
-        assert!(profile
-            .options
-            .iter()
-            .any(|o| o.name == "-start" && o.takes_value));
-        assert!(profile
-            .options
-            .iter()
-            .any(|o| o.name == "-nocase" && !o.takes_value));
+        assert!(
+            profile
+                .options
+                .iter()
+                .any(|o| o.name == "-start" && o.takes_value)
+        );
+        assert!(
+            profile
+                .options
+                .iter()
+                .any(|o| o.name == "-nocase" && !o.takes_value)
+        );
     }
 
     #[test]

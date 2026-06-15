@@ -943,14 +943,16 @@ mod tests {
         assert_eq!(sets.len(), 1);
         let set = &sets[0];
         // Global and Local kinds for the same name merge.
-        assert!(set
-            .locations
-            .iter()
-            .any(|l| l.kind == MemoryLocationKind::Global));
-        assert!(set
-            .locations
-            .iter()
-            .any(|l| l.kind == MemoryLocationKind::Local));
+        assert!(
+            set.locations
+                .iter()
+                .any(|l| l.kind == MemoryLocationKind::Global)
+        );
+        assert!(
+            set.locations
+                .iter()
+                .any(|l| l.kind == MemoryLocationKind::Local)
+        );
         assert!(set.reason.contains("global"));
     }
 

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MQTT::return_code",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get or set return-code field of MQTT CONNACK message.",
             synopsis: &["MQTT::return_code (RETURN_CODE)?"],
             snippet: "This command can be used to get or set return-code field of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    CONNACK",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MQTT::return_code (RETURN_CODE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MQTT::return_code (RETURN_CODE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

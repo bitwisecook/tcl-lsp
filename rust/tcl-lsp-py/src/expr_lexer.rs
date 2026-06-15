@@ -3,7 +3,7 @@
 use pyo3::prelude::*;
 
 use tcl_lexer::{
-    tokenise_expr as core_tokenise, ExprToken as CoreExprToken, ExprTokenType as CoreExprTokenType,
+    ExprToken as CoreExprToken, ExprTokenType as CoreExprTokenType, tokenise_expr as core_tokenise,
 };
 
 #[pyclass(

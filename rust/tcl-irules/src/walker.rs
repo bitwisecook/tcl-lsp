@@ -8,10 +8,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_compiler::segmenter::{segment_commands_with_offset, SegmentedCommand};
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
 use tcl_lexer::{Span, Token, TokenType};
-use tcl_registry::arg_role::ArgRole;
 use tcl_registry::CommandRegistry;
+use tcl_registry::arg_role::ArgRole;
 
 use crate::resolve_object_ref_args;
 
@@ -129,14 +129,14 @@ fn walk(
         let mut recursed: HashSet<(u32, u32)> = HashSet::new();
         for body_idx in body_indices {
             let word_index = body_idx + 1;
-            if let Some(tok) = cmd.argv.get(word_index) {
-                if matches!(tok.kind, TokenType::Str | TokenType::Cmd) && !inner_is_empty(full, tok)
-                {
-                    let mut child = scope.child();
-                    recurse_token(full, tok, rule_module, registry, &mut child, out);
-                    if matches!(tok.kind, TokenType::Cmd) {
-                        recursed.insert((tok.span.start(), tok.span.end()));
-                    }
+            if let Some(tok) = cmd.argv.get(word_index)
+                && matches!(tok.kind, TokenType::Str | TokenType::Cmd)
+                && !inner_is_empty(full, tok)
+            {
+                let mut child = scope.child();
+                recurse_token(full, tok, rule_module, registry, &mut child, out);
+                if matches!(tok.kind, TokenType::Cmd) {
+                    recursed.insert((tok.span.start(), tok.span.end()));
                 }
             }
         }
@@ -147,12 +147,12 @@ fn walk(
         let expr_indices = registry.arg_indices_for_role(cmd.name(), &args, ArgRole::Expr);
         for expr_idx in expr_indices {
             let word_index = expr_idx + 1;
-            if let Some(tok) = cmd.argv.get(word_index) {
-                if matches!(tok.kind, TokenType::Str | TokenType::Esc) && !inner_is_empty(full, tok)
-                {
-                    let mut child = scope.child();
-                    recurse_token(full, tok, rule_module, registry, &mut child, out);
-                }
+            if let Some(tok) = cmd.argv.get(word_index)
+                && matches!(tok.kind, TokenType::Str | TokenType::Esc)
+                && !inner_is_empty(full, tok)
+            {
+                let mut child = scope.child();
+                recurse_token(full, tok, rule_module, registry, &mut child, out);
             }
         }
 

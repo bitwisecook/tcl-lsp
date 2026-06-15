@@ -386,12 +386,12 @@ impl Builder<'_> {
                 b'}' if !in_quotes => {
                     blevel = blevel.saturating_sub(1);
                     i += 1;
-                    if blevel == 0 {
-                        if let Some(s) = brace_run_start.take() {
-                            // Mark the closed `{…}` run inert for
-                            // brackets (a `]` inside it never counted).
-                            self.push_inert(s, i, true); // terminated
-                        }
+                    if blevel == 0
+                        && let Some(s) = brace_run_start.take()
+                    {
+                        // Mark the closed `{…}` run inert for
+                        // brackets (a `]` inside it never counted).
+                        self.push_inert(s, i, true); // terminated
                     }
                 }
                 _ => {
@@ -2462,8 +2462,8 @@ while {1} {
     #[test]
     fn reparse_window_snaps_to_whole_commands() {
         let src = "set x 1\nputs hi\nset y 2\n"; // boundaries: 8, 16, 24
-                                                 // An edit inside `puts hi` (bytes 8..16) snaps to exactly that
-                                                 // command's window.
+        // An edit inside `puts hi` (bytes 8..16) snaps to exactly that
+        // command's window.
         assert_eq!(reparse_window(src, 10, 12), (8, 16));
         // An edit spanning the first two commands snaps to cover both.
         assert_eq!(reparse_window(src, 3, 10), (0, 16));

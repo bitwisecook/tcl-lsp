@@ -13,7 +13,7 @@ use std::path::Path;
 
 use tcl_bigip_io::resolve_passphrase;
 use tcl_bigip_io::ucs::{is_pgp_bytes, is_ucs_bytes, ucs_archive_to_scf};
-use tcl_cli_support::{write_text_output, OutputTarget};
+use tcl_cli_support::{OutputTarget, write_text_output};
 
 use crate::cli::{FormatArgs, PassphraseArgs};
 

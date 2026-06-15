@@ -5,7 +5,7 @@ pub fn spec() -> CommandSpec {
         name: "http::register",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(3, 6),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Register a protocol handler (e.g. https) with the http package.",
             synopsis: &["http::register proto defaultport command"],
             snippet: "Registers a handler for *proto* (e.g. ``https``).  When ``http::geturl`` encounters this protocol, it opens a socket via *command* on *defaultport*.",
