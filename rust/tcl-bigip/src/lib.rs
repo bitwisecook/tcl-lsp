@@ -25,6 +25,7 @@ pub mod lint;
 pub mod model;
 pub mod parser;
 pub mod range;
+pub mod redact;
 pub mod stats;
 pub mod value;
 

@@ -438,25 +438,29 @@ pub enum Command {
     /// Strip secrets and remap public IPs into a configurable CIDR pool.
     #[command(visible_alias = "sanitize")]
     Redact {
-        inputs: Vec<PathBuf>,
-        /// Do not remap IP addresses.
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: String,
+        /// Preserve original IP addresses (only redact secrets and PEM blocks).
         #[arg(long = "keep-ips")]
         keep_ips: bool,
-        /// CIDR pool to remap public IPs into.
+        /// Target CIDR for remapped addresses (repeatable; mix v4 and v6).
         #[arg(long = "target-cidr", value_name = "CIDR")]
-        target_cidr: Option<String>,
-        /// Shuffle the IP assignment.
+        target_cidr: Vec<String>,
+        /// Permute host bits within each source CIDR via a deterministic key.
         #[arg(long)]
         shuffle: bool,
-        /// Deterministic shuffle seed.
-        #[arg(long, value_name = "SEED")]
-        seed: Option<u64>,
-        /// Also remap RFC1918 private ranges.
+        /// Seed for --shuffle (deterministic; recorded in the map file).
+        #[arg(long, value_name = "SEED", default_value = "")]
+        seed: String,
+        /// Also remap RFC1918 / `fc00::/7` (private) addresses.
         #[arg(long = "remap-private")]
         remap_private: bool,
-        /// Write the sidecar map to this path.
+        /// Write the redaction map TOML here.
         #[arg(long = "map-file", value_name = "FILE")]
         map_file: Option<PathBuf>,
+        /// Pre-declare a source CIDR (repeatable).
+        #[arg(long = "source-cidr", value_name = "CIDR")]
+        source_cidr: Vec<String>,
         #[command(flatten)]
         format: FormatArgs,
         #[arg(long, short, value_name = "FILE")]
@@ -466,10 +470,10 @@ pub enum Command {
     /// Reverse a previous redact using its sidecar map file.
     #[command(visible_alias = "unmap")]
     Unredact {
-        /// Sidecar map file from `f5 redact`.
-        map_file: PathBuf,
-        /// Redacted config to restore.
-        path: PathBuf,
+        /// The TOML map file produced by `f5 redact` (`-` for stdin).
+        map_file: String,
+        /// Text containing redacted IPs (`-` for stdin).
+        path: String,
         #[command(flatten)]
         format: FormatArgs,
         #[arg(long, short, value_name = "FILE")]

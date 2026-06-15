@@ -1793,6 +1793,7 @@ dependencies = [
  "ipnet",
  "regex",
  "serde_json",
+ "sha2",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
