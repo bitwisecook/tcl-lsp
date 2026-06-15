@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PEM::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "PEM iRule command to disable PEM feature on current flow.",
             synopsis: &["PEM::disable"],
             snippet: "Disable PEM for the current flow. Note that the config must already contain a Policy Enforcement Profile.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    PEM::disable;\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PEM::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PEM::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

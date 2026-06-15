@@ -8,7 +8,7 @@ use super::super::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, Valu
 
 pub static SPECS: &[BigipObjectSpec] = &[
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_ad_policy",
             table_name: None,
             resolver_name: None,
@@ -67,7 +67,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_application",
             table_name: None,
             resolver_name: None,
@@ -277,7 +277,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_domain_list",
             table_name: None,
             resolver_name: None,
@@ -307,7 +307,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_object_type",
             table_name: None,
             resolver_name: None,
@@ -362,7 +362,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_policy",
             table_name: None,
             resolver_name: None,
@@ -2650,7 +2650,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_resource_concat_set",
             table_name: None,
             resolver_name: None,
@@ -2686,7 +2686,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_resource_domain_list",
             table_name: None,
             resolver_name: None,
@@ -2716,7 +2716,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wam_resource_url",
             table_name: None,
             resolver_name: None,
@@ -2746,7 +2746,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_advertised_route",
             table_name: None,
             resolver_name: None,
@@ -2801,7 +2801,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_deduplication",
             table_name: None,
             resolver_name: None,
@@ -2824,7 +2824,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_endpoint_discovery",
             table_name: None,
             resolver_name: None,
@@ -2896,7 +2896,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_local_endpoint",
             table_name: None,
             resolver_name: None,
@@ -2994,7 +2994,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_profile_cifs",
             table_name: None,
             resolver_name: None,
@@ -3074,7 +3074,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_profile_isession",
             table_name: None,
             resolver_name: None,
@@ -3214,14 +3214,19 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "target-virtual",
                 value_type: ValueKind::Enum,
                 allow_none: true,
-                enum_values: &["host-match-all", "host-match-no-isession", "none", "virtual-match-all"],
+                enum_values: &[
+                    "host-match-all",
+                    "host-match-no-isession",
+                    "none",
+                    "virtual-match-all",
+                ],
                 default: Some("virtual-match-all"),
                 ..BigipPropertySpec::DEFAULT
             },
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_profile_mapi",
             table_name: None,
             resolver_name: None,
@@ -3269,7 +3274,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_remote_endpoint",
             table_name: None,
             resolver_name: None,
@@ -3387,7 +3392,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
         ],
     },
     BigipObjectSpec {
-        kind_spec:         BigipObjectKindSpec {
+        kind_spec: BigipObjectKindSpec {
             kind: "wom_server_discovery",
             table_name: None,
             resolver_name: None,
@@ -3413,7 +3418,9 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "filter-mode",
                 value_type: ValueKind::Enum,
                 enum_values: &["exclude", "include"],
-                default: Some("exclude with no IP addresses specified, which means that all advertised routes that conform to the specified attributes are discovered"),
+                default: Some(
+                    "exclude with no IP addresses specified, which means that all advertised routes that conform to the specified attributes are discovered",
+                ),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

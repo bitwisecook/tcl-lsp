@@ -146,19 +146,11 @@ impl<'src> SourceMap<'src> {
                 // legitimate inner bracket, so we must NOT
                 // unconditionally strip — check for the exact
                 // 1-character `]` remainder instead.
-                if stripped == "]" {
-                    ""
-                } else {
-                    stripped
-                }
+                if stripped == "]" { "" } else { stripped }
             }
             TokenType::Str => {
                 // `{}` degenerate: same shape as `[]`.
-                if stripped == "}" {
-                    ""
-                } else {
-                    stripped
-                }
+                if stripped == "}" { "" } else { stripped }
             }
             TokenType::Esc => {
                 // Quoted-string empty-clamp cases: when the

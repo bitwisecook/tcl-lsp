@@ -92,7 +92,7 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 /// The specifier *grammar* (flags / width / `.precision` / verb parsing) lives
 /// in the shared `tcl-syntax` crate so the runtime port reuses it; the
 /// version-aware renderers below are this const-folder's own.
-use tcl_syntax::format::{parse_spec, FmtFlags, Spec};
+use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
 
 /// A single parsed `%…` conversion — the render input. Mirrors
 /// [`tcl_syntax::format::Spec`]; kept local so the version-aware `render*`
@@ -182,10 +182,10 @@ impl Conversion {
             None => u64::try_from(signed).ok()?, // unversioned: non-negative only
         };
         let mut digits = n.to_string();
-        if let Some(p) = self.precision {
-            if digits.len() < p {
-                digits = "0".repeat(p - digits.len()) + &digits;
-            }
+        if let Some(p) = self.precision
+            && digits.len() < p
+        {
+            digits = "0".repeat(p - digits.len()) + &digits;
         }
         Some(self.pad("", &digits, self.int_zero_pad()))
     }
@@ -260,10 +260,10 @@ impl Conversion {
         }
         let n = parse_format_int(value, version)?;
         let mut digits = n.unsigned_abs().to_string();
-        if let Some(p) = self.precision {
-            if digits.len() < p {
-                digits = "0".repeat(p - digits.len()) + &digits;
-            }
+        if let Some(p) = self.precision
+            && digits.len() < p
+        {
+            digits = "0".repeat(p - digits.len()) + &digits;
         }
         let sign = if n < 0 {
             "-"
@@ -322,10 +322,10 @@ impl Conversion {
         } else {
             ""
         };
-        if let Some(p) = self.precision {
-            if digits.len() < p {
-                digits = "0".repeat(p - digits.len()) + &digits;
-            }
+        if let Some(p) = self.precision
+            && digits.len() < p
+        {
+            digits = "0".repeat(p - digits.len()) + &digits;
         }
         Some(self.pad(prefix, &digits, self.int_zero_pad()))
     }
@@ -592,7 +592,7 @@ mod tests {
         assert_eq!(f(&["%+05d", "42"]).as_deref(), Some("+0042"));
         assert_eq!(f(&["%5d", "-42"]).as_deref(), Some("  -42"));
         assert_eq!(f(&["%i", "42"]).as_deref(), Some("42")); // %i alias
-                                                             // precision = minimum digits; the `0` flag is suppressed by precision.
+        // precision = minimum digits; the `0` flag is suppressed by precision.
         assert_eq!(f(&["%.5d", "42"]).as_deref(), Some("00042"));
         assert_eq!(f(&["%.3d", "-4"]).as_deref(), Some("-004"));
         assert_eq!(f(&["%5.3d", "42"]).as_deref(), Some("  042"));

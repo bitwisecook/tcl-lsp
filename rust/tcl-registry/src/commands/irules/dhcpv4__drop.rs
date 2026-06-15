@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "This command drops DHCPv4 message silently.",
             synopsis: &["DHCPv4::drop"],
-            snippet:
-                "This command drops DHCPv4 message silently\n\nDetails (syntax):\nDHCPv4::drop",
+            snippet: "This command drops DHCPv4 message silently\n\nDetails (syntax):\nDHCPv4::drop",
             source: "https://clouddocs.f5.com/api/irules/DHCPv4__drop.html",
             examples: "when CLIENT_DATA {\n        DHCPv4::drop\n    }",
             return_value: "",

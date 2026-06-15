@@ -13,8 +13,7 @@ pub const fn spec() -> CommandSpec {
             ],
             snippet: "Returns the value of the hairpin flag for the current message.",
             source: "https://clouddocs.f5.com/api/irules/SIPALG__hairpin.html",
-            examples:
-                "when SIP_REQUEST {\n    log local0. \"message hairpin mode [SIPALG::hairpin]\"\n}",
+            examples: "when SIP_REQUEST {\n    log local0. \"message hairpin mode [SIPALG::hairpin]\"\n}",
             return_value: "Returns 'detect', 'disable', or 'enable'",
         }),
         event_requires: Some(EventRequires {

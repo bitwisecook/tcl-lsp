@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ifile",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns content and attributes from external files on the BIG-IP system.",
             synopsis: &["ifile 'listall'", "ifile ("],
             snippet: "This iRules command returns content and attributes from external files\non the BIG-IP system",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n   # Retrieve the file contents, send it in an HTTP 200 response and clear the temporary variable\n   set ifileContent [ifile get \"/Common/iFile-index.html\"]\n   HTTP::respond 200 content $ifileContent\n   unset ifileContent\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ifile 'listall'" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FileIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ifile 'listall'",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

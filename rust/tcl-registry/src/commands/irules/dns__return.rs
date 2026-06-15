@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::DIAGRAM_ACTION,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Skips all further processing after TCL execution and sends the DNS packet in the opposite direction.",
             synopsis: &["DNS::return"],
             snippet: "This iRules command skips all further processing after TCL execution\nand sends the DNS packet in the opposite direction.\nIn the DNS_REQUEST context, DNS::return signals that no further DNS\nresolution should occur for this request upon completion of the event.\nTo provide a useful response, resource record and header changes must\nbe made in the iRule. The next event triggered is the DNS_RESPONSE\nevent.\nIn the DNS_RESPONSE context, DNS::return sends a request back for\nadditional processing.\n\n**Important**: `DNS::return` does NOT stop iRule execution. You must\nfollow it with `return` to prevent the rest of the event handler\nfrom running.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DNS::return" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::DnsState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DNS::return",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "http_method",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the action of the HTTP request.",
             synopsis: &["http_method"],
             snippet: "Returns the action of the HTTP request. Common values are GET and\nPOST. This command is a BIG-IP version 4.X variable, provided for\nbackward-compatibility. You can use the equivalent 9.Xcommand\nHTTP::method instead.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "http_method" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpMethod,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "http_method",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpMethod,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         deprecated_replacement: Some("HTTP::method"),
         ..CommandSpec::DEFAULT
     }

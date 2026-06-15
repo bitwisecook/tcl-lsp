@@ -12,7 +12,7 @@ pub fn spec() -> CommandSpec {
         name: "msgcat::mc",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Translate a source string according to the current locale.",
             synopsis: &["msgcat::mc src-string ?arg arg ...?"],
             snippet: "Looks up *src-string* in the message catalogue for the calling namespace and current locale.  Any additional arguments are substituted into the translated string via ``format``.",

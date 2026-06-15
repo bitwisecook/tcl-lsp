@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "COMPRESS::method",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Specifies the preferred compression algorithm.",
             synopsis: &["COMPRESS::method (request | response)? prefer ('gzip' | 'deflate')"],
             snippet: "Specifies the preferred compression algorithm.\n\nCOMPRESS::method prefer [ ’gzip’ | ’deflate’ ]\n    Specifies the preferred compression algorithm, either gzip or deflate.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "COMPRESS::method (request | response)? prefer ('gzip' | 'deflate')" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "COMPRESS::method (request | response)? prefer ('gzip' | 'deflate')",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

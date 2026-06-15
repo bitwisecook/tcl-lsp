@@ -21,7 +21,7 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use tcl_lsp_core::folding::{folding_ranges as compute_folding_ranges, FoldingRange};
+use tcl_lsp_core::folding::{FoldingRange, folding_ranges as compute_folding_ranges};
 
 /// Compute folding ranges for a Tcl source document, returning a
 /// list of dicts.

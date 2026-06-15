@@ -355,10 +355,10 @@ fn count_bracket_self_calls(text: &str, self_names: &HashSet<String>) -> usize {
                 break;
             }
         }
-        if let Ok(head) = std::str::from_utf8(&bytes[start..i]) {
-            if self_names.contains(head) {
-                count += 1;
-            }
+        if let Ok(head) = std::str::from_utf8(&bytes[start..i])
+            && self_names.contains(head)
+        {
+            count += 1;
         }
     }
     count
@@ -389,10 +389,11 @@ fn non_tail_in_stmt(stmt: &Statement, self_names: &HashSet<String>) -> bool {
             }
             // Pure `return [self …]` — that's a tail return-
             // subst, already handled by O121, not accumulator.
-            if let Some((head, _)) = parse_return_subst(v) {
-                if self_names.contains(&head) && !v.trim_start().contains("[expr") {
-                    return false;
-                }
+            if let Some((head, _)) = parse_return_subst(v)
+                && self_names.contains(&head)
+                && !v.trim_start().contains("[expr")
+            {
+                return false;
             }
             count_bracket_self_calls(v, self_names) > 0
                 && !matches!(parse_return_subst(v), Some((h, _)) if self_names.contains(&h))
@@ -455,10 +456,10 @@ fn self_name_variants(qname: &str) -> HashSet<String> {
     let mut names: HashSet<String> = HashSet::new();
     let normalised = normalise_qualified_name(qname);
     names.insert(normalised.clone());
-    if let Some(short) = normalised.rsplit("::").next() {
-        if !short.is_empty() {
-            names.insert(short.to_owned());
-        }
+    if let Some(short) = normalised.rsplit("::").next()
+        && !short.is_empty()
+    {
+        names.insert(short.to_owned());
     }
     if let Some(stripped) = normalised.strip_prefix("::") {
         names.insert(stripped.to_owned());
@@ -520,32 +521,32 @@ fn collect_tail_sites(
             if *braced {
                 return;
             }
-            if let Some((call_head, call_args)) = parse_return_subst(v) {
-                if self_names.contains(&call_head) {
-                    let rewrite_span = full_rewrite_span(ctx.source, *span);
-                    if emit_o121 {
-                        let replacement = if call_args.is_empty() {
-                            format!("tailcall {call_head}")
-                        } else {
-                            format!("tailcall {call_head} {call_args}")
-                        };
-                        ctx.report(Optimisation::new(
-                            "O121",
-                            format!("Use tailcall for self-recursion in proc '{}'", proc.name),
-                            rewrite_span,
-                            replacement,
-                        ));
-                    }
-                    let split_args: Vec<String> = if call_args.is_empty() {
-                        Vec::new()
+            if let Some((call_head, call_args)) = parse_return_subst(v)
+                && self_names.contains(&call_head)
+            {
+                let rewrite_span = full_rewrite_span(ctx.source, *span);
+                if emit_o121 {
+                    let replacement = if call_args.is_empty() {
+                        format!("tailcall {call_head}")
                     } else {
-                        call_args.split_whitespace().map(str::to_owned).collect()
+                        format!("tailcall {call_head} {call_args}")
                     };
-                    sites.push(TailSite {
-                        span: rewrite_span,
-                        args: split_args,
-                    });
+                    ctx.report(Optimisation::new(
+                        "O121",
+                        format!("Use tailcall for self-recursion in proc '{}'", proc.name),
+                        rewrite_span,
+                        replacement,
+                    ));
                 }
+                let split_args: Vec<String> = if call_args.is_empty() {
+                    Vec::new()
+                } else {
+                    call_args.split_whitespace().map(str::to_owned).collect()
+                };
+                sites.push(TailSite {
+                    span: rewrite_span,
+                    args: split_args,
+                });
             }
         }
         Statement::If {

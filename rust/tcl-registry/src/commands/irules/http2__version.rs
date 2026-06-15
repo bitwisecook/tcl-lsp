@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTTP2::version",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command can be used to determine the HTTP/2 protocol version used.",
             synopsis: &["HTTP2::version"],
             snippet: "Returns 2 if the HTTP/2 protocol is used. Returns 0 if no HTTP/2 request is active.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::version" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Http2State,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP2::version",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Http2State,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "rateclass",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Selects the specified rate class to use when transmitting packets.",
             synopsis: &["rateclass RATE_CLASS"],
             snippet: "Causes the system to select the specified rate class to use when\ntransmitting packets.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n  if { [IP::addr [IP::client_addr] equals xxx.xxx.xxx.xxx] } {\n    log local0. \"[IP::client_addr] being handled by rateclass class1\"\n    rateclass class1\n  }\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "rateclass RATE_CLASS" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "rateclass RATE_CLASS",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

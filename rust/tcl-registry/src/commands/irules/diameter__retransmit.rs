@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::retransmit",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Triggers the request associated to the current answer message for retransmission.",
             synopsis: &["DIAMETER::retransmit (disabled | busy | unable | retransmit) (NOTE)?"],
             snippet: "This iRule command triggers the request in the retransmission queue\nthat is associated with the current answer message for\nretransmission. This command will fail the current message is a\nrequest or if there is not an associated request message in the\nretransmission queue.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::retransmit (disabled | busy | unable | retransmit) (NOTE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::retransmit (disabled | busy | unable | retransmit) (NOTE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

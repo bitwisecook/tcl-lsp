@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use serde::Serialize;
-use tcl_cli_support::{registry_for_dialect, write_text_output, OutputTarget};
+use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_registry::dialects::DialectSet;
 
 /// JSON payload when the command resolves (field order matches the Python dict).

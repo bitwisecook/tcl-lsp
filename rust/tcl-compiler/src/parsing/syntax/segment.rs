@@ -29,7 +29,7 @@ use tcl_lexer::{SourceMap, Span, Token, TokenType};
 
 use super::green::{GreenNode, SyntaxKind};
 use super::red::{SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree};
-use crate::segmenter::{command_span, word_piece, SegmentedCommand};
+use crate::segmenter::{SegmentedCommand, command_span, word_piece};
 
 /// The `Word`-kind child nodes of a command, in document order.
 fn command_words<'t>(cmd: &SyntaxNode<'t>) -> Vec<SyntaxNode<'t>> {

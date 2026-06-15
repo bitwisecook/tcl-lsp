@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::dynamic_route_lookup",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Set whether messages should be routed dynamically.",
             synopsis: &["DIAMETER::dynamic_route_lookup ( connection | message ) ( BOOLEAN )?"],
             snippet: "\"message\":\nIf status is set to \"enabled\", previously created dynamic routes will be consulted during the routing of this message.\n\n\"connection\":\nThe setting will be applied to this and all later messages on this connection.\n\nThe zero-argument form of this command returns whether the setting is enabled on the current message.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::dynamic_route_lookup ( connection | message ) ( BOOLEAN )?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::dynamic_route_lookup ( connection | message ) ( BOOLEAN )?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

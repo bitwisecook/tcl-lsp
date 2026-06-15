@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SCTP::rto_initial",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the initial value of SCTP retransmission timeout.",
             synopsis: &["SCTP::rto_initial (clientside | serverside)?"],
             snippet: "Returns the initial value of SCTP retranmission timeout. Can specify the value on clientside or serverside.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n        log local0.info \"SCTP retransmission timeout initial value is [SCTP::rto_initial]\"\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SCTP::rto_initial (clientside | serverside)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SCTP::rto_initial (clientside | serverside)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

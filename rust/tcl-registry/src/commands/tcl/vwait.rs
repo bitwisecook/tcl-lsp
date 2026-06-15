@@ -95,19 +95,20 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
-        traits: Traits::BYTE_COMPILED | Traits::CREATES_DYNAMIC_BARRIER
+        traits: Traits::BYTE_COMPILED
+            | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::VarRead)],
         return_type: Some(TclType::String),
-hover: Some(HoverSnippet {
-    summary: "Process events until a variable is written",
-    synopsis: &["vwait varName", "vwait ?options? ?varName ...?"],
-    snippet: "This command enters the Tcl event loop to process events, blocking the application if no events are ready.",
-    source: "Tcl man page vwait.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Process events until a variable is written",
+            synopsis: &["vwait varName", "vwait ?options? ?varName ...?"],
+            snippet: "This command enters the Tcl event loop to process events, blocking the application if no events are ready.",
+            source: "Tcl man page vwait.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,

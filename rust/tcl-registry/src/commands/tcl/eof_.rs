@@ -21,14 +21,14 @@ pub fn spec() -> CommandSpec {
             writes: false,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Check for end of file condition on channel",
-    synopsis: &["eof channel"],
-    snippet: "The eof command has been superceded by the chan eof command which supports the same syntax and options.",
-    source: "Tcl man page eof.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Check for end of file condition on channel",
+            synopsis: &["eof channel"],
+            snippet: "The eof command has been superceded by the chan eof command which supports the same syntax and options.",
+            source: "Tcl man page eof.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

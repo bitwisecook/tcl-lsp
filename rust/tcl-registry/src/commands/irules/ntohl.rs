@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["ntohl NUMBER"],
             snippet: "Convert the unsigned integer from network byte order to host byte\norder.",
             source: "https://clouddocs.f5.com/api/irules/ntohl.html",
-            examples:
-                "when HTTP_REQUEST{\n  set netlong 12345678\n  set hostlong [ntohl $netlong]\n}",
+            examples: "when HTTP_REQUEST{\n  set netlong 12345678\n  set hostlong [ntohl $netlong]\n}",
             return_value: "",
         }),
         forms: &[FormSpec {

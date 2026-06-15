@@ -18,14 +18,14 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED | Traits::PURE,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::Int),
-hover: Some(HoverSnippet {
-    summary: "Retrieve process identifiers",
-    synopsis: &["pid ?fileId?"],
-    snippet: "If the fileId argument is given then it should normally refer to a process pipeline created with the open command.",
-    source: "Tcl man page pid.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Retrieve process identifiers",
+            synopsis: &["pid ?fileId?"],
+            snippet: "If the fileId argument is given then it should normally refer to a process pipeline created with the open command.",
+            source: "Tcl man page pid.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

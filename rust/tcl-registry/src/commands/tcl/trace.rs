@@ -105,8 +105,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Monitor variable accesses, command usages and command executions",
             synopsis: &["trace option ?arg arg ...?"],
-            snippet:
-                "Arranges for commands to be executed whenever certain operations are invoked.",
+            snippet: "Arranges for commands to be executed whenever certain operations are invoked.",
             source: "Tcl man page trace.n",
             examples: "",
             return_value: "",

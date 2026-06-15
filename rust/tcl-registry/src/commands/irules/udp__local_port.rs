@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "UDP::local_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the local UDP port/service number.",
             synopsis: &["UDP::local_port (clientside | serverside)?"],
             snippet: "Returns the local UDP port/service number.",
@@ -28,17 +28,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "UDP::local_port (clientside | serverside)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::UdpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::local_port (clientside | serverside)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -136,12 +136,11 @@ pub fn is_taint_source(
         {
             return true;
         }
-        if let Some(sub_name) = args.first().copied() {
-            if let Some(sub) = spec.subcommand(sub_name) {
-                if sub.traits.contains(Traits::TAINT_SOURCE) {
-                    return true;
-                }
-            }
+        if let Some(sub_name) = args.first().copied()
+            && let Some(sub) = spec.subcommand(sub_name)
+            && sub.traits.contains(Traits::TAINT_SOURCE)
+        {
+            return true;
         }
     }
     registry.taint_source(command).is_some()
@@ -203,10 +202,10 @@ pub fn augment_source_colours(colour: TaintColour) -> TaintColour {
 /// registered without the explicit trait.
 #[must_use]
 pub fn is_irules_data_getter(registry: &CommandRegistry, command: &str) -> bool {
-    if let Some(spec) = registry.get(command) {
-        if spec.traits.contains(Traits::IRULES_DATA_GETTER) {
-            return true;
-        }
+    if let Some(spec) = registry.get(command)
+        && spec.traits.contains(Traits::IRULES_DATA_GETTER)
+    {
+        return true;
     }
     IRULES_TAINT_SOURCE_PREFIXES
         .iter()
@@ -228,12 +227,11 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
     let Some(spec) = registry.get(command) else {
         return false;
     };
-    if let Some(sub_name) = args.first().copied() {
-        if let Some(sub) = spec.subcommand(sub_name) {
-            if is_fixed_numeric(sub.return_type) {
-                return true;
-            }
-        }
+    if let Some(sub_name) = args.first().copied()
+        && let Some(sub) = spec.subcommand(sub_name)
+        && is_fixed_numeric(sub.return_type)
+    {
+        return true;
     }
     is_fixed_numeric(spec.return_type)
 }
@@ -322,12 +320,11 @@ pub fn taint_transform(
     subcommand: Option<&str>,
 ) -> Option<TaintColour> {
     let spec = registry.get(command)?;
-    if let Some(sub_name) = subcommand {
-        if let Some(sub) = spec.subcommand(sub_name) {
-            if sub.taint_transform.is_some() {
-                return sub.taint_transform;
-            }
-        }
+    if let Some(sub_name) = subcommand
+        && let Some(sub) = spec.subcommand(sub_name)
+        && sub.taint_transform.is_some()
+    {
+        return sub.taint_transform;
     }
     spec.taint_transform
 }
@@ -343,12 +340,11 @@ pub fn taint_double_encode_colour(
     subcommand: Option<&str>,
 ) -> Option<TaintColour> {
     let spec = registry.get(command)?;
-    if let Some(sub_name) = subcommand {
-        if let Some(sub) = spec.subcommand(sub_name) {
-            if sub.taint_double_encode_colour.is_some() {
-                return sub.taint_double_encode_colour;
-            }
-        }
+    if let Some(sub_name) = subcommand
+        && let Some(sub) = spec.subcommand(sub_name)
+        && sub.taint_double_encode_colour.is_some()
+    {
+        return sub.taint_double_encode_colour;
     }
     spec.taint_double_encode_colour
 }

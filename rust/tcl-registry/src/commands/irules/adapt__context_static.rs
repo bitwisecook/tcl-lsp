@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ADAPT::context_static",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets the static context.",
             synopsis: &["ADAPT::context_static (ADAPT_SIDE)?"],
             snippet: "Obtains a handle for the static context on the current\nor specified side. The static context is the profile-based\ncontext that applies when there are no dynamic contexts on that\nside. Returns a null string if the connection flow has not\nyet been initialized (for example, if the command was issued\nfrom a request-adapt (client side) event and the server side\nconnection has not yet been established).\n\nSyntax:\n\nADAPT::context_static\n\n    * Gets the static context on the current side.\n\nADAPT::context_static request\n\n    * Gets the static context on the request-adapt side.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::context_static (ADAPT_SIDE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IcapState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ADAPT::context_static (ADAPT_SIDE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IcapState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

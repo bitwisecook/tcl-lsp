@@ -14,7 +14,7 @@ use tcl_registry::bigip::BigipRegistry;
 use crate::model::{BigipGenericObject, ModelObject};
 use crate::range::Range;
 
-use super::header::{parse_generic_header, ObjectTypeIndex};
+use super::header::{ObjectTypeIndex, parse_generic_header};
 use super::helpers::extract_blocks;
 
 /// One typed object placed in a `BigipConfig` collection. `table_name`
@@ -159,12 +159,12 @@ fn dispatch_block(
     partition_prefix: &str,
     ctx: super::bespoke::BespokeCtx,
 ) -> Option<Placed> {
-    use crate::model::gen::dispatch::{
+    use crate::model::ModelObject;
+    use crate::model::r#gen::dispatch::{
         dispatch_ltm_tables, dispatch_minimal, dispatch_named, dispatch_singleton,
         parse_header_strict,
     };
-    use crate::model::gen::parsers::*;
-    use crate::model::ModelObject;
+    use crate::model::r#gen::parsers::*;
 
     let parsed = parse_header_strict(header).map(|(m, o, fp)| {
         let fp = if !fp.is_empty()
@@ -217,10 +217,10 @@ fn dispatch_block(
     if let Some((table, object)) = dispatch_named(&module, &object_type, fp, body, range) {
         return placed(table, fp, object);
     }
-    if full_path.is_empty() {
-        if let Some((table, object)) = dispatch_singleton(&module, &object_type, fp, body, range) {
-            return placed(table, fp, object);
-        }
+    if full_path.is_empty()
+        && let Some((table, object)) = dispatch_singleton(&module, &object_type, fp, body, range)
+    {
+        return placed(table, fp, object);
     }
     if let Some((table, object)) = dispatch_ltm_tables(&module, &object_type, fp, body, range) {
         return placed(table, fp, object);
@@ -307,7 +307,7 @@ fn dispatch_block(
                 "ltm_dns_cache_records",
                 fp,
                 ModelObject::LtmDnsCacheRecord(parse_bigip_ltm_dns_cache_record(fp, body, range)),
-            )
+            );
         }
         ot if ot.starts_with("profile ") => {
             let profile_type = ot.strip_prefix("profile ").unwrap_or("");

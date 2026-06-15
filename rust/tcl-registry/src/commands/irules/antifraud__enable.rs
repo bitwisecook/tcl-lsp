@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables the anti-fraud plugin.",
             synopsis: &["ANTIFRAUD::enable (ANTIFRAUD_PROFILE)?"],
             snippet: "Enables the anti-fraud plugin.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n                # apply default anti-fraud profile on the transaction with Antifraud-Foo HTTP header\n                if { [HTTP::header exists \"Antifraud-Foo\" ] } {\n                    ANTIFRAUD::enable\n                }\n                # apply /Common/antifraud_bar profile on the transaction with Antifraud-Bar HTTP header\n                if { [HTTP::header exists \"Antifraud-Bar\" ] } {\n                    ANTIFRAUD::enable /Common/antifraud_bar\n                }\n            }",
             return_value: "ANTIFRAUD::enable Applies the default anti-fraud profile attached to the virtual server.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::enable (ANTIFRAUD_PROFILE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::enable (ANTIFRAUD_PROFILE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

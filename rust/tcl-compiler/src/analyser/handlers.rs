@@ -772,16 +772,14 @@ impl Analyser {
         } else {
             // Form 1 — pattern/body pairs inline in args/arg_tokens.
             while i + 1 < args.len() {
-                if is_regexp {
-                    if let Some(pat_tok) = arg_tokens.get(i).copied() {
-                        self.record_switch_regexp_pattern(&args[i], pat_tok, scope_path);
-                    }
+                if is_regexp && let Some(pat_tok) = arg_tokens.get(i).copied() {
+                    self.record_switch_regexp_pattern(&args[i], pat_tok, scope_path);
                 }
                 let body_text = &args[i + 1];
-                if let Some(body_tok) = arg_tokens.get(i + 1).copied() {
-                    if body_text != "-" {
-                        self.analyse_body(body_text, body_tok, scope_path);
-                    }
+                if let Some(body_tok) = arg_tokens.get(i + 1).copied()
+                    && body_text != "-"
+                {
+                    self.analyse_body(body_text, body_tok, scope_path);
                 }
                 i += 2;
             }
@@ -951,7 +949,7 @@ impl Analyser {
             }
             // `dict update dictVar key1 var1 ?key2 var2 ...? body` — vars at
             // 3, 5, 7, … (i.e. `len-2` last).
-            "update" if args.len() >= 5 && (args.len() - 3) % 2 == 0 => {
+            "update" if args.len() >= 5 && (args.len() - 3).is_multiple_of(2) => {
                 let mut i = 3;
                 while i + 1 < args.len() {
                     if let Some(tok) = arg_tokens.get(i) {
@@ -1089,13 +1087,12 @@ impl Analyser {
                 // name suppresses W123 unknown-command emission
                 // because the dynamic provider may register the
                 // missing command at runtime.
-                if let Some(name_tok) = arg_tokens.get(name_idx) {
-                    if matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
+                if let Some(name_tok) = arg_tokens.get(name_idx)
+                    && (matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
                         || name_text.contains('$')
-                        || name_text.contains('[')
-                    {
-                        self.result.has_dynamic_providers = true;
-                    }
+                        || name_text.contains('['))
+                {
+                    self.result.has_dynamic_providers = true;
                 }
 
                 self.result.package_requires.push(

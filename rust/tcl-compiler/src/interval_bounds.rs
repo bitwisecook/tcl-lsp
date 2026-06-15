@@ -23,7 +23,7 @@ use tcl_syntax::expr::ast::ExprNode;
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{Function as CfgFunction, Terminator};
-use crate::intervals::{build_guard_index, compute_intervals, refine_interval, Interval};
+use crate::intervals::{Interval, build_guard_index, compute_intervals, refine_interval};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands;
 use crate::ssa::{Phi, SsaFunction, ValueKey, Version};
@@ -232,10 +232,10 @@ fn reaching_versions(
 /// Mirrors `_classify`.
 fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str> {
     // Provably negative: the whole interval is below 0.
-    if let Some(hi) = index.hi {
-        if hi < 0 {
-            return Some("negative");
-        }
+    if let Some(hi) = index.hi
+        && hi < 0
+    {
+        return Some("negative");
     }
     // Provably past the end.
     if let Some(lo) = index.lo {
@@ -283,10 +283,10 @@ fn parse_index_sub(text: &str) -> Option<Candidate> {
 fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
     let mut out = Vec::new();
     walk_eager(expr, &mut |e| {
-        if let ExprNode::Command { text, .. } = e {
-            if let Some(c) = parse_index_sub(text) {
-                out.push(c);
-            }
+        if let ExprNode::Command { text, .. } = e
+            && let Some(c) = parse_index_sub(text)
+        {
+            out.push(c);
         }
     });
     out
@@ -425,10 +425,10 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
         let mut cands: Vec<Candidate> = Vec::new();
         match &block.terminator {
             Some(Terminator::Return { value, expr, .. }) => {
-                if let Some(v) = value {
-                    if let Some(c) = parse_index_sub(v) {
-                        cands.push(c);
-                    }
+                if let Some(v) = value
+                    && let Some(c) = parse_index_sub(v)
+                {
+                    cands.push(c);
                 }
                 if let Some(e) = expr {
                     cands.extend(index_subs_in_expr(e));
@@ -584,19 +584,19 @@ pub fn find_interval_bounds(
                 value, expr, span, ..
             }) => {
                 let Some(span) = span else { continue };
-                if let Some(v) = value {
-                    if let Some(cand) = parse_index_sub(v) {
-                        process(
-                            &cand,
-                            bn,
-                            *span,
-                            &sb.exit_versions,
-                            &sb.exit_versions,
-                            &sb.statements,
-                            sb.statements.len(),
-                            &mut findings,
-                        );
-                    }
+                if let Some(v) = value
+                    && let Some(cand) = parse_index_sub(v)
+                {
+                    process(
+                        &cand,
+                        bn,
+                        *span,
+                        &sb.exit_versions,
+                        &sb.exit_versions,
+                        &sb.statements,
+                        sb.statements.len(),
+                        &mut findings,
+                    );
                 }
                 if let Some(e) = expr {
                     for cand in index_subs_in_expr(e) {
@@ -673,7 +673,9 @@ mod tests {
         // `$j ∈ [4, 8]` against a length-3 list — the interval domain proves
         // every iteration is past the append slot.  The list length is
         // recovered through the loop-header phi `lset` induces.
-        let v = bounds("proc f {v} {\n    set l {a b c}\n    for {set j 4} {$j < 9} {incr j} { lset l $j $v }\n}\n");
+        let v = bounds(
+            "proc f {v} {\n    set l {a b c}\n    for {set j 4} {$j < 9} {incr j} { lset l $j $v }\n}\n",
+        );
         assert_eq!(v.len(), 1, "{v:?}");
         assert_eq!(v[0].0, "W231");
         assert!(v[0].1.contains("$j"), "{v:?}");

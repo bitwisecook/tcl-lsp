@@ -17,9 +17,13 @@
 
 pub mod apl;
 pub mod canonical;
+pub mod cleanup;
+pub mod graph;
+pub mod jsonfmt;
 pub mod model;
 pub mod parser;
 pub mod range;
+pub mod stats;
 pub mod value;
 
 pub use range::{Position, Range};

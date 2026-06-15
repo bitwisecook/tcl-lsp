@@ -25,7 +25,7 @@ use std::collections::BTreeSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef};
 use tcl_lexer::{LineIndex, Span};
 
-use crate::definition::{byte_offset_at, span_to_range, LspRange};
+use crate::definition::{LspRange, byte_offset_at, span_to_range};
 use crate::hover::find_word_span_at_position;
 
 /// Compute "go-to-implementation" locations for the symbol at the

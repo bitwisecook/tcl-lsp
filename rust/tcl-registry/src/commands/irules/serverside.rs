@@ -14,7 +14,7 @@ pub const fn spec() -> CommandSpec {
         // 0-arg query form has no arg at index 0, so the role simply
         // does not apply there.
         arg_roles: &[(0, ArgRole::Body)],
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Causes the specified iRule command to be evaluated under the server-side context.",
             synopsis: &["serverside (NESTING_SCRIPT)?"],
             snippet: "Causes the specified iRule command or commands to be evaluated under the server-side context. This command has no effect if the iRule is already being evaluated under the server-side context. If there is no argument, the command returns 1 if the current event is in the serverside context or 0 if not.",
@@ -32,17 +32,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "serverside (NESTING_SCRIPT)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Server,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "serverside (NESTING_SCRIPT)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Server,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

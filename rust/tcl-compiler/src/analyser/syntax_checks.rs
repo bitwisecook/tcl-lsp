@@ -124,10 +124,10 @@ fn detect_e201(
         // Bail to the fix-less fallback instead: with no ghost `]`, the
         // scan-to-next recovery's partial command stands, the unterminated
         // `[` is still flagged, and the tail is analysed as real code.
-        if !swallowed_known_command {
-            if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
-                return d;
-            }
+        if !swallowed_known_command
+            && let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept)
+        {
+            return d;
         }
     } else if let Some(d) = e201_at_brace(content, content_start, bracket_off).and_then(&accept) {
         return d;
@@ -331,10 +331,10 @@ fn is_suspicious_quote(tok: &Token, cmd: &SegmentedCommand, source: &str) -> boo
         return false;
     }
     // A properly closed quote wouldn't run to EOF.
-    if let Some(last) = cmd.all_tokens.last() {
-        if (last.span.end() as usize) < source.len().saturating_sub(1) {
-            return false;
-        }
+    if let Some(last) = cmd.all_tokens.last()
+        && (last.span.end() as usize) < source.len().saturating_sub(1)
+    {
+        return false;
     }
     true
 }
@@ -713,21 +713,21 @@ fn find_bracket_insertion_point(
     let text = token_text(source, tok)?;
 
     // 1a: the text before `]` in the same token is a command name.
-    if let Some(bidx) = text.find(']') {
-        if bidx > 0 && known.contains(&text[..bidx]) {
-            return Some(tok.span.start());
-        }
+    if let Some(bidx) = text.find(']')
+        && bidx > 0
+        && known.contains(&text[..bidx])
+    {
+        return Some(tok.span.start());
     }
     // 1b: backward scan (skip the command word at index 0) for a known
     // command-name ESC token.
     for i in (1..bracket_idx).rev() {
         let t = &tokens[i];
-        if t.kind == TokenType::Esc {
-            if let Some(name) = token_text(source, t) {
-                if known.contains(name) {
-                    return Some(t.span.start());
-                }
-            }
+        if t.kind == TokenType::Esc
+            && let Some(name) = token_text(source, t)
+            && known.contains(name)
+        {
+            return Some(t.span.start());
         }
     }
     // 2: arity overflow on the enclosing command.

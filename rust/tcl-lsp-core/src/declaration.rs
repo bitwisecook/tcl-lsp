@@ -22,14 +22,14 @@ use tcl_compiler::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
 use tcl_lexer::{LexerConfig, LineIndex, Span};
-use tcl_registry::arg_role::ArgRole;
 use tcl_registry::CommandRegistry;
+use tcl_registry::arg_role::ArgRole;
 
 /// Recursion depth guard for nested body walks (mirrors Python's
 /// `depth > 20` cap in `_collect_declaration_ranges`).
 const MAX_BODY_DEPTH: u32 = 20;
 
-use crate::definition::{byte_offset_at, definition, scope_body_spans_at, span_to_range, LspRange};
+use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};
 use crate::hover::find_var_at_position;
 
 /// Compute "go-to-declaration" locations for the symbol at the cursor.

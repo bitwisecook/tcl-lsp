@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PCP::reject",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Provides the ability to cause a PCP reqeust to fail based on processing in the iRule.",
             synopsis: &["PCP::reject PCP_RESULT_CODE"],
             snippet: "This command provides the ability to cause a PCP (Port Control\nProtocol) reqeust to fail based on processing in the iRule. If the\nreject command is issued, the PCP request is rejected with the\nspecified result code and no other action is taken by the PCP proxy.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PCP::reject PCP_RESULT_CODE" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ConnectionControl,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PCP::reject PCP_RESULT_CODE",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ConnectionControl,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

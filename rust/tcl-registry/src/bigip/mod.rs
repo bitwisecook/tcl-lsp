@@ -249,6 +249,157 @@ impl BigipRegistry {
         names.sort_unstable();
         names
     }
+
+    // ----------------------------------------------------------------------
+    // Object-registry query layer — port of `object_registry.py`'s pure
+    // functions (kind/candidate-kind lookups). These are the registry-backed
+    // half of the BIG-IP reference graph; the config-dependent resolution
+    // (`resolve_kind_in_configs`) and the graph builder itself live in
+    // `tcl-bigip`, which owns `BigipConfig`.
+    // ----------------------------------------------------------------------
+
+    /// Property specs declared for `name` on the `(module, object_type)`
+    /// container (mirrors `_property_specs_for_context`). Empty when the
+    /// container is unknown or declares no such property.
+    fn property_specs_for_context(
+        &self,
+        name: &str,
+        module: Option<&str>,
+        object_type: Option<&str>,
+    ) -> Vec<&'static BigipPropertySpec> {
+        let (Some(m), Some(ot)) = (module, object_type) else {
+            return Vec::new();
+        };
+        let Some(spec) = self.get_by_header(m, ot) else {
+            return Vec::new();
+        };
+        spec.properties.iter().filter(|p| p.name == name).collect()
+    }
+
+    /// Collect the referenced kinds from `property_specs`, restricted to those
+    /// matching `section` and prioritising section-constrained properties
+    /// (mirrors `_kinds_from_properties`).
+    fn kinds_from_properties(
+        property_specs: &[&'static BigipPropertySpec],
+        section: Option<&str>,
+    ) -> Vec<&'static str> {
+        let mut matching: Vec<&'static BigipPropertySpec> = property_specs
+            .iter()
+            .copied()
+            .filter(|p| p.matches_section(section))
+            .collect();
+        // Stable sort: section-constrained properties (non-empty `in_sections`)
+        // before generic ones.
+        matching.sort_by_key(|p| usize::from(p.in_sections.is_empty()));
+        let mut kinds: Vec<&'static str> = Vec::new();
+        for prop in matching {
+            for &kind in prop.references {
+                if !kinds.contains(&kind) {
+                    kinds.push(kind);
+                }
+            }
+        }
+        kinds
+    }
+
+    /// Candidate object kinds a property `key` may reference on the given
+    /// container (mirrors `candidate_kinds_for_key`).
+    #[must_use]
+    pub fn candidate_kinds_for_key(
+        &self,
+        key: &str,
+        section: Option<&str>,
+        container_module: Option<&str>,
+        container_object_type: Option<&str>,
+    ) -> Vec<&'static str> {
+        let specs = self.property_specs_for_context(key, container_module, container_object_type);
+        Self::kinds_from_properties(&specs, section)
+    }
+
+    /// Candidate object kinds the items of a list `section` may reference
+    /// (mirrors `candidate_kinds_for_section_item`).
+    #[must_use]
+    pub fn candidate_kinds_for_section_item(
+        &self,
+        section: &str,
+        container_module: Option<&str>,
+        container_object_type: Option<&str>,
+    ) -> Vec<&'static str> {
+        let specs =
+            self.property_specs_for_context(section, container_module, container_object_type);
+        Self::kinds_from_properties(&specs, Some(section))
+    }
+
+    /// The canonical kind for a `(module, object_type)` stanza header, or
+    /// `None` when unregistered (mirrors `kind_for_header`).
+    #[must_use]
+    pub fn kind_for_header(&self, module: &str, object_type: &str) -> Option<&'static str> {
+        self.get_by_header(module, object_type)
+            .map(|spec| spec.kind_spec.kind)
+    }
+
+    /// Map a `Reference.target_kind` display string (`"ltm pool"`, `"ltm
+    /// monitor"`, …) to registry-key kinds (mirrors
+    /// `candidate_registry_kinds_for_display`).
+    ///
+    /// An exact `(module, object_type)` header gives a single kind; a bare
+    /// family prefix (`"ltm monitor"`) fans out to every matching specific kind
+    /// in registration order (so a downstream resolver can try each).
+    #[must_use]
+    pub fn candidate_registry_kinds_for_display(&self, display_kind: &str) -> Vec<&'static str> {
+        if display_kind.is_empty() {
+            return Vec::new();
+        }
+        let (module, object_type) = display_kind.split_once(' ').unwrap_or((display_kind, ""));
+        if let Some(spec) = self.get_by_header(module, object_type) {
+            return vec![spec.kind_spec.kind];
+        }
+        let prefix = if object_type.is_empty() {
+            String::new()
+        } else {
+            format!("{object_type} ")
+        };
+        // Iterate specs (and their header types) in registration order — the
+        // same order `HEADER_KIND_MAP.items()` yields in Python.
+        let mut matches = Vec::new();
+        for spec in &self.specs {
+            for &(mod_, obj) in spec.header_types {
+                if mod_ != module {
+                    continue;
+                }
+                if !prefix.is_empty() && !obj.starts_with(&prefix) {
+                    continue;
+                }
+                if prefix.is_empty() && obj.contains(' ') {
+                    continue;
+                }
+                matches.push(spec.kind_spec.kind);
+            }
+        }
+        matches
+    }
+}
+
+impl BigipPropertySpec {
+    /// Whether this property is in scope for `section` (mirrors
+    /// `BigipPropertySpec.matches_section`): an unconstrained property matches
+    /// any section; otherwise `section` (defaulting to `""`) must be listed.
+    #[must_use]
+    pub fn matches_section(&self, section: Option<&str>) -> bool {
+        if self.in_sections.is_empty() {
+            return true;
+        }
+        self.in_sections.contains(&section.unwrap_or(""))
+    }
+}
+
+/// The process-wide default BIG-IP object registry (built once on first use),
+/// mirroring `get_default_bigip_object_registry`.
+#[must_use]
+pub fn default_registry() -> &'static BigipRegistry {
+    use std::sync::OnceLock;
+    static REGISTRY: OnceLock<BigipRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(BigipRegistry::build)
 }
 
 #[cfg(test)]
@@ -258,9 +409,12 @@ mod tests {
     #[test]
     fn registry_builds_and_resolves() {
         let reg = BigipRegistry::build();
-        assert!(
-            reg.len() > 900,
-            "expected ~992 object kinds, got {}",
+        // The reconciled Python `OBJECT_SPECS` baseline (regenerated by
+        // `scripts/registry-audit/gen_bigip_rust.py`) carries 798 object kinds.
+        assert_eq!(
+            reg.len(),
+            798,
+            "expected 798 object kinds, got {}",
             reg.len()
         );
         let ldap = reg.get("auth_ldap").expect("auth_ldap present");

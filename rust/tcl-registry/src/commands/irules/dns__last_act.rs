@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DNS::last_act",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets the action to perform if no DNS service handles this packet.",
             synopsis: &["DNS::last_act ('allow' | 'drop' | 'reject' | 'hint' | 'noerror')"],
             snippet: "This iRules command sets the action to perform if no DNS service\nhandles this packet\n\nNote: This command requires the DNS Profile, which is only enabled as\npart of GTM or the DNS Services add-on.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DNS::last_act ('allow' | 'drop' | 'reject' | 'hint' | 'noerror')" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::DnsState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DNS::last_act ('allow' | 'drop' | 'reject' | 'hint' | 'noerror')",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::DnsState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

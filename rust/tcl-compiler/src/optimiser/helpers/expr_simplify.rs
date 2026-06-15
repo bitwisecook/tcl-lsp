@@ -39,12 +39,12 @@
 
 use std::collections::HashSet;
 
-use tcl_lexer::{tokenise_expr, ExprTokenType};
+use tcl_lexer::{ExprTokenType, tokenise_expr};
 
-use crate::expr_ast::{render_expr, BinOp, ExprNode, ExprOffset};
+use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr;
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{eval_tcl_expr, format_tcl_value, Env};
+use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
 
 // ---------------------------------------------------------------------------
 // Landed: try_fold_expr (O101 — fold constant expression)
@@ -444,48 +444,45 @@ fn reduce_unary(op: crate::expr_ast::UnaryOp, operand: &ExprNode) -> Option<Expr
     }
 
     // `~~x` → `x`, `!!x` → `x`, `not not x` → `x`.
-    if matches!(op, UnaryOp::BitNot | UnaryOp::Not | UnaryOp::WordNot) {
-        if let ExprNode::Unary {
+    if matches!(op, UnaryOp::BitNot | UnaryOp::Not | UnaryOp::WordNot)
+        && let ExprNode::Unary {
             op: inner_op,
             operand: inner_operand,
         } = operand
-        {
-            if op == *inner_op {
-                return Some((**inner_operand).clone());
-            }
-        }
+        && op == *inner_op
+    {
+        return Some((**inner_operand).clone());
     }
 
     // `!(x <cmp> y)` → inverted comparison, and DeMorgan for `!(a && b)`.
-    if matches!(op, UnaryOp::Not | UnaryOp::WordNot) {
-        if let ExprNode::Binary {
+    if matches!(op, UnaryOp::Not | UnaryOp::WordNot)
+        && let ExprNode::Binary {
             op: inner_op,
             left,
             right,
         } = operand
-        {
-            if let Some(new_op) = invert_comparison_op(*inner_op) {
-                return Some(ExprNode::Binary {
-                    op: new_op,
-                    left: left.clone(),
-                    right: right.clone(),
-                });
-            }
-            if let Some(new_op) = demorgan_flip(*inner_op) {
-                let not_left = ExprNode::Unary {
-                    op: UnaryOp::Not,
-                    operand: left.clone(),
-                };
-                let not_right = ExprNode::Unary {
-                    op: UnaryOp::Not,
-                    operand: right.clone(),
-                };
-                return Some(ExprNode::Binary {
-                    op: new_op,
-                    left: Box::new(not_left),
-                    right: Box::new(not_right),
-                });
-            }
+    {
+        if let Some(new_op) = invert_comparison_op(*inner_op) {
+            return Some(ExprNode::Binary {
+                op: new_op,
+                left: left.clone(),
+                right: right.clone(),
+            });
+        }
+        if let Some(new_op) = demorgan_flip(*inner_op) {
+            let not_left = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: left.clone(),
+            };
+            let not_right = ExprNode::Unary {
+                op: UnaryOp::Not,
+                operand: right.clone(),
+            };
+            return Some(ExprNode::Binary {
+                op: new_op,
+                left: Box::new(not_left),
+                right: Box::new(not_right),
+            });
         }
     }
 

@@ -54,8 +54,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-compound",
         takes_value: true,
         value_hint: "",
-        detail:
-            "Whether to display both image and text: none, bottom, top, left, right, or center.",
+        detail: "Whether to display both image and text: none, bottom, top, left, right, or center.",
         dialects: None,
     },
     OptionSpec {
@@ -224,7 +223,7 @@ pub fn spec() -> CommandSpec {
         name: "menubutton",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a menubutton widget.",
             synopsis: &["menubutton pathName ?option value ...?"],
             snippet: "Displays a textual string, bitmap, or image. When pressed, posts an associated menu widget.",

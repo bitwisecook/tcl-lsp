@@ -43,8 +43,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Read or write a variable value.",
             synopsis: &["set varName ?newValue?"],
-            snippet:
-                "With one argument, returns the value. With two, assigns and returns the new value.",
+            snippet: "With one argument, returns the value. With two, assigns and returns the new value.",
             source: "Tcl set(1)",
             examples: "",
             return_value: "",

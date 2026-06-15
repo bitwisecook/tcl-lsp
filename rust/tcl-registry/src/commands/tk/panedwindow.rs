@@ -221,7 +221,7 @@ pub fn spec() -> CommandSpec {
         name: "panedwindow",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a panedwindow widget.",
             synopsis: &["panedwindow pathName ?option value ...?"],
             snippet: "Displays a container that divides its space among child widgets separated by movable sashes.",

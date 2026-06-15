@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PROFILE::httpcompression",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the value of an HTTP compression profile setting.",
             synopsis: &["PROFILE::httpcompression ATTR"],
             snippet: "Returns the current value of the specified setting in an assigned HTTP compression profile.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in an assigned HTTP compression profile.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::httpcompression ATTR" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::BigipConfig,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROFILE::httpcompression ATTR",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::BigipConfig,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

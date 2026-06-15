@@ -22,8 +22,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "End the application",
             synopsis: &["exit ?returnCode?"],
-            snippet:
-                "Terminate the process, returning returnCode to the system as the exit status.",
+            snippet: "Terminate the process, returning returnCode to the system as the exit status.",
             source: "Tcl man page exit.n",
             examples: "",
             return_value: "",

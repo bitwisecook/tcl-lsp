@@ -9,17 +9,6 @@ use super::super::{BigipObjectKindSpec, BigipObjectSpec, BigipPropertySpec, Valu
 pub static SPECS: &[BigipObjectSpec] = &[
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "gtm_add",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["add"],
-        },
-        header_types: &[("gtm", "add")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "gtm_datacenter",
             table_name: None,
             resolver_name: None,
@@ -28,13 +17,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "datacenter")],
         properties: &[
-            BigipPropertySpec {
-                name: "prober-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -619,28 +601,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "gtm_iquery",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["iquery"],
-        },
-        header_types: &[("gtm", "iquery")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "gtm_ldns",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["ldns"],
-        },
-        header_types: &[("gtm", "ldns")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "gtm_link",
             table_name: None,
             resolver_name: None,
@@ -826,35 +786,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "listener")],
         properties: &[
-            BigipPropertySpec {
-                name: "last-hop-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                in_sections: &["source-address-translation"],
-                allow_none: true,
-                references: &["ltm_snatpool", "ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
@@ -1230,35 +1161,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "listener-doh-proxy")],
         properties: &[
             BigipPropertySpec {
-                name: "last-hop-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                in_sections: &["source-address-translation"],
-                allow_none: true,
-                references: &["ltm_snatpool", "ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
                 required: true,
@@ -1631,35 +1533,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "listener-doh-server")],
         properties: &[
-            BigipPropertySpec {
-                name: "last-hop-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                in_sections: &["source-address-translation"],
-                allow_none: true,
-                references: &["ltm_snatpool", "ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
@@ -2244,12 +2117,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor firepass")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -2343,12 +2210,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor ftp")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
@@ -2592,13 +2453,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor http")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "defaults-from",
                 value_type: ValueKind::Reference,
                 references: &["gtm_monitor_http"],
@@ -2703,13 +2557,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor https")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "cert",
                 value_type: ValueKind::Unknown,
@@ -2850,13 +2697,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor imap")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
                 enum_values: &["no", "yes"],
@@ -2950,13 +2790,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor ldap")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "base",
                 value_type: ValueKind::String,
@@ -3073,13 +2906,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor mssql")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
                 enum_values: &["0", "1"],
@@ -3194,13 +3020,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor mysql")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
@@ -3317,13 +3136,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor nntp")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
                 enum_values: &["no", "yes"],
@@ -3400,17 +3212,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "gtm_monitor_none",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["monitor none"],
-        },
-        header_types: &[("gtm", "monitor none")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "gtm_monitor_oracle",
             table_name: None,
             resolver_name: None,
@@ -3419,13 +3220,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor oracle")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
@@ -3542,13 +3336,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor pop3")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
                 enum_values: &["no", "yes"],
@@ -3626,13 +3413,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor postgresql")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "count",
                 value_type: ValueKind::Enum,
@@ -3749,13 +3529,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor radius")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -3854,13 +3627,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor radius-accounting")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -4089,13 +3855,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor sip")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "cert",
                 value_type: ValueKind::Unknown,
@@ -4495,13 +4254,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "monitor soap")],
         properties: &[
-            BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "debug",
                 value_type: ValueKind::Enum,
@@ -5044,13 +4796,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "monitor wmi")],
         properties: &[
             BigipPropertySpec {
-                name: "username",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "command",
                 value_type: ValueKind::Unknown,
                 allow_none: true,
@@ -5121,74 +4866,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "gtm_path",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["path"],
-        },
-        header_types: &[("gtm", "path")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "gtm_persist",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["persist"],
-        },
-        header_types: &[("gtm", "persist")],
-        properties: &[
-            BigipPropertySpec {
-                name: "destination",
-                value_type: ValueKind::Boolean,
-                allow_none: true,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "key",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "level",
-                value_type: ValueKind::Enum,
-                enum_values: &["application", "wideip"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "max-results",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "target-name",
-                value_type: ValueKind::Boolean,
-                allow_none: true,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "target-type",
-                value_type: ValueKind::Enum,
-                enum_values: &["datacenter", "link", "pool-member", "server"],
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "gtm_pool",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["pool"],
-        },
-        header_types: &[("gtm", "pool")],
-        properties: &[],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -7385,12 +7062,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("gtm", "region")],
         properties: &[
             BigipPropertySpec {
-                name: "pool",
-                value_type: ValueKind::Reference,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
                 allow_none: true,
@@ -7540,13 +7211,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("gtm", "server")],
         properties: &[
-            BigipPropertySpec {
-                name: "prober-pool",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["ltm_pool"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "addresses",
                 value_type: ValueKind::Unknown,
@@ -7879,17 +7543,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "gtm_traffic",
-            table_name: None,
-            resolver_name: None,
-            module: Some("gtm"),
-            object_types: &["traffic"],
-        },
-        header_types: &[("gtm", "traffic")],
-        properties: &[],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {

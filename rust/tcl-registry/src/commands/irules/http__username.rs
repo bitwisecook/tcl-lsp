@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTTP::username",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the username part of HTTP basic authentication.",
             synopsis: &["HTTP::username"],
             snippet: "Returns the username part of HTTP basic authentication.\nAs described in RFC2617 the username and password in basic\nauthentication is sent by the client in the Authorization header. The\nclient base64 encodes the username and password in the format of:\nAuthorization: Basic base64encoding(username:password)\nThe HTTP::username command parses and base64 decodes the username.\nThe HTTP::password command parses and base64 decodes the password.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP::username" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpHeader,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP::username",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

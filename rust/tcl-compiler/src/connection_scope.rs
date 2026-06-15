@@ -30,7 +30,7 @@ use std::collections::{HashMap, HashSet};
 use tcl_registry::events::EventRegistry;
 
 use crate::compilation_unit::FunctionUnit;
-use crate::ir::{when_event_name, Statement};
+use crate::ir::{Statement, when_event_name};
 
 /// Variable summary for a single ``when`` event handler.
 ///
@@ -194,12 +194,10 @@ fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
             // it's the same condition as ``is_unset`` above, but
             // walking ``stmt.defs`` for the names is the
             // canonical shape.
-            if is_unset {
-                if let Statement::Call { args, .. } = &stmt.statement {
-                    for a in args {
-                        if !a.starts_with("::") && !a.starts_with('-') {
-                            unsets.insert(a.clone());
-                        }
+            if is_unset && let Statement::Call { args, .. } = &stmt.statement {
+                for a in args {
+                    if !a.starts_with("::") && !a.starts_with('-') {
+                        unsets.insert(a.clone());
                     }
                 }
             }

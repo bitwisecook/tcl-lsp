@@ -17,6 +17,7 @@ thiserror = "2"
 anstream = "1"
 anstyle = "1"
 tabled = "0.21"
+rpassword = "7"
 
 [lints]
 workspace = true

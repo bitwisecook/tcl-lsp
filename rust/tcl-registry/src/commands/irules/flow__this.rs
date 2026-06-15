@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "FLOW::this",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the TCL handle for the current flow.",
             synopsis: &["FLOW::this"],
             snippet: "Returns the TCL handle for the current flow.",
@@ -30,17 +30,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "FLOW::this" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FlowState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FLOW::this",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FlowState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

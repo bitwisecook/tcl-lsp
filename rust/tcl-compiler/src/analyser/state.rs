@@ -70,6 +70,9 @@ pub struct CmdCommandSite {
 /// same name** — see ``_AnalyserBase.__init__`` for the full
 /// rationale per field. Comments here only call out where the
 /// Rust shape diverges from Python (e.g. ``ns_cache`` keys).
+// A long-lived analysis accumulator: its several independent pass flags are
+// intentional, not a sign they should be bit-packed into an enum.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct Analyser {
     /// Public accumulator returned by [`Analyser::analyse`].
@@ -1082,8 +1085,8 @@ impl Analyser {
     /// implicitly when ``REGISTRY.command_names(dialect)``
     /// returns just the built-in set.
     pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
-        use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
+        use tcl_registry::prelude::DialectSet;
         if self.builtin_dialect.as_deref() != Some(self.dialect.as_str())
             || self.builtin_names.is_none()
         {

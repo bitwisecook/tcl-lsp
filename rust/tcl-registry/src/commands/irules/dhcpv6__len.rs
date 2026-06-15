@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DHCPv6::len",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command returns the length of the DHCP packet length.",
             synopsis: &["DHCPv6::len"],
             snippet: "This command returns the length of the DHCP packet length\n\nDetails (syntax):\nDHCPv6::len",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_DATA {\n        log local0. \"Len [DHCPv6::len]\"\n    }",
             return_value: "This command returns the length of the DHCP packet length",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DHCPv6::len" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DHCPv6::len",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

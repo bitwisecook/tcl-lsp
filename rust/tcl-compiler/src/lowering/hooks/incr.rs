@@ -17,7 +17,7 @@
 //! the unmodified word vector.
 
 use crate::ir::Statement;
-use crate::lowering_hooks::{has_expansion, make_call, LoweringCommand};
+use crate::lowering_hooks::{LoweringCommand, has_expansion, make_call};
 
 /// Lower `incr` to [`Statement::Incr`] or fall back to
 /// [`Statement::Call`] when the call shape is not the

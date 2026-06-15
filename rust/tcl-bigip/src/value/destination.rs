@@ -6,11 +6,11 @@
 //! port separator) and delegates each piece to its dedicated value type's
 //! parser. Every spelling in the Python module docstring is handled.
 
-use super::address::{parse_address, Address, IPAddress};
+use super::address::{Address, IPAddress, parse_address};
 use super::error::ValueError;
 use super::folder::Folder;
 use super::partition::Partition;
-use super::port::{py_repr, Port};
+use super::port::{Port, py_repr};
 use super::route_domain::RouteDomain;
 use std::fmt;
 
@@ -185,15 +185,15 @@ impl fmt::Display for Destination {
         if is_ipv6 && self.ipv6_brackets {
             addr_text = format!("[{addr_text}]");
         }
-        if let Some(rd) = &self.route_domain {
-            if !rd.is_default() {
-                if self.ipv6_brackets {
-                    // Insert ``%rd`` before the closing bracket.
-                    let trimmed = &addr_text[..addr_text.len() - 1];
-                    addr_text = format!("{trimmed}{rd}]");
-                } else {
-                    addr_text = format!("{addr_text}{rd}");
-                }
+        if let Some(rd) = &self.route_domain
+            && !rd.is_default()
+        {
+            if self.ipv6_brackets {
+                // Insert ``%rd`` before the closing bracket.
+                let trimmed = &addr_text[..addr_text.len() - 1];
+                addr_text = format!("{trimmed}{rd}]");
+            } else {
+                addr_text = format!("{addr_text}{rd}");
             }
         }
         let mut out = addr_text;

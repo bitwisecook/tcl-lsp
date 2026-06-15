@@ -27,7 +27,7 @@ use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
-use super::{type_name, ShimmerWarning};
+use super::{ShimmerWarning, type_name};
 
 /// Find expression-level shimmer warnings for a function.
 ///
@@ -67,22 +67,21 @@ pub(crate) fn find_expr_shimmers(
         }
 
         // 2. Branch terminator condition (if/while/for predicate).
-        if let Some(block) = cfg.blocks.get(&block_name) {
-            if let Some(Terminator::Branch {
+        if let Some(block) = cfg.blocks.get(&block_name)
+            && let Some(Terminator::Branch {
                 condition, span, ..
             }) = &block.terminator
-            {
-                let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
-                // Use exit_versions: those are the variable versions in scope
-                // when the condition is evaluated.
-                collect_expr_shimmers(
-                    condition,
-                    &ssa_block.exit_versions,
-                    types,
-                    branch_span,
-                    &mut out,
-                );
-            }
+        {
+            let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
+            // Use exit_versions: those are the variable versions in scope
+            // when the condition is evaluated.
+            collect_expr_shimmers(
+                condition,
+                &ssa_block.exit_versions,
+                types,
+                branch_span,
+                &mut out,
+            );
         }
     }
 

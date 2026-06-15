@@ -174,7 +174,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         Err(()) // command substitution is opaque at compile time
     }
     fn call(&mut self, function: &str, args: Vec<FoldValue>) -> Result<FoldValue, ()> {
-        use tcl_syntax::expr::mathfunc::{dispatch, Num};
+        use tcl_syntax::expr::mathfunc::{Num, dispatch};
         let name = function.to_ascii_lowercase();
         if matches!(name.as_str(), "rand" | "srand") {
             return Err(()); // non-deterministic

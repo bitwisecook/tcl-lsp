@@ -269,9 +269,10 @@ mod tests {
         assert_eq!(o.len(), 0);
         assert!(o.get("anything").is_none());
         assert!(!o.contains("anything"));
-        assert!(o
-            .arg_indices_for_role("anything", &[], ArgRole::Body)
-            .is_empty());
+        assert!(
+            o.arg_indices_for_role("anything", &[], ArgRole::Body)
+                .is_empty()
+        );
     }
 
     #[test]

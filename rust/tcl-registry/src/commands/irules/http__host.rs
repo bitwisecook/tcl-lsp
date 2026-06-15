@@ -3,10 +3,12 @@ use crate::prelude::*;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::host",
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE).union(Traits::DIAGRAM_ACTION),
+        traits: Traits::PURE
+            .union(Traits::CSE_CANDIDATE)
+            .union(Traits::DIAGRAM_ACTION),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(0, 1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the value contained in the Host header of an HTTP request.",
             synopsis: &["HTTP::host ?name?"],
             snippet: "Returns the value contained in the Host header of an HTTP request. This\ncommand replaces the BIG-IP 4.X variable http_host.\nThe Host header always contains the requested host name (which may be a\nHost Domain Name string or an IP address), and will also contain the\nrequested service port whenever a non-standard port is specified (other\nthan 80 for HTTP, other than 443 for HTTPS). When present, the\nnon-standard port is appended to the requsted name as a numeric string\nwith a colon separating the 2 values (just as it would appear in the\nbrowser's address bar):\n  * Host: host.domain.",
@@ -25,17 +27,21 @@ hover: Some(HoverSnippet {
             capability: None,
         }),
         forms: &[
-            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::host" },
-            FormSpec { kind: FormKind::Setter, synopsis: "HTTP::host <name>" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpHeader,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
+            FormSpec {
+                kind: FormKind::Getter,
+                synopsis: "HTTP::host",
+            },
+            FormSpec {
+                kind: FormKind::Setter,
+                synopsis: "HTTP::host <name>",
             },
         ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

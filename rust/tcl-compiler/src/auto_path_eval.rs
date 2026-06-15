@@ -233,11 +233,11 @@ fn expanduser(p: &str) -> String {
     }
     // Only the bare `~` (followed by `/` or end) is expanded.
     let after = &p[1..];
-    if after.is_empty() || after.starts_with('/') {
-        if let Ok(home) = std::env::var("HOME") {
-            let home = home.trim_end_matches('/');
-            return format!("{home}{after}");
-        }
+    if (after.is_empty() || after.starts_with('/'))
+        && let Ok(home) = std::env::var("HOME")
+    {
+        let home = home.trim_end_matches('/');
+        return format!("{home}{after}");
     }
     p.to_owned()
 }
@@ -370,11 +370,14 @@ mod tests {
 
     #[test]
     fn tilde_expands_to_home() {
-        std::env::set_var("HOME", "/home/tester");
-        assert_eq!(
-            evaluate_auto_path_expr("~/lib", None).as_deref(),
-            Some("/home/tester/lib"),
-        );
+        // `temp_env` scopes the `$HOME` mutation so this crate stays unsafe-free
+        // (`set_var` is `unsafe` on edition 2024).
+        temp_env::with_var("HOME", Some("/home/tester"), || {
+            assert_eq!(
+                evaluate_auto_path_expr("~/lib", None).as_deref(),
+                Some("/home/tester/lib"),
+            );
+        });
     }
 
     #[test]

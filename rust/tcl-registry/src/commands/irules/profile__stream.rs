@@ -8,12 +8,10 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Returns the value of a Stream profile setting.",
             synopsis: &["PROFILE::stream ATTR"],
-            snippet:
-                "Returns the current value of the specified setting in the assigned Stream profile.",
+            snippet: "Returns the current value of the specified setting in the assigned Stream profile.",
             source: "https://clouddocs.f5.com/api/irules/PROFILE__stream.html",
             examples: "",
-            return_value:
-                "Returns the current value of the specified setting in the assigned Stream profile.",
+            return_value: "Returns the current value of the specified setting in the assigned Stream profile.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

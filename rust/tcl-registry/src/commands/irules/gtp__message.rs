@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "GTP::message",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the entire GTP message.",
             synopsis: &["GTP::message ('-message' MESSAGE)?"],
             snippet: "Returns the entire GTP message.",
@@ -13,20 +13,23 @@ hover: Some(HoverSnippet {
             examples: "when GTP_SIGNALLING_INGRESS {\n    set t1 [GTP::message]\n    log local0. \"GTP type [GTP::header type -message $t1]\"\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "GTP::message ('-message' MESSAGE)?" },
-        ],
-        options: &[
-            OptionSpec { name: "-message", takes_value: true, value_hint: "", detail: "Option -message.", dialects: None },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "GTP::message ('-message' MESSAGE)?",
+        }],
+        options: &[OptionSpec {
+            name: "-message",
+            takes_value: true,
+            value_hint: "",
+            detail: "Option -message.",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

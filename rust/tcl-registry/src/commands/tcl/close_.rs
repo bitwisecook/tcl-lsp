@@ -21,14 +21,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Close a channel.",
-    synopsis: &["close channelId ?r(ead)|w(rite)?"],
-    snippet: "For bidirectional pipelines you may close one direction (`read`/`write`) selectively.",
-    source: "Tcl close(1)",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Close a channel.",
+            synopsis: &["close channelId ?r(ead)|w(rite)?"],
+            snippet: "For bidirectional pipelines you may close one direction (`read`/`write`) selectively.",
+            source: "Tcl close(1)",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

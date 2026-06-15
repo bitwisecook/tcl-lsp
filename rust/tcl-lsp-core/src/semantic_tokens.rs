@@ -489,12 +489,12 @@ fn special_arg_kinds(
     let head = &seg.texts[0];
 
     // `when EVENT` — the literal event-name argument.
-    if head == "when" {
-        if let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1)) {
-            if matches!(tok.kind, TokenType::Esc) && is_event_name(text) {
-                overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
-            }
-        }
+    if head == "when"
+        && let (Some(tok), Some(text)) = (seg.argv.get(1), seg.texts.get(1))
+        && matches!(tok.kind, TokenType::Esc)
+        && is_event_name(text)
+    {
+        overrides.insert(tok.span.start(), ArgOverride::Kind(TokenKind::Event));
     }
 
     // Regex pattern argument of a `pattern_type == Regex` command.
@@ -522,10 +522,10 @@ fn special_arg_kinds(
         }
         // `regsub … exp string subSpec …` — the replacement spec sits two
         // words after the pattern.  Mirrors `_regsub_subspec_arg_index`.
-        if head == "regsub" {
-            if let Some(tok) = seg.argv.get(idx + 3) {
-                overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
-            }
+        if head == "regsub"
+            && let Some(tok) = seg.argv.get(idx + 3)
+        {
+            overrides.insert(tok.span.start(), ArgOverride::RegsubReplace);
         }
     }
 
@@ -537,21 +537,21 @@ fn special_arg_kinds(
         "scan" if seg.argv.len() >= 3 => Some(2),
         _ => None,
     };
-    if let Some(w) = fmt_word {
-        if let Some(tok) = seg.argv.get(w) {
-            overrides.insert(tok.span.start(), ArgOverride::SprintfFormat);
-        }
+    if let Some(w) = fmt_word
+        && let Some(tok) = seg.argv.get(w)
+    {
+        overrides.insert(tok.span.start(), ArgOverride::SprintfFormat);
     }
 
     // `clock format/scan … -format FMT` — the `-format` option value.
     // Mirrors `_clock_format_arg_index`.
-    if head == "clock" && seg.texts.len() >= 3 && matches!(seg.texts[1].as_str(), "format" | "scan")
+    if head == "clock"
+        && seg.texts.len() >= 3
+        && matches!(seg.texts[1].as_str(), "format" | "scan")
+        && let Some(i) = (2..seg.texts.len()).find(|&i| seg.texts[i] == "-format")
+        && let Some(tok) = seg.argv.get(i + 1)
     {
-        if let Some(i) = (2..seg.texts.len()).find(|&i| seg.texts[i] == "-format") {
-            if let Some(tok) = seg.argv.get(i + 1) {
-                overrides.insert(tok.span.start(), ArgOverride::ClockFormat);
-            }
-        }
+        overrides.insert(tok.span.start(), ArgOverride::ClockFormat);
     }
 
     // `binary format FMT …` (arg 2) / `binary scan VAL FMT …` (arg 3).
@@ -562,20 +562,20 @@ fn special_arg_kinds(
             "scan" if seg.texts.len() >= 4 => Some(3),
             _ => None,
         };
-        if let Some(w) = bin_word {
-            if let Some(tok) = seg.argv.get(w) {
-                overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
-            }
+        if let Some(w) = bin_word
+            && let Some(tok) = seg.argv.get(w)
+        {
+            overrides.insert(tok.span.start(), ArgOverride::BinaryFormat);
         }
     }
 
     // `proc NAME …` — the name argument is a function definition.
-    if head == "proc" {
-        if let Some(tok) = seg.argv.get(1) {
-            overrides
-                .entry(tok.span.start())
-                .or_insert(ArgOverride::ProcNameDef);
-        }
+    if head == "proc"
+        && let Some(tok) = seg.argv.get(1)
+    {
+        overrides
+            .entry(tok.span.start())
+            .or_insert(ArgOverride::ProcNameDef);
     }
 
     // Known `-option` switches → `Decorator` (only real options, so `puts
@@ -583,22 +583,22 @@ fn special_arg_kinds(
     // `defaultLibrary`.  Both consult the command's registry spec.
     if let Some(spec) = registry.get(head) {
         for (i, text) in seg.texts.iter().enumerate().skip(1) {
-            if text.starts_with('-') && spec.options.iter().any(|o| o.name == text.as_str()) {
-                if let Some(tok) = seg.argv.get(i) {
-                    overrides
-                        .entry(tok.span.start())
-                        .or_insert(ArgOverride::Decorator);
-                }
+            if text.starts_with('-')
+                && spec.options.iter().any(|o| o.name == text.as_str())
+                && let Some(tok) = seg.argv.get(i)
+            {
+                overrides
+                    .entry(tok.span.start())
+                    .or_insert(ArgOverride::Decorator);
             }
         }
-        if let Some(sub_text) = seg.texts.get(1) {
-            if spec.subcommand(sub_text).is_some() {
-                if let Some(tok) = seg.argv.get(1) {
-                    overrides
-                        .entry(tok.span.start())
-                        .or_insert(ArgOverride::SubcommandKeyword);
-                }
-            }
+        if let Some(sub_text) = seg.texts.get(1)
+            && spec.subcommand(sub_text).is_some()
+            && let Some(tok) = seg.argv.get(1)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::SubcommandKeyword);
         }
     }
 
@@ -630,10 +630,9 @@ fn special_arg_kinds(
                 .argv
                 .get(case_idx)
                 .is_some_and(|t| matches!(t.kind, TokenType::Str))
+            && let Some(tok) = seg.argv.get(case_idx)
         {
-            if let Some(tok) = seg.argv.get(case_idx) {
-                overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
-            }
+            overrides.insert(tok.span.start(), ArgOverride::SwitchRegexpCaseList);
         }
     }
 
@@ -649,10 +648,10 @@ fn special_arg_kinds(
         (tcl_registry::ArgRole::Expr, ArgOverride::ExprScript),
     ] {
         for i in registry.arg_indices_for_role(head, &arg_texts, role) {
-            if let Some(tok) = seg.argv.get(i + 1) {
-                if matches!(tok.kind, TokenType::Str) {
-                    overrides.entry(tok.span.start()).or_insert(ov);
-                }
+            if let Some(tok) = seg.argv.get(i + 1)
+                && matches!(tok.kind, TokenType::Str)
+            {
+                overrides.entry(tok.span.start()).or_insert(ov);
             }
         }
     }
@@ -908,18 +907,18 @@ fn push_sprintf_subtokens(
     let mut run = 0usize;
     let mut i = 0usize;
     while i < bytes.len() {
-        if bytes[i] == b'%' {
-            if let Some(cuts) = parse_sprintf_cuts(bytes, i) {
-                flush_run(pos_ctx, cstart, inner, run, i, TokenKind::String, entries);
-                let mut pos = i;
-                for (end, kind) in cuts {
-                    emit_part(pos_ctx, cstart, inner, &mut pos, end, kind, entries);
-                }
-                emitted = true;
-                i = pos;
-                run = i;
-                continue;
+        if bytes[i] == b'%'
+            && let Some(cuts) = parse_sprintf_cuts(bytes, i)
+        {
+            flush_run(pos_ctx, cstart, inner, run, i, TokenKind::String, entries);
+            let mut pos = i;
+            for (end, kind) in cuts {
+                emit_part(pos_ctx, cstart, inner, &mut pos, end, kind, entries);
             }
+            emitted = true;
+            i = pos;
+            run = i;
+            continue;
         }
         i += 1;
     }
@@ -1432,54 +1431,54 @@ fn emit_command_head(
     let full_kind = classify_command_head(head_text, registry);
     // Split any `…::name` head (namespace-qualified command or keyword) into a
     // namespace prefix + final-segment command token.
-    if head_text.contains("::") {
-        if let Some(idx) = head_text.rfind("::") {
-            // Byte length of the `…::` prefix (head_text bytes == span bytes).
-            let prefix_len = u32::try_from(idx + 2).unwrap_or(0);
-            let start = head_tok.span.start();
-            // Namespace prefix token.
-            push_token(
-                line_index,
-                full_source,
-                Token {
-                    span: tcl_lexer::Span::new(start, start + prefix_len),
-                    ..head_tok
-                },
-                TokenKind::Namespace,
-                0,
-                entries,
-            );
-            // Final-segment command token: keyword when the full name is a
-            // language keyword (TclOO `oo::class` etc.), else function;
-            // `defaultLibrary` when the full name is a registry built-in.
-            let tail = &head_text[idx + 2..];
-            let is_keyword = registry.get(head_text).is_some_and(|s| {
-                s.traits
-                    .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
-            }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&tail);
-            let kind = if is_keyword {
-                TokenKind::Keyword
-            } else {
-                TokenKind::Function
-            };
-            let mods = if kind == TokenKind::Function && registry.get(head_text).is_some() {
-                MOD_DEFAULT_LIBRARY
-            } else {
-                0
-            };
-            push_token(
-                line_index,
-                full_source,
-                Token {
-                    span: tcl_lexer::Span::new(start + prefix_len, head_tok.span.end()),
-                    ..head_tok
-                },
-                kind,
-                mods,
-                entries,
-            );
-            return;
-        }
+    if head_text.contains("::")
+        && let Some(idx) = head_text.rfind("::")
+    {
+        // Byte length of the `…::` prefix (head_text bytes == span bytes).
+        let prefix_len = u32::try_from(idx + 2).unwrap_or(0);
+        let start = head_tok.span.start();
+        // Namespace prefix token.
+        push_token(
+            line_index,
+            full_source,
+            Token {
+                span: tcl_lexer::Span::new(start, start + prefix_len),
+                ..head_tok
+            },
+            TokenKind::Namespace,
+            0,
+            entries,
+        );
+        // Final-segment command token: keyword when the full name is a
+        // language keyword (TclOO `oo::class` etc.), else function;
+        // `defaultLibrary` when the full name is a registry built-in.
+        let tail = &head_text[idx + 2..];
+        let is_keyword = registry.get(head_text).is_some_and(|s| {
+            s.traits
+                .contains(tcl_registry::prelude::Traits::LANGUAGE_KEYWORD)
+        }) || LANGUAGE_KEYWORD_SUB_KEYWORDS.contains(&tail);
+        let kind = if is_keyword {
+            TokenKind::Keyword
+        } else {
+            TokenKind::Function
+        };
+        let mods = if kind == TokenKind::Function && registry.get(head_text).is_some() {
+            MOD_DEFAULT_LIBRARY
+        } else {
+            0
+        };
+        push_token(
+            line_index,
+            full_source,
+            Token {
+                span: tcl_lexer::Span::new(start + prefix_len, head_tok.span.end()),
+                ..head_tok
+            },
+            kind,
+            mods,
+            entries,
+        );
+        return;
     }
     let mods = if full_kind == TokenKind::Function && registry.get(head_text).is_some() {
         MOD_DEFAULT_LIBRARY
@@ -1544,31 +1543,31 @@ fn collect_script(
                     }
                 }
                 Some(ArgOverride::SprintfFormat) => {
-                    if !push_sprintf_subtokens(line_index, full_source, *tok, entries) {
-                        if let Some(kind) = classify_arg_token(*tok, full_source) {
-                            push_token(line_index, full_source, *tok, kind, 0, entries);
-                        }
+                    if !push_sprintf_subtokens(line_index, full_source, *tok, entries)
+                        && let Some(kind) = classify_arg_token(*tok, full_source)
+                    {
+                        push_token(line_index, full_source, *tok, kind, 0, entries);
                     }
                 }
                 Some(ArgOverride::ClockFormat) => {
-                    if !push_clock_subtokens(line_index, full_source, *tok, entries) {
-                        if let Some(kind) = classify_arg_token(*tok, full_source) {
-                            push_token(line_index, full_source, *tok, kind, 0, entries);
-                        }
+                    if !push_clock_subtokens(line_index, full_source, *tok, entries)
+                        && let Some(kind) = classify_arg_token(*tok, full_source)
+                    {
+                        push_token(line_index, full_source, *tok, kind, 0, entries);
                     }
                 }
                 Some(ArgOverride::BinaryFormat) => {
-                    if !push_binary_subtokens(line_index, full_source, *tok, dialect, entries) {
-                        if let Some(kind) = classify_arg_token(*tok, full_source) {
-                            push_token(line_index, full_source, *tok, kind, 0, entries);
-                        }
+                    if !push_binary_subtokens(line_index, full_source, *tok, dialect, entries)
+                        && let Some(kind) = classify_arg_token(*tok, full_source)
+                    {
+                        push_token(line_index, full_source, *tok, kind, 0, entries);
                     }
                 }
                 Some(ArgOverride::RegsubReplace) => {
-                    if !push_regsub_subtokens(line_index, full_source, *tok, entries) {
-                        if let Some(kind) = classify_arg_token(*tok, full_source) {
-                            push_token(line_index, full_source, *tok, kind, 0, entries);
-                        }
+                    if !push_regsub_subtokens(line_index, full_source, *tok, entries)
+                        && let Some(kind) = classify_arg_token(*tok, full_source)
+                    {
+                        push_token(line_index, full_source, *tok, kind, 0, entries);
                     }
                 }
                 Some(ArgOverride::Kind(kind)) => {
@@ -1648,19 +1647,19 @@ fn collect_script(
                         // script (delimiters stripped via `content_offset`).
                         let cstart = tok.span.start() as usize + tok.content_offset as usize;
                         let cend = (tok.span.end() as usize).min(full_source.len());
-                        if cend > cstart {
-                            if let Some(inner) = full_source.get(cstart..cend) {
-                                collect_script(
-                                    full_source,
-                                    inner,
-                                    u32::try_from(cstart).unwrap_or(0),
-                                    dialect,
-                                    registry,
-                                    line_index,
-                                    entries,
-                                    depth + 1,
-                                );
-                            }
+                        if cend > cstart
+                            && let Some(inner) = full_source.get(cstart..cend)
+                        {
+                            collect_script(
+                                full_source,
+                                inner,
+                                u32::try_from(cstart).unwrap_or(0),
+                                dialect,
+                                registry,
+                                line_index,
+                                entries,
+                                depth + 1,
+                            );
                         }
                     } else if let Some(kind) = classify_arg_token(*tok, full_source) {
                         // String / bareword args with backslash escapes split
@@ -2069,12 +2068,12 @@ fn push_token(
     // recognised by `span_len == content_offset + 1` with a `$` / `[` last
     // byte; trim it back to just its leading delimiter (the opening `"`, or
     // nothing when there is no delimiter, e.g. between adjacent `$a$b`).
-    if tok.kind == TokenType::Esc && end - start == u32::from(tok.content_offset) + 1 {
-        if let Some(&last) = source.as_bytes().get((end - 1) as usize) {
-            if last == b'$' || last == b'[' {
-                end = start + u32::from(tok.content_offset);
-            }
-        }
+    if tok.kind == TokenType::Esc
+        && end - start == u32::from(tok.content_offset) + 1
+        && let Some(&last) = source.as_bytes().get((end - 1) as usize)
+        && (last == b'$' || last == b'[')
+    {
+        end = start + u32::from(tok.content_offset);
     }
     if end <= start {
         return;
@@ -2770,7 +2769,7 @@ mod tests {
         // The range result must be strictly smaller than the
         // full result.
         assert!(line1_only.data.len() < full_data.data.len());
-        assert!(line1_only.data.len() % 5 == 0);
+        assert!(line1_only.data.len().is_multiple_of(5));
         assert!(!line1_only.data.is_empty(), "{:?}", line1_only.data);
     }
 

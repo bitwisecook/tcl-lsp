@@ -159,9 +159,13 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::header",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets or sets the DIAMETER header fields.",
-            synopsis: &["DIAMETER::header <field> ?value?", "DIAMETER::header command_code ?value?", "DIAMETER::header application_id ?value?"],
+            synopsis: &[
+                "DIAMETER::header <field> ?value?",
+                "DIAMETER::header command_code ?value?",
+                "DIAMETER::header application_id ?value?",
+            ],
             snippet: "This iRule command is used to get and set header fields in the current DIAMETER message.",
             source: "https://clouddocs.f5.com/api/irules/DIAMETER__header.html",
             examples: "when DIAMETER_INGRESS {\n    if { [DIAMETER::header tflag] } {\n        log local0. \"Received a potentially retransmitted Diameter message\"\n    }\n}",
@@ -177,18 +181,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::header <field> ?value?" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::header <field> ?value?",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

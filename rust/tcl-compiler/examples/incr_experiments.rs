@@ -1,14 +1,19 @@
 //! Phase-0 experiments for per-item incremental analysis.
 //! E3: walk vs cross-item-aggregate (tail) cost split.
-//! E1: item-locality (perf heuristic) — a body edit should leave items defined
+//! E1: item-locality (perf heuristic) â a body edit should leave items defined
 //!     *before* it byte-identical. Robust perturbation: insert a benign comment
 //!     at the body start (always valid; only shifts offsets after the insert),
 //!     then compare every item/diagnostic that ends before the insert point.
 
+// Demonstration/experiment harness: percentage maths casts small counts to
+// f64 and `main` drives several experiments inline — neither warrants the
+// pedantic precision/length lints here.
+#![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tcl_compiler::analyser::types::{AnalysisResult, Diagnostic};
 use tcl_compiler::analyser::Analyser;
+use tcl_compiler::analyser::types::{AnalysisResult, Diagnostic};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::LexerConfig;
 
@@ -182,7 +187,7 @@ fn main() {
     e6_e7_lattice_costs(&root, dialect);
 }
 
-/// E2: the whole analyser is offset-shift-invariant — prepend K blank lines and
+/// E2: the whole analyser is offset-shift-invariant â prepend K blank lines and
 /// every fact must reappear shifted by exactly K bytes / K lines. Validates that
 /// per-item facts can be produced at offset 0 and rebased.
 fn e2_offset_invariance(files: &[PathBuf], dialect: &str) {
@@ -261,8 +266,8 @@ fn e2_offset_invariance(files: &[PathBuf], dialect: &str) {
     }
 }
 
-/// E6/E7: CompilationUnit + interproc + optimiser costs (the lattice layer), and
-/// the redundant-build saving a shared CompilationUnit would recover.
+/// E6/E7: `CompilationUnit` + interproc + optimiser costs (the lattice layer), and
+/// the redundant-build saving a shared `CompilationUnit` would recover.
 fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::run_all_checks;
@@ -282,7 +287,7 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
         for _ in 0..n {
             f();
         }
-        s.elapsed().as_secs_f64() * 1000.0 / n as f64
+        s.elapsed().as_secs_f64() * 1000.0 / f64::from(n)
     };
     let cfg = LexerConfig::for_dialect(dialect);
     let t_cu = time(&|| {

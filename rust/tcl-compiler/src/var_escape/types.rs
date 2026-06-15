@@ -411,10 +411,10 @@ impl ProcEscapeSummary {
         if !self.is_frame(name) {
             return Vec::new();
         }
-        if let Some(explicit) = self.tag_reasons.get(name) {
-            if !explicit.is_empty() {
-                return explicit.clone();
-            }
+        if let Some(explicit) = self.tag_reasons.get(name)
+            && !explicit.is_empty()
+        {
+            return explicit.clone();
         }
         if self.dynamic_barrier() {
             // Synthesise from proc-level barriers when present —

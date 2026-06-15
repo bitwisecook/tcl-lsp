@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "TCP::rt_metrics_timeout",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets cmetrics cache entry lifetime (timeout).",
             synopsis: &["TCP::rt_metrics_timeout TIMEOUT"],
             snippet: "If the TCP profile enables cmetrics-cache, then the entries there remain for a number of seconds equivalent to cmetrics-cache-timeout. This iRule supercedes that setting.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::rt_metrics_timeout TIMEOUT" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::rt_metrics_timeout TIMEOUT",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

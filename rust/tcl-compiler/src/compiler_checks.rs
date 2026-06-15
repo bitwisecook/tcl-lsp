@@ -15,17 +15,17 @@ use tcl_lexer::Span;
 use crate::compilation_unit::CompilationUnit;
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
 use crate::irules_checks::{
-    find_collect_flow_warnings, find_hoistable_set_warnings, find_http_flow_warnings,
-    find_unguarded_drop_warnings, find_unnormalised_getter_warnings, IrulesCheckWarning,
+    IrulesCheckWarning, find_collect_flow_warnings, find_hoistable_set_warnings,
+    find_http_flow_warnings, find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
 };
-use crate::path_concat::{find_path_concat_warnings, PathConcatWarning};
+use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{
-    find_shimmer_warnings, find_thunking_warnings, ShimmerWarning, ThunkingWarning,
+    ShimmerWarning, ThunkingWarning, find_shimmer_warnings, find_thunking_warnings,
 };
 use crate::taint::{
-    find_destructive_file_warnings, find_setter_constraint_warnings, find_taint_warnings,
-    is_irules_dialect, TaintWarning,
+    TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
+    find_taint_warnings, is_irules_dialect,
 };
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;

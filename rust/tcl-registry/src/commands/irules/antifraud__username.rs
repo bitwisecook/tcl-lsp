@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ANTIFRAUD::username",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns or sets username value, only in context of ANTIFRAUD_LOGIN event.",
             synopsis: &["ANTIFRAUD::username (USERNAME_ALIAS)?"],
             snippet: "ANTIFRAUD::username\n                Returns username value, only in context of ANTIFRAUD_LOGIN event.\n\n            ANTIFRAUD::username USERNAME_ALIAS ;\n                Replaces existing username with USERNAME_ALIAS, only in context of ANTIFRAUD_LOGIN event.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ANTIFRAUD::username (USERNAME_ALIAS)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ANTIFRAUD::username (USERNAME_ALIAS)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

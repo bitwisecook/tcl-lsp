@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CATEGORY::safesearch",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get safe search key and value pairs.",
             synopsis: &["CATEGORY::safesearch URL ('-ip' IP)?"],
             snippet: "Checks for safe search parameters for the given URL, returns them in list form with the first entry being the key, and the second being the value. Repeated in list for multiple results. (requires SWG license)",
@@ -23,20 +23,23 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CATEGORY::safesearch URL ('-ip' IP)?" },
-        ],
-        options: &[
-            OptionSpec { name: "-ip", takes_value: true, value_hint: "", detail: "Option -ip.", dialects: None },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ClassificationState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CATEGORY::safesearch URL ('-ip' IP)?",
+        }],
+        options: &[OptionSpec {
+            name: "-ip",
+            takes_value: true,
+            value_hint: "",
+            detail: "Option -ip.",
+            dialects: None,
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ClassificationState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

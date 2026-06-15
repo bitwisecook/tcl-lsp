@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["SIP::uri (URI_STRING)?"],
             snippet: "Returns or sets the complete URI of the request.",
             source: "https://clouddocs.f5.com/api/irules/SIP__uri.html",
-            examples:
-                "when SIP_REQUEST {\n  log local0. \"uri: [SIP::uri] via [SIP::header Via 0]\"\n}",
+            examples: "when SIP_REQUEST {\n  log local0. \"uri: [SIP::uri] via [SIP::header Via 0]\"\n}",
             return_value: "",
         }),
         event_requires: Some(EventRequires {

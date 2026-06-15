@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PSC::imeisv",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get or set imeisv value.",
             synopsis: &["PSC::imeisv (IMEISV)?"],
             snippet: "The PSC::imeisv command gets the imeisv or sets the imeisv when the\noptional value is given.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Return the imeisv value when no argument is given.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PSC::imeisv (IMEISV)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PSC::imeisv (IMEISV)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

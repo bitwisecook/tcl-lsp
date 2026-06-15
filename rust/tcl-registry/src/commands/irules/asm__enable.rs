@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables plugin processing on the connection.",
             synopsis: &["ASM::enable ASM_POLICY"],
             snippet: "Enables the ASM plugin processing for the current TCP connection.\nASM will remain enabled on the current TCP connection until it is closed or\nASM::disable is called.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::enable ASM_POLICY" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::enable ASM_POLICY",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         xc_translatable: Some(true),
         ..CommandSpec::DEFAULT
     }

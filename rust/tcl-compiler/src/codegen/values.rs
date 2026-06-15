@@ -5,7 +5,7 @@
 //! reference markers.  Ported from `core/compiler/codegen/_values.py`.
 
 use super::format::esc;
-use super::{bytecode_imm, CodegenCtx, Op, Operand};
+use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
 // -- Literal emission --
 

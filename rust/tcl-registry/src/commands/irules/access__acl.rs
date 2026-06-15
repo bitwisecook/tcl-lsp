@@ -65,7 +65,7 @@ pub const fn spec() -> CommandSpec {
         name: "ACCESS::acl",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Poll or enforce ACLs in your connections.",
             synopsis: &["ACCESS::acl (result | matched | lookup | (eval ACL_NAME))"],
             snippet: "The ACCESS::acl commands allow you to poll, query or enforce ACLs for a\ngiven connection.\n\nACCESS::acl result\n\n     * Returns the result of ACL match for a particular URI in\n       ACCESS_ACL_ALLOWED and ACCESS_ACL_DENIED events.\n     * This result can have one of the following values\n     * - Allow\n     * - Reject\n\nACCESS::acl lookup\n\n     * Returns the name of all the assigned ACLs for a particular session.\n\nACCESS::acl eval $acl_name\n\n     * Allows admin to enforce an ACL to a user request from iRule.",
@@ -83,18 +83,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::acl <subcommand> ?args?" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ACCESS::acl <subcommand> ?args?",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

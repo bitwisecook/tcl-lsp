@@ -7,8 +7,8 @@
 use tcl_lexer::backslash_subst;
 
 use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
-use super::{bytecode_imm, CodegenCtx, Op, Operand};
-use crate::expr_ast::{render_expr, BinOp, ExprNode};
+use super::{CodegenCtx, Op, Operand, bytecode_imm};
+use crate::expr_ast::{BinOp, ExprNode, render_expr};
 
 impl CodegenCtx<'_> {
     /// Compile an expression AST node; leaves the result on TOS.
@@ -617,11 +617,12 @@ mod tests {
         assert_eq!(ops[2], Op::INVOKE_STK1);
         assert_eq!(ctx.instructions[2].operands[0], Operand::Imm(2));
         // Literal pool should contain "tcl::mathfunc::sin"
-        assert!(ctx
-            .literals
-            .entries()
-            .iter()
-            .any(|e| e == "tcl::mathfunc::sin"));
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|e| e == "tcl::mathfunc::sin")
+        );
     }
 
     #[test]

@@ -97,10 +97,10 @@ pub fn signature_for_command(
             // `dialects` filters out subcommands not available in
             // the current dialect — mirrors
             // `subcommands_for_dialect` in Python.
-            if let Some(spec_dialects) = sub.dialects {
-                if !spec_dialects.intersects(dialect) {
-                    continue;
-                }
+            if let Some(spec_dialects) = sub.dialects
+                && !spec_dialects.intersects(dialect)
+            {
+                continue;
             }
             let arg_roles = sub
                 .arg_roles

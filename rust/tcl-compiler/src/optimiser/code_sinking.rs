@@ -203,10 +203,10 @@ fn find_target_first_stmt<'a>(decision: &'a Statement, var: &str) -> Option<&'a 
                     return Some(s);
                 }
             }
-            if let Some(b) = else_body {
-                if let Some(s) = first_stmt_using(b, var) {
-                    return Some(s);
-                }
+            if let Some(b) = else_body
+                && let Some(s) = first_stmt_using(b, var)
+            {
+                return Some(s);
             }
             None
         }
@@ -214,16 +214,16 @@ fn find_target_first_stmt<'a>(decision: &'a Statement, var: &str) -> Option<&'a 
             arms, default_body, ..
         } => {
             for a in arms {
-                if let Some(b) = &a.body {
-                    if let Some(s) = first_stmt_using(b, var) {
-                        return Some(s);
-                    }
-                }
-            }
-            if let Some(b) = default_body {
-                if let Some(s) = first_stmt_using(b, var) {
+                if let Some(b) = &a.body
+                    && let Some(s) = first_stmt_using(b, var)
+                {
                     return Some(s);
                 }
+            }
+            if let Some(b) = default_body
+                && let Some(s) = first_stmt_using(b, var)
+            {
+                return Some(s);
             }
             None
         }
@@ -409,10 +409,10 @@ fn text_references_var(text: &str, var: &str) -> bool {
             while i < bytes.len() && bytes[i] != b'}' {
                 i += 1;
             }
-            if let Ok(name) = std::str::from_utf8(&bytes[start..i]) {
-                if name == var {
-                    return true;
-                }
+            if let Ok(name) = std::str::from_utf8(&bytes[start..i])
+                && name == var
+            {
+                return true;
             }
             if i < bytes.len() {
                 i += 1;
@@ -430,10 +430,10 @@ fn text_references_var(text: &str, var: &str) -> bool {
                 break;
             }
         }
-        if let Ok(name) = std::str::from_utf8(&bytes[start..i]) {
-            if name == var {
-                return true;
-            }
+        if let Ok(name) = std::str::from_utf8(&bytes[start..i])
+            && name == var
+        {
+            return true;
         }
     }
     false

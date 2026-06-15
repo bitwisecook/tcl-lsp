@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::renegotiate",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Controls renegotiation of an SSL connection.",
             synopsis: &["SSL::renegotiate (enable | disable)?"],
             snippet: "Controls renegotiation of an SSL connection, often used to enforce new encryption settings or certificate requirements.\n\nThis command has different results depending on whether the BIG-IP system evaluates the command under a client-side or a server-side context. The command only succeeds if SSL is enabled on the connection; otherwise, the command returns an error.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SSL::renegotiate (enable | disable)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SslState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SSL::renegotiate (enable | disable)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

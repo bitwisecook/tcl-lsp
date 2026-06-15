@@ -26,24 +26,29 @@ fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::FRAME_HASH_BUILTIN,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN,
         dialects: Some(DialectSet::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
-hover: Some(HoverSnippet {
-    summary: "Assign list elements to variables",
-    synopsis: &["lassign list ?varName ...?"],
-    snippet: "This command treats the value list as a list and assigns successive elements from that list to the variables given by the varName arguments in order.",
-    source: "Tcl man page lassign.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Assign list elements to variables",
+            synopsis: &["lassign list ?varName ...?"],
+            snippet: "This command treats the value list as a list and assigns successive elements from that list to the variables given by the varName arguments in order.",
+            source: "Tcl man page lassign.n",
+            examples: "",
+            return_value: "",
+        }),
         codegen_hook: Some(CodegenHookId::Lassign),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_role_resolver: Some(lassign_arg_roles),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::List), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::List),
+                shimmers: true,
+            },
+        )],
         ..CommandSpec::DEFAULT
     }
 }

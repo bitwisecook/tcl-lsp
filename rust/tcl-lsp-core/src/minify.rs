@@ -76,7 +76,7 @@ use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
-use tcl_compiler::{parse_expr, BinOp, ExprNode, UnaryOp};
+use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr};
 use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -363,20 +363,21 @@ pub fn remap_line_references(
     let mut i = 0;
     while i < n {
         // `(procedure "NAME" line N)` form.
-        if message[i..].starts_with("(procedure \"") {
-            if let Some(rewritten) = try_remap_procline(&message[i..], &map_line) {
-                out.push_str(&rewritten.0);
-                i += rewritten.1;
-                continue;
-            }
+        if message[i..].starts_with("(procedure \"")
+            && let Some(rewritten) = try_remap_procline(&message[i..], &map_line)
+        {
+            out.push_str(&rewritten.0);
+            i += rewritten.1;
+            continue;
         }
         // Standalone `line N` (word-bounded).
-        if message[i..].starts_with("line ") && (i == 0 || !is_word_byte(Some(bytes[i - 1]))) {
-            if let Some((rewritten, consumed)) = try_remap_line(&message[i..], &map_line) {
-                out.push_str(&rewritten);
-                i += consumed;
-                continue;
-            }
+        if message[i..].starts_with("line ")
+            && (i == 0 || !is_word_byte(Some(bytes[i - 1])))
+            && let Some((rewritten, consumed)) = try_remap_line(&message[i..], &map_line)
+        {
+            out.push_str(&rewritten);
+            i += consumed;
+            continue;
         }
         let ch_len = utf8_len(bytes[i]);
         out.push_str(&message[i..i + ch_len]);
@@ -695,13 +696,14 @@ fn scope_label_at_offset(
 ) -> Option<String> {
     for child in &scope.children {
         let label = child_scope_label(prefix, &child.name);
-        if let Some(body) = child.body_span {
-            if body.start() <= offset && offset <= body.end() {
-                if let Some(deeper) = scope_label_at_offset(child, offset, &label, include_global) {
-                    return Some(deeper);
-                }
-                return Some(label);
+        if let Some(body) = child.body_span
+            && body.start() <= offset
+            && offset <= body.end()
+        {
+            if let Some(deeper) = scope_label_at_offset(child, offset, &label, include_global) {
+                return Some(deeper);
             }
+            return Some(label);
         }
     }
     match scope.kind {
@@ -724,15 +726,15 @@ fn find_barrier_scopes(
         .collect();
     let mut out = HashSet::new();
     for inv in &analysis.command_invocations {
-        if barrier_cmds.contains(inv.name.as_str()) {
-            if let Some(label) = scope_label_at_offset(
+        if barrier_cmds.contains(inv.name.as_str())
+            && let Some(label) = scope_label_at_offset(
                 &analysis.global_scope,
                 inv.range.start(),
                 "::",
                 include_global,
-            ) {
-                out.insert(label);
-            }
+            )
+        {
+            out.insert(label);
         }
     }
     out
@@ -741,12 +743,12 @@ fn find_barrier_scopes(
 /// Next short name avoiding existing and claimed names.  Mirrors
 /// `_next_unused_name`.
 fn next_unused_name(
-    gen: &mut NameGenerator,
+    r#gen: &mut NameGenerator,
     existing: &HashSet<String>,
     claimed: &HashSet<String>,
 ) -> Option<String> {
     for _ in 0..1000 {
-        let short = gen.next_name();
+        let short = r#gen.next_name();
         if !existing.contains(&short) && !claimed.contains(&short) {
             return Some(short);
         }
@@ -910,12 +912,12 @@ fn compact_array_members(
         if members.keys().any(|m| is_unsafe_member(m)) {
             continue;
         }
-        let mut gen = NameGenerator::new();
+        let mut r#gen = NameGenerator::new();
         let mut member_map: BTreeMap<String, String> = BTreeMap::new();
         let existing: HashSet<String> = members.keys().cloned().collect();
         for member in members.keys() {
             let claimed: HashSet<String> = member_map.values().cloned().collect();
-            let Some(short) = next_unused_name(&mut gen, &existing, &claimed) else {
+            let Some(short) = next_unused_name(&mut r#gen, &existing, &claimed) else {
                 continue;
             };
             if short.len() >= member.len() {
@@ -1103,23 +1105,23 @@ fn process_scope(
             // Reference sites (`$var`): skip the `$`.
             for &reference in &var_def.references {
                 let ref_text = slice(source, reference);
-                if let Some(rest) = ref_text.strip_prefix('$') {
-                    if rest == var_name {
-                        edits.push((
-                            reference.start() as usize + 1,
-                            var_name.len(),
-                            short.clone(),
-                        ));
-                    }
+                if let Some(rest) = ref_text.strip_prefix('$')
+                    && rest == var_name
+                {
+                    edits.push((
+                        reference.start() as usize + 1,
+                        var_name.len(),
+                        short.clone(),
+                    ));
                 }
             }
             var_map.insert(var_name.clone(), short);
         }
 
-        if let Some(pd) = proc_def {
-            if !var_map.is_empty() {
-                rename_params_in_list(source, pd, &var_map, edits);
-            }
+        if let Some(pd) = proc_def
+            && !var_map.is_empty()
+        {
+            rename_params_in_list(source, pd, &var_map, edits);
         }
         if !var_map.is_empty() {
             symbol_map.variables.insert(scope_label.to_owned(), var_map);
@@ -1189,16 +1191,16 @@ fn alias_by_uses(
                 .cmp(&order.iter().position(|x| x == b))
         })
     });
-    let mut gen = NameGenerator::new();
+    let mut r#gen = NameGenerator::new();
     let mut aliases: Vec<(String, String)> = Vec::new();
     for name in &cands {
         let count = uses[name].len();
         if count < 2 {
             continue;
         }
-        let mut alias = gen.next_name();
+        let mut alias = r#gen.next_name();
         while claimed.contains(&alias) {
-            alias = gen.next_name();
+            alias = r#gen.next_name();
         }
         let original_cost = count * name.len();
         let preamble_cost = 4 + alias.len() + 1 + name.len() + 1;
@@ -1463,7 +1465,7 @@ fn alias_string_literals(
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.len().cmp(&a.1.len())));
 
     let src_bytes = source.as_bytes();
-    let mut gen = NameGenerator::new();
+    let mut r#gen = NameGenerator::new();
     let mut claimed_bytes: HashSet<usize> = HashSet::new();
     let mut aliases: Vec<(Vec<u8>, String, Vec<usize>)> = Vec::new();
     for (_, sub, offsets) in scored {
@@ -1478,9 +1480,9 @@ fn alias_string_literals(
         if free.len() < 2 {
             continue;
         }
-        let mut alias = gen.next_name();
+        let mut alias = r#gen.next_name();
         while claimed.contains(&alias) {
-            alias = gen.next_name();
+            alias = r#gen.next_name();
         }
         let count = free.len();
         let original_cost = count * sub.len();
@@ -1843,11 +1845,7 @@ fn fold_string_via_sccp(
             }
         }
     }
-    if has_dynamic {
-        Some(out)
-    } else {
-        None
-    }
+    if has_dynamic { Some(out) } else { None }
 }
 
 /// Render an integer / string SCCP constant; `None` for boolean /
@@ -1875,12 +1873,12 @@ fn has_unsafe_tainted_inputs(
             let (end, name) = parse_var_ref(content, pos);
             if let Some(name) = name {
                 let ver = uses.get(name).copied().unwrap_or(0);
-                if ver > 0 {
-                    if let Some(t) = taints.get(&(name.to_owned(), ver)) {
-                        if t.is_tainted() && !t.colours.intersects(safe) {
-                            return true;
-                        }
-                    }
+                if ver > 0
+                    && let Some(t) = taints.get(&(name.to_owned(), ver))
+                    && t.is_tainted()
+                    && !t.colours.intersects(safe)
+                {
+                    return true;
                 }
                 pos = end;
             } else {
@@ -2111,16 +2109,16 @@ fn dedup_templates(rendered: Vec<Vec<String>>) -> (Vec<(String, String)>, Vec<Ve
         })
     });
 
-    let mut gen = NameGenerator::new();
+    let mut r#gen = NameGenerator::new();
     let mut template_map: Vec<(String, String)> = Vec::new();
     for content in &candidates {
         let count = uses[content].len();
         if count < 2 {
             continue;
         }
-        let mut alias = gen.next_name();
+        let mut alias = r#gen.next_name();
         while used_names.contains(&alias) {
-            alias = gen.next_name();
+            alias = r#gen.next_name();
         }
         let original_cost = count * (content.len() + 2);
         let preamble_cost = 4 + alias.len() + 1 + 1 + content.len() + 1 + 1;
@@ -2319,12 +2317,11 @@ fn reconstruct_raw(
         TokenType::Var => {
             // Inside a quoted string, keep `${var}` when the next
             // token would otherwise extend the variable name.
-            if let Some(next) = next_tok {
-                if let Some(c) = first_rendered_char(sm, next) {
-                    if c.is_alphanumeric() || c == '_' {
-                        return format!("${{{}}}", sm.token_text(tok));
-                    }
-                }
+            if let Some(next) = next_tok
+                && let Some(c) = first_rendered_char(sm, next)
+                && (c.is_alphanumeric() || c == '_')
+            {
+                return format!("${{{}}}", sm.token_text(tok));
             }
             format!("${}", sm.token_text(tok))
         }
@@ -2365,11 +2362,13 @@ fn strip_braced_var_refs(raw: &str) -> String {
     let mut out = String::with_capacity(n);
     let mut i = 0;
     while i < n {
-        if bytes[i] == b'$' && i + 1 < n && bytes[i + 1] == b'{' {
-            if let Some(close) = raw[i + 2..].find('}') {
-                i = i + 2 + close + 1;
-                continue;
-            }
+        if bytes[i] == b'$'
+            && i + 1 < n
+            && bytes[i + 1] == b'{'
+            && let Some(close) = raw[i + 2..].find('}')
+        {
+            i = i + 2 + close + 1;
+            continue;
         }
         let ch_len = utf8_len(bytes[i]);
         out.push_str(&raw[i..i + ch_len]);
@@ -2958,10 +2957,11 @@ mod tests {
             &registry,
         );
         assert_eq!(sym.procs.get("greet").map(String::as_str), Some("a"));
-        assert!(sym
-            .variables
-            .values()
-            .any(|m| m.get("name").map(String::as_str) == Some("a")));
+        assert!(
+            sym.variables
+                .values()
+                .any(|m| m.get("name").map(String::as_str) == Some("a"))
+        );
     }
 
     #[test]
@@ -3087,7 +3087,9 @@ mod tests {
         // alias must skip `a` and use `b`, else `$a` in command
         // position would resolve to the local param.
         assert_eq!(
-            agg("proc handler {request} {\n    mylongcmd $request\n    mylongcmd $request\n    mylongcmd $request\n}\n"),
+            agg(
+                "proc handler {request} {\n    mylongcmd $request\n    mylongcmd $request\n    mylongcmd $request\n}\n"
+            ),
             "set b mylongcmd;proc a {a} {$b $a;$b $a;$b $a}",
         );
     }
@@ -3107,7 +3109,9 @@ mod tests {
     #[test]
     fn compact_renames_static_array_members() {
         assert_eq!(
-            min_compact("proc f {} {\n    set config(database) 1\n    set config(timeout) 2\n    puts $config(database)$config(timeout)\n}\n"),
+            min_compact(
+                "proc f {} {\n    set config(database) 1\n    set config(timeout) 2\n    puts $config(database)$config(timeout)\n}\n"
+            ),
             "proc f {} {set config(a) 1;set config(b) 2;puts $config(a)$config(b)}",
         );
     }

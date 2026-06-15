@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ADAPT::context_delete_all",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Deletes all dynamic contexts.",
             synopsis: &["ADAPT::context_delete_all"],
             snippet: "Deletes all dynamic contexts on both sides of the virtual\nserver, making the static context the current context. This\nis done automatically when the last of a connection flow and\nits peer is torn down, so normally need not be called.\n\nSyntax:\n\nADAPT::context_delete_all",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::context_delete_all" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IcapState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ADAPT::context_delete_all",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IcapState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

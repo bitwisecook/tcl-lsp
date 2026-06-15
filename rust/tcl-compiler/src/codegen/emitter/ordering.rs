@@ -196,10 +196,10 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
         let Some(blk) = cfg.blocks.get(name) else {
             continue;
         };
-        if let Some(Terminator::Goto { target, .. }) = &blk.terminator {
-            if pos.get(target).is_some_and(|tp| *tp < pos[name]) {
-                back_edges.push((name.clone(), target.clone()));
-            }
+        if let Some(Terminator::Goto { target, .. }) = &blk.terminator
+            && pos.get(target).is_some_and(|tp| *tp < pos[name])
+        {
+            back_edges.push((name.clone(), target.clone()));
         }
     }
 
@@ -299,11 +299,11 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (String, String)
                 if !bn.starts_with("for_step_") {
                     continue;
                 }
-                if let Some(Terminator::Goto { target, .. }) = &bl.terminator {
-                    if target == bname {
-                        found = Some(bn.clone());
-                        break;
-                    }
+                if let Some(Terminator::Goto { target, .. }) = &bl.terminator
+                    && target == bname
+                {
+                    found = Some(bn.clone());
+                    break;
                 }
             }
             let Some(ct) = found else { continue };

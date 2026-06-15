@@ -13,9 +13,9 @@
 //! constant true/false literal) yields no diagnostic, avoiding false
 //! positives.
 
-use tcl_lexer::{tokenise_expr, ExprToken, ExprTokenType, Token, TokenType};
+use tcl_lexer::{ExprToken, ExprTokenType, Token, TokenType, tokenise_expr};
 
-use crate::segmenter::{segment_commands, SegmentedCommand};
+use crate::segmenter::{SegmentedCommand, segment_commands};
 
 use super::types::{Diagnostic, Severity};
 
@@ -62,7 +62,7 @@ pub(crate) fn loop_termination_diagnostics(
                 message: format!("{cmd_name} condition is constant false; body never executes."),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
-            }]
+            }];
         }
         Some(true) if !body_may_exit(body_text) => {
             return vec![Diagnostic {
@@ -74,23 +74,23 @@ pub(crate) fn loop_termination_diagnostics(
                 ),
                 severity: Severity::Warning,
                 fixes: Vec::new(),
-            }]
+            }];
         }
         Some(true) => return Vec::new(),
         None => {}
     }
 
     // `for {init} {cond} {step} body` provably-infinite counter shape.
-    if cmd_name == "for" {
-        if let Some(reason) = for_is_provably_infinite(init_text, cond_text, step_text, body_text) {
-            return vec![Diagnostic {
-                code: "W241".to_string(),
-                span: cond_tok.span,
-                message: format!("for loop is provably infinite: {reason}"),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            }];
-        }
+    if cmd_name == "for"
+        && let Some(reason) = for_is_provably_infinite(init_text, cond_text, step_text, body_text)
+    {
+        return vec![Diagnostic {
+            code: "W241".to_string(),
+            span: cond_tok.span,
+            message: format!("for loop is provably infinite: {reason}"),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        }];
     }
 
     // W242 (default-off): a counter variable appears in the condition but
@@ -98,19 +98,19 @@ pub(crate) fn loop_termination_diagnostics(
     // the condition token, mirroring W240/W241.  Like Python's
     // `core.analysis.analyse`, the analyser always emits W242; the
     // default-off opt-in is applied by the consuming LSP/config layer.
-    if let Some(var) = extract_counter_name(cond_text) {
-        if !loop_modifies_var(&var, step_text, body_text) {
-            return vec![Diagnostic {
-                code: "W242".to_string(),
-                span: cond_tok.span,
-                message: format!(
-                    "{cmd_name} termination cannot be proven: variable '{var}' in the \
+    if let Some(var) = extract_counter_name(cond_text)
+        && !loop_modifies_var(&var, step_text, body_text)
+    {
+        return vec![Diagnostic {
+            code: "W242".to_string(),
+            span: cond_tok.span,
+            message: format!(
+                "{cmd_name} termination cannot be proven: variable '{var}' in the \
                      condition is never modified by the step or body."
-                ),
-                severity: Severity::Hint,
-                fixes: Vec::new(),
-            }];
-        }
+            ),
+            severity: Severity::Hint,
+            fixes: Vec::new(),
+        }];
     }
     Vec::new()
 }
@@ -155,10 +155,10 @@ fn is_word_byte(b: u8) -> bool {
 /// Mirrors `_loop_modifies_var`.
 fn loop_modifies_var(var: &str, step: &str, body: &str) -> bool {
     if !step.is_empty() {
-        if let Some((step_var, _)) = parse_step_incr(step) {
-            if step_var == var {
-                return true;
-            }
+        if let Some((step_var, _)) = parse_step_incr(step)
+            && step_var == var
+        {
+            return true;
         }
         if body_writes_var(strip_braces(step), var) {
             return true;
@@ -445,12 +445,11 @@ fn any_command_recursive(script: &str, pred: &mut impl FnMut(&SegmentedCommand) 
         }
         let args = cmd.args();
         for (i, tok) in cmd.arg_tokens().iter().enumerate() {
-            if tok.kind == TokenType::Str {
-                if let Some(inner) = args.get(i) {
-                    if any_command_recursive(inner, pred) {
-                        return true;
-                    }
-                }
+            if tok.kind == TokenType::Str
+                && let Some(inner) = args.get(i)
+                && any_command_recursive(inner, pred)
+            {
+                return true;
             }
         }
     }
@@ -602,20 +601,20 @@ pub(crate) fn lset_index_diagnostics(
         }
         let stripped = idx_text.trim();
         // Plain negative integer: always errors.
-        if let Some(n) = parse_strict_int(stripped) {
-            if n < 0 {
-                out.push(Diagnostic {
-                    code: "W231".to_string(),
-                    span: idx_tok.span,
-                    message: format!(
-                        "lset index '{stripped}' is negative; \
+        if let Some(n) = parse_strict_int(stripped)
+            && n < 0
+        {
+            out.push(Diagnostic {
+                code: "W231".to_string(),
+                span: idx_tok.span,
+                message: format!(
+                    "lset index '{stripped}' is negative; \
                          raises 'index out of range' at runtime."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
-                continue;
-            }
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+            continue;
         }
         // `lset` accepts the append slot (`index == length`); only
         // indices past it or below zero are runtime errors.
@@ -910,38 +909,36 @@ fn string_single_index(
     }
     let stripped = idx_text.trim();
     // A plain negative literal is always invalid.
-    if let Some(n) = parse_strict_int(stripped) {
-        if n < 0 {
-            return vec![Diagnostic {
-                code: "W232".to_string(),
-                span: idx_tok.span,
-                message: format!(
-                    "string {sub}: index '{stripped}' is negative; result is empty or a no-op."
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            }];
-        }
+    if let Some(n) = parse_strict_int(stripped)
+        && n < 0
+    {
+        return vec![Diagnostic {
+            code: "W232".to_string(),
+            span: idx_tok.span,
+            message: format!(
+                "string {sub}: index '{stripped}' is negative; result is empty or a no-op."
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        }];
     }
     // `string insert` clamps other overshoots; only `string index`
     // flags an in-bounds miss.
-    if sub == "index" {
-        if let Some(len) = str_len {
-            if let Some(resolved) = resolve_index(stripped, len) {
-                if !(0..len).contains(&resolved) {
-                    return vec![Diagnostic {
-                        code: "W232".to_string(),
-                        span: idx_tok.span,
-                        message: format!(
-                            "string index: '{stripped}' {}; returns empty string.",
-                            describe_index_string(resolved, len)
-                        ),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    }];
-                }
-            }
-        }
+    if sub == "index"
+        && let Some(len) = str_len
+        && let Some(resolved) = resolve_index(stripped, len)
+        && !(0..len).contains(&resolved)
+    {
+        return vec![Diagnostic {
+            code: "W232".to_string(),
+            span: idx_tok.span,
+            message: format!(
+                "string index: '{stripped}' {}; returns empty string.",
+                describe_index_string(resolved, len)
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        }];
     }
     Vec::new()
 }
@@ -974,19 +971,19 @@ fn string_pair_index(
     if let (Some(f), Some(l)) = (
         parse_strict_int(first_text.trim()),
         parse_strict_int(last_text.trim()),
-    ) {
-        if f < 0 && l < 0 {
-            return vec![Diagnostic {
-                code: "W232".to_string(),
-                span,
-                message: format!(
-                    "string {sub}: both indices are negative ('{first_text}', '{last_text}'); \
+    ) && f < 0
+        && l < 0
+    {
+        return vec![Diagnostic {
+            code: "W232".to_string(),
+            span,
+            message: format!(
+                "string {sub}: both indices are negative ('{first_text}', '{last_text}'); \
                      {verb}."
-                ),
-                severity: Severity::Warning,
-                fixes: Vec::new(),
-            }];
-        }
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        }];
     }
     let Some(len) = str_len else {
         return Vec::new();
@@ -1258,7 +1255,7 @@ mod tests {
         assert!(super::body_writes_var("if {$c} {set i 9}", "i")); // nested body
         assert!(!super::body_writes_var("puts \"set i now\"", "i")); // inside a string
         assert!(!super::body_writes_var("incr index", "i")); // word boundary
-                                                             // `break` / `return` likewise count only as commands.
+        // `break` / `return` likewise count only as commands.
         assert!(super::body_may_exit("break"));
         assert!(super::body_may_exit("if {$c} {return}")); // nested
         assert!(!super::body_may_exit("puts breakfast")); // not a command

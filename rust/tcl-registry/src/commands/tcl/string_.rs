@@ -1,7 +1,7 @@
 //! `string` — perform one of several string operations.
 
 use crate::prelude::*;
-use tcl_syntax::number::{parse_whole, Number};
+use tcl_syntax::number::{Number, parse_whole};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
@@ -1264,8 +1264,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Perform one of several string operations.",
             synopsis: &["string option arg ?arg ...?"],
-            snippet:
-                "Use subcommands like `length`, `match`, `is`, `compare`, `map`, `range`, etc.",
+            snippet: "Use subcommands like `length`, `match`, `is`, `compare`, `map`, `range`, etc.",
             source: "Tcl man page string.n",
             examples: "",
             return_value: "",
@@ -1278,8 +1277,8 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::fold_is;
-    use crate::hooks::TclVersion;
     use crate::CommandRegistry;
+    use crate::hooks::TclVersion;
 
     #[test]
     fn string_is_folds_tcl_faithful_classes() {

@@ -5,7 +5,7 @@ pub fn spec() -> CommandSpec {
         name: "tcl::tm::roots",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Set the root paths for Tcl module discovery.",
             synopsis: &["tcl::tm::roots pathList"],
             snippet: "Given a list of root paths, computes version-specific sub-directories and adds them to the module search list.",

@@ -325,14 +325,20 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         options: CMD_OPTIONS,
-hover: Some(HoverSnippet {
-    summary: "Obtain and manipulate dates and times.",
-    synopsis: &["clock add timeVal count unit ?...?", "clock format timeVal ?-option value ...?", "clock scan inputString ?-option value ...?", "clock seconds", "clock subcommand ?arg ...?"],
-    snippet: "Use `clock seconds` for epoch time, `clock format` to display, `clock scan` to parse.",
-    source: "Tcl man page clock.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Obtain and manipulate dates and times.",
+            synopsis: &[
+                "clock add timeVal count unit ?...?",
+                "clock format timeVal ?-option value ...?",
+                "clock scan inputString ?-option value ...?",
+                "clock seconds",
+                "clock subcommand ?arg ...?",
+            ],
+            snippet: "Use `clock seconds` for epoch time, `clock format` to display, `clock scan` to parse.",
+            source: "Tcl man page clock.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

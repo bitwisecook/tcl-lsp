@@ -261,11 +261,7 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
         parts.push(SubstPart::Lit(buf));
     }
 
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts)
-    }
+    if parts.is_empty() { None } else { Some(parts) }
 }
 
 /// Convert a simple anchored regex to an equivalent glob pattern.

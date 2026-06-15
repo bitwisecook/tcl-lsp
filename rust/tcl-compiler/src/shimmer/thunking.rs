@@ -31,7 +31,7 @@ use crate::types::{TypeKind, TypeLattice};
 
 use super::graph::{build_successors, loop_body_blocks};
 use super::span::{def_range_map, phi_span};
-use super::{type_name, ThunkingWarning};
+use super::{ThunkingWarning, type_name};
 
 /// Invert a successor map into a predecessor map.
 pub(super) fn build_predecessors(
@@ -111,12 +111,11 @@ pub(super) fn empty_value_versions(ssa: &SsaFunction) -> HashMap<String, HashSet
 pub(super) fn destructure_foreach_blocks(cfg: &CfgFunction) -> HashSet<String> {
     let mut out = HashSet::new();
     for (bn, block) in &cfg.blocks {
-        if block.statements.len() == 1 {
-            if let Statement::Call { command, .. } = &block.statements[0] {
-                if command == "break" {
-                    out.insert(bn.clone());
-                }
-            }
+        if block.statements.len() == 1
+            && let Statement::Call { command, .. } = &block.statements[0]
+            && command == "break"
+        {
+            out.insert(bn.clone());
         }
     }
     out
@@ -150,12 +149,11 @@ pub(super) fn per_loop_body_types(
                 {
                     continue;
                 }
-                if let Some(t) = types.get(&(name.clone(), ver)) {
-                    if t.kind == TypeKind::Known {
-                        if let Some(tt) = t.tcl_type {
-                            out.entry(name.clone()).or_default().insert(tt);
-                        }
-                    }
+                if let Some(t) = types.get(&(name.clone(), ver))
+                    && t.kind == TypeKind::Known
+                    && let Some(tt) = t.tcl_type
+                {
+                    out.entry(name.clone()).or_default().insert(tt);
                 }
             }
         }
@@ -270,10 +268,11 @@ pub(crate) fn find_thunking_warnings(
                             body_types.insert(t);
                         }
                     }
-                } else if inc_type.kind == TypeKind::Known && !is_empty {
-                    if let Some(t) = inc_type.tcl_type {
-                        entry_types.insert(t);
-                    }
+                } else if inc_type.kind == TypeKind::Known
+                    && !is_empty
+                    && let Some(t) = inc_type.tcl_type
+                {
+                    entry_types.insert(t);
                 }
             }
             if !has_body_incoming {

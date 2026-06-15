@@ -8,10 +8,10 @@ use std::sync::OnceLock;
 
 use pyo3::prelude::*;
 
+use tcl_registry::ArgRole;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::registry::CommandRegistry;
 use tcl_registry::traits::Traits;
-use tcl_registry::ArgRole;
 
 /// Cached default registry — built once, reused across all `PyO3` calls.
 ///

@@ -216,7 +216,7 @@ pub fn spec() -> CommandSpec {
         name: "entry",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a single-line text entry widget.",
             synopsis: &["entry pathName ?option value ...?"],
             snippet: "Displays a one-line text string and allows the user to edit it using standard editing characters.",

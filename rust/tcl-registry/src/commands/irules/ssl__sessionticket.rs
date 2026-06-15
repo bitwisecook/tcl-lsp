@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::sessionticket",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the session ticket associated with the SSL flow.",
             synopsis: &["SSL::sessionticket"],
             snippet: "This command returns the session ticket associated with the SSL flow.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SSL::sessionticket" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SslState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SSL::sessionticket",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

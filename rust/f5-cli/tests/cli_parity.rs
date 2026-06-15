@@ -141,6 +141,82 @@ fn explain_virtual_json_matches_python() {
     );
 }
 
+/// Assert that `f5 extract`'s stdout matches a golden captured from the Python
+/// CLI, optionally with `F5_UCS_PASSPHRASE` set for an encrypted archive.
+fn assert_extract_matches(args: &[&str], passphrase: Option<&str>, golden: &str) {
+    let expected = std::fs::read(fixtures_dir().join(golden)).expect("read golden");
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_f5-query"));
+    cmd.args(args);
+    if let Some(p) = passphrase {
+        cmd.env("F5_UCS_PASSPHRASE", p);
+    }
+    let output = cmd.output().expect("failed to spawn f5-query binary");
+    assert!(
+        output.status.success(),
+        "f5-query {args:?} failed\nstderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&expected),
+        "f5 extract output does not match the Python CLI ({golden})"
+    );
+}
+
+#[test]
+fn extract_plain_ucs_matches_python() {
+    let ucs = fixtures_dir().join("sample.ucs");
+    assert_extract_matches(
+        &["extract", ucs.to_str().unwrap()],
+        None,
+        "extract-default.scf.golden",
+    );
+}
+
+#[test]
+fn extract_plain_ucs_include_extras_matches_python() {
+    let ucs = fixtures_dir().join("sample.ucs");
+    assert_extract_matches(
+        &["extract", "--include-extras", ucs.to_str().unwrap()],
+        None,
+        "extract-extras.scf.golden",
+    );
+}
+
+#[test]
+fn extract_encrypted_ucs_matches_python() {
+    // OpenPGP-symmetric (gpg --symmetric) archive decrypted purely in Rust;
+    // passphrase supplied via the F5_UCS_PASSPHRASE environment variable.
+    let ucs = fixtures_dir().join("sample-encrypted.ucs");
+    assert_extract_matches(
+        &["extract", ucs.to_str().unwrap()],
+        Some("correct horse battery staple"),
+        "extract-encrypted.scf.golden",
+    );
+}
+
+#[test]
+fn explain_reads_ucs_matches_python() {
+    // The UCS input layer is wired into the model-reading verbs: `f5 explain`
+    // accepts a `.ucs` (transparently extracted to SCF) exactly like a `.conf`.
+    let ucs = fixtures_dir().join("sample.ucs");
+    assert_diff_matches(
+        &["explain", "auto", "/Common/vs_web", ucs.to_str().unwrap()],
+        "explain-ucs.text.golden",
+    );
+}
+
+#[test]
+fn diff_reads_ucs_matches_python() {
+    // `f5 diff` accepts `.ucs` inputs on either side; diffing an archive
+    // against itself yields no changes, byte-identical to the Python CLI.
+    let ucs = fixtures_dir().join("sample.ucs");
+    assert_diff_matches(
+        &["diff", ucs.to_str().unwrap(), ucs.to_str().unwrap()],
+        "diff-ucs-self.text.golden",
+    );
+}
+
 #[test]
 fn diff_scalar_modify_matches_python() {
     // Scalar-field modification (load-balancing-mode) — object-list fields

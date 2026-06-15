@@ -1,0 +1,15 @@
+CASE 0	web_pool|pool|0|ltm_pool
+CASE 1	/Common/api_pool|pool|0|ltm_pool
+CASE 2	-
+CASE 3	-
+CASE 4	vs1|virtual|0|ltm_virtual  ;;  n1|node|0|ltm_node  ;;  sp1|snatpool|0|ltm_snatpool
+CASE 5	my_dg|class|2|ltm_data_group_external,ltm_data_group_internal,sys_file_data_group
+CASE 6	dg|class|3|ltm_data_group_external,ltm_data_group_internal,sys_file_data_group  ;;  p|pool|0|ltm_pool
+CASE 7	/Common/my_persist|persist|0|ltm_persistence_cookie,ltm_persistence_dest_addr,ltm_persistence_global_settings,ltm_persistence_hash,ltm_persistence_host,ltm_persistence_msrdp,ltm_persistence_persist_records,ltm_persistence_sip,ltm_persistence_source_addr,ltm_persistence_ssl,ltm_persistence_universal
+CASE 8	/Common/cp|persist|2|ltm_persistence_cookie,ltm_persistence_dest_addr,ltm_persistence_global_settings,ltm_persistence_hash,ltm_persistence_host,ltm_persistence_msrdp,ltm_persistence_persist_records,ltm_persistence_sip,ltm_persistence_source_addr,ltm_persistence_ssl,ltm_persistence_universal
+CASE 9	sp2|snat|1|ltm_snatpool
+CASE 10	p3|LB::reselect|1|ltm_pool
+CASE 11	-
+CASE 12	gpool|pool|0|gtm_pool_a,gtm_pool_aaaa,gtm_pool_cname,gtm_pool_mx,gtm_pool_naptr,gtm_pool_srv
+CASE 13	clientssl|SSL::profile|0|ltm_profile_client_ssl,ltm_profile_server_ssl
+CASE 14	-

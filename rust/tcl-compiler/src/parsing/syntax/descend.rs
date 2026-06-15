@@ -29,7 +29,7 @@ use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::build::build_document;
 use super::green::GreenNode;
-use super::red::{build_line_starts, SyntaxNode, SyntaxTree};
+use super::red::{SyntaxNode, SyntaxTree, build_line_starts};
 
 /// Whether `token`'s closing delimiter is present in the source `sm` maps.
 ///

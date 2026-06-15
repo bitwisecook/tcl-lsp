@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "FTP::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enable FTP protocol handler.",
             synopsis: &["FTP::enable"],
             snippet: "Enable FTP protocol handler for FTP message processing. This will enable detection of \"AUTH TLS/SSL\" for FTP.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "FTP::enable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FtpState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FTP::enable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FtpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

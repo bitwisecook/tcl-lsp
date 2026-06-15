@@ -8,8 +8,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Wait for an HTTP transaction to complete.",
             synopsis: &["http::wait token"],
-            snippet:
-                "Blocks the caller until the HTTP transaction identified by *token* completes.",
+            snippet: "Blocks the caller until the HTTP transaction identified by *token* completes.",
             source: "Tcl stdlib http package",
             examples: "",
             return_value: "",

@@ -10,7 +10,7 @@
 use pyo3::prelude::*;
 use std::collections::BTreeSet;
 
-use tcl_compiler::expr_ast::{render_expr, ExprNode};
+use tcl_compiler::expr_ast::{ExprNode, render_expr};
 use tcl_compiler::expr_parser::parse_expr;
 
 /// Parse a Tcl expression and return its rendered (round-tripped) form.

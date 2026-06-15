@@ -5,7 +5,7 @@ pub fn spec() -> CommandSpec {
         name: "tcltest::matchDirectories",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Get or set matching directory patterns.  Deprecated: use ``configure -relateddir``.",
             synopsis: &["tcltest::matchDirectories ?patternList?"],
             snippet: "",

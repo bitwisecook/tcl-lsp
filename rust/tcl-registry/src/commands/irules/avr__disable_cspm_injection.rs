@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "AVR::disable_cspm_injection",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disables CSPM injection for the current connection.",
             synopsis: &["AVR::disable_cspm_injection"],
             snippet: "The CSPM (Client Side Performance Monitoring) feature injects JavaScript into HTTP responses to track the Page Load Time metric. This command disables CSPM JavaScropt injection.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "AVR::disable_cspm_injection" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::LogIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AVR::disable_cspm_injection",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::LogIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

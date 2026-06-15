@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "md5",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the RSA MD5 Message Digest Algorithm message digest of the specified string.",
             synopsis: &["md5 ANY_CHARS"],
             snippet: "Returns the RSA Data Security, Inc. MD5 Message Digest Algorithm (md5) message digest of the specified string, or if an error occurs, an empty string. Used to ensure data integrity.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    binary scan [md5 [HTTP::host]] w1 key\n\n    set key [expr {$key & 1}]\n    switch $key {\n        0 { pool my_pool member 1.2.3.4:80 }\n        1 { pool my_pool member 5.6.7.8:80 }\n    }\n}",
             return_value: "md5 <string> Returns the RSA Data Security, Inc. MD5 Message Digest Algorithm (md5) message digest of the specified string, or if an error occurs, an empty string.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "md5 ANY_CHARS" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Unknown,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "md5 ANY_CHARS",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Unknown,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

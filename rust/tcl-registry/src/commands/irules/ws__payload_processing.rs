@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "WS::payload_processing",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables or disables processing of WebSocket payload via payload protocol filter",
             synopsis: &["WS::payload_processing ('enable' | 'disable')"],
             snippet: "WS::payload_processing enable\n    Enables processing of WebSocket Payload via payload protocol filter\nWS::payload_processing disable\n    Disables processing of WebSocket Payload via payload protocol filter",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WS::payload_processing ('enable' | 'disable')" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WS::payload_processing ('enable' | 'disable')",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

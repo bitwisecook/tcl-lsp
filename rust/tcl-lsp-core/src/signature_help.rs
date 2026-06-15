@@ -114,21 +114,21 @@ pub fn signature_help(
     // command-level one.  Adjusts `active_param` to be
     // relative to the subcommand's parameters (the subcommand
     // name itself is consumed before the user-typed args).
-    if !spec.subcommands.is_empty() {
-        if let Some(first_arg) = args.first() {
-            if let Some(sub) = spec
-                .subcommands
-                .iter()
-                .find(|s| s.name == first_arg.as_str())
-            {
-                let sub_param = active_param.saturating_sub(1);
-                return subcommand_signature_help(&command, sub, sub_param);
-            }
-            // A first arg is present but isn't a known subcommand — offer no
-            // signature rather than the generic command-level one (`string
-            // bogus` must not surface `string option arg …`).
-            return None;
+    if !spec.subcommands.is_empty()
+        && let Some(first_arg) = args.first()
+    {
+        if let Some(sub) = spec
+            .subcommands
+            .iter()
+            .find(|s| s.name == first_arg.as_str())
+        {
+            let sub_param = active_param.saturating_sub(1);
+            return subcommand_signature_help(&command, sub, sub_param);
         }
+        // A first arg is present but isn't a known subcommand — offer no
+        // signature rather than the generic command-level one (`string
+        // bogus` must not surface `string option arg …`).
+        return None;
     }
     builtin_signature_help(spec, active_param)
 }

@@ -228,10 +228,10 @@ pub(crate) fn find_path_concat_warnings(
                         has_literal_space = true;
                     }
                 }
-                if let Some(t) = taints.get(&key) {
-                    if t.colours.intersects(suppress_colours) {
-                        suppressed_by_colour = true;
-                    }
+                if let Some(t) = taints.get(&key)
+                    && t.colours.intersects(suppress_colours)
+                {
+                    suppressed_by_colour = true;
                 }
             }
 
@@ -254,13 +254,12 @@ pub(crate) fn find_path_concat_warnings(
                     value: later_val,
                     ..
                 } = later
+                    && later_name == name
                 {
-                    if later_name == name {
-                        if is_file_normalize_of(later_val, name) {
-                            suppressed = true;
-                        }
-                        break;
+                    if is_file_normalize_of(later_val, name) {
+                        suppressed = true;
                     }
+                    break;
                 }
             }
             if suppressed {

@@ -1,0 +1,34 @@
+{
+  "nodes": [
+    {
+      "id": "test://config:16:27:ltm:virtual:/Common/web_vs",
+      "module": "ltm",
+      "objectType": "virtual",
+      "identifier": "/Common/web_vs",
+      "kind": "ltm_virtual",
+      "uri": "test://config"
+    },
+    {
+      "id": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "module": "ltm",
+      "objectType": "pool",
+      "identifier": "/Common/web_pool",
+      "kind": "ltm_pool",
+      "uri": "test://config"
+    }
+  ],
+  "edges": [
+    {
+      "source": "test://config:16:27:ltm:virtual:/Common/web_vs",
+      "target": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "test://config:16:27:ltm:virtual:/Common/web_vs",
+      "target": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool[]",
+      "viaKind": "ltm_pool"
+    }
+  ]
+}

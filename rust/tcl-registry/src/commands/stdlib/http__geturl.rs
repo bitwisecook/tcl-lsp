@@ -12,7 +12,7 @@ pub fn spec() -> CommandSpec {
         name: "http::geturl",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Retrieve a URL — the primary command for the http package.",
             synopsis: &["http::geturl url ?options?"],
             snippet: "Retrieves the resource at *url* and returns a token that can be passed to the other ``http::`` commands.  Options include ``-query``, ``-headers``, ``-handler``, ``-command``, ``-timeout``, ``-type``, ``-method``, ``-keepalive`` and more.",

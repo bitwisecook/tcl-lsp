@@ -33,7 +33,7 @@ use tcl_registry::{CommandRegistry, Traits};
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 use crate::naming::normalise_var_name;
-use crate::sccp::{cfg_order, SccpResult};
+use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
 
@@ -462,13 +462,13 @@ fn evaluate_value(
     // Pure variable reference → inherit from the source.
     if is_pure_var_ref(stripped) {
         let name = normalise_var_name(stripped);
-        if let Some(&ver) = uses.get(name) {
-            if ver > 0 {
-                return props
-                    .get(&(name.to_owned(), ver))
-                    .copied()
-                    .unwrap_or_default();
-            }
+        if let Some(&ver) = uses.get(name)
+            && ver > 0
+        {
+            return props
+                .get(&(name.to_owned(), ver))
+                .copied()
+                .unwrap_or_default();
         }
         // Version 0 / unseen: the value comes from an enclosing scope
         // or hasn't been defined on this path. Be conservative — every

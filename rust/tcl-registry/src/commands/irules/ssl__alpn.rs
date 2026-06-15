@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SSL::alpn",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Handle the ALPN TLS extension.",
             synopsis: &["SSL::alpn set (ARG)+", "SSL::alpn"],
             snippet: "Sets or retrieves the Application Layer Protocol Negotiation (ALPN) string.\n\nSSL::alpn\n  Retrieve the selected ALPN string\n\nSSL::alpn set str1[ str2...]\n  Set the advertised ALPN string",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SSL::alpn set (ARG)+" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::SslState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SSL::alpn set (ARG)+",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::SslState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

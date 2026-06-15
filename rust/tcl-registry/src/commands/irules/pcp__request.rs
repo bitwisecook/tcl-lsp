@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PCP::request",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Provides access to the data sent in a PCP request.",
             synopsis: &["PCP::request (opcode |"],
             snippet: "This command provides access to the data sent in a PCP (Port Control\nProtocol) request. Access to this data is read-only, and the data in\nthe PCP request cannot be modified via the PCP::request command.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PCP::request (opcode |" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PCP::request (opcode |",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

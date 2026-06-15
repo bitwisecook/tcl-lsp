@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "COMPRESS::gzip",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets HTTP data compression criteria.",
             synopsis: &["COMPRESS::gzip (request | response)? ("],
             snippet: "Sets criteria for compressing HTTP responses.\n\nCOMPRESS::gzip memory_level <level>\n    Sets the gzip memory level.\n\nCOMPRESS::gzip window_size <size>\n    Sets the gzip window size.\n\nCOMPRESS::gzip level <level>\n    Specifies the amount and rate of compression.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "COMPRESS::gzip (request | response)? (" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "COMPRESS::gzip (request | response)? (",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

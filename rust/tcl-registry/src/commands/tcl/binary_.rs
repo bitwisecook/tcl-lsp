@@ -118,18 +118,23 @@ fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
-        traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE
-            | Traits::FRAME_HASH_BUILTIN,
+        traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-hover: Some(HoverSnippet {
-    summary: "Manipulate binary data",
-    synopsis: &["binary format formatString ?arg arg ...?", "binary scan string formatString ?varName varName ...?", "binary encode format ?-option value ...? data", "binary decode format ?-option value ...? data", "binary subcommand ?arg ...?"],
-    snippet: "This command provides facilities for manipulating binary data. The principal operations are inserting values into a binary string and extracting values from a binary string.",
-    source: "Tcl man page binary.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Manipulate binary data",
+            synopsis: &[
+                "binary format formatString ?arg arg ...?",
+                "binary scan string formatString ?varName varName ...?",
+                "binary encode format ?-option value ...? data",
+                "binary decode format ?-option value ...? data",
+                "binary subcommand ?arg ...?",
+            ],
+            snippet: "This command provides facilities for manipulating binary data. The principal operations are inserting values into a binary string and extracting values from a binary string.",
+            source: "Tcl man page binary.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

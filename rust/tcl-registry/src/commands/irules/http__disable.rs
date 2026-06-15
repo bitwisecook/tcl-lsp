@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTTP::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Changes the HTTP filter from full parsing to passthrough mode.",
             synopsis: &["HTTP::disable (discard)?"],
             snippet: "Changes the HTTP filter from full parsing to passthrough mode. This\ncommand is useful when using an HTTP profile with an application that\nproxies data over HTTP. One use of this command is when you need to\ntunnel PPP over HTTP and disable HTTP processing once the connection\nhas been established.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP::disable (discard)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpHeader,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP::disable (discard)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpHeader,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

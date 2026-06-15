@@ -42,8 +42,8 @@ mod substitution;
 mod tokens;
 
 pub use expr_lexer::{
-    math_functions as expr_math_functions, tokenise_expr, tokenise_expr_checked, ExprToken,
-    ExprTokenType,
+    ExprToken, ExprTokenType, math_functions as expr_math_functions, tokenise_expr,
+    tokenise_expr_checked,
 };
 pub use lexer::{LexError, LexWarning, Lexer, LexerConfig};
 pub use line_index::LineIndex;
@@ -51,8 +51,8 @@ pub use ranges::{word_closer_offset, word_end_position};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{
-    command_boundaries, reparse_window, script_is_complete, BraceIndex, BracketIndex,
-    ExprParenIndex, ParenBalance,
+    BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
+    script_is_complete,
 };
 pub use substitution::backslash_subst;
 pub use tokens::{SourcePosition, Token, TokenType};

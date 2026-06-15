@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "STATS::setmin",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Ensures that the value of a Statistics profile setting is at the most value.",
             synopsis: &["STATS::setmin PROFILE_NAME FIELD_NAME (VALUE)?"],
             snippet: "Ensures that the value of the specified Statistics profile setting\n(field) is at the most value.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "STATS::setmin PROFILE_NAME FIELD_NAME (VALUE)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IStats,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "STATS::setmin PROFILE_NAME FIELD_NAME (VALUE)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IStats,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

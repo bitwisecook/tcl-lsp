@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PROFILE::serverssl",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the value of a Server SSL profile setting.",
             synopsis: &["PROFILE::serverssl ATTR"],
             snippet: "Returns the current value of the specified setting in the assigned Server SSL profile.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when HTTP_REQUEST {\n    if {[PROFILE::exists serverssl] == 1}{\n        log local0. \"server SSL profile enabled: [PROFILE::serverssl name]\"\n    }\n}",
             return_value: "Returns the current value of the specified setting in the assigned Server SSL profile.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::serverssl ATTR" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::BigipConfig,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROFILE::serverssl ATTR",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::BigipConfig,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

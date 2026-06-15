@@ -6,11 +6,11 @@
 //! as they are ported.
 
 pub mod enums;
-pub mod gen;
+pub mod r#gen;
 pub mod minimal;
 
 pub use enums::{DataGroupType, ProfileType};
-pub use gen::*;
+pub use r#gen::*;
 pub use minimal::{BigipGenericObject, BigipMinimalObject};
 
 #[cfg(test)]

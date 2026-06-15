@@ -378,10 +378,10 @@ pub fn storage_type_for_command(
     command: &str,
     _args: &[String],
 ) -> StorageType {
-    if let Some(spec) = registry.get(command) {
-        if let Some(rt) = spec.inferred_storage_type {
-            return lift_registry_storage_type(rt);
-        }
+    if let Some(spec) = registry.get(command)
+        && let Some(rt) = spec.inferred_storage_type
+    {
+        return lift_registry_storage_type(rt);
     }
     StorageType::Scalar
 }

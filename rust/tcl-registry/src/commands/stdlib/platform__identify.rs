@@ -13,7 +13,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Return the platform identifier for the current machine.",
             synopsis: &["platform::identify"],
             snippet: "Returns a string like ``linux-x86_64`` or ``macosx-arm`` that specifically identifies the current platform, including CPU details and libc version where relevant.",

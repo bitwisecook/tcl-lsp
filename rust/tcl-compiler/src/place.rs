@@ -474,7 +474,7 @@ mod tests {
             false,
         );
         date_dyn.dynamic = true; // aliases an unknown caller var
-                                 // date2 is a concrete local; only the alias side is dynamic.
+        // date2 is a concrete local; only the alias side is dynamic.
         assert!(!overlap(&date2, &date_dyn));
         // Two dynamic aliases of different names stay conservative (True):
         // they could point at the same caller storage.

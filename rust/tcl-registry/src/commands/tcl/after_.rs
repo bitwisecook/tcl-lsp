@@ -48,14 +48,19 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Execute a command after a time delay",
-    synopsis: &["after ms", "after ms ?script script script ...?", "after cancel id", "after cancel script script script ..."],
-    snippet: "This command is used to delay execution of the program or to execute a command in background sometime in the future.",
-    source: "Tcl man page after.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Execute a command after a time delay",
+            synopsis: &[
+                "after ms",
+                "after ms ?script script script ...?",
+                "after cancel id",
+                "after cancel script script script ...",
+            ],
+            snippet: "This command is used to delay execution of the program or to execute a command in background sometime in the future.",
+            source: "Tcl man page after.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

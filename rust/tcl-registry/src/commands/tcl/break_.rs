@@ -23,14 +23,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Abort looping command",
-    synopsis: &["break"],
-    snippet: "This command is typically invoked inside the body of a looping command such as for or foreach or while.",
-    source: "Tcl man page break.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Abort looping command",
+            synopsis: &["break"],
+            snippet: "This command is typically invoked inside the body of a looping command such as for or foreach or while.",
+            source: "Tcl man page break.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

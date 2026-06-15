@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CACHE::uri",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Overrides the URI value used by the cache to store the cached content.",
             synopsis: &["CACHE::uri URI_STRING"],
             snippet: "By default, cached content is stored with a unique key that consists of the Host\nheader, URI, Accept-Encoding and User-Agent. If multiple variations of the\nsame content must be cached under specific conditions (different client), you\ncan use this command to modify URI and create a unique key, thus creating\ncached content specific to that condition. This can be used to prevent one user\nor group's cached data from being served to different users/groups.\n\nIf any of the key elements is rewritten at the HTTP level (HTTP_REQUEST),\nthe key uses those values, not the original values.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CACHE::uri URI_STRING" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CACHE::uri URI_STRING",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

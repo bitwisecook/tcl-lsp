@@ -21,8 +21,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Control whether send/expect output is logged to stdout.",
             synopsis: &["log_user -info", "log_user 0|1"],
-            snippet:
-                "With ``1`` (default), output is sent to stdout. With ``0``, output is suppressed.",
+            snippet: "With ``1`` (default), output is sent to stdout. With ``0``, output is suppressed.",
             source: "Expect log_user(1)",
             examples: "",
             return_value: "",

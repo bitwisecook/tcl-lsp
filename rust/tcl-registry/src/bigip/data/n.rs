@@ -326,21 +326,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_clone_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["clone-stats"],
-        },
-        header_types: &[("net", "clone-stats")],
-        properties: &[BigipPropertySpec {
-            name: "reset-stats",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_cmetrics",
             table_name: None,
             resolver_name: None,
@@ -630,28 +615,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_f5optics",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["f5optics"],
-        },
-        header_types: &[("net", "f5optics")],
-        properties: &[
-            BigipPropertySpec {
-                name: "install",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "slot",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_fdb_tunnel",
             table_name: None,
             resolver_name: None,
@@ -792,36 +755,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_ike_evt_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["ike-evt-stat"],
-        },
-        header_types: &[("net", "ike-evt-stat")],
-        properties: &[BigipPropertySpec {
-            name: "reset-stats",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_ike_msg_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["ike-msg-stat"],
-        },
-        header_types: &[("net", "ike-msg-stat")],
-        properties: &[BigipPropertySpec {
-            name: "reset-stats",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -1029,32 +962,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_interface_cos",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["interface-cos"],
-        },
-        header_types: &[("net", "interface-cos")],
-        properties: &[BigipPropertySpec {
-            name: "reset-stats",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_interface_ddm",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["interface-ddm"],
-        },
-        header_types: &[("net", "interface-ddm")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_ipsec_ike_daemon",
             table_name: None,
             resolver_name: None,
@@ -1107,20 +1014,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "ipsec ike-peer")],
         properties: &[
-            BigipPropertySpec {
-                name: "my-id-type",
-                value_type: ValueKind::Reference,
-                enum_values: &["address", "asn1dn", "fqdn", "keyid-tag", "user-fqdn"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "peers-id-type",
-                value_type: ValueKind::Reference,
-                enum_values: &["address", "asn1dn", "fqdn", "keyid-tag", "user-fqdn"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "address-list",
                 value_type: ValueKind::String,
@@ -1433,39 +1326,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_ipsec_ike_sa",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["ipsec ike-sa"],
-        },
-        header_types: &[("net", "ipsec ike-sa")],
-        properties: &[
-            BigipPropertySpec {
-                name: "peer-ip",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "peer-name",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "route-domain",
-                value_type: ValueKind::Reference,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "traffic-selector",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_ipsec_ipsec_policy",
             table_name: None,
             resolver_name: None,
@@ -1578,44 +1438,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_ipsec_ipsec_sa",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["ipsec ipsec-sa"],
-        },
-        header_types: &[("net", "ipsec ipsec-sa")],
-        properties: &[
-            BigipPropertySpec {
-                name: "src-addr",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "dst-addr",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "route-domain",
-                value_type: ValueKind::Reference,
-                references: &["net_route_domain"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "spi",
-                value_type: ValueKind::Integer,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "traffic-selector",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_ipsec_manual_security_association",
             table_name: None,
             resolver_name: None,
@@ -1686,17 +1508,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_ipsec_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["ipsec-stat"],
-        },
-        header_types: &[("net", "ipsec-stat")],
-        properties: &[],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -1810,39 +1621,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "lldp-globals")],
         properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_lldp_neighbors",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["lldp-neighbors"],
-        },
-        header_types: &[("net", "lldp-neighbors")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_mroute",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["mroute"],
-        },
-        header_types: &[("net", "mroute")],
-        properties: &[
-            BigipPropertySpec {
-                name: "source",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "group",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -1990,21 +1768,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "packet-filter-trusted")],
         properties: &[
             BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                allow_none: true,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                in_sections: &["modify"],
-                repeated: true,
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "description",
                 value_type: ValueKind::String,
                 ..BigipPropertySpec::DEFAULT
@@ -2025,53 +1788,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "vlans",
                 value_type: ValueKind::Unknown,
                 allow_none: true,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_packet_tester_security",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["packet-tester security"],
-        },
-        header_types: &[("net", "packet-tester security")],
-        properties: &[
-            BigipPropertySpec {
-                name: "dest-addr",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "source-addr",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "dest-port",
-                value_type: ValueKind::Integer,
-                min_value: Some(0f64),
-                max_value: Some(65535f64),
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "source-port",
-                value_type: ValueKind::Integer,
-                min_value: Some(0f64),
-                max_value: Some(65535f64),
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "protocol",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "src-vlan",
-                value_type: ValueKind::Reference,
-                references: &["net_vlan"],
                 ..BigipPropertySpec::DEFAULT
             },
         ],
@@ -2487,13 +2203,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         header_types: &[("net", "route")],
         properties: &[
             BigipPropertySpec {
-                name: "gw",
-                value_type: ValueKind::Reference,
-                pattern: "^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-                references: &["net_self", "net_route", "ltm_virtual_address"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
                 name: "blackhole",
                 value_type: ValueKind::Unknown,
                 ..BigipPropertySpec::DEFAULT
@@ -2561,27 +2270,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "route-domain")],
         properties: &[
-            BigipPropertySpec {
-                name: "fw-enforced-policy-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "fw-staged-policy-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "security-nat-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -6074,21 +5762,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_rst_cause",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["rst-cause"],
-        },
-        header_types: &[("net", "rst-cause")],
-        properties: &[BigipPropertySpec {
-            name: "reset-stats",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_self",
             table_name: None,
             resolver_name: None,
@@ -6097,27 +5770,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "self")],
         properties: &[
-            BigipPropertySpec {
-                name: "address-source",
-                value_type: ValueKind::Reference,
-                enum_values: &["from-management", "from-user"],
-                references: &["auth_user"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "fw-enforced-policy-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "fw-staged-policy-rules",
-                value_type: ValueKind::Reference,
-                repeated: true,
-                references: &["ltm_rule"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "address",
                 value_type: ValueKind::String,
@@ -6563,17 +6215,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_sfc_hop",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["sfc hop"],
-        },
-        header_types: &[("net", "sfc hop")],
-        properties: &[],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_sfc_sf",
             table_name: None,
             resolver_name: None,
@@ -6665,21 +6306,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_sfc_stats",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["sfc-stats"],
-        },
-        header_types: &[("net", "sfc-stats")],
-        properties: &[BigipPropertySpec {
-            name: "reset-stats",
-            value_type: ValueKind::String,
-            ..BigipPropertySpec::DEFAULT
-        }],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_stp",
             table_name: None,
             resolver_name: None,
@@ -6688,13 +6314,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
         },
         header_types: &[("net", "stp")],
         properties: &[
-            BigipPropertySpec {
-                name: "vlans",
-                value_type: ValueKind::Reference,
-                enum_values: &["add", "delete", "replace-all-with"],
-                references: &["net_vlan"],
-                ..BigipPropertySpec::DEFAULT
-            },
             BigipPropertySpec {
                 name: "app-service",
                 value_type: ValueKind::String,
@@ -7117,29 +6736,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
-            kind: "net_tunnels_endpoint",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["tunnels endpoint"],
-        },
-        header_types: &[("net", "tunnels endpoint")],
-        properties: &[
-            BigipPropertySpec {
-                name: "remote-address",
-                value_type: ValueKind::String,
-                pattern: "^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-                ..BigipPropertySpec::DEFAULT
-            },
-            BigipPropertySpec {
-                name: "reset-stats",
-                value_type: ValueKind::String,
-                ..BigipPropertySpec::DEFAULT
-            },
-        ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
             kind: "net_tunnels_etherip",
             table_name: None,
             resolver_name: None,
@@ -7271,17 +6867,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_tunnels_fec_stat",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["tunnels fec-stat"],
-        },
-        header_types: &[("net", "tunnels fec-stat")],
-        properties: &[],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {
@@ -8307,17 +7892,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 ..BigipPropertySpec::DEFAULT
             },
         ],
-    },
-    BigipObjectSpec {
-        kind_spec: BigipObjectKindSpec {
-            kind: "net_vlan_allowed",
-            table_name: None,
-            resolver_name: None,
-            module: Some("net"),
-            object_types: &["vlan-allowed"],
-        },
-        header_types: &[("net", "vlan-allowed")],
-        properties: &[],
     },
     BigipObjectSpec {
         kind_spec: BigipObjectKindSpec {

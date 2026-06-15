@@ -214,14 +214,14 @@ pub fn spec() -> CommandSpec {
                 connection_side: ConnectionSide::None,
             },
         ],
-hover: Some(HoverSnippet {
-    summary: "create and manipulate contexts for commands and variables",
-    synopsis: &["namespace subcommand ?arg ...?"],
-    snippet: "The namespace command lets you create, access, and destroy separate contexts for commands and variables.",
-    source: "Tcl man page namespace.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "create and manipulate contexts for commands and variables",
+            synopsis: &["namespace subcommand ?arg ...?"],
+            snippet: "The namespace command lets you create, access, and destroy separate contexts for commands and variables.",
+            source: "Tcl man page namespace.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

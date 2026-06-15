@@ -64,7 +64,7 @@ pub struct RemoteArgs {
 }
 
 /// UCS passphrase flags shared by verbs that read encrypted archives.
-#[derive(Debug, Args)]
+#[derive(Debug, Default, Args)]
 pub struct PassphraseArgs {
     /// Read the UCS passphrase from this environment variable.
     #[arg(long = "passphrase-env", value_name = "VAR")]
@@ -74,23 +74,48 @@ pub struct PassphraseArgs {
     pub no_passphrase_prompt: bool,
 }
 
+impl PassphraseArgs {
+    /// Build [`tcl_bigip_io::PassphraseOptions`], wiring the secure TTY prompt
+    /// (honouring `--passphrase-env` / `--no-passphrase-prompt`). The pure
+    /// library calls back into `tcl-cli-support` only when an encrypted UCS
+    /// actually needs a passphrase and none was supplied non-interactively.
+    #[must_use]
+    pub fn to_options(&self) -> tcl_bigip_io::PassphraseOptions {
+        tcl_bigip_io::PassphraseOptions {
+            explicit: None,
+            env_var: self
+                .passphrase_env
+                .clone()
+                .unwrap_or_else(|| tcl_bigip_io::DEFAULT_PASSPHRASE_ENV.to_owned()),
+            allow_prompt: !self.no_passphrase_prompt,
+            prompt: Some(tcl_cli_support::prompt::read_ucs_passphrase),
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Print object counts, partition breakdown, and top-references.
     #[command(visible_alias = "summary")]
     Stats {
         /// Config inputs (.conf/.scf/.ucs, or '-' for stdin).
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         /// Show the top N most-referenced objects.
         #[arg(long, value_name = "N")]
         top: Option<usize>,
         #[arg(long)]
         json: bool,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// Generate `tmsh delete` commands for unreferenced objects.
     #[command(visible_alias = "clean")]
     Cleanup {
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         /// Keep this object path even if unreferenced (repeatable).
         #[arg(long = "keep", value_name = "PATH")]
@@ -100,6 +125,10 @@ pub enum Command {
         no_keep_common: bool,
         #[arg(long)]
         json: bool,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// List every BIG-IP object related to a given path or pattern.
@@ -238,6 +267,7 @@ pub enum Command {
     /// Emit the object reference graph as DOT, JSON, or Mermaid.
     #[command(visible_alias = "deps")]
     Graph {
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         #[arg(long, default_value = "dot", value_parser = ["dot", "json", "mermaid"])]
         format: String,
@@ -249,6 +279,10 @@ pub enum Command {
         reverse: bool,
         #[arg(long = "max-depth", value_name = "N")]
         max_depth: Option<usize>,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// Emit a tmsh script that creates every object in the input config.

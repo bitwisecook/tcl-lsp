@@ -15,7 +15,7 @@
 
 use std::collections::HashSet;
 
-use super::super::{opt_priority, Optimisation};
+use super::super::{Optimisation, opt_priority};
 
 /// Return the overlap-free subset of `optimisations`, applying
 /// the Python pass-order / invalidation rules.
@@ -67,10 +67,10 @@ pub fn select_non_overlapping(optimisations: &[Optimisation]) -> Vec<Optimisatio
     // Clear group from survivors whose sibling was dropped.
     if !dropped_groups.is_empty() {
         for opt in &mut selected {
-            if let Some(g) = opt.group {
-                if dropped_groups.contains(&g) {
-                    opt.group = None;
-                }
+            if let Some(g) = opt.group
+                && dropped_groups.contains(&g)
+            {
+                opt.group = None;
             }
         }
     }

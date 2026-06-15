@@ -46,8 +46,7 @@ pub fn spec() -> CommandSpec {
                 "foreach varList list ?varList list ...? body",
                 "foreach varlist1 list1 ?varlist2 list2 ...? body",
             ],
-            snippet:
-                "Variables are assigned from list elements; `body` runs once per assignment group.",
+            snippet: "Variables are assigned from list elements; `body` runs once per assignment group.",
             source: "Tcl foreach(1)",
             examples: "",
             return_value: "",

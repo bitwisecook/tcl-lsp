@@ -279,7 +279,7 @@ pub fn spec() -> CommandSpec {
         name: "spinbox",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a spinbox widget.",
             synopsis: &["spinbox pathName ?option value ...?"],
             snippet: "Displays a single-line text field with increment and decrement arrows for cycling through a range of values.",

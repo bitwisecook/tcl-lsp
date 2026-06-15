@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "UDP::respond",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sends data directly to a peer.",
             synopsis: &["UDP::respond RESPONSE_STRING"],
             snippet: "Sends the specified data directly to the peer. This command can be used\nto complete a protocol handshake inside an iRule.",
@@ -28,17 +28,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "UDP::respond RESPONSE_STRING" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::UdpState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::respond RESPONSE_STRING",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

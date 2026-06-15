@@ -322,9 +322,10 @@ mod tests {
         let c = cu("proc ::p {} { variable v\nset v 1 }");
         let fu = c.function("::p").unwrap();
         let obs = analyse_var_observability(&fu.cfg);
-        assert!(obs
-            .flag_at(&fu.cfg.entry, 2, "v")
-            .contains(EscapeFlag::NAMESPACE));
+        assert!(
+            obs.flag_at(&fu.cfg.entry, 2, "v")
+                .contains(EscapeFlag::NAMESPACE)
+        );
         assert!(obs.flag_at(&fu.cfg.entry, 2, "v").writes_outer_scope());
     }
 
@@ -342,9 +343,10 @@ mod tests {
         let c0 = cu("proc ::p {} { upvar #0 g loc }");
         let f0 = c0.function("::p").unwrap();
         let o0 = analyse_var_observability(&f0.cfg);
-        assert!(o0
-            .flag_at(&f0.cfg.entry, 1, "loc")
-            .contains(EscapeFlag::GLOBAL));
+        assert!(
+            o0.flag_at(&f0.cfg.entry, 1, "loc")
+                .contains(EscapeFlag::GLOBAL)
+        );
 
         let c1 = cu("proc ::p {} { upvar 1 caller loc }");
         let f1 = c1.function("::p").unwrap();

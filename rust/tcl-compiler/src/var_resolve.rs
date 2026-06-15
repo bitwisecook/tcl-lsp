@@ -210,7 +210,7 @@ pub fn resolve_dict_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::place::{places_read_to_form, scalar, LOCAL_NS};
+    use crate::place::{LOCAL_NS, places_read_to_form, scalar};
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()

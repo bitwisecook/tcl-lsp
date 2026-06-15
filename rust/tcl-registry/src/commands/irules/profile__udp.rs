@@ -8,12 +8,10 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Returns the value of a UDP profile setting.",
             synopsis: &["PROFILE::udp ATTR"],
-            snippet:
-                "Returns the current value of the specified setting in an assigned UDP profile.",
+            snippet: "Returns the current value of the specified setting in an assigned UDP profile.",
             source: "https://clouddocs.f5.com/api/irules/PROFILE__udp.html",
             examples: "",
-            return_value:
-                "Returns the current value of the specified setting in an assigned UDP profile.",
+            return_value: "Returns the current value of the specified setting in an assigned UDP profile.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

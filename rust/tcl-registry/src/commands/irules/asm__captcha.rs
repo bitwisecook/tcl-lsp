@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ASM::captcha",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Responds to the client with a CAPTCHA challenge.",
             synopsis: &["ASM::captcha"],
             snippet: "Responds to the client with a CAPTCHA challenge. \n            Note although ASM will send the CAPTCHA challenge screen back to the user, the enforcement is not always done automatically. \n            To enforce the correct CAPTCHA response, the ASM::captcha_status command should be used.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ASM::captcha" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ASM::captcha",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

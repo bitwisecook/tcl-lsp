@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "WEBSSO::select",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Use specified SSO configuration object to do SSO for the HTTP request.",
             synopsis: &["WEBSSO::select WEBSSO_OBJECT"],
             snippet: "This command causes APM to use specified SSO configuration object to do\nSSO for the HTTP request. Admin should make sure that the selected SSO\nmethod works for the specified request (and is enabled on backend\nserver request is going to). The scope of this iRule command is per\nHTTP request. Admin needs to execute it for each HTTP request.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "WEBSSO::select WEBSSO_OBJECT" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "WEBSSO::select WEBSSO_OBJECT",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

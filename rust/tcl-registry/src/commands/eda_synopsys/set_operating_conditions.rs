@@ -2,8 +2,7 @@
 use crate::prelude::*;
 const FORMS: &[FormSpec] = &[FormSpec {
     kind: FormKind::Default,
-    synopsis:
-        "set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?",
+    synopsis: "set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?",
 }];
 
 pub fn spec() -> CommandSpec {
@@ -11,7 +10,13 @@ pub fn spec() -> CommandSpec {
         name: "set_operating_conditions",
         dialects: Some(DialectSet::SYNOPSYS),
         arity: Arity::at_least(0),
-        hover: Some(HoverSnippet::brief("Set operating conditions for timing.", &["set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?"], "F5")),
+        hover: Some(HoverSnippet::brief(
+            "Set operating conditions for timing.",
+            &[
+                "set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?",
+            ],
+            "F5",
+        )),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

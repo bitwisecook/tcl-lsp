@@ -26,7 +26,7 @@ use crate::compilation_unit::CompilationUnit;
 use crate::interprocedural::build_interprocedural_analysis;
 
 use super::helpers::select::select_non_overlapping;
-use super::{run_passes, Optimisation, PassContext, PassId};
+use super::{Optimisation, PassContext, PassId, run_passes};
 
 /// Build a [`CompilationUnit`] for `source`, run every landed
 /// optimiser pass in canonical order, and return the overlap-

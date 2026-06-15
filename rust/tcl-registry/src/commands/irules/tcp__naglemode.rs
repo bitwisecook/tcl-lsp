@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "TCP::naglemode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns setting of Nagle mode.",
             synopsis: &["TCP::naglemode"],
             snippet: "Returns the Nagle mode of a TCP flow.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "# Get the TCP Nagle mode of the TCP flow.\nwhen CLIENT_ACCEPTED {\n    log local0. \"TCP Nagle mode: [TCP::naglemode]\"\n}",
             return_value: "- enabled - disabled - auto",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "TCP::naglemode" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::naglemode",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

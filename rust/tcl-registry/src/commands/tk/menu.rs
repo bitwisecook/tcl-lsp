@@ -299,7 +299,7 @@ pub fn spec() -> CommandSpec {
         name: "menu",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a menu widget.",
             synopsis: &["menu pathName ?option value ...?"],
             snippet: "Displays a menu of commands, each of which may be a cascade, checkbutton, command, radiobutton, or separator entry.",

@@ -9,12 +9,11 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-use anyhow::Context;
 use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
-use tcl_bigip::parser::{parse_bigip_conf, BigipConfig};
-use tcl_cli_support::{write_text_output, OutputTarget};
+use tcl_bigip::parser::BigipConfig;
+use tcl_cli_support::{OutputTarget, write_text_output};
 
 /// Map a `Placed.table_name` to the kinds explain resolves against.
 fn table_to_kind(table: &str) -> Option<&'static str> {
@@ -258,10 +257,10 @@ fn explain_pool_lines(pool: &Value) -> Vec<String> {
         {
             let _ = write!(line, " addr={addr}");
         }
-        if let Some(port) = d.and_then(|d| d.get("port")).and_then(Value::as_i64) {
-            if port != 0 {
-                let _ = write!(line, " port={port}");
-            }
+        if let Some(port) = d.and_then(|d| d.get("port")).and_then(Value::as_i64)
+            && port != 0
+        {
+            let _ = write!(line, " port={port}");
         }
         if let Some(mon) = non_empty_str(d.and_then(|d| d.get("monitor"))) {
             let _ = write!(line, " monitor={mon}");
@@ -359,15 +358,16 @@ fn full_path_of(report: &ExplainReport, cfg: &BigipConfig, kind_hint: Option<&st
     // Re-resolve to recover the matched object's full_path for the header.
     let model = Model::build(cfg);
     let target = &report.target;
-    if (kind_hint.is_none() || kind_hint == Some("virtual")) && report.kind == "virtual" {
-        if let Some(p) = model.resolve("virtual", target) {
-            return p;
-        }
+    if (kind_hint.is_none() || kind_hint == Some("virtual"))
+        && report.kind == "virtual"
+        && let Some(p) = model.resolve("virtual", target)
+    {
+        return p;
     }
-    if report.kind == "pool" {
-        if let Some(p) = model.resolve("pool", target) {
-            return p;
-        }
+    if report.kind == "pool"
+        && let Some(p) = model.resolve("pool", target)
+    {
+        return p;
     }
     target.clone()
 }
@@ -400,13 +400,19 @@ pub fn run_explain(
 ) -> anyhow::Result<u8> {
     let kind_hint = if kind == "auto" { None } else { Some(kind) };
 
-    let mut configs: Vec<BigipConfig> = Vec::new();
-    for path in inputs {
-        let bytes =
-            std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-        let source = String::from_utf8_lossy(&bytes).into_owned();
-        configs.push(parse_bigip_conf(&source, "Common"));
-    }
+    // Resolve inputs via the UCS-aware loader (mirrors `load_paths`), so a
+    // `.ucs` — plain or encrypted — is transparently extracted to SCF and
+    // parsed just like a `.conf`/`.scf`.
+    let opts = crate::cli::PassphraseArgs::default().to_options();
+    let paths: Vec<String> = inputs
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    let configs: Vec<BigipConfig> = tcl_bigip_io::load_paths(&paths, &opts)
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+        .into_iter()
+        .map(|loaded| loaded.config)
+        .collect();
 
     // Use the first config that resolves the target; otherwise the first.
     let mut chosen = 0usize;

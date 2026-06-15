@@ -246,24 +246,24 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         }
 
         // Terminator uses: branch conditions and `return` value reads.
-        if let Some(cfg) = cfg {
-            if let Some(cfg_block) = cfg.blocks.get(bn) {
-                for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
-                    let version = block.exit_versions.get(&var_name).copied().unwrap_or(0);
-                    let key = (var_name, version);
-                    add_use(
-                        &mut chains,
-                        &ssa.entry,
-                        key,
-                        UseSite {
-                            block: bn.clone(),
-                            kind: UseKind::Terminator,
-                            statement_index: -1,
-                            variable: String::new(),
-                            phi_version: 0,
-                        },
-                    );
-                }
+        if let Some(cfg) = cfg
+            && let Some(cfg_block) = cfg.blocks.get(bn)
+        {
+            for var_name in terminator_read_vars(cfg_block.terminator.as_ref()) {
+                let version = block.exit_versions.get(&var_name).copied().unwrap_or(0);
+                let key = (var_name, version);
+                add_use(
+                    &mut chains,
+                    &ssa.entry,
+                    key,
+                    UseSite {
+                        block: bn.clone(),
+                        kind: UseKind::Terminator,
+                        statement_index: -1,
+                        variable: String::new(),
+                        phi_version: 0,
+                    },
+                );
             }
         }
     }
@@ -334,8 +334,8 @@ fn add_use(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ssa::{Phi, SsaBlock, SsaStatement};
     use crate::Statement;
+    use crate::ssa::{Phi, SsaBlock, SsaStatement};
     use std::collections::HashMap;
     use tcl_lexer::Span;
 

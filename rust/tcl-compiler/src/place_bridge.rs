@@ -17,11 +17,11 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
-use crate::place::{self, overlap, places_read_to_form, Place, PlaceKind};
+use crate::place::{self, Place, PlaceKind, overlap, places_read_to_form};
 use crate::segmenter::segment_commands;
 use crate::ssa::structural_body_indices;
 use crate::var_refs::{command_subst_texts, scan_var_ref_forms, vars_in_expr};
-use crate::var_resolve::{resolve_place, ResolveContext};
+use crate::var_resolve::{ResolveContext, resolve_place};
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
@@ -597,10 +597,8 @@ pub fn element_writes_observed_by_reads(
                     && reads.iter().any(|r| overlap(d, r))
                     && !must_alias_killed_in_block(block, idx, d, &ctx, registry)
             });
-            if suppress {
-                if let Ok(i) = i32::try_from(idx) {
-                    out.insert((block_name.clone(), i));
-                }
+            if suppress && let Ok(i) = i32::try_from(idx) {
+                out.insert((block_name.clone(), i));
             }
         }
     }
@@ -611,7 +609,7 @@ pub fn element_writes_observed_by_reads(
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
-    use crate::place::{array_elem, overlap, scalar, Index, PlaceKind, LOCAL_NS};
+    use crate::place::{Index, LOCAL_NS, PlaceKind, array_elem, overlap, scalar};
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()

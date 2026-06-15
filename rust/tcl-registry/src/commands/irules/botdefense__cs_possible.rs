@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BOTDEFENSE::cs_possible",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns whether it is possible for Bot Defense to take a client-side action.",
             synopsis: &["BOTDEFENSE::cs_possible"],
             snippet: "Returns \"true\" or \"false\" based on whether it is possible to take one of the client-side actions that initiate a response (browser challenge, or CAPTCHA challenge, or device id collection) or send browser challenge in response. Certain characteristics of a request make it impossible to respond with a browser verification or CAPTCHA challenge or device id, in which case \"false\" is returned.\n\nSetting to a client-side action with BOTDEFENSE::action, while the value of BOTDEFENSE::cs_possible is \"false\", will fail.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::cs_possible" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BOTDEFENSE::cs_possible",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

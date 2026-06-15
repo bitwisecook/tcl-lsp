@@ -5,9 +5,11 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::respond",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sends message to client or server (based on context).",
-            synopsis: &["DIAMETER::respond DIAMETER_VERSION RFLAG_BINARY PFLAG_BINARY EFLAG_BINARY TFLAG_BINARY"],
+            synopsis: &[
+                "DIAMETER::respond DIAMETER_VERSION RFLAG_BINARY PFLAG_BINARY EFLAG_BINARY TFLAG_BINARY",
+            ],
             snippet: "This iRule command creates and sends a new message to the client or\nserver.\n\nWhen called from clientside events, the new message is sent to the client.\nWhen called from serverside events, the new message is sent to the server.",
             source: "https://clouddocs.f5.com/api/irules/DIAMETER__respond.html",
             examples: "when DIAMETER_INGRESS {\n    # DIAMETER::avp create  \"avpname|code\" \"v\" \"m\" \"p\" \"vendorid\" \"data\" \"type\"\n    # 2 = DO_NOT_WANT_TO_TALK_TO_YOU\n    set goaway [DIAMETER::avp create \"disconnect-cause\" 0 1 0 0 2 integer32]\n    set version 1\n    # 282 = Disconnect-Peer-Request\n    set code 282\n    set origin_host [DIAMETER::avp create \"origin-host\" 0 1 0 0 \"bigip6.core.example.com\" string]\n    set origin_realm [DIAMETER::avp create \"origin-realm\" 0 1 0 0 \"example.com\" string]\n    set appid 16777215",
@@ -23,17 +25,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::respond DIAMETER_VERSION RFLAG_BINARY PFLAG_BINARY EFLAG_BINARY TFLAG_BINARY" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::respond DIAMETER_VERSION RFLAG_BINARY PFLAG_BINARY EFLAG_BINARY TFLAG_BINARY",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

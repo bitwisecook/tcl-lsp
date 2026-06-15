@@ -28,7 +28,7 @@ use std::collections::HashSet;
 
 use crate::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::Statement;
-use crate::side_effects::{classify_side_effects, EffectRegion};
+use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
 
 // ---------------------------------------------------------------------------
@@ -722,19 +722,17 @@ pub fn statement_occurrences(
         span,
         ..
     } = &stmt_ssa.statement
+        && is_pure_command(registry, command, args, dialect)
+        && is_worth_reporting(registry, command)
     {
-        if is_pure_command(registry, command, args, dialect)
-            && is_worth_reporting(registry, command)
-        {
-            out.push(ExprOccurrence {
-                key: build_call_key(command, args, &stmt_ssa.uses),
-                span: *span,
-                expression_text: format_expression_text(command, args),
-                block: block_name.to_owned(),
-                statement_index,
-                variable_uses: stmt_ssa.uses.keys().cloned().collect(),
-            });
-        }
+        out.push(ExprOccurrence {
+            key: build_call_key(command, args, &stmt_ssa.uses),
+            span: *span,
+            expression_text: format_expression_text(command, args),
+            block: block_name.to_owned(),
+            statement_index,
+            variable_uses: stmt_ssa.uses.keys().cloned().collect(),
+        });
     }
 
     // Embedded command substitutions inside argument/value text.
@@ -1103,20 +1101,20 @@ fn reachable_from(cfg: &CfgFunction, entry: &str) -> HashSet<String> {
         if !out.insert(name.clone()) {
             continue;
         }
-        if let Some(block) = cfg.blocks.get(&name) {
-            if let Some(term) = &block.terminator {
-                match term {
-                    Terminator::Goto { target, .. } => stack.push(target.clone()),
-                    Terminator::Branch {
-                        true_target,
-                        false_target,
-                        ..
-                    } => {
-                        stack.push(true_target.clone());
-                        stack.push(false_target.clone());
-                    }
-                    Terminator::Return { .. } => {}
+        if let Some(block) = cfg.blocks.get(&name)
+            && let Some(term) = &block.terminator
+        {
+            match term {
+                Terminator::Goto { target, .. } => stack.push(target.clone()),
+                Terminator::Branch {
+                    true_target,
+                    false_target,
+                    ..
+                } => {
+                    stack.push(true_target.clone());
+                    stack.push(false_target.clone());
                 }
+                Terminator::Return { .. } => {}
             }
         }
     }
@@ -1523,19 +1521,20 @@ pub fn find_partial_redundancies(
                 }
                 OccurrenceEvent::Occur(occ) => {
                     let multi = key_offsets.get(&occ.key).is_some_and(|s| s.len() >= 2);
-                    if multi && state_may.contains(&occ.key) && !state_must.contains(&occ.key) {
-                        if let Some(first) = first_by_key.get(&occ.key) {
-                            if first.span.start() != occ.span.start() {
-                                let text = first.expression_text.clone();
-                                results.push(RedundantComputation {
-                                    span: occ.span,
-                                    first_span: first.span,
-                                    expression_text: text.clone(),
-                                    code: "O105".into(),
-                                    message: partial_redundancy_message(&text),
-                                });
-                            }
-                        }
+                    if multi
+                        && state_may.contains(&occ.key)
+                        && !state_must.contains(&occ.key)
+                        && let Some(first) = first_by_key.get(&occ.key)
+                        && first.span.start() != occ.span.start()
+                    {
+                        let text = first.expression_text.clone();
+                        results.push(RedundantComputation {
+                            span: occ.span,
+                            first_span: first.span,
+                            expression_text: text.clone(),
+                            code: "O105".into(),
+                            message: partial_redundancy_message(&text),
+                        });
                     }
                     state_may.insert(occ.key.clone());
                     state_must.insert(occ.key.clone());

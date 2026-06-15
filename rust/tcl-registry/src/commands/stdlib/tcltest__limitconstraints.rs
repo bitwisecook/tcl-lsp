@@ -6,8 +6,7 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
-            summary:
-                "Get or set constraint limiting.  Deprecated: use ``configure -limitconstraints``.",
+            summary: "Get or set constraint limiting.  Deprecated: use ``configure -limitconstraints``.",
             synopsis: &["tcltest::limitConstraints ?boolean?"],
             snippet: "",
             source: "Tcl stdlib tcltest package (deprecated)",

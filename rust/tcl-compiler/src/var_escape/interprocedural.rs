@@ -100,10 +100,10 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
     for (qname, summary) in summaries {
         let mut callees: HashSet<String> = HashSet::new();
         for cmd in &summary.direct_callees {
-            if let Some(resolved) = resolve_callee(cmd, qname, summaries) {
-                if resolved != *qname {
-                    callees.insert(resolved);
-                }
+            if let Some(resolved) = resolve_callee(cmd, qname, summaries)
+                && resolved != *qname
+            {
+                callees.insert(resolved);
             }
         }
         resolved_callees.insert(qname.clone(), callees);

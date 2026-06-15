@@ -411,10 +411,10 @@ impl CfgBuilder {
                 );
                 continue;
             }
-            if let Some(ref body) = arm.body {
-                if let Some(tail) = self.lower_script(body, &body_targets[i]) {
-                    self.ensure_goto(&tail, &end_block, arm.body_span);
-                }
+            if let Some(ref body) = arm.body
+                && let Some(tail) = self.lower_script(body, &body_targets[i])
+            {
+                self.ensure_goto(&tail, &end_block, arm.body_span);
             }
         }
 
@@ -469,12 +469,12 @@ impl CfgBuilder {
                 continue;
             }
             members.push(name.clone());
-            if let Some(block) = self.blocks.get(&name) {
-                if let Some(term) = &block.terminator {
-                    for succ in term.successors() {
-                        if !seen.contains(succ) {
-                            queue.push(succ.to_owned());
-                        }
+            if let Some(block) = self.blocks.get(&name)
+                && let Some(term) = &block.terminator
+            {
+                for succ in term.successors() {
+                    if !seen.contains(succ) {
+                        queue.push(succ.to_owned());
                     }
                 }
             }
@@ -521,10 +521,10 @@ impl CfgBuilder {
                     throw_sources.push(tb.clone());
                 }
             }
-            if throw_sources.is_empty() {
-                if let Some(terminal) = body_terminal {
-                    throw_sources.push(terminal.to_owned());
-                }
+            if throw_sources.is_empty()
+                && let Some(terminal) = body_terminal
+            {
+                throw_sources.push(terminal.to_owned());
             }
             for src in throw_sources {
                 self.exception_edges.push((src, handler_block.to_owned()));
@@ -532,11 +532,11 @@ impl CfgBuilder {
         } else {
             self.exception_edges
                 .push((block_name.to_owned(), handler_block.to_owned()));
-            if let Some(tail) = body_tail {
-                if tail != block_name {
-                    self.exception_edges
-                        .push((tail.to_owned(), handler_block.to_owned()));
-                }
+            if let Some(tail) = body_tail
+                && tail != block_name
+            {
+                self.exception_edges
+                    .push((tail.to_owned(), handler_block.to_owned()));
             }
         }
     }

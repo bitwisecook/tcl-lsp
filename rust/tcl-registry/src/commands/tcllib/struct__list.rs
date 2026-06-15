@@ -14,8 +14,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         name: "dbJoin",
         arity: Arity::at_least(2),
         detail: "Perform a relational join on two lists.",
-        synopsis:
-            "struct::list dbJoin ?-inner|-left|-right|-full? ?-keys varname? keyedList1 keyedList2",
+        synopsis: "struct::list dbJoin ?-inner|-left|-right|-full? ?-keys varname? keyedList1 keyedList2",
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -213,7 +212,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Advanced list manipulation commands.",
             synopsis: &["struct::list subcommand ?args ...?"],
             snippet: "Provides operations beyond the core Tcl list commands: filtering, mapping, folding, shuffling, permutations, longest-common-subsequence, and more.",

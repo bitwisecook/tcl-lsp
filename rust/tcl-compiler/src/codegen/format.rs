@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::{str_class_name, FunctionAsm, Instruction, ModuleAsm, Op, Operand, INDEX_END};
+use super::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_class_name};
 
 /// Escape a literal value for disassembly comments.
 ///
@@ -229,17 +229,17 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
             instr.op.mnemonic()
         ));
 
-        if instr.op == Op::JUMP_TABLE {
-            if let Some(ref jt) = instr.jump_table {
-                let entries: Vec<String> = jt
-                    .iter()
-                    .map(|(pattern, label)| {
-                        let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
-                        format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
-                    })
-                    .collect();
-                lines.push(format!("\t\t[{}]", entries.join(", ")));
-            }
+        if instr.op == Op::JUMP_TABLE
+            && let Some(ref jt) = instr.jump_table
+        {
+            let entries: Vec<String> = jt
+                .iter()
+                .map(|(pattern, label)| {
+                    let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                    format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
+                })
+                .collect();
+            lines.push(format!("\t\t[{}]", entries.join(", ")));
         }
     }
 

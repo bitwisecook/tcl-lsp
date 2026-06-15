@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["GTP::forward MESSAGE"],
             snippet: "Forwards GTP message to peer flow.",
             source: "https://clouddocs.f5.com/api/irules/GTP__forward.html",
-            examples:
-                "when GTP_SIGNALLING_INGRESS {\n    set t2 [GTP::new 2 10]\n    GTP::forward $t2\n}",
+            examples: "when GTP_SIGNALLING_INGRESS {\n    set t2 [GTP::new 2 10]\n    GTP::forward $t2\n}",
             return_value: "",
         }),
         forms: &[FormSpec {

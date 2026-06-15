@@ -248,19 +248,19 @@ impl Analyser {
             // indirection.  Mirrors
             // ``_AnalyserCommandsMixin._process_command`` line 231 in
             // ``core/analysis/_analyser/_commands.py``.
-            if cmd_name == "call" && self.dialect == "f5-irules" {
-                if let (Some(target_name), Some(target_tok)) =
+            if cmd_name == "call"
+                && self.dialect == "f5-irules"
+                && let (Some(target_name), Some(target_tok)) =
                     (args.first(), arg_tokens_in.get(1).copied())
-                {
-                    let resolved = self.resolve_command_qualified_name(target_name);
-                    self.result.command_invocations.push(
-                        crate::signature_scan::types::SignatureCommandInvocation {
-                            name: target_name.clone(),
-                            range: target_tok.span,
-                            resolved_qualified_name: Some(resolved),
-                        },
-                    );
-                }
+            {
+                let resolved = self.resolve_command_qualified_name(target_name);
+                self.result.command_invocations.push(
+                    crate::signature_scan::types::SignatureCommandInvocation {
+                        name: target_name.clone(),
+                        range: target_tok.span,
+                        resolved_qualified_name: Some(resolved),
+                    },
+                );
             }
 
             // Walk every argument's source slice for ``[cmd ...]``
@@ -670,10 +670,10 @@ impl Analyser {
         // `_recurse_nested_commands` iterates every token including the head,
         // so descend a `Cmd` head too (the head's *name* is recorded
         // separately by `process_command`; this records what it substitutes).
-        if let Some(head) = arg_tokens_in.first() {
-            if head.kind == TokenType::Cmd {
-                self.record_invocations_from_cmd_token(*head);
-            }
+        if let Some(head) = arg_tokens_in.first()
+            && head.kind == TokenType::Cmd
+        {
+            self.record_invocations_from_cmd_token(*head);
         }
         for (i, arg_tok) in arg_tokens_in.iter().enumerate().skip(1) {
             let arg_start = arg_tok.span.start();
@@ -967,22 +967,24 @@ impl Analyser {
     /// to a given name wins.
     pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
         // Pattern A: `set VAR [CLASS new|create ...]`.
-        if cmd_name == "set" && args.len() >= 2 {
-            if let Some(class_q) = self.class_from_constructor_subst(&args[1]) {
-                self.result
-                    .instance_classes
-                    .insert(args[0].clone(), class_q);
-                return;
-            }
+        if cmd_name == "set"
+            && args.len() >= 2
+            && let Some(class_q) = self.class_from_constructor_subst(&args[1])
+        {
+            self.result
+                .instance_classes
+                .insert(args[0].clone(), class_q);
+            return;
         }
         // Pattern B: `CLASS create VAR ...` — the instance
         // command is named by argv[1].
-        if args.len() >= 2 && args[0] == "create" {
-            if let Some(class_q) = self.resolve_user_class(cmd_name) {
-                self.result
-                    .instance_classes
-                    .insert(args[1].clone(), class_q);
-            }
+        if args.len() >= 2
+            && args[0] == "create"
+            && let Some(class_q) = self.resolve_user_class(cmd_name)
+        {
+            self.result
+                .instance_classes
+                .insert(args[1].clone(), class_q);
         }
     }
 
@@ -1073,10 +1075,10 @@ fn record_command_invocations(
     // word, a `$var` (`${var}`), a `"quote"` (unquoted), a compound head,
     // a `[subst]` head (`[gen]` — recorded *and* descended below), or a
     // `{braced}` head (its inner text).
-    if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first()) {
-        if !name.is_empty() {
-            out.push((name.clone(), head.span));
-        }
+    if let (Some(&head), Some(name)) = (seg.argv.first(), seg.texts.first())
+        && !name.is_empty()
+    {
+        out.push((name.clone(), head.span));
     }
     // Nested ``[...]`` substitutions in any position (args, or embedded
     // in a quoted word — both are `Cmd` tokens in the command's token
@@ -1238,11 +1240,7 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
         return None;
     }
     i += 1; // the `string` argument
-    if i == args.len() - 1 {
-        Some(i)
-    } else {
-        None
-    }
+    if i == args.len() - 1 { Some(i) } else { None }
 }
 
 /// Walk `text` looking for ``[cmd args...]`` command

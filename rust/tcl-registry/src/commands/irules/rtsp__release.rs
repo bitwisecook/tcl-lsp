@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "RTSP::release",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Releases the collected data.",
             synopsis: &["RTSP::release"],
             snippet: "Releases the collected data. Unless a subsequent RTSP::collect command\nwas issued, there is no need to use the RTSP::release command inside of\nthe RTSP_REQUEST_DATA and RTSP_RESPONSE_DATA events, since in these\ncases, the data is implicitly released.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when RTSP_REQUEST {\n        RTSP::collect\n    }",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "RTSP::release" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "RTSP::release",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "CACHE::userkey",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Allows users to add user-defined values to the key used by the cache to reference the cached content.",
             synopsis: &["CACHE::userkey KEY"],
             snippet: "By default, cached content is stored with a unique key referring to both\nthe URI of the resource to be cached and the User-Agent for which it\nwas formatted. If multiple variations of the same content must be\ncached under specific conditions (different client), you can use this\ncommand to create a unique key, thus creating cached content specific\nto that condition. This can be used to prevent one user or group's\ncached data from being served to different users/groups.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "CACHE::userkey KEY" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "CACHE::userkey KEY",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

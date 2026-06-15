@@ -1,0 +1,889 @@
+{
+ "base_specs": [
+  {
+   "command": "ssl::profile",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_profile_client_ssl",
+    "ltm_profile_server_ssl"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "snatpool",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_snatpool"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "snat",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   },
+   "kinds": [
+    "ltm_snatpool"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "virtual",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "aaa::auth_send",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "aaa::acct_send",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "node",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_node"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "use",
+   "position": {
+    "index": null,
+    "after_keyword": "snatpool",
+    "last": false
+   },
+   "kinds": [
+    "ltm_snatpool"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "use",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "use",
+   "position": {
+    "index": null,
+    "after_keyword": "rateclass",
+    "last": false
+   },
+   "kinds": [
+    "net_rate_shaping_class"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "lb::reselect",
+   "position": {
+    "index": null,
+    "after_keyword": "snatpool",
+    "last": false
+   },
+   "kinds": [
+    "ltm_snatpool"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "lb::reselect",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "lb::reselect",
+   "position": {
+    "index": null,
+    "after_keyword": "rateclass",
+    "last": false
+   },
+   "kinds": [
+    "net_rate_shaping_class"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "rateclass",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "net_rate_shaping_class"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "ifile",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": "get",
+   "when_module": null
+  },
+  {
+   "command": "ifile",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": "attributes",
+   "when_module": null
+  },
+  {
+   "command": "ifile",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": "size",
+   "when_module": null
+  },
+  {
+   "command": "ifile",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": "last_updated_by",
+   "when_module": null
+  },
+  {
+   "command": "ifile",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": "revision",
+   "when_module": null
+  },
+  {
+   "command": "ifile",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": "last_update_time",
+   "when_module": null
+  },
+  {
+   "command": "http::respond",
+   "position": {
+    "index": null,
+    "after_keyword": "ifile",
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "http::respond",
+   "position": {
+    "index": null,
+    "after_keyword": "-ifile",
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "http2::push",
+   "position": {
+    "index": null,
+    "after_keyword": "-ifile",
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "access::respond",
+   "position": {
+    "index": null,
+    "after_keyword": "ifile",
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "access::respond",
+   "position": {
+    "index": null,
+    "after_keyword": "-ifile",
+    "last": false
+   },
+   "kinds": [
+    "ltm_ifile",
+    "sys_file_ifile"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "lsn::pool",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_lsn_pool"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "lsn::inbound-entry",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_lsn_pool"
+   ],
+   "sub_command": "create",
+   "when_module": "ltm"
+  },
+  {
+   "command": "lsn::persistence-entry",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_lsn_pool"
+   ],
+   "sub_command": "create",
+   "when_module": "ltm"
+  },
+  {
+   "command": "stats::get",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_profile_statistics"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "stats::incr",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_profile_statistics"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "stats::set",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_profile_statistics"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "stats::setmax",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_profile_statistics"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "stats::setmin",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_profile_statistics"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "genericmessage::route",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "genericmessage::route",
+   "position": {
+    "index": null,
+    "after_keyword": "config",
+    "last": false
+   },
+   "kinds": [
+    "ltm_message_routing_diameter_transport_config",
+    "ltm_message_routing_generic_transport_config",
+    "ltm_message_routing_mqtt_transport_config",
+    "ltm_message_routing_sip_transport_config"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "mr::peer",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "mr::peer",
+   "position": {
+    "index": null,
+    "after_keyword": "config",
+    "last": false
+   },
+   "kinds": [
+    "ltm_message_routing_diameter_transport_config",
+    "ltm_message_routing_generic_transport_config",
+    "ltm_message_routing_mqtt_transport_config",
+    "ltm_message_routing_sip_transport_config"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "mr::message",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "mr::message",
+   "position": {
+    "index": null,
+    "after_keyword": "config",
+    "last": false
+   },
+   "kinds": [
+    "ltm_message_routing_diameter_transport_config",
+    "ltm_message_routing_generic_transport_config",
+    "ltm_message_routing_mqtt_transport_config",
+    "ltm_message_routing_sip_transport_config"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "mr::prime",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "mr::prime",
+   "position": {
+    "index": null,
+    "after_keyword": "config",
+    "last": false
+   },
+   "kinds": [
+    "ltm_message_routing_diameter_transport_config",
+    "ltm_message_routing_generic_transport_config",
+    "ltm_message_routing_mqtt_transport_config",
+    "ltm_message_routing_sip_transport_config"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "mr::equivalent_transport",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "mr::equivalent_transport",
+   "position": {
+    "index": null,
+    "after_keyword": "config",
+    "last": false
+   },
+   "kinds": [
+    "ltm_message_routing_diameter_transport_config",
+    "ltm_message_routing_generic_transport_config",
+    "ltm_message_routing_mqtt_transport_config",
+    "ltm_message_routing_sip_transport_config"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "flowtable::count",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "flowtable::count",
+   "position": {
+    "index": null,
+    "after_keyword": "route_domain",
+    "last": false
+   },
+   "kinds": [
+    "net_route_domain"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "flowtable::limit",
+   "position": {
+    "index": null,
+    "after_keyword": "virtual",
+    "last": false
+   },
+   "kinds": [
+    "ltm_virtual"
+   ],
+   "sub_command": null,
+   "when_module": "ltm"
+  },
+  {
+   "command": "flowtable::limit",
+   "position": {
+    "index": null,
+    "after_keyword": "route_domain",
+    "last": false
+   },
+   "kinds": [
+    "net_route_domain"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "matchclass",
+   "position": {
+    "index": null,
+    "after_keyword": null,
+    "last": true
+   },
+   "kinds": [
+    "ltm_data_group_external",
+    "ltm_data_group_internal",
+    "sys_file_data_group"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "findclass",
+   "position": {
+    "index": 1,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "ltm_data_group_external",
+    "ltm_data_group_internal",
+    "sys_file_data_group"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "resolver::name_lookup",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   },
+   "kinds": [
+    "net_dns_resolver"
+   ],
+   "sub_command": null,
+   "when_module": null
+  },
+  {
+   "command": "xlat::src_endpoint_reservation",
+   "position": {
+    "index": null,
+    "after_keyword": "-pool",
+    "last": false
+   },
+   "kinds": [
+    "ltm_lsn_pool"
+   ],
+   "sub_command": null,
+   "when_module": null
+  }
+ ],
+ "pool_templates": [
+  {
+   "command": "pool",
+   "position": {
+    "index": 0,
+    "after_keyword": null,
+    "last": false
+   }
+  },
+  {
+   "command": "active_members",
+   "position": {
+    "index": null,
+    "after_keyword": null,
+    "last": true
+   }
+  },
+  {
+   "command": "active_nodes",
+   "position": {
+    "index": null,
+    "after_keyword": null,
+    "last": true
+   }
+  },
+  {
+   "command": "members",
+   "position": {
+    "index": null,
+    "after_keyword": null,
+    "last": true
+   }
+  },
+  {
+   "command": "nodes",
+   "position": {
+    "index": null,
+    "after_keyword": null,
+    "last": true
+   }
+  },
+  {
+   "command": "clone",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "lb::reselect",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "lb::status",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "lb::down",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "lb::up",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "lb::persist",
+   "position": {
+    "index": null,
+    "after_keyword": "cookie",
+    "last": false
+   }
+  },
+  {
+   "command": "use",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "hsl::open",
+   "position": {
+    "index": null,
+    "after_keyword": "-pool",
+    "last": false
+   }
+  },
+  {
+   "command": "genericmessage::route",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "mr::peer",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "mr::message",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  },
+  {
+   "command": "mr::prime",
+   "position": {
+    "index": null,
+    "after_keyword": "pool",
+    "last": false
+   }
+  }
+ ],
+ "data_group_kinds": [
+  "ltm_data_group_external",
+  "ltm_data_group_internal",
+  "sys_file_data_group"
+ ],
+ "persistence_kinds": [
+  "ltm_persistence_cookie",
+  "ltm_persistence_dest_addr",
+  "ltm_persistence_global_settings",
+  "ltm_persistence_hash",
+  "ltm_persistence_host",
+  "ltm_persistence_msrdp",
+  "ltm_persistence_persist_records",
+  "ltm_persistence_sip",
+  "ltm_persistence_source_addr",
+  "ltm_persistence_ssl",
+  "ltm_persistence_universal"
+ ],
+ "ssl_profile_kinds": [
+  "ltm_profile_client_ssl",
+  "ltm_profile_server_ssl"
+ ],
+ "falsey_ref_tokens": [
+  "--",
+  "-list",
+  "add",
+  "all",
+  "and",
+  "clientside",
+  "context",
+  "default",
+  "delete",
+  "disabled",
+  "enabled",
+  "false",
+  "modify",
+  "none",
+  "or",
+  "replace-all-with",
+  "serverside",
+  "true"
+ ],
+ "ltm_pool_kinds": [
+  "ltm_pool"
+ ],
+ "gtm_pool_kinds": [
+  "gtm_pool_a",
+  "gtm_pool_aaaa",
+  "gtm_pool_cname",
+  "gtm_pool_mx",
+  "gtm_pool_naptr",
+  "gtm_pool_srv"
+ ]
+}

@@ -31,7 +31,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{eval_tcl_expr, Env, EnvValue};
+use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr};
 
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
@@ -158,15 +158,15 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr(condition, env) {
-        if !val.is_truthy() {
-            ctx.report(Optimisation::new(
-                "O112",
-                "Eliminate dead while loop (condition is always false)",
-                full_rewrite_span(ctx.source, *span),
-                "",
-            ));
-        }
+    if let Some(val) = eval_tcl_expr(condition, env)
+        && !val.is_truthy()
+    {
+        ctx.report(Optimisation::new(
+            "O112",
+            "Eliminate dead while loop (condition is always false)",
+            full_rewrite_span(ctx.source, *span),
+            "",
+        ));
     }
     walk_script(ctx, body, env);
 }
@@ -184,24 +184,24 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env) {
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr(condition, env) {
-        if !val.is_truthy() {
-            if init.statements.is_empty() {
-                ctx.report(Optimisation::new(
-                    "O112",
-                    "Eliminate dead for loop (condition is always false)",
-                    full_rewrite_span(ctx.source, *span),
-                    "",
-                ));
-            } else {
-                let replacement = extract_body_text(ctx.source, *init_span, *span);
-                ctx.report(Optimisation::new(
-                    "O112",
-                    "Eliminate dead for loop (condition is always false); keep init",
-                    full_rewrite_span(ctx.source, *span),
-                    replacement,
-                ));
-            }
+    if let Some(val) = eval_tcl_expr(condition, env)
+        && !val.is_truthy()
+    {
+        if init.statements.is_empty() {
+            ctx.report(Optimisation::new(
+                "O112",
+                "Eliminate dead for loop (condition is always false)",
+                full_rewrite_span(ctx.source, *span),
+                "",
+            ));
+        } else {
+            let replacement = extract_body_text(ctx.source, *init_span, *span);
+            ctx.report(Optimisation::new(
+                "O112",
+                "Eliminate dead for loop (condition is always false); keep init",
+                full_rewrite_span(ctx.source, *span),
+                replacement,
+            ));
         }
     }
     walk_script(ctx, init, env);

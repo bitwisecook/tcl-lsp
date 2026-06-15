@@ -156,7 +156,7 @@ fn harvest_array_set_constants(
                 }
                 let arr_name = &args[1];
                 let items = crate::tcl_expr_eval::split_tcl_list(&args[2]);
-                if items.len() % 2 != 0 {
+                if !items.len().is_multiple_of(2) {
                     continue;
                 }
                 for pair in items.chunks_exact(2) {
@@ -204,7 +204,7 @@ fn harvest_dict_with_constants(
                     continue;
                 };
                 let items = crate::tcl_expr_eval::split_tcl_list(dict_text);
-                if items.len() % 2 != 0 {
+                if !items.len().is_multiple_of(2) {
                     continue;
                 }
                 for pair in items.chunks_exact(2) {
@@ -358,11 +358,7 @@ fn find_matching_close_paren(source: &[u8], paren_start: usize) -> Option<usize>
         }
         j += 1;
     }
-    if depth != 0 {
-        None
-    } else {
-        Some(j - 1)
-    }
+    if depth != 0 { None } else { Some(j - 1) }
 }
 
 /// True when `ch` is a standard ASCII character W108 leaves alone: tab
@@ -380,7 +376,7 @@ fn is_standard_ascii(ch: char) -> bool {
 /// are *not* benign (they almost always indicate encoding/copy-paste
 /// issues) and are flagged.
 fn is_benign_unicode(ch: char) -> bool {
-    use unicode_general_category::{get_general_category, GeneralCategory as G};
+    use unicode_general_category::{GeneralCategory as G, get_general_category};
     matches!(
         get_general_category(ch),
         // Letters (L*)
@@ -500,16 +496,14 @@ fn find_dotted_quads(text: &str, max_digits: usize) -> Vec<DottedQuad<'_>> {
     let mut i = 0;
     while i < bytes.len() {
         let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
-        if boundary_before {
-            if let Some((octets, end)) = match_dotted_quad(text, i, max_digits) {
-                out.push(DottedQuad {
-                    octets,
-                    start: i,
-                    end,
-                });
-                i = end;
-                continue;
-            }
+        if boundary_before && let Some((octets, end)) = match_dotted_quad(text, i, max_digits) {
+            out.push(DottedQuad {
+                octets,
+                start: i,
+                end,
+            });
+            i = end;
+            continue;
         }
         i += 1;
     }
@@ -558,12 +552,13 @@ fn find_ipv6_candidates(text: &str) -> Vec<&str> {
     let mut i = 0;
     while i < bytes.len() {
         let boundary_before = i == 0 || !is_word_byte(bytes[i - 1]);
-        if boundary_before && bytes[i].is_ascii_hexdigit() {
-            if let Some(end) = match_ipv6_candidate(bytes, i) {
-                out.push(&text[i..end]);
-                i = end;
-                continue;
-            }
+        if boundary_before
+            && bytes[i].is_ascii_hexdigit()
+            && let Some(end) = match_ipv6_candidate(bytes, i)
+        {
+            out.push(&text[i..end]);
+            i = end;
+            continue;
         }
         i += 1;
     }
@@ -756,10 +751,10 @@ fn raw_has_live_substitution(raw: &str) -> bool {
             }
             b'[' => return true,
             b'$' => {
-                if let Some(&c) = b.get(i + 1) {
-                    if c.is_ascii_alphanumeric() || matches!(c, b'_' | b'{' | b':') {
-                        return true;
-                    }
+                if let Some(&c) = b.get(i + 1)
+                    && (c.is_ascii_alphanumeric() || matches!(c, b'_' | b'{' | b':'))
+                {
+                    return true;
                 }
             }
             _ => {}
@@ -941,14 +936,12 @@ fn existence_query_vars(stmt: &crate::ir::Statement) -> Vec<String> {
     use crate::ir::Statement;
     let mut out = Vec::new();
     // Bare-call form: `info exists X` / `array exists X`.
-    if let Statement::Call { command, args, .. } = stmt {
-        if matches!(command.as_str(), "info" | "array")
-            && args.first().map(String::as_str) == Some("exists")
-        {
-            if let Some(v) = args.get(1) {
-                out.push(v.clone());
-            }
-        }
+    if let Statement::Call { command, args, .. } = stmt
+        && matches!(command.as_str(), "info" | "array")
+        && args.first().map(String::as_str) == Some("exists")
+        && let Some(v) = args.get(1)
+    {
+        out.push(v.clone());
     }
     // Command-substitution form: `set y [info exists X]`,
     // `puts [array exists X]`, etc.
@@ -980,11 +973,10 @@ fn collect_existence_guards(fu: &crate::compilation_unit::FunctionUnit) -> Vec<(
             false_target,
             ..
         }) = &block.terminator
+            && let Some((var, negated)) = crate::expr_ast::existence_query_var(condition)
         {
-            if let Some((var, negated)) = crate::expr_ast::existence_query_var(condition) {
-                let target = if negated { false_target } else { true_target };
-                guards.push((var, target.clone()));
-            }
+            let target = if negated { false_target } else { true_target };
+            guards.push((var, target.clone()));
         }
     }
     guards
@@ -1000,10 +992,10 @@ fn existence_exempt(
     ssa: &crate::ssa::SsaFunction,
     use_block: &str,
 ) -> bool {
-    if let Some(stmt) = stmt_opt {
-        if existence_query_vars(stmt).iter().any(|q| q == var) {
-            return true;
-        }
+    if let Some(stmt) = stmt_opt
+        && existence_query_vars(stmt).iter().any(|q| q == var)
+    {
+        return true;
     }
     exists_guards
         .iter()
@@ -1618,19 +1610,16 @@ fn harvest_dict_with_suppression(
             // known value (even empty) harvests its keys; only a value that
             // resolves to neither marks the dict shape unknown.
             let mut literal: Option<String> = None;
-            if let Some(sb) = fu.ssa.blocks.get(bn) {
-                if let Some(ver) = sb
+            if let Some(sb) = fu.ssa.blocks.get(bn)
+                && let Some(ver) = sb
                     .statements
                     .get(idx)
                     .and_then(|s| s.uses.get(&dvar).copied())
-                {
-                    if let Some(crate::analyses::LatticeValue::Const(
-                        crate::analyses::ConstValue::String(v),
-                    )) = fu.sccp.values.get(&(dvar.clone(), ver))
-                    {
-                        literal = Some(v.clone());
-                    }
-                }
+                && let Some(crate::analyses::LatticeValue::Const(
+                    crate::analyses::ConstValue::String(v),
+                )) = fu.sccp.values.get(&(dvar.clone(), ver))
+            {
+                literal = Some(v.clone());
             }
             if literal.is_none() {
                 for prev in (0..idx).rev() {
@@ -2110,10 +2099,10 @@ fn find_regex_patterns_in_command(
             } else {
                 // Form 1: inline pattern/body pairs.
                 while i + 1 < args.len() {
-                    if let (Some(text), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
-                        if text != "default" {
-                            results.push((text.clone(), *tok));
-                        }
+                    if let (Some(text), Some(tok)) = (args.get(i), arg_tokens.get(i))
+                        && text != "default"
+                    {
+                        results.push((text.clone(), *tok));
                     }
                     i += 2;
                 }
@@ -2772,11 +2761,11 @@ Use braces: {{ \u{2026} }}"
                     "'{quad}' looks like a subnet mask but has non-contiguous bits. A valid \
                      mask must be contiguous leading 1-bits followed by 0-bits."
                 );
-                if let Some(s) = nearest_valid_mask(a, b, c, d) {
-                    if s != quad {
-                        use std::fmt::Write as _;
-                        let _ = write!(message, " Did you mean '{s}'?");
-                    }
+                if let Some(s) = nearest_valid_mask(a, b, c, d)
+                    && s != quad
+                {
+                    use std::fmt::Write as _;
+                    let _ = write!(message, " Did you mean '{s}'?");
                 }
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: "W121".to_string(),
@@ -2951,11 +2940,11 @@ Use braces: {{ \u{2026} }}"
         // Single trailing arg: the braced-list form (W105 / bracing
         // handles a braced block); only flag an *unbraced* single block.
         if i == args.len() - 1 {
-            if let Some(tok) = arg_tokens.get(i) {
-                if !is_braced_word(tok) {
-                    let dangerous = has_substitution(&args[i], tok);
-                    self.push_w106(tok.span, dangerous, has_regexp, true);
-                }
+            if let Some(tok) = arg_tokens.get(i)
+                && !is_braced_word(tok)
+            {
+                let dangerous = has_substitution(&args[i], tok);
+                self.push_w106(tok.span, dangerous, has_regexp, true);
             }
             return;
         }
@@ -2963,11 +2952,12 @@ Use braces: {{ \u{2026} }}"
         // Alternating pattern/body pairs.
         while i + 1 < args.len() {
             let body_idx = i + 1;
-            if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx)) {
-                if !is_braced_word(tok) && text != "-" {
-                    let dangerous = has_substitution(text, tok) || has_regexp;
-                    self.push_w106(tok.span, dangerous, has_regexp, false);
-                }
+            if let (Some(tok), Some(text)) = (arg_tokens.get(body_idx), args.get(body_idx))
+                && !is_braced_word(tok)
+                && text != "-"
+            {
+                let dangerous = has_substitution(text, tok) || has_regexp;
+                self.push_w106(tok.span, dangerous, has_regexp, false);
             }
             i += 2;
         }
@@ -3331,10 +3321,10 @@ numeric/string coercion."
         // commands error when the target is already gone, and a bare
         // ``catch {<cmd>}`` is the canonical Tcl idiom for "do this if
         // possible, ignore if not".
-        if let Some(body) = args.first() {
-            if catch_body_is_fire_and_forget(body) {
-                return;
-            }
+        if let Some(body) = args.first()
+            && catch_body_is_fire_and_forget(body)
+        {
+            return;
         }
         let span = cmd_tok.span;
         self.result.diagnostics.push(super::types::Diagnostic {
@@ -3409,10 +3399,10 @@ Consider capturing the result: catch {\u{2026}} result"
         // An earlier *unconditional* user proc with this name shadows the
         // would-be-disabled built-in at the call site.
         let qualified = crate::naming::normalise_qualified_name(bare);
-        if let Some(def) = self.result.all_procs.get(&qualified) {
-            if def.name_span.start() < cmd_tok.span.start() {
-                return;
-            }
+        if let Some(def) = self.result.all_procs.get(&qualified)
+            && def.name_span.start() < cmd_tok.span.start()
+        {
+            return;
         }
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W002".to_string(),
@@ -3430,7 +3420,7 @@ Consider capturing the result: catch {\u{2026}} result"
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        use super::dispatch::{signature_for_command, CommandSignature};
+        use super::dispatch::{CommandSignature, signature_for_command};
         use tcl_registry::prelude::DialectSet;
 
         let Some(registry) = self.registry.as_ref() else {
@@ -3560,7 +3550,7 @@ Consider capturing the result: catch {\u{2026}} result"
         cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        use super::dispatch::{signature_for_command, CommandSignature};
+        use super::dispatch::{CommandSignature, signature_for_command};
         use tcl_registry::prelude::DialectSet;
 
         // `arg_expand_in` is parallel to the full argv (command name at
@@ -4904,23 +4894,22 @@ environment variables or a vault, not in source code."
                 });
             if let Some((cred_arg, sensitive)) = cred_info {
                 let header_name = args[1].to_ascii_lowercase();
-                if sensitive.contains(&header_name.as_str()) && cred_arg < arg_tokens.len() {
-                    if let (Some(value), Some(val_tok)) =
+                if sensitive.contains(&header_name.as_str())
+                    && cred_arg < arg_tokens.len()
+                    && let (Some(value), Some(val_tok)) =
                         (args.get(cred_arg), arg_tokens.get(cred_arg))
-                    {
-                        if is_literal_credential_value(value, val_tok) {
-                            self.result.diagnostics.push(super::types::Diagnostic {
-                                code: "W310".to_string(),
-                                span: val_tok.span,
-                                message: format!(
-                                    "Hardcoded credential in {header_name} header value. \
+                    && is_literal_credential_value(value, val_tok)
+                {
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W310".to_string(),
+                        span: val_tok.span,
+                        message: format!(
+                            "Hardcoded credential in {header_name} header value. \
 Store secrets in environment variables or a vault, not in source code."
-                                ),
-                                severity: Severity::Warning,
-                                fixes: Vec::new(),
-                            });
-                        }
-                    }
+                        ),
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
                 }
             }
         }
@@ -5052,7 +5041,7 @@ before this value so it is treated as data, not an option."
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        use crate::command_binding::{analyse_command_binding, Binding, BindingKind};
+        use crate::command_binding::{Binding, BindingKind, analyse_command_binding};
         use crate::ir::Statement;
         use crate::naming::normalise_qualified_name as nqn;
 
@@ -5123,8 +5112,8 @@ file; this call falls through to the 'unknown' handler."
     /// awaits the class-hierarchy port.  W242 (interpolated-
     /// command resolution) lands in **C41d4**.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        use tcl_registry::prelude::DialectSet;
         use tcl_registry::CommandRegistry;
+        use tcl_registry::prelude::DialectSet;
 
         let mut registry = CommandRegistry::build_default();
         if let Some(d) = DialectSet::parse(&self.dialect) {
@@ -5265,12 +5254,13 @@ file; this call falls through to the 'unknown' handler."
             // is non-empty.  Mirrors Python's
             // ``_emit_racy_static_diagnostics`` call site in
             // ``_diagnostics.py:171-175``.
-            if let Some(scope) = cu.connection_scope.as_ref() {
-                if qname.starts_with("::when::") && !scope.racy_static_defs.is_empty() {
-                    let event = crate::ir::when_event_name(qname);
-                    if event != "RULE_INIT" {
-                        self.emit_racy_static_diagnostics(fu, &scope.racy_static_defs);
-                    }
+            if let Some(scope) = cu.connection_scope.as_ref()
+                && qname.starts_with("::when::")
+                && !scope.racy_static_defs.is_empty()
+            {
+                let event = crate::ir::when_event_name(qname);
+                if event != "RULE_INIT" {
+                    self.emit_racy_static_diagnostics(fu, &scope.racy_static_defs);
                 }
             }
         }
@@ -5843,10 +5833,10 @@ file; this call falls through to the 'unknown' handler."
             // W214.  Saves the W214 over-emit on ``proc f {x}
             // { return [expr {$x + 1}] }``-style bodies until
             // the full ``infer_param_traits`` port lands.
-            if let Some(body_source) = ir_proc.body_source.as_deref() {
-                if body_references_param(body_source, param) {
-                    continue;
-                }
+            if let Some(body_source) = ir_proc.body_source.as_deref()
+                && body_references_param(body_source, param)
+            {
+                continue;
             }
             unused.push(param.clone());
         }
@@ -6078,21 +6068,22 @@ file; this call falls through to the 'unknown' handler."
                     continue;
                 }
                 // ``unset`` without ``-nocomplain`` → W213.
-                if let Some(Statement::Call { command, args, .. }) = stmt_opt {
-                    if command == "unset" && !args.iter().any(|a| a == "-nocomplain") {
-                        let message = format!(
-                            "Variable '{var}' may not exist; \
+                if let Some(Statement::Call { command, args, .. }) = stmt_opt
+                    && command == "unset"
+                    && !args.iter().any(|a| a == "-nocomplain")
+                {
+                    let message = format!(
+                        "Variable '{var}' may not exist; \
                              use 'unset -nocomplain' to suppress the error",
-                        );
-                        self.result.diagnostics.push(super::types::Diagnostic {
-                            code: "W213".to_string(),
-                            span,
-                            message,
-                            severity: Severity::Warning,
-                            fixes: Vec::new(),
-                        });
-                        continue;
-                    }
+                    );
+                    self.result.diagnostics.push(super::types::Diagnostic {
+                        code: "W213".to_string(),
+                        span,
+                        message,
+                        severity: Severity::Warning,
+                        fixes: Vec::new(),
+                    });
+                    continue;
                 }
                 // A use site that itself safely initialises the variable
                 // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
@@ -6285,13 +6276,13 @@ file; this call falls through to the 'unknown' handler."
                 if (!is_regexp && !is_scan) || defs.is_empty() {
                     continue;
                 }
-                if let Some(no_match) = regexp_scan_no_match(is_regexp, args) {
-                    if no_match {
-                        for d in defs {
-                            provably_unset.entry(d.clone()).or_insert_with(|| {
-                                (bn.clone(), i32::try_from(idx).unwrap_or(i32::MAX))
-                            });
-                        }
+                if let Some(no_match) = regexp_scan_no_match(is_regexp, args)
+                    && no_match
+                {
+                    for d in defs {
+                        provably_unset.entry(d.clone()).or_insert_with(|| {
+                            (bn.clone(), i32::try_from(idx).unwrap_or(i32::MAX))
+                        });
                     }
                 }
             }
@@ -6742,10 +6733,10 @@ file; this call falls through to the 'unknown' handler."
                     let versions = ssa_block
                         .and_then(|sb| sb.statements.get(idx))
                         .map(|s| &s.uses);
-                    if let Some(versions) = versions {
-                        if let Some(op) = find_divide_by_zero(expr, versions, &fu.sccp.values) {
-                            hits.push((*span, op));
-                        }
+                    if let Some(versions) = versions
+                        && let Some(op) = find_divide_by_zero(expr, versions, &fu.sccp.values)
+                    {
+                        hits.push((*span, op));
                     }
                 }
             }
@@ -7149,10 +7140,10 @@ file; this call falls through to the 'unknown' handler."
             if stub_names.contains(name) {
                 continue;
             }
-            if let Some(info) = self.result.unknown_proc_info.as_ref() {
-                if info.dispatch_targets.contains(name) {
-                    continue;
-                }
+            if let Some(info) = self.result.unknown_proc_info.as_ref()
+                && info.dispatch_targets.contains(name)
+            {
+                continue;
             }
             // Absolute-form fallback — ``cmd`` may be defined as
             // ``::cmd`` in the global namespace.
@@ -7709,10 +7700,11 @@ file; this call falls through to the 'unknown' handler."
             let effective = precise
                 .as_ref()
                 .or_else(|| all_constsets.get(&site.var_name));
-            if let Some(values) = effective {
-                if !values.is_empty() && values.iter().all(|v| is_known_command(v)) {
-                    continue;
-                }
+            if let Some(values) = effective
+                && !values.is_empty()
+                && values.iter().all(|v| is_known_command(v))
+            {
+                continue;
             }
             // Proc-parameter / multi-dispatch object-dispatch suppression: a
             // dispatch on a parameter of the enclosing proc (any count), or on
@@ -7740,16 +7732,14 @@ file; this call falls through to the 'unknown' handler."
             // dispatch is statically resolvable — suppress.  A composition
             // that resolves to nothing (unknown proc) still fires.  Mirrors
             // the composed-name arm of `_diag_var_command.py:1200-1248`.
-            if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span) {
-                if let Some(values) = all_constsets.get(&prefix) {
-                    if !values.is_empty()
-                        && values
-                            .iter()
-                            .all(|v| is_known_command(&format!("{v}::{tail}")))
-                    {
-                        continue;
-                    }
-                }
+            if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span)
+                && let Some(values) = all_constsets.get(&prefix)
+                && !values.is_empty()
+                && values
+                    .iter()
+                    .all(|v| is_known_command(&format!("{v}::{tail}")))
+            {
+                continue;
             }
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: "W307".to_string(),
@@ -7858,29 +7848,26 @@ file; this call falls through to the 'unknown' handler."
             let is_object = ret_type.kind == crate::types::TypeKind::Known
                 && matches!(ret_type.tcl_type, Some(tcl_registry::TclType::Object));
             if is_object {
-                if !self.disabled_diagnostics.contains("W308") {
-                    if let (Some(method), Some(class_name)) =
+                if !self.disabled_diagnostics.contains("W308")
+                    && let (Some(method), Some(class_name)) =
                         (site.method_name.as_ref(), ret_type.class_name.as_ref())
-                    {
-                        let cls_qn = self.canonicalise_class_name(class_name);
-                        let cd = self.result.all_classes.get(&cls_qn).cloned();
-                        let method_ok = self.validate_method_on_class(
-                            &cls_qn,
-                            method,
-                            cd.as_ref(),
-                            hierarchy.as_ref(),
-                        );
-                        if !method_ok {
-                            self.result.diagnostics.push(super::types::Diagnostic {
-                                code: "W308".to_string(),
-                                span: site.cmd_span,
-                                message: format!(
-                                    "Unknown method '{method}' on class '{class_name}'"
-                                ),
-                                severity: Severity::Warning,
-                                fixes: Vec::new(),
-                            });
-                        }
+                {
+                    let cls_qn = self.canonicalise_class_name(class_name);
+                    let cd = self.result.all_classes.get(&cls_qn).cloned();
+                    let method_ok = self.validate_method_on_class(
+                        &cls_qn,
+                        method,
+                        cd.as_ref(),
+                        hierarchy.as_ref(),
+                    );
+                    if !method_ok {
+                        self.result.diagnostics.push(super::types::Diagnostic {
+                            code: "W308".to_string(),
+                            span: site.cmd_span,
+                            message: format!("Unknown method '{method}' on class '{class_name}'"),
+                            severity: Severity::Warning,
+                            fixes: Vec::new(),
+                        });
                     }
                 }
                 continue;
@@ -8220,10 +8207,10 @@ file; this call falls through to the 'unknown' handler."
             for stmt in &block.statements {
                 // Skip unset — not a real write.  Mirrors the
                 // Python guard.
-                if let crate::ir::Statement::Call { command, .. } = &stmt.statement {
-                    if command == "unset" {
-                        continue;
-                    }
+                if let crate::ir::Statement::Call { command, .. } = &stmt.statement
+                    && command == "unset"
+                {
+                    continue;
                 }
                 for name in stmt.defs.keys() {
                     if !racy_vars.contains(name) {
@@ -8340,24 +8327,24 @@ file; this call falls through to the 'unknown' handler."
             }
             // Find a matching OptionSpec; if found and dialect-gated
             // out, emit W004.
-            if let Some(opt) = options.iter().find(|o| o.name == arg) {
-                if !opt.supports_dialect(Some(active), parent_dialects) {
-                    let span = if i < arg_tokens.len() {
-                        arg_tokens[i].span
-                    } else {
-                        continue;
-                    };
-                    self.result.diagnostics.push(super::types::Diagnostic {
-                        code: "W004".to_string(),
-                        span,
-                        message: format!(
-                            "Option '{}' on command '{}' is not available in dialect '{}'.",
-                            arg, cmd_name, self.dialect
-                        ),
-                        severity: Severity::Warning,
-                        fixes: Vec::new(),
-                    });
-                }
+            if let Some(opt) = options.iter().find(|o| o.name == arg)
+                && !opt.supports_dialect(Some(active), parent_dialects)
+            {
+                let span = if i < arg_tokens.len() {
+                    arg_tokens[i].span
+                } else {
+                    continue;
+                };
+                self.result.diagnostics.push(super::types::Diagnostic {
+                    code: "W004".to_string(),
+                    span,
+                    message: format!(
+                        "Option '{}' on command '{}' is not available in dialect '{}'.",
+                        arg, cmd_name, self.dialect
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
             }
             i += 1;
         }
@@ -8658,7 +8645,7 @@ mod tests {
         assert!(!is_valid_subnet_mask(255, 255, 255, 1));
         assert!(looks_like_subnet_mask(255, 255, 255, 1));
         assert!(!looks_like_subnet_mask(10, 0, 0, 1)); // ordinary IP
-                                                       // 24 leading 1-bits → /24.
+        // 24 leading 1-bits → /24.
         assert_eq!(
             nearest_valid_mask(255, 255, 255, 1).as_deref(),
             Some("255.255.255.0")
@@ -10938,21 +10925,25 @@ foo
                 .any(|m| m.contains("'missing'"))
         );
         // Mixed callers → unknown shape → conservatively silent.
-        assert!(w210_codes(
-            "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n"
-        )
-        .is_empty());
+        assert!(
+            w210_codes("proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n")
+                .is_empty()
+        );
     }
 
     #[test]
     fn w210_provably_no_match_regexp_scan() {
         // Provably-no-match output reads fire.
-        assert!(w210_codes("proc f {} { scan abc %d n\n puts $n }")
-            .iter()
-            .any(|m| m.contains("'n'")));
-        assert!(w210_codes("proc f {} { regexp {x} y -> v\n puts $v }")
-            .iter()
-            .any(|m| m.contains("'v'")));
+        assert!(
+            w210_codes("proc f {} { scan abc %d n\n puts $n }")
+                .iter()
+                .any(|m| m.contains("'n'"))
+        );
+        assert!(
+            w210_codes("proc f {} { regexp {x} y -> v\n puts $v }")
+                .iter()
+                .any(|m| m.contains("'v'"))
+        );
         // Embedded in a negated condition fires on the no-match arm.
         assert!(
             w210_codes("proc f {} { if {![regexp {x} y -> v]} { puts $v } }")
@@ -10990,9 +10981,11 @@ foo
         // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.
         assert!(w210_codes("proc f {} { incr z\n return $z }").is_empty());
         // A genuine bare read of an unset local still fires.
-        assert!(w210_codes("proc f {} { puts $z }")
-            .iter()
-            .any(|m| m.contains("'z'")));
+        assert!(
+            w210_codes("proc f {} { puts $z }")
+                .iter()
+                .any(|m| m.contains("'z'"))
+        );
     }
 
     #[test]
@@ -11589,9 +11582,11 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
         // Carries a fix that inserts the require at the top.
         assert_eq!(w120[0].fixes.len(), 1);
         assert_eq!(w120[0].fixes[0].new_text, "package require tcl::idna\n");
-        assert!(w120[0].fixes[0]
-            .description
-            .contains("Add 'package require"));
+        assert!(
+            w120[0].fixes[0]
+                .description
+                .contains("Add 'package require")
+        );
     }
 
     #[test]
@@ -11735,9 +11730,10 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
             w102.message.contains("any [cmd] and $var in the string"),
             "{w102:?}"
         );
-        assert!(w102
-            .message
-            .contains("Add -nocommands -novariables to limit"));
+        assert!(
+            w102.message
+                .contains("Add -nocommands -novariables to limit")
+        );
         // A braced or quoted template is fine; both flags suppress it.
         assert_eq!(sec_codes("subst {literal $y}\n", "W102"), 0);
         assert_eq!(sec_codes("subst \"$x\"\n", "W102"), 0);
@@ -11885,19 +11881,21 @@ a15 a16 a17 a18 a19 a20\n return $a20 }";
             "{w310:?}"
         );
         // A non-sensitive header is fine; a `$var` value is not literal.
-        assert!(!a
-            .analyse(
+        assert!(
+            !a.analyse(
                 "HTTP::header insert content-type \"text/html\"\n",
                 "f5-irules"
             )
             .diagnostics
             .iter()
-            .any(|d| d.code == "W310"));
-        assert!(!a
-            .analyse("HTTP::header insert authorization $tok\n", "f5-irules")
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "W310"));
+            .any(|d| d.code == "W310")
+        );
+        assert!(
+            !a.analyse("HTTP::header insert authorization $tok\n", "f5-irules")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W310")
+        );
     }
 
     #[test]

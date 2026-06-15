@@ -281,10 +281,10 @@ impl Analyser {
         scope_path: &[usize],
     ) -> Option<(&str, Span)> {
         for ancestor in ancestor_paths(scope_path) {
-            if let Some(map) = self.const_strings.get(&ancestor) {
-                if let Some((value, span)) = map.get(var_name) {
-                    return Some((value.as_str(), *span));
-                }
+            if let Some(map) = self.const_strings.get(&ancestor)
+                && let Some((value, span)) = map.get(var_name)
+            {
+                return Some((value.as_str(), *span));
             }
         }
         None
@@ -466,14 +466,14 @@ impl Analyser {
         // Local scope first.
         let path = scope_path.to_vec();
         let base_owned = base_name.to_string();
-        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
-            if let Some(var) = scope.variables.get_mut(&base_owned) {
-                var.references.push(read_span);
-                if let Some(e) = element {
-                    var.array_indices.insert(e);
-                }
-                return;
+        if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path)
+            && let Some(var) = scope.variables.get_mut(&base_owned)
+        {
+            var.references.push(read_span);
+            if let Some(e) = element {
+                var.array_indices.insert(e);
             }
+            return;
         }
 
         // Cross-rule variables — fall back to global scope.
@@ -626,11 +626,7 @@ fn var_name_from_span(source: &str, span: Span) -> Option<&str> {
         // (it normalises to the base name for the reference itself).
         rest
     };
-    if name.is_empty() {
-        None
-    } else {
-        Some(name)
-    }
+    if name.is_empty() { None } else { Some(name) }
 }
 
 /// Inner content text + base offset of a wrapper token (`[…]` /

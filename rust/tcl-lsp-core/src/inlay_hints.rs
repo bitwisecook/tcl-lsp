@@ -97,10 +97,10 @@ pub fn inlay_hints(
         // Built-in command — parse the registry synopsis for
         // positional parameter names.  User procs take
         // precedence (handled above).
-        if let Some(registry) = registry {
-            if let Some(spec) = registry.get(cmd_name) {
-                emit_builtin_hints(source, seg, spec, &line_index, range, &mut out);
-            }
+        if let Some(registry) = registry
+            && let Some(spec) = registry.get(cmd_name)
+        {
+            emit_builtin_hints(source, seg, spec, &line_index, range, &mut out);
         }
     }
 

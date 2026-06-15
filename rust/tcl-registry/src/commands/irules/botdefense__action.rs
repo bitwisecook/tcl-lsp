@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BOTDEFENSE::action",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns or overrides the action to be taken by Bot Defense.",
             synopsis: &["BOTDEFENSE::action (allow |"],
             snippet: "Returns or overrides the action to be taken by Bot Defense.\n\nOverriding the action may fail on certain cases. For example, overriding to the \"browser_challenge\" action, may only be done on requests to which the value of BOTDEFENSE::cs_possible is \"true\". When overriding the action, the command returns \"ok\" if the action was successfully set. Otherwise, the action is not changed, and the reason for failure is returned.\n\nAfter a successful action override (resulting in the \"ok\" string), the action cannot be overridden again.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BOTDEFENSE::action (allow |" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::AsmState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Client,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BOTDEFENSE::action (allow |",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::AsmState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Client,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

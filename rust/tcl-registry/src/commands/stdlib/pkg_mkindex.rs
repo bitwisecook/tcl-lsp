@@ -13,9 +13,11 @@ pub fn spec() -> CommandSpec {
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Build a ``pkgIndex.tcl`` file for one or more packages.",
-            synopsis: &["pkg_mkIndex ?-direct? ?-lazy? ?-load pkgPat? ?-verbose? dir ?pattern ...?"],
+            synopsis: &[
+                "pkg_mkIndex ?-direct? ?-lazy? ?-load pkgPat? ?-verbose? dir ?pattern ...?",
+            ],
             snippet: "Scans *dir* for Tcl source and binary files matching *pattern* (default ``*.tcl *.{so,dll}``) and builds a ``pkgIndex.tcl`` that enables ``package require`` to find them.",
             source: "Tcl stdlib package utilities",
             examples: "",

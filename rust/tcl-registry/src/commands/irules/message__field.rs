@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MESSAGE::field",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Various operations for a message's fields.",
             synopsis: &["MESSAGE::field ( ('names') |"],
             snippet: "This command is used for below mentioned operations for a message's field.\nThis is valid for messages of the following protocols:\n\n    SIP",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MESSAGE::field ( ('names') |" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::MessageState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MESSAGE::field ( ('names') |",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::MessageState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

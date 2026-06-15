@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "MESSAGE::proto",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns protocol of the message.",
             synopsis: &["MESSAGE::proto"],
             snippet: "returns protocol of the message. For example, SIP, and DIAMETER.\nThis is valid for messages of the following protocols:\n\n    DIAMETER\n    SIP",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MESSAGE::proto" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::MessageState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MESSAGE::proto",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::MessageState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

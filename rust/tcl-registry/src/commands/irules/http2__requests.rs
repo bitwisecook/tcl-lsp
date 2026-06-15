@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "HTTP2::requests",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command can be used to determine the count of requests received in the current HTTP/2 session.",
             synopsis: &["HTTP2::requests"],
             snippet: "Returns the count of requests received in the current HTTP/2 session. This includes the current request. Returns 0 if HTTP/2 is not active.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "HTTP2::requests" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Http2State,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "HTTP2::requests",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Http2State,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

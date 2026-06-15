@@ -258,7 +258,7 @@ pub fn spec() -> CommandSpec {
         name: "text",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a multi-line text widget.",
             synopsis: &["text pathName ?option value ...?"],
             snippet: "Displays one or more lines of text and allows the user to edit them. Supports embedded images and windows.",

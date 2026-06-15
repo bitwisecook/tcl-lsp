@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Controls the range of passive mode FTP ephemeral ports.",
             synopsis: &["FTP::port FIRST (LAST)?"],
-            snippet:
-                "This command allows control over the range of passive mode FTP\nephemeral ports.",
+            snippet: "This command allows control over the range of passive mode FTP\nephemeral ports.",
             source: "https://clouddocs.f5.com/api/irules/FTP__port.html",
             examples: "when SERVER_CONNECTED {\n  FTP::port 5000 5999\n}",
             return_value: "",

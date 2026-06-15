@@ -29,7 +29,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use tcl_lsp_core::document_symbols::{
-    document_symbols as compute_document_symbols, DocumentSymbol, LineRange,
+    DocumentSymbol, LineRange, document_symbols as compute_document_symbols,
 };
 
 /// Compute document symbols for a Tcl source document, returning a

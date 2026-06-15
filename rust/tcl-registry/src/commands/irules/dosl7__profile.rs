@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DOSL7::profile",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the DOS profile from which the L7-DoS policy is extracted.",
             synopsis: &["DOSL7::profile"],
             snippet: "This command returns the DOS profile from which the L7-DoS policy is\nextracted.\nNote:\n  * in 11.4, default policy returns empty string and if L7-DoS is\n    disabled, the <no-profile> string is returned.\n  * in 11.5+, default policy returns the one configured with the vip\n    and if L7-DoS is disabled, a null string is returned.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DOSL7::profile" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::Dosl7State,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DOSL7::profile",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::Dosl7State,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

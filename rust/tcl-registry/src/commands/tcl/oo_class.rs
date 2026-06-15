@@ -45,14 +45,17 @@ pub fn spec() -> CommandSpec {
         // SYNC2: bodies of `oo::class create / new / createWithNamespace`
         // run in a TclOO definition context (not the caller's frame).
         body_kind: BodyKind::Structural,
-hover: Some(HoverSnippet {
-    summary: "class of all classes",
-    synopsis: &["oo::class method ?arg ...?", "oo::class create name ?definition?"],
-    snippet: "Classes are objects that can manufacture other objects according to a pattern stored in the factory object (the class).",
-    source: "Tcl man page class.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "class of all classes",
+            synopsis: &[
+                "oo::class method ?arg ...?",
+                "oo::class create name ?definition?",
+            ],
+            snippet: "Classes are objects that can manufacture other objects according to a pattern stored in the factory object (the class).",
+            source: "Tcl man page class.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT

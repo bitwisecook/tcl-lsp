@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "GTP::respond",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sends the GTP message back to the remote node of this connection.",
             synopsis: &["GTP::respond MESSAGE"],
             snippet: "Sends this GTP message back to the remote node of this connection.\nIf this is clientside flow, send it back to client that initiated the connection.\nIf this is serverside flow, send it to the remote node that is connected to.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when GTP_SIGNALLING_EGRESS {\n    set t2 [GTP::new 2 10]\n    GTP::respond $t2\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "GTP::respond MESSAGE" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "GTP::respond MESSAGE",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

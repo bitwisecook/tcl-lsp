@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "DIAMETER::retransmission",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Gets of sets the current message's retransmission settings.",
             synopsis: &["DIAMETER::retransmission action"],
             snippet: "This command allows the setting or getting of the current message\\'s\nretransmission settings.\n        \nGets the current message\\'s retransmission action.\nPossible actions are:\n\n* \"disabled\" - this request messages will not be queued for\n  retransmission\n\n* \"busy\" - when retransmission is triggered for this request message\n  an answer message with a 'busy' result code will be returned to the\n  originator.\n\n* \"unable\" - when retransmission is triggered for this request message\n  an answer message with a 'unable to deliver' result code will be\n  returned to the originator.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "DIAMETER::retransmission action" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "DIAMETER::retransmission action",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

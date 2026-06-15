@@ -50,7 +50,10 @@ impl Rng {
         if n == 0 {
             0
         } else {
-            (self.next() % n as u64) as usize
+            // `next() % (n as u64)` is in `[0, n)`, so it always fits in usize.
+            #[allow(clippy::cast_possible_truncation)]
+            let bounded = (self.next() % n as u64) as usize;
+            bounded
         }
     }
 }
@@ -126,7 +129,7 @@ fn incremental_matches_fresh_over_corpus() {
             let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15).max(1));
             let mut text = orig.clone();
             let mut cmds = segment_commands(&text);
-            for _round in 0..40 {
+            for round in 0..40 {
                 let new_text = random_edit(&text, &mut rng);
                 let inc = Analyser::new().analyse_incremental(&text, &cmds, &new_text, dialect);
                 let fresh = Analyser::new().analyse(&new_text, dialect);
@@ -146,7 +149,7 @@ fn incremental_matches_fresh_over_corpus() {
                     };
                     if mismatches.len() < 10 {
                         mismatches.push(format!(
-                            "{} seed={seed} round={_round} field={field}",
+                            "{} seed={seed} round={round} field={field}",
                             path.file_name().unwrap().to_string_lossy()
                         ));
                     }

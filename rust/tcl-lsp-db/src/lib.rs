@@ -25,7 +25,7 @@ use tcl_compiler::compiler_checks::Diagnostic as CompilerCheck;
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
 
-use tcl_compiler::analyser::per_item::{analyse_proc_body_isolated, BodyFragment, DeferredBody};
+use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
     Analyser, AnalysisResult, FileDecls, ItemSig, ItemTree, NonAsciiMode,
 };
@@ -33,8 +33,8 @@ use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
 use tcl_lsp_core::semantic_tokens::SemanticTokens;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 
 /// Database trait exposing the durable (non-salsa) command registry to
 /// tracked queries.
@@ -553,9 +553,11 @@ mod tests {
         let mut db = TclDatabase::default();
         let config = cfg(&db);
         let file = SourceFile::new(&db, "proc a {} {}\n".to_owned(), "tcl".to_owned());
-        assert!(file_analysis(&db, file, config)
-            .all_procs
-            .contains_key("::a"));
+        assert!(
+            file_analysis(&db, file, config)
+                .all_procs
+                .contains_key("::a")
+        );
 
         file.set_text(&mut db).to("proc b {} {}\n".to_owned());
         let after = file_analysis(&db, file, config);

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "UDP::unused_port",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns an unused UDP port for the specified IP tuple.",
             synopsis: &["UDP::unused_port REMOTE_ADDR REMOTE_PORT LOCAL_ADDR"],
             snippet: "Returns an unused UDP port for the specified IP tuple.",
@@ -28,17 +28,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "UDP::unused_port REMOTE_ADDR REMOTE_PORT LOCAL_ADDR" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::UdpState,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "UDP::unused_port REMOTE_ADDR REMOTE_PORT LOCAL_ADDR",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::UdpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

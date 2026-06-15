@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
         name: "wait",
         dialects: Some(DialectSet::EXPECT),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Wait for a spawned process to terminate.",
             synopsis: &["wait ?-i spawn_id? ?-nowait?"],
             snippet: "Returns a list of four integers: pid, spawn id, OS error, and exit status (or -1 0 0 status on success).",

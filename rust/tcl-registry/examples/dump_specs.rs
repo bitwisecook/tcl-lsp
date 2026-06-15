@@ -261,7 +261,8 @@ fn sub_record_json(sub: &SubCommand) -> String {
         sub.subcommand_forms.len(),
         side_effects_json(sub.side_effects),
         sub.safe_on_uninit.is_some(),
-        sub.credential_arg.map_or_else(|| "null".to_string(), |n| n.to_string()),
+        sub.credential_arg
+            .map_or_else(|| "null".to_string(), |n| n.to_string()),
         json_str_list(sub.sensitive_headers),
         colours_json(sub.taint_transform),
         opt_str_or_null(sub.taint_output_sink),
@@ -368,14 +369,19 @@ fn deep_dump(group: &str) {
             json_str_list(spec.taint_output_sink_subcommands),
             json_str_list(spec.credential_options),
             json_str_list(spec.sensitive_headers),
-            spec.pattern_type.map_or_else(|| "null".to_string(), |p| json_str(&format!("{p:?}"))),
-            spec.format_string_type.map_or_else(|| "null".to_string(), |f| json_str(&format!("{f:?}"))),
+            spec.pattern_type
+                .map_or_else(|| "null".to_string(), |p| json_str(&format!("{p:?}"))),
+            spec.format_string_type
+                .map_or_else(|| "null".to_string(), |f| json_str(&format!("{f:?}"))),
             opt_str_or_null(spec.tcllib_package),
             spec.is_namespace_exported,
-            spec.xc_translatable.map_or_else(|| "null".to_string(), |b| b.to_string()),
+            spec.xc_translatable
+                .map_or_else(|| "null".to_string(), |b| b.to_string()),
             opt_str_or_null(spec.deprecated_replacement),
-            spec.inferred_storage_type.map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}"))),
-            spec.assigns_variable_at.map_or_else(|| "null".to_string(), |n| n.to_string()),
+            spec.inferred_storage_type
+                .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}"))),
+            spec.assigns_variable_at
+                .map_or_else(|| "null".to_string(), |n| n.to_string()),
             spec.safe_on_uninit.is_some(),
         );
         println!(

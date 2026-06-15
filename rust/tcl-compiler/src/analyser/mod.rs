@@ -50,9 +50,9 @@ pub mod syntax_checks;
 pub mod types;
 pub mod utils;
 
-pub use class_hierarchy::{build_class_hierarchy, ClassHierarchy};
+pub use class_hierarchy::{ClassHierarchy, build_class_hierarchy};
 pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
-pub use mro::{build_mro_map, tcloo_linearise, MroError};
+pub use mro::{MroError, build_mro_map, tcloo_linearise};
 pub use snapshot::AnalyserSnapshot;
 pub use state::{Analyser, NonAsciiMode};
 pub use types::{

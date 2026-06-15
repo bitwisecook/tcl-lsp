@@ -279,10 +279,10 @@ fn collect_scope_folds(
         emit_body_span_fold(proc_def.body_span, source, line_index, seen, ranges);
     }
     for child in &scope.children {
-        if matches!(child.kind, ScopeKind::Namespace) {
-            if let Some(span) = child.body_span {
-                emit_body_span_fold(span, source, line_index, seen, ranges);
-            }
+        if matches!(child.kind, ScopeKind::Namespace)
+            && let Some(span) = child.body_span
+        {
+            emit_body_span_fold(span, source, line_index, seen, ranges);
         }
         collect_scope_folds(child, source, line_index, seen, ranges);
     }
@@ -306,17 +306,17 @@ fn collect_comment_folds(
                 block_start = Some(i);
             }
         } else {
-            if let Some(start) = block_start {
-                if i - start >= 2 {
-                    let s = u32::try_from(start).expect("line index fits u32");
-                    let e = u32::try_from(i - 1).expect("line index fits u32");
-                    if seen.insert((s, e)) {
-                        ranges.push(FoldingRange {
-                            start_line: s,
-                            end_line: e,
-                            kind: FoldKind::Comment,
-                        });
-                    }
+            if let Some(start) = block_start
+                && i - start >= 2
+            {
+                let s = u32::try_from(start).expect("line index fits u32");
+                let e = u32::try_from(i - 1).expect("line index fits u32");
+                if seen.insert((s, e)) {
+                    ranges.push(FoldingRange {
+                        start_line: s,
+                        end_line: e,
+                        kind: FoldKind::Comment,
+                    });
                 }
             }
             block_start = None;

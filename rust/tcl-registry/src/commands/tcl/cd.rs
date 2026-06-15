@@ -17,14 +17,14 @@ pub fn spec() -> CommandSpec {
             writes: true,
             connection_side: ConnectionSide::None,
         }],
-hover: Some(HoverSnippet {
-    summary: "Change working directory",
-    synopsis: &["cd ?dirName?"],
-    snippet: "Change the current working directory to dirName, or to the home directory (as specified in the HOME environment variable) if dirName is not given.",
-    source: "Tcl man page cd.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Change working directory",
+            synopsis: &["cd ?dirName?"],
+            snippet: "Change the current working directory to dirName, or to the home directory (as specified in the HOME environment variable) if dirName is not given.",
+            source: "Tcl man page cd.n",
+            examples: "",
+            return_value: "",
+        }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

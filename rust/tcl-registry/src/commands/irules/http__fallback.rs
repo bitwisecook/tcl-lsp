@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["HTTP::fallback <host>"],
             snippet: "Specifies or overrides the fallback host specified in the HTTP profile.",
             source: "https://clouddocs.f5.com/api/irules/HTTP__fallback.html",
-            examples:
-                "when LB_FAILED {\n  HTTP::fallback \"http://siteunavailable.mysite.com/\"\n}",
+            examples: "when LB_FAILED {\n  HTTP::fallback \"http://siteunavailable.mysite.com/\"\n}",
             return_value: "",
         }),
         event_requires: Some(EventRequires {

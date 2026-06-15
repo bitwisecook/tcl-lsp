@@ -59,15 +59,11 @@ use tcl_lsp_db::TclDb as _;
 use tcl_lsp_core::workspace_symbols::{
     self as core_workspace_symbols, WorkspaceSymbolKind as CoreWorkspaceSymbolKind,
 };
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
-    request::{
-        GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
-        GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
-    },
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
@@ -98,6 +94,10 @@ use tower_lsp::lsp_types::{
     TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextEdit, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
     WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
+    request::{
+        GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
+        GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
+    },
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -1587,10 +1587,11 @@ impl Backend {
         // remap minified line references to approximate original lines.
         let minified = args.get(2).and_then(serde_json::Value::as_str);
         let original = args.get(3).and_then(serde_json::Value::as_str);
-        if let (Some(minified), Some(original)) = (minified, original) {
-            if !minified.is_empty() && !original.is_empty() {
-                translated = core_minify::remap_line_references(&translated, minified, original);
-            }
+        if let (Some(minified), Some(original)) = (minified, original)
+            && !minified.is_empty()
+            && !original.is_empty()
+        {
+            translated = core_minify::remap_line_references(&translated, minified, original);
         }
         Some(serde_json::json!({
             "originalError": error_message,
@@ -3140,7 +3141,9 @@ impl LanguageServer for Backend {
         // memoised `semantic_tokens` query (packed integer stream, 5 ints per
         // token `[deltaLine, deltaCol, length, type, modifiers]`).  The
         // cold/cancelled fallback computes directly.
-        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await { tokens.data } else {
+        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await {
+            tokens.data
+        } else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
             core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
         };
@@ -3163,7 +3166,9 @@ impl LanguageServer for Backend {
         // (that hand-invalidated cache is gone).  A `full/delta` request is
         // answered with the full token set from the memoised query — the LSP
         // spec accepts `Tokens` in place of `TokensDelta`.
-        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await { tokens.data } else {
+        let core_data = if let Some(tokens) = self.db_semantic_tokens(&uri).await {
+            tokens.data
+        } else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
             core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
         };
@@ -3468,11 +3473,10 @@ impl LanguageServer for Backend {
                 &context_diags,
             ));
             // iRules-only: the `# Profiles:` header source action.
-            if dialect == "f5-irules" {
-                if let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
-                {
-                    actions.push(a);
-                }
+            if dialect == "f5-irules"
+                && let Some(a) = core_code_actions::profiles_action(&doc.text, &analysis, &registry)
+            {
+                actions.push(a);
             }
             actions
         })
@@ -4320,7 +4324,7 @@ fn lift_source_style_diagnostics(
     user_disabled: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
     use tcl_lsp_core::source_style::{
-        style_diagnostics, StyleSeverity, DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH,
+        DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
     };
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
 
@@ -4918,8 +4922,12 @@ mod tests {
     fn lift_compiler_diagnostics_surfaces_compiler_check_codes() {
         let registry = CommandRegistry::build_default();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
-        let diags =
-            lift_compiler_diagnostics(src, &registry, "", true, &std::collections::HashSet::new());
+        let diags = lift_compiler_diagnostics(
+            src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            true,
+            &std::collections::HashSet::new(),
+        );
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
@@ -4938,8 +4946,12 @@ mod tests {
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let is_o100 = |d: &tower_lsp::lsp_types::Diagnostic| matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100");
         // Master switch off: no optimiser O-codes at all (compiler checks still run).
-        let off =
-            lift_compiler_diagnostics(src, &registry, "", false, &std::collections::HashSet::new());
+        let off = lift_compiler_diagnostics(
+            src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            false,
+            &std::collections::HashSet::new(),
+        );
         assert!(
             !off.iter().any(is_o100),
             "O100 must be suppressed when the optimiser master switch is off: {:?}",
@@ -4948,7 +4960,12 @@ mod tests {
         // Per-code disable: O100 specifically suppressed even with the optimiser on.
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("O100".to_string());
-        let per_code = lift_compiler_diagnostics(src, &registry, "", true, &disabled);
+        let per_code = lift_compiler_diagnostics(
+            src,
+            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, ""),
+            true,
+            &disabled,
+        );
         assert!(
             !per_code.iter().any(is_o100),
             "O100 must be suppressed when disabled per-code: {:?}",
@@ -4964,13 +4981,9 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let diags = lift_compiler_diagnostics(
-            src,
-            &registry,
-            "f5-irules",
-            true,
-            &std::collections::HashSet::new(),
-        );
+        let cdiags = tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "f5-irules");
+        let diags =
+            lift_compiler_diagnostics(src, &cdiags, true, &std::collections::HashSet::new());
         assert!(
             diags.iter().any(|d| matches!(
                 &d.code,
@@ -5088,9 +5101,10 @@ mod tests {
             out.get("symbol").and_then(|v| v.as_str()),
             Some("json::write")
         );
-        assert!(out
-            .get("suggestions")
-            .is_some_and(serde_json::Value::is_array));
+        assert!(
+            out.get("suggestions")
+                .is_some_and(serde_json::Value::is_array)
+        );
     }
 
     #[test]
@@ -5101,23 +5115,15 @@ mod tests {
 
     #[test]
     fn config_ini_path_honours_xdg() {
-        // `config_ini_path` reads process env; guard the global with a mutex so
-        // concurrent env-mutating tests don't race.
-        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = ENV_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let prev = std::env::var_os("XDG_CONFIG_HOME");
-        std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdg-probe");
-        let path = config_ini_path();
-        assert_eq!(
-            path,
-            std::path::PathBuf::from("/tmp/xdg-probe/tcl-lsp/config.ini")
-        );
-        match prev {
-            Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
-            None => std::env::remove_var("XDG_CONFIG_HOME"),
-        }
+        // `temp_env` sets + restores `XDG_CONFIG_HOME` and serialises against
+        // other env-touching tests via its own global lock, so this crate stays
+        // unsafe-free (`set_var` is `unsafe` on edition 2024).
+        temp_env::with_var("XDG_CONFIG_HOME", Some("/tmp/xdg-probe"), || {
+            assert_eq!(
+                config_ini_path(),
+                std::path::PathBuf::from("/tmp/xdg-probe/tcl-lsp/config.ini")
+            );
+        });
     }
 
     #[test]
@@ -6290,11 +6296,13 @@ mod tests {
             }],
         };
         // Nothing sources lib/old.tcl → no edit.
-        assert!(backend
-            .will_rename_files(params)
-            .await
-            .expect("ok")
-            .is_none());
+        assert!(
+            backend
+                .will_rename_files(params)
+                .await
+                .expect("ok")
+                .is_none()
+        );
     }
 
     #[tokio::test]

@@ -13,7 +13,7 @@ use crate::segmenter::SegmentedCommand;
 
 use crate::segmenter::word_piece;
 
-use super::{parse_param_names, Lowerer};
+use super::{Lowerer, parse_param_names};
 
 /// Parse a braced switch body into a flat list of word elements.
 ///
@@ -281,7 +281,7 @@ impl Lowerer<'_> {
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();
 
-        if args.len() < 3 || args.len() % 2 == 0 {
+        if args.len() < 3 || args.len().is_multiple_of(2) {
             return Self::barrier(seg, "malformed foreach");
         }
 
@@ -620,7 +620,7 @@ impl Lowerer<'_> {
             let body_base = outer_arg_span.start().saturating_add(content_shift);
 
             let elements = switch_body_elements(body_text);
-            if elements.len() % 2 != 0 {
+            if !elements.len().is_multiple_of(2) {
                 return Self::barrier(seg, "switch odd pattern count");
             }
             let relocate = |local: Span| {
@@ -646,7 +646,7 @@ impl Lowerer<'_> {
             // each pattern word substitutes at runtime.
             patterns_braced = false;
             let remaining = args.len() - i;
-            if remaining % 2 != 0 {
+            if !remaining.is_multiple_of(2) {
                 return Self::barrier(seg, "switch odd pattern count");
             }
             while i + 1 < args.len() {

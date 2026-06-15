@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Gets proxy buffer high threshold.",
             synopsis: &["TCP::proxybufferhigh"],
-            snippet:
-                "Gets the threshold at which the proxy buffer stops accepting new data, in bytes.",
+            snippet: "Gets the threshold at which the proxy buffer stops accepting new data, in bytes.",
             source: "https://clouddocs.f5.com/api/irules/TCP__proxybufferhigh.html",
             examples: "when SERVER_CONNECTED {\n    log local0.debug \"[TCP::proxybufferhigh]\"\n}",
             return_value: "The proxy buffer high threshold.",

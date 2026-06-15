@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SMTPS::activation_mode",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Set the activation mode.",
             synopsis: &["SMTPS::activation_mode (none | allow | require)?"],
             snippet: "Sets the activation mode to none (it will never activate), allow (if the SMTPS client sends STARTTLS, we will activate TLS), or require (all commands will be rejected until STARTTLS is received).",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SMTPS::activation_mode (none | allow | require)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SMTPS::activation_mode (none | allow | require)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

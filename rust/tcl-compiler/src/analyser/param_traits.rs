@@ -35,9 +35,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::stub_overlay::StubOverlay;
-use tcl_registry::CommandRegistry;
 
 use super::types::ProcArgTrait;
 use crate::segmenter::segment_commands_with_offset_and_config;
@@ -493,12 +493,12 @@ fn scan_command<'p>(
 
     // Track writes through upvar aliases — ``set local …`` where
     // ``local`` was registered as an alias for some param.
-    if matches!(cmd_name, "set" | "incr" | "append" | "lappend") && !cmd_args.is_empty() {
-        if let Some(target) = upvar_aliases.get(cmd_args[0].as_str()) {
-            if let Some(set) = traits.get_mut(target) {
-                set.insert(ProcArgTrait::VarWrite);
-            }
-        }
+    if matches!(cmd_name, "set" | "incr" | "append" | "lappend")
+        && !cmd_args.is_empty()
+        && let Some(target) = upvar_aliases.get(cmd_args[0].as_str())
+        && let Some(set) = traits.get_mut(target)
+    {
+        set.insert(ProcArgTrait::VarWrite);
     }
 
     // foreach / lmap loop variables write through aliases.
@@ -506,10 +506,10 @@ fn scan_command<'p>(
         let remaining = &cmd_args[..cmd_args.len() - 1];
         let mut i = 0;
         while i < remaining.len() {
-            if let Some(target) = upvar_aliases.get(remaining[i].as_str()) {
-                if let Some(set) = traits.get_mut(target) {
-                    set.insert(ProcArgTrait::VarWrite);
-                }
+            if let Some(target) = upvar_aliases.get(remaining[i].as_str())
+                && let Some(set) = traits.get_mut(target)
+            {
+                set.insert(ProcArgTrait::VarWrite);
             }
             i += 2;
         }
@@ -568,10 +568,10 @@ fn apply_eval_traits<'a>(
     traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
 ) {
     let mark_as_eval = |vn: &str, traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>| {
-        if let Some(p) = param_set.get(vn) {
-            if let Some(set) = traits.get_mut(p) {
-                set.insert(ProcArgTrait::Eval);
-            }
+        if let Some(p) = param_set.get(vn)
+            && let Some(set) = traits.get_mut(p)
+        {
+            set.insert(ProcArgTrait::Eval);
         }
     };
     match cmd_name {
@@ -584,10 +584,10 @@ fn apply_eval_traits<'a>(
         }
         "uplevel" => {
             // ``uplevel ?level? script`` — last arg is the script.
-            if let Some(last) = cmd_args.last() {
-                if let Some(vn) = extract_var_name(last) {
-                    mark_as_eval(vn, traits);
-                }
+            if let Some(last) = cmd_args.last()
+                && let Some(vn) = extract_var_name(last)
+            {
+                mark_as_eval(vn, traits);
             }
         }
         _ => {}
@@ -613,20 +613,19 @@ fn handle_upvar<'p>(
         let my_var = &args[i + 1];
         i += 2;
 
-        if let Some(other_vn) = extract_var_name(other_var) {
-            if let Some(p) = param_set.get(other_vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(ProcArgTrait::VarRead);
-                }
-                upvar_aliases.insert(my_var.clone(), p);
+        if let Some(other_vn) = extract_var_name(other_var)
+            && let Some(p) = param_set.get(other_vn).copied()
+        {
+            if let Some(set) = traits.get_mut(p) {
+                set.insert(ProcArgTrait::VarRead);
             }
+            upvar_aliases.insert(my_var.clone(), p);
         }
-        if let Some(my_vn) = extract_var_name(my_var) {
-            if let Some(p) = param_set.get(my_vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(ProcArgTrait::VarWrite);
-                }
-            }
+        if let Some(my_vn) = extract_var_name(my_var)
+            && let Some(p) = param_set.get(my_vn).copied()
+            && let Some(set) = traits.get_mut(p)
+        {
+            set.insert(ProcArgTrait::VarWrite);
         }
     }
 }
@@ -639,22 +638,20 @@ fn handle_foreach<'a>(
     if args.len() < 3 {
         return;
     }
-    if let Some(body_vn) = extract_var_name(args.last().unwrap()) {
-        if let Some(p) = param_set.get(body_vn).copied() {
-            if let Some(set) = traits.get_mut(p) {
-                set.insert(ProcArgTrait::Body);
-            }
-        }
+    if let Some(body_vn) = extract_var_name(args.last().unwrap())
+        && let Some(p) = param_set.get(body_vn).copied()
+        && let Some(set) = traits.get_mut(p)
+    {
+        set.insert(ProcArgTrait::Body);
     }
     let remaining = &args[..args.len() - 1];
     let mut i = 0;
     while i + 1 < remaining.len() {
-        if let Some(list_vn) = extract_var_name(&remaining[i + 1]) {
-            if let Some(p) = param_set.get(list_vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(ProcArgTrait::LoopList);
-                }
-            }
+        if let Some(list_vn) = extract_var_name(&remaining[i + 1])
+            && let Some(p) = param_set.get(list_vn).copied()
+            && let Some(set) = traits.get_mut(p)
+        {
+            set.insert(ProcArgTrait::LoopList);
         }
         i += 2;
     }
@@ -668,19 +665,17 @@ fn handle_while<'a>(
     if args.len() < 2 {
         return;
     }
-    if let Some(vn) = extract_var_name(&args[0]) {
-        if let Some(p) = param_set.get(vn).copied() {
-            if let Some(set) = traits.get_mut(p) {
-                set.insert(ProcArgTrait::Expr);
-            }
-        }
+    if let Some(vn) = extract_var_name(&args[0])
+        && let Some(p) = param_set.get(vn).copied()
+        && let Some(set) = traits.get_mut(p)
+    {
+        set.insert(ProcArgTrait::Expr);
     }
-    if let Some(vn) = extract_var_name(&args[1]) {
-        if let Some(p) = param_set.get(vn).copied() {
-            if let Some(set) = traits.get_mut(p) {
-                set.insert(ProcArgTrait::Body);
-            }
-        }
+    if let Some(vn) = extract_var_name(&args[1])
+        && let Some(p) = param_set.get(vn).copied()
+        && let Some(set) = traits.get_mut(p)
+    {
+        set.insert(ProcArgTrait::Body);
     }
 }
 
@@ -699,12 +694,11 @@ fn handle_for<'a>(
         (&args[3], ProcArgTrait::Body),
     ];
     for (arg, trait_) in pairs {
-        if let Some(vn) = extract_var_name(arg) {
-            if let Some(p) = param_set.get(vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(trait_);
-                }
-            }
+        if let Some(vn) = extract_var_name(arg)
+            && let Some(p) = param_set.get(vn).copied()
+            && let Some(set) = traits.get_mut(p)
+        {
+            set.insert(trait_);
         }
     }
 }
@@ -725,12 +719,11 @@ fn handle_after<'a>(
         start += 1;
     }
     for arg in &args[start..] {
-        if let Some(vn) = extract_var_name(arg) {
-            if let Some(p) = param_set.get(vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(ProcArgTrait::Eval);
-                }
-            }
+        if let Some(vn) = extract_var_name(arg)
+            && let Some(p) = param_set.get(vn).copied()
+            && let Some(set) = traits.get_mut(p)
+        {
+            set.insert(ProcArgTrait::Eval);
         }
     }
 }
@@ -742,12 +735,11 @@ fn handle_variadic_var_write<'a>(
     start: usize,
 ) {
     for arg in &args[start.min(args.len())..] {
-        if let Some(vn) = extract_var_name(arg) {
-            if let Some(p) = param_set.get(vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(ProcArgTrait::VarWrite);
-                }
-            }
+        if let Some(vn) = extract_var_name(arg)
+            && let Some(p) = param_set.get(vn).copied()
+            && let Some(set) = traits.get_mut(p)
+        {
+            set.insert(ProcArgTrait::VarWrite);
         }
     }
 }
@@ -799,14 +791,12 @@ fn handle_regsub_var<'a>(
 ) {
     let pos = skip_regexp_switches(args);
     let var_idx = pos + 3;
-    if var_idx < args.len() {
-        if let Some(vn) = extract_var_name(&args[var_idx]) {
-            if let Some(p) = param_set.get(vn).copied() {
-                if let Some(set) = traits.get_mut(p) {
-                    set.insert(ProcArgTrait::VarWrite);
-                }
-            }
-        }
+    if var_idx < args.len()
+        && let Some(vn) = extract_var_name(&args[var_idx])
+        && let Some(p) = param_set.get(vn).copied()
+        && let Some(set) = traits.get_mut(p)
+    {
+        set.insert(ProcArgTrait::VarWrite);
     }
 }
 
@@ -890,9 +880,11 @@ mod tests {
     fn uplevel_records_eval_on_last_arg_only() {
         let traits = infer(&["lvl", "script"], "uplevel $lvl $script");
         assert_trait(&traits, "script", ProcArgTrait::Eval);
-        assert!(!traits
-            .get("lvl")
-            .is_some_and(|s| s.contains(&ProcArgTrait::Eval)));
+        assert!(
+            !traits
+                .get("lvl")
+                .is_some_and(|s| s.contains(&ProcArgTrait::Eval))
+        );
     }
 
     #[test]
@@ -939,9 +931,11 @@ mod tests {
         assert_trait(&traits, "body", ProcArgTrait::Eval);
         let traits = infer(&["x"], "after cancel $x");
         // ``after cancel`` doesn't take a script, so $x is not eval.
-        assert!(traits
-            .get("x")
-            .is_none_or(|s| !s.contains(&ProcArgTrait::Eval)));
+        assert!(
+            traits
+                .get("x")
+                .is_none_or(|s| !s.contains(&ProcArgTrait::Eval))
+        );
     }
 
     #[test]

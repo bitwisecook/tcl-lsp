@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ACCESS::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Control enforcement for a particular request URI.",
             synopsis: &["ACCESS::disable"],
             snippet: "This command disables the access control enforcement for a particular\nrequest URI. The request is passed through access control module\nwithout any access control checks (excludes valid session check as well\nas policy allowed check).\n\nACCESS::disable\n\n     * Disable the access control enforcement for a particular request\n       URI.\n\n * Requires APM module",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ACCESS::disable" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ACCESS::disable",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

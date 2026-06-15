@@ -181,7 +181,7 @@ pub fn spec() -> CommandSpec {
         name: "labelframe",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a labelframe widget.",
             synopsis: &["labelframe pathName ?option value ...?"],
             snippet: "Displays a frame with a decorative border and an optional label, used to group related widgets visually.",

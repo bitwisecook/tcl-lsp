@@ -12,14 +12,14 @@ use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Procedure as IrProcedure;
 use crate::ir::Statement;
 
-use super::super::layout::{optimise_jumps, resolve_layout};
 use super::super::CodegenCtx;
+use super::super::layout::{optimise_jumps, resolve_layout};
 use super::super::{FunctionAsm, Op, Operand};
 use super::ordering::{
-    self, linearise, starts_with_any, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES,
+    self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
 };
 use super::proc_defs::is_static_proc;
-use super::try_blocks::{detect_try_finally, TryFinallyInfo};
+use super::try_blocks::{TryFinallyInfo, detect_try_finally};
 
 /// Transient state passed between the per-block handlers in `generate`.
 struct GenerateState {
@@ -85,7 +85,7 @@ impl GenerateState {
 // Sequential codegen pipeline; phases share emitter state.
 #[allow(clippy::too_many_lines)]
 pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
-    use super::loop_blocks::{detect_complex_foreach, detect_foreach, ComplexForeach, ForeachInfo};
+    use super::loop_blocks::{ComplexForeach, ForeachInfo, detect_complex_foreach, detect_foreach};
 
     let block_order = linearise(cfg);
     let mut loop_ctx = ordering::build_loop_context(cfg);
@@ -121,14 +121,14 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     let mut complex_body_blocks: HashSet<String> = HashSet::new();
     for (hdr, info) in &complex_foreach {
         for bb in &info.body_blocks {
-            if let Some((cont, _brk)) = loop_ctx.get(bb) {
-                if cont == hdr {
-                    loop_ctx.insert(
-                        bb.clone(),
-                        (info.step_label.clone(), info.break_label.clone()),
-                    );
-                    complex_body_blocks.insert(bb.clone());
-                }
+            if let Some((cont, _brk)) = loop_ctx.get(bb)
+                && cont == hdr
+            {
+                loop_ctx.insert(
+                    bb.clone(),
+                    (info.step_label.clone(), info.break_label.clone()),
+                );
+                complex_body_blocks.insert(bb.clone());
             }
         }
     }
@@ -176,13 +176,13 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
 
         // Complex foreach: emit foreach_step + foreach_end at the
         // bottom of the loop body, before the loop-result push/pop.
-        if let Some(header) = foreach_end_to_header.get(bname) {
-            if let Some(info) = complex_foreach.get(header) {
-                ctx.place_label(&info.step_label);
-                ctx.emit(Op::FOREACH_STEP, vec![]);
-                ctx.place_label(&info.break_label);
-                ctx.emit(Op::FOREACH_END, vec![]);
-            }
+        if let Some(header) = foreach_end_to_header.get(bname)
+            && let Some(info) = complex_foreach.get(header)
+        {
+            ctx.place_label(&info.step_label);
+            ctx.emit(Op::FOREACH_STEP, vec![]);
+            ctx.place_label(&info.break_label);
+            ctx.emit(Op::FOREACH_END, vec![]);
         }
 
         // Loop-end blocks push "" as the loop command's result.
@@ -245,14 +245,12 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 "",
             );
             // Find the convergence point by following the true branch.
-            if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator {
-                if let Some(tt_blk) = cfg.blocks.get(true_target) {
-                    if let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator {
-                        if join.starts_with("if_end_") {
-                            state.for_body_end_labels.insert(join.clone(), fb_end_label);
-                        }
-                    }
-                }
+            if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
+                && let Some(tt_blk) = cfg.blocks.get(true_target)
+                && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+                && join.starts_with("if_end_")
+            {
+                state.for_body_end_labels.insert(join.clone(), fb_end_label);
             }
         }
 
@@ -273,16 +271,14 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 "",
             );
             ctx.seen_generic_invoke = true;
-            if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator {
-                if let Some(tt_blk) = cfg.blocks.get(true_target) {
-                    if let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator {
-                        if join.starts_with("if_end_") || join.starts_with("if_next_") {
-                            state
-                                .for_body_end_labels
-                                .insert(join.clone(), fif_end_label);
-                        }
-                    }
-                }
+            if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
+                && let Some(tt_blk) = cfg.blocks.get(true_target)
+                && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+                && (join.starts_with("if_end_") || join.starts_with("if_next_"))
+            {
+                state
+                    .for_body_end_labels
+                    .insert(join.clone(), fif_end_label);
             }
         }
 
@@ -354,34 +350,31 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 if let Some(Terminator::Goto {
                     target: fi_header, ..
                 }) = &blk.terminator
+                    && let Some(fi_header_blk) = cfg.blocks.get(fi_header)
+                    && let Some(Terminator::Branch {
+                        false_target: for_end,
+                        ..
+                    }) = &fi_header_blk.terminator
                 {
-                    if let Some(fi_header_blk) = cfg.blocks.get(fi_header) {
-                        if let Some(Terminator::Branch {
-                            false_target: for_end,
-                            ..
-                        }) = &fi_header_blk.terminator
-                        {
-                            let fi_label = ctx.fresh_label("for_cmd_end");
-                            state
-                                .for_init_end_labels
-                                .insert(for_end.clone(), fi_label.clone());
-                            ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
-                            continue;
-                        }
-                    }
+                    let fi_label = ctx.fresh_label("for_cmd_end");
+                    state
+                        .for_init_end_labels
+                        .insert(for_end.clone(), fi_label.clone());
+                    ctx.emit_stmt_with_start_cmd(stmt, Some(2), Some(&fi_label));
+                    continue;
                 }
             }
             // C18 case 5: synthetic `<cond>` placeholders get a
             // startCommand whose end label is deferred until the
             // ExprCommand in the branch condition has been emitted.
             // The label is placed by `emit_expr` in expressions.rs.
-            if let Statement::Call { command, .. } = stmt {
-                if command == "<cond>" {
-                    let cond_label = ctx.fresh_label("cmd_end");
-                    ctx.pending_cond_end_label = Some(cond_label.clone());
-                    ctx.emit_stmt_with_start_cmd(stmt, None, Some(&cond_label));
-                    continue;
-                }
+            if let Statement::Call { command, .. } = stmt
+                && command == "<cond>"
+            {
+                let cond_label = ctx.fresh_label("cmd_end");
+                ctx.pending_cond_end_label = Some(cond_label.clone());
+                ctx.emit_stmt_with_start_cmd(stmt, None, Some(&cond_label));
+                continue;
             }
             ctx.emit_stmt_with_start_cmd(stmt, None, None);
         }
@@ -431,16 +424,16 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
 
         // If/switch arms: keep last statement value on TOS instead of
         // popping — the value is the arm's result.
-        if let Some(Terminator::Goto { target, .. }) = &blk.terminator {
-            if starts_with_any(target, VALUE_JOIN_PREFIXES) {
-                if !blk.statements.is_empty()
-                    && ctx.instructions.last().is_some_and(|i| i.op == Op::POP)
-                {
-                    ctx.instructions.pop();
-                } else if blk.statements.is_empty() && !is_loop_end {
-                    // Else-less if: false path needs an empty-string result.
-                    ctx.push_lit("");
-                }
+        if let Some(Terminator::Goto { target, .. }) = &blk.terminator
+            && starts_with_any(target, VALUE_JOIN_PREFIXES)
+        {
+            if !blk.statements.is_empty()
+                && ctx.instructions.last().is_some_and(|i| i.op == Op::POP)
+            {
+                ctx.instructions.pop();
+            } else if blk.statements.is_empty() && !is_loop_end {
+                // Else-less if: false path needs an empty-string result.
+                ctx.push_lit("");
             }
         }
 
@@ -448,49 +441,46 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         // to the foreach header. Fall through to foreach_step/foreach_end
         // at the foreach_end block, or jump to step label if not adjacent.
         let mut foreach_backedge = false;
-        if complex_body_blocks.contains(bname) {
-            if let Some(Terminator::Goto { target, .. }) = &blk.terminator {
-                if let Some(info) = complex_foreach.get(target) {
-                    let next_peek = block_order.get(i + 1).map(String::as_str);
-                    if next_peek != Some(info.end.as_str()) {
-                        ctx.emit_comment(
-                            Op::JUMP4,
-                            vec![Operand::Label(info.step_label.clone())],
-                            "foreach continue",
-                        );
-                    }
-                    foreach_backedge = true;
-                }
+        if complex_body_blocks.contains(bname)
+            && let Some(Terminator::Goto { target, .. }) = &blk.terminator
+            && let Some(info) = complex_foreach.get(target)
+        {
+            let next_peek = block_order.get(i + 1).map(String::as_str);
+            if next_peek != Some(info.end.as_str()) {
+                ctx.emit_comment(
+                    Op::JUMP4,
+                    vec![Operand::Label(info.step_label.clone())],
+                    "foreach continue",
+                );
             }
+            foreach_backedge = true;
         }
 
         // While-loop startCommand: emit before the jump to while_header.
-        if ctx.is_proc && ctx.cmd_index > 0 {
-            if let Some(Terminator::Goto {
+        if ctx.is_proc
+            && ctx.cmd_index > 0
+            && let Some(Terminator::Goto {
                 target: wh_header, ..
             }) = &blk.terminator
+        {
+            let is_while_entry = wh_header.starts_with("while_header_")
+                && !bname.starts_with("while_body_")
+                && !bname.starts_with("while_step_");
+            if is_while_entry
+                && let Some(wh_blk) = cfg.blocks.get(wh_header)
+                && let Some(Terminator::Branch {
+                    false_target: wh_end,
+                    ..
+                }) = &wh_blk.terminator
             {
-                let is_while_entry = wh_header.starts_with("while_header_")
-                    && !bname.starts_with("while_body_")
-                    && !bname.starts_with("while_step_");
-                if is_while_entry {
-                    if let Some(wh_blk) = cfg.blocks.get(wh_header) {
-                        if let Some(Terminator::Branch {
-                            false_target: wh_end,
-                            ..
-                        }) = &wh_blk.terminator
-                        {
-                            let wh_label = ctx.fresh_label("while_cmd_end");
-                            ctx.emit_comment(
-                                Op::START_CMD,
-                                vec![Operand::Label(wh_label.clone()), Operand::Imm(1)],
-                                "",
-                            );
-                            state.while_end_labels.insert(wh_end.clone(), wh_label);
-                            ctx.cmd_index += 1;
-                        }
-                    }
-                }
+                let wh_label = ctx.fresh_label("while_cmd_end");
+                ctx.emit_comment(
+                    Op::START_CMD,
+                    vec![Operand::Label(wh_label.clone()), Operand::Imm(1)],
+                    "",
+                );
+                state.while_end_labels.insert(wh_end.clone(), wh_label);
+                ctx.cmd_index += 1;
             }
         }
 
@@ -504,32 +494,26 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             // non-proc scripts. tclsh preserves a command boundary for
             // the `if` even when the condition is dead — the
             // startCommand's end label is placed before the join pop.
-            if !ctx.is_proc {
-                if let Terminator::Branch {
+            if !ctx.is_proc
+                && let Terminator::Branch {
                     condition,
                     true_target,
                     ..
                 } = term
-                {
-                    if super::ordering::fold_const_branch(condition) == Some(true) {
-                        if let Some(tt_blk) = cfg.blocks.get(true_target) {
-                            if let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-                            {
-                                if join.starts_with("if_end_") {
-                                    let end_label = ctx.fresh_label("cmd_end");
-                                    ctx.emit_comment(
-                                        Op::START_CMD,
-                                        vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
-                                        "",
-                                    );
-                                    ctx.cmd_index += 1;
-                                    ctx.seen_generic_invoke = true;
-                                    state.pending_join_labels.insert(join.clone(), end_label);
-                                }
-                            }
-                        }
-                    }
-                }
+                && super::ordering::fold_const_branch(condition) == Some(true)
+                && let Some(tt_blk) = cfg.blocks.get(true_target)
+                && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
+                && join.starts_with("if_end_")
+            {
+                let end_label = ctx.fresh_label("cmd_end");
+                ctx.emit_comment(
+                    Op::START_CMD,
+                    vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+                    "",
+                );
+                ctx.cmd_index += 1;
+                ctx.seen_generic_invoke = true;
+                state.pending_join_labels.insert(join.clone(), end_label);
             }
 
             // Try switch-dispatch jump-table emission first.

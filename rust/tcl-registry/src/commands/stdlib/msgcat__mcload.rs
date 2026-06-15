@@ -5,7 +5,7 @@ pub fn spec() -> CommandSpec {
         name: "msgcat::mcload",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Load message catalogue files from a directory.",
             synopsis: &["msgcat::mcload dirname"],
             snippet: "Searches *dirname* for files matching the current locale preferences (e.g. ``en_gb.msg``, ``en.msg``, ``ROOT.msg``) and sources them.",

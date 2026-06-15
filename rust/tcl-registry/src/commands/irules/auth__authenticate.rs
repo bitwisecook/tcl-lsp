@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "AUTH::authenticate",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Performs a new authentication operation.",
             synopsis: &["AUTH::authenticate AUTH_ID"],
             snippet: "Performs a new authentication operation. This command returns an error\nif attempted for a standby system or while an authentication operation\nis already in progress for this authentication session.\n\nAUTH::authenticate <authid>\n\n     * Performs a new authentication operation. This command returns an\n       error if attempted for a standby system or while an authentication\n       operation is already in progress for this authentication session.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "AUTH::authenticate AUTH_ID" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::ApmState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AUTH::authenticate AUTH_ID",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "ADAPT::enable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Enables, disables or returns the enable state.",
             synopsis: &["ADAPT::enable (ADAPT_CTX)? (ADAPT_SIDE)? (BOOLEAN)?"],
             snippet: "The ADAPT::enable command enables, disables or returns the enable\nstate of the ADAPT filter on the current or specified side of the\nvirtual server connection for which the iRule is being executed.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "ADAPT::enable (ADAPT_CTX)? (ADAPT_SIDE)? (BOOLEAN)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::IcapState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "ADAPT::enable (ADAPT_CTX)? (ADAPT_SIDE)? (BOOLEAN)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::IcapState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

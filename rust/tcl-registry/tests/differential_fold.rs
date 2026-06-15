@@ -52,10 +52,10 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<(bool, String)> {
 /// Locate a `tclsh9.0` (or a `tclsh` reporting a `9.x` patchlevel) on `PATH`.
 fn find_tclsh9() -> Option<String> {
     for cand in ["tclsh9.0", "tclsh"] {
-        if let Some((true, out)) = run_tcl(cand, "puts -nonewline [info patchlevel]") {
-            if out.starts_with("9.") {
-                return Some(cand.to_string());
-            }
+        if let Some((true, out)) = run_tcl(cand, "puts -nonewline [info patchlevel]")
+            && out.starts_with("9.")
+        {
+            return Some(cand.to_string());
         }
     }
     None

@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "COMPRESS::disable",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Disables compression for the current HTTP response.",
             synopsis: &["COMPRESS::disable (request | response)?"],
             snippet: "Disables compression for the current HTTP response. Note that when using this command, you must set the HTTP profile setting Compression to Selective.\n\nCOMPRESS::disable\n    Disables compression for the current HTTP response. Note that when using this command, you must set the HTTP profile setting Compression to Selective.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "COMPRESS::disable (request | response)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::StreamProfile,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "COMPRESS::disable (request | response)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::StreamProfile,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

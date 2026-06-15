@@ -8,12 +8,10 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Returns the value of a avr profile setting.",
             synopsis: &["PROFILE::avr ATTR"],
-            snippet:
-                "Returns the current value of the specified setting in the assigned avr profile.",
+            snippet: "Returns the current value of the specified setting in the assigned avr profile.",
             source: "https://clouddocs.f5.com/api/irules/PROFILE__avr.html",
             examples: "",
-            return_value:
-                "Returns the current value of the specified setting in the assigned avr profile.",
+            return_value: "Returns the current value of the specified setting in the assigned avr profile.",
         }),
         forms: &[FormSpec {
             kind: FormKind::Default,

@@ -10,8 +10,7 @@ pub const fn spec() -> CommandSpec {
             synopsis: &["ANTIFRAUD::disable_alert"],
             snippet: "Disables the current alert",
             source: "https://clouddocs.f5.com/api/irules/ANTIFRAUD__disable_alert.html",
-            examples:
-                "when ANTIFRAUD_ALERT {\n                ANTIFRAUD::disable_alert\n            }",
+            examples: "when ANTIFRAUD_ALERT {\n                ANTIFRAUD::disable_alert\n            }",
             return_value: "Disables the current alert",
         }),
         event_requires: Some(EventRequires {

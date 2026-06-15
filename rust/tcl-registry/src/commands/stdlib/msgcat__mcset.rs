@@ -5,7 +5,7 @@ pub fn spec() -> CommandSpec {
         name: "msgcat::mcset",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::new(2, 3),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Set the translation for a string in a given locale.",
             synopsis: &["msgcat::mcset locale src-string ?translate-string?"],
             snippet: "Sets the translation for *src-string* in the calling namespace.  If *translate-string* is omitted, *src-string* is used as the translation.",

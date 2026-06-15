@@ -1,7 +1,7 @@
 /// Edge-case tests for the structural index — verifies behavior at boundaries.
 use tcl_lexer::{
-    command_boundaries, reparse_window, script_is_complete, BraceIndex, BracketIndex,
-    ExprParenIndex, ParenBalance,
+    BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
+    script_is_complete,
 };
 
 // ── BracketIndex ──────────────────────────────────────────────────
@@ -96,7 +96,9 @@ fn bracket_unterminated_brace_swallows_tail() {
     let idx = BracketIndex::build("[foo {bar");
     assert_eq!(idx.unterminated_count(), 1);
     // EOF is inside the unterminated brace word — inert
-    assert!(!idx.close_bracket_balances(u32::try_from("[foo {bar".len()).expect("offset fits u32")));
+    assert!(
+        !idx.close_bracket_balances(u32::try_from("[foo {bar".len()).expect("offset fits u32"))
+    );
     // But inserting right after [ should balance
     assert!(idx.close_bracket_balances(1));
 }

@@ -242,7 +242,7 @@ mod tests {
         assert_eq!(idx.offset_at_utf16(1, 0, src), 3); // 'c'
         assert_eq!(idx.offset_at_utf16(1, 3, src), 6); // end of line 1 (the '\n')
         assert_eq!(idx.offset_at_utf16(2, 1, src), 8); // end of last line (EOF)
-                                                       // Clamps: char past content -> line content end; line past EOF -> len.
+        // Clamps: char past content -> line content end; line past EOF -> len.
         assert_eq!(idx.offset_at_utf16(0, 99, src), 2);
         assert_eq!(
             idx.offset_at_utf16(9, 0, src),

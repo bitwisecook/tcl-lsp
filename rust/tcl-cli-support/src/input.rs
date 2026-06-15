@@ -254,10 +254,10 @@ fn expand_user(path: &Path) -> PathBuf {
         if let Some(home) = std::env::var_os("HOME") {
             return Path::new(&home).join(rest);
         }
-    } else if s == "~" {
-        if let Some(home) = std::env::var_os("HOME") {
-            return PathBuf::from(home);
-        }
+    } else if s == "~"
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(home);
     }
     path.to_path_buf()
 }

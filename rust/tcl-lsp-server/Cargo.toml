@@ -24,6 +24,7 @@ tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sy
 tower-lsp = "0.20"
 
 [dev-dependencies]
+temp-env = "0.3"
 tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time", "sync"] }
 
 [lints]

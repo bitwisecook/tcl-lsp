@@ -66,9 +66,13 @@ pub const fn spec() -> CommandSpec {
         name: "MQTT::payload",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Manipulate payload of MQTT PUBLISH message",
-            synopsis: &["MQTT::payload ?subcommand? ?args?", "MQTT::payload length", "MQTT::payload replace <data> ?offset? ?length?"],
+            synopsis: &[
+                "MQTT::payload ?subcommand? ?args?",
+                "MQTT::payload length",
+                "MQTT::payload replace <data> ?offset? ?length?",
+            ],
             snippet: "This command can be used to manipulate payload of MQTT message.\nThis command is valid only for following MQTT message types:\n\n    PUBLISH",
             source: "https://clouddocs.f5.com/api/irules/MQTT__payload.html",
             examples: "#Example: Redirect PUBLISH that has payloads with blocked keywords defined in\n#blacklisted_keywords_datagroup in first 200 bytes. Prepend a admin message in\n#the payload.\n#\nwhen MQTT_CLIENT_INGRESS {\n    set type [MQTT::type]\n    switch $type {\n       \"PUBLISH\" {\n          if { [class exists  blacklisted_keywords_datagroup] } {\n             MQTT::collect 200\n          }\n       }\n    }\n}",
@@ -84,18 +88,17 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "MQTT::payload ?subcommand? ?args?" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "MQTT::payload ?subcommand? ?args?",
+        }],
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         taint_source: Some(TaintColour::TAINTED),
         ..CommandSpec::DEFAULT
     }

@@ -194,22 +194,19 @@ pub fn references(
     // plus every call site (intra-class + external).
     if let Some((inst, method)) =
         crate::definition::instance_method_at_cursor(source, line, character)
+        && let Some(class_q) = analysis.instance_classes.get(&inst)
+        && let Some((decl_span, call_spans)) =
+            method_references_for_class(source, dialect, analysis, class_q, &method)
     {
-        if let Some(class_q) = analysis.instance_classes.get(&inst) {
-            if let Some((decl_span, call_spans)) =
-                method_references_for_class(source, dialect, analysis, class_q, &method)
-            {
-                let mut out = Vec::new();
-                if include_declaration {
-                    out.push(span_to_range(source, &line_index, decl_span));
-                }
-                for s in call_spans {
-                    out.push(span_to_range(source, &line_index, s));
-                }
-                dedup_ranges(&mut out);
-                return out;
-            }
+        let mut out = Vec::new();
+        if include_declaration {
+            out.push(span_to_range(source, &line_index, decl_span));
         }
+        for s in call_spans {
+            out.push(span_to_range(source, &line_index, s));
+        }
+        dedup_ranges(&mut out);
+        return out;
     }
 
     // Class-member references — when the cursor sits inside a
@@ -552,25 +549,25 @@ fn scan_obj_method_region(
     );
     for cmd in &commands {
         // Head `$v` + method at argv[1].
-        if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
-            if head.kind == TokenType::Var {
-                let h_start = head.span.start() as usize;
-                let h_end = head.span.end() as usize;
-                if h_start < source.len() && h_end <= source.len() {
-                    let raw = &source[h_start..h_end];
-                    if let Some(name) = strip_var_decoration(raw) {
-                        if var_set.contains(name) {
-                            let m_start = method_tok.span.start() as usize;
-                            let m_end = method_tok.span.end() as usize;
-                            if m_start < source.len()
-                                && m_end <= source.len()
-                                && &source[m_start..m_end] == method
-                            {
-                                let key = (method_tok.span.start(), method_tok.span.end());
-                                if seen.insert(key) {
-                                    out.push(method_tok.span);
-                                }
-                            }
+        if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1))
+            && head.kind == TokenType::Var
+        {
+            let h_start = head.span.start() as usize;
+            let h_end = head.span.end() as usize;
+            if h_start < source.len() && h_end <= source.len() {
+                let raw = &source[h_start..h_end];
+                if let Some(name) = strip_var_decoration(raw)
+                    && var_set.contains(name)
+                {
+                    let m_start = method_tok.span.start() as usize;
+                    let m_end = method_tok.span.end() as usize;
+                    if m_start < source.len()
+                        && m_end <= source.len()
+                        && &source[m_start..m_end] == method
+                    {
+                        let key = (method_tok.span.start(), method_tok.span.end());
+                        if seen.insert(key) {
+                            out.push(method_tok.span);
                         }
                     }
                 }
@@ -620,11 +617,7 @@ fn strip_var_decoration(raw: &str) -> Option<&str> {
     let inner = rest
         .strip_prefix('{')
         .map_or(rest, |r| r.strip_suffix('}').unwrap_or(r));
-    if inner.is_empty() {
-        None
-    } else {
-        Some(inner)
-    }
+    if inner.is_empty() { None } else { Some(inner) }
 }
 
 /// Read / write kind for a document-highlight span.  Mirrors

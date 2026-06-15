@@ -13,1196 +13,1451 @@ use crate::prelude::*;
 #[allow(clippy::too_many_lines)]
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-    CommandSpec {
-        name: "!",
-        arity: Arity::exact(1),
-hover: Some(HoverSnippet {
-    summary: "logical NOT (unary)",
-    synopsis: &["! ?arg ...?"],
-    snippet: "The ! operator command. Available via namespace import ::tcl::mathop::*.",
-    source: "Tcl man page mathop.n",
-    examples: "",
-    return_value: "",
-}),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "! ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "!=",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "numeric inequality",
-            synopsis: &["!= ?arg ...?"],
-            snippet: "The != operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "!= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "%",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "modulo",
-            synopsis: &["% ?arg ...?"],
-            snippet: "The % operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "% ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "&",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise AND",
-            synopsis: &["& ?arg ...?"],
-            snippet: "The & operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "& ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "&&",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "logical AND",
-            synopsis: &["&& ?arg ...?"],
-            snippet: "The && operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "&& ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "*",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "multiplication",
-            synopsis: &["* ?arg ...?"],
-            snippet: "The * operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "* ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "**",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "exponentiation",
-            synopsis: &["** ?arg ...?"],
-            snippet: "The ** operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "** ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "+",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "addition",
-            synopsis: &["+ ?arg ...?"],
-            snippet: "The + operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "+ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "-",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "subtraction or negation",
-            synopsis: &["- ?arg ...?"],
-            snippet: "The - operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "- ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "/",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "division",
-            synopsis: &["/ ?arg ...?"],
-            snippet: "The / operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "/ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::build-info",
-        arity: Arity::new(0, 1),
-        return_type: Some(TclType::String),
-        hover: Some(HoverSnippet {
-            summary: "Return compile-time build metadata for the Tcl runtime.",
-            synopsis: &["tcl::build-info ?key?"],
-            snippet: "Returns the compile-time build metadata for the running Tcl runtime.  With no arguments, returns the patchlevel.  With a key argument, returns the value associated with that key (e.g. ``version``, ``commit``, ``branch``, ``compiler``).",
-            source: "Tcl tcl::build-info (internal)",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::build-info ?key?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::!",
-        arity: Arity::exact(1),
-        hover: Some(HoverSnippet {
-            summary: "logical NOT (unary)",
-            synopsis: &["::tcl::mathop::! ?arg ...?"],
-            snippet: "The ::tcl::mathop::! operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::! ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::!=",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "numeric inequality",
-            synopsis: &["::tcl::mathop::!= ?arg ...?"],
-            snippet: "The ::tcl::mathop::!= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::!= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::%",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "modulo",
-            synopsis: &["::tcl::mathop::% ?arg ...?"],
-            snippet: "The ::tcl::mathop::% operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::% ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::&",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise AND",
-            synopsis: &["::tcl::mathop::& ?arg ...?"],
-            snippet: "The ::tcl::mathop::& operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::& ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::&&",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "logical AND",
-            synopsis: &["::tcl::mathop::&& ?arg ...?"],
-            snippet: "The ::tcl::mathop::&& operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::&& ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::*",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "multiplication",
-            synopsis: &["::tcl::mathop::* ?arg ...?"],
-            snippet: "The ::tcl::mathop::* operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::* ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::**",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "exponentiation",
-            synopsis: &["::tcl::mathop::** ?arg ...?"],
-            snippet: "The ::tcl::mathop::** operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::** ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::+",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "addition",
-            synopsis: &["::tcl::mathop::+ ?arg ...?"],
-            snippet: "The ::tcl::mathop::+ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::+ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::-",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "subtraction or negation",
-            synopsis: &["::tcl::mathop::- ?arg ...?"],
-            snippet: "The ::tcl::mathop::- operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::- ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::/",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "division",
-            synopsis: &["::tcl::mathop::/ ?arg ...?"],
-            snippet: "The ::tcl::mathop::/ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::/ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::<",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric less-than",
-            synopsis: &["::tcl::mathop::< ?arg ...?"],
-            snippet: "The ::tcl::mathop::< operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::< ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::<<",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "left shift",
-            synopsis: &["::tcl::mathop::<< ?arg ...?"],
-            snippet: "The ::tcl::mathop::<< operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::<< ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::<=",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric less-or-equal",
-            synopsis: &["::tcl::mathop::<= ?arg ...?"],
-            snippet: "The ::tcl::mathop::<= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::<= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::==",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric equality",
-            synopsis: &["::tcl::mathop::== ?arg ...?"],
-            snippet: "The ::tcl::mathop::== operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::== ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::>",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric greater-than",
-            synopsis: &["::tcl::mathop::> ?arg ...?"],
-            snippet: "The ::tcl::mathop::> operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::> ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::>=",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric greater-or-equal",
-            synopsis: &["::tcl::mathop::>= ?arg ...?"],
-            snippet: "The ::tcl::mathop::>= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::>= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::>>",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "right shift",
-            synopsis: &["::tcl::mathop::>> ?arg ...?"],
-            snippet: "The ::tcl::mathop::>> operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::>> ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::@",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list index operator",
-            synopsis: &["::tcl::mathop::@ ?arg ...?"],
-            snippet: "The ::tcl::mathop::@ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::@ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::^",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise XOR",
-            synopsis: &["::tcl::mathop::^ ?arg ...?"],
-            snippet: "The ::tcl::mathop::^ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::^ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::eq",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "string equality",
-            synopsis: &["::tcl::mathop::eq ?arg ...?"],
-            snippet: "The ::tcl::mathop::eq operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::eq ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::in",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list membership",
-            synopsis: &["::tcl::mathop::in ?arg ...?"],
-            snippet: "The ::tcl::mathop::in operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::in ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::max",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "maximum of arguments",
-            synopsis: &["::tcl::mathop::max ?arg ...?"],
-            snippet: "The ::tcl::mathop::max operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::max ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::min",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "minimum of arguments",
-            synopsis: &["::tcl::mathop::min ?arg ...?"],
-            snippet: "The ::tcl::mathop::min operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::min ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::ne",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "string inequality",
-            synopsis: &["::tcl::mathop::ne ?arg ...?"],
-            snippet: "The ::tcl::mathop::ne operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::ne ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::ni",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list non-membership",
-            synopsis: &["::tcl::mathop::ni ?arg ...?"],
-            snippet: "The ::tcl::mathop::ni operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::ni ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::|",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise OR",
-            synopsis: &["::tcl::mathop::| ?arg ...?"],
-            snippet: "The ::tcl::mathop::| operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::| ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::||",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "logical OR",
-            synopsis: &["::tcl::mathop::|| ?arg ...?"],
-            snippet: "The ::tcl::mathop::|| operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::|| ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "::tcl::mathop::~",
-        arity: Arity::exact(1),
-        hover: Some(HoverSnippet {
-            summary: "bitwise NOT (unary)",
-            synopsis: &["::tcl::mathop::~ ?arg ...?"],
-            snippet: "The ::tcl::mathop::~ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "::tcl::mathop::~ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "<",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric less-than",
-            synopsis: &["< ?arg ...?"],
-            snippet: "The < operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "< ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "<<",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "left shift",
-            synopsis: &["<< ?arg ...?"],
-            snippet: "The << operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "<< ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "<=",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric less-or-equal",
-            synopsis: &["<= ?arg ...?"],
-            snippet: "The <= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "<= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "==",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric equality",
-            synopsis: &["== ?arg ...?"],
-            snippet: "The == operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "== ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: ">",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric greater-than",
-            synopsis: &["> ?arg ...?"],
-            snippet: "The > operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "> ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: ">=",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric greater-or-equal",
-            synopsis: &[">= ?arg ...?"],
-            snippet: "The >= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: ">= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: ">>",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "right shift",
-            synopsis: &[">> ?arg ...?"],
-            snippet: "The >> operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: ">> ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "@",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list index operator",
-            synopsis: &["@ ?arg ...?"],
-            snippet: "The @ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "@ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "^",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise XOR",
-            synopsis: &["^ ?arg ...?"],
-            snippet: "The ^ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "^ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "eq",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "string equality",
-            synopsis: &["eq ?arg ...?"],
-            snippet: "The eq operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "eq ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "in",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list membership",
-            synopsis: &["in ?arg ...?"],
-            snippet: "The in operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "in ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "max",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "maximum of arguments",
-            synopsis: &["max ?arg ...?"],
-            snippet: "The max operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "max ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "min",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "minimum of arguments",
-            synopsis: &["min ?arg ...?"],
-            snippet: "The min operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "min ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "ne",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "string inequality",
-            synopsis: &["ne ?arg ...?"],
-            snippet: "The ne operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "ne ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "ni",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list non-membership",
-            synopsis: &["ni ?arg ...?"],
-            snippet: "The ni operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "ni ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::!",
-        arity: Arity::exact(1),
-        hover: Some(HoverSnippet {
-            summary: "logical NOT (unary)",
-            synopsis: &["tcl::mathop::! ?arg ...?"],
-            snippet: "The tcl::mathop::! operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::! ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::!=",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "numeric inequality",
-            synopsis: &["tcl::mathop::!= ?arg ...?"],
-            snippet: "The tcl::mathop::!= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::!= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::%",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "modulo",
-            synopsis: &["tcl::mathop::% ?arg ...?"],
-            snippet: "The tcl::mathop::% operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::% ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::&",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise AND",
-            synopsis: &["tcl::mathop::& ?arg ...?"],
-            snippet: "The tcl::mathop::& operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::& ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::&&",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "logical AND",
-            synopsis: &["tcl::mathop::&& ?arg ...?"],
-            snippet: "The tcl::mathop::&& operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::&& ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::*",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "multiplication",
-            synopsis: &["tcl::mathop::* ?arg ...?"],
-            snippet: "The tcl::mathop::* operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::* ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::**",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "exponentiation",
-            synopsis: &["tcl::mathop::** ?arg ...?"],
-            snippet: "The tcl::mathop::** operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::** ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::+",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "addition",
-            synopsis: &["tcl::mathop::+ ?arg ...?"],
-            snippet: "The tcl::mathop::+ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::+ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::-",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "subtraction or negation",
-            synopsis: &["tcl::mathop::- ?arg ...?"],
-            snippet: "The tcl::mathop::- operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::- ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::/",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "division",
-            synopsis: &["tcl::mathop::/ ?arg ...?"],
-            snippet: "The tcl::mathop::/ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::/ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::<",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric less-than",
-            synopsis: &["tcl::mathop::< ?arg ...?"],
-            snippet: "The tcl::mathop::< operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::< ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::<<",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "left shift",
-            synopsis: &["tcl::mathop::<< ?arg ...?"],
-            snippet: "The tcl::mathop::<< operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::<< ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::<=",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric less-or-equal",
-            synopsis: &["tcl::mathop::<= ?arg ...?"],
-            snippet: "The tcl::mathop::<= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::<= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::==",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric equality",
-            synopsis: &["tcl::mathop::== ?arg ...?"],
-            snippet: "The tcl::mathop::== operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::== ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::>",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric greater-than",
-            synopsis: &["tcl::mathop::> ?arg ...?"],
-            snippet: "The tcl::mathop::> operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::> ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::>=",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "numeric greater-or-equal",
-            synopsis: &["tcl::mathop::>= ?arg ...?"],
-            snippet: "The tcl::mathop::>= operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::>= ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::>>",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "right shift",
-            synopsis: &["tcl::mathop::>> ?arg ...?"],
-            snippet: "The tcl::mathop::>> operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::>> ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::@",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list index operator",
-            synopsis: &["tcl::mathop::@ ?arg ...?"],
-            snippet: "The tcl::mathop::@ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::@ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::^",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise XOR",
-            synopsis: &["tcl::mathop::^ ?arg ...?"],
-            snippet: "The tcl::mathop::^ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::^ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::eq",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "string equality",
-            synopsis: &["tcl::mathop::eq ?arg ...?"],
-            snippet: "The tcl::mathop::eq operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::eq ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::in",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list membership",
-            synopsis: &["tcl::mathop::in ?arg ...?"],
-            snippet: "The tcl::mathop::in operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::in ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::max",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "maximum of arguments",
-            synopsis: &["tcl::mathop::max ?arg ...?"],
-            snippet: "The tcl::mathop::max operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::max ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::min",
-        arity: Arity::at_least(1),
-        hover: Some(HoverSnippet {
-            summary: "minimum of arguments",
-            synopsis: &["tcl::mathop::min ?arg ...?"],
-            snippet: "The tcl::mathop::min operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::min ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::ne",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "string inequality",
-            synopsis: &["tcl::mathop::ne ?arg ...?"],
-            snippet: "The tcl::mathop::ne operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::ne ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::ni",
-        arity: Arity::exact(2),
-        hover: Some(HoverSnippet {
-            summary: "list non-membership",
-            synopsis: &["tcl::mathop::ni ?arg ...?"],
-            snippet: "The tcl::mathop::ni operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::ni ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::|",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise OR",
-            synopsis: &["tcl::mathop::| ?arg ...?"],
-            snippet: "The tcl::mathop::| operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::| ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::||",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "logical OR",
-            synopsis: &["tcl::mathop::|| ?arg ...?"],
-            snippet: "The tcl::mathop::|| operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::|| ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "tcl::mathop::~",
-        arity: Arity::exact(1),
-        hover: Some(HoverSnippet {
-            summary: "bitwise NOT (unary)",
-            synopsis: &["tcl::mathop::~ ?arg ...?"],
-            snippet: "The tcl::mathop::~ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "tcl::mathop::~ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "|",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "bitwise OR",
-            synopsis: &["| ?arg ...?"],
-            snippet: "The | operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "| ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "||",
-        arity: Arity::at_least(0),
-        hover: Some(HoverSnippet {
-            summary: "logical OR",
-            synopsis: &["|| ?arg ...?"],
-            snippet: "The || operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "|| ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
-    CommandSpec {
-        name: "~",
-        arity: Arity::exact(1),
-        hover: Some(HoverSnippet {
-            summary: "bitwise NOT (unary)",
-            synopsis: &["~ ?arg ...?"],
-            snippet: "The ~ operator command. Available via namespace import ::tcl::mathop::*.",
-            source: "Tcl man page mathop.n",
-            examples: "",
-            return_value: "",
-        }),
-        forms: &[FormSpec { kind: FormKind::Default, synopsis: "~ ?arg ...?" }],
-        ..CommandSpec::DEFAULT
-    },
+        CommandSpec {
+            name: "!",
+            arity: Arity::exact(1),
+            hover: Some(HoverSnippet {
+                summary: "logical NOT (unary)",
+                synopsis: &["! ?arg ...?"],
+                snippet: "The ! operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "! ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "!=",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "numeric inequality",
+                synopsis: &["!= ?arg ...?"],
+                snippet: "The != operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "!= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "%",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "modulo",
+                synopsis: &["% ?arg ...?"],
+                snippet: "The % operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "% ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "&",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise AND",
+                synopsis: &["& ?arg ...?"],
+                snippet: "The & operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "& ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "&&",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "logical AND",
+                synopsis: &["&& ?arg ...?"],
+                snippet: "The && operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "&& ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "*",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "multiplication",
+                synopsis: &["* ?arg ...?"],
+                snippet: "The * operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "* ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "**",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "exponentiation",
+                synopsis: &["** ?arg ...?"],
+                snippet: "The ** operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "** ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "+",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "addition",
+                synopsis: &["+ ?arg ...?"],
+                snippet: "The + operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "+ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "-",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "subtraction or negation",
+                synopsis: &["- ?arg ...?"],
+                snippet: "The - operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "- ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "/",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "division",
+                synopsis: &["/ ?arg ...?"],
+                snippet: "The / operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "/ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::build-info",
+            arity: Arity::new(0, 1),
+            return_type: Some(TclType::String),
+            hover: Some(HoverSnippet {
+                summary: "Return compile-time build metadata for the Tcl runtime.",
+                synopsis: &["tcl::build-info ?key?"],
+                snippet: "Returns the compile-time build metadata for the running Tcl runtime.  With no arguments, returns the patchlevel.  With a key argument, returns the value associated with that key (e.g. ``version``, ``commit``, ``branch``, ``compiler``).",
+                source: "Tcl tcl::build-info (internal)",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::build-info ?key?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::!",
+            arity: Arity::exact(1),
+            hover: Some(HoverSnippet {
+                summary: "logical NOT (unary)",
+                synopsis: &["::tcl::mathop::! ?arg ...?"],
+                snippet: "The ::tcl::mathop::! operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::! ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::!=",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "numeric inequality",
+                synopsis: &["::tcl::mathop::!= ?arg ...?"],
+                snippet: "The ::tcl::mathop::!= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::!= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::%",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "modulo",
+                synopsis: &["::tcl::mathop::% ?arg ...?"],
+                snippet: "The ::tcl::mathop::% operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::% ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::&",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise AND",
+                synopsis: &["::tcl::mathop::& ?arg ...?"],
+                snippet: "The ::tcl::mathop::& operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::& ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::&&",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "logical AND",
+                synopsis: &["::tcl::mathop::&& ?arg ...?"],
+                snippet: "The ::tcl::mathop::&& operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::&& ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::*",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "multiplication",
+                synopsis: &["::tcl::mathop::* ?arg ...?"],
+                snippet: "The ::tcl::mathop::* operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::* ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::**",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "exponentiation",
+                synopsis: &["::tcl::mathop::** ?arg ...?"],
+                snippet: "The ::tcl::mathop::** operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::** ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::+",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "addition",
+                synopsis: &["::tcl::mathop::+ ?arg ...?"],
+                snippet: "The ::tcl::mathop::+ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::+ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::-",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "subtraction or negation",
+                synopsis: &["::tcl::mathop::- ?arg ...?"],
+                snippet: "The ::tcl::mathop::- operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::- ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::/",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "division",
+                synopsis: &["::tcl::mathop::/ ?arg ...?"],
+                snippet: "The ::tcl::mathop::/ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::/ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::<",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric less-than",
+                synopsis: &["::tcl::mathop::< ?arg ...?"],
+                snippet: "The ::tcl::mathop::< operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::< ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::<<",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "left shift",
+                synopsis: &["::tcl::mathop::<< ?arg ...?"],
+                snippet: "The ::tcl::mathop::<< operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::<< ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::<=",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric less-or-equal",
+                synopsis: &["::tcl::mathop::<= ?arg ...?"],
+                snippet: "The ::tcl::mathop::<= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::<= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::==",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric equality",
+                synopsis: &["::tcl::mathop::== ?arg ...?"],
+                snippet: "The ::tcl::mathop::== operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::== ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::>",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric greater-than",
+                synopsis: &["::tcl::mathop::> ?arg ...?"],
+                snippet: "The ::tcl::mathop::> operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::> ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::>=",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric greater-or-equal",
+                synopsis: &["::tcl::mathop::>= ?arg ...?"],
+                snippet: "The ::tcl::mathop::>= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::>= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::>>",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "right shift",
+                synopsis: &["::tcl::mathop::>> ?arg ...?"],
+                snippet: "The ::tcl::mathop::>> operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::>> ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::@",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list index operator",
+                synopsis: &["::tcl::mathop::@ ?arg ...?"],
+                snippet: "The ::tcl::mathop::@ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::@ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::^",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise XOR",
+                synopsis: &["::tcl::mathop::^ ?arg ...?"],
+                snippet: "The ::tcl::mathop::^ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::^ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::eq",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "string equality",
+                synopsis: &["::tcl::mathop::eq ?arg ...?"],
+                snippet: "The ::tcl::mathop::eq operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::eq ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::in",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list membership",
+                synopsis: &["::tcl::mathop::in ?arg ...?"],
+                snippet: "The ::tcl::mathop::in operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::in ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::max",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "maximum of arguments",
+                synopsis: &["::tcl::mathop::max ?arg ...?"],
+                snippet: "The ::tcl::mathop::max operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::max ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::min",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "minimum of arguments",
+                synopsis: &["::tcl::mathop::min ?arg ...?"],
+                snippet: "The ::tcl::mathop::min operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::min ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::ne",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "string inequality",
+                synopsis: &["::tcl::mathop::ne ?arg ...?"],
+                snippet: "The ::tcl::mathop::ne operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::ne ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::ni",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list non-membership",
+                synopsis: &["::tcl::mathop::ni ?arg ...?"],
+                snippet: "The ::tcl::mathop::ni operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::ni ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::|",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise OR",
+                synopsis: &["::tcl::mathop::| ?arg ...?"],
+                snippet: "The ::tcl::mathop::| operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::| ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::||",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "logical OR",
+                synopsis: &["::tcl::mathop::|| ?arg ...?"],
+                snippet: "The ::tcl::mathop::|| operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::|| ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "::tcl::mathop::~",
+            arity: Arity::exact(1),
+            hover: Some(HoverSnippet {
+                summary: "bitwise NOT (unary)",
+                synopsis: &["::tcl::mathop::~ ?arg ...?"],
+                snippet: "The ::tcl::mathop::~ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "::tcl::mathop::~ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "<",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric less-than",
+                synopsis: &["< ?arg ...?"],
+                snippet: "The < operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "< ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "<<",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "left shift",
+                synopsis: &["<< ?arg ...?"],
+                snippet: "The << operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "<< ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "<=",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric less-or-equal",
+                synopsis: &["<= ?arg ...?"],
+                snippet: "The <= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "<= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "==",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric equality",
+                synopsis: &["== ?arg ...?"],
+                snippet: "The == operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "== ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: ">",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric greater-than",
+                synopsis: &["> ?arg ...?"],
+                snippet: "The > operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "> ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: ">=",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric greater-or-equal",
+                synopsis: &[">= ?arg ...?"],
+                snippet: "The >= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: ">= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: ">>",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "right shift",
+                synopsis: &[">> ?arg ...?"],
+                snippet: "The >> operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: ">> ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "@",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list index operator",
+                synopsis: &["@ ?arg ...?"],
+                snippet: "The @ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "@ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "^",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise XOR",
+                synopsis: &["^ ?arg ...?"],
+                snippet: "The ^ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "^ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "eq",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "string equality",
+                synopsis: &["eq ?arg ...?"],
+                snippet: "The eq operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "eq ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "in",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list membership",
+                synopsis: &["in ?arg ...?"],
+                snippet: "The in operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "in ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "max",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "maximum of arguments",
+                synopsis: &["max ?arg ...?"],
+                snippet: "The max operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "max ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "min",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "minimum of arguments",
+                synopsis: &["min ?arg ...?"],
+                snippet: "The min operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "min ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "ne",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "string inequality",
+                synopsis: &["ne ?arg ...?"],
+                snippet: "The ne operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "ne ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "ni",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list non-membership",
+                synopsis: &["ni ?arg ...?"],
+                snippet: "The ni operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "ni ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::!",
+            arity: Arity::exact(1),
+            hover: Some(HoverSnippet {
+                summary: "logical NOT (unary)",
+                synopsis: &["tcl::mathop::! ?arg ...?"],
+                snippet: "The tcl::mathop::! operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::! ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::!=",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "numeric inequality",
+                synopsis: &["tcl::mathop::!= ?arg ...?"],
+                snippet: "The tcl::mathop::!= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::!= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::%",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "modulo",
+                synopsis: &["tcl::mathop::% ?arg ...?"],
+                snippet: "The tcl::mathop::% operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::% ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::&",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise AND",
+                synopsis: &["tcl::mathop::& ?arg ...?"],
+                snippet: "The tcl::mathop::& operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::& ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::&&",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "logical AND",
+                synopsis: &["tcl::mathop::&& ?arg ...?"],
+                snippet: "The tcl::mathop::&& operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::&& ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::*",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "multiplication",
+                synopsis: &["tcl::mathop::* ?arg ...?"],
+                snippet: "The tcl::mathop::* operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::* ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::**",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "exponentiation",
+                synopsis: &["tcl::mathop::** ?arg ...?"],
+                snippet: "The tcl::mathop::** operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::** ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::+",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "addition",
+                synopsis: &["tcl::mathop::+ ?arg ...?"],
+                snippet: "The tcl::mathop::+ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::+ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::-",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "subtraction or negation",
+                synopsis: &["tcl::mathop::- ?arg ...?"],
+                snippet: "The tcl::mathop::- operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::- ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::/",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "division",
+                synopsis: &["tcl::mathop::/ ?arg ...?"],
+                snippet: "The tcl::mathop::/ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::/ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::<",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric less-than",
+                synopsis: &["tcl::mathop::< ?arg ...?"],
+                snippet: "The tcl::mathop::< operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::< ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::<<",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "left shift",
+                synopsis: &["tcl::mathop::<< ?arg ...?"],
+                snippet: "The tcl::mathop::<< operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::<< ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::<=",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric less-or-equal",
+                synopsis: &["tcl::mathop::<= ?arg ...?"],
+                snippet: "The tcl::mathop::<= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::<= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::==",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric equality",
+                synopsis: &["tcl::mathop::== ?arg ...?"],
+                snippet: "The tcl::mathop::== operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::== ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::>",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric greater-than",
+                synopsis: &["tcl::mathop::> ?arg ...?"],
+                snippet: "The tcl::mathop::> operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::> ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::>=",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "numeric greater-or-equal",
+                synopsis: &["tcl::mathop::>= ?arg ...?"],
+                snippet: "The tcl::mathop::>= operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::>= ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::>>",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "right shift",
+                synopsis: &["tcl::mathop::>> ?arg ...?"],
+                snippet: "The tcl::mathop::>> operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::>> ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::@",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list index operator",
+                synopsis: &["tcl::mathop::@ ?arg ...?"],
+                snippet: "The tcl::mathop::@ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::@ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::^",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise XOR",
+                synopsis: &["tcl::mathop::^ ?arg ...?"],
+                snippet: "The tcl::mathop::^ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::^ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::eq",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "string equality",
+                synopsis: &["tcl::mathop::eq ?arg ...?"],
+                snippet: "The tcl::mathop::eq operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::eq ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::in",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list membership",
+                synopsis: &["tcl::mathop::in ?arg ...?"],
+                snippet: "The tcl::mathop::in operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::in ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::max",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "maximum of arguments",
+                synopsis: &["tcl::mathop::max ?arg ...?"],
+                snippet: "The tcl::mathop::max operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::max ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::min",
+            arity: Arity::at_least(1),
+            hover: Some(HoverSnippet {
+                summary: "minimum of arguments",
+                synopsis: &["tcl::mathop::min ?arg ...?"],
+                snippet: "The tcl::mathop::min operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::min ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::ne",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "string inequality",
+                synopsis: &["tcl::mathop::ne ?arg ...?"],
+                snippet: "The tcl::mathop::ne operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::ne ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::ni",
+            arity: Arity::exact(2),
+            hover: Some(HoverSnippet {
+                summary: "list non-membership",
+                synopsis: &["tcl::mathop::ni ?arg ...?"],
+                snippet: "The tcl::mathop::ni operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::ni ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::|",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise OR",
+                synopsis: &["tcl::mathop::| ?arg ...?"],
+                snippet: "The tcl::mathop::| operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::| ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::||",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "logical OR",
+                synopsis: &["tcl::mathop::|| ?arg ...?"],
+                snippet: "The tcl::mathop::|| operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::|| ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "tcl::mathop::~",
+            arity: Arity::exact(1),
+            hover: Some(HoverSnippet {
+                summary: "bitwise NOT (unary)",
+                synopsis: &["tcl::mathop::~ ?arg ...?"],
+                snippet: "The tcl::mathop::~ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "tcl::mathop::~ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "|",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "bitwise OR",
+                synopsis: &["| ?arg ...?"],
+                snippet: "The | operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "| ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "||",
+            arity: Arity::at_least(0),
+            hover: Some(HoverSnippet {
+                summary: "logical OR",
+                synopsis: &["|| ?arg ...?"],
+                snippet: "The || operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "|| ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
+        CommandSpec {
+            name: "~",
+            arity: Arity::exact(1),
+            hover: Some(HoverSnippet {
+                summary: "bitwise NOT (unary)",
+                synopsis: &["~ ?arg ...?"],
+                snippet: "The ~ operator command. Available via namespace import ::tcl::mathop::*.",
+                source: "Tcl man page mathop.n",
+                examples: "",
+                return_value: "",
+            }),
+            forms: &[FormSpec {
+                kind: FormKind::Default,
+                synopsis: "~ ?arg ...?",
+            }],
+            ..CommandSpec::DEFAULT
+        },
     ]
 }

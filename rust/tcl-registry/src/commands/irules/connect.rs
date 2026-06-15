@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "connect",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Establishes a sideband connection.",
             synopsis: &["connect info (", "connect (("],
             snippet: "This command establishes a sideband connection. It is one of several commands that make up the ability to use sideband connections from iRules.",
@@ -27,26 +27,67 @@ hover: Some(HoverSnippet {
             flow: true,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "connect ?options? destination" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "connect ?options? destination",
+        }],
         options: &[
-            OptionSpec { name: "-protocol", takes_value: true, value_hint: "PROTO", detail: "IP protocol (default TCP).", dialects: None },
-            OptionSpec { name: "-myaddr", takes_value: true, value_hint: "IP_ADDR", detail: "Source address for the connection.", dialects: None },
-            OptionSpec { name: "-myport", takes_value: true, value_hint: "PORT", detail: "Source port for the connection.", dialects: None },
-            OptionSpec { name: "-timeout", takes_value: true, value_hint: "MSEC", detail: "Time in ms to wait for connection.", dialects: None },
-            OptionSpec { name: "-idle", takes_value: true, value_hint: "SEC", detail: "Idle timeout in seconds (default 300).", dialects: None },
-            OptionSpec { name: "-tos", takes_value: true, value_hint: "TOS", detail: "IP TOS value.", dialects: None },
-            OptionSpec { name: "-status", takes_value: true, value_hint: "VARIABLE", detail: "Save connection status into variable.", dialects: None },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
+            OptionSpec {
+                name: "-protocol",
+                takes_value: true,
+                value_hint: "PROTO",
+                detail: "IP protocol (default TCP).",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-myaddr",
+                takes_value: true,
+                value_hint: "IP_ADDR",
+                detail: "Source address for the connection.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-myport",
+                takes_value: true,
+                value_hint: "PORT",
+                detail: "Source port for the connection.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-timeout",
+                takes_value: true,
+                value_hint: "MSEC",
+                detail: "Time in ms to wait for connection.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-idle",
+                takes_value: true,
+                value_hint: "SEC",
+                detail: "Idle timeout in seconds (default 300).",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-tos",
+                takes_value: true,
+                value_hint: "TOS",
+                detail: "IP TOS value.",
+                dialects: None,
+            },
+            OptionSpec {
+                name: "-status",
+                takes_value: true,
+                value_hint: "VARIABLE",
+                detail: "Save connection status into variable.",
+                dialects: None,
             },
         ],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

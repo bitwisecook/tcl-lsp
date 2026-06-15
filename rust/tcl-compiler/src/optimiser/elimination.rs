@@ -28,7 +28,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::def_use::DefKind;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
-use crate::sccp::{cfg_order, SccpResult};
+use crate::sccp::{SccpResult, cfg_order};
 use crate::segmenter::segment_commands;
 use crate::side_effects::classify_side_effects;
 
@@ -733,13 +733,13 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
             while i < bytes.len() && bytes[i] != b'}' {
                 i += 1;
             }
-            if start < i {
-                if let Ok(name) = std::str::from_utf8(&bytes[start..i]) {
-                    // Strip any array index.
-                    let name = name.split('(').next().unwrap_or(name);
-                    if !name.is_empty() {
-                        out.insert(name.to_owned());
-                    }
+            if start < i
+                && let Ok(name) = std::str::from_utf8(&bytes[start..i])
+            {
+                // Strip any array index.
+                let name = name.split('(').next().unwrap_or(name);
+                if !name.is_empty() {
+                    out.insert(name.to_owned());
                 }
             }
             if i < bytes.len() {
@@ -759,10 +759,10 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
                 break;
             }
         }
-        if start < i {
-            if let Ok(name) = std::str::from_utf8(&bytes[start..i]) {
-                out.insert(name.to_owned());
-            }
+        if start < i
+            && let Ok(name) = std::str::from_utf8(&bytes[start..i])
+        {
+            out.insert(name.to_owned());
         }
     }
 }
@@ -818,12 +818,12 @@ fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
         while n < bs.len() && (bs[n] == b' ' || bs[n] == b'\t') {
             n += 1;
         }
-        if n < bs.len() && bs[n] == b']' {
-            if let Ok(name) = std::str::from_utf8(&bs[name_start..m]) {
-                if !name.is_empty() {
-                    out.insert(name.to_owned());
-                }
-            }
+        if n < bs.len()
+            && bs[n] == b']'
+            && let Ok(name) = std::str::from_utf8(&bs[name_start..m])
+            && !name.is_empty()
+        {
+            out.insert(name.to_owned());
         }
         j = m;
     }
@@ -1009,10 +1009,11 @@ pub(crate) fn scan_scope_aliases(cfg: &CfgFunction) -> HashSet<String> {
                         } else {
                             None
                         };
-                        if let Some(t) = target {
-                            if !t.starts_with('$') && !t.contains('[') {
-                                aliases.insert(t.clone());
-                            }
+                        if let Some(t) = target
+                            && !t.starts_with('$')
+                            && !t.contains('[')
+                        {
+                            aliases.insert(t.clone());
                         }
                     }
                     _ => {

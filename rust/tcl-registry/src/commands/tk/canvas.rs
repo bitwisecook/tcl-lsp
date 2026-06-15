@@ -368,7 +368,7 @@ pub fn spec() -> CommandSpec {
         name: "canvas",
         dialects: Some(DialectSet::TK),
         arity: Arity::at_least(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Create and manipulate a canvas widget.",
             synopsis: &["canvas pathName ?option value ...?"],
             snippet: "Displays a rectangular area for drawing graphics, positioning widgets, and handling events on items.",

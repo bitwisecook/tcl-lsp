@@ -8,8 +8,7 @@ pub const fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Discards the current SIP message.",
             synopsis: &["SIP::discard"],
-            snippet:
-                "Discards a SIP message\n\nSIP::discard\n\n     * Discards the current SIP message",
+            snippet: "Discards a SIP message\n\nSIP::discard\n\n     * Discards the current SIP message",
             source: "https://clouddocs.f5.com/api/irules/SIP__discard.html",
             examples: "when SIP_RESPONSE {\n  SIP::discard\n}",
             return_value: "",

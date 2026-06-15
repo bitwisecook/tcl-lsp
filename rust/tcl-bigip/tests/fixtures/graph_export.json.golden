@@ -1,0 +1,94 @@
+{
+  "nodes": [
+    {
+      "id": "test://config:0:22:ltm:node:/Common/web1",
+      "module": "ltm",
+      "objectType": "node",
+      "identifier": "/Common/web1",
+      "kind": "ltm_node",
+      "uri": "test://config"
+    },
+    {
+      "id": "test://config:3:22:ltm:node:/Common/web2",
+      "module": "ltm",
+      "objectType": "node",
+      "identifier": "/Common/web2",
+      "kind": "ltm_node",
+      "uri": "test://config"
+    },
+    {
+      "id": "test://config:6:34:ltm:monitor http:/Common/http_mon",
+      "module": "ltm",
+      "objectType": "monitor http",
+      "identifier": "/Common/http_mon",
+      "kind": "ltm_monitor_http",
+      "uri": "test://config"
+    },
+    {
+      "id": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "module": "ltm",
+      "objectType": "pool",
+      "identifier": "/Common/web_pool",
+      "kind": "ltm_pool",
+      "uri": "test://config"
+    },
+    {
+      "id": "test://config:16:27:ltm:virtual:/Common/web_vs",
+      "module": "ltm",
+      "objectType": "virtual",
+      "identifier": "/Common/web_vs",
+      "kind": "ltm_virtual",
+      "uri": "test://config"
+    }
+  ],
+  "edges": [
+    {
+      "source": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "target": "test://config:6:34:ltm:monitor http:/Common/http_mon",
+      "viaProperty": "monitor",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "target": "test://config:6:34:ltm:monitor http:/Common/http_mon",
+      "viaProperty": "monitor[]",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "target": "test://config:0:22:ltm:node:/Common/web1",
+      "viaProperty": "members",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "target": "test://config:3:22:ltm:node:/Common/web2",
+      "viaProperty": "members",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "target": "test://config:0:22:ltm:node:/Common/web1",
+      "viaProperty": "members[]",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "target": "test://config:3:22:ltm:node:/Common/web2",
+      "viaProperty": "members[]",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "test://config:16:27:ltm:virtual:/Common/web_vs",
+      "target": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "test://config:16:27:ltm:virtual:/Common/web_vs",
+      "target": "test://config:9:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool[]",
+      "viaKind": "ltm_pool"
+    }
+  ]
+}

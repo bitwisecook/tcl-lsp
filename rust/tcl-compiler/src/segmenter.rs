@@ -572,13 +572,12 @@ pub fn segment_with_recovery(
                 // A heuristic case carries a `]`-insertion fix whose offset
                 // is the ghost offset; a bare fallback has no fix and stays
                 // unterminated after the re-lex.
-                if let Some(fix) = diag.fixes.first() {
-                    if let std::collections::btree_map::Entry::Vacant(e) =
+                if let Some(fix) = diag.fixes.first()
+                    && let std::collections::btree_map::Entry::Vacant(e) =
                         ghosts.entry(fix.span.start())
-                    {
-                        e.insert(b']');
-                        new_ghost = true;
-                    }
+                {
+                    e.insert(b']');
+                    new_ghost = true;
                 }
                 // Keep a fix-bearing diagnostic once recorded; otherwise take
                 // whatever (fix-bearing or fallback) we see first.

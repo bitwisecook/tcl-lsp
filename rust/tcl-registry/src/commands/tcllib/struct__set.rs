@@ -84,8 +84,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "intersect3",
         arity: Arity::exact(2),
-        detail:
-            "Return a three-element list: elements only in A, elements in both, elements only in B.",
+        detail: "Return a three-element list: elements only in A, elements in both, elements only in B.",
         synopsis: "struct::set intersect3 setA setB",
         pure: true,
         ..SubCommand::DEFAULT

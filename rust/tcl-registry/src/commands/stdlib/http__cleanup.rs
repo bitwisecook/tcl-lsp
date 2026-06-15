@@ -5,7 +5,7 @@ pub fn spec() -> CommandSpec {
         name: "http::cleanup",
         dialects: Some(DialectSet::ALL_TCL),
         arity: Arity::exact(1),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Clean up the state associated with an HTTP connection.",
             synopsis: &["http::cleanup token"],
             snippet: "Releases all resources associated with *token*.  The token must not be used after this call.",

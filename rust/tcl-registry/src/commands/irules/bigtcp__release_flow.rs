@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "BIGTCP::release_flow",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Releases a flow from BIGTCP's control.",
             synopsis: &["BIGTCP::release_flow"],
             snippet: "This command releases a flow from BIGTCP's control. After calling this method, the flow will be in passthrough mode.  In this mode, no more data will be processed by any filters or iRules.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "when CLIENT_ACCEPTED {\n    BIGTCP::release_flow;\n}",
             return_value: "",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "BIGTCP::release_flow" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::TcpState,
-                reads: false,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "BIGTCP::release_flow",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

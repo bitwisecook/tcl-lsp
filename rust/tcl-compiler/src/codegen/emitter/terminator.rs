@@ -244,7 +244,7 @@ impl CodegenCtx<'_> {
         next_block: Option<&str>,
         skip_blocks: &mut std::collections::HashSet<String>,
     ) -> bool {
-        use crate::expr_ast::{render_expr, BinOp, ExprNode};
+        use crate::expr_ast::{BinOp, ExprNode, render_expr};
 
         let Some(Terminator::Branch { .. }) = &blk.terminator else {
             return false;

@@ -7,9 +7,9 @@
 
 #![allow(clippy::if_not_else, clippy::similar_names, clippy::doc_markdown)]
 
-use super::helpers::{parse_subst_template, regexp_to_glob, SubstPart};
+use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
 use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
-use super::{bytecode_imm, parse_tcl_index, str_class_id, CodegenCtx, Op, Operand, INDEX_END};
+use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
 
 // ---------------------------------------------------------------------------
 // Free functions — pure parsing, no emission state needed
@@ -522,31 +522,31 @@ impl CodegenCtx<'_> {
             return;
         }
         // Interpolated string: decompose $var and [cmd] parts
-        if interpolate && (value.contains('$') || value.contains('[')) {
-            if let Some(parts) = parse_subst_template(value) {
-                if parts.len() > 1 {
-                    for part in &parts {
-                        match part {
-                            SubstPart::Lit(text) => self.push_lit(text),
-                            SubstPart::Cmd(cmd_text) => {
-                                self.emit_inline_cmd_subst(cmd_text);
-                            }
-                            SubstPart::Scalar(name) => {
-                                self.push_lit(name);
-                                self.emit(Op::LOAD_STK, vec![]);
-                            }
-                            SubstPart::Var(name) => {
-                                self.load_var(name);
-                            }
-                        }
+        if interpolate
+            && (value.contains('$') || value.contains('['))
+            && let Some(parts) = parse_subst_template(value)
+            && parts.len() > 1
+        {
+            for part in &parts {
+                match part {
+                    SubstPart::Lit(text) => self.push_lit(text),
+                    SubstPart::Cmd(cmd_text) => {
+                        self.emit_inline_cmd_subst(cmd_text);
                     }
-                    self.emit(
-                        Op::STR_CONCAT1,
-                        vec![Operand::Imm(bytecode_imm(parts.len()))],
-                    );
-                    return;
+                    SubstPart::Scalar(name) => {
+                        self.push_lit(name);
+                        self.emit(Op::LOAD_STK, vec![]);
+                    }
+                    SubstPart::Var(name) => {
+                        self.load_var(name);
+                    }
                 }
             }
+            self.emit(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(bytecode_imm(parts.len()))],
+            );
+            return;
         }
         // Default: push as literal
         self.push_lit(value);
@@ -903,20 +903,19 @@ impl CodegenCtx<'_> {
     fn emit_inline_string_replace(&mut self, sargs: &[(String, bool)]) {
         let first_lit = &sargs[1].0;
         let last_lit = &sargs[2].0;
-        if first_lit == "0" {
-            if let Ok(last_int) = last_lit.parse::<i32>() {
-                if last_int >= 0 {
-                    self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                    self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
-                    self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
-                    self.emit(
-                        Op::STR_RANGE_IMM,
-                        vec![Operand::Imm(last_int + 1), Operand::Imm(INDEX_END)],
-                    );
-                    self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
-                    return;
-                }
-            }
+        if first_lit == "0"
+            && let Ok(last_int) = last_lit.parse::<i32>()
+            && last_int >= 0
+        {
+            self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+            self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
+            self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+            self.emit(
+                Op::STR_RANGE_IMM,
+                vec![Operand::Imm(last_int + 1), Operand::Imm(INDEX_END)],
+            );
+            self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
+            return;
         }
         // Fallback: strreplace
         self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);

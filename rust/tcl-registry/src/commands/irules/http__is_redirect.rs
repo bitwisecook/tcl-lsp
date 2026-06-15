@@ -6,7 +6,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE,
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns a true value if the response is a redirect.",
             synopsis: &["HTTP::is_redirect"],
             snippet: "Returns a true value if the response is a redirect. Since only\nresponses can be redirects, it does not make sense to use this command\nin a clientside event.",
@@ -24,17 +24,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Getter, synopsis: "HTTP::is_redirect" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::HttpStatus,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Getter,
+            synopsis: "HTTP::is_redirect",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::HttpStatus,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

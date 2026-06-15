@@ -57,7 +57,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Append to a value in a dictionary.",
         synopsis: "dict append dictionaryVariable key ?string ...?",
         arg_roles: &[(0, ArgRole::VarWrite)],
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),
         ..SubCommand::DEFAULT
@@ -80,8 +86,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict exists dictionaryValue key ?key ...?",
         pure: true,
         return_type: Some(TclType::Boolean),
-                arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
-..SubCommand::DEFAULT
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "filter",
@@ -90,8 +102,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict filter dictionaryValue filterType ...",
         arg_role_resolver: Some(dict_filter_arg_roles),
         return_type: Some(TclType::Dict),
-                arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
-..SubCommand::DEFAULT
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "for",
@@ -99,10 +117,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Iterate over dictionary key/value pairs.",
         synopsis: "dict for {keyVar valueVar} dictionaryValue body",
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
-        arg_types: &[(1, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            1,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         loop_list_header: true,
-                cfg_rewrite_name: Some("::tcl::dict::for"),
-..SubCommand::DEFAULT
+        cfg_rewrite_name: Some("::tcl::dict::for"),
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "get",
@@ -112,7 +136,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict get dictionaryValue ?key ...?",
         pure: true,
         return_type: Some(TclType::String),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -121,11 +151,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Increment a value in a dictionary.",
         synopsis: "dict incr dictionaryVariable key ?increment?",
         arg_roles: &[(0, ArgRole::VarWrite)],
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),
-                return_type: Some(TclType::Dict),
-..SubCommand::DEFAULT
+        return_type: Some(TclType::Dict),
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "keys",
@@ -135,7 +171,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict keys dictionaryValue ?globPattern?",
         pure: true,
         return_type: Some(TclType::List),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -146,8 +188,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),
-                arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
-..SubCommand::DEFAULT
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "map",
@@ -155,12 +203,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Apply a transformation to each dictionary entry.",
         synopsis: "dict map {keyVar valueVar} dictionaryValue body",
         arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
-        arg_types: &[(1, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            1,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         return_type: Some(TclType::Dict),
         loop_list_header: true,
         dialects: Some(DialectSet::TCL86_PLUS),
-                cfg_rewrite_name: Some("::tcl::dict::map"),
-..SubCommand::DEFAULT
+        cfg_rewrite_name: Some("::tcl::dict::map"),
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "merge",
@@ -179,8 +233,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict remove dictionaryValue ?key ...?",
         pure: true,
         return_type: Some(TclType::Dict),
-                arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
-..SubCommand::DEFAULT
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "replace",
@@ -189,8 +249,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict replace dictionaryValue ?key value ...?",
         pure: true,
         return_type: Some(TclType::Dict),
-                arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
-..SubCommand::DEFAULT
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "set",
@@ -198,11 +264,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Set a value in a dictionary.",
         synopsis: "dict set dictionaryVariable key ?key ...? value",
         arg_roles: &[(0, ArgRole::VarWrite)],
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         mutator: true,
         safe_on_uninit: Some(DialectSet::ALL_TCL),
-                return_type: Some(TclType::Dict),
-..SubCommand::DEFAULT
+        return_type: Some(TclType::Dict),
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "size",
@@ -212,7 +284,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict size dictionaryValue",
         pure: true,
         return_type: Some(TclType::Int),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -221,9 +299,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Remove keys from a dictionary variable.",
         synopsis: "dict unset dictionaryVariable key ?key ...?",
         arg_roles: &[(0, ArgRole::VarWrite)],
-                arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         mutator: true,
-..SubCommand::DEFAULT
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "update",
@@ -231,7 +315,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",
         arg_role_resolver: Some(dict_last_arg_body),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         mutator: true,
         ..SubCommand::DEFAULT
     },
@@ -243,7 +333,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "dict values dictionaryValue ?globPattern?",
         pure: true,
         return_type: Some(TclType::List),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -252,7 +348,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Map all dictionary keys to variables, execute body, write back.",
         synopsis: "dict with dictionaryVariable ?key ...? body",
         arg_role_resolver: Some(dict_last_arg_body),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
         mutator: true,
         ..SubCommand::DEFAULT
     },
@@ -262,9 +364,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "This returns information (intended for display to people) about the given dictionary though the format of this data is dependent on the implementation of the dictionary.",
         synopsis: "dict info dictionaryValue",
         pure: true,
-                return_type: Some(TclType::String),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: true })],
-..SubCommand::DEFAULT
+        return_type: Some(TclType::String),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: true,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "getd",
@@ -272,9 +380,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Synonym for ``dict getdef`` — returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getd dictionaryValue ?key ...? key default",
         pure: true,
-                return_type: Some(TclType::String),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: false })],
-..SubCommand::DEFAULT
+        return_type: Some(TclType::String),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: false,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "getdef",
@@ -282,9 +396,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
         pure: true,
-                return_type: Some(TclType::String),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: false })],
-..SubCommand::DEFAULT
+        return_type: Some(TclType::String),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: false,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "getwithdefault",
@@ -292,9 +412,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent. Alias for dict getdef.",
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
         pure: true,
-                return_type: Some(TclType::String),
-        arg_types: &[(0, ArgTypeHint { expected: Some(TclType::Dict), shimmers: false })],
-..SubCommand::DEFAULT
+        return_type: Some(TclType::String),
+        arg_types: &[(
+            0,
+            ArgTypeHint {
+                expected: Some(TclType::Dict),
+                shimmers: false,
+            },
+        )],
+        ..SubCommand::DEFAULT
     },
 ];
 
@@ -310,14 +436,14 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         inferred_storage_type: Some(StorageType::Dict),
-hover: Some(HoverSnippet {
-    summary: "Manipulate dictionaries",
-    synopsis: &["dict option arg ?arg ...?", "dict subcommand ?arg ...?"],
-    snippet: "Performs one of several operations on dictionary values or variables containing dictionary values (see the DICTIONARY VALUES section below for a description), depending on option.",
-    source: "Tcl man page dict.n",
-    examples: "",
-    return_value: "",
-}),
+        hover: Some(HoverSnippet {
+            summary: "Manipulate dictionaries",
+            synopsis: &["dict option arg ?arg ...?", "dict subcommand ?arg ...?"],
+            snippet: "Performs one of several operations on dictionary values or variables containing dictionary values (see the DICTIONARY VALUES section below for a description), depending on option.",
+            source: "Tcl man page dict.n",
+            examples: "",
+            return_value: "",
+        }),
         codegen_hook: Some(CodegenHookId::Dict),
         lowering_hook: Some(crate::hooks::LoweringHookId::Dict),
         forms: FORMS,

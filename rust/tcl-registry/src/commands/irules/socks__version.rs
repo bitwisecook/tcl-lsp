@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "SOCKS::version",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "This command gets the version of the SOCKS protocol.",
             synopsis: &["SOCKS::version"],
             snippet: "This command gets the version of the SOCKS protocol, returning one of \"4\", \"4A\" or \"5\".\n\nDetails (Syntax):\nSOCKS::version\n    Gets the version of the protocol.",
@@ -23,17 +23,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "SOCKS::version" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::NetworkIo,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "SOCKS::version",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::NetworkIo,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

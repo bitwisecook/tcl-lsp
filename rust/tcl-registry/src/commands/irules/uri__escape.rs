@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "URI::escape",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Percent-encodes a URI string (alias for URI::encode).",
             synopsis: &["URI::escape URI_STRING"],
             snippet: "Percent-encodes *URI_STRING* according to RFC 3986.\nThis is an alias for ``URI::encode``.",
@@ -18,9 +18,10 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/uri__escape.py`.
         taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "URI::escape URI_STRING" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "URI::escape URI_STRING",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

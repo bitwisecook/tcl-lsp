@@ -334,27 +334,25 @@ fn guard_constraint(cond: &ExprNode, name: &str, negate: bool) -> Option<Interva
         return None;
     };
     // $name <op> K
-    if let ExprNode::Var { name: vn, .. } = left.as_ref() {
-        if vn == name {
-            if let Some(k) = literal_int(right) {
-                return guard_interval(*op, k, negate);
-            }
-        }
+    if let ExprNode::Var { name: vn, .. } = left.as_ref()
+        && vn == name
+        && let Some(k) = literal_int(right)
+    {
+        return guard_interval(*op, k, negate);
     }
     // K <op> $name  → rewrite as $name <flipped-op> K
-    if let ExprNode::Var { name: vn, .. } = right.as_ref() {
-        if vn == name {
-            if let Some(k) = literal_int(left) {
-                let mirror = match op {
-                    BinOp::Lt => BinOp::Gt,
-                    BinOp::Le => BinOp::Ge,
-                    BinOp::Gt => BinOp::Lt,
-                    BinOp::Ge => BinOp::Le,
-                    other => *other,
-                };
-                return guard_interval(mirror, k, negate);
-            }
-        }
+    if let ExprNode::Var { name: vn, .. } = right.as_ref()
+        && vn == name
+        && let Some(k) = literal_int(left)
+    {
+        let mirror = match op {
+            BinOp::Lt => BinOp::Gt,
+            BinOp::Le => BinOp::Ge,
+            BinOp::Gt => BinOp::Lt,
+            BinOp::Ge => BinOp::Le,
+            other => *other,
+        };
+        return guard_interval(mirror, k, negate);
     }
     None
 }

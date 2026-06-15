@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "URI::encode_component",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Percent-encodes a single URI component.",
             synopsis: &["URI::encode_component STRING"],
             snippet: "Percent-encodes a single URI component (path segment, query\nparameter name or value, fragment, etc.) according to RFC 3986\nsection 2.1.  Unlike ``URI::encode`` this encodes every\nreserved delimiter (``/``, ``?``, ``&``, ``=``, …) so the\nresult is safe to embed inside a larger URI without altering\nits structure.",
@@ -18,9 +18,10 @@ hover: Some(HoverSnippet {
         // Mirrors `irules/uri__encode_component.py`.
         taint_transform: Some(TaintColour::URL_ENCODED.union(TaintColour::CRLF_FREE)),
         taint_double_encode_colour: Some(TaintColour::URL_ENCODED),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "URI::encode_component STRING" },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "URI::encode_component STRING",
+        }],
         ..CommandSpec::DEFAULT
     }
 }

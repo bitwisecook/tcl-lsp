@@ -63,6 +63,58 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             format,
             output,
         } => commands::merge::run_merge(paths, format, output.as_deref()),
+        Command::Extract {
+            ucs,
+            include_extras,
+            format,
+            passphrase,
+            output,
+        } => commands::extract::run_extract(
+            ucs,
+            *include_extras,
+            format,
+            passphrase,
+            output.as_deref(),
+        ),
+        Command::Stats {
+            inputs,
+            top,
+            json,
+            output,
+            passphrase,
+        } => commands::stats::run_stats(inputs, *top, *json, output.as_deref(), passphrase),
+        Command::Cleanup {
+            inputs,
+            keep,
+            no_keep_common,
+            json,
+            output,
+            passphrase,
+        } => commands::cleanup::run_cleanup(
+            inputs,
+            keep,
+            *no_keep_common,
+            *json,
+            output.as_deref(),
+            passphrase,
+        ),
+        Command::Graph {
+            inputs,
+            format,
+            seed,
+            reverse,
+            max_depth,
+            output,
+            passphrase,
+        } => commands::graph::run_graph(
+            inputs,
+            format,
+            seed,
+            *reverse,
+            *max_depth,
+            output.as_deref(),
+            passphrase,
+        ),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();

@@ -37,7 +37,7 @@
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Span};
 
-use crate::definition::{byte_offset_at, utf16_col_to_char_col, utf16_len, LspRange};
+use crate::definition::{LspRange, byte_offset_at, utf16_col_to_char_col, utf16_len};
 use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
@@ -107,21 +107,21 @@ pub fn selection_range(
     // line range (otherwise the chain would have two
     // identical-shape links, which the LSP client treats as
     // a no-op grow).
-    if let Some(line_text) = source.split('\n').nth(line as usize) {
-        if let Some((seg_start, seg_end)) = command_segment_on_line(line_text, character) {
-            let seg_range = LspRange {
-                start_line: line,
-                start_character: seg_start,
-                end_line: line,
-                end_character: seg_end,
-            };
-            let coincident_with_line = line_range.as_ref().is_some_and(|lr| {
-                lr.start_character == seg_range.start_character
-                    && lr.end_character == seg_range.end_character
-            });
-            if !coincident_with_line {
-                ranges.push(seg_range);
-            }
+    if let Some(line_text) = source.split('\n').nth(line as usize)
+        && let Some((seg_start, seg_end)) = command_segment_on_line(line_text, character)
+    {
+        let seg_range = LspRange {
+            start_line: line,
+            start_character: seg_start,
+            end_line: line,
+            end_character: seg_end,
+        };
+        let coincident_with_line = line_range.as_ref().is_some_and(|lr| {
+            lr.start_character == seg_range.start_character
+                && lr.end_character == seg_range.end_character
+        });
+        if !coincident_with_line {
+            ranges.push(seg_range);
         }
     }
 
@@ -201,10 +201,10 @@ fn enclosing_body_spans(analysis: &AnalysisResult, cursor_offset: u32) -> Vec<Sp
                 spans.push(ctor.body_span);
             }
         }
-        if let Some(dtor) = &class_def.destructor {
-            if contains(dtor.body_span) {
-                spans.push(dtor.body_span);
-            }
+        if let Some(dtor) = &class_def.destructor
+            && contains(dtor.body_span)
+        {
+            spans.push(dtor.body_span);
         }
     }
     // Innermost first — sort by span width ascending.

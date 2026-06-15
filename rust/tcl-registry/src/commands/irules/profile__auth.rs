@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "PROFILE::auth",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Returns the value of an authentication profile setting.",
             synopsis: &["PROFILE::auth PROFILE_AUTH ATTR"],
             snippet: "Returns the current value of the specified setting in the assigned authentication profile.",
@@ -13,17 +13,16 @@ hover: Some(HoverSnippet {
             examples: "",
             return_value: "Returns the current value of the specified setting in the assigned authentication profile.",
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "PROFILE::auth PROFILE_AUTH ATTR" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::BigipConfig,
-                reads: true,
-                writes: false,
-                connection_side: ConnectionSide::Global,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "PROFILE::auth PROFILE_AUTH ATTR",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::BigipConfig,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Global,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

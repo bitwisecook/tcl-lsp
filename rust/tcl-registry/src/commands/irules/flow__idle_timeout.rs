@@ -5,7 +5,7 @@ pub const fn spec() -> CommandSpec {
         name: "FLOW::idle_timeout",
         dialects: Some(DialectSet::IRULES),
         arity: Arity::at_least(0),
-hover: Some(HoverSnippet {
+        hover: Some(HoverSnippet {
             summary: "Sets/Gets the idle timeout on the flow",
             synopsis: &["FLOW::idle_timeout (ANY_CHARS) (NONNEGATIVE_INTEGER)?"],
             snippet: "Sets/Gets the idle timeout on the flow.",
@@ -30,17 +30,16 @@ hover: Some(HoverSnippet {
             flow: false,
             capability: None,
         }),
-        forms: &[
-            FormSpec { kind: FormKind::Default, synopsis: "FLOW::idle_timeout (ANY_CHARS) (NONNEGATIVE_INTEGER)?" },
-        ],
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::FlowState,
-                reads: true,
-                writes: true,
-                connection_side: ConnectionSide::Both,
-            },
-        ],
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "FLOW::idle_timeout (ANY_CHARS) (NONNEGATIVE_INTEGER)?",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::FlowState,
+            reads: true,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
         ..CommandSpec::DEFAULT
     }
 }

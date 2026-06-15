@@ -46,7 +46,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use crate::definition::{utf16_len, LspRange};
+use crate::definition::{LspRange, utf16_len};
 
 /// Severity of a source-style diagnostic.  W111 / W115 are
 /// warnings; W112 / W118 are hints (matching Python's
@@ -109,10 +109,10 @@ fn is_suppressed<H: BuildHasher, I: BuildHasher>(
     line: i32,
     suppressed: &HashMap<i32, HashSet<String, I>, H>,
 ) -> bool {
-    if let Some(file_codes) = suppressed.get(&FILE_SUPPRESS_KEY) {
-        if file_codes.contains("*") || file_codes.contains(code) {
-            return true;
-        }
+    if let Some(file_codes) = suppressed.get(&FILE_SUPPRESS_KEY)
+        && (file_codes.contains("*") || file_codes.contains(code))
+    {
+        return true;
     }
     match suppressed.get(&line) {
         Some(codes) => codes.contains("*") || codes.contains(code),
