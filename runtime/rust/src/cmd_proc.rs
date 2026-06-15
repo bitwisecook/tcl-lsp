@@ -49,8 +49,7 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return interp.set_error(&e),
     };
-    let body = obj_bytes(argv[3]);
-    interp.define_proc(&name, params, body);
+    interp.define_proc(&name, params, argv[3]);
     interp.set_result_bytes(b"");
     Code::Ok
 }

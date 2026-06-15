@@ -2932,6 +2932,32 @@ report file-absolute lines. A multi-arg (concatenated, dynamic) body stays
 `type eval`. Remaining `info-30`/`info-33` failures are now the `switch`-body
 and `[subst]` line-tracking clusters and `{*}` literal-expansion locations.
 
+### SYNC inbound — 2026-06-15 (`switch` body lines + proc body location via LABC)
+
+`info.test` 161 → 172 (zero regressions; trace 199, oo 357, ooProp 55/55,
+namespace 238, switch 54, proc/apply/eval/if/while/for/foreach/error all held).
+Two linked fixes:
+
+- **`switch` branch bodies are TIP 280 located.** The inline form (`switch s pat
+  body …`) keeps each body's `Tcl_Obj` and runs it through `eval_control_body`
+  (the `if`/`while` path), so a located literal is `type source` at its line. The
+  single-list form (`switch s {pat body …}`) re-splits the literal and derives
+  each body's line from its byte offset within the list word (C's `TclListLines`):
+  `scan_elements` walks `tcl_syntax`'s element scanner for offsets + the `literal`
+  flag, and a matched literal body evaluates via `eval_located_body` at `list
+  word line + newlines-before-element`. A dynamically built list body (no word
+  location) reverts to `eval_unlocated_body` — `type eval`, no file — so a `proc`
+  defined inside is body-relative (C's `line = -1`).
+
+- **A `proc`'s body location now comes from the body word's LABC entry**, not a
+  whole-file "am I sourcing" flag. `define_proc` takes the body `Tcl_Obj` and
+  reads `arg_loc(body)`: a located literal → `type source` at the body word's
+  file+line (correct even when the body opens on a later line than the `proc`
+  command, and when `proc` runs inside a located `switch`/`eval` body); a dynamic
+  body → body-relative `type proc`. This is the same obj-identity location
+  mechanism as command-subst/`eval`/`namespace eval`, replacing the prior
+  `script_stack` + proc-command-line heuristic.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

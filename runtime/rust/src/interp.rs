@@ -759,7 +759,8 @@ impl Interp {
     /// namespace (where its body runs, and where it is bound) is the namespace
     /// `name` lands in — **relative to the current namespace** (so `proc next`
     /// inside `namespace eval counter` binds `::counter::next`, not a global).
-    pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body: Vec<u8>) {
+    pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body_obj: *mut TclObj) {
+        let body = obj_bytes(body_obj);
         let ns = self
             .namespaces
             .borrow_mut()
@@ -777,20 +778,17 @@ impl Interp {
             fqn.extend_from_slice(b"::");
         }
         fqn.extend_from_slice(&tail);
-        // A proc defined while a file is being sourced records that file, so its
-        // body frame reports `type source`. Its body lines are then file-absolute
-        // (C's literal line table): the base is the file line of the `proc`
-        // command minus one (the body opens on that line). Eval-defined procs
-        // keep body-relative lines (base 0).
-        let source = self
-            .script_stack
-            .borrow()
-            .last()
-            .map(|f| Rc::from(f.as_slice()));
-        let body_line_base = if source.is_some() {
-            self.current_cmd_line().saturating_sub(1)
-        } else {
-            0
+        // The proc's body frame reports `type source` with file-absolute lines
+        // when its body argument is a located literal (TIP 280 LABC) — the body
+        // word, not the `proc` command, carries the location, so a `proc` whose
+        // body opens on a later line than the command is still file-accurate, and
+        // a *dynamic* body (`proc p {} $bodyVar`, or a body from a dynamically
+        // built list) has no location and stays body-relative (`type proc`),
+        // matching C's literal line table rather than a whole-file "am I
+        // sourcing" flag.
+        let (source, body_line_base) = match self.arg_loc(body_obj) {
+            Some((file @ Some(_), line)) => (file, line.saturating_sub(1)),
+            _ => (None, 0),
         };
         let def = Rc::new(ProcDef {
             params,
@@ -2712,6 +2710,43 @@ impl Interp {
             return self.eval_framed(&bytes, frame);
         }
         self.eval_str(&obj_bytes(body))
+    }
+
+    /// The TIP 280 source location recorded for `obj` (the literal-argument
+    /// location table), or `None` for a dynamic value. Lets a command that
+    /// re-splits a literal (e.g. `switch`'s single-list-arg form) recover the
+    /// enclosing file + the list word's line, to derive its sub-bodies' lines.
+    pub(crate) fn arg_location(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
+        self.arg_loc(obj)
+    }
+
+    /// Evaluate a body whose file-absolute first `line` and `file` were computed
+    /// by the caller (C's `switch`/list-element TIP 280 path, where the body is a
+    /// sub-element of a list literal, so it has no `Tcl_Obj` of its own to carry
+    /// a location). Runs as a line-advancing `type source` frame.
+    pub(crate) fn eval_located_body(
+        &mut self,
+        file: Option<Rc<[u8]>>,
+        line: u32,
+        body: &[u8],
+    ) -> Code {
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Source;
+        frame.file = file;
+        frame.line_base = line.saturating_sub(1);
+        self.eval_framed(body, frame)
+    }
+
+    /// Evaluate a body whose source location is unknown (C's switch `line = -1`
+    /// case: a dynamically-built list body). It runs as `type eval` with **no
+    /// file**, so a command defined inside (e.g. `proc`) is body-relative
+    /// (`type proc`, line 1) rather than inheriting the enclosing file's lines.
+    pub(crate) fn eval_unlocated_body(&mut self, body: &[u8]) -> Code {
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Eval;
+        frame.file = None;
+        frame.line_base = 0;
+        self.eval_framed(body, frame)
     }
 
     /// Evaluate an `eval`/`uplevel` body as its own `info frame` level (it
