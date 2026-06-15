@@ -4455,7 +4455,7 @@ impl Interp {
                     match &parts[0] {
                         WordPart::Variable(v) => {
                             let index = match &v.index {
-                                Some(p) => Some(self.subst_index(p)?),
+                                Some(p) => Some(self.subst_index_value(p)?),
                                 None => None,
                             };
                             if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
@@ -4498,7 +4498,7 @@ impl Interp {
                         WordPart::Text(b) => buf.extend_from_slice(b),
                         WordPart::Variable(v) => {
                             let index = match &v.index {
-                                Some(parts) => Some(self.subst_index(parts)?),
+                                Some(parts) => Some(self.subst_index_value(parts)?),
                                 None => None,
                             };
                             if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
@@ -4587,16 +4587,32 @@ impl Interp {
             match part {
                 WordPart::Text(b) => out.extend_from_slice(b),
                 WordPart::Variable(v) => {
-                    let index = match &v.index {
-                        Some(p) => Some(self.subst_index(p)?),
-                        None => None,
+                    // A `break`/`continue`/`return` from a `[...]` in the array
+                    // index diverts the whole variable substitution (C's
+                    // `TCL_TOKEN_VARIABLE` arm of `TclSubstTokens`): on `break`
+                    // the subst ends, on `continue` this variable contributes
+                    // nothing, on `return` the result is substituted in place of
+                    // the variable's value (which is not looked up).
+                    let (index, idx_code) = match &v.index {
+                        Some(p) => {
+                            let (val, code) = self.subst_index(p)?;
+                            (Some(val), code)
+                        }
+                        None => (None, Code::Ok),
                     };
-                    if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
-                        return Err(c);
-                    }
-                    match self.read_var(v.name, index.as_deref()) {
-                        Some(bytes) => out.extend_from_slice(&bytes),
-                        None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                    match idx_code {
+                        Code::Ok => {
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
+                            match self.read_var(v.name, index.as_deref()) {
+                                Some(bytes) => out.extend_from_slice(&bytes),
+                                None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                            }
+                        }
+                        Code::Break => break,
+                        Code::Continue => {}
+                        _ => out.extend_from_slice(&self.result_bytes()),
                     }
                 }
                 WordPart::Command(script) => {
@@ -4618,32 +4634,53 @@ impl Interp {
         Ok(out)
     }
 
-    /// Resolve a `$arr(index)` index (itself substituted) to its bytes.
-    fn subst_index(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+    /// [`subst_index`](Self::subst_index) for the word-substitution path, where a
+    /// non-OK completion code in the index propagates as an error/code (rather
+    /// than diverting an enclosing `subst`).
+    fn subst_index_value(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+        match self.subst_index(parts)? {
+            (val, Code::Ok) => Ok(val),
+            (_, code) => Err(code),
+        }
+    }
+
+    /// Resolve a `$arr(index)` index (itself substituted) to its bytes plus the
+    /// completion code of the last `[...]` in it (`Ok` normally; `Break`/
+    /// `Continue`/`Return` divert the enclosing variable substitution per C's
+    /// `TclSubstTokens`). An error propagates as `Err`.
+    fn subst_index(&mut self, parts: &[WordPart]) -> Result<(Vec<u8>, Code), Code> {
         let mut buf = Vec::new();
         for part in parts {
             match part {
                 WordPart::Text(b) => buf.extend_from_slice(b),
                 WordPart::Variable(v) => {
-                    let idx = match &v.index {
-                        Some(p) => Some(self.subst_index(p)?),
-                        None => None,
+                    let (idx, idx_code) = match &v.index {
+                        Some(p) => {
+                            let (val, code) = self.subst_index(p)?;
+                            (Some(val), code)
+                        }
+                        None => (None, Code::Ok),
                     };
-                    match self.read_var(v.name, idx.as_deref()) {
-                        Some(bytes) => buf.extend_from_slice(&bytes),
-                        None => return Err(self.no_such_variable(v.name, idx.as_deref())),
+                    match idx_code {
+                        Code::Ok => match self.read_var(v.name, idx.as_deref()) {
+                            Some(bytes) => buf.extend_from_slice(&bytes),
+                            None => return Err(self.no_such_variable(v.name, idx.as_deref())),
+                        },
+                        other => return Ok((buf, other)),
                     }
                 }
-                WordPart::Command(script) => {
-                    let code = self.eval_str(script);
-                    if code != Code::Ok {
-                        return Err(code);
+                WordPart::Command(script) => match self.eval_str(script) {
+                    Code::Ok => buf.extend_from_slice(&self.result_bytes()),
+                    Code::Error => return Err(Code::Error),
+                    Code::Return => {
+                        buf.extend_from_slice(&self.result_bytes());
+                        return Ok((buf, Code::Return));
                     }
-                    buf.extend_from_slice(&self.result_bytes());
-                }
+                    other => return Ok((buf, other)),
+                },
             }
         }
-        Ok(buf)
+        Ok((buf, Code::Ok))
     }
 
     /// Read a variable's value bytes via the variable resolver.
