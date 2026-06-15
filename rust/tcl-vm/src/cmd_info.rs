@@ -19,6 +19,31 @@ fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
+/// `info complete`: whether `script` has no unbalanced `{}`/`[]`/`"` and does
+/// not end in a line continuation — i.e. it is a syntactically complete command.
+fn is_complete(script: &str) -> bool {
+    let b = script.as_bytes();
+    let mut i = 0;
+    let n = b.len();
+    let mut brace = 0i32;
+    let mut bracket = 0i32;
+    let mut quote = false;
+    while i < n {
+        match b[i] {
+            b'\\' => i += 1, // skip the escaped char
+            b'{' if !quote => brace += 1,
+            b'}' if !quote => brace -= 1,
+            b'[' if !quote => bracket += 1,
+            b']' if !quote => bracket -= 1,
+            b'"' if brace == 0 => quote = !quote,
+            _ => {}
+        }
+        i += 1;
+    }
+    let trailing_backslash = b.last() == Some(&b'\\');
+    brace <= 0 && bracket <= 0 && !quote && !trailing_backslash
+}
+
 /// Filter + sort names by an optional glob pattern.
 fn filtered(mut names: Vec<String>, pat: Option<&str>) -> Value {
     names.retain(|n| pat.is_none_or(|p| string_match(p, n)));
@@ -35,6 +60,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "exists" => match rest {
             [name] => ok(Value::bool(vm.exists_var(&name.to_str()))),
             _ => err("wrong # args: should be \"info exists varName\""),
+        },
+        "complete" => match rest {
+            [script] => ok(Value::bool(is_complete(&script.to_str()))),
+            _ => err("wrong # args: should be \"info complete command\""),
         },
         "level" => match rest {
             [] => ok(Value::int(ilen(vm.current_level()))),

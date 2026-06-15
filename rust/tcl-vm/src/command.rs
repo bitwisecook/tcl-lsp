@@ -69,6 +69,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("upvar", cmd_upvar);
     vm.register("variable", cmd_variable);
     vm.register("unset", cmd_unset);
+    vm.register("subst", cmd_subst);
     crate::cmd_array::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
@@ -115,6 +116,36 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match vm.eval_source(&contents) {
         Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
+/// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform
+/// backslash / command / variable substitution on a string.
+fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let (mut backslashes, mut commands, mut variables) = (true, true, true);
+    let mut rest = args;
+    while let Some(first) = rest.first() {
+        match &*first.to_str() {
+            "-nobackslashes" => backslashes = false,
+            "-nocommands" => commands = false,
+            "-novariables" => variables = false,
+            s if s.starts_with('-') && s.len() > 1 => {
+                return err(format!(
+                    "bad switch \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
+                ));
+            }
+            _ => break,
+        }
+        rest = &rest[1..];
+    }
+    let [string] = rest else {
+        return err(
+            "wrong # args: should be \"subst ?-nobackslashes? ?-nocommands? ?-novariables? string\"",
+        );
+    };
+    match crate::subst::subst_command(vm, &string.to_str(), backslashes, commands, variables) {
+        Ok(s) => ok(Value::string(s)),
         Err(e) => err(e.message),
     }
 }
@@ -246,10 +277,14 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(p) => p,
         Err(e) => return err(e),
     };
-    let Some(body) = vm.module_proc(&body_key) else {
-        return err(format!(
-            "proc \"{name_s}\": no pre-compiled body (dynamic proc bodies unsupported)"
-        ));
+    // Prefer the pre-compiled body; fall back to compiling a dynamically-built
+    // body at runtime (e.g. `proc $name $params [subst {…}]`).
+    let body = match vm.module_proc(&body_key) {
+        Some(b) => b,
+        None => match vm.compile_dynamic_body(&body_text.to_str()) {
+            Some(b) => b,
+            None => return err(format!("proc \"{name_s}\": could not compile body")),
+        },
     };
     vm.define_proc(ProcDef {
         name: reg_name,

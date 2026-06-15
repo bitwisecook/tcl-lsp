@@ -357,6 +357,17 @@ impl Vm {
         self.module_procs.get(qname).cloned()
     }
 
+    /// Compile a proc body at runtime (for `proc` with a dynamically-built
+    /// body that wasn't pre-compiled into a module). The body is compiled as a
+    /// script; its parameters resolve through the call frame (`loadStk`), so a
+    /// top-level compilation runs correctly as a proc body. Any procs the body
+    /// itself defines are merged into the registry.
+    pub(crate) fn compile_dynamic_body(&mut self, src: &str) -> Option<Rc<FunctionAsm>> {
+        let module = self.compiler.as_ref()?.compile(src).ok()?;
+        self.merge_procs(&module.procedures);
+        Some(Rc::new(module.top_level))
+    }
+
     /// Merge a module's pre-compiled proc bodies into the registry.
     pub(crate) fn merge_procs(&mut self, procs: &HashMap<String, FunctionAsm>) {
         for (qname, asm) in procs {

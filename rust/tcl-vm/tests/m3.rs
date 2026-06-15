@@ -189,6 +189,33 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn dynamic_proc_body() {
+    // A proc whose name and/or body is built at runtime is compiled on demand.
+    out_eq(
+        "set n foo\nproc $n {x} { return [expr {$x*2}] }\nputs [foo 21]\n",
+        "42\n",
+    );
+    out_eq("set b {return hi}\nproc dyn {} $b\nputs [dyn]\n", "hi\n");
+}
+
+#[test]
+fn info_complete() {
+    out_eq("puts [info complete {set x 1}]\n", "1\n");
+    // `{[a}` is a braced word → value `[a` (unbalanced bracket) → incomplete.
+    out_eq("puts [info complete {[a}]\n", "0\n");
+    out_eq("puts [info complete {puts hello}]\n", "1\n");
+}
+
+#[test]
+fn subst_command() {
+    out_eq("set x 5\nputs [subst {x is $x}]\n", "x is 5\n");
+    out_eq("set x 5\nputs [subst {sum [expr {$x+1}]}]\n", "sum 6\n");
+    out_eq("set a(k) v\nputs [subst {got $a(k)}]\n", "got v\n");
+    out_eq("puts [subst -novariables {keep $x}]\n", "keep $x\n");
+    out_eq("puts [subst -nocommands {keep [cmd]}]\n", "keep [cmd]\n");
+}
+
+#[test]
 fn regexp_regsub() {
     out_eq("puts [regexp {[0-9]+} abc123]\n", "1\n");
     out_eq("puts [regexp {xyz} abc123]\n", "0\n");

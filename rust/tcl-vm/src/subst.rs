@@ -103,6 +103,104 @@ fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
     }
 }
 
+/// The `subst` command: perform variable, command, and backslash substitution
+/// on `s` (each independently switchable). Returns the substituted string.
+#[allow(clippy::many_single_char_names)]
+pub fn subst_command(
+    vm: &mut Vm,
+    s: &str,
+    backslashes: bool,
+    commands: bool,
+    variables: bool,
+) -> Result<String, TclError> {
+    let b = s.as_bytes();
+    let n = b.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        match b[i] {
+            b'\\' if backslashes => {
+                // Decode the escape (`tcl_lexer::backslash_subst` over the run).
+                if i + 1 < n {
+                    let decoded = tcl_syntax::backslash::decode(&s[i..i + 2]);
+                    out.push_str(&decoded);
+                    i += 2;
+                } else {
+                    out.push('\\');
+                    i += 1;
+                }
+            }
+            b'[' if commands => {
+                if let Some(end) = command_end(b, i) {
+                    let v = eval_subst(vm, &s[i + 1..end])?;
+                    out.push_str(&v.to_str());
+                    i = end + 1;
+                } else {
+                    out.push('[');
+                    i += 1;
+                }
+            }
+            b'$' if variables && i + 1 < n => {
+                if let Some((name, next)) = parse_var_ref(s, i) {
+                    if let Err(c) = vm.fire_var_traces(name, "read") {
+                        return Err(TclError::new(c.result.to_str().to_string()));
+                    }
+                    let v = vm.var_get(name).ok_or_else(|| {
+                        TclError::new(format!("can't read \"{name}\": no such variable"))
+                    })?;
+                    out.push_str(&v.to_str());
+                    i = next;
+                } else {
+                    out.push('$');
+                    i += 1;
+                }
+            }
+            _ => {
+                // Copy one UTF-8 char.
+                let ch = s[i..].chars().next().unwrap_or('\u{fffd}');
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
+/// `$name(idx)`), returning `(name, index_past_reference)`.
+fn parse_var_ref(s: &str, at: usize) -> Option<(&str, usize)> {
+    let b = s.as_bytes();
+    let n = b.len();
+    if b.get(at + 1) == Some(&b'{') {
+        let rel = s[at + 2..].find('}')?;
+        let close = at + 2 + rel;
+        return Some((&s[at + 2..close], close + 1));
+    }
+    let start = at + 1;
+    let mut j = start;
+    while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
+        j += 1;
+    }
+    // Namespace separators `::`.
+    while j + 1 < n && b[j] == b':' && b[j + 1] == b':' {
+        j += 2;
+        while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
+            j += 1;
+        }
+    }
+    if j == start {
+        return None;
+    }
+    // Optional array index `(...)`.
+    if j < n
+        && b[j] == b'('
+        && let Some(rel) = s[j..].find(')')
+    {
+        return Some((&s[start..=j + rel], j + rel + 1));
+    }
+    Some((&s[start..j], j))
+}
+
 /// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
 /// words return the underlying value (type-preserving); mixed words build a
 /// string.
