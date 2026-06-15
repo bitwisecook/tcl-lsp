@@ -2264,6 +2264,18 @@ impl Interp {
         );
     }
 
+    /// `upvar … target ns::tail` — install the link as namespace variable
+    /// `home_ns::tail` (a qualified local name).
+    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {
+        crate::vars::make_upvar_in(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            home_ns,
+            tail,
+            target,
+        );
+    }
+
     // -- result ---------------------------------------------------------------
 
     /// `Tcl_SetObjResult`: retain `obj` into the result slot, release the prior.

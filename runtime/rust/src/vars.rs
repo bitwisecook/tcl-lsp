@@ -565,6 +565,26 @@ pub(crate) fn make_upvar(
     link_local(frames, ns, current_ns, local, target);
 }
 
+/// `upvar … target ns::tail` — install the link as the namespace variable
+/// `home_ns::tail` (a qualified local name names a namespace link var, not a
+/// frame local; C's `MakeUpvar` with a `::`-containing local name).
+pub(crate) fn make_upvar_in(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    home_ns: NsId,
+    tail: &[u8],
+    target: Link,
+) {
+    let target = match target.home {
+        VarHome::Frame(0) => Link {
+            home: VarHome::Namespace(GLOBAL),
+            ..target
+        },
+        _ => target,
+    };
+    table_mut(frames, ns, VarHome::Namespace(home_ns)).insert_link(tail, target);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
