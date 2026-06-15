@@ -512,12 +512,19 @@ fn parse_i64(bytes: &[u8]) -> Option<i64> {
 #[cfg(have_tommath)]
 struct InterpExprCtx<'a> {
     interp: &'a mut Interp,
-    /// Set when an error propagated out of a sub-evaluation (`[cmd]`, a math
-    /// function, or a `$arr(idx)` index subst) rather than originating in `expr`
-    /// itself. In that case the inner command already built the `::errorInfo`
-    /// trace, so `expr` must preserve it (and add no frame of its own) — matching
-    /// C, where such an error is logged at the inner command, not at `expr`.
+    /// Set when a completion code propagated out of a sub-evaluation (`[cmd]`, a
+    /// math function, or a `$arr(idx)` index subst) rather than originating in
+    /// `expr` itself. For an *error* the inner command already built the
+    /// `::errorInfo` trace, so `expr` must preserve it (and add no frame of its
+    /// own) — matching C, where such an error is logged at the inner command, not
+    /// at `expr`. For a non-error code (`return`/`break`/`continue` from a `[cmd]`
+    /// substitution) the code propagates out of the whole `expr` (and thus out of
+    /// the enclosing `if`/`while`/`for` condition).
     propagated: bool,
+    /// The completion code carried by `propagated` (only meaningful when
+    /// `propagated` is set). Defaults to `Error`; a `[cmd]` substitution that
+    /// completes with `return`/`break`/`continue` records that code here.
+    propagated_code: Code,
 }
 
 #[cfg(have_tommath)]
@@ -557,8 +564,16 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
     }
 
     fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
-        if self.interp.eval_str(script.as_bytes()) == Code::Error {
+        // A `[cmd]` operand that completes with any non-OK code (`error`, or a
+        // `return`/`break`/`continue`) propagates that code out of the whole
+        // expression. C does this implicitly: the bytecode for the substitution
+        // returns the code, which unwinds the `expr`-bearing command. For an
+        // error the interp result already holds the message + `::errorInfo`; for
+        // the others it holds the substitution's result value.
+        let code = self.interp.eval_str(script.as_bytes());
+        if code != Code::Ok {
             self.propagated = true;
+            self.propagated_code = code;
             return Err(crate::expr::ExprError::from_bytes(obj_bytes(
                 self.interp.get_obj_result(),
             )));
@@ -627,18 +642,21 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
+        propagated_code: Code::Error,
     };
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
     match result {
         Ok(r) => {
             // `set_result` takes its own `+1`; `r` drops its reference after.
             interp.set_result(r.as_ptr());
             Code::Ok
         }
-        // A propagated sub-eval error already set the result + `::errorInfo`
-        // trace at the inner command — preserve it (no `expr` frame).
-        Err(_) if propagated => Code::Error,
+        // A propagated sub-eval code already set the interp result at the inner
+        // command — preserve it (an error keeps its `::errorInfo`; a
+        // `return`/`break`/`continue` keeps the substitution's value).
+        Err(_) if propagated => propagated_code,
         Err(e) => match e.code {
             Some(c) => interp.error_with_code(&e.msg, &c),
             None => interp.set_error(&e.msg),
@@ -659,12 +677,14 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
+        propagated_code: Code::Error,
     };
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
     match result {
         Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
-        Err(_) if propagated => Err(Code::Error),
+        Err(_) if propagated => Err(propagated_code),
         Err(e) => Err(match e.code {
             Some(c) => interp.error_with_code(&e.msg, &c),
             None => interp.set_error(&e.msg),
@@ -684,13 +704,17 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Co
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
+        propagated_code: Code::Error,
     };
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
     match result {
         Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.msg)),
-        // Preserve a propagated sub-eval error's trace (no condition `expr` frame).
-        Err(_) if propagated => Err(Code::Error),
+        // A propagated sub-eval code unwinds the condition: an error keeps its
+        // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
+        // `[cmd]` substitution carries that code out of the loop/`if`.
+        Err(_) if propagated => Err(propagated_code),
         Err(e) => Err(match e.code {
             Some(c) => interp.error_with_code(&e.msg, &c),
             None => interp.set_error(&e.msg),
