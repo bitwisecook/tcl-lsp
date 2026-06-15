@@ -14,6 +14,7 @@ use serde_json::{Map, Value, json};
 use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
+use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{LineIndex, Span, TokenType};
@@ -301,6 +302,35 @@ fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
     }
 }
 
+/// Serialise the `intervals` view: the integer-interval domain per tracked
+/// SSA value, per function. Mirrors `_serialise_intervals` — only bounded
+/// (non-top) ranges are emitted; `lo`/`hi` are `null` for ±infinity.
+#[must_use]
+pub fn serialise_intervals(result: &ExplorerResult) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .map(|snap| {
+            let intervals =
+                compute_intervals(&snap.unit.cfg, &snap.unit.ssa, &snap.unit.sccp.values);
+            let mut keys: Vec<&(String, u32)> = intervals.keys().collect();
+            keys.sort();
+            let entries: Vec<Value> = keys
+                .iter()
+                .filter_map(|key| {
+                    let iv = intervals[*key];
+                    if iv.is_top() || (iv.lo.is_none() && iv.hi.is_none()) {
+                        return None;
+                    }
+                    Some(json!({ "variable": key.0, "version": key.1, "lo": iv.lo, "hi": iv.hi }))
+                })
+                .collect();
+            json!({ "name": snap.name, "entries": entries })
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise the `interprocedural` view: per-procedure summaries followed
 /// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
 #[must_use]
@@ -451,6 +481,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     }
     out.insert("types".to_owned(), serialise_types(result));
     out.insert("segments".to_owned(), serialise_segments(&result.source));
+    out.insert("intervals".to_owned(), serialise_intervals(result));
     Value::Object(out)
 }
 
@@ -498,6 +529,21 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn intervals_reports_bounded_loop_counter() {
+        let result = run_pipeline("for {set i 0} {$i < 10} {incr i} { puts $i }", "tcl8.6");
+        let intervals = serialise_result(&result)["intervals"].clone();
+        let top = &intervals.as_array().unwrap()[0];
+        assert_eq!(top["name"], "::top");
+        let entries = top["entries"].as_array().unwrap();
+        // At least one bounded entry for `i` with a concrete lower bound.
+        assert!(
+            entries
+                .iter()
+                .any(|e| e["variable"] == "i" && e["lo"].is_number())
+        );
     }
 
     #[test]
