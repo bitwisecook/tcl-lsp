@@ -18,6 +18,9 @@ use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::optimiser::optimise;
 use tcl_compiler::segmenter::segment_commands;
+use tcl_compiler::shimmer::{
+    find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
+};
 use tcl_lexer::{LineIndex, Span, TokenType};
 use tcl_registry::{available_dialects, registry_for_dialect};
 use tcl_syntax::expr::ast::render_expr;
@@ -335,6 +338,47 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
+/// Renderer severity for a shimmer/thunking code. Mirrors
+/// `annotations.shimmer_severity` (`_DANGER_SHIMMER_CODES = {"S102"}`).
+fn shimmer_severity(code: &str) -> &'static str {
+    if code == "S102" { "error" } else { "warning" }
+}
+
+/// Serialise the `shimmer` view: intrep-shimmer (S100/S101) and
+/// loop-thunking (S102) warnings. Mirrors `_serialise_shimmer`, combining
+/// both warning kinds into one list. The shimmer analysis matches Python,
+/// so this view is strictly gated by the differential harness.
+#[must_use]
+pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let mut out: Vec<Value> = Vec::new();
+    for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
+        out.push(json!({
+            "code": w.code,
+            "message": w.message,
+            "range": range_dict(w.span, li, source),
+            "severity": shimmer_severity(&w.code),
+            "variable": w.variable,
+            "fromType": type_name(w.from_type),
+            "toType": type_name(w.to_type),
+            "command": w.command,
+            "inLoop": w.in_loop,
+        }));
+    }
+    for w in find_thunking_warnings_for_cu(&result.unit) {
+        out.push(json!({
+            "code": w.code,
+            "message": w.message,
+            "range": range_dict(w.span, li, source),
+            "severity": shimmer_severity(&w.code),
+            "variable": w.variable,
+            "typeA": type_name(w.type_a),
+            "typeB": type_name(w.type_b),
+        }));
+    }
+    Value::Array(out)
+}
+
 /// Serialise the `optimisations` view: the optimiser rewrites found for
 /// the source. Mirrors `_serialise_optimisations` — `{code, message,
 /// range, replacement}` per rewrite. Runs the ported `optimise` pass over
@@ -545,6 +589,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "optimisations".to_owned(),
         serialise_optimisations(result, &li, &result.source),
     );
+    out.insert(
+        "shimmer".to_owned(),
+        serialise_shimmer(result, &li, &result.source),
+    );
     Value::Object(out)
 }
 
@@ -592,6 +640,22 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn shimmer_reports_intrep_conversion() {
+        let result = run_pipeline("set x [list 1 2 3]\nincr x", "tcl8.6");
+        let shimmer = serialise_result(&result)["shimmer"].clone();
+        let arr = shimmer.as_array().unwrap();
+        let s100 = arr
+            .iter()
+            .find(|w| w["code"] == "S100")
+            .expect("S100 warning");
+        assert_eq!(s100["variable"], "x");
+        assert_eq!(s100["fromType"], "list");
+        assert_eq!(s100["toType"], "int");
+        assert_eq!(s100["command"], "incr");
+        assert_eq!(s100["severity"], "warning");
     }
 
     #[test]

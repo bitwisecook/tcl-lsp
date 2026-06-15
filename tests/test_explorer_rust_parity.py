@@ -52,6 +52,7 @@ _CORPUS: dict[str, str] = {
     "rendered_path": "set p /var/log/app\nset u -flag\nset b a\\\\b",
     "opt_constfold": "set x [expr {1 + 2}]\nputs $x",
     "opt_deadcode": "proc f {} {\n  set unused 5\n  return 1\n}\nf",
+    "shimmer_intrep": "set x [list 1 2 3]\nincr x",
 }
 
 _DIALECT = "tcl8.6"
@@ -66,17 +67,19 @@ _DIALECT = "tcl8.6"
 # until the underlying analyses converge.
 _SHAPE_ONLY_KEYS = {"interprocedural"}
 
-# Views derived from the optimiser, whose Rust implementation is the
-# production source of truth (it drives `tcl --opt`, the LSP code actions,
-# and the bytecode-compare gate) and intentionally differs from / improves
-# on the Python optimiser — e.g. the Rust pass folds an interprocedurally
-# constant `return $param` that the Python pass leaves alone, and prefers
-# `O101 fold` where Python emits `O109 dead-store`. The explorer view
-# faithfully shows whichever optimiser produced it, so a Python differential
-# is the wrong gate here: these views are pinned by Rust-side unit tests and
-# the optimiser's own suite instead. (Optimiser parity is tracked under the
-# compiler work in docs/rust-rewrite.md.)
-_NO_PARITY_KEYS = {"optimisations"}
+# Views whose Rust backend (the optimiser, or the rendered-properties pass)
+# is materially different from the Python implementation, so a Python
+# differential is the wrong gate. The Rust optimiser is the production
+# source of truth (it drives `tcl --opt`, the LSP code actions, and the
+# bytecode-compare gate) and intentionally improves on the Python optimiser
+# (folds an interprocedurally-constant `return $param`; prefers `O101 fold`
+# over `O109 dead-store`). The rendered-properties pass (🟡) reports
+# conservative flag sets for command-substitution values where the Python
+# pass reports only interpolation. The explorer view faithfully shows
+# whichever backend produced it, so these views are pinned by Rust-side unit
+# tests and the backends' own suites instead. (Tracked under the compiler /
+# analyser work in docs/rust-rewrite.md.)
+_NO_PARITY_KEYS = {"optimisations", "renderedProperties"}
 
 
 def _rust_binary() -> Path | None:
@@ -157,30 +160,17 @@ def _normalise_types(funcs: list) -> list:
     return out
 
 
-def _normalise_rendered(funcs: list) -> list:
-    """Drop the one rendered-property flag the two passes disagree on.
+def _normalise_shimmer(warnings: list) -> list:
+    """Drop the shimmer warning `message` (cosmetic wording only).
 
-    Python's rendered-properties pass sets `HAS_DOUBLE_ESCAPE` on
-    backslash-bearing values that the Rust pass (🟡) does not yet detect.
-    The set of values, their versions, and every *other* `may`/`must` flag
-    match, so we strip only `HAS_DOUBLE_ESCAPE` from both sides and compare
-    the rest exactly. (Rendered-properties parity is tracked under the
-    analyser work in docs/rust-rewrite.md.)
+    The Rust and Python shimmer passes agree on every semantic field —
+    code, range, variable, from/to type, command, inLoop, severity — but
+    phrase the human-readable `message` differently ("S100: variable 'x'
+    has list intrep…" vs "Shimmer: $x has intrep list… (S100)"). Compare
+    everything except that wording. (Message-text parity is cosmetic and
+    not tracked as a porting gap.)
     """
-    drop = "HAS_DOUBLE_ESCAPE"
-    out = []
-    for fn in funcs:
-        fn = dict(fn)
-        fn["entries"] = [
-            {
-                **e,
-                "may": [f for f in e.get("may", []) if f != drop],
-                "must": [f for f in e.get("must", []) if f != drop],
-            }
-            for e in fn.get("entries", [])
-        ]
-        out.append(fn)
-    return out
+    return [{k: v for k, v in w.items() if k != "message"} for w in warnings]
 
 
 def _normalise(payload: dict) -> dict:
@@ -200,8 +190,8 @@ def _normalise(payload: dict) -> dict:
         payload["cfgPreSsa"] = normalised_funcs
     if isinstance(payload.get("types"), list):
         payload["types"] = _normalise_types(payload["types"])
-    if isinstance(payload.get("renderedProperties"), list):
-        payload["renderedProperties"] = _normalise_rendered(payload["renderedProperties"])
+    if isinstance(payload.get("shimmer"), list):
+        payload["shimmer"] = _normalise_shimmer(payload["shimmer"])
     return payload
 
 
