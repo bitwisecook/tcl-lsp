@@ -877,30 +877,57 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     let code = interp.eval_control_body(body_obj);
 
-    // Write-back: rebuild the sub-dict from the locals, then store it through
-    // the key path (only the no-path case writes back nested updates here).
+    // Write-back: rebuild the (sub-)dict at the key path from the mapped locals,
+    // then store it back through the path. The body may have replaced the dict,
+    // so re-read it; if the path no longer resolves, skip the write-back.
     if let Some(cur) = dict_var_get(interp, &dict_var) {
-        if path.is_empty() {
-            if let Some(acc) = copy_dict(interp, cur) {
-                for key in &keys {
-                    let kobj = crate::interp::new_string(key);
-                    unsafe { obj::incr_ref_count(kobj) };
-                    match interp.var_get(key) {
-                        Some(val) => {
-                            let _ = dict::dict_set(acc, kobj, val);
-                        }
-                        None => {
-                            let _ = dict::dict_unset(acc, key);
-                        }
+        if let Some(acc) = copy_dict(interp, cur) {
+            // Navigate `acc` to the sub-dict at `path`.
+            let mut sub_src = acc;
+            let mut reached = true;
+            for &k in path {
+                match dict::dict_get(sub_src, &obj_bytes(k)) {
+                    Ok(Some(v)) => sub_src = v,
+                    _ => {
+                        reached = false;
+                        break;
                     }
-                    unsafe { obj::decr_ref_count(kobj) };
                 }
-                if dict_var_set(interp, &dict_var, acc).is_err() {
-                    unsafe { obj::decr_ref_count(acc) };
-                    return cant_set(interp, &dict_var);
-                }
-                unsafe { obj::decr_ref_count(acc) };
             }
+            if reached {
+                if let Some(newsub) = copy_dict(interp, sub_src) {
+                    for key in &keys {
+                        let kobj = crate::interp::new_string(key);
+                        unsafe { obj::incr_ref_count(kobj) };
+                        match interp.var_get(key) {
+                            Some(val) => {
+                                let _ = dict::dict_set(newsub, kobj, val);
+                            }
+                            None => {
+                                let _ = dict::dict_unset(newsub, key);
+                            }
+                        }
+                        unsafe { obj::decr_ref_count(kobj) };
+                    }
+                    // The rebuilt sub is the whole dict (no path) or is set back
+                    // at the path within `acc`.
+                    let store = if path.is_empty() {
+                        newsub
+                    } else {
+                        let _ = dict_path_set(acc, path, newsub);
+                        acc
+                    };
+                    if dict_var_set(interp, &dict_var, store).is_err() {
+                        unsafe {
+                            obj::decr_ref_count(newsub);
+                            obj::decr_ref_count(acc);
+                        }
+                        return cant_set(interp, &dict_var);
+                    }
+                    unsafe { obj::decr_ref_count(newsub) };
+                }
+            }
+            unsafe { obj::decr_ref_count(acc) };
         }
     }
     code
