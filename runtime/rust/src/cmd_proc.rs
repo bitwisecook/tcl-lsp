@@ -110,6 +110,12 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         crate::namespace::GLOBAL
     };
+    // A literal lambda in a sourced file reports `type source` at its body's line
+    // (element 1 of the lambda list — TIP 280); a dynamic lambda is body-relative.
+    let (source, body_line_base) = match interp.list_element_location(argv[1], 1) {
+        Some((file, line)) => (Some(file), line.saturating_sub(1)),
+        None => (None, 0),
+    };
     interp.run_proc(
         &params,
         &parts[1],
@@ -119,8 +125,8 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         CallMeta {
             err: ProcFrame::Lambda(&lambda),
             fqn: None,
-            source: None,
-            body_line_base: 0,
+            source,
+            body_line_base,
             link_vars: &[],
             keep_loop_codes: false,
             same_level: false,

@@ -167,6 +167,9 @@ struct CmdFrame {
     /// body, where C reports `method`/`class`|`object` instead of `proc`.
     /// `method-name` is empty for a constructor/destructor.
     oo: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
+    /// The lambda expression for an `apply` body's `info frame` (`lambda <expr>`
+    /// in place of `proc`, C's `TclInfoFrame`). `None` for a normal proc/method.
+    lambda: Option<Vec<u8>>,
 }
 
 /// A TIP 280 literal-argument location: `(objPtr, file, line)` (C's `lineLABCPtr`
@@ -217,6 +220,7 @@ impl CmdFrame {
             cmd: Vec::new(),
             line: 1,
             oo: None,
+            lambda: None,
         }
     }
 }
@@ -1195,6 +1199,7 @@ impl Interp {
             cmd: Vec::new(),
             line: 1,
             oo: None,
+            lambda: None,
         };
         let code = self.eval_framed(body, frame);
         self.frames.borrow_mut().pop();
@@ -2538,13 +2543,16 @@ impl Interp {
             pairs.push((b"file".to_vec(), file.to_vec()));
         }
         pairs.push((b"cmd".to_vec(), f.cmd.clone()));
-        // A TclOO method frame reports `method`/`class`|`object` (the declarer)
-        // in place of `proc` (C's `TclInfoFrame`).
+        // A TclOO method frame reports `method`/`class`|`object` (the declarer),
+        // and an `apply` lambda reports `lambda <expr>`, in place of `proc`
+        // (C's `TclInfoFrame`).
         if let Some((method, kind, owner)) = &f.oo {
             if !method.is_empty() {
                 pairs.push((b"method".to_vec(), method.clone()));
             }
             pairs.push((kind.clone(), owner.clone()));
+        } else if let Some(l) = &f.lambda {
+            pairs.push((b"lambda".to_vec(), l.clone()));
         } else if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
@@ -2710,6 +2718,7 @@ impl Interp {
             cmd: Vec::new(),
             line: 1,
             oo: top.and_then(|f| f.oo.clone()),
+            lambda: top.and_then(|f| f.lambda.clone()),
         }
     }
 
@@ -2742,6 +2751,23 @@ impl Interp {
     /// enclosing file + the list word's line, to derive its sub-bodies' lines.
     pub(crate) fn arg_location(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
         self.arg_loc(obj)
+    }
+
+    /// The `(file, line)` of list element `index` within the literal `obj` — for
+    /// a body that is a sub-element of a located list literal (an `apply` lambda's
+    /// body, C's `TclListLines`). The element's line is the list word's line plus
+    /// the newlines preceding the element. `None` when `obj` is a dynamic value
+    /// or lacks a file (then the body is body-relative).
+    pub(crate) fn list_element_location(
+        &self,
+        obj: *mut TclObj,
+        index: usize,
+    ) -> Option<(Rc<[u8]>, u32)> {
+        let (Some(file), line) = self.arg_loc(obj)? else {
+            return None;
+        };
+        let nl = scan_list_offsets(&obj_bytes(obj))?.get(index)?.0;
+        Some((file, line + nl))
     }
 
     /// Evaluate a body whose file-absolute first `line` and `file` were computed
@@ -3881,6 +3907,11 @@ impl Interp {
             }
             _ => None,
         };
+        // An `apply` lambda reports `lambda <expr>` (not `proc`) in `info frame`.
+        let lambda = match &meta.err {
+            ProcFrame::Lambda(expr) => Some(expr.to_vec()),
+            _ => None,
+        };
         let proc_frame = CmdFrame {
             kind: if meta.source.is_some() {
                 FrameKind::Source
@@ -3895,6 +3926,7 @@ impl Interp {
             cmd: Vec::new(),
             line: 1,
             oo,
+            lambda,
         };
         let code = self.eval_framed(body, proc_frame);
         // The frame's local variables (and any traces on them) die with it.

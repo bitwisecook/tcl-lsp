@@ -3042,6 +3042,18 @@ delegates to `eval_unlocated_body`, and `eval_body_obj`'s dynamic arm sets
 `type eval` / no file / `line_base = 0` (the located-literal arm is unchanged).
 Covers the `info-23.4/5` and `info-31.6` `eval`-of-dynamic-script cases.
 
+### SYNC inbound — 2026-06-15 (`apply` lambda `info frame`: `lambda` key + body source)
+
+`info.test` 225 → 227 (zero regressions; apply 21, proc 20, oo 357, ooProp 55/55,
+trace 199, namespace 238, eval 12 held). An `apply` body's `info frame` now
+reports `lambda <expr>` (the whole lambda expression) in place of `proc` — a new
+`lambda` field on `CmdFrame`, set from `ProcFrame::Lambda` in `run_proc` and
+rendered like the `oo` (method) key. A *literal* lambda in a sourced file is also
+`type source` at its body's line: `apply_cmd` derives the body element's location
+via the new `list_element_location` (the list word's line + newlines before
+element 1, the shared `TclListLines` computation); a dynamic lambda stays
+body-relative `type proc`.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
