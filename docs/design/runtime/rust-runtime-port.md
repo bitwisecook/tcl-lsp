@@ -3236,9 +3236,24 @@ error 263, apply 31, proc 24).
    any braced script/value spanning a line continuation. The correct fix
    touches `build_word` (a braced word with a continuation can no longer be a
    borrowed `Literal`), the LABC source-location table (value bytes vs. source
-   bytes diverge for located literals), and list-element splitting
-   (`find_element` must treat `\<newline>` as a separator). High value but
-   broad, with real regression risk against the 1865-test baseline — deferred.
+   bytes diverge for located literals), and list-element splitting. High value
+   but broad, with real regression risk against the 1865-test baseline —
+   deferred. NB info-30.20 expects `info frame 0` to report a specific *source
+   line* through the collapsed body, so the collapse cannot be done without
+   re-deriving TIP 280 line attribution from the original (uncollapsed) source.
+
+   The **list-splitting half** was prototyped: `find_element` should treat a
+   bare `\<newline>` as a continuation that joins the surrounding text (C's
+   `TclParseBackslash`: consume the backslash, newline, and trailing
+   spaces/tabs into the element). The patch is byte-exact vs. tclsh 9.0 for raw
+   lists (`"p\<LF>   q r"` → `{p q} r`, leading/`\r\n`/EOF cases all verified)
+   and keeps list.test 78/78 — **but it fixed no currently-failing test and
+   regressed info-8.5** (`info globals NO_SUCH_VAR` returns a stray
+   single-space global in the full-file run; passes standalone). The stray
+   element implies an earlier test's `\<newline>`-bearing list is consumed as a
+   variable/global name somewhere, and the *old* (incorrect) split happened to
+   avoid it. Reverted pending that root-cause; re-land alongside the brace-word
+   collapse so both halves agree.
 2. **`info cmdcount` off-by-one.** Our per-`dispatch` increment yields a delta
    of 3 where C reports 4 (info-3.1/2/3). The extra count comes from C's
    bytecode `INST_START_CMD` accounting, which we don't replicate; several
