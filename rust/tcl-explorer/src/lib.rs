@@ -14,6 +14,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod formatters;
 pub mod serialise;
 pub mod views;
 
