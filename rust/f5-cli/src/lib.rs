@@ -82,6 +82,15 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             json,
             output,
         } => commands::stats::run_stats(inputs, *top, *json, output.as_deref()),
+        Command::Cleanup {
+            inputs,
+            keep,
+            no_keep_common,
+            json,
+            output,
+        } => {
+            commands::cleanup::run_cleanup(inputs, keep, *no_keep_common, *json, output.as_deref())
+        }
         Command::Graph {
             inputs,
             format,

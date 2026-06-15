@@ -102,6 +102,8 @@ pub enum Command {
         no_keep_common: bool,
         #[arg(long)]
         json: bool,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// List every BIG-IP object related to a given path or pattern.

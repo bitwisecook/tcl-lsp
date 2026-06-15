@@ -303,7 +303,8 @@ fn format_text(
 #[must_use]
 pub fn report_to_json(report: &StatsReport) -> String {
     use std::fmt::Write as _;
-    let q = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_owned());
+
+    use crate::jsonfmt::json_string as q;
     let obj_block = |pairs: &[(String, usize)], indent: &str| -> String {
         if pairs.is_empty() {
             return "{}".to_owned();

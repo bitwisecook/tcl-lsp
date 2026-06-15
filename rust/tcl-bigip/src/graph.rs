@@ -1171,8 +1171,8 @@ fn to_mermaid(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>
 /// Python's key order (which `serde_json`'s sorted maps wouldn't preserve).
 fn to_json(nodes: &[&ObjectNode], edges: &[&ObjectEdge], kept: &HashSet<&str>) -> String {
     use std::fmt::Write as _;
-    // Escape a string value the way `serde_json` (and `json.dumps`) does.
-    let q = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_owned());
+
+    use crate::jsonfmt::json_string as q;
     let mut out = String::from("{\n  \"nodes\": [");
     for (i, node) in nodes.iter().enumerate() {
         out.push_str(if i == 0 { "\n" } else { ",\n" });
