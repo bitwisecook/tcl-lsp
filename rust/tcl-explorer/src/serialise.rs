@@ -16,9 +16,10 @@ use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
+use tcl_compiler::optimiser::optimise;
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{LineIndex, Span, TokenType};
-use tcl_registry::available_dialects;
+use tcl_registry::{available_dialects, registry_for_dialect};
 use tcl_syntax::expr::ast::render_expr;
 
 use crate::ExplorerResult;
@@ -334,6 +335,27 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
+/// Serialise the `optimisations` view: the optimiser rewrites found for
+/// the source. Mirrors `_serialise_optimisations` — `{code, message,
+/// range, replacement}` per rewrite. Runs the ported `optimise` pass over
+/// the cached per-dialect registry.
+#[must_use]
+pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let opts: Vec<Value> = optimise(source, registry)
+        .iter()
+        .map(|o| {
+            json!({
+                "code": o.code,
+                "message": o.message,
+                "range": range_dict(o.span, li, source),
+                "replacement": o.replacement,
+            })
+        })
+        .collect();
+    Value::Array(opts)
+}
+
 /// Serialise the `intervals` view: the integer-interval domain per tracked
 /// SSA value, per function. Mirrors `_serialise_intervals` — only bounded
 /// (non-top) ranges are emitted; `lo`/`hi` are `null` for ±infinity.
@@ -518,6 +540,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "renderedProperties".to_owned(),
         serialise_rendered_properties(result),
     );
+    out.insert(
+        "optimisations".to_owned(),
+        serialise_optimisations(result, &li, &result.source),
+    );
     Value::Object(out)
 }
 
@@ -565,6 +591,23 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn optimisations_reports_constant_fold_with_range() {
+        let result = run_pipeline("set x [expr {1 + 2}]\nputs $x", "tcl8.6");
+        let opts = serialise_result(&result)["optimisations"].clone();
+        let arr = opts.as_array().unwrap();
+        assert!(!arr.is_empty(), "expected at least one optimisation");
+        // Every entry carries the contract fields.
+        for o in arr {
+            assert!(o["code"].is_string());
+            assert!(o["message"].is_string());
+            assert!(o["replacement"].is_string());
+            assert!(o["range"]["startOffset"].is_number());
+        }
+        // The constant-fold rewrite is present.
+        assert!(arr.iter().any(|o| o["code"] == "O101"));
     }
 
     #[test]
