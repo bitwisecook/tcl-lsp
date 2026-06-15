@@ -1317,6 +1317,43 @@ impl Interp {
         Ok(())
     }
 
+    /// Flag the scalar `name` `const` (the `const` command, after its value is
+    /// stored and its write traces have fired).
+    pub(crate) fn mark_constant(&self, name: &[u8]) {
+        crate::vars::mark_constant(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        );
+    }
+
+    /// `Some(error)` — `can't set "name": variable is a constant` — when the
+    /// (possibly `arr(idx)`) `name` targets a `const` scalar; `None` otherwise.
+    /// The read-modify-write commands (`lappend`/`dict set`/`regsub`/`gets`)
+    /// call this before mutating, since their in-place value update would
+    /// otherwise bypass the store-time constant check.
+    pub(crate) fn const_write_check(&mut self, name: &[u8]) -> Option<Code> {
+        let (base, elem) = crate::frame::split_array_ref(name);
+        if elem.is_none() && self.is_constant(&base) {
+            let mut m = b"can't set \"".to_vec();
+            m.extend_from_slice(name);
+            m.extend_from_slice(b"\": variable is a constant");
+            return Some(self.set_error(&m));
+        }
+        None
+    }
+
+    /// Whether `name` resolves to a `const` scalar.
+    pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
+        crate::vars::is_constant(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
     /// The call-frame level a variable trace on `base` should be tied to, so it
     /// dies with the frame (C frees a local var's trace list at frame teardown).
     /// `Some(level)` for an unqualified name resolving frame-local in a proc;

@@ -101,6 +101,9 @@ pub enum VarError {
     /// (kept unit so `VarError` stays `Copy`; the `var_error` callers propagate
     /// it unchanged).
     TraceError,
+    /// A write/unset of a `const` variable (`can't set "name": variable is a
+    /// constant`; the command supplies the `set`/`incr`/`unset` verb).
+    IsConstant,
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +117,10 @@ pub enum VarError {
 #[derive(Default)]
 pub struct VarTable {
     vars: BTreeMap<Vec<u8>, Var>,
+    /// Scalars flagged `const` (TIP 677): a write or unset of one errors with
+    /// `variable is a constant`. Names are simple (table-local); a name stays
+    /// here for the table's lifetime since a constant cannot be unset.
+    consts: std::collections::BTreeSet<Vec<u8>>,
 }
 
 impl VarTable {
@@ -122,8 +129,22 @@ impl VarTable {
         self.vars.get(name)
     }
 
+    /// Whether `name` is a `const` scalar here.
+    pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
+        self.consts.contains(name)
+    }
+
+    /// Flag the scalar `name` `const` (the `const` command, after its value is
+    /// stored). A no-op if already flagged.
+    pub(crate) fn mark_constant(&mut self, name: &[u8]) {
+        self.consts.insert(name.to_vec());
+    }
+
     /// `set name value` into this table directly. The cell takes a **+1**.
     pub(crate) fn store_scalar(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        if self.consts.contains(name) {
+            return Err(VarError::IsConstant);
+        }
         match self.vars.get_mut(name) {
             Some(Var::Array(_)) => Err(VarError::IsArray),
             Some(Var::Scalar(slot)) => {

@@ -380,12 +380,17 @@ fn is_true(b: &[u8]) -> bool {
 
 /// The dict object to mutate for `dictVar`: the variable's (mutated in place if
 /// unshared), a COW copy, or a fresh empty dict. Returns `(obj, is_new)`.
-fn working_dict(interp: &mut Interp, name: &[u8]) -> (*mut TclObj, bool) {
-    match interp.var_get(name) {
+fn working_dict(interp: &mut Interp, name: &[u8]) -> Result<(*mut TclObj, bool), Code> {
+    // A constant cannot be the target of a mutating dict op; reject before the
+    // in-place update would bypass the store-time check.
+    if let Some(c) = interp.const_write_check(name) {
+        return Err(c);
+    }
+    Ok(match interp.var_get(name) {
         None => (dict::new_dict_obj(&[]), true),
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
-    }
+    })
 }
 
 /// Store a freshly built dict back into `dictVar` (when `is_new`) and set it as
@@ -406,7 +411,10 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
-    let (target, is_new) = working_dict(interp, &name);
+    let (target, is_new) = match working_dict(interp, &name) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
     let mut buf = match dict::dict_get(target, &obj_bytes(key)) {
         Ok(Some(v)) => obj_bytes(v),
         _ => Vec::new(),
@@ -432,7 +440,10 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
-    let (target, is_new) = working_dict(interp, &name);
+    let (target, is_new) = match working_dict(interp, &name) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
     let mut elems: Vec<*mut TclObj> = match dict::dict_get(target, &obj_bytes(key)) {
         Ok(Some(v)) => crate::list::list_elements(v).unwrap_or_default(),
         _ => Vec::new(),
@@ -456,7 +467,10 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
-    let (target, is_new) = working_dict(interp, &name);
+    let (target, is_new) = match working_dict(interp, &name) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
     let cur = match dict::dict_get(target, &obj_bytes(key)) {
         Ok(Some(v)) => match parse_i64(&obj_bytes(v)) {
             Some(n) => n,
@@ -513,6 +527,9 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name = obj_bytes(argv[2]);
     let key = argv[3];
     let value = argv[4];
+    if let Some(c) = interp.const_write_check(&name) {
+        return c;
+    }
 
     let (target, is_new) = match interp.var_get(&name) {
         None => (dict::new_dict_obj(&[]), true),

@@ -271,9 +271,13 @@ fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() == 3 {
         // gets chan var → set var to the line, return its length (or -1 at EOF).
         let var = obj_bytes(argv[2]);
+        if let Some(c) = interp.const_write_check(&var) {
+            return c;
+        }
         let o = crate::interp::new_string(&line);
-        if interp.var_set(&var, o).is_err() {
+        if let Err(e) = interp.var_set(&var, o) {
             crate::interp::drop_fresh(o);
+            return crate::builtins::var_error(interp, &var, e);
         }
         let len = if n == 0 { -1 } else { line.len() as i64 };
         interp.set_result_bytes(len.to_string().as_bytes());

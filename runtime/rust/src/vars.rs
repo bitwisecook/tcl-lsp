@@ -316,6 +316,36 @@ pub(crate) fn unset_elem(
     table_mut(frames, ns, place.home).remove_elem(&place.name, key)
 }
 
+/// Flag the scalar `name` (following links to its home) `const` — the `const`
+/// command, after the value has been stored.
+pub(crate) fn mark_constant(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) {
+    if let Resolved::Place(p) = resolve(frames, ns, current_ns, name) {
+        if p.elem.is_none() {
+            table_mut(frames, ns, p.home).mark_constant(&p.name);
+        }
+    }
+}
+
+/// Whether `name` (following links) resolves to a `const` scalar.
+pub(crate) fn is_constant(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> bool {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home).is_some_and(|t| t.is_constant(&p.name))
+        }
+        _ => false,
+    }
+}
+
 /// Whether `name` resolves to an array variable (the `set a` array-vs-scalar
 /// diagnostic; `array exists`).
 pub(crate) fn is_array(

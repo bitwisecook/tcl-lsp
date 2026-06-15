@@ -214,6 +214,14 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
+    // A `lappend` with values writes; reject a constant before the in-place
+    // update would bypass the store-time check (`lappend X` with no values is a
+    // pure read, so it is allowed).
+    if !values.is_empty() {
+        if let Some(c) = interp.const_write_check(&name) {
+            return c;
+        }
+    }
     // `lappend a(k) ...` must address the array element, not a scalar literally
     // named `a(k)` — split the array ref like `set`/`incr` do.
     let (base, elem) = crate::frame::split_array_ref(&name);

@@ -17,6 +17,7 @@ use crate::obj::{self, TclObj};
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"set", set);
     interp.register_builtin(b"incr", incr);
+    interp.register_builtin(b"const", const_cmd);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
     interp.register_builtin(b"subst", subst_cmd);
@@ -92,11 +93,74 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
+        VarError::IsConstant => &b"\": variable is a constant"[..],
         VarError::TraceError => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
     msg.extend_from_slice(verb);
+    interp.set_error(&msg)
+}
+
+/// `can't incr "name": variable is a constant` when `incr` targets a `const`
+/// scalar (C checks this before the read-modify-write, so no read trace fires).
+fn incr_constant_error(
+    interp: &mut Interp,
+    base: &[u8],
+    elem: &Option<Vec<u8>>,
+    name: &[u8],
+) -> Option<Code> {
+    if elem.is_none() && interp.is_constant(base) {
+        let mut msg = b"can't incr \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": variable is a constant");
+        return Some(interp.set_error(&msg));
+    }
+    None
+}
+
+/// `const varName value` (TIP 677) — set `varName` and flag it unmodifiable.
+/// Re-`const`'ing an existing constant is a silent no-op; any other existing
+/// variable, an array, or an array element is an error.
+fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"const varName value");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = split_array_ref(&name);
+    // `const X(a)` — a constant may not be an array element.
+    if elem.is_some() {
+        return make_constant_error(interp, &name, b"name refers to an element in an array");
+    }
+    // `const X` where X is already an array.
+    if interp.var_is_array(&base) {
+        return make_constant_error(interp, &name, b"variable is array");
+    }
+    // Already defined: a constant is a no-op; anything else already exists.
+    if interp.var_exists(&base) {
+        if interp.is_constant(&base) {
+            return Code::Ok;
+        }
+        return make_constant_error(interp, &name, b"variable already exists");
+    }
+    // Set the value (firing write traces; a trace error aborts the const), then
+    // flag the cell constant.
+    match interp.var_set(&base, argv[2]) {
+        Ok(()) => {
+            interp.mark_constant(&base);
+            interp.set_result(argv[2]);
+            Code::Ok
+        }
+        Err(e) => var_error(interp, &name, e),
+    }
+}
+
+/// `can't make constant "name": <reason>` (the `const` command's lookup errors).
+fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code {
+    let mut msg = b"can't make constant \"".to_vec();
+    msg.extend_from_slice(name);
+    msg.extend_from_slice(b"\": ");
+    msg.extend_from_slice(reason);
     interp.set_error(&msg)
 }
 
@@ -166,6 +230,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
 
     // Current cell value (borrowed) or a fresh 0 for an unset variable; the
     // fresh-0 is `rc 0` and freed below whether or not it's used.
@@ -229,6 +296,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
 
     let cur = match read_cell(interp, &base, &elem) {
         Some(bytes) => match parse_i64(&bytes) {
@@ -413,6 +483,17 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &a in &argv[i..] {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
+        // A constant cannot be unset; `-nocomplain` leaves it in place silently
+        // (var-26.11/26.12), otherwise it is an error.
+        if elem.is_none() && interp.is_constant(&base) {
+            if nocomplain {
+                continue;
+            }
+            let mut msg = b"can't unset \"".to_vec();
+            msg.extend_from_slice(&name);
+            msg.extend_from_slice(b"\": variable is a constant");
+            return interp.set_error(&msg);
+        }
         let existed = match &elem {
             Some(k) => interp.var_unset_elem(&base, k),
             None => interp.var_unset(&base),
