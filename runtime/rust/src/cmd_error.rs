@@ -297,16 +297,17 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         while handlers[b].is_dash {
             b += 1; // guaranteed to terminate (the last body is not `-`)
         }
-        // The body's error is now considered handled: publish + reset before
-        // binding/running so the handler starts with clean error state.
-        if body_code == Code::Error {
-            interp.publish_and_reset_error();
-        }
-        // Bind the running clause's variables: [resultVar ?optionsVar?]. A failed
-        // bind becomes the outcome (and skips the handler body), but `finally`
-        // still runs.
+        // Bind the running clause's variables: [resultVar ?optionsVar?]. The
+        // options dict must be built from the *live* body error/return state, so
+        // this runs before the error is published+reset. A failed bind becomes
+        // the outcome (and skips the handler body), but `finally` still runs.
         match bind_handler_vars(interp, &handlers[b].vars, &body_result, body_code) {
             Ok(()) => {
+                // The body's exception is now handled: publish + reset so the
+                // handler starts with clean error state.
+                if body_code == Code::Error {
+                    interp.publish_and_reset_error();
+                }
                 outcome_code = interp.eval_control_body(handlers[b].script);
                 outcome_result = interp.result_bytes();
             }
@@ -379,7 +380,10 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ecode = obj_bytes(argv[1]);
     match crate::parse::split_list(&ecode) {
         Ok(parts) if !parts.is_empty() => {}
-        _ => return interp.set_error(b"type must be non-empty list"),
+        // A malformed type list reports the list parse error verbatim
+        // (error-8.8/8.11); a well-formed but empty list is the type error.
+        Ok(_) => return interp.set_error(b"type must be non-empty list"),
+        Err(e) => return interp.set_error(e.message()),
     }
     interp.set_result(argv[2]);
     // Like `return -code error -errorcode $type $msg`: set the code, let the
