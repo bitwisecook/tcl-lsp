@@ -3190,6 +3190,61 @@ insertion-ordered `info locals` (apply-8.2/8.3 — the var table is a sorted
 `BTreeMap`). Untouched per the parallel-work exclusion: `cmd_string.rs` and the
 `string` helpers in `rust/tcl-syntax/src/`.
 
+### SYNC inbound — 2026-06-15 (`switch -regexp`/TIP #75, the 5 missing math functions, `info loaded`/`cmdtype`)
+
+Picked up the remaining info.test clusters plus the adjacent `switch` family.
+
+- **`switch -regexp` + TIP #75 (`cmd_switch.rs`, full rewrite).** Ported the
+  regexp matching mode (lazy per-pattern ARE compile, so a match short-circuits
+  before a later malformed pattern; a bad pattern reports `cannot compile
+  regular expression pattern: …`) and the `-matchvar`/`-indexvar` side-channel
+  (submatch substrings / `{start end}` pairs; non-participating or
+  start-anchored-empty groups → `{-1 -1}`/`""`; the default arm sets both
+  empty; index var written before match var; an unwritable target gives the C
+  `can't set "name": …`). Option parsing now does unambiguous-prefix matching
+  (`-exa`/`-gl`/`-re`), rejects a second mode option, validates that
+  `-matchvar`/`-indexvar` require `-regexp`, and uses the distinct
+  inline-vs-single-list `wrong # args` usages, the up-front trailing-`-`
+  rejection (citing the last *pattern*), and the "comment in switch" heuristic.
+  A body error appends the `("PATTERN" arm line N)` errorInfo frame. **switch.test
+  54→112; info-30.16/17/19 fixed.**
+- **`isnormal`/`issubnormal`/`isunordered`/`rand`/`srand`** (`mathfunc.rs` +
+  `cmd_mathfunc.rs` + `interp.rs`). The three classifiers go through the shared
+  dispatch; `rand`/`srand` carry the Park–Miller LCG seed on the interp
+  (`iPtr->randSeed` recurrence) and match tclsh 9.0's sequence exactly. All five
+  register as `::tcl::mathfunc::*` so `info functions` lists them. **info-20.2.**
+- **`info loaded gorp`** errors `could not find interpreter "gorp"` for an
+  unknown interp (empty path = current). **info-11.2.**
+- **`info cmdtype`** now reports `interp` (child interp), `coroutine` (resume
+  command, classified via the coroutine table), `privateObject`/`privateClass`
+  (an object's `my`/`myclass`, via tracked `my_aliases`). **info-40.10/12/15.**
+
+Net: info.test 246→254, no regressions across the sensitive baselines
+(trace 199, oo 357, ooProp 55/55, namespace 238, eval 12/12, dict 325,
+error 263, apply 31, proc 24).
+
+**Two blockers documented (not attempted — large/fragile):**
+
+1. **Brace-quoted `\<newline>` continuation collapse (general lexer
+   correctness).** Inside `{…}` Tcl replaces a `\<newline>` plus following
+   whitespace with a single space (the one backslash substitution that happens
+   inside braces). We keep the raw bytes: `set s {a \`<LF>`   b}` → we give
+   `{a \<LF>   b}` (len 8) where tclsh gives `a  b` (len 4). This surfaces as
+   switch-4.5 (the `invoked from within` command text isn't collapsed),
+   info-30.20 (a list whose leading element is a `\<newline>` separator is
+   mis-split → odd element count → "extra switch pattern with no body"), and
+   any braced script/value spanning a line continuation. The correct fix
+   touches `build_word` (a braced word with a continuation can no longer be a
+   borrowed `Literal`), the LABC source-location table (value bytes vs. source
+   bytes diverge for located literals), and list-element splitting
+   (`find_element` must treat `\<newline>` as a separator). High value but
+   broad, with real regression risk against the 1865-test baseline — deferred.
+2. **`info cmdcount` off-by-one.** Our per-`dispatch` increment yields a delta
+   of 3 where C reports 4 (info-3.1/2/3). The extra count comes from C's
+   bytecode `INST_START_CMD` accounting, which we don't replicate; several
+   plausible models all reproduce 3, so a blind +1 would be a guess. Left
+   alone pending a precise model.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
