@@ -40,6 +40,7 @@ pub mod lexer;
 pub mod output;
 pub mod parser;
 pub mod projection;
+pub mod renderers;
 pub mod runner;
 pub mod special;
 pub mod value;

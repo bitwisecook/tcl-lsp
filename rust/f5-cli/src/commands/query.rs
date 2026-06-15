@@ -15,6 +15,7 @@
 //! Deferred (cleanly rejected / ignored): `--merge` cross-file ref-walking,
 //! side-inputs, network probes, renderers, and the `--help-*` actions.
 
+use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -97,6 +98,29 @@ fn parse_name_bindings(
     Ok(bindings)
 }
 
+/// Parse repeated `--render-opt KEY=VALUE` into a flat map — port of
+/// `query._parse_render_opts`.
+///
+/// Duplicate keys take the last value. Returns the exact Python error string
+/// when an entry is malformed.
+///
+/// # Errors
+///
+/// Returns an error string for an entry with no `=` or an empty key side.
+pub fn parse_render_opts(raw: &[String]) -> Result<BTreeMap<String, String>, String> {
+    let mut opts: BTreeMap<String, String> = BTreeMap::new();
+    for entry in raw {
+        let Some((k, v)) = entry.split_once('=') else {
+            return Err(format!("--render-opt expects KEY=VALUE (got '{entry}')"));
+        };
+        if k.is_empty() {
+            return Err(format!("--render-opt '{entry}': KEY side cannot be empty"));
+        }
+        opts.insert(k.to_owned(), v.to_owned());
+    }
+    Ok(opts)
+}
+
 /// Flatten top-level `Stream`s — port of `output._flat`, needed to build the
 /// multi-file JSON envelope's inner value arrays.
 fn flat(values: &[Value]) -> Vec<Value> {
@@ -132,6 +156,7 @@ pub fn run_query_verb(
     inputs: &[PathBuf],
     names: &[String],
     mode: &str,
+    render_opts: &BTreeMap<String, String>,
     flags: QueryFlags,
 ) -> anyhow::Result<u8> {
     // Mirror `_run_query`'s up-front validation order and messages.
@@ -231,7 +256,7 @@ pub fn run_query_verb(
         return emit_mutation(&result, &path_for_uri, flags);
     }
 
-    emit_values(&result, sources.len(), mode, flags.strict)
+    emit_values(&result, sources.len(), mode, render_opts, flags.strict)
 }
 
 /// Emit the result of a mutating query — port of `query._emit_mutation`.
@@ -292,6 +317,7 @@ fn emit_values(
     result: &tcl_bigip_query::QueryResult,
     n_sources: usize,
     mode: &str,
+    render_opts: &BTreeMap<String, String>,
     strict: bool,
 ) -> anyhow::Result<u8> {
     let multi = n_sources > 1;
@@ -327,7 +353,7 @@ fn emit_values(
         if use_banner {
             writeln!(out, "# === {uri} ===")?;
         }
-        match output::render(values, mode) {
+        match output::render_with_opts(values, mode, render_opts) {
             Ok(text) => write!(out, "{text}")?,
             Err(e) => {
                 eprintln!("error: {e}");
@@ -344,4 +370,33 @@ fn emit_values(
 /// `exit 1 when nothing matched`.
 fn empty_match_exit_code(any_matched: bool, strict: bool) -> u8 {
     u8::from(!any_matched && strict)
+}
+
+/// Render the `--help-renderers` catalogue — port of the Python
+/// `_HelpRenderersAction`: each registered renderer's name, summary,
+/// `accepts`, and details, then the usage footer.
+#[must_use]
+pub fn help_renderers_text() -> String {
+    use std::fmt::Write as _;
+
+    let specs = tcl_bigip_query::renderers::list_renderers();
+    if specs.is_empty() {
+        return "(no renderers registered)\n".to_string();
+    }
+    let mut out = String::from("Registered renderers:\n\n");
+    for spec in specs {
+        let _ = writeln!(out, "  {}", spec.name);
+        let _ = writeln!(out, "    summary: {}", spec.summary);
+        let _ = writeln!(out, "    accepts: {}", spec.accepts);
+        if !spec.details.is_empty() {
+            for line in spec.details.lines() {
+                let _ = writeln!(out, "    {line}");
+            }
+        }
+        out.push('\n');
+    }
+    out.push_str(
+        "Use --render NAME to dispatch, --render-opt KEY=VALUE for per-renderer options.\n",
+    );
+    out
 }

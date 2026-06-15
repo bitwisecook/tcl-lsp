@@ -148,33 +148,66 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         table,
         table_lineart,
         strict,
+        render_name,
+        render_opt,
         help_dsl,
         help_builtins,
         help_examples,
+        help_renderers,
         ..
     } = command
     else {
         unreachable!("dispatch_query is only called with Command::Query");
     };
 
-    // Help actions are deferred in the read-only port.
+    // `--help-renderers` is fully ported (the registry catalogue is static).
+    if *help_renderers {
+        print!("{}", commands::query::help_renderers_text());
+        return Ok(0);
+    }
+
+    // The remaining help actions are deferred in the read-only port.
     if *help_dsl || help_builtins.is_some() || *help_examples {
         anyhow::bail!("`f5 query` help actions are not yet ported in the Rust port");
     }
-    let mode = commands::query::OutputModeFlags {
-        scf: *scf,
-        raw: *raw,
-        paths_only: *paths_only,
-        json: *json,
-        table: *table,
-        table_lineart: *table_lineart,
-    }
-    .resolve();
+
+    // `--render NAME` re-uses the same output dispatch path as the built-in
+    // modes: `output::render` falls through to the renderer registry on an
+    // unknown mode, so we swap the output mode for the requested name and
+    // thread the parsed `--render-opt` map through. Mirrors `_run_query`.
+    let mode = if let Some(name) = render_name {
+        name.clone()
+    } else {
+        commands::query::OutputModeFlags {
+            scf: *scf,
+            raw: *raw,
+            paths_only: *paths_only,
+            json: *json,
+            table: *table,
+            table_lineart: *table_lineart,
+        }
+        .resolve()
+        .to_owned()
+    };
+
+    let render_opts = if render_name.is_some() {
+        match commands::query::parse_render_opts(render_opt) {
+            Ok(opts) => opts,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return Ok(2);
+            }
+        }
+    } else {
+        std::collections::BTreeMap::new()
+    };
+
     commands::query::run_query_verb(
         expression.as_deref(),
         inputs,
         name,
-        mode,
+        &mode,
+        &render_opts,
         commands::query::QueryFlags {
             merge: *merge,
             write: *write,

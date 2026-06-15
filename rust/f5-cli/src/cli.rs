@@ -355,6 +355,14 @@ pub enum Command {
         /// Exit non-zero when a read-only query matched nothing.
         #[arg(long)]
         strict: bool,
+        /// Dispatch output through a renderer plugin (mermaid / gantt /
+        /// ascii-blocks). Overrides the output-mode flags.
+        #[arg(long = "render", short = 'R', value_name = "NAME")]
+        render_name: Option<String>,
+        /// Pass an option to --render NAME (repeatable), e.g.
+        /// `--render-opt direction=TB`.
+        #[arg(long = "render-opt", value_name = "KEY=VALUE")]
+        render_opt: Vec<String>,
         #[command(flatten)]
         format: FormatArgs,
         /// Show the DSL grammar reference and exit.
@@ -370,6 +378,9 @@ pub enum Command {
         /// Show the worked-example cookbook and exit.
         #[arg(long = "help-examples")]
         help_examples: bool,
+        /// List the registered renderer plugins and exit.
+        #[arg(long = "help-renderers")]
+        help_renderers: bool,
     },
 
     /// Strip secrets and remap public IPs into a configurable CIDR pool.

@@ -6,12 +6,15 @@
 //! renderer registry (a later increment); until then an unknown mode is a
 //! [`QueryError::Renderer`].
 
+use std::collections::BTreeMap;
+
 use crate::errors::QueryError;
 use crate::jsonfmt;
+use crate::renderers;
 use crate::value::Value;
 
 /// Flatten top-level `Stream`s into the value list — port of `output._flat`.
-fn flat(values: &[Value]) -> Vec<Value> {
+pub(crate) fn flat(values: &[Value]) -> Vec<Value> {
     let mut out = Vec::new();
     for v in values {
         if let Value::Stream(items) = v {
@@ -23,14 +26,37 @@ fn flat(values: &[Value]) -> Vec<Value> {
     out
 }
 
-/// Render *values* in the named *mode*.
+/// Render *values* in the named *mode* with no renderer options.
+///
+/// Thin wrapper over [`render_with_opts`] passing an empty option map; kept
+/// so existing call sites (and the parity tests) need no change.
+///
+/// # Errors
+///
+/// See [`render_with_opts`].
+pub fn render(values: &[Value], mode: &str) -> Result<String, QueryError> {
+    render_with_opts(values, mode, &BTreeMap::new())
+}
+
+/// Render *values* in the named *mode*, threading per-renderer *opts*.
+///
+/// The built-in output modes (`auto` / `scf` / `raw` / `paths` / `json` /
+/// `table` / `table-lineart`) ignore *opts*. Any other *mode* falls through
+/// to the renderer registry (`mermaid` / `gantt` / `ascii-blocks`), which
+/// consumes the `--render-opt KEY=VALUE` map. Port of `output.render`'s
+/// dispatch, including the registry fall-through and the
+/// `unknown output mode: …` error for an unregistered name.
 ///
 /// # Errors
 ///
 /// Returns [`QueryError::Renderer`] when `--raw` is asked to render a
-/// non-scalar, or when *mode* names no built-in mode (and, eventually, no
-/// registered renderer).
-pub fn render(values: &[Value], mode: &str) -> Result<String, QueryError> {
+/// non-scalar, when a renderer rejects its input / options, or when *mode*
+/// names no built-in mode and no registered renderer.
+pub fn render_with_opts(
+    values: &[Value],
+    mode: &str,
+    opts: &BTreeMap<String, String>,
+) -> Result<String, QueryError> {
     let values = flat(values);
     match mode {
         "auto" => Ok(render_auto(&values)),
@@ -40,9 +66,13 @@ pub fn render(values: &[Value], mode: &str) -> Result<String, QueryError> {
         "json" => Ok(render_json(&values)),
         "table" => Ok(render_table(&values, false)),
         "table-lineart" => Ok(render_table(&values, true)),
-        other => Err(QueryError::Renderer(format!(
-            "unknown output mode: {other}"
-        ))),
+        // Fall through to the pluggable renderer registry.
+        other => match renderers::lookup(other) {
+            Some(spec) => (spec.impl_fn)(&values, opts),
+            None => Err(QueryError::Renderer(format!(
+                "unknown output mode: {other}"
+            ))),
+        },
     }
 }
 
@@ -294,7 +324,7 @@ fn render_table(values: &[Value], lineart: bool) -> String {
 
 /// Coerce a single table cell value to its display string — port of
 /// `output._cell_str`.
-fn cell_str(v: &Value) -> String {
+pub(crate) fn cell_str(v: &Value) -> String {
     match v {
         Value::Null | Value::Drop => String::new(),
         Value::Bool(b) => if *b { "true" } else { "false" }.to_string(),
