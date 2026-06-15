@@ -79,6 +79,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_namespace::register(vm);
     crate::cmd_package::register(vm);
     crate::cmd_switch::register(vm);
+    crate::cmd_trace::register(vm);
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -91,7 +92,7 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
             Ok(()) => ok(value.clone()),
-            Err(e) => err(e),
+            Err(e) => e,
         },
         _ => err("wrong # args: should be \"set varName ?newValue?\""),
     }
@@ -158,7 +159,7 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let next = Value::int(old.wrapping_add(amount));
     if let Err(e) = vm.var_set(&name, next.clone()) {
-        return err(e);
+        return e;
     }
     ok(next)
 }
@@ -386,11 +387,15 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => Completion::new(Code::Error, e.into_value(), Value::empty()),
     };
-    if let Some(r) = resvar {
-        vm.set_var(&r.to_str(), comp.result.clone());
+    if let Some(r) = resvar
+        && let Err(e) = vm.set_var(&r.to_str(), comp.result.clone())
+    {
+        return e;
     }
-    if let Some(o) = optvar {
-        vm.set_var(&o.to_str(), comp.options.clone());
+    if let Some(o) = optvar
+        && let Err(e) = vm.set_var(&o.to_str(), comp.options.clone())
+    {
+        return e;
     }
     if comp.code == Code::Error {
         let einfo = opt_get(&comp.options, "-errorinfo").map_or_else(
@@ -497,7 +502,9 @@ fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         vm.add_link(&local, 0, &qual);
         if i + 1 < args.len() {
             // `set_var` follows the alias just installed to the real cell.
-            vm.set_var(&local, args[i + 1].clone());
+            if let Err(e) = vm.set_var(&local, args[i + 1].clone()) {
+                return e;
+            }
             i += 2;
         } else {
             i += 1;

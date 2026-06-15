@@ -89,10 +89,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     match p.params.iter().find(|pp| pp.name == *an) {
                         Some(pp) => {
                             if let Some(d) = &pp.default {
-                                vm.set_var(&var.to_str(), d.clone());
+                                if let Err(e) = vm.set_var(&var.to_str(), d.clone()) {
+                                    return e;
+                                }
                                 ok(Value::bool(true))
                             } else {
-                                vm.set_var(&var.to_str(), Value::empty());
+                                if let Err(e) = vm.set_var(&var.to_str(), Value::empty()) {
+                                    return e;
+                                }
                                 ok(Value::bool(false))
                             }
                         }

@@ -110,7 +110,7 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     items.extend(vals.iter().cloned());
     let result = Value::list(items);
     if let Err(e) = vm.var_set(&n, result.clone()) {
-        return err(e);
+        return e;
     }
     ok(result)
 }
@@ -125,7 +125,9 @@ fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     for (i, name) in names.iter().enumerate() {
         let v = items.get(i).cloned().unwrap_or_else(Value::empty);
-        vm.set_var(&name.to_str(), v);
+        if let Err(e) = vm.set_var(&name.to_str(), v) {
+            return e;
+        }
     }
     // Return the unassigned remainder.
     let rest = if names.len() < items.len() {

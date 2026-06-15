@@ -247,7 +247,7 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let result = Value::string(s);
     if let Err(e) = vm.var_set(&n, result.clone()) {
-        return err(e);
+        return e;
     }
     ok(result)
 }

@@ -238,6 +238,9 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn var(&mut self, name: &str) -> Result<Value, TclError> {
+        if let Err(c) = self.vm.fire_var_traces(name, "read") {
+            return Err(TclError::new(c.result.to_str().to_string()));
+        }
         self.vm
             .get_var(name)
             .ok_or_else(|| TclError::new(format!("can't read \"{name}\": no such variable")))

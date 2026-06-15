@@ -91,7 +91,7 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
                     if let Err(e) =
                         vm.set_array_elem(&name, &items[i].to_str(), items[i + 1].clone())
                     {
-                        return err(e);
+                        return e;
                     }
                     i += 2;
                 }

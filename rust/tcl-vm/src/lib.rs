@@ -25,6 +25,7 @@ mod cmd_namespace;
 mod cmd_package;
 mod cmd_string;
 mod cmd_switch;
+mod cmd_trace;
 mod command;
 mod exec;
 mod expr;

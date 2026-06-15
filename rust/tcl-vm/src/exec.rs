@@ -466,6 +466,7 @@ impl Vm {
             // -- variables (stack form, by name) --
             Op::LOAD_STK => {
                 let name = pop(f).to_str();
+                try_op!(self.fire_var_traces(&name, "read"));
                 match self.get_var(&name) {
                     Some(v) => f.stack.push(v),
                     None => {
@@ -478,7 +479,7 @@ impl Vm {
             Op::STORE_STK => {
                 let value = pop(f);
                 let name = pop(f).to_str();
-                self.set_var(&name, value.clone());
+                try_op!(self.set_var(&name, value.clone()));
                 f.stack.push(value);
             }
             Op::INCR_STK_IMM => {
@@ -497,6 +498,7 @@ impl Vm {
             // -- variables (LVT form, proc bodies) --
             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
+                try_op!(self.fire_var_traces(&name, "read"));
                 match self.get_var(&name) {
                     Some(v) => f.stack.push(v),
                     None => {
@@ -509,7 +511,7 @@ impl Vm {
             Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 let value = pop(f);
-                self.set_var(&name, value.clone());
+                try_op!(self.set_var(&name, value.clone()));
                 f.stack.push(value);
             }
             Op::INCR_SCALAR1 => {
@@ -546,6 +548,7 @@ impl Vm {
             Op::LOAD_ARRAY_STK => {
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
+                try_op!(self.fire_var_traces(&format!("{name}({key})"), "read"));
                 match self.get_array_elem(&name, &key) {
                     Some(v) => f.stack.push(v),
                     None => {
@@ -560,13 +563,14 @@ impl Vm {
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
                 if let Err(e) = self.set_array_elem(&name, &key, value.clone()) {
-                    return Tick::Return(err(e));
+                    return Tick::Return(e);
                 }
                 f.stack.push(value);
             }
             Op::LOAD_ARRAY1 => {
                 let name = lvt_name(imm0(instr));
                 let key = pop(f).to_str();
+                try_op!(self.fire_var_traces(&format!("{name}({key})"), "read"));
                 match self.get_array_elem(&name, &key) {
                     Some(v) => f.stack.push(v),
                     None => {
@@ -581,7 +585,7 @@ impl Vm {
                 let value = pop(f);
                 let key = pop(f).to_str();
                 if let Err(e) = self.set_array_elem(&name, &key, value.clone()) {
-                    return Tick::Return(err(e));
+                    return Tick::Return(e);
                 }
                 f.stack.push(value);
             }
@@ -775,7 +779,7 @@ impl Vm {
                 };
                 if more {
                     for (name, v) in binds {
-                        self.set_var(&name, v);
+                        try_op!(self.set_var(&name, v));
                     }
                     f.pc = body;
                 }
@@ -1088,7 +1092,7 @@ impl Vm {
             None => 0,
         };
         let next = Value::int(old.wrapping_add(amount));
-        self.var_set(name, next.clone()).map_err(err)?;
+        self.var_set(name, next.clone())?;
         f.stack.push(next);
         Ok(())
     }

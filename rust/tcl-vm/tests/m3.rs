@@ -206,6 +206,38 @@ fn source_command() {
 }
 
 #[test]
+fn variable_traces() {
+    // Write trace fires after the write with `name1 name2 op`.
+    out_eq(
+        "proc cb {n1 n2 op} { puts \"$n1 $n2 $op\" }\ntrace add variable x write cb\nset x 5\n",
+        "x  write\n",
+    );
+    // Read trace fires before the read and may initialise the variable.
+    out_eq(
+        "proc cb {n1 n2 op} { set ::x 99 }\ntrace add variable x read cb\nputs $x\n",
+        "99\n",
+    );
+    // Array-element write trace reports name1=array name2=key.
+    out_eq(
+        "proc cb {n1 n2 op} { puts \"$n1 $n2 $op\" }\ntrace add variable a write cb\nset a(k) 5\n",
+        "a k write\n",
+    );
+    out_eq(
+        "trace add variable x write cb\nputs [trace info variable x]\n",
+        "{write cb}\n",
+    );
+}
+
+#[test]
+fn write_trace_rejects_assignment() {
+    // A write-trace error aborts the write (rolling back) and wraps the message.
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\nset x 1\ntrace add variable x write cb\ncatch {set x 2} m\nputs \"$m / $x\"\n",
+        "can't set \"x\": nope / 1\n",
+    );
+}
+
+#[test]
 fn namespace_eval_and_procs() {
     out_eq(
         "namespace eval foo { proc bar {} { return hi } }\nputs [foo::bar]\n",

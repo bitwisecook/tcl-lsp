@@ -26,6 +26,16 @@ pub(crate) fn err(message: impl Into<String>) -> Completion<Value> {
     Completion::new(Code::Error, Value::string(m), Value::empty())
 }
 
+/// Quote a trace-callback argument as a single Tcl word: empty or
+/// whitespace-bearing values are brace-wrapped, simple words are passed bare.
+fn tcl_brace(s: &str) -> String {
+    if s.is_empty() || s.contains(char::is_whitespace) || s.contains(['[', ']', '$', '{', '}']) {
+        format!("{{{s}}}")
+    } else {
+        s.to_string()
+    }
+}
+
 /// Split an `arr(key)` variable reference into `(base, key)`, or `None` for a
 /// plain scalar/array name. The key may be empty; the base must not be.
 fn elem_ref(name: &str) -> Option<(&str, &str)> {
@@ -55,8 +65,23 @@ pub struct Vm {
     namespaces: std::collections::HashSet<String>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
+    /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
+    /// trace fires regardless of the access path (`upvar` alias, qualified
+    /// name, …). Newest trace last; fired newest-first.
+    var_traces: HashMap<String, Vec<VarTrace>>,
+    /// Re-entrancy guard: `"<key>\0<op>"` entries for traces currently firing.
+    active_traces: std::collections::HashSet<String>,
     out: Box<dyn Write>,
     compiler: Option<Box<dyn CompileService>>,
+}
+
+/// A single registered variable trace.
+#[derive(Clone)]
+struct VarTrace {
+    /// Operations this trace fires on (`read`/`write`/`unset`/`array`).
+    ops: Vec<String>,
+    /// The command prefix invoked as `command name1 name2 op`.
+    command: String,
 }
 
 impl Vm {
@@ -76,6 +101,8 @@ impl Vm {
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
             packages: HashMap::new(),
+            var_traces: HashMap::new(),
+            active_traces: std::collections::HashSet::new(),
             out,
             compiler: None,
         };
@@ -196,6 +223,103 @@ impl Vm {
     /// Names of all provided packages.
     pub(crate) fn package_names(&self) -> Vec<String> {
         self.packages.keys().cloned().collect()
+    }
+
+    // -- variable traces (`trace add|remove|info variable`) --
+
+    /// The resolved-owner key a variable name's traces are stored under, so a
+    /// trace fires regardless of access path (alias / qualified name). Array
+    /// element references key on the base array.
+    fn trace_key(&self, name: &str) -> String {
+        let base = elem_ref(name).map_or(name, |(b, _)| b);
+        let (lvl, nm) = self.locate(base);
+        format!("{lvl}\u{0}{nm}")
+    }
+
+    /// Register a `trace add variable` callback.
+    pub(crate) fn add_var_trace(&mut self, name: &str, ops: Vec<String>, command: String) {
+        let key = self.trace_key(name);
+        self.var_traces
+            .entry(key)
+            .or_default()
+            .push(VarTrace { ops, command });
+    }
+
+    /// Remove a `trace remove variable` callback matching `ops` + `command`.
+    pub(crate) fn remove_var_trace(&mut self, name: &str, ops: &[String], command: &str) {
+        let key = self.trace_key(name);
+        if let Some(list) = self.var_traces.get_mut(&key) {
+            list.retain(|t| !(t.ops == ops && t.command == command));
+            if list.is_empty() {
+                self.var_traces.remove(&key);
+            }
+        }
+    }
+
+    /// The traces on `name` as `(ops, command)` pairs (newest first), for
+    /// `trace info variable`.
+    pub(crate) fn var_trace_info(&self, name: &str) -> Vec<(Vec<String>, String)> {
+        let key = self.trace_key(name);
+        self.var_traces.get(&key).map_or_else(Vec::new, |list| {
+            list.iter()
+                .rev()
+                .map(|t| (t.ops.clone(), t.command.clone()))
+                .collect()
+        })
+    }
+
+    /// Fire the variable traces for `name` on operation `op`, running each
+    /// callback as `command name1 name2 op`. A read/write callback error aborts
+    /// the access (`can't read`/`can't set "name": …`); unset errors are
+    /// ignored. Re-entrant firing of the same variable+op is suppressed.
+    pub(crate) fn fire_var_traces(
+        &mut self,
+        name: &str,
+        op: &str,
+    ) -> Result<(), Completion<Value>> {
+        if self.var_traces.is_empty() {
+            return Ok(());
+        }
+        let (base, elem) = elem_ref(name).map_or_else(
+            || (name.to_string(), String::new()),
+            |(b, k)| (b.to_string(), k.to_string()),
+        );
+        let key = self.trace_key(name);
+        let guard = format!("{key}\u{0}{op}");
+        if self.active_traces.contains(&guard) {
+            return Ok(());
+        }
+        let Some(traces) = self.var_traces.get(&key).cloned() else {
+            return Ok(());
+        };
+        for tr in traces.iter().rev() {
+            if !tr.ops.iter().any(|o| o == op) {
+                continue;
+            }
+            let script = format!(
+                "{} {} {} {}",
+                tr.command,
+                tcl_brace(&base),
+                tcl_brace(&elem),
+                op
+            );
+            self.active_traces.insert(guard.clone());
+            let r = self.eval_source(&script);
+            self.active_traces.remove(&guard);
+            let failed = match r {
+                Ok(c) if c.code.is_ok() => None,
+                Ok(c) => Some(c.result.to_str().to_string()),
+                Err(e) => Some(e.message),
+            };
+            if let Some(msg) = failed {
+                match op {
+                    "write" => return Err(err(format!("can't set \"{name}\": {msg}"))),
+                    "read" => return Err(err(format!("can't read \"{name}\": {msg}"))),
+                    _ => {} // unset trace errors are ignored
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn module_proc(&self, qname: &str) -> Option<Rc<FunctionAsm>> {
@@ -337,19 +461,52 @@ impl Vm {
     }
 
     /// Write a scalar (following links to the owning frame).
-    pub fn set_var(&mut self, name: &str, value: Value) {
+    /// Write a scalar with no trace firing (frame argument binding, rollback).
+    fn write_scalar_raw(&mut self, name: &str, value: Value) {
         let (lvl, nm) = self.locate(name);
         if let Some(f) = self.frames.get_mut(lvl) {
             f.locals.insert(nm, Local::Scalar(value));
         }
     }
 
+    /// Write a scalar, firing `write` traces afterwards (the old value is
+    /// restored if a trace callback aborts the write).
+    pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if self.var_traces.is_empty() {
+            self.write_scalar_raw(name, value);
+            return Ok(());
+        }
+        let old = self.get_var(name);
+        self.write_scalar_raw(name, value);
+        if let Err(e) = self.fire_var_traces(name, "write") {
+            if let Some(o) = old {
+                self.write_scalar_raw(name, o);
+            } else {
+                let (lvl, nm) = self.locate(name);
+                if let Some(f) = self.frames.get_mut(lvl) {
+                    f.locals.remove(&nm);
+                }
+            }
+            return Err(e);
+        }
+        Ok(())
+    }
+
     /// Remove a scalar; returns whether it existed.
     pub fn unset_var(&mut self, name: &str) -> bool {
+        // Unset traces fire before removal; their errors are ignored.
+        let _ = self.fire_var_traces(name, "unset");
         let (lvl, nm) = self.locate(name);
-        self.frames
+        let existed = self
+            .frames
             .get_mut(lvl)
-            .is_some_and(|f| f.locals.remove(&nm).is_some())
+            .is_some_and(|f| f.locals.remove(&nm).is_some());
+        // A variable's traces are dropped when it is unset.
+        if existed {
+            let key = self.trace_key(name);
+            self.var_traces.remove(&key);
+        }
+        existed
     }
 
     fn var_exists(&self, name: &str) -> bool {
@@ -387,12 +544,11 @@ impl Vm {
     }
 
     /// Write `name`, resolving an `arr(key)` reference to the array element.
-    pub(crate) fn var_set(&mut self, name: &str, value: Value) -> Result<(), String> {
+    pub(crate) fn var_set(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
         if let Some((base, key)) = elem_ref(name) {
             return self.set_array_elem(base, key, value);
         }
-        self.set_var(name, value);
-        Ok(())
+        self.set_var(name, value)
     }
 
     // -- arrays (link-aware via `locate`) --
@@ -405,12 +561,13 @@ impl Vm {
         }
     }
 
-    pub(crate) fn set_array_elem(
+    /// Write an array element with no trace firing.
+    fn write_array_raw(
         &mut self,
         name: &str,
         key: &str,
         value: Value,
-    ) -> Result<(), String> {
+    ) -> Result<(), Completion<Value>> {
         let (lvl, nm) = self.locate(name);
         let frame = self
             .frames
@@ -421,9 +578,9 @@ impl Vm {
                 m.insert(key.to_owned(), value);
                 Ok(())
             }
-            Some(Local::Scalar(_)) => {
-                Err(format!("can't set \"{name}({key})\": variable isn't array"))
-            }
+            Some(Local::Scalar(_)) => Err(err(format!(
+                "can't set \"{name}({key})\": variable isn't array"
+            ))),
             Some(Local::Link { .. }) => unreachable!("locate resolves links"),
             None => {
                 let mut m = BTreeMap::new();
@@ -432,6 +589,30 @@ impl Vm {
                 Ok(())
             }
         }
+    }
+
+    pub(crate) fn set_array_elem(
+        &mut self,
+        name: &str,
+        key: &str,
+        value: Value,
+    ) -> Result<(), Completion<Value>> {
+        if self.var_traces.is_empty() {
+            return self.write_array_raw(name, key, value);
+        }
+        let old = self.get_array_elem(name, key);
+        self.write_array_raw(name, key, value)?;
+        let full = format!("{name}({key})");
+        if let Err(e) = self.fire_var_traces(&full, "write") {
+            match old {
+                Some(o) => {
+                    let _ = self.write_array_raw(name, key, o);
+                }
+                None => self.array_unset_elem(name, key),
+            }
+            return Err(e);
+        }
+        Ok(())
     }
 
     pub(crate) fn array_is(&self, name: &str) -> bool {
@@ -451,6 +632,9 @@ impl Vm {
     }
 
     pub(crate) fn array_unset_elem(&mut self, name: &str, key: &str) {
+        if !self.var_traces.is_empty() {
+            let _ = self.fire_var_traces(&format!("{name}({key})"), "unset");
+        }
         let (lvl, nm) = self.locate(name);
         if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
         {
@@ -545,7 +729,7 @@ impl VarStore for Vm {
     }
 
     fn set(&mut self, _frame: FrameId, name: &str, value: Value) {
-        self.set_var(name, value);
+        let _ = self.set_var(name, value);
     }
 
     fn unset(&mut self, _frame: FrameId, name: &str) -> bool {

@@ -84,7 +84,9 @@ fn dict_update(
     };
     upsert(&mut ps, &k, newv);
     let result = from_pairs(&ps);
-    vm.set_var(&name, result.clone());
+    if let Err(e) = vm.set_var(&name, result.clone()) {
+        return e;
+    }
     ok(result)
 }
 
@@ -209,7 +211,9 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             // M3: single level of nesting only.
             upsert(&mut ps, &mid[0].to_str(), value.clone());
             let result = from_pairs(&ps);
-            vm.set_var(&name, result.clone());
+            if let Err(e) = vm.set_var(&name, result.clone()) {
+                return e;
+            }
             ok(result)
         }
         "unset" => {
@@ -225,7 +229,9 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             let k = key.to_str();
             ps.retain(|(pk, _)| pk != &*k);
             let result = from_pairs(&ps);
-            vm.set_var(&name, result.clone());
+            if let Err(e) = vm.set_var(&name, result.clone()) {
+                return e;
+            }
             ok(result)
         }
         "incr" => {
@@ -301,8 +307,12 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     let body_src = body.to_str();
     for (k, v) in ps {
-        vm.set_var(&kvar.to_str(), Value::string(k));
-        vm.set_var(&vvar.to_str(), v);
+        if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k)) {
+            return e;
+        }
+        if let Err(e) = vm.set_var(&vvar.to_str(), v) {
+            return e;
+        }
         match vm.eval_source(&body_src) {
             Ok(c) => match c.code {
                 Code::Ok | Code::Continue => {}
