@@ -19,6 +19,7 @@ pub mod apl;
 pub mod canonical;
 pub mod cleanup;
 pub mod graph;
+pub mod grep;
 pub mod jsonfmt;
 pub mod lint;
 pub mod model;

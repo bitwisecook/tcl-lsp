@@ -1,0 +1,20 @@
+# tcl-lsp BIG-IP grep
+# Pattern: web_pool
+# Direction: both
+# Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf
+# Searches: 1 matched object(s)
+# Related: 5 object(s)
+#   ltm_monitor_http: 1
+#   ltm_node: 2
+#   ltm_pool: 1
+#   ltm_virtual: 2
+
+# Searches (matched by pattern):
+* [ltm_pool] /Common/web_pool  (depth 0)
+
+# Related objects (reachable through reference edges):
+  [ltm_monitor_http] /Common/my_http_monitor  (depth 1)
+  [ltm_node] /Common/web1  (depth 1)
+  [ltm_node] /Common/web2  (depth 1)
+  [ltm_virtual] /Common/ssl_only_vs  (depth 1)
+  [ltm_virtual] /Common/www_vs  (depth 1)

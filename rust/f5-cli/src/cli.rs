@@ -136,27 +136,43 @@ pub enum Command {
     Grep {
         /// Object path or pattern to seed from.
         pattern: String,
+        /// bigip.conf / SCF files (one or more). Pass `-` to read stdin.
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         /// Treat the pattern as a regular expression.
-        #[arg(long = "regex", short = 'e')]
+        #[arg(long = "regex", short = 'e', group = "grep_mode")]
         regex: bool,
         /// Treat the pattern as a CIDR / IP match.
-        #[arg(long = "cidr", short = 'c')]
+        #[arg(long = "cidr", short = 'c', group = "grep_mode")]
         cidr: bool,
         /// Traversal direction.
         #[arg(long, default_value = "both", value_parser = ["forward", "reverse", "both"])]
         direction: String,
-        /// Maximum traversal depth.
+        /// Stop the BFS after N hops from each search match.
         #[arg(long = "max-depth", value_name = "N")]
         max_depth: Option<usize>,
-        /// Maximum number of nodes to visit.
-        #[arg(long = "max-nodes", value_name = "N")]
-        max_nodes: Option<usize>,
-        /// Emit the full object stanzas, not just paths.
+        /// Walk the related-object BFS from each search match (default).
+        #[arg(long, short = 'r', overrides_with = "no_recurse")]
+        recurse: bool,
+        /// Skip the related-object BFS; report only the matched objects.
+        #[arg(long = "no-recurse", overrides_with = "recurse")]
+        no_recurse: bool,
+        /// Cap the result at N objects (default: 1000).
+        #[arg(long = "max-nodes", value_name = "N", default_value_t = 1000)]
+        max_nodes: usize,
+        /// Include each object's full body in the output.
         #[arg(long)]
         full: bool,
+        /// Emit the grep report as JSON instead of the text report.
         #[arg(long)]
         json: bool,
+        /// Write the report here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        format: FormatArgs,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// Convert a local UCS archive to an SCF text file.

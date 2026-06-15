@@ -11,6 +11,7 @@ pub mod difflib;
 pub mod explain;
 pub mod extract;
 pub mod graph;
+pub mod grep;
 pub mod merge;
 pub mod query;
 pub mod rename;
