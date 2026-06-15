@@ -145,7 +145,7 @@ impl Analyser {
         };
         let Some(method_idx) = ({
             scope_at_mut(&mut self.result.global_scope, scope_path).map(|parent| {
-                let mut child = Scope::new(ScopeKind::Method, method_qn);
+                let mut child = Scope::new(ScopeKind::Method, method_qn.clone());
                 child.body_span = Some(mb.body_tok.span);
                 parent.children.push(child);
                 parent.children.len() - 1
@@ -171,14 +171,18 @@ impl Analyser {
         // a second isolated pass, matching `handle_proc_command`.
         if self.defer_proc_bodies {
             // Method bodies are filled in place in pass 2 (byte-identical, not
-            // yet isolated/memoised — the proc-only fields are unused).
+            // yet isolated/memoised — the proc-only fields are unused).  Carry
+            // the method's qualified name as `scope_name` so the per-item
+            // duplicate detector keys each method distinctly — distinct methods
+            // must NOT look like mutual duplicates (the empty-key bug that made
+            // every 2+-method class fall back).
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text: mb.body_text.clone(),
                 body_tok: mb.body_tok,
                 scope_path: method_path,
                 is_method: true,
                 namespace: String::new(),
-                scope_name: String::new(),
+                scope_name: method_qn,
                 params: Vec::new(),
             });
         } else {

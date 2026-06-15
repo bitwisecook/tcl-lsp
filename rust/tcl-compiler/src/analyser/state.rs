@@ -283,6 +283,18 @@ pub struct Analyser {
     /// fallbacks (recovery, duplicate definitions) still fire.  Defaults to
     /// `false`; production paths are unaffected.
     pub probe_skip_enclosing_fallback: bool,
+    /// Deferred `TclOO` instance-creation candidates (`set v [Cls new]` /
+    /// `Cls create v`) captured by an isolated proc body, which has an *empty*
+    /// `all_classes` and so can't resolve the (sibling) class.  Each is the raw
+    /// `(command, args)`; [`Self::graft_proc_body`] replays
+    /// `record_instance_creation` against the shell's full `all_classes` so the
+    /// `instance_classes` map matches a whole-file walk.  `None` on the whole-file
+    /// path (instances resolve inline).
+    pub(super) pending_instances: Option<Vec<(String, Vec<String>)>>,
+    /// **Experimental probe flag.**  When `true`, the per-item path does *not*
+    /// take the duplicate-definition fallback, to measure the residual
+    /// divergence the duplicate fast-path must still close.  Defaults to `false`.
+    pub probe_skip_duplicate_fallback: bool,
     /// **Probe telemetry.**  Set by [`Self::analyse_per_item_with`] to `true`
     /// when the run completed on the incremental per-item path and `false` when
     /// it fell back to a full rebuild.  Read by perf/coverage probes; ignored by
@@ -376,7 +388,9 @@ impl Analyser {
             capture_global_reads: None,
             pending_disabled_commands: Vec::new(),
             pending_w304: Vec::new(),
+            pending_instances: None,
             probe_skip_enclosing_fallback: false,
+            probe_skip_duplicate_fallback: false,
             took_fast_path: false,
         }
     }
