@@ -2886,9 +2886,18 @@ list/lsearch/proc):
   an array (tcltest's option array) keeps its rep and source location (this is
   what lifted var.test).
 
-Still off for the `info-30`/`info-33` clusters: the *line within* a bs+nl
-continuation and inline control bodies (`if`/`while`) — the type/file/source
-frame is now correct, only the precise line lags (a line-accounting follow-up).
+Inline control-command bodies (`if`/`while`/`for`/`foreach`) now also advance
+the `info frame` line via `eval_control_body` (a located literal body runs as its
+own line-advancing source frame; info.test → 138).
+
+Still off for `info-30`/`info-33`: the precise *line digit* within a
+backslash-newline continuation and across **nested** `[…]` substitutions
+(info-30.0 reports the command's line, off by the bs+nl). That needs cumulative
+line threading (C's `TclAdvanceContinuations`) — each nested substitution carries
+its own source buffer while sharing the frame's `line_base`, so the line must be
+threaded through, not recomputed per buffer. That is a contained line-accounting
+effort (a parser/`info frame` follow-up), distinct from the base-layer obj-model
+fix above; the type/file/source-frame are now correct.
 
 ### Outstanding
 
