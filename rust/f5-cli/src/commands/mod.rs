@@ -14,6 +14,7 @@ pub mod explain;
 pub mod extract;
 pub mod graph;
 pub mod grep;
+pub mod irule;
 pub mod merge;
 pub mod query;
 pub mod redact;

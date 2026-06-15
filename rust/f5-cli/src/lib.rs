@@ -238,6 +238,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             commands::registry_dump::run_registry_dump(section, path)
         }
         cmd @ Command::Query { .. } => dispatch_query(cmd),
+        Command::Irule { action } => commands::irule::run_irule(action),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();

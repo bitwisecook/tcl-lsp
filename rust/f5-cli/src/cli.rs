@@ -677,68 +677,187 @@ impl Command {
     }
 }
 
+/// Shared iRule input flags (`_add_irule_input_arguments`): a flexible mix of
+/// `.tcl`/`.irul`/`.irule` files, bigip.conf/SCF, UCS, `--source` snippets, or
+/// `-` for stdin, plus `--dialect` (default `f5-irules`) and `-o/--output`.
+#[derive(Debug, Args)]
+pub struct IruleInputArgs {
+    /// Input files: .tcl/.irul/.irule, bigip.conf/SCF, or .ucs.  Pass `-` to read stdin.
+    #[arg(value_name = "PATHS")]
+    pub paths: Vec<String>,
+
+    /// Inline iRule source text (can be repeated).
+    #[arg(long = "source", value_name = "SOURCE")]
+    pub source: Vec<String>,
+
+    /// Dialect profile (default: f5-irules).
+    #[arg(long, default_value = "f5-irules", value_name = "DIALECT")]
+    pub dialect: String,
+
+    /// Output path: '-' for stdout, a directory for one file per iRule, or any
+    /// other path for a single concatenated file.
+    #[arg(long, short, default_value = "-", value_name = "OUTPUT")]
+    pub output: String,
+}
+
+/// Paired `--colour` / `--no-colour` toggle plus `--tabs`
+/// (`_add_colour_arguments`).
+#[derive(Debug, Args)]
+pub struct IruleColourArgs {
+    /// Disable syntax highlighting on stdout.
+    #[arg(long = "no-colour", visible_alias = "no-color")]
+    pub no_colour: bool,
+    /// Force syntax highlighting even when stdout is not a TTY.
+    #[arg(long = "colour", visible_alias = "color", overrides_with = "no_colour")]
+    pub colour: bool,
+    /// Expand tabs to N spaces on stdout (default: 4, 0 to keep tabs).
+    #[arg(long, value_name = "N")]
+    pub tabs: Option<usize>,
+}
+
+/// Formatter knobs (`_add_formatter_arguments`).
+#[derive(Debug, Args)]
+pub struct IruleFormatterArgs {
+    /// Spaces per indent level (default: 4).
+    #[arg(long = "indent-size", value_name = "N")]
+    pub indent_size: Option<usize>,
+    /// Indent using spaces or tabs (default: spaces).
+    #[arg(long = "indent-style", value_parser = ["spaces", "tabs"])]
+    pub indent_style: Option<String>,
+    /// Hard line-length limit (default: 120).
+    #[arg(long = "max-line-length", value_name = "N")]
+    pub max_line_length: Option<usize>,
+    /// Soft target line length (default: 100).
+    #[arg(long = "goal-line-length", value_name = "N")]
+    pub goal_line_length: Option<usize>,
+    /// Expand compact single-line bodies.
+    #[arg(long = "expand-bodies")]
+    pub expand_bodies: bool,
+    /// Replace semicolons with newlines (enabled by default).
+    #[arg(long = "no-semicolons")]
+    pub no_semicolons: bool,
+    /// Keep semicolons as-is (do not replace with newlines).
+    #[arg(long = "keep-semicolons")]
+    pub keep_semicolons: bool,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum IruleCommand {
-    /// Show iRule events in canonical firing order.
+    /// Show iRules events in canonical firing order.
     #[command(visible_alias = "eventorder")]
     EventOrder {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Emit event ordering as JSON.
         #[arg(long)]
         json: bool,
     },
-    /// Look up event metadata and valid commands.
+    /// Look up iRules event metadata and valid commands.
+    // Help strings are clap-visible and must read exactly as the Python verb's
+    // argparse help (event names carry underscores), so no Markdown backticks.
+    #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "eventinfo")]
     EventInfo {
-        /// Event name to query.
+        /// iRules event name (for example: HTTP_REQUEST).
         event: String,
+        /// Emit event metadata as JSON.
         #[arg(long)]
         json: bool,
+        /// Output path ('-' for stdout).
+        #[arg(long, short, default_value = "-", value_name = "OUTPUT")]
+        output: String,
     },
-    /// Apply iRule-only lint rules.
+    /// Run iRule-only lint rules over iRule sources.
     Lint {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Emit JSON instead of text.
         #[arg(long)]
         json: bool,
+        /// Filter to one severity level.
+        #[arg(long, value_parser = ["error", "warning", "info"])]
+        severity: Option<String>,
     },
     /// Static event-flow trace from a starting event.
+    #[allow(clippy::doc_markdown)]
     Trace {
-        inputs: Vec<PathBuf>,
-        /// Starting event.
-        #[arg(long, value_name = "EVENT")]
-        start: Option<String>,
+        /// Starting event name (e.g. HTTP_REQUEST).
+        event: String,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Emit JSON instead of text.
         #[arg(long)]
         json: bool,
     },
-    /// Profile-guided event-order report.
+    /// Profile-guided suggestions: reorder branches by execution frequency.
     Pgo {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// F5 rule-profiler occurrence log ('-' for stdin).
+        #[arg(long, value_name = "FILE", group = "pgo_source")]
+        profile: Option<String>,
+        /// Capture a profile by running each input under a local tclsh.
+        #[arg(long, group = "pgo_source")]
+        capture: bool,
+        /// Generate a profile by running each input through the iRule test framework.
+        #[arg(long = "from-test", value_name = "STIMULI", group = "pgo_source")]
+        from_test: Option<String>,
+        /// Rewrite the reordered chains instead of only reporting suggestions.
+        #[arg(long)]
+        apply: bool,
+        /// Emit suggestions as JSON.
         #[arg(long)]
         json: bool,
     },
-    /// Split a config / UCS into one file per iRule.
+    /// Write each iRule body in a config to a standalone .tcl file.
     Extract {
-        inputs: Vec<PathBuf>,
-        /// Output directory.
-        #[arg(long, short, value_name = "DIR")]
-        output: Option<PathBuf>,
+        /// bigip.conf / SCF / UCS files (`-` for stdin).
+        #[arg(required = true, value_name = "PATHS")]
+        paths: Vec<String>,
+        /// Output directory (created if needed).
+        output: PathBuf,
     },
-    /// Pretty-print iRule source.
+    /// Format iRule source and emit rewritten Tcl.
     #[command(visible_alias = "fmt")]
     Format {
-        inputs: Vec<PathBuf>,
-        #[arg(long, short, value_name = "FILE")]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        #[command(flatten)]
+        colour: IruleColourArgs,
+        #[command(flatten)]
+        formatter: IruleFormatterArgs,
     },
-    /// Strip whitespace and comments from iRule source.
+    /// Minify iRule source: strip comments, collapse whitespace.
     #[command(visible_alias = "min")]
     Minify {
-        inputs: Vec<PathBuf>,
-        #[arg(long, short, value_name = "FILE")]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Compact variable and proc names to short identifiers.
+        #[arg(long)]
+        compact: bool,
+        /// Write symbol map (original -> compacted names) to FILE.
+        #[arg(long = "symbol-map", value_name = "FILE")]
+        symbol_map: Option<PathBuf>,
+        /// Maximum compression: run all optimiser passes, then compact names and minify.
+        #[arg(long)]
+        aggressive: bool,
+        /// Treat script as self-contained — also compact global-scope variable names.
+        #[arg(long)]
+        isolated: bool,
+        #[command(flatten)]
+        colour: IruleColourArgs,
     },
-    /// Show the resolved command context for an iRule.
+    /// Bundle each iRule with the BIG-IP objects it references.
     Context {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Limit output to rules with these full paths (repeatable).
+        #[arg(long, value_name = "FULL_PATH")]
+        rule: Vec<String>,
+        /// Skip the one-hop transitive expansion (pool->node, pool->monitor).
+        #[arg(long = "no-transitive")]
+        no_transitive: bool,
+        /// Emit each bundle as a JSON object (default: Tcl-flavoured text).
         #[arg(long)]
         json: bool,
     },

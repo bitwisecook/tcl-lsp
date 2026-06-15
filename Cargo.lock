@@ -535,6 +535,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-cli-support",
+ "tcl-lsp-core",
  "tcl-registry",
 ]
 
