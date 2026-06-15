@@ -149,7 +149,27 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     };
     let ns = if parts.len() == 3 {
-        interp.ensure_namespace(&parts[2])
+        // C prepends `::` to a non-global-qualified namespace name, then resolves
+        // it (`TclGetNamespaceFromObj`); a missing namespace is an error — apply
+        // does **not** create it.
+        let full: Vec<u8> = if parts[2].starts_with(b"::") {
+            parts[2].clone()
+        } else {
+            let mut f = b"::".to_vec();
+            f.extend_from_slice(&parts[2]);
+            f
+        };
+        match interp.find_namespace_id(&full) {
+            Some(id) => id,
+            None => {
+                let mut m = b"namespace \"".to_vec();
+                m.extend_from_slice(&full);
+                m.extend_from_slice(b"\" not found");
+                let mut ecode = b"TCL LOOKUP NAMESPACE ".to_vec();
+                ecode.extend_from_slice(&full);
+                return interp.error_with_code(&m, &ecode);
+            }
+        }
     } else {
         crate::namespace::GLOBAL
     };
