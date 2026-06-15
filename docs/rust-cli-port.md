@@ -96,7 +96,9 @@ helpers are done; the rest await engine ports.
 | `explain` (`describe`) | ✅ byte-parity | ports `compute_explain` + the `resolve_name` resolution layer (model-based — does **not** need the ref-graph); walks `canon_fields()` (`BigipList` navigation) for profiles/iRules/persistence/SNAT/pool. Verified across virtual/pool/auto/short-name/not-found, text + JSON; golden-tested |
 | `extract` (`ucs2scf`) | ✅ byte-parity (scf) | golden-tested. Ports `extract_ucs_file` onto `tcl-bigip-io`: reads a `.ucs` (plain gzip-tar **or** OpenPGP-encrypted), extracts to SCF in memory, writes verbatim. Encrypted archives decrypt purely in Rust. tmsh/tmsh-delta deferred (needs the tmsh emitter); interactive TTY passphrase prompting not yet wired in the binary (env-var / explicit only) |
 | `graph` (`deps`) | ✅ byte-parity | full ref-graph (nodes + pilot/legacy/iRule edges) → `export_graph` (DOT/JSON/Mermaid). Verified end-to-end vs the Python CLI across all formats × `--seed`/`--reverse`/`--max-depth`. (Byte-parity on configs free of the documented registry-data drift.) |
-| `stats`, `cleanup`, `grep`, `validate`, `rename` | ⛔ stub | ref-graph keystone now **done**; these consume it next |
+| `stats` (`summary`) | ✅ byte-parity | object/partition counts, iRule LOC + events, top-referenced, orphans over the graph. Text + JSON; golden + end-to-end verified |
+| `cleanup` (`clean`) | ✅ byte-parity | BFS-reachability orphan detection → reverse-topological `tmsh delete` script. `--keep`/`--no-keep-common`, text + JSON; golden + end-to-end verified |
+| `grep`, `validate`, `rename` | ⛔ stub | `grep` next (graph queries); `validate` needs the query DSL, `rename` an edit planner |
 | `tmsh`, `convert`, `redact`/`unredact` | ⛔ stub | need the tmsh / AS3 emit + redaction engines |
 | `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `query`, `irule` group | ⛔ stub | need remote / PCAP / query-DSL ports |
 
