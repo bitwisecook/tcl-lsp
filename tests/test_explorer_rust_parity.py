@@ -68,59 +68,55 @@ _DIALECT = "tcl8.6"
 # until the underlying analyses converge.
 _SHAPE_ONLY_KEYS = {"interprocedural"}
 
-# Views whose Rust backend (the optimiser, or the rendered-properties pass)
-# is materially different from the Python implementation, so a Python
-# differential is the wrong gate. The Rust optimiser is the production
-# source of truth (it drives `tcl --opt`, the LSP code actions, and the
-# bytecode-compare gate) and intentionally improves on the Python optimiser
-# (folds an interprocedurally-constant `return $param`; prefers `O101 fold`
-# over `O109 dead-store`). The rendered-properties pass (🟡) reports
-# conservative flag sets for command-substitution values where the Python
-# pass reports only interpolation. The taint pass points a warning's range
-# at the whole sink command (`eval $x`) where Python points at the tainted
-# variable use (`$x`), and its proc-order is not yet stable. The explorer
-# view faithfully shows whichever backend produced it, so these views are
-# pinned by Rust-side unit tests and the backends' own suites instead.
-# (Tracked under the compiler / analyser work in docs/rust-rewrite.md.)
+# Views whose Rust backend is materially different from Python, so a Python
+# differential is the wrong gate. Each is classified per
+# docs/design/contracts/explorer-view-audit.md as either "by design" (🏗 —
+# Rust is the source of truth, do NOT converge toward Python) or "gap" (🐞 —
+# Rust under-/over-reports today and the backend should improve). Both stay
+# Rust-pinned because the *view* honestly shows what Rust computes; the
+# distinction tells a reader whether the divergence is intentional.
 _NO_PARITY_KEYS = {
+    # 🏗 by design — the Rust optimiser is the production source of truth
+    # (drives `tcl --opt`, LSP code actions, the bytecode-compare gate) and
+    # intentionally improves on Python (folds interproc-constant
+    # `return $param`; prefers `O101 fold` over `O109 dead-store`).
     "optimisations",
     "optimisedSource",
     "irOptimised",
     "cfgPreSsaOptimised",
-    # Post-SSA CFG: analysis.deadStores is [] (Rust liveness unported) and
-    # the lattice/type detail comes from the divergent Rust analyses.
+    # 🏗+🐞 SSA structure/lattice are honest Rust; `analysis.deadStores` is []
+    # because Rust computes dead stores as optimiser O109 findings, not a
+    # standalone liveness pass (audit action 1: surface from O109).
     "cfgPostSsa",
     "cfgPostSsaOptimised",
-    # bounds: Rust find_interval_bounds has no execution_intent input and no
-    # divide-by-zero (W233) findings, so divzero is always [] and findings
-    # come from the divergent Rust interval analysis.
+    # 🐞 gap — find_interval_bounds has no execution_intent input and no
+    # divide-by-zero (W233) findings, so divzero is always [].
     "bounds",
-    # dataflow: extract_dataflow_graph sorts functions (Python emits
-    # top-level first), aliases come from memory-SSA (not built here), and
-    # the node/edge detail follows the divergent Rust analyses.
+    # 🏗+🐞 functions sorted (presentation); aliases limited (memory-SSA not
+    # built here).
     "dataflow",
+    # 🐞 gap — over-reports flags for command-substitution values.
     "renderedProperties",
+    # 🏗+🐞 range points at the sink command (honest Rust record location);
+    # proc-order not yet deterministic (gap).
     "taintWarnings",
+    # 🐞 gap — Rust GVN under-detects vs Python.
     "gvn",
-    # The Rust bytecode codegen differs from Python in source-line
-    # population (always 0 today) and label-counter numbering, and the Rust
-    # `Instruction` carries no source span (per-instruction `range` is
-    # null), so `asm` is pinned by a Rust unit test + the bytecode-compare
-    # gate rather than the Python differential.
+    # 🏗+🐞 honest Rust bytecode; label numbering differs by design, but
+    # sourceLine is always 0 and Instruction carries no per-op span (gap).
+    # Pinned by the bytecode-compare gate.
     "asm",
     "asmOptimised",
-    # The WASM emitter is unported (Rust emits null where Python emits real
-    # disassembly); they degrade gracefully and light up when the emitter lands.
+    # ⛔ blocked — the WASM emitter is unported (Rust emits null where Python
+    # emits real disassembly); lights up when the emitter chunk lands.
     "wasm",
     "wasmOptimised",
-    # Source callouts aggregate the divergent optimiser/shimmer/gvn/taint
-    # sources and omit dead-store callouts (the Rust liveness pass that
-    # fills FunctionAnalysis.dead_stores is unported), so they are pinned by
-    # a Rust unit test rather than the Python differential.
+    # 🏗+🐞 aggregates the optimiser/shimmer/gvn/taint sources; omits
+    # dead-store callouts (audit action 1).
     "annotations",
     "annotationsByLine",
-    # deadStores is 0 (Rust liveness unported) and the warning counts come
-    # from the divergent Rust analyses, so stats is Rust-pinned.
+    # 🏗+🐞 deadStores is 0 (audit action 1); warning counts follow the Rust
+    # analyses.
     "stats",
 }
 
