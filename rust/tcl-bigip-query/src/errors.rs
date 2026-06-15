@@ -22,6 +22,14 @@ pub enum QueryError {
     Lex { message: String, offset: usize },
     /// The parser saw a token it did not expect.
     Parse { message: String, offset: usize },
+    /// Evaluation hit an undefined name, a type mismatch, or similar.
+    Eval(String),
+    /// An assignment cannot be applied (conflict, non-writable path, …).
+    Edit(String),
+    /// A builtin function rejected its arguments.
+    Builtin(String),
+    /// A renderer rejected its input or options.
+    Renderer(String),
 }
 
 impl QueryError {
@@ -30,26 +38,47 @@ impl QueryError {
     pub fn message(&self) -> &str {
         match self {
             QueryError::Lex { message, .. } | QueryError::Parse { message, .. } => message,
+            QueryError::Eval(m)
+            | QueryError::Edit(m)
+            | QueryError::Builtin(m)
+            | QueryError::Renderer(m) => m,
         }
     }
 
-    /// The byte offset (Python: code-point offset) the error points at.
+    /// The byte offset (Python: code-point offset) the error points at, for
+    /// the front-end variants that carry one.
     #[must_use]
     pub fn offset(&self) -> usize {
         match self {
             QueryError::Lex { offset, .. } | QueryError::Parse { offset, .. } => *offset,
+            _ => 0,
         }
+    }
+
+    /// Convenience constructor for an evaluation error.
+    pub fn eval(message: impl Into<String>) -> Self {
+        QueryError::Eval(message.into())
+    }
+
+    /// Convenience constructor for a builtin-argument error.
+    pub fn builtin(message: impl Into<String>) -> Self {
+        QueryError::Builtin(message.into())
     }
 }
 
 impl fmt::Display for QueryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Both `LexError` and `ParseError` render as
-        // ``f"{message} at offset {offset}"`` in Python.
         match self {
+            // `LexError` / `ParseError` render as `{message} at offset {offset}`.
             QueryError::Lex { message, offset } | QueryError::Parse { message, offset } => {
                 write!(f, "{message} at offset {offset}")
             }
+            // `EvalError` / `EditError` / `BuiltinError` / `RendererError` are
+            // plain `Exception` subclasses — `str(exc)` is just the message.
+            QueryError::Eval(m)
+            | QueryError::Edit(m)
+            | QueryError::Builtin(m)
+            | QueryError::Renderer(m) => f.write_str(m),
         }
     }
 }

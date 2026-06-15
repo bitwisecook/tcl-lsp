@@ -16,10 +16,14 @@
 
 pub mod ast;
 pub mod errors;
+pub mod jsonfmt;
 pub mod lexer;
+pub mod output;
 pub mod parser;
+pub mod value;
 
 pub use ast::{Expr, LitValue, PathStep, Program};
 pub use errors::QueryError;
 pub use lexer::{Token, TokenKind, tokenise};
 pub use parser::parse_query;
+pub use value::{ObjectRef, PathRef, Value};

@@ -9,6 +9,8 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+indexmap = "2"
+serde_json = "1"
 
 [dev-dependencies]
 serde_json = "1"
