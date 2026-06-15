@@ -302,6 +302,38 @@ fn arity_str(arity: tcl_compiler::interprocedural::Arity) -> String {
     }
 }
 
+/// Serialise the `renderedProperties` view: each SSA value's `may` / `must`
+/// rendered-property flag names, per function. Mirrors
+/// `_serialise_rendered_properties` — values with no flags are skipped, and
+/// functions with no entries are omitted. `iter_names()` yields the set
+/// named flags in declaration order (NONE excluded), matching Python's
+/// enum-member filter.
+#[must_use]
+pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .filter_map(|snap| {
+            let mut keys: Vec<&(String, u32)> = snap.unit.rendered_props.keys().collect();
+            keys.sort();
+            let entries: Vec<Value> = keys
+                .iter()
+                .filter_map(|key| {
+                    let rp = &snap.unit.rendered_props[*key];
+                    let may: Vec<&str> = rp.may.iter_names().map(|(n, _)| n).collect();
+                    let must: Vec<&str> = rp.must.iter_names().map(|(n, _)| n).collect();
+                    if may.is_empty() && must.is_empty() {
+                        return None;
+                    }
+                    Some(json!({ "variable": key.0, "version": key.1, "may": may, "must": must }))
+                })
+                .collect();
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise the `intervals` view: the integer-interval domain per tracked
 /// SSA value, per function. Mirrors `_serialise_intervals` — only bounded
 /// (non-top) ranges are emitted; `lo`/`hi` are `null` for ±infinity.
@@ -482,6 +514,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("types".to_owned(), serialise_types(result));
     out.insert("segments".to_owned(), serialise_segments(&result.source));
     out.insert("intervals".to_owned(), serialise_intervals(result));
+    out.insert(
+        "renderedProperties".to_owned(),
+        serialise_rendered_properties(result),
+    );
     Value::Object(out)
 }
 
@@ -529,6 +565,29 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn rendered_properties_flags_slash_and_dash() {
+        let result = run_pipeline("set p /var/log\nset u -flag", "tcl8.6");
+        let rp = serialise_result(&result)["renderedProperties"].clone();
+        let entries = rp.as_array().unwrap()[0]["entries"].as_array().unwrap();
+        let p = entries.iter().find(|e| e["variable"] == "p").unwrap();
+        assert!(
+            p["may"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f == "HAS_FORWARD_SLASH")
+        );
+        let u = entries.iter().find(|e| e["variable"] == "u").unwrap();
+        assert!(
+            u["must"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f == "STARTS_WITH_DASH")
+        );
     }
 
     #[test]

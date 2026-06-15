@@ -49,6 +49,7 @@ _CORPUS: dict[str, str] = {
     "passthrough_proc": "proc id {x} { return $x }\nid 5",
     "depends_proc": "proc add {a b} { return [expr {$a + $b}] }\nadd 1 2",
     "calls_proc": "proc inner {} { return 1 }\nproc outer {} { inner }\nouter",
+    "rendered_path": "set p /var/log/app\nset u -flag\nset b a\\\\b",
 }
 
 _DIALECT = "tcl8.6"
@@ -142,6 +143,32 @@ def _normalise_types(funcs: list) -> list:
     return out
 
 
+def _normalise_rendered(funcs: list) -> list:
+    """Drop the one rendered-property flag the two passes disagree on.
+
+    Python's rendered-properties pass sets `HAS_DOUBLE_ESCAPE` on
+    backslash-bearing values that the Rust pass (🟡) does not yet detect.
+    The set of values, their versions, and every *other* `may`/`must` flag
+    match, so we strip only `HAS_DOUBLE_ESCAPE` from both sides and compare
+    the rest exactly. (Rendered-properties parity is tracked under the
+    analyser work in docs/rust-rewrite.md.)
+    """
+    drop = "HAS_DOUBLE_ESCAPE"
+    out = []
+    for fn in funcs:
+        fn = dict(fn)
+        fn["entries"] = [
+            {
+                **e,
+                "may": [f for f in e.get("may", []) if f != drop],
+                "must": [f for f in e.get("must", []) if f != drop],
+            }
+            for e in fn.get("entries", [])
+        ]
+        out.append(fn)
+    return out
+
+
 def _normalise(payload: dict) -> dict:
     """Strip known, characterised cross-implementation divergences so the
     remaining contract is compared exactly. Applied to both sides."""
@@ -159,6 +186,8 @@ def _normalise(payload: dict) -> dict:
         payload["cfgPreSsa"] = normalised_funcs
     if isinstance(payload.get("types"), list):
         payload["types"] = _normalise_types(payload["types"])
+    if isinstance(payload.get("renderedProperties"), list):
+        payload["renderedProperties"] = _normalise_rendered(payload["renderedProperties"])
     return payload
 
 
