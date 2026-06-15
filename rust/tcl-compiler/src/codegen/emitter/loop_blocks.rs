@@ -26,9 +26,10 @@ pub struct ForeachInfo {
     pub var_groups: Vec<Vec<String>>,
 }
 
-/// Metadata about a complex foreach: one whose body is empty and
-/// terminates with a Branch (the first statement is an `if` whose
-/// condition becomes the body terminator).
+/// Metadata about a complex foreach: one whose body block terminates with a
+/// Branch (the body's first/only control structure is an `if`/loop whose
+/// condition becomes the body terminator). The body may carry statements — e.g.
+/// the `<cond>` placeholder of an inline command substitution in the condition.
 ///
 /// The emitter must (a) emit `FOREACH_STEP`/`FOREACH_END` at the
 /// foreach_end block rather than the body, (b) route continue/break
@@ -114,9 +115,11 @@ pub fn detect_complex_foreach(
         let Some(body_blk) = cfg.blocks.get(&info.body) else {
             continue;
         };
-        if !body_blk.statements.is_empty() {
-            continue;
-        }
+        // A body that *branches* (an `if`/loop) is complex — `FOREACH_STEP`/
+        // `FOREACH_END` must move to the foreach_end block and body back-edges
+        // route to the step label. The body may still carry statements (e.g. a
+        // `<cond>` placeholder for a command substitution in the condition), so
+        // we key on the Branch terminator rather than an empty statement list.
         if !matches!(body_blk.terminator, Some(Terminator::Branch { .. })) {
             continue;
         }

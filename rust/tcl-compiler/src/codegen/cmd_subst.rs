@@ -352,8 +352,8 @@ impl CodegenCtx<'_> {
                     // Bare `$name` / `$name(idx)` — load the variable rather
                     // than pushing the unsubstituted literal.
                     let rest = &arg[1..];
-                    let is_bare = !rest.is_empty()
-                        && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
+                    let is_bare =
+                        !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
                     if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
                         self.load_var(rest);
                     } else {
