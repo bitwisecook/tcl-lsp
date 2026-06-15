@@ -3167,10 +3167,24 @@ apply.test 21→31, proc.test 20→24; no regressions.
   942757: `a b  c` → `{a b  c}`, `` → `{}`), gated by `CallMeta.quote_name` so
   `apply`/TclOO multi-word usage prefixes stay raw.
 
-Out of scope here (deliberately deferred): the `info frame` `level`-omission
-reachability rule for `uplevel`-redirected frames (info-38.2–38.6 — needs
-cmd-frame↔CallFrame reachability threading), `switch -regexp` and `interp debug`
-features (info-30.13/14/16/17/19/20), `info cmdtype`/`cmdcount`
+`info` introspection follow-ups (same session), against `tclVar.c`
+(`TclInfoGlobalsCmd`/`TclInfoVarsCmd`) and `tclCmdIL.c` (`TclInfoFrame`).
+info.test 241→246, var.test 73→76; no regressions.
+
+- `info globals` strips leading global-namespace qualifiers when the pattern
+  starts with `::` (Bug 1057461) — `::x`/`:::x` match global `x`, a lone `:x`
+  does not (info-8.4).
+- `info vars` handles a namespace-qualified pattern via the shared
+  qualified-lookup path (`vars_in_namespace`), re-qualifying matches to their
+  full names (info-19.9).
+- `info frame` `level`-omission **reachability** for `uplevel`-bypassed frames:
+  each `CmdFrame` records its CallFrame stack index (`frame_index`), and the
+  `level` key is gated on caller-chain membership (`caller_chain_indices` walks
+  `saved_active` by identity, so an `uplevel` redirection's chain skips the frame
+  it bypassed even when levels coincide). info-38.3/38.5.
+
+Out of scope here (deliberately deferred): info-38.2/4/6 (blocked on `interp
+debug`), `switch -regexp` (info-30.16/17/19/20), `info cmdtype`/`cmdcount`
 (info-40/info-3), the alias-rewrite `wrong # args` prefix (apply-4.3–4.5), and
 insertion-ordered `info locals` (apply-8.2/8.3 — the var table is a sorted
 `BTreeMap`). Untouched per the parallel-work exclusion: `cmd_string.rs` and the
