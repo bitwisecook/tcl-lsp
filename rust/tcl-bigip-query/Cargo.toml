@@ -9,6 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 indexmap = "2"
 ipnet = "2"
 libm = "0.2"
@@ -16,6 +17,7 @@ regex = "1"
 
 [dev-dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
+temp-env = "0.3"
 
 [lints]
 workspace = true
