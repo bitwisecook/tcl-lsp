@@ -692,9 +692,12 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let var_spec = obj_bytes(argv[2]);
     let vars = match parse::split_list(&var_spec) {
-        Ok(v) if v.len() == 2 => v,
-        _ => return interp.set_error(b"must have exactly two variable names"),
+        Ok(v) => v,
+        Err(e) => return interp.set_error(e.message()),
     };
+    if vars.len() != 2 {
+        return interp.set_error(b"must have exactly two variable names");
+    }
     let (kvar, vvar) = (vars[0].clone(), vars[1].clone());
     let pairs = match dict::dict_pairs(argv[3]) {
         Ok(p) => p,
@@ -711,7 +714,13 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match interp.eval_control_body(argv[4]) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
-            other => return other, // Return / Error propagate (result already set)
+            Code::Error => {
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"dict for");
+                }
+                return Code::Error;
+            }
+            other => return other, // Return propagates (result already set)
         }
     }
     interp.set_result_bytes(b"");
@@ -729,9 +738,12 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     }
     let vars = match parse::split_list(&obj_bytes(argv[2])) {
-        Ok(v) if v.len() == 2 => v,
-        _ => return interp.set_error(b"must have exactly two variable names"),
+        Ok(v) => v,
+        Err(e) => return interp.set_error(e.message()),
     };
+    if vars.len() != 2 {
+        return interp.set_error(b"must have exactly two variable names");
+    }
     let pairs = match dict::dict_pairs(argv[3]) {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
@@ -749,6 +761,13 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Code::Continue => {}
             Code::Break => break,
+            Code::Error => {
+                unsafe { obj::decr_ref_count(acc) };
+                if !interp.in_proc() {
+                    interp.append_body_frame(b"dict map");
+                }
+                return Code::Error;
+            }
             other => {
                 unsafe { obj::decr_ref_count(acc) };
                 return other;
