@@ -425,6 +425,37 @@ impl FrameStack {
         self.frames.iter().rposition(|f| f.level == level)
     }
 
+    /// The stack index of the current active (var) frame — the identity a new
+    /// `CmdFrame` records as its CallFrame (C's `framePtr->framePtr`).
+    pub(crate) fn current_frame_index(&self) -> usize {
+        self.index_of_level(self.active_level).unwrap_or(0)
+    }
+
+    /// The set of stack indices on the active frame's caller chain (C's
+    /// `callerVarPtr` walk from `varFramePtr`). Each frame's caller is the topmost
+    /// frame *below* it at the level that was active when it was pushed
+    /// (`saved_active`) — so an `uplevel`-redirected call's chain skips the frame
+    /// it bypassed, even when that frame shares a level. Used by `info frame` to
+    /// decide whether to report a frame's `level`.
+    pub(crate) fn caller_chain_indices(&self) -> std::collections::HashSet<usize> {
+        let mut set = std::collections::HashSet::new();
+        let mut idx = self.current_frame_index();
+        loop {
+            if !set.insert(idx) || idx == 0 {
+                break;
+            }
+            let caller_level = self.frames[idx].saved_active;
+            match self.frames[..idx]
+                .iter()
+                .rposition(|f| f.level == caller_level)
+            {
+                Some(c) => idx = c,
+                None => break,
+            }
+        }
+        set
+    }
+
     /// Redirect the active variable frame to `level` (for `uplevel`), returning
     /// the previous active level so the caller can restore it.
     pub fn set_active_level(&mut self, level: usize) -> usize {

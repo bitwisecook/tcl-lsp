@@ -158,6 +158,12 @@ struct CmdFrame {
     /// current var-scope chain, which is the `uplevel` case (its body runs in a
     /// redirected scope).
     omit_level: bool,
+    /// The **stack index** (identity, not logical level) of the CallFrame this
+    /// cmd-frame runs in — C's `framePtr->framePtr`. `level` alone can't identify
+    /// the frame (an `uplevel`-invoked proc shares its caller's level), so the
+    /// `info frame` `level` reachability test (TclInfoFrame) walks the caller
+    /// chain by this index. `0` is the global frame.
+    frame_index: usize,
     /// Added to a body-relative line to get the reported `line`. `0` for
     /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
     /// for a proc defined in a `source`d file it is the file line where the body
@@ -221,6 +227,7 @@ impl CmdFrame {
             proc: None,
             level: 0,
             omit_level: false,
+            frame_index: 0,
             line_base: 0,
             cmd: Vec::new(),
             line: 1,
@@ -1205,12 +1212,17 @@ impl Interp {
             Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
             None => (FrameKind::Eval, None, 0),
         };
+        let (ns_level, ns_index) = {
+            let f = self.frames.borrow();
+            (f.current_level(), f.current_frame_index())
+        };
         let frame = CmdFrame {
             kind,
             file,
             proc: None,
-            level: self.frames.borrow().current_level(),
+            level: ns_level,
             omit_level: false,
+            frame_index: ns_index,
             line_base,
             cmd: Vec::new(),
             line: 1,
@@ -2612,11 +2624,19 @@ impl Interp {
         } else if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
-        // `level` is the distance from the current call level (omitted for a
-        // redirected `uplevel` scope, matching C's reachability check).
+        // `level` is the distance from the current call level — but C only adds
+        // it when the frame's CallFrame is *reachable* from the current var frame
+        // by walking the caller chain (`TclInfoFrame`). A frame bypassed by an
+        // `uplevel` redirection (e.g. the proc that called `uplevel`, when viewed
+        // from the uplevel'd callee) is off the chain and omits `level`, even
+        // though it shares a level with a chain frame. `omit_level` short-circuits
+        // the explicit `uplevel`-body case (C's `framePtr->framePtr == NULL`).
         if !f.omit_level {
-            let level = self.frames.borrow().current_level().saturating_sub(f.level);
-            pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+            let frames = self.frames.borrow();
+            if frames.caller_chain_indices().contains(&f.frame_index) {
+                let level = frames.current_level().saturating_sub(f.level);
+                pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+            }
         }
         Some(pairs)
     }
@@ -2770,6 +2790,10 @@ impl Interp {
             // Inherit the enclosing frame's level-reachability (an inline body
             // of an `uplevel`-redirected script also omits `level`).
             omit_level: top.is_some_and(|f| f.omit_level),
+            // An `eval`/body frame runs in the enclosing call frame — inherit its
+            // identity so the `info frame` `level` reachability test sees it as
+            // the same CallFrame.
+            frame_index: top.map_or(0, |f| f.frame_index),
             line_base,
             cmd: Vec::new(),
             line: 1,
@@ -4051,6 +4075,10 @@ impl Interp {
             ProcFrame::Lambda(expr) => Some(expr.to_vec()),
             _ => None,
         };
+        let (proc_lvl, proc_idx) = {
+            let f = self.frames.borrow();
+            (f.current_level(), f.current_frame_index())
+        };
         let proc_frame = CmdFrame {
             kind: if meta.source.is_some() {
                 FrameKind::Source
@@ -4059,8 +4087,9 @@ impl Interp {
             },
             file: meta.source,
             proc: meta.fqn.map(<[u8]>::to_vec),
-            level: self.frames.borrow().current_level(),
+            level: proc_lvl,
             omit_level: false,
+            frame_index: proc_idx,
             line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
