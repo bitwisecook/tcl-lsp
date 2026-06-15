@@ -17,6 +17,7 @@ use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
+use tcl_compiler::interval_bounds::find_interval_bounds;
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::optimiser::{apply_optimisations, optimise};
@@ -735,6 +736,43 @@ fn post_ssa_analysis(snap: &crate::FunctionSnapshot) -> Value {
     })
 }
 
+/// Serialise the `bounds` view: interval-driven out-of-range findings per
+/// function. Mirrors `_serialise_bounds`.
+///
+/// `_NO_PARITY`: the Rust `find_interval_bounds` takes no `execution_intent`
+/// and emits no divide-by-zero (`W233`) findings, so `divzero` is always
+/// `[]` and the findings come from the (divergent) Rust interval analysis.
+#[must_use]
+pub fn serialise_bounds(result: &ExplorerResult) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .map(|snap| {
+            let findings: Vec<Value> = find_interval_bounds(
+                &snap.unit.cfg,
+                &snap.unit.ssa,
+                &snap.unit.sccp.values,
+                &snap.unit.sccp.executable_blocks,
+            )
+            .iter()
+            .map(|f| {
+                json!({
+                    "code": f.code,
+                    "command": f.command,
+                    "indexVar": f.index_var,
+                    "lo": f.index_interval.lo,
+                    "hi": f.index_interval.hi,
+                    "length": f.length,
+                    "reason": f.reason,
+                })
+            })
+            .collect();
+            json!({ "name": snap.name, "findings": findings, "divzero": Vec::<Value>::new() })
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise the `interprocedural` view: per-procedure summaries followed
 /// by `TclOO` method summaries. Mirrors `_serialise_interproc`.
 #[must_use]
@@ -1172,6 +1210,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("cst".to_owned(), crate::cst::serialise_cst(&result.source));
     out.insert("segments".to_owned(), serialise_segments(&result.source));
     out.insert("intervals".to_owned(), serialise_intervals(result));
+    out.insert("bounds".to_owned(), serialise_bounds(result));
     out.insert(
         "renderedProperties".to_owned(),
         serialise_rendered_properties(result),
@@ -1332,6 +1371,17 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn bounds_emits_per_function_shape() {
+        let result = run_pipeline("set l [list a b c]\nlindex $l 0", "tcl8.6");
+        let bounds = serialise_result(&result)["bounds"].clone();
+        let top = &bounds.as_array().unwrap()[0];
+        assert_eq!(top["name"], "::top");
+        assert!(top["findings"].is_array());
+        // The Rust interval analysis emits no divide-by-zero findings.
+        assert_eq!(top["divzero"], json!([]));
     }
 
     #[test]

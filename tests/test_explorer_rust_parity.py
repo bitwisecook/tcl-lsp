@@ -91,6 +91,10 @@ _NO_PARITY_KEYS = {
     # the lattice/type detail comes from the divergent Rust analyses.
     "cfgPostSsa",
     "cfgPostSsaOptimised",
+    # bounds: Rust find_interval_bounds has no execution_intent input and no
+    # divide-by-zero (W233) findings, so divzero is always [] and findings
+    # come from the divergent Rust interval analysis.
+    "bounds",
     "renderedProperties",
     "taintWarnings",
     "gvn",
