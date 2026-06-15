@@ -745,6 +745,19 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
             serialise_cfg_pre_ssa(r, &LineIndex::new(s), s)
         }),
     );
+    out.insert(
+        "asmOptimised".to_owned(),
+        opt.as_ref().map_or(Value::Null, |(r, s)| {
+            crate::asm::serialise_asm(r, &LineIndex::new(s), s)
+        }),
+    );
+
+    // WASM views: the WASM emitter is unported (zero Rust files), so these
+    // degrade to `null` — `explorer-core.js` renders the WASM tab's empty
+    // state. Python emits real disassembly here, so they are `_NO_PARITY`
+    // until the emitter chunk lands.
+    out.insert("wasm".to_owned(), Value::Null);
+    out.insert("wasmOptimised".to_owned(), Value::Null);
     Value::Object(out)
 }
 

@@ -96,6 +96,11 @@ _NO_PARITY_KEYS = {
     # null), so `asm` is pinned by a Rust unit test + the bytecode-compare
     # gate rather than the Python differential.
     "asm",
+    "asmOptimised",
+    # The WASM emitter is unported (Rust emits null where Python emits real
+    # disassembly); they degrade gracefully and light up when the emitter lands.
+    "wasm",
+    "wasmOptimised",
 }
 
 
