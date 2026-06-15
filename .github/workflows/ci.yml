@@ -151,6 +151,26 @@ jobs:
         with:
           node-version: "24"
 
+      # Pin the npm CLI via the `packageManager` field in
+      # editors/vscode/package.json. Corepack downloads and activates the
+      # pinned npm so `npm ci` runs the same version locally and in CI.
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly (`corepack enable npm`) or the shim isn't created and
+          # the npm bundled with setup-node wins. Assert the pin is live so a
+          # silent regression fails loudly instead of using the wrong npm.
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
+
       # `package-lock.json` is committed, so installs are pinned by hash.
       # Cache the npm metadata directory keyed on the lockfile so the
       # cache invalidates whenever the resolved dependency tree changes.
@@ -280,6 +300,26 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "24"
+
+      # Pin the npm CLI via the `packageManager` field in
+      # editors/vscode/package.json. Corepack downloads and activates the
+      # pinned npm so `npm ci` runs the same version locally and in CI.
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly (`corepack enable npm`) or the shim isn't created and
+          # the npm bundled with setup-node wins. Assert the pin is live so a
+          # silent regression fails loudly instead of using the wrong npm.
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
 
       # `package-lock.json` is committed, so installs are pinned by hash.
       # Cache the npm metadata directory keyed on the lockfile so the
