@@ -173,7 +173,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Compile + codegen + generated assets
 .PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings gen-registry-baselines check-registry-baselines copy-canonical npm-env logo
 # Compiler explorer (WASM GUI)
-.PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
+.PHONY: explorer-wasm explorer-build explorer-build-cdn compiler-explorer-gui
 # Zipapps + smoke tests
 .PHONY: zipapps zipapp-tcl zipapp-explorer-cli zipapp-f5 zipapp-explorer-gui zipapp-explorer-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
 .PHONY: smoke-zipapps smoke-vsix
@@ -672,6 +672,12 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
 		cd $(ZED_DIR) && cargo fmt --all --check && \
 			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(EXPLORER_WASM_DIR) && cargo fmt --all --check && \
+			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
@@ -844,6 +850,10 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_RGXG=1 \
 			SKIP_TCLLIB=1 \
 			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+		echo "==> Ensuring wasm32-unknown-unknown target (compiler-explorer WASM)"; \
+		rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true; \
+		command -v wasm-pack >/dev/null 2>&1 || \
+			echo "    note: wasm-pack not found — 'cargo install wasm-pack' for 'make explorer-wasm'"; \
 	fi
 
 ensure-emacs-deps: ## Install Emacs needed by test-emacs
@@ -1231,12 +1241,23 @@ $(MERMAID_JS):
 	@echo "==> Downloading Mermaid.js $(MERMAID_VERSION)"
 	curl -fSL -o $@ $(MERMAID_CDN)
 
-explorer-build: $(UV_STAMP) $(PYODIDE_DIR)/pyodide.js $(MERMAID_JS) $(BUILD_INFO_JSON) ## Build the WASM compiler explorer (offline)
-	@echo "==> Building wheel for Pyodide"
-	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_STATIC)
-	@echo "Built wheel:"
-	@ls -lh $(EXPLORER_STATIC)/tcl_lsp-*.whl
-	@echo "Pyodide: $(PYODIDE_DIR)"
+EXPLORER_WASM_DIR := $(ROOT)rust/tcl-explorer-wasm
+
+explorer-wasm: ## Build the Rust → WASM compiler-explorer module into static/
+	@command -v wasm-pack >/dev/null 2>&1 || { \
+		echo "wasm-pack not found — run 'make ensure-rust-deps' or 'cargo install wasm-pack'"; \
+		exit 1; }
+	@echo "==> Building tcl-explorer-wasm (wasm-pack --target no-modules)"
+	cd $(EXPLORER_WASM_DIR) && wasm-pack build --target no-modules --release \
+		--out-dir $(BUILD_DIR)/explorer-wasm --out-name tcl_explorer_wasm
+	@echo "==> Optimising with wasm-opt"
+	wasm-opt -O3 $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm_bg.wasm \
+		-o $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+	cp $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm.js
+	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+
+explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler explorer (Rust → WASM, offline, no Python)
+	@echo "==> Compiler explorer ready in $(EXPLORER_STATIC) (Rust → WASM, no Pyodide)"
 
 compiler-explorer-gui: explorer-build ## Build and serve the static compiler explorer
 	@echo "==> Serving compiler explorer at http://localhost:8080"
