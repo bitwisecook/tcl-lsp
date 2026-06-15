@@ -1458,11 +1458,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+]
+
+[[package]]
 name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
  "tcl-lexer",
+]
+
+[[package]]
+name = "tcl-vm"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
 ]
 
 [[package]]

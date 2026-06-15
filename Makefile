@@ -184,7 +184,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Zig runtime + leak check
 .PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-lint runtime-rust-sweep
+.PHONY: runtime-rust-test runtime-rust-lint runtime-rust-sweep vm-test vm-lint
 # Sphinx docs
 .PHONY: docs docs-html docs-clean docs-linkcheck
 # Screenshots
@@ -1625,6 +1625,13 @@ runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
 runtime-rust-sweep: ## Sweep the Tcl 9 tcltest suite against the Rust runtime (scoreboard); JSON=path to dump --json
 	cd $(RUNTIME_RUST_DIR) && cargo build --release --example run_script
 	TCL_LIBRARY=$(ROOT)tmp/tcl9.0.3/library python3 $(ROOT)scripts/dev/rust_tcltest_sweep.py $(if $(JSON),--json $(JSON),)
+
+vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm)
+	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
+
+vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
+	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
+	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- -D warnings
 
 # ---------------------------------------------------------------------------
 # Sphinx — dialects.f5.query Python API reference
