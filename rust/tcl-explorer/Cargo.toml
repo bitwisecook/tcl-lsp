@@ -1,0 +1,18 @@
+[package]
+name = "tcl-explorer"
+description = "Compiler-explorer pipeline + serialiser over the Tcl compiler crates (CLI / TUI / WASM front-ends consume this)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-compiler = { path = "../tcl-compiler" }
+
+[lints]
+workspace = true

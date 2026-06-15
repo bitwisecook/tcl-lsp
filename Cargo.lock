@@ -1890,6 +1890,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-explorer"
+version = "0.1.0"
+dependencies = [
+ "tcl-compiler",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-irules"
 version = "0.1.0"
 dependencies = [
