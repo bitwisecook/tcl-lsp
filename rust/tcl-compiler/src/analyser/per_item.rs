@@ -1,0 +1,703 @@
+//! Per-item incremental analysis (slice 2b/3 of
+//! `docs/design/rust/incremental-analysis.md`).
+//!
+//! [`Analyser::analyse_per_item`] reproduces [`Analyser::analyse`]
+//! **byte-for-byte** but decomposed so each top-level **proc / method body** is
+//! analysed as a separate unit — the granularity at which slice 3 memoises the
+//! expensive per-line walk (a body edit then re-analyses only that body).
+//!
+//! ## How it stays byte-identical
+//!
+//! The walk is split into two passes over the *same* analyser:
+//! 1. **Shell pass** — walk the top level with `defer_proc_bodies = true`, so
+//!    `handle_proc_command` / OO method walks create each body's scope (params
+//!    defined, `body_span` set) but record the body in `deferred_bodies` instead
+//!    of recursing. The whole top level (incl. `namespace eval` / control-flow
+//!    bodies and the procs they contain) is walked here, so top-level variable
+//!    flow is identical to `analyse`.
+//! 2. **Body pass** — for each deferred body, `analyse_body` fills its
+//!    already-created scope *in place*, with `defer_proc_bodies = false` so
+//!    nested defs walk within their enclosing unit.
+//!
+//! Splitting top-level vs body work reorders the walk-populated collections
+//! (`command_invocations`, `VarDef.references`, …) relative to `analyse`'s DFS,
+//! but those are made order-independent by `canonicalize_result_order` in the
+//! shared tail — so the merged result matches. The cross-item tail
+//! (`run_diagnostic_emitters`: W123 / arity / whole-source CFG-SSA) runs once at
+//! the end, exactly as in `analyse`.
+//!
+//! Correctness rests on the differential fuzzer + the `per_item == analyse`
+//! corpus gate, with a **full-rebuild fallback** for anything not provably
+//! equivalent (error recovery / partial commands / inline stub directives).
+
+use tcl_lexer::Token;
+
+use super::state::Analyser;
+use super::types::AnalysisResult;
+
+/// A proc / method body deferred by the shell pass for a second analysis pass.
+/// Its scope already exists at `scope_path` (params defined); the body pass
+/// fills it — proc bodies via an **isolated** analysis (memoisable), method
+/// bodies in place (byte-identical, not yet memoised).
+#[derive(Debug, Clone)]
+pub struct DeferredBody {
+    /// Body text (braces stripped), as `analyse_body` expects.
+    pub body_text: String,
+    /// The body's `Str` token (absolute span) — drives offset arithmetic.
+    pub body_tok: Token,
+    /// Path to the already-created (empty) proc / method scope to fill.
+    pub scope_path: Vec<usize>,
+    /// `true` for an OO method/constructor/destructor body (filled in place);
+    /// `false` for a `proc` body (analysed in isolation).
+    pub is_method: bool,
+    /// Lexical namespace of the proc (e.g. `"::ns"`), for reconstructing the
+    /// isolated analysis context. (Proc bodies only.)
+    pub namespace: String,
+    /// The proc scope's name (as written) — used for `all_variables` keys.
+    pub scope_name: String,
+    /// The proc's declared parameters (locals in the body). (Proc bodies only.)
+    pub params: Vec<crate::signature_scan::types::ParamDef>,
+}
+
+impl Analyser {
+    /// Per-item analysis entry — byte-identical to [`Analyser::analyse`] for
+    /// well-formed input, falling back to it otherwise. Analyses each proc body
+    /// directly. See module docs.
+    pub fn analyse_per_item(&mut self, source: &str, dialect: &str) -> AnalysisResult {
+        let disabled = self.disabled_diagnostics.clone();
+        let non_ascii = self.non_ascii_mode;
+        let empty_overlay = super::types::build_stub_overlay(&[]);
+        let mut body_fn = |db: &DeferredBody| {
+            analyse_proc_body_isolated(
+                db,
+                dialect,
+                &disabled,
+                non_ascii,
+                Some(empty_overlay.clone()),
+            )
+        };
+        self.analyse_per_item_with(source, dialect, &mut body_fn)
+    }
+
+    /// As [`Self::analyse_per_item`], but each *proc* body's isolated analysis
+    /// is produced by `body_fn` — letting a caller (the LSP query DB) memoise it
+    /// in salsa so a body edit recomputes only that body.  Method bodies are
+    /// filled in place.  Byte-identical to `analyse` whenever `body_fn` returns
+    /// what [`analyse_proc_body_isolated`] would.
+    #[allow(clippy::too_many_lines)]
+    pub fn analyse_per_item_with(
+        &mut self,
+        source: &str,
+        dialect: &str,
+        body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
+    ) -> AnalysisResult {
+        use std::collections::HashSet;
+        use tcl_registry::CommandRegistry;
+
+        // Recovery / stub overlays are only modelled on the full `analyse`
+        // path; fall back so the per-item result can never diverge.
+        if !tcl_lexer::script_is_complete(source) || source.contains("tcl-lsp: stub") {
+            return self.analyse(source, dialect);
+        }
+
+        // --- setup, mirroring `analyse` (gated by the corpus `per_item ==
+        // analyse` test) ---
+        self.source = source.to_string();
+        self.dialect = dialect.to_string();
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
+        }
+        if !file_codes.is_empty() {
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
+        }
+        super::state::merge_noqa_line_suppressions(
+            &mut self.result.suppressed_lines,
+            super::utils::parse_noqa_line_suppressions(source),
+        );
+        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
+        self.result.stub_commands = stub_cmds;
+        self.result.stub_expr_defs = stub_exprs;
+
+        let mut registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            registry.load_dialect(d);
+        }
+        self.registry = Some(registry);
+        self.line_offsets = Some(super::state::compute_line_offsets(source));
+        let known: HashSet<&str> = self
+            .registry
+            .as_ref()
+            .expect("registry just stashed")
+            .command_names()
+            .collect();
+        let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
+            source,
+            &known,
+            self.lexer_config(),
+        );
+        drop(known);
+
+        // Error recovery → fall back to full `analyse` (its ghost-recovery /
+        // partial-command handling is not reproduced on the per-item path).
+        let ghost = self.apply_ghost_recovery(source, &mut commands);
+        if ghost || commands.iter().any(|c| c.is_partial) {
+            return self.fresh_full_analyse(source, dialect);
+        }
+
+        // --- pass 1: shell (defer proc/method bodies) ---
+        self.defer_proc_bodies = true;
+        self.walk_commands_top_level(&commands, false);
+        self.defer_proc_bodies = false;
+
+        // --- pass 2: fill each deferred body ---
+        let deferred = std::mem::take(&mut self.deferred_bodies);
+        // Fall back to a full rebuild for the two patterns the isolated-body
+        // decomposition can't reproduce byte-for-byte:
+        //
+        // 1. **Duplicate definitions** — the same proc/method qualified name
+        //    defined more than once.  A whole-file walk processes the
+        //    redefinitions in source order (last-definition-wins for the shared
+        //    scope/`all_variables` key); the per-item graft *merges* every
+        //    body's facts instead.  Covers both top-level duplicates (e.g.
+        //    platform-conditional `proc auto_execok` in `if {…} else {…}`) and a
+        //    body that **redefines an enclosing/sibling proc** — the lazy-init
+        //    pattern `proc p {a} { …; proc p {a} {real} }`, where the inner def
+        //    wins in a whole-file walk but merges here.
+        // 2. **Class definition / extension in a proc body** (`oo::class` /
+        //    `oo::define` / `itcl::class` / object aliasing) — a class's methods
+        //    accumulate across bodies in a whole-file walk (remove → add →
+        //    re-insert), which the graft's overwrite-on-key cannot reproduce.
+        //
+        // Both are rare; everything else (namespace/global/`variable` state,
+        // qualified `$::g` reads — replayed at graft) takes the fast incremental
+        // path.  Guarded by the corpus `per_item == analyse` gate + the
+        // `incremental == fresh` fuzzer.
+        let structural_fallback = {
+            let mut seen = std::collections::HashSet::new();
+            let duplicate_top_level = deferred.iter().any(|db| {
+                !seen.insert((db.is_method, db.namespace.as_str(), db.scope_name.as_str()))
+            });
+            duplicate_top_level
+                || deferred
+                    .iter()
+                    .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text))
+        };
+        if structural_fallback {
+            return self.fresh_full_analyse(source, dialect);
+        }
+        // Track every defined proc qualified name (top-level + nested) so a body
+        // that redefines an already-defined proc forces a fallback.
+        let mut defined_procs: std::collections::HashSet<String> =
+            self.result.all_procs.keys().cloned().collect();
+        for db in &deferred {
+            if db.is_method {
+                // Method bodies fill their scope in place (byte-identical for the
+                // walk itself).  But a method that *defines* a proc/class does so
+                // in pass-2 order, not the source order a whole-file walk uses —
+                // so a name it defines that is also defined elsewhere would win
+                // here yet lose (or accumulate differently) there.  Detect that
+                // and fall back.  Cheap: only snapshot when the body text
+                // actually defines a proc/class.
+                self.last_comment = String::new();
+                let before_classes = body_word_defines(&db.body_text, CLASS_DEFINERS)
+                    .then(|| self.result.all_classes.clone());
+                let before_procs = body_word_defines(&db.body_text, &["proc"])
+                    .then(|| self.result.all_procs.clone());
+                self.analyse_body(&db.body_text, db.body_tok, &db.scope_path);
+                // A method that defines/extends a class diverges like a
+                // class-defining proc body (accumulation order) — fall back.
+                if let Some(before) = before_classes {
+                    if self
+                        .result
+                        .all_classes
+                        .iter()
+                        .any(|(k, v)| before.get(k) != Some(v))
+                    {
+                        return self.fresh_full_analyse(source, dialect);
+                    }
+                }
+                // A method that (re)defines a proc whose name is defined
+                // elsewhere is a duplicate at the shared `all_procs` key.
+                if let Some(before) = before_procs {
+                    let mut collision = false;
+                    for (k, v) in &self.result.all_procs {
+                        if before.get(k) != Some(v) && !defined_procs.insert(k.clone()) {
+                            collision = true;
+                            break;
+                        }
+                    }
+                    if collision {
+                        return self.fresh_full_analyse(source, dialect);
+                    }
+                }
+            } else {
+                // Proc bodies: analyse in isolation (a pure function of the
+                // body — the unit memoised by `body_fn`) and graft into shell.
+                let frag = body_fn(db);
+                if frag
+                    .result
+                    .all_procs
+                    .keys()
+                    .any(|name| !defined_procs.insert(name.clone()))
+                {
+                    return self.fresh_full_analyse(source, dialect);
+                }
+                self.graft_proc_body(db, frag);
+            }
+        }
+
+        // --- tail (cross-item passes; canonicalises order) ---
+        self.run_diagnostic_emitters(source);
+
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        result
+    }
+
+    /// Graft an isolated (offset-0) proc body's facts into `self` (the shell):
+    /// **rebase** every span by the body's real position, then merge.  The shell
+    /// already holds the params (with their real name-span), so variables are
+    /// merge-or-inserted (an existing key is a param → keep its def span, add the
+    /// body's reads; a new key is a body local → insert).  Order is canonicalised
+    /// by the tail, so plain `extend` is fine for the rest.
+    fn graft_proc_body(&mut self, db: &DeferredBody, mut frag: BodyFragment) {
+        // Rebase: body facts are relative to the body content start.
+        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset);
+        let line_delta = self
+            .line_offsets
+            .as_deref()
+            .map_or(0, |lo| super::state::line_at_offset(lo, delta as usize));
+        rebase_fragment(&mut frag, delta, line_delta);
+
+        if let Some(ps) = super::scope::scope_at_mut(&mut self.result.global_scope, &db.scope_path)
+        {
+            merge_scope_vars(&mut ps.variables, frag.proc_scope.variables);
+            ps.procs = frag.proc_scope.procs;
+            ps.classes = frag.proc_scope.classes;
+            ps.children = frag.proc_scope.children;
+        }
+        let r = frag.result;
+        self.result.all_procs.extend(r.all_procs);
+        self.result.all_classes.extend(r.all_classes);
+        merge_scope_vars(&mut self.result.all_variables, r.all_variables);
+        self.result.command_aliases.extend(r.command_aliases);
+        self.result.instance_classes.extend(r.instance_classes);
+        self.result.diagnostics.extend(r.diagnostics);
+        self.result
+            .command_invocations
+            .extend(r.command_invocations);
+        self.result.package_requires.extend(r.package_requires);
+        self.result.package_provides.extend(r.package_provides);
+        self.result.source_targets.extend(r.source_targets);
+        self.result.namespace_imports.extend(r.namespace_imports);
+        self.result.auto_path_entries.extend(r.auto_path_entries);
+        self.result.regex_patterns.extend(r.regex_patterns);
+        self.result.has_dynamic_providers |= r.has_dynamic_providers;
+        if self.result.unknown_proc_info.is_none() {
+            self.result.unknown_proc_info = r.unknown_proc_info;
+        }
+        for (line, codes) in r.suppressed_lines {
+            self.result
+                .suppressed_lines
+                .entry(line)
+                .or_default()
+                .extend(codes);
+        }
+        self.ensemble_namespaces.extend(frag.ensembles);
+        self.pending_arity.extend(frag.pending_arity);
+        self.var_command_sites.extend(frag.var_sites);
+        self.cmd_command_sites.extend(frag.cmd_sites);
+        // Replay the body's qualified global reads against the shell's real
+        // global scope (rebased to the body's position): a `$::g` read lands as
+        // a reference on the enclosing `::g` exactly as a whole-file walk would.
+        for (name, span) in frag.global_reads {
+            self.record_var_read(&name, shift(span, delta), &[]);
+        }
+    }
+}
+
+/// The facts produced by analysing one proc body in isolation.  Cloneable +
+/// `PartialEq` so the LSP query DB can memoise it (salsa early-cutoff).
+#[derive(Clone, PartialEq)]
+pub struct BodyFragment {
+    result: AnalysisResult,
+    proc_scope: super::types::Scope,
+    ensembles: std::collections::HashSet<String>,
+    pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+    var_sites: Vec<super::state::VarCommandSite>,
+    cmd_sites: Vec<super::state::CmdCommandSite>,
+    /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
+    /// enclosing global scope; replayed on the shell's real globals at graft.
+    global_reads: Vec<(String, tcl_lexer::Span)>,
+}
+
+/// Analyse one `proc` body as an isolated unit at **offset 0** — a pure
+/// function of `(body_text, namespace, scope_name, params)`, so a
+/// shifted-but-unedited proc is a cache hit (offset-invariant).  The enclosing
+/// namespace + params are reconstructed; params get a placeholder definition
+/// span (the aggregator keeps the shell's real one).  Spans/lines are relative
+/// to the body start; [`Analyser::graft_proc_body`] rebases them by the body's
+/// real position.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn analyse_proc_body_isolated(
+    db: &DeferredBody,
+    dialect: &str,
+    disabled: &std::collections::HashSet<String>,
+    non_ascii: super::state::NonAsciiMode,
+    stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+) -> BodyFragment {
+    use tcl_registry::CommandRegistry;
+    let mut a =
+        Analyser::with_disabled_diagnostics(disabled.clone()).with_non_ascii_mode(non_ascii);
+    a.dialect = dialect.to_string();
+    a.stub_overlay = stub_overlay;
+    // Offset 0: the body content is the whole source; a synthetic `Str` body
+    // token spans it with `content_offset = 0` (no `{` to skip).
+    a.source.clone_from(&db.body_text);
+    #[allow(clippy::cast_possible_truncation)]
+    let body_tok = Token::new(
+        tcl_lexer::TokenType::Str,
+        tcl_lexer::Span::new(0, db.body_text.len() as u32),
+    );
+    let mut registry = CommandRegistry::build_default();
+    if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
+        registry.load_dialect(d);
+    }
+    a.registry = Some(registry);
+    a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
+    // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
+    // global scope, so the graft can replay them on the shell's real globals.
+    a.capture_global_reads = Some(Vec::new());
+    let proc_path =
+        reconstruct_proc_scope(&mut a.result.global_scope, &db.namespace, &db.scope_name);
+    let placeholder = tcl_lexer::Span::new(0, 0);
+    let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
+    for p in &db.params {
+        a.define_var(&p.name, dummy, &proc_path, false, Some(placeholder));
+    }
+    a.analyse_body(&db.body_text, body_tok, &proc_path);
+    let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
+        .expect("reconstructed proc scope")
+        .clone();
+    BodyFragment {
+        result: a.result,
+        proc_scope,
+        ensembles: a.ensemble_namespaces,
+        pending_arity: a.pending_arity,
+        var_sites: a.var_command_sites,
+        cmd_sites: a.cmd_command_sites,
+        global_reads: a.capture_global_reads.unwrap_or_default(),
+    }
+}
+
+/// Merge body-derived variables into a scope/`all_variables` map: an existing
+/// key is a param the shell already recorded (keep its real definition span;
+/// add the body's reads / warn flag / array indices); a new key is a body local
+/// (insert).
+fn merge_scope_vars(
+    dst: &mut std::collections::HashMap<String, super::types::VarDef>,
+    src: std::collections::HashMap<String, super::types::VarDef>,
+) {
+    for (k, v) in src {
+        if let Some(existing) = dst.get_mut(&k) {
+            existing.references.extend(v.references);
+            existing.warn_if_unused |= v.warn_if_unused;
+            existing.array_indices.extend(v.array_indices);
+        } else {
+            dst.insert(k, v);
+        }
+    }
+}
+
+fn shift(s: tcl_lexer::Span, d: u32) -> tcl_lexer::Span {
+    tcl_lexer::Span::new(s.start() + d, s.end() + d)
+}
+
+fn rebase_vardef(v: &mut super::types::VarDef, d: u32) {
+    v.definition_span = shift(v.definition_span, d);
+    for r in &mut v.references {
+        *r = shift(*r, d);
+    }
+}
+
+fn rebase_proc(p: &mut super::types::ProcDef, d: u32) {
+    p.name_span = shift(p.name_span, d);
+    p.body_span = shift(p.body_span, d);
+}
+
+fn rebase_method(m: &mut super::types::MethodDef, d: u32) {
+    m.name_span = shift(m.name_span, d);
+    m.body_span = shift(m.body_span, d);
+}
+
+fn rebase_class(c: &mut super::types::ClassDef, d: u32) {
+    c.name_span = shift(c.name_span, d);
+    c.body_span = shift(c.body_span, d);
+    for m in c.methods.values_mut().chain(c.class_methods.values_mut()) {
+        rebase_method(m, d);
+    }
+    for m in &mut c.constructors {
+        rebase_method(m, d);
+    }
+    if let Some(m) = &mut c.destructor {
+        rebase_method(m, d);
+    }
+    for (_, sp) in c.superclass_refs.iter_mut().chain(c.mixin_refs.iter_mut()) {
+        *sp = shift(*sp, d);
+    }
+    for p in c.properties.values_mut() {
+        p.name_span = shift(p.name_span, d);
+    }
+}
+
+fn rebase_diag(diag: &mut super::types::Diagnostic, d: u32) {
+    diag.span = shift(diag.span, d);
+    for f in &mut diag.fixes {
+        f.span = shift(f.span, d);
+    }
+}
+
+fn rebase_scope(s: &mut super::types::Scope, d: u32) {
+    if let Some(bs) = &mut s.body_span {
+        *bs = shift(*bs, d);
+    }
+    for v in s.variables.values_mut() {
+        rebase_vardef(v, d);
+    }
+    for p in s.procs.values_mut() {
+        rebase_proc(p, d);
+    }
+    for c in s.classes.values_mut() {
+        rebase_class(c, d);
+    }
+    for ch in &mut s.children {
+        rebase_scope(ch, d);
+    }
+}
+
+/// Shift every span in an offset-0 body fragment to the body's real position
+/// (`d` bytes; suppressed-line keys by `line_delta` lines).  E2 (offset-shift
+/// invariance) guarantees this reproduces an in-place walk exactly.
+fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
+    rebase_scope(&mut frag.proc_scope, d);
+    let r = &mut frag.result;
+    for p in r.all_procs.values_mut() {
+        rebase_proc(p, d);
+    }
+    for c in r.all_classes.values_mut() {
+        rebase_class(c, d);
+    }
+    for v in r.all_variables.values_mut() {
+        rebase_vardef(v, d);
+    }
+    for diag in &mut r.diagnostics {
+        rebase_diag(diag, d);
+    }
+    for inv in &mut r.command_invocations {
+        inv.range = shift(inv.range, d);
+    }
+    for x in &mut r.package_requires {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.package_provides {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.source_targets {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.namespace_imports {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.auto_path_entries {
+        x.range = shift(x.range, d);
+    }
+    for x in &mut r.regex_patterns {
+        x.range = shift(x.range, d);
+    }
+    if !r.suppressed_lines.is_empty() {
+        let old = std::mem::take(&mut r.suppressed_lines);
+        for (line, codes) in old {
+            let nl = if line < 0 { line } else { line + line_delta };
+            r.suppressed_lines.entry(nl).or_default().extend(codes);
+        }
+    }
+    for (_, _, _, diag) in &mut frag.pending_arity {
+        rebase_diag(diag, d);
+    }
+    for s in &mut frag.var_sites {
+        s.cmd_span = shift(s.cmd_span, d);
+    }
+    for s in &mut frag.cmd_sites {
+        s.cmd_span = shift(s.cmd_span, d);
+    }
+}
+
+/// Build `global -> namespace* -> proc` scopes mirroring the proc's lexical
+/// context (so nested defs qualify identically), returning the proc scope path.
+fn reconstruct_proc_scope(
+    root: &mut super::types::Scope,
+    namespace: &str,
+    scope_name: &str,
+) -> Vec<usize> {
+    use super::types::{Scope, ScopeKind};
+    let comps: Vec<&str> = namespace
+        .trim_start_matches(':')
+        .split("::")
+        .filter(|s| !s.is_empty())
+        .collect();
+    let mut path: Vec<usize> = Vec::new();
+    for comp in comps {
+        let parent = super::scope::scope_at_mut(root, &path).expect("scope path");
+        let i = parent.children.len();
+        parent.children.push(Scope::new(ScopeKind::Namespace, comp));
+        path.push(i);
+    }
+    let parent = super::scope::scope_at_mut(root, &path).expect("scope path");
+    let pi = parent.children.len();
+    parent
+        .children
+        .push(Scope::new(ScopeKind::Proc, scope_name));
+    path.push(pi);
+    path
+}
+
+/// Class-defining / object-aliasing command heads whose facts accumulate across
+/// bodies in a whole-file walk (remove → add → re-insert) — which the per-item
+/// graft's overwrite-on-key can't reproduce.
+const CLASS_DEFINERS: &[&str] = &[
+    "oo::define",
+    "oo::objdefine",
+    "oo::class",
+    "oo::copy",
+    "itcl::class",
+];
+
+/// Word-level test: does `body_text` use any of `words` as a (whitespace- or
+/// punctuation-delimited) command word?  Used as a cheap pre-filter before the
+/// more expensive snapshot/diff that confirms what a method body actually
+/// defined.  False positives only cost a snapshot, never correctness.
+fn body_word_defines(body_text: &str, words: &[&str]) -> bool {
+    body_text
+        .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
+        .any(|w| words.contains(&w))
+}
+
+/// Does an isolated proc body interact with enclosing-scope / object state in a
+/// way the per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
+/// fallback?  True when the body:
+///
+/// * **defines or extends a class / aliased object** (`oo::class` / `oo::define`
+///   / `itcl::class` / `oo::copy`) — class facts accumulate across bodies in a
+///   whole-file walk (remove → add → re-insert), which the graft's
+///   overwrite-on-key can't reproduce; **or**
+/// * **declares or writes an enclosing-scope variable** (`variable` / `global` /
+///   `upvar` / `namespace`, or a writer command — `set`/`incr`/`lappend`/
+///   `append`/`dict`/`array` — targeting a `::`-qualified name).  Such a body's
+///   `all_variables` / global-scope effect (definition span, `warn_if_unused`,
+///   const-string-dependent diagnostics like W304) depends on enclosing context
+///   the isolated analysis can't see.
+///
+/// Qualified variable *reads* (`$::g`) are **not** listed: they are captured and
+/// replayed on the shell's globals at graft time, so they stay on the fast path.
+/// Conservative — a false positive only costs a full rebuild, never correctness.
+fn body_needs_enclosing_context(body_text: &str) -> bool {
+    const DECLARERS: &[&str] = &["variable", "global", "upvar", "namespace"];
+    const WRITERS: &[&str] = &["set", "incr", "lappend", "append", "dict", "array"];
+    let words: Vec<&str> = body_text
+        .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    for (i, &w) in words.iter().enumerate() {
+        if DECLARERS.contains(&w) || CLASS_DEFINERS.contains(&w) {
+            return true;
+        }
+        // A writer whose next word or two is a `::`-qualified target writes an
+        // enclosing-scope variable.
+        if WRITERS.contains(&w) && words[i + 1..].iter().take(2).any(|t| t.contains("::")) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn eq(src: &str) {
+        let want = Analyser::new().analyse(src, "tcl8.6");
+        let got = Analyser::new().analyse_per_item(src, "tcl8.6");
+        assert_eq!(got, want, "per_item != analyse for:\n{src}");
+    }
+
+    #[test]
+    fn two_top_level_procs() {
+        eq("proc a {} { set x 1 }\nproc b {} { puts hi }\n");
+    }
+
+    #[test]
+    fn proc_calling_proc() {
+        eq("proc a {x} { return $x }\nproc b {} { a 1 }\n");
+    }
+
+    #[test]
+    fn namespace_and_top_level_code() {
+        eq("namespace eval ns { proc foo {} {} }\nset g 1\nputs $g\n");
+    }
+
+    #[test]
+    fn top_level_global_read_in_body() {
+        eq("set g 1\nproc r {} { puts $::g }\nputs $g\n");
+    }
+
+    #[test]
+    fn oo_class_with_method() {
+        eq("oo::class create K {\n  variable n\n  method m {a} { set n $a; return $n }\n}\n");
+    }
+
+    #[test]
+    fn method_body_defines_duplicate_proc() {
+        // A method that defines `::p`, plus a later top-level `proc p`: a
+        // whole-file walk ends with the top-level definition (source order),
+        // so the per-item path must fall back rather than let the pass-2
+        // method body win the shared `all_procs["::p"]` key.
+        eq("oo::class create C { method m {} { proc p {} { return 1 } } }\nproc p {} { return 2 }\n");
+        // Same, reversed order (top-level first, then the method).
+        eq("proc p {} { return 2 }\noo::class create C { method m {} { proc p {} { return 1 } } }\n");
+        // A method that defines a non-colliding proc stays byte-identical too.
+        eq("oo::class create C { method m {} { proc helper {} { return 1 } } }\n");
+    }
+
+    #[test]
+    fn nested_proc_in_body() {
+        eq("proc outer {} { proc ::inner {} { set z 1 } ; inner }\n");
+    }
+
+    #[test]
+    fn qualified_read_marks_enclosing_global_used() {
+        // A body's `$::g` read must land as a reference on the enclosing `::g`
+        // (captured + replayed at graft), so the "unused" state matches a
+        // whole-file walk even though the body is analysed in isolation.
+        eq("set ::g 1\nproc r {} { return [expr {$::g + 1}] }\n");
+        eq("set ::g 1\nproc r {} { return 0 }\n"); // unused global stays unused
+    }
+
+    #[test]
+    fn duplicate_top_level_proc_falls_back() {
+        // Platform-conditional redefinition: last-def-wins in a whole-file walk;
+        // the per-item path detects the duplicate and falls back, so equal.
+        eq("if {1} {\n  proc p {} { set file a; puts $file }\n} else {\n  proc p {} { return 2 }\n}\n");
+    }
+
+    #[test]
+    fn self_redefining_proc_falls_back() {
+        // Lazy-init: the inner `proc p` redefines the outer; nested-redefinition
+        // detection forces a fallback so the result matches a whole-file walk.
+        eq("proc p {a} { proc p {a} { return $a }\n p $a }\n");
+    }
+}

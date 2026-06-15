@@ -33,12 +33,57 @@ use crate::taint::{propagate_taints, TaintLattice};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 
+/// One procedure's **offset-0** baseline-lattice build request, handed to the
+/// [`ProcLatticeCache`] callback by [`CompilationUnit::build_for_memoized`].
+///
+/// The body has already been normalised to offset 0 (every span shifted by
+/// `-body_offset`), so a shifted-but-unchanged procedure produces an identical
+/// request — the salsa-native memo (`tcl-lsp-db`'s `function_lattice`) keys on
+/// it position-independently and the builder rebases the returned unit back to
+/// the procedure's real offset.  Carries exactly what
+/// [`crate::cfg_builder::build_cfg_function_with_upvars`] +
+/// [`FunctionUnit::build`] consume: the offset-0 body, the qualified name, the
+/// parameter list, the module-wide upvar / proc-param context (so the rebuilt
+/// CFG is identical to the whole-module build's), and the analysis dialect.
+pub struct LatticeRequest<'a> {
+    /// Qualified procedure name (e.g. `::foo::bar`).
+    pub qname: &'a str,
+    /// The procedure body, normalised to offset 0.
+    pub body: &'a crate::ir::Script,
+    /// The procedure's declared parameters.
+    pub params: &'a [String],
+    /// Module-wide `proc -> upvar summary` context (from
+    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    pub upvar_procs: &'a HashMap<String, crate::cfg_builder::upvar_info::UpvarInfo>,
+    /// Module-wide `proc -> params` context (from
+    /// [`crate::cfg_builder::prepare_cfg_context`]).
+    pub proc_params: &'a HashMap<String, Vec<String>>,
+    /// Analysis dialect — selects the registry the lattice pipeline runs under.
+    pub dialect: &'a str,
+}
+
+/// Salsa-native per-procedure lattice memo used by
+/// [`CompilationUnit::build_for_memoized`].
+///
+/// `cache(request)` returns the **offset-0** [`FunctionUnit`] for `request`
+/// (building it on a miss, reusing a memoised one on a hit).  The builder
+/// rebases the returned unit to the procedure's real position, so the result is
+/// byte-identical to [`CompilationUnit::build_for_with_config`]; only the
+/// redundant lattice recompute for an unchanged procedure body is skipped.  The
+/// caller owns the backing store and its eviction policy.
+pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit + 'a;
+
 // ---------------------------------------------------------------------------
 // Per-function analysis bundle
 // ---------------------------------------------------------------------------
 
 /// Analysis artefacts for one function (top-level or procedure).
-#[derive(Debug, Clone)]
+///
+/// `PartialEq` enables salsa early-cutoff: when [`crate`]'s salsa-native
+/// [`function_lattice`](../../tcl_lsp_db/fn.function_lattice.html) query rebuilds
+/// a procedure whose interned body changed but whose lattice came out identical,
+/// the equal comparison lets dependents skip re-execution.
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionUnit {
     /// Qualified function name (e.g. `::top`, `::foo::bar`).
     pub name: String,
@@ -225,6 +270,51 @@ impl CompilationUnit {
         defer_top_level: bool,
         config: tcl_lexer::LexerConfig,
     ) -> Self {
+        Self::build_for_inner(source, registry, defer_top_level, config, "", None)
+    }
+
+    /// Like [`Self::build_for_with_config`] but routes each procedure's
+    /// per-function lattice build through `cache`, a salsa-native memo (see
+    /// [`ProcLatticeCache`] / [`LatticeRequest`]).
+    ///
+    /// Each procedure's body is normalised to offset 0 and handed to `cache`,
+    /// which returns the (possibly memoised) offset-0 [`FunctionUnit`]; the
+    /// builder then rebases it to the procedure's real position.  A
+    /// shifted-but-unchanged body produces an identical request, so it is a
+    /// memo hit (and reused, rebased).  The result is byte-identical to
+    /// [`Self::build_for_with_config`]; only the redundant SSA/SCCP/type/
+    /// rendered recompute for an unchanged procedure body is skipped.
+    /// Procedures with interprocedural `param_constants`, the top level, and
+    /// methods are always built fresh (no stable offset-0 key); the
+    /// cross-function interproc taint re-run still runs over the whole unit in
+    /// [`Self::with_interprocedural`].
+    pub fn build_for_memoized(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        config: tcl_lexer::LexerConfig,
+        dialect: &str,
+        cache: &mut ProcLatticeCache<'_>,
+    ) -> Self {
+        Self::build_for_inner(
+            source,
+            registry,
+            defer_top_level,
+            config,
+            dialect,
+            Some(cache),
+        )
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn build_for_inner(
+        source: &str,
+        registry: &CommandRegistry,
+        defer_top_level: bool,
+        config: tcl_lexer::LexerConfig,
+        dialect: &str,
+        mut cache: Option<&mut ProcLatticeCache<'_>>,
+    ) -> Self {
         let mut ir_module = lower_to_ir_with_config(source, registry, config);
         // C36d/e/f: specialise Option-shape factories before any
         // other module-level passes so the synthesised child procs
@@ -241,6 +331,13 @@ impl CompilationUnit {
         // for (interprocedural constant propagation).
         let call_site_constants = collect_call_site_constants(&cfg_module, &ir_module.procedures);
         let top_level = FunctionUnit::build("::top", cfg_module.top_level.clone(), &[], registry);
+        // Module-wide upvar/param context — the CFG-determining context a
+        // procedure body is rebuilt under.  Computed once and shared by every
+        // memoised request (and the methods below), so the offset-0 CFG the
+        // memo rebuilds is identical to this whole-module build's.  Only needed
+        // on the memoised path or when methods are present.
+        let cfg_context = (cache.is_some() || !ir_module.methods.is_empty())
+            .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
         let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
         for (qname, cfg) in &cfg_module.procedures {
             let params = ir_module
@@ -249,16 +346,45 @@ impl CompilationUnit {
                 .map_or(&[][..], |p| p.params.as_slice());
             let param_constants =
                 params_constants_from_call_sites(params, &call_site_constants, qname);
-            procedures.insert(
-                qname.clone(),
+            let proc = ir_module.procedures.get(qname);
+            let body_offset = proc.map_or(0, |p| p.span.start());
+            // Route through the memo only when (a) a cache is present, (b) the
+            // procedure has a real body, (c) the module context is available,
+            // and (d) there are no interprocedural `param_constants` — those
+            // depend on call sites elsewhere in the module, so the body alone
+            // does not determine the unit; build those fresh.
+            let memoised = match (cache.as_mut(), proc, cfg_context.as_ref()) {
+                (Some(memo), Some(proc), Some((upvar_procs, proc_params)))
+                    if param_constants.is_none() =>
+                {
+                    // Normalise the body to offset 0 so a shifted-but-unchanged
+                    // procedure produces an identical request (memo hit); rebase
+                    // the returned unit back to the procedure's real position.
+                    let mut body = proc.body.clone();
+                    crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
+                    let mut fu = memo(&LatticeRequest {
+                        qname,
+                        body: &body,
+                        params,
+                        upvar_procs,
+                        proc_params,
+                        dialect,
+                    });
+                    crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
+                    Some(fu)
+                }
+                _ => None,
+            };
+            let fu = memoised.unwrap_or_else(|| {
                 FunctionUnit::build_with_param_constants(
                     qname,
                     cfg.clone(),
                     params,
                     registry,
                     param_constants.as_ref(),
-                ),
-            );
+                )
+            });
+            procedures.insert(qname.clone(), fu);
         }
         // SF-2: lower TclOO method bodies (populated in
         // `ir_module.methods` by lowering) to per-method
@@ -271,7 +397,9 @@ impl CompilationUnit {
         let methods: HashMap<String, FunctionUnit> = if ir_module.methods.is_empty() {
             HashMap::new()
         } else {
-            let (upvar_procs, proc_params) = crate::cfg_builder::prepare_cfg_context(&ir_module);
+            let (upvar_procs, proc_params) = cfg_context
+                .as_ref()
+                .expect("cfg_context computed when methods are present");
             ir_module
                 .methods
                 .iter()

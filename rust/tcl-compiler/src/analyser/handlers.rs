@@ -289,6 +289,7 @@ impl Analyser {
     /// and the user-defined ``unknown`` proc detection from
     /// `_proc.py` are deferred to **C41d** / future strips —
     /// this strip is structural only.
+    #[allow(clippy::too_many_lines)]
     pub fn handle_proc_command(
         &mut self,
         cmd_name: &str,
@@ -451,8 +452,22 @@ impl Analyser {
             // Body recursion via the shared helper.  Re-segments
             // the body (no recovery — top-level only) and
             // dispatches each command at the new proc scope path.
+            // Per-item shell pass: defer the body (its scope is already
+            // created with params; a second pass fills it in place).
             let body_text = args[2].clone();
-            self.analyse_body(&body_text, body_tok, &child_path);
+            if self.defer_proc_bodies {
+                self.deferred_bodies.push(super::per_item::DeferredBody {
+                    body_text,
+                    body_tok,
+                    scope_path: child_path.clone(),
+                    is_method: false,
+                    namespace: ns_prefix.clone(),
+                    scope_name: raw_name.clone(),
+                    params: params.clone(),
+                });
+            } else {
+                self.analyse_body(&body_text, body_tok, &child_path);
+            }
 
             self.last_comment = saved_comment;
         }

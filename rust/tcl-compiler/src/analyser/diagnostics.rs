@@ -5135,15 +5135,39 @@ file; this call falls through to the 'unknown' handler."
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
         // var set only there is not read-before-set). Mirrors the Python
         // analyser's interprocedurally-seeded compilation unit.
+        // Incremental seam: when the per-item path has supplied a unit whose
+        // per-function lattices were memoised, consume it instead of
+        // rebuilding the whole-file unit.  Equal by construction to the
+        // freshly-built unit (gated by the differential fuzzer + corpus).
+        if let Some(cu) = self.cu_override.take() {
+            self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+            return;
+        }
         let dialect_opt = (!self.dialect.is_empty()).then_some(self.dialect.as_str());
         let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, dialect_opt);
+        self.emit_cfg_ssa_diagnostics_with_cu(&cu, &registry);
+    }
 
+    /// Emit the CFG/SSA-derived diagnostics from an already-built
+    /// [`crate::compilation_unit::CompilationUnit`].
+    ///
+    /// Split out of [`Self::emit_cfg_ssa_diagnostics`] so the incremental
+    /// per-item path can supply a `CompilationUnit` whose per-function
+    /// lattices were memoised, instead of rebuilding the whole-file unit on
+    /// every edit.  Behaviour is identical: the whole-file entry point builds
+    /// the unit exactly as before and delegates here, and every cross-function
+    /// pass below reads the supplied unit unchanged.
+    pub fn emit_cfg_ssa_diagnostics_with_cu(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
         // **W128 (SYNC-JUN02b-4).** Flag calls to commands renamed or
         // deleted earlier in the file via the flow-sensitive
         // command-binding lattice.  Independent of the CFG/SSA dead-store
         // machinery below, so run it up front against the same `cu`.
-        self.emit_w128_renamed_command(&cu, &registry);
+        self.emit_w128_renamed_command(cu, registry);
 
         // **C41e3 follow-up.** Compute the set of globals any
         // proc in this module writes to.  Top-level RBS (W210)
@@ -5151,7 +5175,7 @@ file; this call falls through to the 'unknown' handler."
         // populate them before the top-level read fires.
         // Mirrors `_globals_written_by_procs` in
         // `_diag_commands.py:264-296`.
-        let globals_written = globals_written_by_procs(&cu);
+        let globals_written = globals_written_by_procs(cu);
 
         // **W220 call-by-name suppression (SYNC-JUN02d-2).** Build the
         // interprocedural proc-index once so a caller-local passed *by
@@ -5162,7 +5186,7 @@ file; this call falls through to the 'unknown' handler."
         let cbn_proc_index = {
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
-                &registry,
+                registry,
                 Some(self.dialect.as_str()),
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)
@@ -5198,7 +5222,7 @@ file; this call falls through to the 'unknown' handler."
             &globals_written,
             &top_level_cross_event_vars,
         );
-        self.emit_channel_diagnostics(&cu.top_level, &registry);
+        self.emit_channel_diagnostics(&cu.top_level, registry);
         for (qname, fu) in &cu.procedures {
             // **C41-default-on-followups-postpass W220-IR-paths.**
             // For ``::when::*`` procs, threaded
@@ -5234,7 +5258,7 @@ file; this call falls through to the 'unknown' handler."
                 &HashSet::new(),
                 &cross_event_vars,
             );
-            self.emit_channel_diagnostics(fu, &registry);
+            self.emit_channel_diagnostics(fu, registry);
             // **C41d7.** IRULE4005 — racy ``static::``
             // cross-event flow.  Only fires for non-RULE_INIT
             // ``when`` procs when ``ConnectionScope::racy_static_defs``
@@ -5255,7 +5279,7 @@ file; this call falls through to the 'unknown' handler."
         // collected during the walk.  Mirrors
         // ``_emit_var_command_diagnostics`` in
         // ``_diag_var_command.py``.
-        self.emit_var_command_diagnostics(&cu, &registry);
+        self.emit_var_command_diagnostics(cu, registry);
 
         // **C41 follow-up.** Suppress W123 for command-name
         // heads with partial interpolations like ``foo$suffix``
@@ -5263,7 +5287,7 @@ file; this call falls through to the 'unknown' handler."
         // known commands via SCCP.  Mirrors
         // ``_resolve_interpolated_commands`` in
         // ``_diag_commands.py:188-260``.
-        self.resolve_interpolated_w123_diagnostics(&cu);
+        self.resolve_interpolated_w123_diagnostics(cu);
     }
 
     /// Per-function diagnostic dispatcher.
@@ -8122,6 +8146,27 @@ file; this call falls through to the 'unknown' handler."
             deduped.push(d);
         }
         self.result.diagnostics = deduped;
+
+        // Canonical, deterministic order. The post-walk emitters
+        // (`emit_variable_usage_diagnostics` etc.) iterate the scope tree's
+        // `HashMap`s, whose per-instance iteration order is non-deterministic —
+        // so emission order varied run-to-run and, critically, between
+        // `analyse` and `analyse_commands` (the per-item incremental path).
+        // That non-determinism was the E5 differential gap (the multiset always
+        // matched; only the `Vec` order differed). Sorting by source position
+        // here makes the output deterministic and path-independent — required
+        // for `incremental == fresh`, and a saner source-ordered contract for
+        // the LSP. Dedupe above guarantees `(code, start, end, message,
+        // severity)` is unique, so this key is a total order (no ties).
+        self.result.diagnostics.sort_by(|a, b| {
+            a.span
+                .start()
+                .cmp(&b.span.start())
+                .then(a.span.end().cmp(&b.span.end()))
+                .then_with(|| a.code.cmp(&b.code))
+                .then_with(|| a.severity.as_str().cmp(b.severity.as_str()))
+                .then_with(|| a.message.cmp(&b.message))
+        });
     }
 
     /// Filter out diagnostics whose codes are in
@@ -9515,6 +9560,171 @@ mod tests {
         let mut a = Analyser::new();
         a.emit_cfg_ssa_diagnostics("");
         assert!(a.result.diagnostics.is_empty());
+    }
+
+    /// Slice 4: a memoised `CompilationUnit` (built via `build_for_memoized`
+    /// and fed through the `cu_override` seam) must yield **byte-identical**
+    /// diagnostics to the whole-file path — both on a cold cache (all misses,
+    /// proving the refactor) and a warm cache (all hits, proving the cache key
+    /// captures every lattice input).
+    #[test]
+    fn memoized_compilation_unit_diagnostics_match_whole_file() {
+        use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+        let snippets = [
+            "proc a {x} {\n  if {$x} { set y 1 }\n  return $y\n}\nproc b {} { a 1 }\n",
+            "set g 0\nproc inc {} { global g; incr g }\ninc\nputs $g\n",
+            "proc f {n} {\n  set acc 0\n  for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n  return $acc\n}\nproc g {} { set z 9; set z 10; return $z }\n",
+            "namespace eval n {\n  proc p {a} { set b $a; return $b }\n}\nset r [n::p 3]\n",
+            "oo::class create K {\n  method m {a} { set n $a; return $n }\n}\nproc top {} { set q 1; set q 2 }\n",
+        ];
+        for src in snippets {
+            let mut registry = tcl_registry::CommandRegistry::build_default();
+            if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
+                registry.load_dialect(d);
+            }
+            // Whole-file reference.
+            let mut whole = Analyser::new();
+            let want = whole.analyse(src, "tcl");
+
+            // Build a memoised unit (cold cache) and run through the seam.
+            // The callback mirrors the db's `function_lattice`: build the
+            // offset-0 unit, keyed on the offset-0 body + name + params.
+            let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+            let build_cu = |cache: &mut HashMap<String, FunctionUnit>| {
+                CompilationUnit::build_for_memoized(
+                    src,
+                    &registry,
+                    false,
+                    tcl_lexer::LexerConfig::default(),
+                    "tcl",
+                    &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                        let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                        if let Some(fu) = cache.get(&key) {
+                            return fu.clone();
+                        }
+                        let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                            req.qname,
+                            req.body,
+                            true,
+                            req.upvar_procs.clone(),
+                            req.proc_params.clone(),
+                        );
+                        let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                        cache.insert(key, fu.clone());
+                        fu
+                    },
+                )
+                .with_interprocedural(&registry, Some("tcl"))
+            };
+
+            let cold = build_cu(&mut cache);
+            let mut a_cold = Analyser::new();
+            a_cold.set_cu_override(Arc::new(cold));
+            let got_cold = a_cold.analyse(src, "tcl");
+            assert_eq!(
+                want.diagnostics, got_cold.diagnostics,
+                "cold-cache memoised diagnostics differ for:\n{src}"
+            );
+            assert!(!cache.is_empty(), "cache should have entries for:\n{src}");
+
+            // Warm cache: every procedure body is a hit now.
+            let warm = build_cu(&mut cache);
+            let mut a_warm = Analyser::new();
+            a_warm.set_cu_override(Arc::new(warm));
+            let got_warm = a_warm.analyse(src, "tcl");
+            assert_eq!(
+                want.diagnostics, got_warm.diagnostics,
+                "warm-cache memoised diagnostics differ for:\n{src}"
+            );
+        }
+    }
+
+    /// Slice 4 shift-correctness: a body that is **unedited but shifted** (lines
+    /// inserted above it) must NOT take a stale cache hit — the cached unit's
+    /// spans are absolute, so its diagnostics must land at the new positions.
+    /// The position-independent key + span rebase makes this a hit at the new
+    /// offset, byte-identical to a fresh analyse.
+    #[test]
+    fn memoized_compilation_unit_shift_correctness() {
+        use crate::compilation_unit::{CompilationUnit, FunctionUnit};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+        // Bodies span read-before-set, dead store, and every control-flow shape
+        // (if/for/while/catch/switch) so the rebase traverses nested scripts +
+        // sub-spans, not just flat statements.  All produce positioned
+        // diagnostics whose spans must move with the shift.
+        let bodies = "proc a {} { return $undef }\n\
+             proc b {} { set y 1; set y 2; return $y }\n\
+             proc c {x} {\n  if {$x} { set z 1; set z 2 }\n  for {set i 0} {$i < 3} {incr i} { set w $q }\n  return $z\n}\n\
+             proc d {n} {\n  while {$n} { catch { set r $undef2 } }\n  switch -- $n { 1 { set s 1; set s 2 } default { return $missing } }\n}\n";
+        let base = bodies.to_owned();
+        // Same procs, shifted down by several prepended top-level lines.
+        let shifted = format!("set top 0\nset top2 1\n# a comment line\n{bodies}");
+        let base = base.as_str();
+        let shifted = shifted.as_str();
+
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
+            registry.load_dialect(d);
+        }
+        let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
+        let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
+            let cu = CompilationUnit::build_for_memoized(
+                s,
+                &registry,
+                false,
+                tcl_lexer::LexerConfig::default(),
+                "tcl",
+                // Position-independent key: the body is normalised to offset 0
+                // before the callback sees it, so a shifted-but-unedited proc
+                // hits and the builder rebases the cached offset-0 unit.
+                &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                    let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                    if let Some(fu) = cache.get(&key) {
+                        return fu.clone();
+                    }
+                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                        req.qname,
+                        req.body,
+                        true,
+                        req.upvar_procs.clone(),
+                        req.proc_params.clone(),
+                    );
+                    let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                    cache.insert(key, fu.clone());
+                    fu
+                },
+            )
+            .with_interprocedural(&registry, Some("tcl"));
+            let mut a = Analyser::new();
+            a.set_cu_override(Arc::new(cu));
+            a.analyse(s, "tcl")
+        };
+
+        // Prime the cache on `base`, then analyse `shifted` reusing it.  The
+        // procedure bodies are unchanged, so they hit the position-independent
+        // cache and are rebased to their new offsets.
+        let _ = build(base, &mut cache);
+        let entries_after_base = cache.len();
+        let got = build(shifted, &mut cache);
+        let want = Analyser::new().analyse(shifted, "tcl");
+        assert_eq!(
+            want.diagnostics, got.diagnostics,
+            "shifted-body diagnostics must match a fresh analyse (rebased hit)"
+        );
+        // The shifted build reused the cached bodies (no new entries for the
+        // procedures), exercising the rebase path rather than rebuilding.
+        assert_eq!(
+            cache.len(),
+            entries_after_base,
+            "shifted bodies should reuse cached entries (position-independent key)"
+        );
+        assert!(
+            !want.diagnostics.is_empty(),
+            "test should exercise real positioned diagnostics"
+        );
     }
 
     #[test]

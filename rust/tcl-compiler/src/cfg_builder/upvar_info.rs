@@ -55,7 +55,7 @@ use crate::ir::{Script, Statement};
 /// the *local* name (the alias target) so caller-side resolution can
 /// look up "which caller-frame name does my local `x` alias?" in a
 /// single hash hit.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct UpvarInfo {
     /// `local_name -> caller_literal_name` for declarations whose
     /// source word is a plain string (no `$` / `[`).  Mirrors

@@ -24,7 +24,7 @@ use crate::expr_ast::ExprNode;
 /// In the Rust pipeline, token references use [`Span`]s into the
 /// source buffer. The `argv_texts` and `single_token_word` fields
 /// preserve the Python-era per-word metadata needed by analysis passes.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CommandTokens {
     /// Per-word representative token spans.
     pub argv: Vec<Span>,
@@ -57,7 +57,7 @@ pub struct CommandTokens {
 ///
 /// Corresponds to Python's `IRScript`. Using `Vec` rather than a tuple
 /// because scripts are built incrementally during lowering.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Script {
     /// Statements in execution order.
     pub statements: Vec<Statement>,
@@ -80,7 +80,7 @@ impl Script {
 }
 
 /// An `if` clause: condition + body.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IfClause {
     /// The parsed condition expression.
     pub condition: ExprNode,
@@ -93,7 +93,7 @@ pub struct IfClause {
 }
 
 /// A `try` handler clause (`on`/`trap`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryHandler {
     /// Handler kind: `"on"` or `"trap"`.
     pub kind: String,
@@ -110,7 +110,7 @@ pub struct TryHandler {
 }
 
 /// A `switch` arm: pattern + body.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SwitchArm {
     /// Pattern text.
     pub pattern: String,
@@ -128,7 +128,7 @@ pub struct SwitchArm {
 ///
 /// Each group pairs a list of loop variable names with the list
 /// argument text they iterate over.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForeachIterator {
     /// Variable names assigned each iteration.
     pub vars: Vec<String>,
@@ -142,7 +142,7 @@ pub struct ForeachIterator {
 /// carries a [`Span`] for position tracking (replacing the Python
 /// `Range` with inline `SourcePosition` pairs). The span is resolved
 /// to text or `(line, character)` via a `SourceMap` on demand.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
     /// Constant assignment: `set name value` where value is a literal.
     AssignConst {

@@ -25,7 +25,7 @@ use super::types::AnalysisResult;
 /// Mirrors the Python ``self._var_command_sites`` tuple in
 /// ``_AnalyserBase.__init__``. Used by the W307
 /// (variable-as-command misuse) post-pass that lands in **C41d3**.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarCommandSite {
     /// Variable name used as a command head (no leading ``$``).
     pub var_name: String,
@@ -48,7 +48,7 @@ pub struct VarCommandSite {
 /// Mirrors ``self._cmd_command_sites`` — same shape as
 /// [`VarCommandSite`] except the head is a command-substitution
 /// rather than a variable.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CmdCommandSite {
     /// Text of the bracketed command substitution (no brackets).
     pub cmd_text: String,
@@ -212,11 +212,44 @@ pub struct Analyser {
     /// (strict for F5 iRules/iApps, confusables otherwise), matching
     /// Python's `_non_ascii_mode` + the iRules override.
     pub non_ascii_mode: NonAsciiMode,
+    /// When `true`, the walk builds only the **structural** facts (procs,
+    /// classes, aliases, ensembles, namespace/scope tree) and skips every
+    /// diagnostic-emission and cross-feature recording pass — the per-command
+    /// diagnostic dispatch *and* the post-walk emitter tail.  Used by the
+    /// `item_tree` query to extract the offset-stable declaration set cheaply
+    /// (the diagnostics are the bulk of the cost).  The structural handlers are
+    /// unchanged, so the resulting decl set is byte-identical to a full
+    /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
+    /// `false`; normal `analyse` is unaffected.
+    pub structure_only: bool,
+    /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
+    /// walks record their body for separate analysis (`deferred_bodies`) instead
+    /// of recursing into it immediately.  Set only for the shell pass; the
+    /// per-body passes run with it `false` so nested defs walk in place.
+    pub defer_proc_bodies: bool,
+    /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
+    /// each analysed in a second pass that fills its already-created scope.
+    pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
+    /// Pre-built compilation unit for the CFG/SSA diagnostic tail.  When
+    /// `Some`, [`Self::emit_cfg_ssa_diagnostics`] consumes it instead of
+    /// rebuilding the whole-file unit — the seam the incremental per-item
+    /// path uses to supply a unit whose per-function lattices were memoised.
+    /// `None` for the whole-file `analyse` path (byte-identical: it builds
+    /// the unit itself, exactly as before).
+    pub(super) cu_override: Option<std::sync::Arc<crate::compilation_unit::CompilationUnit>>,
+    /// When `Some`, an isolated proc-body analysis (the per-item path) records
+    /// every qualified (`::` / `static::`) variable read that fell through to
+    /// the (empty) enclosing global scope here, instead of dropping it.  The
+    /// aggregator replays these on the shell's global scope during the graft, so
+    /// a body's `$::g` read lands as a reference on the real enclosing `::g`
+    /// def — one of the divergences the per-item path must reproduce.  `None` on
+    /// the whole-file `analyse` path (reads resolve against the populated scope).
+    pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
 /// setting (`core/analysis/checks/_style.py`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum NonAsciiMode {
     /// No explicit setting: resolve per dialect at emit time — `Strict`
     /// for F5 iRules/iApps (ASCII-only environments), `Confusables`
@@ -293,6 +326,11 @@ impl Analyser {
             line_offsets: None,
             pending_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
+            structure_only: false,
+            defer_proc_bodies: false,
+            deferred_bodies: Vec::new(),
+            cu_override: None,
+            capture_global_reads: None,
         }
     }
 
@@ -302,6 +340,30 @@ impl Analyser {
     pub fn with_non_ascii_mode(mut self, mode: NonAsciiMode) -> Self {
         self.non_ascii_mode = mode;
         self
+    }
+
+    /// Enable structure-only mode (see [`Self::structure_only`]): the walk
+    /// builds the declaration/scope structure but skips all diagnostic
+    /// emission.  Returns `self` for builder-style configuration.  Used by the
+    /// `item_tree` query for cheap offset-stable item extraction.
+    #[must_use]
+    pub fn structure_only(mut self) -> Self {
+        self.structure_only = true;
+        self
+    }
+
+    /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
+    /// CFG/SSA diagnostic tail, so [`Self::emit_cfg_ssa_diagnostics`] consumes
+    /// it (once) instead of rebuilding the whole-file unit.  The supplied unit
+    /// must be equal to what the tail would build for this document's source —
+    /// the incremental path builds it from memoised per-function lattices, so
+    /// only the unchanged-body lattice recompute is skipped.  Reset after the
+    /// next `analyse`.
+    pub fn set_cu_override(
+        &mut self,
+        cu: std::sync::Arc<crate::compilation_unit::CompilationUnit>,
+    ) {
+        self.cu_override = Some(cu);
     }
 
     /// Analyse a Tcl source for the given dialect, returning a
@@ -429,6 +491,47 @@ impl Analyser {
         // **C41e5** wires ``recover_missing_open_brace`` (for
         // switch with forgotten body brace), ``detect_stolen_close_brace``
         // (E103), and the generic E200 partial-command emitter.
+        self.walk_commands_top_level(&commands, ghost_recovery_applied);
+
+        // **C41d1.** Run the diagnostic-emission orchestrator
+        // and the post-pass filters.  Mirrors the tail of
+        // ``Analyser.analyse`` in
+        // ``core/analysis/_analyser/_core.py:380-384``:
+        //
+        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
+        // 2. ``emit_variable_usage_diagnostics`` — hook landed
+        //    in C41d1 (currently no-op).
+        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
+        //    landed in C41d1 (currently inert; per-emitter
+        //    dispatch lands in C41d2-d7).
+        // 4. ``apply_disabled_diagnostics`` — filter codes the
+        //    caller asked to silence (also covers the
+        //    file-suppression directives merged at the top of
+        //    ``analyse``).
+        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
+        //    the line-based suppression pairs.
+        // Structure-only mode (item_tree extraction) skips the entire
+        // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
+        // emitters are the dominant cost and produce no structural facts.
+        if !self.structure_only {
+            self.run_diagnostic_emitters(source);
+        }
+
+        let result = std::mem::take(&mut self.result);
+        self.clear_run_state();
+        result
+    }
+
+    /// Walk a top-level command stream through the dispatcher (the body of
+    /// `analyse`'s main loop, extracted so the per-item path can reuse it
+    /// verbatim).  `scope_path` is the global scope (`&[]`).  When
+    /// `defer_proc_bodies` is set, `handle_proc_command` / OO method walks
+    /// record the body for later isolated analysis instead of recursing.
+    pub(super) fn walk_commands_top_level(
+        &mut self,
+        commands: &[crate::segmenter::SegmentedCommand],
+        ghost_recovery_applied: bool,
+    ) {
         let total = commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
@@ -468,7 +571,7 @@ impl Analyser {
             // check on every analysed body.)
             self.emit_syntax_recovery_diagnostics(cmd_ref, ghost_recovery_applied);
             self.recover_stray_close_bracket(&mut cmd);
-            let consumed = self.recover_missing_open_brace(&mut cmd, &commands, cmd_idx);
+            let consumed = self.recover_missing_open_brace(&mut cmd, commands, cmd_idx);
             let single = cmd.single_token_word.clone();
             // ``# noqa[: CODE,...]`` directives in
             // ``cmd.preceding_comment`` suppress diagnostics on
@@ -498,40 +601,6 @@ impl Analyser {
             self.record_arg_var_reads(&cmd, &[]);
             cmd_idx += 1 + consumed;
         }
-
-        // **C41d1.** Run the diagnostic-emission orchestrator
-        // and the post-pass filters.  Mirrors the tail of
-        // ``Analyser.analyse`` in
-        // ``core/analysis/_analyser/_core.py:380-384``:
-        //
-        // 1. ``emit_unresolved_command_diagnostics`` — C41d4.
-        // 2. ``emit_variable_usage_diagnostics`` — hook landed
-        //    in C41d1 (currently no-op).
-        // 3. ``emit_cfg_ssa_diagnostics(source)`` — orchestrator
-        //    landed in C41d1 (currently inert; per-emitter
-        //    dispatch lands in C41d2-d7).
-        // 4. ``apply_disabled_diagnostics`` — filter codes the
-        //    caller asked to silence (also covers the
-        //    file-suppression directives merged at the top of
-        //    ``analyse``).
-        // 5. ``dedupe_diagnostics`` — drop exact duplicates and
-        //    the line-based suppression pairs.
-        let mut diag_registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            diag_registry.load_dialect(d);
-        }
-        self.emit_unresolved_command_diagnostics(&diag_registry);
-        self.flush_arity_diagnostics();
-        self.emit_missing_package_require_diagnostics(&diag_registry);
-        self.emit_variable_usage_diagnostics();
-        self.emit_cfg_ssa_diagnostics(source);
-        self.emit_lexer_warning_diagnostics();
-        self.apply_disabled_diagnostics();
-        self.dedupe_diagnostics();
-
-        let result = std::mem::take(&mut self.result);
-        self.clear_run_state();
-        result
     }
 
     /// GAP-A1 strip 3c: ghost-token recovery.  When the scan-to-next
@@ -544,7 +613,7 @@ impl Analyser {
     /// returned (the caller then skips its own E201 detector to avoid a
     /// double-report).  Clean / fallback input has no partial command,
     /// so this never runs a second parse on the common path.
-    fn apply_ghost_recovery(
+    pub(super) fn apply_ghost_recovery(
         &mut self,
         source: &str,
         commands: &mut Vec<crate::segmenter::SegmentedCommand>,
@@ -738,18 +807,7 @@ impl Analyser {
         }
 
         // Same diagnostic-emission tail as ``analyse``.
-        let mut diag_registry = CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-            diag_registry.load_dialect(d);
-        }
-        self.emit_unresolved_command_diagnostics(&diag_registry);
-        self.flush_arity_diagnostics();
-        self.emit_missing_package_require_diagnostics(&diag_registry);
-        self.emit_variable_usage_diagnostics();
-        self.emit_cfg_ssa_diagnostics(source);
-        self.emit_lexer_warning_diagnostics();
-        self.apply_disabled_diagnostics();
-        self.dedupe_diagnostics();
+        self.run_diagnostic_emitters(source);
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
@@ -814,25 +872,22 @@ impl Analyser {
         self.registry = Some(registry);
         self.line_offsets = Some(compute_line_offsets(source));
 
+        // Stub-directive pre-scan + overlay, matching ``analyse`` so command
+        // resolution (W123 / W307 / param-trait inference) sees the same stub
+        // surface.  Previously deferred, which left ``stub_overlay`` = ``None``
+        // here vs ``Some`` on the full ``analyse`` path — a setup divergence
+        // that made ``analyse_commands`` non-byte-identical to ``analyse`` (the
+        // `incremental == fresh` fuzzer caught it).  ``AnalysisResult`` already
+        // carries the ``stub_commands`` / ``stub_expr_defs`` fields.
+        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
+        self.result.stub_commands = stub_cmds;
+        self.result.stub_expr_defs = stub_exprs;
+
         self.analyse_commands_inner(commands);
 
         if finalise {
-            let mut diag_registry = CommandRegistry::build_default();
-            if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
-                diag_registry.load_dialect(d);
-            }
-            self.emit_unresolved_command_diagnostics(&diag_registry);
-            self.flush_arity_diagnostics();
-            self.emit_missing_package_require_diagnostics(&diag_registry);
-            self.emit_variable_usage_diagnostics();
-            self.emit_cfg_ssa_diagnostics(source);
-            // Parity with `analyse`: surface the lexer's extra-chars /
-            // var-brace warnings (E204 / E205 / E206). Previously absent
-            // here, so `analyse_commands` / `analyse_chunked` (and the
-            // incremental path) under-reported them.
-            self.emit_lexer_warning_diagnostics();
-            self.apply_disabled_diagnostics();
-            self.dedupe_diagnostics();
+            self.run_diagnostic_emitters(source);
         }
 
         let result = std::mem::take(&mut self.result);
@@ -871,7 +926,60 @@ impl Analyser {
         }
         let cmds =
             crate::segmenter::segment_commands_incremental(prev_text, prev_commands, new_text);
-        self.analyse_commands(new_text, &cmds, dialect, true)
+        // `analyse` segments with *error recovery*; the fast path uses plain
+        // incremental segmentation.  `script_is_complete` only checks overall
+        // delimiter balance, so a locally-unbalanced brace (a stray `}` matched
+        // by a missing `{` elsewhere) passes it yet makes recovery segmentation
+        // split off a partial command — emitting E200/E102/E202 that the plain
+        // walk never sees.  Replicate the recovery segmentation `analyse` uses
+        // and fall back to a full rebuild when it differs from what the fast
+        // path would walk, or leaves any partial command.  (This also subsumes
+        // the plain-segmentation-metadata check: the recovery segmenter is the
+        // authority on the command stream + its attached comments.)
+        let mut registry = tcl_registry::CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
+            registry.load_dialect(d);
+        }
+        let known: std::collections::HashSet<&str> = registry.command_names().collect();
+        let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
+            new_text,
+            &known,
+            tcl_lexer::LexerConfig::for_dialect(dialect),
+        );
+        if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
+            return self.fresh_full_analyse(new_text, dialect);
+        }
+        let result = self.analyse_commands(new_text, &cmds, dialect, true);
+        // Correctness fallback (the maintainer's mandate: incremental must
+        // always converge to a full rebuild).  The pre-segmented
+        // `analyse_commands` walk is byte-identical to a full `analyse` for
+        // well-formed input (verified over the whole corpus), but it diverges
+        // from `analyse`'s error-*recovery* handling when the document carries
+        // syntax errors: `analyse` runs ghost-token re-lexing,
+        // recovery-segmentation, and body-level partial detection that the
+        // pre-segmented entry only partially mirrors.  Every observed
+        // `incremental != fresh` divergence on a well-segmented document carries
+        // at least one syntax-error (E-code) diagnostic, so when the fast path
+        // reports any such error we re-analyse fully — guaranteeing the result
+        // equals a from-scratch `analyse`.  The fast path stays the common
+        // well-formed edit; only mid-edit broken states (transient) take the
+        // slow path.
+        if result.diagnostics.iter().any(|d| d.code.starts_with('E')) {
+            return self.fresh_full_analyse(new_text, dialect);
+        }
+        result
+    }
+
+    /// Run a full [`Self::analyse`] on a *fresh* analyser carrying this one's
+    /// config.  The incremental fast path consumes per-walk state (the scope
+    /// walk leaves `var_command_sites` / `ensemble_namespaces` / … populated and
+    /// `clear_run_state` resets only the registry + line index), so a second
+    /// `analyse` on `self` would run on dirty state; a fresh analyser is the
+    /// safe way to take the full-rebuild fallback mid-call.
+    pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
+        let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
+            .with_non_ascii_mode(self.non_ascii_mode);
+        fresh.analyse(new_text, dialect)
     }
 
     /// Inner dispatch loop shared by [`Self::analyse_chunked`]
@@ -910,19 +1018,20 @@ impl Analyser {
                 cmd_idx += 1;
                 continue;
             }
-            // GAP-A6 follow-up: the E100 (stray `]`) / E102 (stray
-            // `}`) token checks run on the incremental / chunked
-            // path too, mirroring the top-level loop and
-            // ``analyse_body``.  Run on the original token stream
-            // before ``recover_stray_close_bracket`` repairs the
-            // clone.  (Nested bodies dispatched below are covered by
-            // ``analyse_body``'s own per-body check.)
-            let stray = super::syntax_checks::stray_closer_diagnostics(
-                cmd_ref,
-                &self.source,
-                self.registry.as_ref(),
-            );
-            self.result.diagnostics.extend(stray);
+            // Emit the same source-recovery syntax diagnostics as the
+            // top-level loop in ``analyse``: E100 / E102 stray closers
+            // *and* E201 (unterminated `[`) / E202 / E203 (unterminated
+            // `"` / `{`).  Previously this path ran only
+            // ``stray_closer_diagnostics`` (E100/E102), so
+            // ``analyse_commands`` / ``analyse_chunked`` (and the
+            // incremental path) under-reported E201/E202/E203 at the top
+            // level relative to ``analyse`` — a real divergence the
+            // `incremental == fresh` fuzzer caught.  ``analyse_commands``
+            // never runs ghost recovery, so pass ``false``.  Run on the
+            // original token stream before ``recover_stray_close_bracket``
+            // repairs the clone.  (Nested bodies dispatched below are
+            // covered by ``analyse_body``'s own per-body check.)
+            self.emit_syntax_recovery_diagnostics(cmd_ref, false);
             // **C41e4 + C41e5.** Repair stray ``]`` and missing
             // ``{`` in a clone of the segmented command before
             // dispatch — chunked analysis keeps the original
@@ -946,6 +1055,9 @@ impl Analyser {
                 cmd.expand_word.as_deref().unwrap_or(&[]),
                 &scope_path,
             );
+            // Parity with the top-level loop: W216 (brace-then-paren
+            // name/value confusion) fires on top-level commands here too.
+            self.emit_w216_brace_then_paren(&cmd);
             self.record_arg_var_reads(&cmd, &scope_path);
             cmd_idx += 1 + consumed;
         }
@@ -990,13 +1102,82 @@ impl Analyser {
             .expect("builtin_names populated above")
     }
 
+    /// Run the post-walk diagnostic-emission tail: the W123 / arity / missing-
+    /// package / variable-usage / CFG-SSA / lexer-warning emitters, then the
+    /// disabled-code filter and the dedupe + canonical-order pass.  Shared by
+    /// `analyse` / `analyse_chunked` / `analyse_commands` so the emitter set and
+    /// ordering stay identical across every entry point.
+    pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        use tcl_registry::CommandRegistry;
+        let mut diag_registry = CommandRegistry::build_default();
+        if let Some(d) = tcl_registry::prelude::DialectSet::parse(&self.dialect) {
+            diag_registry.load_dialect(d);
+        }
+        self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.flush_arity_diagnostics();
+        self.emit_missing_package_require_diagnostics(&diag_registry);
+        self.emit_variable_usage_diagnostics();
+        self.emit_cfg_ssa_diagnostics(source);
+        self.emit_lexer_warning_diagnostics();
+        self.apply_disabled_diagnostics();
+        self.dedupe_diagnostics();
+        self.canonicalize_result_order();
+    }
+
+    /// Canonicalise the order of the walk-populated, order-sensitive result
+    /// collections so the output is independent of *how* the walk was driven
+    /// (whole-file vs per-item).  Generalises the diagnostic sort in
+    /// `dedupe_diagnostics`: `command_invocations` and every `VarDef.references`
+    /// list are sorted by source position.  These are set-like for their
+    /// consumers (W123 already emitted; LSP references/rename filter by
+    /// name/position and the client orders by position), so a canonical
+    /// source order is behaviour-preserving and lets per-item analysis merge
+    /// facts without reconstructing DFS order.
+    fn canonicalize_result_order(&mut self) {
+        self.result.command_invocations.sort_by(|a, b| {
+            a.range
+                .start()
+                .cmp(&b.range.start())
+                .then(a.range.end().cmp(&b.range.end()))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+        sort_scope_refs(&mut self.result.global_scope);
+        for v in self.result.all_variables.values_mut() {
+            v.references.sort_by_key(|s| (s.start(), s.end()));
+        }
+        // The remaining walk-populated record vecs are likewise set-like
+        // (consumed by version inference / workspace index / regex checks),
+        // so sort each by source position for walk-strategy independence.
+        self.result
+            .package_requires
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .package_provides
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .source_targets
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .namespace_imports
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .auto_path_entries
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+        self.result
+            .regex_patterns
+            .sort_by_key(|r| (r.range.start(), r.range.end()));
+    }
+
     /// Reset transient run state so the next ``analyse`` call
     /// starts from a clean slate.  Called at the end of every
     /// public entry point (``analyse`` / ``analyse_chunked`` /
     /// ``analyse_commands``).
-    fn clear_run_state(&mut self) {
+    pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
         self.line_offsets = None;
+        self.defer_proc_bodies = false;
+        self.deferred_bodies.clear();
+        self.cu_override = None;
     }
 }
 
@@ -1007,6 +1188,17 @@ impl Analyser {
 /// ``binary_search`` on this vector to convert a byte offset to
 /// a 0-based line number in ``O(log N)`` instead of a per-call
 /// linear scan.
+/// Recursively sort every `VarDef.references` list in a scope subtree by span,
+/// for [`Analyser::canonicalize_result_order`].
+fn sort_scope_refs(scope: &mut super::types::Scope) {
+    for v in scope.variables.values_mut() {
+        v.references.sort_by_key(|s| (s.start(), s.end()));
+    }
+    for child in &mut scope.children {
+        sort_scope_refs(child);
+    }
+}
+
 pub(super) fn compute_line_offsets(source: &str) -> Vec<usize> {
     source
         .as_bytes()

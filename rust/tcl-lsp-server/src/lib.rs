@@ -147,9 +147,39 @@ impl DocumentState {
 /// diagnostics still feel immediate after typing stops.
 const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// Owned inputs for a detached diagnostics run — everything
-/// [`run_diagnostics_core`] needs without borrowing `Backend`, so the work can
-/// run on a `tokio::spawn`ed task off the LSP event loop.
+/// One document edit's complete, self-consistent diagnostics input — captured
+/// together so the analysed text, the published version, and the salsa input
+/// handle all describe the *same* revision (no divergence between a `documents`
+/// read and a separate salsa lookup).  `file` is `None` only if the salsa input
+/// is somehow absent, in which case the run falls back to a direct `analyse`.
+#[derive(Clone)]
+struct DiagJob {
+    text: String,
+    dialect: String,
+    revision: u64,
+    version: Option<i32>,
+    file: Option<tcl_lsp_db::SourceFile>,
+    config: tcl_lsp_db::AnalyserConfig,
+}
+
+/// Per-URI coalescing-scheduler slot (see [`Backend::diag_slots`]).
+#[derive(Default)]
+struct DiagSlot {
+    /// An edit arrived that the running worker has not yet analysed.  Just a
+    /// flag: the worker reads the document's *current* state at drain time, so
+    /// it is robust to out-of-order edit processing (a late, lower-version edit
+    /// can't clobber a captured job — there is no captured job).
+    dirty: bool,
+    /// A worker task is currently draining this document.
+    running: bool,
+}
+
+/// Owned inputs for a detached diagnostics run — the document-independent
+/// handles [`run_diagnostics_core`] (and the worker's per-drain [`DiagJob`]
+/// capture) need without borrowing `Backend`, so the work can run on a
+/// `tokio::spawn`ed task off the LSP event loop.  `Clone` so the coalescing
+/// worker can reuse it across successive runs of one document.
+#[derive(Clone)]
 struct DiagInputs {
     client: Client,
     registry: Arc<CommandRegistry>,
@@ -159,29 +189,60 @@ struct DiagInputs {
     opt_disabled: HashSet<String>,
     documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
     workspace_index: Arc<Mutex<core_workspace_index::WorkspaceIndex>>,
-    gate: Arc<Mutex<()>>,
+    /// The salsa db handle.  Each run clones a *fresh, short-lived* snapshot and
+    /// drops it immediately, so an idle worker never holds a clone across the
+    /// debounce sleep (which would block the next edit's `set_text` — salsa's
+    /// exclusive-access write waits for all outstanding handles to drop).
+    db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
+    db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
+    db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+}
+
+impl DiagInputs {
+    /// Capture the document's current, self-consistent diagnostics input (live
+    /// buffer + salsa input handle + config).  Reading at drain time — after the
+    /// debounce, once a burst's edits have settled — makes the worker robust to
+    /// out-of-order edit processing: it always analyses the latest committed
+    /// state.  `None` when the document is not open.
+    async fn capture_job(&self, uri: &Url) -> Option<DiagJob> {
+        let (text, dialect, revision, version) = {
+            let docs = self.documents.lock().await;
+            let doc = docs.get(uri)?;
+            (
+                doc.text.clone(),
+                doc.dialect.clone(),
+                doc.revision,
+                doc.version,
+            )
+        };
+        let file = self.db_files.lock().await.get(uri).copied();
+        let config = *self.db_config.lock().await;
+        Some(DiagJob {
+            text,
+            dialect,
+            revision,
+            version,
+            file,
+            config,
+        })
+    }
 }
 
 /// Run the analyser + diagnostic lifts for one document and publish the result,
 /// off the LSP event loop.  This is the detached body the old synchronous
 /// `publish_analyser_diagnostics` became.
 ///
-/// Crucially, the diagnostics path computes its base analysis with a *direct*
-/// `Analyser::analyse` rather than the salsa `file_analysis` query.  salsa's
-/// `set_text` write takes global write-exclusivity over the database, so a
-/// diagnostic read-handle held across the (uncancellable) analyse would block
-/// the next edit's write and, under concurrent load, stall worker threads.
-/// Decoupling diagnostics from salsa keeps editing responsive; the interactive
-/// read handlers still use the memoised queries.  (Sharing the two behind one
-/// cancellation-aware query is the later per-item/MVCC step.)
-async fn run_diagnostics_core(
-    inputs: DiagInputs,
-    uri: Url,
-    text: String,
-    dialect: String,
-    revision: u64,
-    version: Option<i32>,
-) {
+/// The base analysis runs through the cancellable salsa `file_analysis_incremental`
+/// query (slice 5): the per-item walk is memoised and a concurrent edit's
+/// `set_text` cancels an in-flight read at a per-item query boundary, so the
+/// diagnostics path no longer needs the uncancellable direct-`analyse` detour
+/// that previously decoupled it from salsa to avoid write-contention stalls.
+#[allow(clippy::too_many_lines)]
+async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bool {
+    // Returns whether this version is **settled** (published, intentionally
+    // skipped as superseded, or a BIG-IP no-op).  `false` means the run was
+    // cancelled mid-flight and the caller should retry the document's latest
+    // state.
     let DiagInputs {
         client,
         registry,
@@ -191,29 +252,67 @@ async fn run_diagnostics_core(
         opt_disabled,
         documents,
         workspace_index,
-        gate,
+        db,
+        // The worker captures the job from these before calling us; unused here.
+        db_files: _,
+        db_config: _,
     } = inputs;
+    let DiagJob {
+        text,
+        dialect,
+        revision,
+        version,
+        file,
+        config,
+    } = job;
 
     // F5 BIG-IP config is not Tcl source — publish an empty set and stop.
     if Backend::is_bigip_dialect(&dialect) {
         let is_current = documents
             .lock()
             .await
-            .get(&uri)
+            .get(uri)
             .is_some_and(|doc| doc.revision == revision);
         if is_current {
-            client.publish_diagnostics(uri, Vec::new(), version).await;
+            client
+                .publish_diagnostics(uri.clone(), Vec::new(), version)
+                .await;
         }
-        return;
+        return true;
     }
 
     let started = std::time::Instant::now();
     let uri_str = uri.to_string();
     let line_count = text.lines().count();
 
-    // Base analysis: a direct analyse on a blocking worker (no salsa handle —
-    // see the function doc), off the LSP event loop.
-    let analysis: Arc<AnalysisResult> = {
+    // Base analysis: the cancellable salsa `file_analysis_incremental` query
+    // (slice 5), off the LSP event loop.  This retires the old direct-`analyse`
+    // detour: the per-item walk is memoised (a body edit recomputes one body +
+    // the cheap shell + tail, not the whole file), and a concurrent edit's
+    // `set_text` cancels this read at a per-item query boundary instead of
+    // stalling behind an uncancellable analyse.  On cancellation we drop the
+    // run — the superseding edit schedules a fresh one.  `file` is `None` only
+    // if the salsa input is somehow absent; then fall back to a direct analyse.
+    let analysis: Arc<AnalysisResult> = if let Some(file) = file {
+        // Clone a fresh, short-lived snapshot for just this read and move it
+        // into the worker; it drops when the read finishes, so it never holds
+        // exclusive-access-blocking references across the debounce sleep.
+        let snapshot = db.lock().await.clone();
+        match tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| {
+                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+            })
+            .ok()
+        })
+        .await
+        {
+            Ok(Some(analysis)) => analysis,
+            // Cancelled mid-read (a concurrent `set_text` on the shared db) or
+            // the worker panicked — don't publish; signal a retry of the
+            // document's latest state.
+            Ok(None) | Err(_) => return false,
+        }
+    } else {
         let (a_text, a_dialect, a_disabled) = (text.clone(), dialect.clone(), disabled.clone());
         tokio::task::spawn_blocking(move || {
             Arc::new(
@@ -226,15 +325,48 @@ async fn run_diagnostics_core(
         .unwrap_or_default()
     };
 
+    // Optimiser / compiler-checks diagnostics, also off the event loop via the
+    // cancellable salsa `compiler_check_diagnostics` query: the unit's
+    // per-procedure lattices are memoised by `function_lattice` and shared with
+    // the analyser tail above.  On cancellation, drop the run like the base
+    // analysis (the superseding edit reschedules a fresh one).  `file` is `None`
+    // only if the salsa input is absent; then build directly (uncached).
+    let compiler_diags: Arc<tcl_lsp_db::CompilerDiagnostics> = if let Some(file) = file {
+        let snapshot = db.lock().await.clone();
+        match tokio::task::spawn_blocking(move || {
+            salsa::Cancelled::catch(|| tcl_lsp_db::compiler_check_diagnostics(&snapshot, file)).ok()
+        })
+        .await
+        {
+            Ok(Some(d)) => d,
+            Ok(None) | Err(_) => return false,
+        }
+    } else {
+        let (c_text, c_dialect) = (text.clone(), dialect.clone());
+        let c_registry = Arc::clone(&registry);
+        tokio::task::spawn_blocking(move || {
+            Arc::new(tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &c_text,
+                &c_registry,
+                &c_dialect,
+            ))
+        })
+        .await
+        .unwrap_or_else(|_| {
+            Arc::new(tcl_lsp_db::CompilerDiagnostics {
+                checks: Vec::new(),
+                optimisations: Vec::new(),
+            })
+        })
+    };
+
     let analysis_lifts = Arc::clone(&analysis);
     let lift_text = text.clone();
-    let lift_dialect = dialect.clone();
     let result = tokio::task::spawn_blocking(move || {
         let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analysis_lifts.diagnostics);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
-            &registry,
-            &lift_dialect,
+            &compiler_diags,
             optimiser_enabled,
             &opt_disabled,
         ));
@@ -250,21 +382,28 @@ async fn run_diagnostics_core(
     match result {
         Ok(diags) => {
             {
-                let _gate = gate.lock().await;
-                let is_current = documents
-                    .lock()
-                    .await
-                    .get(&uri)
-                    .is_some_and(|doc| doc.revision == revision);
+                // Hold the `documents` lock across the currency re-check and the
+                // workspace-index update so a concurrent `did_change`/`did_close`
+                // (which also take `documents`) cannot interleave between them
+                // and leave a stale index entry — the role the former global
+                // `document_analysis_gate` served, now via the natural
+                // `documents` → `workspace_index` lock order.
+                let docs = documents.lock().await;
+                let is_current = docs.get(uri).is_some_and(|doc| doc.revision == revision);
                 if !is_current {
-                    return;
+                    // Superseded by a newer edit, which has marked the document
+                    // dirty — settled for this version; the worker will process
+                    // the newer state.
+                    return true;
                 }
                 let mut index = workspace_index.lock().await;
                 index.remove_document(uri.as_str());
                 index.add_document(uri.as_str(), &analysis);
             }
             let diag_count = diags.len();
-            client.publish_diagnostics(uri, diags, version).await;
+            client
+                .publish_diagnostics(uri.clone(), diags, version)
+                .await;
             let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
             client
                 .log_message(
@@ -275,6 +414,7 @@ async fn run_diagnostics_core(
                     ),
                 )
                 .await;
+            true
         }
         Err(err) => {
             client
@@ -283,6 +423,7 @@ async fn run_diagnostics_core(
                     format!("diagnostics worker panicked: {err}"),
                 )
                 .await;
+            true
         }
     }
 }
@@ -304,17 +445,15 @@ pub struct Backend {
     client: Client,
     /// Open documents. `Arc` so the detached diagnostics task can hold it.
     documents: Arc<Mutex<HashMap<Url, DocumentState>>>,
-    /// Serialises the small critical section that couples the live document
-    /// revision to the workspace index update + diagnostics publication.
-    /// The expensive analyser work runs outside this lock, on a detached
-    /// task, so an older worker cannot finish late and overwrite state for
-    /// newer text.  `Arc` so the detached task can hold it.
-    document_analysis_gate: Arc<Mutex<()>>,
-    /// Per-URI diagnostics generation counter for debouncing: each edit bumps
-    /// it, and a scheduled diagnostics task only proceeds if its generation is
-    /// still current after the debounce interval — coalescing a burst of
-    /// keystrokes into one analysis instead of one per character.
-    diag_gen: Arc<Mutex<HashMap<Url, u64>>>,
+    /// Per-URI coalescing diagnostics scheduler state.  Each edit marks the
+    /// document dirty and, if no worker is running, starts one; the single
+    /// worker debounces, then repeatedly analyses the document's **latest**
+    /// state until it has published the current version (retrying if a run was
+    /// cancelled mid-flight).  This guarantees the final version's diagnostics
+    /// are always published even under heavy edit bursts / CPU load — replacing
+    /// the older per-edit generation-counter scheme, which could drop the last
+    /// run with no retry.
+    diag_slots: Arc<Mutex<HashMap<Url, DiagSlot>>>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
     /// ``workspace/didChangeConfiguration`` has been received yet.
@@ -387,10 +526,10 @@ pub struct Backend {
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
-    db_files: Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>,
+    db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
     /// mode); `set_*` on `workspace/didChangeConfiguration`.
-    db_config: Mutex<tcl_lsp_db::AnalyserConfig>,
+    db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -482,8 +621,7 @@ impl Backend {
         Self {
             client,
             documents: Arc::new(Mutex::new(HashMap::new())),
-            document_analysis_gate: Arc::new(Mutex::new(())),
-            diag_gen: Arc::new(Mutex::new(HashMap::new())),
+            diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
@@ -496,8 +634,8 @@ impl Backend {
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
             db: Arc::new(Mutex::new(db)),
-            db_files: Mutex::new(HashMap::new()),
-            db_config: Mutex::new(db_config),
+            db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_config: Arc::new(Mutex::new(db_config)),
         }
     }
 
@@ -815,10 +953,9 @@ impl Backend {
     /// server restarts.  Falls back to removing the entry when the
     /// URI isn't a readable file (untitled buffer, deleted file).
     ///
-    /// Disk IO and analysis deliberately run outside
-    /// `document_analysis_gate`. The final index update rechecks that
-    /// the URI is still closed, so a slow disk read cannot overwrite a
-    /// newly reopened unsaved buffer.
+    /// Disk IO and analysis deliberately run before taking any lock; the final
+    /// index update holds the `documents` lock across the still-closed re-check
+    /// so a slow disk read cannot overwrite a newly reopened unsaved buffer.
     async fn reindex_index_from_disk(&self, uri: &Url) {
         let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
             let dialect = match self.resolve_folder_dialect(uri).await {
@@ -835,8 +972,13 @@ impl Backend {
         } else {
             None
         };
-        let _gate = self.document_analysis_gate.lock().await;
-        if self.documents.lock().await.contains_key(uri) {
+        // Hold `documents` across the still-closed re-check and the index
+        // update (the `documents` → `workspace_index` order used everywhere
+        // since the global gate was retired) so a concurrent `did_open` cannot
+        // open the buffer between them and have its index entry clobbered by
+        // this disk-backed one.
+        let docs = self.documents.lock().await;
+        if docs.contains_key(uri) {
             return;
         }
         let mut index = self.workspace_index.lock().await;
@@ -1937,7 +2079,8 @@ impl Backend {
     /// event loop stays responsive.  `S-async-diagnostics`
     /// minimal port — the cached-analysis surface and
     /// debounced streaming contract lands in a follow-up.
-    /// Gather the owned inputs a detached diagnostics run needs.
+    /// Gather the document-independent handles a detached diagnostics run needs
+    /// (per-edit state travels in a [`DiagJob`]).
     async fn diag_inputs(&self, dialect: &str) -> DiagInputs {
         let opt_disabled: HashSet<String> = {
             let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
@@ -1967,7 +2110,9 @@ impl Backend {
             opt_disabled,
             documents: Arc::clone(&self.documents),
             workspace_index: Arc::clone(&self.workspace_index),
-            gate: Arc::clone(&self.document_analysis_gate),
+            db: Arc::clone(&self.db),
+            db_files: Arc::clone(&self.db_files),
+            db_config: Arc::clone(&self.db_config),
         }
     }
 
@@ -1979,49 +2124,85 @@ impl Backend {
     async fn publish_analyser_diagnostics(
         &self,
         uri: Url,
-        text: String,
+        _text: String,
         dialect: String,
-        revision: u64,
-        version: Option<i32>,
+        _revision: u64,
+        _version: Option<i32>,
     ) {
         let inputs = self.diag_inputs(&dialect).await;
-        run_diagnostics_core(inputs, uri, text, dialect, revision, version).await;
+        let Some(job) = inputs.capture_job(&uri).await else {
+            return;
+        };
+        run_diagnostics_core(inputs, &uri, job).await;
     }
 
     /// Schedule a debounced, detached diagnostics run for `uri`.  Returns
     /// immediately (the analyser work runs on a `tokio::spawn`ed task), so
-    /// `did_open` / `did_change` never block the message loop on analysis —
-    /// the fix for editing latency, where every keystroke previously awaited a
-    /// full re-analysis.  A burst of edits collapses to one run via the
-    /// per-URI generation check after the debounce interval.
-    async fn schedule_diagnostics(
-        &self,
-        uri: Url,
-        text: String,
-        dialect: String,
-        revision: u64,
-        version: Option<i32>,
-    ) {
-        let my_gen = {
-            let mut gens = self.diag_gen.lock().await;
-            let slot = gens.entry(uri.clone()).or_insert(0);
-            *slot += 1;
-            *slot
-        };
-        let inputs = self.diag_inputs(&dialect).await;
-        let diag_gen = Arc::clone(&self.diag_gen);
-        tokio::spawn(async move {
-            // Debounce: a burst of edits all sleep here first, so none holds a
-            // salsa read while the next edit's `set_text` write runs — only the
-            // surviving (latest-generation) task then runs one analysis.  This
-            // is load-bearing: without it, concurrent per-edit analyses make
-            // each write block a worker thread waiting for in-flight reads,
-            // stalling the message loop after a dozen edits.
-            tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
-            if diag_gen.lock().await.get(&uri).copied() != Some(my_gen) {
-                return;
+    /// `did_open` / `did_change` never block the message loop on analysis.
+    ///
+    /// Coalescing per-URI worker: the edit marks the document dirty and, if no
+    /// worker is already draining `uri`, starts one.  The worker debounces, then
+    /// captures and analyses the document's **current** state (so a burst — even
+    /// one whose `didChange` notifications are processed out of order — settles
+    /// on the latest committed version), retrying if a run is cancelled
+    /// mid-flight by a concurrent `set_text`.  This guarantees the final
+    /// version's diagnostics are always published, even under a heavy edit burst
+    /// on a loaded machine, and never runs two analyses for one document
+    /// concurrently (so an edit's write is never blocked behind a stale read).
+    async fn schedule_diagnostics(&self, uri: Url, dialect: String) {
+        let start_worker = {
+            let mut slots = self.diag_slots.lock().await;
+            let slot = slots.entry(uri.clone()).or_default();
+            slot.dirty = true;
+            if slot.running {
+                false
+            } else {
+                slot.running = true;
+                true
             }
-            run_diagnostics_core(inputs, uri, text, dialect, revision, version).await;
+        };
+        if !start_worker {
+            return;
+        }
+        let inputs = self.diag_inputs(&dialect).await;
+        let slots = Arc::clone(&self.diag_slots);
+        tokio::spawn(async move {
+            loop {
+                // Debounce, then claim the dirty flag.  A burst collapses to one
+                // run; with nothing dirty we retire the worker (under the lock,
+                // so a concurrent edit either sees `running` and skips the spawn
+                // while we run, or sees `!running` and starts a fresh one).
+                tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
+                {
+                    let mut guard = slots.lock().await;
+                    let Some(slot) = guard.get_mut(&uri) else {
+                        return;
+                    };
+                    if slot.dirty {
+                        slot.dirty = false;
+                    } else {
+                        slot.running = false;
+                        return;
+                    }
+                }
+                // Capture + analyse the document's current state.  If it is gone
+                // (closed) there is nothing to publish — retire.
+                let Some(job) = inputs.capture_job(&uri).await else {
+                    let mut guard = slots.lock().await;
+                    if let Some(slot) = guard.get_mut(&uri) {
+                        slot.running = false;
+                    }
+                    return;
+                };
+                let settled = run_diagnostics_core(inputs.clone(), &uri, job).await;
+                if !settled {
+                    // Cancelled mid-flight — re-mark dirty so we retry the latest
+                    // state next loop.
+                    if let Some(slot) = slots.lock().await.get_mut(&uri) {
+                        slot.dirty = true;
+                    }
+                }
+            }
         });
     }
 
@@ -2096,14 +2277,12 @@ impl Backend {
     /// the live document map at publication time so stale on-disk
     /// analysis cannot overwrite the open-buffer entry.
     async fn merge_workspace_scan_results(&self, analysed: &[(String, AnalysisResult)]) {
-        let _gate = self.document_analysis_gate.lock().await;
-        let open: HashSet<String> = self
-            .documents
-            .lock()
-            .await
-            .keys()
-            .map(ToString::to_string)
-            .collect();
+        // Hold `documents` across the open-set read + index merge (the
+        // `documents` → `workspace_index` order that replaced the global gate)
+        // so a file opening mid-merge can't have its open-buffer index entry
+        // overwritten by this disk-backed scan result.
+        let docs = self.documents.lock().await;
+        let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
         let mut index = self.workspace_index.lock().await;
         for (uri, analysis) in analysed {
             if open.contains(uri) {
@@ -2156,27 +2335,26 @@ impl LanguageServer for Backend {
         let text = params.text_document.text.clone();
         let version = params.text_document.version;
         let dialect_for_diags = dialect.clone();
-        let (revision, version) = {
-            let _gate = self.document_analysis_gate.lock().await;
+        {
+            // Hold `documents` across the salsa input set + the index removal
+            // (the `documents` → `workspace_index` order that replaced the
+            // global gate): a reader must never see the new `doc.text` with a
+            // stale query result for the old text, and no diagnostics run may
+            // re-add a stale index entry between them.
             let mut docs = self.documents.lock().await;
             docs.insert(
                 uri.clone(),
                 DocumentState::with_version(params.text_document.text, dialect, version),
             );
-            // Set the salsa input while holding the `documents` lock — same
-            // reasoning as `did_change`: a reader must never see the new
-            // `doc.text` with a stale query result for the old text.
             self.db_set_source(&uri, text.clone(), dialect_for_diags.clone())
                 .await;
-            drop(docs);
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
-            (0, Some(version))
-        };
-        self.schedule_diagnostics(uri, text, dialect_for_diags, revision, version)
-            .await;
+            drop(docs);
+        }
+        self.schedule_diagnostics(uri, dialect_for_diags).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -2191,8 +2369,7 @@ impl LanguageServer for Backend {
         }
         let default_dialect = self.default_dialect.lock().await.clone();
         let change_version = params.text_document.version;
-        let (text, dialect, revision, version) = {
-            let _gate = self.document_analysis_gate.lock().await;
+        let dialect = {
             let mut docs = self.documents.lock().await;
             let entry = docs
                 .entry(uri.clone())
@@ -2206,29 +2383,23 @@ impl LanguageServer for Backend {
             entry.text = text.clone();
             entry.bump_revision(change_version);
             let dialect = entry.dialect.clone();
-            let revision = entry.revision;
-            let version = entry.version;
-            // Update the salsa `SourceFile` input WHILE still holding the
-            // `documents` lock, so no concurrent request can observe the new
-            // `doc.text` (from `read_document`) together with a stale
-            // `file_analysis`/`document_symbols`/`semantic_tokens` query result
-            // for the old text. (db_set_source locks db→db_files, never
-            // documents, so this nesting introduces no new lock-order cycle.)
-            self.db_set_source(&uri, text.clone(), dialect.clone())
-                .await;
-            drop(docs);
-            // The per-document analysis is no longer cached on the server — it
-            // lives in the query database, invalidated by the `db_set_source`
-            // above bumping the `SourceFile` input. The cross-document index is
-            // still refreshed by the diagnostics run below.
+            // Update the salsa `SourceFile` input + the cross-document index
+            // WHILE still holding the `documents` lock (the `documents` →
+            // `workspace_index` order that replaced the global gate): no
+            // concurrent request can observe the new `doc.text` (from
+            // `read_document`) with a stale query result for the old text, and
+            // no diagnostics run can re-add a stale index entry between the
+            // commit and the removal.  (db_set_source locks db→db_files, never
+            // documents, so this nesting introduces no lock-order cycle.)
+            self.db_set_source(&uri, text, dialect.clone()).await;
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
-            (text, dialect, revision, version)
+            drop(docs);
+            dialect
         };
-        self.schedule_diagnostics(uri, text, dialect, revision, version)
-            .await;
+        self.schedule_diagnostics(uri, dialect).await;
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
@@ -2269,20 +2440,26 @@ impl LanguageServer for Backend {
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = &params.text_document.uri;
         {
-            let _gate = self.document_analysis_gate.lock().await;
-            self.documents.lock().await.remove(uri);
+            // Remove the live document + its index entry while holding
+            // `documents` (the `documents` → `workspace_index` order that
+            // replaced the global gate): an in-flight diagnostics run re-checks
+            // currency under `documents` and, finding the doc gone, will not
+            // re-add a stale index entry or publish for it.
+            let mut docs = self.documents.lock().await;
+            docs.remove(uri);
             self.workspace_index
                 .lock()
                 .await
                 .remove_document(uri.as_str());
-            // Clear any previously-published diagnostics before a later
-            // didOpen for the same URI can run. Close publishes do not
-            // carry a reliable document version, so this short publish
-            // stays ordered by the gate.
-            self.client
-                .publish_diagnostics(uri.clone(), Vec::new(), None)
-                .await;
+            drop(docs);
         }
+        // Clear any previously-published diagnostics so a later didOpen for the
+        // same URI starts clean.  Published outside the lock; a diagnostics run
+        // for the now-closed doc no longer publishes (its currency re-check
+        // fails), so this empty publish is the last word for the URI.
+        self.client
+            .publish_diagnostics(uri.clone(), Vec::new(), None)
+            .await;
         self.db_remove_source(uri).await;
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
@@ -4208,31 +4385,22 @@ fn lift_source_style_diagnostics(
 /// both is a follow-up once the document-store lands.
 fn lift_compiler_diagnostics(
     text: &str,
-    registry: &CommandRegistry,
-    dialect: &str,
+    diags: &tcl_lsp_db::CompilerDiagnostics,
     optimiser_enabled: bool,
     disabled_optimisations: &std::collections::HashSet<String>,
 ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
-    use tcl_compiler::compilation_unit::CompilationUnit;
-    use tcl_compiler::compiler_checks::{run_all_checks, Severity as CheckSeverity};
-    use tcl_compiler::optimiser::optimise_unit;
+    use tcl_compiler::compiler_checks::Severity as CheckSeverity;
     use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
 
     let line_index = tcl_lexer::LineIndex::new(text);
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect);
     let mut out: Vec<tower_lsp::lsp_types::Diagnostic> = Vec::new();
 
-    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow
-    // / SCCP, all keyed off a single interprocedurally-summarised
-    // compilation unit (mirrors the `compiler_checks_run_all` PyO3
-    // bridge's construction).
-    let cu = CompilationUnit::build_for_with_config(
-        text,
-        registry,
-        false,
-        tcl_lexer::LexerConfig::for_dialect(dialect),
-    )
-    .with_interprocedural(registry, dialect_opt);
+    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow / SCCP,
+    // all keyed off a single interprocedurally-summarised compilation unit whose
+    // per-procedure lattices are memoised by the salsa-native `function_lattice`
+    // query (so an unchanged procedure is built once and reused across edits
+    // *and* shared with the analyser tail).  The unit is built by the
+    // `compiler_check_diagnostics` query; here we only filter + lift.
     // An optimiser O-code (`O1xx`) is gated by the `tclLsp.optimiser.enabled`
     // master switch and the profile + per-code `disabled_optimisations` set,
     // wherever it is emitted (some — e.g. the constant-branch `O100` — come
@@ -4241,7 +4409,8 @@ fn lift_compiler_diagnostics(
     let optimiser_suppressed = |code: &str| {
         code.starts_with('O') && (!optimiser_enabled || disabled_optimisations.contains(code))
     };
-    for d in run_all_checks(&cu, registry, dialect_opt) {
+    for d in &diags.checks {
+        let d = d.clone();
         if optimiser_suppressed(&d.code) {
             continue;
         }
@@ -4267,12 +4436,11 @@ fn lift_compiler_diagnostics(
     // fix from the diagnostic; the fix plumbing itself is GAP-C3). The
     // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
     // block, mirroring Python's `if optimiser_enabled:` gate.
-    // Share the single CompilationUnit already built above for `run_all_checks`
-    // instead of letting `optimise_with_dialect` lower the source a second time
-    // (~129 ms saved per document on large files — E7).
-    for o in optimise_unit(&cu, registry, dialect_opt)
-        .into_iter()
+    for o in diags
+        .optimisations
+        .iter()
         .filter(|_| optimiser_enabled)
+        .cloned()
     {
         // Profile + per-code gate: the active profile disables whole O-code
         // categories (the default `readability` profile surfaces only
@@ -5307,8 +5475,7 @@ mod tests {
         Backend {
             client: service.inner().client.clone(),
             documents: Arc::new(Mutex::new(HashMap::new())),
-            document_analysis_gate: Arc::new(Mutex::new(())),
-            diag_gen: Arc::new(Mutex::new(HashMap::new())),
+            diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
@@ -5321,8 +5488,8 @@ mod tests {
             optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
             db: Arc::new(Mutex::new(db)),
-            db_files: Mutex::new(HashMap::new()),
-            db_config: Mutex::new(db_config),
+            db_files: Arc::new(Mutex::new(HashMap::new())),
+            db_config: Arc::new(Mutex::new(db_config)),
         }
     }
 
@@ -5341,7 +5508,6 @@ mod tests {
             .db_set_source(&uri, current_src.to_owned(), "tcl8.6".to_owned())
             .await;
         {
-            let _gate = backend.document_analysis_gate.lock().await;
             let mut doc =
                 DocumentState::with_version(current_src.to_owned(), "tcl8.6".to_owned(), 2);
             doc.revision = 2;

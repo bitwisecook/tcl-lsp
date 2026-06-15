@@ -204,11 +204,70 @@ practcl.tcl from ~1 s to low-ms).
 | Async + debounced diagnostics (heavy-edit fix) | **shipped** |
 | Shared CompilationUnit (E7) — `optimiser::optimise_unit` | **shipped** |
 | Phase-0 experiments E1–E8 + differential fuzzer + cascade prototype | **shipped** (this doc's findings) |
-| Slice 1 — `item_tree`/`item_sig`/`file_decls` | **not started** (the build) |
-| Slice 2 — relative-offset item body analysis | not started (the bulk) |
-| Slice 3 — memoise `item_analysis` (the perf win) | not started |
-| Slice 4 — per-item lattices + `interproc` cascade | not started |
-| Slice 5 — cancellation-aware walk; retire the diagnostics detour + gate | not started |
+| Slice 1 — `item_tree`/`item_sig`/`file_decls` | **shipped** (corpus-gated) |
+| Slice 2 — per-item walk via deferred bodies (`analyse_per_item`); `incremental == fresh` fuzzer to 0 | **shipped** (byte-identical over corpus) |
+| Slice 3 — memoise per-body analysis (`item_body_analysis`); offset-invariant keys | **shipped** (firewall + offset-invariance tests) |
+| Slice 4 — per-procedure lattice memoisation (`build_for_memoized` + `lattice_rebase`), offset-invariant | **shipped** (byte-identical; e2e parity) |
+| Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
+| Salsa-native per-procedure lattice graph (`function_lattice` query interning each proc's offset-0 body + `CfgContext`); both consumers (analyser tail + optimiser via `compiler_check_diagnostics`) on salsa; process-wide content cache retired | **shipped** (byte-identical; offset-invariant firewall + e2e parity) |
+| Per-item walk Phase B — widen the fast path: qualified `$::g` reads captured + replayed on the shell's globals at graft; the enclosing-context fallback narrowed from "any namespace/global/`variable`/qualified-read body" to **duplicate definitions** (top-level + nested self-redefinition) and **class-defining / qualified-writer bodies** | **shipped** (≈42% of corpus files now take the incremental fast path, up from the qualified-read-trigger floor; byte-identical — corpus + fuzzer gated) |
+
+> **Phase B — what the fast path now covers, and what still falls back.**
+> The per-item walk's enclosing-context fallback (`body_needs_enclosing_context`)
+> used to fire on *any* body touching namespace/global/`variable` state or a
+> qualified `$::g` read — i.e. almost every non-trivial file.  Phase B:
+>
+> - **Captures + replays qualified reads.** A body's `$::g` read is recorded
+>   (`Analyser::capture_global_reads`) when it misses the isolated body's empty
+>   global scope, then replayed on the shell's real `::g` at graft — so a body
+>   that only *reads* enclosing globals no longer needs the fallback.
+> - **Narrows the fallback** to the two patterns the isolated-body decomposition
+>   genuinely can't reproduce byte-for-byte: (1) **duplicate definitions** — the
+>   same proc/method qualified name defined twice (platform-conditional `proc`s
+>   *and* the lazy-init self-redefinition `proc p {a} { …; proc p {a} {real} }`,
+>   detected by tracking every defined proc name across the shell + body
+>   fragments); (2) **class-defining or qualified-writer bodies** (`oo::class` /
+>   `oo::define`, or `set ::ns::x`) — whose `all_variables` / class-method facts
+>   accumulate across bodies in a whole-file walk but only *merge* in the graft.
+>
+> Result: ~42% of corpus files take the incremental fast path (a body edit
+> recomputes one body + shell + tail).  The remaining ~58% — those that
+> **declare/write** enclosing variables (`variable` / `global` / `set ::x`) or
+> define classes in a body, including marquee files like `practcl.tcl` and
+> `init.tcl` — still fall back, because making them byte-identical needs the
+> isolated body to *pre-seed* its enclosing const-strings + variable defs (so
+> `warn_if_unused`, definition spans, and const-string-dependent diagnostics like
+> W304 resolve identically).  That pre-seeding — keyed so a body invalidates only
+> when its enclosing context changes — is the next step toward a fully
+> incremental analyser walk.
+
+> **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
+> (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now
+> memoised by the salsa-native `function_lattice` query, replacing the
+> process-wide content cache (so salsa garbage-collects unreferenced entries).
+> `build_for_memoized` normalises each procedure body to offset 0 and hands it
+> (with the module's `CfgContext`, interned once per build) to a callback that
+> interns the `FnLatticeKey` and demands `function_lattice`; the builder rebases
+> the returned offset-0 unit to the procedure's real span (`lattice_rebase`).
+> Reuses the same `build_cfg_function_with_upvars` call `build_cfg` makes per
+> procedure, so the rebuilt unit equals the whole-module build's (modulo offset),
+> under `db.registry` (byte-identical to both consumers' `build_default` +
+> `load_dialect`).  The optimiser path was the architectural blocker — it ran
+> *off* salsa with no db handle; it now runs through the `compiler_check_diagnostics`
+> tracked query (server filters the master-switch / per-code disables + lifts), so
+> both diagnostics consumers share the same memoised lattices.  Gated by the
+> per-item corpus + `incremental == fresh` differential fuzzer + the db
+> equivalence/offset-invariance tests (`function_lattice_reused_on_body_shift`,
+> `compiler_check_diagnostics_matches_uncached`) + e2e parity.
+>
+> **Remaining (future).**
+>
+> - **Interprocedural taint cascade.** `with_interprocedural` still re-runs
+>   `propagate_taints` for every function on each edit (a small fraction of the
+>   per-edit cost now). Memoising it byte-identically needs a per-function key
+>   over the reachable-callee `ProcSummary`s — i.e. a `taint_cascade` query layered
+>   on `function_lattice`'s baseline taints, fed the reachable summaries as
+>   interned inputs.  Now tractable on the salsa-native graph; net-small perf.
 
 ## How to run the experiments
 
