@@ -84,6 +84,8 @@ _SHAPE_ONLY_KEYS = {"interprocedural"}
 _NO_PARITY_KEYS = {
     "optimisations",
     "optimisedSource",
+    "irOptimised",
+    "cfgPreSsaOptimised",
     "renderedProperties",
     "taintWarnings",
     "gvn",

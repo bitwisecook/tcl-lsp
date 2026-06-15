@@ -383,19 +383,20 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     Value::Array(out)
 }
 
-/// Serialise the `optimisedSource` key: the source after applying the
-/// optimiser's rewrites, or `null` when unchanged. Mirrors
-/// `result.optimised_source if != source else None`. Optimiser-derived →
-/// `_NO_PARITY_KEYS`, pinned by a Rust unit test.
-#[must_use]
-pub fn serialise_optimised_source(result: &ExplorerResult, source: &str) -> Value {
+/// Build the optimised-source explorer result, or `None` when the
+/// optimiser leaves the source unchanged. Shared by the `optimisedSource`,
+/// `irOptimised`, and `cfgPreSsaOptimised` keys (the "double pipeline" —
+/// re-run the whole pipeline on the rewritten source). Returns the result
+/// plus the optimised source string (whose ranges the optimised views
+/// index into).
+fn optimised_result(result: &ExplorerResult) -> Option<(crate::ExplorerResult, String)> {
     let registry = registry_for_dialect(&result.dialect);
-    let optimised = apply_optimisations(source, &optimise(source, registry));
-    if optimised == source {
-        Value::Null
-    } else {
-        Value::String(optimised)
+    let optimised = apply_optimisations(&result.source, &optimise(&result.source, registry));
+    if optimised == result.source {
+        return None;
     }
+    let unit = crate::run_pipeline(&optimised, &result.dialect);
+    Some((unit, optimised))
 }
 
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
@@ -693,9 +694,25 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_taint(result, &li, &result.source),
     );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
+
+    // Double-pipeline keys: re-run on the optimiser's rewritten source.
+    let opt = optimised_result(result);
     out.insert(
         "optimisedSource".to_owned(),
-        serialise_optimised_source(result, &result.source),
+        opt.as_ref()
+            .map_or(Value::Null, |(_, s)| Value::String(s.clone())),
+    );
+    out.insert(
+        "irOptimised".to_owned(),
+        opt.as_ref().map_or(Value::Null, |(r, s)| {
+            serialise_ir(&r.unit.ir_module, &LineIndex::new(s), s)
+        }),
+    );
+    out.insert(
+        "cfgPreSsaOptimised".to_owned(),
+        opt.as_ref().map_or(Value::Null, |(r, s)| {
+            serialise_cfg_pre_ssa(r, &LineIndex::new(s), s)
+        }),
     );
     Value::Object(out)
 }
@@ -758,7 +775,22 @@ mod tests {
     #[test]
     fn optimised_source_null_when_unchanged() {
         let result = run_pipeline("puts hello", "tcl8.6");
-        assert_eq!(serialise_result(&result)["optimisedSource"], Value::Null);
+        let v = serialise_result(&result);
+        assert_eq!(v["optimisedSource"], Value::Null);
+        // The double-pipeline keys are also null when nothing changed.
+        assert_eq!(v["irOptimised"], Value::Null);
+        assert_eq!(v["cfgPreSsaOptimised"], Value::Null);
+    }
+
+    #[test]
+    fn optimised_ir_and_cfg_present_when_source_changes() {
+        let result = run_pipeline("set x [expr {1 + 2}]\nputs $x", "tcl8.6");
+        let v = serialise_result(&result);
+        // The fold rewrites the source, so the optimised views populate and
+        // their IR reflects the folded `set x 3`.
+        assert!(v["irOptimised"]["topLevel"].is_array());
+        assert!(v["cfgPreSsaOptimised"].is_array());
+        assert!(!v["cfgPreSsaOptimised"].as_array().unwrap().is_empty());
     }
 
     #[test]
