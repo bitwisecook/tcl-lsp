@@ -107,6 +107,9 @@ _NO_PARITY_KEYS = {
     # a Rust unit test rather than the Python differential.
     "annotations",
     "annotationsByLine",
+    # deadStores is 0 (Rust liveness unported) and the warning counts come
+    # from the divergent Rust analyses, so stats is Rust-pinned.
+    "stats",
 }
 
 

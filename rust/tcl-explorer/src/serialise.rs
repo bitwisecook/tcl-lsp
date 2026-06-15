@@ -678,6 +678,55 @@ pub fn serialise_segments(source: &str) -> Value {
     Value::Array(segments)
 }
 
+/// Serialise the `stats` summary. Mirrors `compute_stats`.
+///
+/// `_NO_PARITY`: `deadStores` is `0` (the Rust liveness pass is unported)
+/// and the warning counts come from the Rust analyses (which diverge from
+/// Python). `dataflow*` counts are omitted — `dataflow` is unported, and
+/// Python only adds them when a dataflow graph is present.
+fn serialise_stats(result: &ExplorerResult) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let dialect = Some(result.dialect.as_str());
+
+    let unreachable: usize = result
+        .snapshots()
+        .iter()
+        .map(|s| {
+            s.unit
+                .cfg
+                .blocks
+                .keys()
+                .filter(|b| !s.unit.sccp.executable_blocks.contains(*b))
+                .count()
+        })
+        .sum();
+
+    let shimmer = find_shimmer_warnings_for_cu(&result.unit, registry).len()
+        + find_thunking_warnings_for_cu(&result.unit).len();
+    let mut gvn = find_redundancies_for_cu(&result.unit, registry, dialect);
+    gvn.extend(find_partial_redundancies_for_cu(
+        &result.unit,
+        registry,
+        dialect,
+    ));
+    gvn.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
+    let taint = find_taint_warnings_for_cu(&result.unit, registry, dialect).len();
+    let rewrites = optimise(&result.source, registry).len();
+
+    json!({
+        "procedures": result.unit.ir_module.procedures.len(),
+        "functions": result.snapshots().len(),
+        "blocks": result.total_blocks(),
+        "deadStores": 0,
+        "unreachableBlocks": unreachable,
+        "rewrites": rewrites,
+        "shimmerWarnings": shimmer,
+        "gvnWarnings": gvn.len(),
+        "taintWarnings": taint,
+        "irulesFlowWarnings": 0,
+    })
+}
+
 /// One source-callout annotation, before serialisation.
 struct Ann {
     span: Span,
@@ -994,6 +1043,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     let (annotations, by_line) = serialise_annotations(result, &li, &result.source);
     out.insert("annotations".to_owned(), annotations);
     out.insert("annotationsByLine".to_owned(), by_line);
+    out.insert("stats".to_owned(), serialise_stats(result));
     Value::Object(out)
 }
 
@@ -1088,6 +1138,18 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn stats_reports_function_and_block_counts() {
+        let result = run_pipeline("proc f {} { return 1 }\nf", "tcl8.6");
+        let stats = serialise_result(&result)["stats"].clone();
+        assert_eq!(stats["procedures"], 1);
+        // top-level + ::f.
+        assert_eq!(stats["functions"], 2);
+        assert!(stats["blocks"].as_u64().unwrap() >= 1);
+        assert!(stats["rewrites"].is_number());
+        assert!(stats["shimmerWarnings"].is_number());
     }
 
     #[test]
