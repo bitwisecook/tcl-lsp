@@ -75,11 +75,13 @@ _SHAPE_ONLY_KEYS = {"interprocedural"}
 # (folds an interprocedurally-constant `return $param`; prefers `O101 fold`
 # over `O109 dead-store`). The rendered-properties pass (🟡) reports
 # conservative flag sets for command-substitution values where the Python
-# pass reports only interpolation. The explorer view faithfully shows
-# whichever backend produced it, so these views are pinned by Rust-side unit
-# tests and the backends' own suites instead. (Tracked under the compiler /
-# analyser work in docs/rust-rewrite.md.)
-_NO_PARITY_KEYS = {"optimisations", "renderedProperties"}
+# pass reports only interpolation. The taint pass points a warning's range
+# at the whole sink command (`eval $x`) where Python points at the tainted
+# variable use (`$x`), and its proc-order is not yet stable. The explorer
+# view faithfully shows whichever backend produced it, so these views are
+# pinned by Rust-side unit tests and the backends' own suites instead.
+# (Tracked under the compiler / analyser work in docs/rust-rewrite.md.)
+_NO_PARITY_KEYS = {"optimisations", "renderedProperties", "taintWarnings"}
 
 
 def _rust_binary() -> Path | None:

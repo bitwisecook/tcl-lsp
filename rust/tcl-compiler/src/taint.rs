@@ -1562,6 +1562,45 @@ fn irule3002_name_position_safe(
     is_pure_var_ref(stripped) && normalise_var_name(stripped) == var_name
 }
 
+/// Find every taint warning across a whole compilation unit.
+///
+/// Public `*_for_cu` entry point (mirroring
+/// [`crate::shimmer::find_shimmer_warnings_for_cu`]) composing the
+/// `TaintWarning`-producing passes — sink detection, setter-constraint
+/// violations, iRules URI-split suggestions, and destructive-file warnings
+/// — over each function in the unit, in `cu.functions()` order. The
+/// path-concatenation pass is omitted: its Rust lattice colours are not yet
+/// assigned (latent, always empty today).
+#[must_use]
+pub fn find_taint_warnings_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<TaintWarning> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        let exec = &fu.sccp.executable_blocks;
+        out.extend(find_taint_warnings(
+            &fu.cfg, &fu.ssa, &fu.taints, exec, registry, dialect,
+        ));
+        out.extend(find_setter_constraint_warnings(
+            registry, &fu.cfg, &fu.ssa, &fu.taints, exec, dialect,
+        ));
+        out.extend(crate::uri_split::find_uri_split_suggestions(
+            &fu.cfg,
+            &fu.ssa,
+            Some(&fu.sccp.values),
+            exec,
+            registry,
+            dialect,
+        ));
+        out.extend(find_destructive_file_warnings(
+            &fu.cfg, &fu.ssa, &fu.taints, exec, registry,
+        ));
+    }
+    out
+}
+
 /// Run sink detection over a single function.
 ///
 /// For each SSA use of a tainted variable in a sink statement, emits

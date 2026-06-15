@@ -21,6 +21,7 @@ use tcl_compiler::segmenter::segment_commands;
 use tcl_compiler::shimmer::{
     find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
 };
+use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_lexer::{LineIndex, Span, TokenType};
 use tcl_registry::{available_dialects, registry_for_dialect};
 use tcl_syntax::expr::ast::render_expr;
@@ -379,6 +380,39 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     Value::Array(out)
 }
 
+/// Renderer severity for a taint code. Mirrors `annotations.taint_severity`
+/// (`T1*` prefix or `T3001`-`T3004` → error, else warning).
+fn taint_severity(code: &str) -> &'static str {
+    if code.starts_with("T1") || matches!(code, "T3001" | "T3002" | "T3003" | "T3004") {
+        "error"
+    } else {
+        "warning"
+    }
+}
+
+/// Serialise the `taint` view: information-flow sink warnings. Mirrors
+/// `_serialise_taint`. Composes the taint passes via the ported
+/// `find_taint_warnings_for_cu`.
+#[must_use]
+pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let dialect = Some(result.dialect.as_str());
+    let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
+        .iter()
+        .map(|w| {
+            json!({
+                "code": w.code,
+                "message": w.message,
+                "range": range_dict(w.span, li, source),
+                "severity": taint_severity(&w.code),
+                "variable": w.variable,
+                "sinkCommand": w.sink_command,
+            })
+        })
+        .collect();
+    Value::Array(out)
+}
+
 /// Serialise the `optimisations` view: the optimiser rewrites found for
 /// the source. Mirrors `_serialise_optimisations` — `{code, message,
 /// range, replacement}` per rewrite. Runs the ported `optimise` pass over
@@ -593,6 +627,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "shimmer".to_owned(),
         serialise_shimmer(result, &li, &result.source),
     );
+    out.insert(
+        "taintWarnings".to_owned(),
+        serialise_taint(result, &li, &result.source),
+    );
     Value::Object(out)
 }
 
@@ -640,6 +678,20 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn taint_reports_eval_sink() {
+        let result = run_pipeline("set x [gets stdin]\neval $x", "tcl8.6");
+        let taint = serialise_result(&result)["taintWarnings"].clone();
+        let arr = taint.as_array().unwrap();
+        let t = arr
+            .iter()
+            .find(|w| w["code"] == "T100")
+            .expect("T100 warning");
+        assert_eq!(t["variable"], "x");
+        assert_eq!(t["sinkCommand"], "eval");
+        assert_eq!(t["severity"], "error");
     }
 
     #[test]
