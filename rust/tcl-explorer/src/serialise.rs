@@ -21,6 +21,10 @@ use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::interval_bounds::find_interval_bounds;
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
+use tcl_compiler::irules_checks::{
+    find_collect_flow_warnings, find_hoistable_set_warnings, find_http_flow_warnings,
+    find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
+};
 use tcl_compiler::optimiser::{apply_optimisations, optimise};
 use tcl_compiler::segmenter::segment_commands;
 use tcl_compiler::shimmer::{
@@ -834,6 +838,35 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     })
 }
 
+/// Serialise the `irulesFlow` view: iRules flow / performance warnings.
+/// Mirrors `_serialise_irules_flow` — `{code, message, range, severity}`,
+/// composing the five `irules_checks` finders. Empty for non-iRules
+/// dialects, so it strict-matches Python's empty list on the tcl corpus.
+#[must_use]
+pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let dialect = Some(result.dialect.as_str());
+    let cu = &result.unit;
+    let mut warnings = find_unnormalised_getter_warnings(cu, registry, dialect);
+    warnings.extend(find_unguarded_drop_warnings(cu, dialect));
+    warnings.extend(find_collect_flow_warnings(cu, registry, dialect));
+    warnings.extend(find_http_flow_warnings(cu, dialect));
+    warnings.extend(find_hoistable_set_warnings(cu, dialect));
+
+    let out: Vec<Value> = warnings
+        .iter()
+        .map(|w| {
+            json!({
+                "code": w.code,
+                "message": w.message,
+                "range": range_dict(w.span, li, source),
+                "severity": "warning",
+            })
+        })
+        .collect();
+    Value::Array(out)
+}
+
 /// Serialise the `bounds` view: interval-driven out-of-range findings per
 /// function. Mirrors `_serialise_bounds`.
 ///
@@ -1329,6 +1362,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("taintTracking".to_owned(), serialise_taint_tracking(result));
     out.insert("dataflow".to_owned(), serialise_dataflow(result));
     out.insert(
+        "irulesFlow".to_owned(),
+        serialise_irules_flow(result, &li, &result.source),
+    );
+    out.insert(
         "asm".to_owned(),
         crate::asm::serialise_asm(result, &li, &result.source),
     );
@@ -1470,6 +1507,12 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn irules_flow_empty_for_plain_tcl() {
+        let result = run_pipeline("set x 1\nputs $x", "tcl8.6");
+        assert_eq!(serialise_result(&result)["irulesFlow"], json!([]));
     }
 
     #[test]
