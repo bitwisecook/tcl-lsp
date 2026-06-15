@@ -167,23 +167,23 @@ impl Analyser {
             }
             self.define_var(base, mb.body_tok, &method_path, false, None);
         }
-        // Per-item shell pass: defer the method body (scope created above) for
-        // a second isolated pass, matching `handle_proc_command`.
+        // Per-item shell pass: defer the method body for an isolated pass like
+        // `handle_proc_command`.  Carry the method's qualified name as
+        // `scope_name` (so the duplicate detector keys each method distinctly),
+        // the class's *defining* namespace (so command/var resolution in the
+        // isolated `Method` scope matches the whole-file walk), the formal
+        // params, and the class instance variables (pre-bound in every method).
         if self.defer_proc_bodies {
-            // Method bodies are filled in place in pass 2 (byte-identical, not
-            // yet isolated/memoised — the proc-only fields are unused).  Carry
-            // the method's qualified name as `scope_name` so the per-item
-            // duplicate detector keys each method distinctly — distinct methods
-            // must NOT look like mutual duplicates (the empty-key bug that made
-            // every 2+-method class fall back).
+            let namespace = self.namespace_from_scope_path(scope_path);
             self.deferred_bodies.push(super::per_item::DeferredBody {
                 body_text: mb.body_text.clone(),
                 body_tok: mb.body_tok,
                 scope_path: method_path,
                 is_method: true,
-                namespace: String::new(),
+                namespace,
                 scope_name: method_qn,
-                params: Vec::new(),
+                params: mb.params.clone(),
+                class_variables: class_variables.to_vec(),
             });
         } else {
             self.analyse_body(&mb.body_text, mb.body_tok, &method_path);

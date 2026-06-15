@@ -179,6 +179,12 @@ pub struct ItemBodyKey<'db> {
     pub scope_name: String,
     #[returns(ref)]
     pub params: Vec<ParamDef>,
+    /// `true` for a `TclOO` method body (isolated in a `Method` scope with
+    /// instance variables pre-bound); `false` for a `proc`.
+    pub is_method: bool,
+    /// Class instance variables pre-bound in a method body (empty for procs).
+    #[returns(ref)]
+    pub class_variables: Vec<String>,
     #[returns(ref)]
     pub dialect: String,
     #[returns(ref)]
@@ -198,10 +204,11 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         body_text: key.body_text(db).clone(),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
-        is_method: false,
+        is_method: key.is_method(db),
         namespace: key.namespace(db).clone(),
         scope_name: key.scope_name(db).clone(),
         params: key.params(db).clone(),
+        class_variables: key.class_variables(db).clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
     let overlay = tcl_compiler::analyser::types::build_stub_overlay(&[]);
@@ -441,6 +448,8 @@ pub fn file_analysis_incremental(
             body.namespace.clone(),
             body.scope_name.clone(),
             body.params.clone(),
+            body.is_method,
+            body.class_variables.clone(),
             dialect.clone(),
             disabled_vec.clone(),
             non_ascii,
@@ -725,6 +734,60 @@ mod tests {
                 .count(),
             1,
             "length-changing body edit -> exactly ONE item recomputes (offset-invariant): {after:?}"
+        );
+    }
+
+    /// The method firewall: a body edit to one OO method recomputes exactly one
+    /// `item_body_analysis` — methods are isolated + memoised like procs, so an
+    /// unedited sibling method (shifted by the edit) stays a cache hit.
+    #[test]
+    fn method_body_edit_recomputes_one_item() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let file = SourceFile::new(
+            &db,
+            "oo::class create K {\n  method a {} { set x 11111 }\n  method b {} { set y 22222 }\n}\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let init = std::mem::take(&mut *log.lock().unwrap());
+        assert_eq!(
+            init.iter()
+                .filter(|s| s.contains("item_body_analysis"))
+                .count(),
+            2,
+            "initial: both method bodies analysed: {init:?}"
+        );
+
+        // Edit method a's body length — shifts method b; b's offset-0 body is
+        // unchanged, so its key is a cache hit and only a recomputes.
+        file.set_text(&mut db).to(
+            "oo::class create K {\n  method a {} { set x 9999999999 }\n  method b {} { set y 22222 }\n}\n"
+                .to_owned(),
+        );
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let after = std::mem::take(&mut *log.lock().unwrap());
+        assert_eq!(
+            after
+                .iter()
+                .filter(|s| s.contains("item_body_analysis"))
+                .count(),
+            1,
+            "method body edit -> exactly ONE item recomputes: {after:?}"
         );
     }
 
