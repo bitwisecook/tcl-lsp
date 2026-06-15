@@ -178,6 +178,11 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"namespace eval name arg ?arg...?");
     }
     let name = obj_bytes(argv[2]);
+    // A single body argument keeps its `Tcl_Obj` so a located literal runs as
+    // `type source` (TIP 280); multiple args concatenate into a dynamic body.
+    if argv.len() == 4 {
+        return interp.ns_eval_obj(&name, argv[3]);
+    }
     let mut body = Vec::new();
     for (i, &a) in argv[3..].iter().enumerate() {
         if i > 0 {

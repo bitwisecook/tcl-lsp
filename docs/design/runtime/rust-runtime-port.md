@@ -2917,6 +2917,21 @@ enclosing frame's `line_base`/`line`/`cmd`. Nested substitutions compose
 naturally: each inner buffer's offset is taken against *its* enclosing `src`,
 and the `line_base` it inherits already carries the outer shift.
 
+### SYNC inbound — 2026-06-15 (`namespace eval` is its own `info frame` level)
+
+`info.test` 158 → 161 (zero regressions; trace 199, oo 357, ooProp 55/55,
+eval 12/12, namespace 238 all held). C's `namespace eval` pushes a `CmdFrame`
+for its body (depth and `info level` both advance), with `proc` cleared and
+`level` reported relative to the new scope; the runtime previously evaluated the
+body in the *enclosing* frame, so `info frame 0` inside `namespace eval` leaked
+the caller's `proc`/`level` and reported the wrong depth. `ns_eval` now pushes a
+body `CmdFrame` like a proc body — `proc: None`, `level` = the new namespace
+scope's level, and (for a single located-literal body, via the new `ns_eval_obj`
+obj-aware path) `type source` at the body's file+line so commands defined inside
+report file-absolute lines. A multi-arg (concatenated, dynamic) body stays
+`type eval`. Remaining `info-30`/`info-33` failures are now the `switch`-body
+and `[subst]` line-tracking clusters and `{*}` literal-expansion locations.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

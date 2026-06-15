@@ -1125,6 +1125,32 @@ impl Interp {
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
+        self.ns_eval_framed(name, body, None)
+    }
+
+    /// `namespace eval` of a single body **object** — like
+    /// [`ns_eval`](Self::ns_eval), but a literal obj with a recorded TIP 280
+    /// source location runs as `type source` at its file+line (so a `proc`/
+    /// command defined inside `namespace eval { … }` reports file-absolute
+    /// `info frame` lines), rather than the dynamic `type eval`.
+    pub(crate) fn ns_eval_obj(&mut self, name: &[u8], obj: *mut TclObj) -> Code {
+        let loc = self.arg_loc(obj);
+        let bytes = obj_bytes(obj);
+        self.ns_eval_framed(name, &bytes, loc)
+    }
+
+    /// Shared `namespace eval` core: enter `name`, push a namespace var-scope
+    /// frame *and* a `CmdFrame` for the body (C's `namespace eval` is its own
+    /// `info frame` level — depth and `info level` both advance — with `proc`
+    /// cleared and `level` reported relative to the new scope). `loc` is the
+    /// body's TIP 280 location when it is a located literal (`type source`),
+    /// else `None` (`type eval`).
+    fn ns_eval_framed(
+        &mut self,
+        name: &[u8],
+        body: &[u8],
+        loc: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Code {
         let target = self
             .namespaces
             .borrow_mut()
@@ -1136,7 +1162,22 @@ impl Interp {
         // including when nested in a proc — target the namespace, not the
         // enclosing proc's locals).
         self.frames.borrow_mut().push_namespace(target);
-        let code = self.eval_str(body);
+        let (kind, file, line_base) = match loc {
+            Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
+            None => (FrameKind::Eval, None, 0),
+        };
+        let frame = CmdFrame {
+            kind,
+            file,
+            proc: None,
+            level: self.frames.borrow().current_level(),
+            omit_level: false,
+            line_base,
+            cmd: Vec::new(),
+            line: 1,
+            oo: None,
+        };
+        let code = self.eval_framed(body, frame);
         self.frames.borrow_mut().pop();
         self.current_ns.set(saved);
         code
