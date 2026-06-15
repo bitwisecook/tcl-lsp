@@ -393,6 +393,10 @@ pub enum Command {
         /// Show the worked-example cookbook and exit.
         #[arg(long = "help-examples")]
         help_examples: bool,
+        /// Show the comprehensive manual (grammar + builtins + examples) and
+        /// exit. Deferred: the builtins prose catalogue is not yet ported.
+        #[arg(long = "help-manual")]
+        help_manual: bool,
         /// List the registered renderer plugins and exit.
         #[arg(long = "help-renderers")]
         help_renderers: bool,

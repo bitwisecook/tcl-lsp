@@ -35,6 +35,8 @@ pub mod builtins;
 pub mod edit_plan;
 pub mod errors;
 pub mod eval;
+pub mod examples;
+pub mod grammar;
 pub mod inputs;
 pub mod jsonfmt;
 pub mod lexer;

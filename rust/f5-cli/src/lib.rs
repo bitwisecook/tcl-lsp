@@ -133,6 +133,65 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
 
 /// Route `Command::Query` to the read-only query verb, mapping the output-mode
 /// flags and rejecting the deferred help actions.
+/// Handle the `--help-*` actions, which short-circuit before requiring an
+/// expression / inputs (mirroring argparse's immediate-exit custom actions).
+///
+/// Returns `Ok(Some(code))` when a help action fired (so the caller exits with
+/// `code`), `Ok(None)` when no help flag was set, or an error for the deferred
+/// builtins-prose surfaces (`--help-builtins` / `--help-manual`).
+fn dispatch_query_help(command: &Command) -> anyhow::Result<Option<u8>> {
+    let Command::Query {
+        help_dsl,
+        help_builtins,
+        help_examples,
+        help_manual,
+        help_renderers,
+        help_inputs,
+        ..
+    } = command
+    else {
+        unreachable!("dispatch_query_help is only called with Command::Query");
+    };
+
+    // `--help-renderers` / `--help-inputs` are fully ported (static catalogues;
+    // no user-plugin scan in the Rust port).
+    if *help_renderers {
+        print!("{}", commands::query::help_renderers_text());
+        return Ok(Some(0));
+    }
+    if *help_inputs {
+        print!("{}", commands::query::help_inputs_text());
+        return Ok(Some(0));
+    }
+
+    // `--help-dsl` prints the static grammar reference (ported byte-for-byte
+    // from `dialects/f5/query/grammar.py`); `--help-examples` the cookbook
+    // (from `dialects/f5/query/examples.py`).
+    if *help_dsl {
+        print!("{}", tcl_bigip_query::grammar::format_grammar());
+        return Ok(Some(0));
+    }
+    if *help_examples {
+        print!("{}", tcl_bigip_query::examples::format_examples());
+        return Ok(Some(0));
+    }
+
+    // `--help-builtins` and `--help-manual` are deferred: both depend on the
+    // per-function prose catalogue (`format_builtins`), which the Rust
+    // `BuiltinSpec` intentionally omits, so byte-parity output is out of scope.
+    if help_builtins.is_some() {
+        anyhow::bail!("`f5 query --help-builtins` is not yet ported in the Rust port");
+    }
+    if *help_manual {
+        anyhow::bail!(
+            "`f5 query --help-manual` is not yet ported in the Rust port \
+             (the builtins prose catalogue it embeds is out of scope)"
+        );
+    }
+
+    Ok(None)
+}
+
 fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
     let Command::Query {
         expression,
@@ -155,33 +214,16 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         strict,
         render_name,
         render_opt,
-        help_dsl,
-        help_builtins,
-        help_examples,
-        help_renderers,
-        help_inputs,
         ..
     } = command
     else {
         unreachable!("dispatch_query is only called with Command::Query");
     };
 
-    // `--help-renderers` is fully ported (the registry catalogue is static).
-    if *help_renderers {
-        print!("{}", commands::query::help_renderers_text());
-        return Ok(0);
-    }
-
-    // `--help-inputs` is fully ported (the built-in format catalogue is
-    // static — no user-plugin scan in the Rust port).
-    if *help_inputs {
-        print!("{}", commands::query::help_inputs_text());
-        return Ok(0);
-    }
-
-    // The remaining help actions are deferred in the read-only port.
-    if *help_dsl || help_builtins.is_some() || *help_examples {
-        anyhow::bail!("`f5 query` help actions are not yet ported in the Rust port");
+    // Help actions short-circuit before any expression / input is required,
+    // mirroring argparse's custom actions that `parser.exit()` immediately.
+    if let Some(code) = dispatch_query_help(command)? {
+        return Ok(code);
     }
 
     // `--render NAME` re-uses the same output dispatch path as the built-in
