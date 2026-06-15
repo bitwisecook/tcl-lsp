@@ -1,19 +1,21 @@
 //! The non-recursive (NRE / trampoline) execution engine.
 //!
-//! The VM owns an explicit stack of activation records and trampolines over it,
-//! mirroring C Tcl's `TEBCresume`. M1 only ever holds one activation (builtins
-//! run synchronously and never push frames), but the structure is the M2 slot:
-//! a proc `INVOKE` will push a new [`Frame`] instead of recursing, so
-//! coroutines / `tailcall` / deep recursion fall out without a host-stack
-//! rewrite. See the steering doc §8b.
+//! The VM owns an explicit stack of **activation records** and trampolines over
+//! it, mirroring C Tcl's `TEBCresume`. A proc call pushes a new [`Frame`] (and a
+//! [`crate::interp::Vm`] call-frame) instead of recursing, so deep recursion /
+//! `tailcall` / coroutines need no host-stack rewrite (steering §8b). Completion
+//! codes unwind the activation stack: `Return` is absorbed at a proc boundary
+//! (→ `Ok`), `Error`/`Break`/`Continue` propagate to the top of this `run`
+//! (where `catch`, which invoked us via `eval_source`, observes them).
 
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use tcl_bytecode::{FunctionAsm, Instruction, ModuleAsm, Op, Operand};
-use tcl_runtime_api::{Completion, FrameId};
+use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
+use crate::command::{Command, ProcDef};
 use crate::expr;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -26,8 +28,23 @@ struct Frame {
     stack: Vec<Value>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
-    #[allow(dead_code)] // wired through; used by the M2 frame/var model.
-    id: FrameId,
+    /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
+    /// popped, and whose boundary absorbs `Return`.
+    is_proc: bool,
+}
+
+impl Frame {
+    fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
+        let off2idx = Rc::new(build_off2idx(&asm));
+        Self {
+            asm,
+            off2idx,
+            pc: 0,
+            stack: Vec::new(),
+            last_result: Value::empty(),
+            is_proc,
+        }
+    }
 }
 
 /// What one instruction step does to the trampoline.
@@ -36,6 +53,8 @@ enum Tick {
     Continue,
     /// The current frame finished — unwind with this completion.
     Return(Completion<Value>),
+    /// Call a proc — push a new activation + call-frame.
+    Call { proc: Rc<ProcDef>, argv: Vec<Value> },
 }
 
 fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
@@ -71,13 +90,17 @@ fn pop(f: &mut Frame) -> Value {
     f.stack.pop().unwrap_or_else(Value::empty)
 }
 
-/// Resolve a jump operand (`Operand::Label`) to a target instruction index.
-fn jump_target(
-    asm: &FunctionAsm,
-    off2idx: &HashMap<i32, usize>,
-    instr: &Instruction,
-) -> Option<usize> {
-    let label = label0(instr)?;
+fn code_from_int(n: i32) -> Code {
+    match n {
+        1 => Code::Error,
+        2 => Code::Return,
+        3 => Code::Break,
+        4 => Code::Continue,
+        _ => Code::Ok,
+    }
+}
+
+fn label_to_idx(asm: &FunctionAsm, off2idx: &HashMap<i32, usize>, label: &str) -> Option<usize> {
     let off = *asm.labels.get(label)?;
     let off_i32 = i32::try_from(off).ok()?;
     Some(
@@ -86,6 +109,15 @@ fn jump_target(
             .copied()
             .unwrap_or(asm.instructions.len()),
     )
+}
+
+/// Resolve a jump operand (`Operand::Label`) to a target instruction index.
+fn jump_target(
+    asm: &FunctionAsm,
+    off2idx: &HashMap<i32, usize>,
+    instr: &Instruction,
+) -> Option<usize> {
+    label_to_idx(asm, off2idx, label0(instr)?)
 }
 
 fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
@@ -123,51 +155,120 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
     }
 }
 
+/// The Tcl `wrong # args` usage message for a proc.
+fn proc_usage(proc: &ProcDef) -> String {
+    let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
+    let mut s = simple.to_owned();
+    for p in &proc.params {
+        s.push(' ');
+        if p.name == "args" {
+            s.push_str("?arg ...?");
+        } else if p.default.is_some() {
+            s.push('?');
+            s.push_str(&p.name);
+            s.push('?');
+        } else {
+            s.push_str(&p.name);
+        }
+    }
+    format!("wrong # args: should be \"{s}\"")
+}
+
 impl Vm {
-    /// Run a module's top-level script. (Procedures are M2.)
+    /// Run a module: register its compiled procs, then run the top-level script.
     pub fn run_module(&mut self, module: &ModuleAsm) -> Completion<Value> {
+        self.merge_procs(&module.procedures);
         self.run_function(&module.top_level)
     }
 
     /// Run one bytecode function to completion via the NRE trampoline.
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
-        let asm = Rc::new(asm.clone());
-        let off2idx = Rc::new(build_off2idx(&asm));
-        let mut frames = vec![Frame {
-            asm,
-            off2idx,
-            pc: 0,
-            stack: Vec::new(),
-            last_result: Value::empty(),
-            id: FrameId(0),
-        }];
-
+        let mut acts: Vec<Frame> = vec![Frame::new(Rc::new(asm.clone()), false)];
         loop {
             let tick = {
-                let top = frames.last_mut().expect("frame stack is non-empty");
+                let top = acts.last_mut().expect("activation stack is non-empty");
                 self.tick(top)
             };
             match tick {
                 Tick::Continue => {}
-                Tick::Return(c) => {
-                    frames.pop();
-                    match frames.last_mut() {
-                        // M1: single frame, so this is unreachable; the structure
-                        // is the M2 slot where a proc result returns to its caller.
-                        Some(parent) => {
-                            if !c.code.is_ok() {
-                                return c;
-                            }
-                            parent.stack.push(c.result);
+                Tick::Call { proc, argv } => match self.enter_proc(&proc, &argv) {
+                    Ok(()) => acts.push(Frame::new(Rc::clone(&proc.body), true)),
+                    Err(c) => {
+                        if let Some(done) = self.unwind(&mut acts, c) {
+                            return done;
                         }
-                        None => return c,
+                    }
+                },
+                Tick::Return(c) => {
+                    if let Some(done) = self.unwind(&mut acts, c) {
+                        return done;
                     }
                 }
             }
         }
     }
 
-    /// Execute a single instruction of the top frame.
+    /// Unwind one or more activations with completion `c`. Returns `Some` when
+    /// the whole `run` is finished, `None` when a parent activation resumed.
+    fn unwind(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        mut c: Completion<Value>,
+    ) -> Option<Completion<Value>> {
+        loop {
+            let act = acts.pop().expect("unwinding a non-empty stack");
+            if act.is_proc {
+                self.pop_call_frame();
+                if c.code == Code::Return {
+                    c = ok(c.result);
+                }
+            }
+            match acts.last_mut() {
+                None => return Some(c),
+                Some(parent) => {
+                    if c.code.is_ok() {
+                        parent.stack.push(c.result);
+                        return None;
+                    }
+                    // Error / Break / Continue / unabsorbed Return keep unwinding.
+                }
+            }
+        }
+    }
+
+    /// Push a call-frame and bind `argv` to the proc's parameters.
+    fn enter_proc(&mut self, proc: &ProcDef, argv: &[Value]) -> Result<(), Completion<Value>> {
+        let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
+        let mut call_argv = Vec::with_capacity(argv.len() + 1);
+        call_argv.push(Value::string(simple));
+        call_argv.extend(argv.iter().cloned());
+        self.push_call_frame(Some(proc.name.clone()), call_argv);
+
+        let mut i = 0;
+        let n = proc.params.len();
+        for (idx, p) in proc.params.iter().enumerate() {
+            if proc.has_args && idx == n - 1 {
+                let rest: Vec<Value> = argv.get(i..).unwrap_or(&[]).to_vec();
+                self.set_local("args", Value::list(rest));
+                i = argv.len();
+            } else if i < argv.len() {
+                self.set_local(&p.name, argv[i].clone());
+                i += 1;
+            } else if let Some(d) = &p.default {
+                self.set_local(&p.name, d.clone());
+            } else {
+                self.pop_call_frame();
+                return Err(err(proc_usage(proc)));
+            }
+        }
+        if i < argv.len() {
+            self.pop_call_frame();
+            return Err(err(proc_usage(proc)));
+        }
+        Ok(())
+    }
+
+    /// Execute a single instruction of the top activation.
     #[allow(clippy::too_many_lines)]
     fn tick(&mut self, f: &mut Frame) -> Tick {
         let asm = Rc::clone(&f.asm);
@@ -190,6 +291,12 @@ impl Vm {
                 }
             };
         }
+
+        let lvt_name = |slot: i32| -> String {
+            lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
+                .cloned()
+                .unwrap_or_default()
+        };
 
         match instr.op {
             // -- stack --
@@ -221,9 +328,21 @@ impl Vm {
                     f.stack.push(v);
                 }
             }
+            Op::STR_CONCAT1 => {
+                let n = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < n {
+                    return Tick::Return(err("strcat: stack underflow"));
+                }
+                let parts = f.stack.split_off(f.stack.len() - n);
+                let mut s = String::new();
+                for p in &parts {
+                    s.push_str(&p.to_str());
+                }
+                f.stack.push(Value::string(s));
+            }
             Op::NOP | Op::START_CMD => {}
 
-            // -- variables (stack form, top level) --
+            // -- variables (stack form, by name) --
             Op::LOAD_STK => {
                 let name = pop(f).to_str();
                 match self.get_var(&name) {
@@ -256,10 +375,7 @@ impl Vm {
 
             // -- variables (LVT form, proc bodies) --
             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
-                let name = lvt
-                    .get(usize::try_from(imm0(instr)).unwrap_or(0))
-                    .cloned()
-                    .unwrap_or_default();
+                let name = lvt_name(imm0(instr));
                 match self.get_var(&name) {
                     Some(v) => f.stack.push(v),
                     None => {
@@ -270,19 +386,13 @@ impl Vm {
                 }
             }
             Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
-                let name = lvt
-                    .get(usize::try_from(imm0(instr)).unwrap_or(0))
-                    .cloned()
-                    .unwrap_or_default();
+                let name = lvt_name(imm0(instr));
                 let value = pop(f);
                 self.set_var(&name, value.clone());
                 f.stack.push(value);
             }
             Op::INCR_SCALAR1 => {
-                let name = lvt
-                    .get(usize::try_from(imm0(instr)).unwrap_or(0))
-                    .cloned()
-                    .unwrap_or_default();
+                let name = lvt_name(imm0(instr));
                 let amount = pop(f);
                 match amount.as_int() {
                     Ok(a) => try_op!(self.incr_var(f, &name, a)),
@@ -290,10 +400,7 @@ impl Vm {
                 }
             }
             Op::INCR_SCALAR1_IMM => {
-                let name = lvt
-                    .get(usize::try_from(imm0(instr)).unwrap_or(0))
-                    .cloned()
-                    .unwrap_or_default();
+                let name = lvt_name(imm0(instr));
                 try_op!(self.incr_var(f, &name, i64::from(imm_at(instr, 1))));
             }
 
@@ -356,6 +463,45 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 }
             }
+            Op::JUMP_TABLE => {
+                let key = pop(f).to_str();
+                if let Some(jt) = &instr.jump_table
+                    && let Some(label) = jt.get(&*key)
+                    && let Some(idx) = label_to_idx(&asm, &f.off2idx, label)
+                {
+                    f.pc = idx;
+                }
+            }
+
+            // -- break / continue --
+            Op::BREAK => {
+                return Tick::Return(Completion::new(Code::Break, Value::empty(), Value::empty()));
+            }
+            Op::CONTINUE => {
+                return Tick::Return(Completion::new(
+                    Code::Continue,
+                    Value::empty(),
+                    Value::empty(),
+                ));
+            }
+
+            // -- return --
+            Op::RETURN_IMM | Op::RETURN_STK => {
+                let (result, options) = if f.stack.len() >= 2 {
+                    let opts = pop(f);
+                    let res = pop(f);
+                    (res, opts)
+                } else {
+                    (pop(f), Value::empty())
+                };
+                let code = if instr.op == Op::RETURN_IMM {
+                    code_from_int(imm0(instr))
+                } else {
+                    Code::Ok
+                };
+                let final_code = if code == Code::Ok { Code::Return } else { code };
+                return Tick::Return(Completion::new(final_code, result, options));
+            }
 
             // -- command dispatch / expr --
             Op::INVOKE_STK1 | Op::INVOKE_STK4 => {
@@ -365,11 +511,25 @@ impl Vm {
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
                 let name = words[0].to_str();
-                let res = self.invoke(&name, &words[1..]);
-                if !res.code.is_ok() {
-                    return Tick::Return(res);
+                match self.lookup_command(&name) {
+                    Some(Command::Proc(p)) => {
+                        return Tick::Call {
+                            proc: p,
+                            argv: words[1..].to_vec(),
+                        };
+                    }
+                    Some(Command::Builtin(bf)) => {
+                        let res = bf(self, &words[1..]);
+                        if res.code.is_ok() {
+                            f.stack.push(res.result);
+                        } else {
+                            return Tick::Return(res);
+                        }
+                    }
+                    None => {
+                        return Tick::Return(err(format!("invalid command name \"{name}\"")));
+                    }
                 }
-                f.stack.push(res.result);
             }
             Op::EXPR_STK => {
                 let s = pop(f).to_str();
@@ -390,7 +550,7 @@ impl Vm {
 
             other => {
                 return Tick::Return(err(format!(
-                    "opcode {} not implemented in tcl-vm M1",
+                    "opcode {} not implemented in tcl-vm",
                     other.mnemonic()
                 )));
             }

@@ -18,6 +18,7 @@ pub mod value;
 mod command;
 mod exec;
 mod expr;
+mod frame;
 mod interp;
 mod subst;
 
