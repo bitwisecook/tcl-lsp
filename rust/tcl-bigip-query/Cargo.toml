@@ -1,0 +1,17 @@
+[package]
+name = "tcl-bigip-query"
+description = "Faithful Rust port of the F5 BIG-IP query DSL (dialects/f5/query): the jq-flavoured language powering `f5 query`. Front-end (lexer + parser + AST) landed; evaluator / projection / builtins follow."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true

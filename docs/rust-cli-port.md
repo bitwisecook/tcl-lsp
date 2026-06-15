@@ -16,6 +16,7 @@ verified by golden differential tests.
 | `f5-cli` | bin `f5-query` — clap command tree + verb dispatch (thin shell) |
 | `tcl-cli-support` | shared plumbing: input resolution, output writers, per-dialect registry cache, syntax highlighter, and the `chrome` module |
 | `tcl-bigip-io` | f5 input layer: UCS archives (gzip-tar + OpenPGP-symmetric decrypt, pure Rust, no gpg), the `read_path`/`load_paths` resolver, and passphrase resolution. Pure crypto core (bytes in → SCF/bytes out, all in-memory); file/stdin I/O isolated to its `paths` module |
+| `tcl-bigip-query` | f5 query DSL (`dialects/f5/query`): the jq-flavoured language powering `f5 query`. **Front-end landed** (lexer + AST + recursive-descent parser); evaluator / projection / builtin library / renderers / edit-plan still to come. Pure, I/O-free (typed in → typed out) |
 
 Existing engine crates reused: `tcl-lexer`, `tcl-syntax`, `tcl-registry`,
 `tcl-compiler` (lowering/CFG/codegen/optimiser/analyser/segmenter),
@@ -98,9 +99,10 @@ helpers are done; the rest await engine ports.
 | `graph` (`deps`) | ✅ byte-parity | full ref-graph (nodes + pilot/legacy/iRule edges) → `export_graph` (DOT/JSON/Mermaid). Verified end-to-end vs the Python CLI across all formats × `--seed`/`--reverse`/`--max-depth`. (Byte-parity on configs free of the documented registry-data drift.) |
 | `stats` (`summary`) | ✅ byte-parity | object/partition counts, iRule LOC + events, top-referenced, orphans over the graph. Text + JSON; golden + end-to-end verified |
 | `cleanup` (`clean`) | ✅ byte-parity | BFS-reachability orphan detection → reverse-topological `tmsh delete` script. `--keep`/`--no-keep-common`, text + JSON; golden + end-to-end verified |
-| `grep`, `validate`, `rename` | ⛔ stub | `grep` next (graph queries); `validate` needs the query DSL, `rename` an edit planner |
+| `grep`, `validate`, `rename` | ⛔ stub | `grep` next (graph queries); `validate` is **independent of the query DSL** — it's a small lint registry (`dialects/f5/bigip/lint`, `run_lint` + 8 rules) over the already-ported model + ref-graph + `tcl-irules` object-refs + `tcl-registry` event lookup, so it can land on its own; `rename` an edit planner |
 | `tmsh`, `convert`, `redact`/`unredact` | ⛔ stub | need the tmsh / AS3 emit + redaction engines |
-| `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `query`, `irule` group | ⛔ stub | need remote / PCAP / query-DSL ports |
+| `fetch`/`push`/`pull`, `explain-flow`, `enrich-*`, `pcap-remap`, `irule` group | ⛔ stub | need remote / PCAP / query-DSL ports |
+| `query` | 🚧 in progress | DSL **front-end ported** to `tcl-bigip-query` (lexer + AST + parser), golden differential-tested vs the Python `tokenise`/`parse_query` (93 queries × tokens + AST, 21 error cases). Still to come: value model, projection over the typed model, evaluator, builtin library (9.7k LOC, deferred), output renderers, edit-plan/rename. Not yet wired into the `f5 query` verb |
 
 **Shared parity helpers** (`tcl_cli_support`):
 - `ensure_ascii` — escape non-ASCII as `\uXXXX`, matching Python's
@@ -207,7 +209,13 @@ Remaining, in dependency order:
    Gated by analyser parity for full fidelity.
 4. **`registry-dump`** (port `registry_snapshot.py`) — real parity, both CLIs; finicky (field-by-field).
 5. **f5 remote** (`tcl-bigip-remote`: REST/SSH) and **PCAP** (`tcl-bigip-pcap`) — pure-Rust crates; covers `fetch`/`push`/`pull`/`explain-flow`/`enrich-*`/`pcap-remap`. (UCS/OpenPGP/AES already done in `tcl-bigip-io`.)
-6. **Query DSL** (`tcl-bigip-query`) and **tclpkg** (`pkg`/`venv`/`docker`) — the two largest sub-systems.
+6. **Query DSL** (`tcl-bigip-query`) and **tclpkg** (`pkg`/`venv`/`docker`) — the two largest sub-systems. The query DSL (`dialects/f5/query`, ~18k LOC) is being ported in verifiable increments:
+   - ✅ **front-end** — lexer (`lexer.py`), AST (`ast.py`), recursive-descent parser (`parser.py`) → `tcl-bigip-query::{lexer,ast,parser}`. Offsets are code-point indices (scanned over a `Vec<char>`) so they match Python exactly. Golden differential-tested: `scripts/codegen/gen_f5_query_fixtures.py` captures the Python token stream + AST (serialised to a tagged JSON shape) and the lexer/parser errors for a query matrix incl. every `examples.py` cookbook entry; the Rust front-end re-derives the same JSON and asserts equality (self-contained — no Python at test time).
+   - ⬜ **value model + projection** (`values.py`, `projection/`) — projects the typed `tcl-bigip` model (`canon_fields()` / `BigipList`, reused — do not re-derive) into the DSL value space. The 178 KB `projection/_data.py` dispatch table is the bulk.
+   - ⬜ **evaluator** (`evaluator.py`) — tree walk → stream/value, read-only path first.
+   - ⬜ **builtin library** (`builtins.py`, 9.7k LOC) — its own workstream; port by-need as the golden query matrix grows (`select`, `any`, `contains`, `in_cidr`, `length`, `map`, `group_by`, …).
+   - ⬜ **output** (`output.py`) + **renderers** (`renderers/`); then the **edit-plan / rename** mutation engine (`edit_plan.py`).
+   - **Note:** `f5 validate` does **not** depend on the query DSL — it runs `dialects/f5/bigip/lint.run_lint` (8 rules over the model + ref-graph + `tcl-irules` object-refs + `tcl-registry` event lookup, all already ported), so it can land independently of this item.
 7. **tcl-only engine-gap verbs**: `help` (KCS SQLite), `minimize`, `find-legacy`, `explore`/`diagram` (explorer report), `compwasm` (wasm pipeline), `dis` (VM compiler).
 8. **Engine-gap closure** (separate workstreams): analyser, optimiser, lowering/VM-compiler — these flip diag/opt/dis to parity.
 9. **Cutover** — native-binary packaging, remove `[project.scripts]` entries, rework `zipapp-tcl`/`zipapp-f5`, delete CLI-exclusive Python (NOT the shared `dialects/f5/bigip` etc. still imported by the Python LSP server/analyser/ai).

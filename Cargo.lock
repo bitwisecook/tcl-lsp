@@ -1322,6 +1322,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bigip-query"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "tcl-cli"
 version = "0.1.0"
 dependencies = [
