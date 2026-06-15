@@ -14,6 +14,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod asm;
 pub mod cst;
 pub mod formatters;
 pub mod serialise;

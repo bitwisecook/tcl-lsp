@@ -90,6 +90,12 @@ _NO_PARITY_KEYS = {
     "renderedProperties",
     "taintWarnings",
     "gvn",
+    # The Rust bytecode codegen differs from Python in source-line
+    # population (always 0 today) and label-counter numbering, and the Rust
+    # `Instruction` carries no source span (per-instruction `range` is
+    # null), so `asm` is pinned by a Rust unit test + the bytecode-compare
+    # gate rather than the Python differential.
+    "asm",
 }
 
 

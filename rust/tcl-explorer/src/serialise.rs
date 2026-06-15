@@ -721,6 +721,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
     out.insert("taintTracking".to_owned(), serialise_taint_tracking(result));
+    out.insert(
+        "asm".to_owned(),
+        crate::asm::serialise_asm(result, &li, &result.source),
+    );
 
     // Double-pipeline keys: re-run on the optimiser's rewritten source.
     let opt = optimised_result(result);
@@ -835,6 +839,53 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn asm_emits_structured_instructions_for_top_level() {
+        let result = run_pipeline("set x 1\nputs $x", "tcl8.6");
+        let asm = serialise_result(&result)["asm"].clone();
+        let top = &asm.as_array().unwrap()[0];
+        assert_eq!(top["name"], "::top");
+        assert_eq!(top["kind"], "top");
+        assert!(top["text"].as_str().unwrap().contains("ByteCode"));
+        let ops: Vec<&str> = top["instructions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["kind"] == "instr")
+            .map(|r| r["op"].as_str().unwrap())
+            .collect();
+        // The store and the invoke are present; each instr has a fullText.
+        assert!(ops.contains(&"storeStk"));
+        assert!(ops.contains(&"invokeStk1"));
+        assert!(ops.contains(&"done"));
+        let first_instr = top["instructions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["kind"] == "instr")
+            .unwrap();
+        assert!(
+            first_instr["fullText"]
+                .as_str()
+                .unwrap()
+                .starts_with("push1")
+        );
+    }
+
+    #[test]
+    fn asm_resolves_jump_targets() {
+        // A conditional produces a jump whose target resolves to a row idx.
+        let result = run_pipeline("if {$x} { puts hi }", "tcl8.6");
+        let asm = serialise_result(&result)["asm"].clone();
+        let top = &asm.as_array().unwrap()[0];
+        let has_jump = top["instructions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["jumpTarget"].is_object());
+        assert!(has_jump, "expected at least one resolved jump target");
     }
 
     #[test]
