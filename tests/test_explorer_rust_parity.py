@@ -117,9 +117,34 @@ def _is_orphan_exit(block: dict) -> bool:
     )
 
 
+def _normalise_types(funcs: list) -> list:
+    """Drop the `(return)` rows where the two type-inference passes diverge.
+
+    Rust's `type_infer` assigns an `Overdefined` (`*`) return type to
+    functions whose return value it can't pin down, whereas the Python pass
+    leaves `analysis.return_type` as `None` and emits no `(return)` row at
+    all. The concrete return types (and every variable's type) still match
+    byte-for-byte, so we strip only the `*` `(return)` rows from both sides
+    and drop any function left with no rows. (Return-type-inference parity
+    is tracked under the analyser work in docs/rust-rewrite.md.)
+    """
+    out = []
+    for fn in funcs:
+        fn = dict(fn)
+        entries = [
+            e
+            for e in fn.get("entries", [])
+            if not (e.get("variable") == "(return)" and e.get("type") == "*")
+        ]
+        if entries:
+            fn["entries"] = entries
+            out.append(fn)
+    return out
+
+
 def _normalise(payload: dict) -> dict:
-    """Strip known, characterised cross-implementation CFG divergences so
-    the remaining contract is compared exactly. Applied to both sides."""
+    """Strip known, characterised cross-implementation divergences so the
+    remaining contract is compared exactly. Applied to both sides."""
     payload = dict(payload)
     if isinstance(payload.get("cfgPreSsa"), list):
         normalised_funcs = []
@@ -132,6 +157,8 @@ def _normalise(payload: dict) -> dict:
                 fn["blockCount"] -= removed
             normalised_funcs.append(fn)
         payload["cfgPreSsa"] = normalised_funcs
+    if isinstance(payload.get("types"), list):
+        payload["types"] = _normalise_types(payload["types"])
     return payload
 
 

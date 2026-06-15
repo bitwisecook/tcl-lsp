@@ -10,6 +10,8 @@ use serde_json::{Value, json};
 
 use tcl_compiler::interprocedural::{ConstantReturn, ProcSummary};
 use tcl_compiler::ir::Statement;
+use tcl_compiler::shimmer::type_name;
+use tcl_compiler::types::{TypeKind, TypeLattice};
 use tcl_lexer::{LineIndex, Span};
 use tcl_syntax::expr::ast::render_expr;
 
@@ -267,4 +269,26 @@ pub fn format_return_shape(s: &ProcSummary) -> String {
         return format!("depends({})", s.return_depends_on_params.join(","));
     }
     "unknown".to_owned()
+}
+
+/// Project a type lattice to its display string. Mirrors
+/// `formatters.format_type`.
+#[must_use]
+pub fn format_type(tl: &TypeLattice) -> String {
+    match tl.kind {
+        TypeKind::Unknown => "?".to_owned(),
+        TypeKind::Overdefined => "*".to_owned(),
+        TypeKind::Known => tl.tcl_type.map_or_else(|| "?".to_owned(), type_name),
+        TypeKind::Shimmered => match (tl.from_type, tl.tcl_type) {
+            (Some(from), Some(to)) => format!("shimmered({}/{})", type_name(from), type_name(to)),
+            _ => "?".to_owned(),
+        },
+    }
+}
+
+/// The lattice-kind name, lowercased (`unknown` / `known` / `shimmered` /
+/// `overdefined`) — Python's `tl.kind.name.lower()`.
+#[must_use]
+pub fn type_kind_name(kind: TypeKind) -> String {
+    format!("{kind:?}").to_ascii_lowercase()
 }

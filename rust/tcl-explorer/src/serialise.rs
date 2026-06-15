@@ -21,7 +21,8 @@ use tcl_syntax::expr::ast::render_expr;
 
 use crate::ExplorerResult;
 use crate::formatters::{
-    format_return_shape, preview, range_dict, stmt_color_class, stmt_kind, stmt_summary,
+    format_return_shape, format_type, preview, range_dict, stmt_color_class, stmt_kind,
+    stmt_summary, type_kind_name,
 };
 use crate::views::{Severity, VIEW_META};
 
@@ -345,6 +346,39 @@ pub fn serialise_interproc(interproc: &InterproceduralAnalysis) -> Value {
     Value::Array(out)
 }
 
+/// Serialise the `types` view: every tracked SSA value's lattice type per
+/// function, including `?`/`*` entries. Mirrors `_serialise_types`.
+#[must_use]
+pub fn serialise_types(result: &ExplorerResult) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .filter_map(|snap| {
+            let mut entries: Vec<Value> = Vec::new();
+            let rt = &snap.unit.return_type;
+            entries.push(json!({
+                "variable": "(return)",
+                "version": 0,
+                "type": format_type(rt),
+                "kind": type_kind_name(rt.kind),
+            }));
+            let mut keys: Vec<&(String, u32)> = snap.unit.types.keys().collect();
+            keys.sort();
+            for key in keys {
+                let tl = &snap.unit.types[key];
+                entries.push(json!({
+                    "variable": key.0,
+                    "version": key.1,
+                    "type": format_type(tl),
+                    "kind": type_kind_name(tl.kind),
+                }));
+            }
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise a full pipeline result to the explorer contract JSON.
 ///
 /// Currently emits the ported view families; subsequent EXP-* increments
@@ -366,6 +400,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     if let Some(interproc) = &result.unit.interproc {
         out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
     }
+    out.insert("types".to_owned(), serialise_types(result));
     Value::Object(out)
 }
 
@@ -413,6 +448,26 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn types_reports_known_int_for_constant_assignments() {
+        let result = run_pipeline("set x 1\nset y 2", "tcl8.6");
+        let types = serialise_result(&result)["types"].clone();
+        let top = types
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::top")
+            .unwrap();
+        let x = top["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["variable"] == "x")
+            .unwrap();
+        assert_eq!(x["type"], "int");
+        assert_eq!(x["kind"], "known");
     }
 
     #[test]
