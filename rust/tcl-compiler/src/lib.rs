@@ -80,6 +80,7 @@ pub mod analyses;
 pub mod auto_path_eval;
 pub mod cfg;
 pub mod cfg_builder;
+pub mod cfg_layout;
 pub mod codegen;
 pub mod command_binding;
 pub mod compilation_unit;
