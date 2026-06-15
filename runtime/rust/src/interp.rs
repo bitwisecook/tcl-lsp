@@ -2627,12 +2627,34 @@ impl Interp {
             file: top.and_then(|f| f.file.clone()),
             proc: top.and_then(|f| f.proc.clone()),
             level: top.map_or(0, |f| f.level),
-            omit_level: false,
+            // Inherit the enclosing frame's level-reachability (an inline body
+            // of an `uplevel`-redirected script also omits `level`).
+            omit_level: top.is_some_and(|f| f.omit_level),
             line_base,
             cmd: Vec::new(),
             line: 1,
             oo: top.and_then(|f| f.oo.clone()),
         }
+    }
+
+    /// Evaluate an inline **control-command body** (`if`/`while`/`for`/`foreach`/
+    /// …). A body that is a located literal (TIP 280) runs as its own
+    /// line-advancing source frame at the body's file line, so `info frame`
+    /// reports the executing command's true line; a pure list dispatches by
+    /// element identity; a dynamic body keeps the cheap no-frame eval.
+    pub(crate) fn eval_control_body(&mut self, body: *mut TclObj) -> Code {
+        if crate::list::is_pure_list(body) {
+            return self.dispatch_list_obj(body);
+        }
+        if let Some((file, line)) = self.arg_loc(body) {
+            let mut frame = self.inherited_cmd_frame();
+            frame.kind = FrameKind::Source;
+            frame.file = file;
+            frame.line_base = line.saturating_sub(1);
+            let bytes = obj_bytes(body);
+            return self.eval_framed(&bytes, frame);
+        }
+        self.eval_str(&obj_bytes(body))
     }
 
     /// Evaluate an `eval`/`uplevel` body as its own `info frame` level (it
