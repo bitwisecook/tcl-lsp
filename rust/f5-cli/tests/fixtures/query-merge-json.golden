@@ -1,0 +1,9 @@
+[
+  {
+    "uri": "__FIXTURES__/merge-ltm.conf",
+    "values": [
+      "web_pool",
+      "api_pool"
+    ]
+  }
+]

@@ -118,9 +118,10 @@ fn related_one_hop<'g>(
 }
 
 /// Resolve the [`Root`] that owns `config_uri`, mirroring Python's
-/// `graph._root_for` in non-merge mode: the active root if its uri matches,
-/// else a named root. (Merge mode — joining every loaded source's graph — is
-/// not wired into the Rust runner yet, matching its current `merge_mode`.)
+/// `graph._root_for`: the active root if its uri matches, else a named root.
+/// Used to validate that an object came from a config (and, in non-merge
+/// mode, to pick the source-scoped graph). Merge mode widens the graph to
+/// every loaded source via [`EvalContext::merged_graph`] instead.
 fn root_for_uri<'c>(ctx: &'c EvalContext, config_uri: &str) -> Result<&'c Rc<Root>, QueryError> {
     if config_uri.is_empty() {
         return Err(QueryError::builtin(
@@ -131,6 +132,13 @@ fn root_for_uri<'c>(ctx: &'c EvalContext, config_uri: &str) -> Result<&'c Rc<Roo
         return Ok(&ctx.root);
     }
     if let Some(root) = ctx.named_roots.get(config_uri) {
+        return Ok(root);
+    }
+    // In merge mode the object may originate from a sibling source that is
+    // only bound as a merge root (not as a `$name`); accept it.
+    if ctx.merge_mode
+        && let Some(root) = ctx.merge_roots.iter().find(|r| r.uri == config_uri)
+    {
         return Ok(root);
     }
     Err(QueryError::builtin(
@@ -152,7 +160,14 @@ fn object_relative_refs(
         )));
     };
     let root = root_for_uri(ctx, &obj.config_uri)?;
-    let graph = root.graph();
+    // Merge mode joins every loaded source's graph so a reference in one
+    // file resolves into an object in another (port of `_grep_inputs`'s
+    // merge branch); otherwise stay scoped to the originating source.
+    let graph = if ctx.merge_mode {
+        ctx.merged_graph()
+    } else {
+        root.graph()
+    };
     let related = related_one_hop(&graph, &obj.full_path, direction);
     let out: Vec<Value> = related
         .into_iter()

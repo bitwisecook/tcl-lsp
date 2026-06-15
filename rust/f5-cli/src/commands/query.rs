@@ -18,8 +18,13 @@
 //! `json_load` / `jsonl_load` / `csv_load` / `f5log_load` builtins load the
 //! same shapes ad-hoc.
 //!
-//! Deferred (cleanly rejected / ignored): `--merge` cross-file ref-walking
-//! and the `--help-dsl` / `--help-builtins` / `--help-examples` actions. Live
+//! `--merge` treats every loaded config as one logical namespace:
+//! `.ltm.virtual[]` enumerates across files, `refs` / `referenced_by` walk
+//! references across files, and two sources defining the same
+//! `(kind, full-path)` are refused.
+//!
+//! Deferred (cleanly rejected / ignored): the `--help-dsl` /
+//! `--help-builtins` / `--help-examples` actions. Live
 //! network probes (`dns` / `ping` / `http` / `tls` / x509 + `cert_load`) land
 //! gated behind `--enable-probes`; `ucs_cert` is deferred (no UCS reader is
 //! wired — it raises the same "run it through the f5 CLI" deferral error).
@@ -447,9 +452,9 @@ fn flat(values: &[Value]) -> Vec<Value> {
     out
 }
 
-/// The non-output behavioural flags for a query run. `merge` / `write` /
-/// `in_place` are deferred (cleanly rejected); `strict` selects the
-/// empty-match exit code.
+/// The non-output behavioural flags for a query run. `merge` treats every
+/// loaded config as one logical namespace; `write` / `in_place` pick the
+/// mutation emit path; `strict` selects the empty-match exit code.
 //
 // Each field mirrors a distinct user-facing CLI flag, so a bool-per-flag is
 // the faithful shape here.
@@ -506,10 +511,6 @@ pub fn run_query_verb(
         return Ok(2);
     }
 
-    if flags.merge {
-        eprintln!("error: --merge is not yet supported in the Rust port");
-        return Ok(2);
-    }
     // `--in-place` requires a real path, not stdin (mirrors `_run_query`).
     if flags.in_place && inputs.iter().any(|p| p.as_os_str() == "-") {
         eprintln!("error: --in-place requires a path, not stdin");
@@ -615,6 +616,7 @@ pub fn run_query_verb(
         // `ucs_cert` raises the same clean "no UCS reader is wired" deferral
         // error Python raises when `UCS_CERT_READER` is unset.
         ucs_cert_reader: None,
+        merge: flags.merge,
     };
 
     let result = match run_query(expression, &sources, &query_opts) {

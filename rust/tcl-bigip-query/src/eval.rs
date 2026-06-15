@@ -148,6 +148,12 @@ pub struct EvalContext {
     pub root: Rc<Root>,
     pub named_roots: HashMap<String, Rc<Root>>,
     pub merge_mode: bool,
+    /// Every loaded root, in source order — the merge-mode "active roots"
+    /// (port of the runner's `_active_roots(step_roots)` binding). Graph
+    /// builtins consult this when `merge_mode` so `refs` / `referenced_by`
+    /// walk references across files. Empty / single-element in non-merge
+    /// mode, where graph builtins stay scoped to the originating source.
+    pub merge_roots: Vec<Rc<Root>>,
     /// Lexical `expr as $name | body` bindings; `$name` lookup checks here
     /// first and falls back to `named_roots`.
     pub bindings: HashMap<String, Value>,
@@ -165,6 +171,50 @@ pub struct EvalContext {
     /// Reader hook for `ucs_cert` (port of `UCS_CERT_READER`). `None` means
     /// no reader is wired (e.g. when driven outside the f5 CLI).
     pub ucs_cert_reader: Option<UcsCertReader>,
+    /// Lazily built merged reference graph spanning every [`merge_roots`]
+    /// entry — built on first graph-builtin call in merge mode and memoised
+    /// for the duration of the statement so cross-file `refs` /
+    /// `referenced_by` per object stay cheap. `None` until first use; unused
+    /// in non-merge mode (graph builtins fall back to `Root::graph`).
+    ///
+    /// [`merge_roots`]: EvalContext::merge_roots
+    pub merge_graph: RefCell<Option<Rc<tcl_bigip::graph::ObjectGraph>>>,
+}
+
+impl EvalContext {
+    /// Return the merged reference graph spanning every [`merge_roots`] entry,
+    /// building it on first use and memoising it on [`merge_graph`].
+    ///
+    /// Mirrors Python's merge-mode `_grep_inputs`, which feeds every active
+    /// root's `(uri, source)` + `(uri, config)` into `compute_grep` so a
+    /// reference in one file resolves into an object in another. Built once
+    /// per statement (the runner constructs a fresh context per root, but the
+    /// merge graph is identical across them, so each rebuilds at most once).
+    ///
+    /// [`merge_roots`]: EvalContext::merge_roots
+    /// [`merge_graph`]: EvalContext::merge_graph
+    #[must_use]
+    pub fn merged_graph(&self) -> Rc<tcl_bigip::graph::ObjectGraph> {
+        if let Some(g) = self.merge_graph.borrow().as_ref() {
+            return Rc::clone(g);
+        }
+        let ctx = tcl_bigip::graph::GraphContext::new();
+        let sources: Vec<(String, String)> = self
+            .merge_roots
+            .iter()
+            .map(|r| (r.uri.clone(), r.source.clone()))
+            .collect();
+        let configs: Vec<(String, &BigipConfig)> = self
+            .merge_roots
+            .iter()
+            .map(|r| (r.uri.clone(), &r.config))
+            .collect();
+        let graph = Rc::new(tcl_bigip::graph::build_bigip_object_graph(
+            &sources, &configs, &ctx,
+        ));
+        *self.merge_graph.borrow_mut() = Some(Rc::clone(&graph));
+        graph
+    }
 }
 
 impl EvalContext {
@@ -174,11 +224,13 @@ impl EvalContext {
             root,
             named_roots: HashMap::new(),
             merge_mode: false,
+            merge_roots: Vec::new(),
             bindings: HashMap::new(),
             edits: crate::edit_plan::EditPlan::new(),
             probes_enabled: false,
             ca_bundle: None,
             ucs_cert_reader: None,
+            merge_graph: RefCell::new(None),
         }
     }
 }
