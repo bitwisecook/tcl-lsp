@@ -189,6 +189,24 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn regexp_regsub() {
+    out_eq("puts [regexp {[0-9]+} abc123]\n", "1\n");
+    out_eq("puts [regexp {xyz} abc123]\n", "0\n");
+    out_eq(
+        "regexp {([a-z]+)([0-9]+)} abc123 m a b\nputs \"$m|$a|$b\"\n",
+        "abc123|abc|123\n",
+    );
+    out_eq("puts [regexp -all {[0-9]} a1b2c3]\n", "3\n");
+    out_eq("puts [regexp -inline {[0-9]+} abc123def]\n", "123\n");
+    out_eq("puts [regsub {[0-9]+} abc123 X]\n", "abcX\n");
+    out_eq("puts [regsub -all {[0-9]} a1b2 _]\n", "a_b_\n");
+    out_eq(
+        "set n [regsub -all o foo 0 out]\nputs \"$n|$out\"\n",
+        "2|f00\n",
+    );
+}
+
+#[test]
 fn file_path_ops() {
     out_eq("puts [file join /a b c]\n", "/a/b/c\n");
     out_eq("puts [file join a /b c]\n", "/b/c\n");

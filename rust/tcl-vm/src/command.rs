@@ -79,6 +79,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_math::register(vm);
     crate::cmd_namespace::register(vm);
     crate::cmd_package::register(vm);
+    crate::cmd_regexp::register(vm);
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
 }

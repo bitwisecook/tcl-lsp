@@ -25,6 +25,7 @@ name = "tcl_vm"
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
+regex = "1"
 
 [dev-dependencies]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
