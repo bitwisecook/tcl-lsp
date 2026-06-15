@@ -179,6 +179,10 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some((file, line)) => (Some(file), line.saturating_sub(1)),
         None => (None, 0),
     };
+    // `info level N` of a lambda reports the actual invocation words
+    // (`apply <lambdaExpr> ?arg ...?`), not the `apply lambdaExpr` usage prefix
+    // used for `wrong # args` (C records `objv` verbatim for the lambda frame).
+    let level_words: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
     interp.run_proc(
         &params,
         &parts[1],
@@ -194,7 +198,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             keep_loop_codes: false,
             same_level: false,
             usage_prefix: None,
-            level_words: None,
+            level_words: Some(level_words),
         },
     )
 }
