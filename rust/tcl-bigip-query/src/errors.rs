@@ -64,6 +64,11 @@ impl QueryError {
     pub fn builtin(message: impl Into<String>) -> Self {
         QueryError::Builtin(message.into())
     }
+
+    /// Convenience constructor for an edit-plan / apply error.
+    pub fn edit(message: impl Into<String>) -> Self {
+        QueryError::Edit(message.into())
+    }
 }
 
 impl fmt::Display for QueryError {

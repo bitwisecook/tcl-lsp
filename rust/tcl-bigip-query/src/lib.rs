@@ -6,10 +6,12 @@
 //!
 //! This crate is being ported in verifiable increments. **Landed so far:**
 //! the front-end — the [`lexer`] (tokeniser), the [`ast`] node types, and
-//! the recursive-descent [`parser`]. Still to come (tracked in
-//! `docs/rust-cli-port.md`): the value model, the projection layer over the
-//! typed `tcl-bigip` model, the evaluator, the builtin library, the output
-//! renderers, and the mutation / edit-plan engine.
+//! the recursive-descent [`parser`]; the [`value`] model; the [`projection`]
+//! layer over the typed `tcl-bigip` model; the [`eval`]uator + builtin
+//! library; the output renderers; and the field-value [`edit_plan`] engine
+//! (`=` / `|=` / `+=` / `-=` assignments → in-place source rewrite). Still to
+//! come (tracked in `docs/rust-cli-port.md`): identity-field rewrites and the
+//! `rename*` builtins (the token-rewrite rename engine), and `--merge`.
 //!
 //! The pure engine is I/O-free (typed in → typed out); the prompts and
 //! stdout shaping live in the `f5-cli` binary.
@@ -30,6 +32,7 @@
 
 pub mod ast;
 pub mod builtins;
+pub mod edit_plan;
 pub mod errors;
 pub mod eval;
 pub mod jsonfmt;
@@ -42,6 +45,7 @@ pub mod special;
 pub mod value;
 
 pub use ast::{Expr, LitValue, PathStep, Program};
+pub use edit_plan::{AppliedSource, EditOp, EditPlan, apply};
 pub use errors::QueryError;
 pub use eval::{EvalContext, Root, evaluate, evaluate_statement};
 pub use lexer::{Token, TokenKind, tokenise};

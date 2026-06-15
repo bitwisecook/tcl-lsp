@@ -13,8 +13,10 @@
 //! queries use: `ltm virtual`, `ltm virtual-address`, `ltm pool`
 //! (+ members), `ltm node`, `ltm monitor`, `ltm rule`, `ltm data-group`,
 //! `ltm persistence`, `ltm snatpool`, `ltm profile`, and `ltm policy`
-//! (+ rules / conditions / actions). Read-only: `field_slots` is left
-//! empty (no edit application this increment) but `stanza_slot` is
+//! (+ rules / conditions / actions). Each object's top-level scalar
+//! properties get a `field_slot` (the byte range of the value half) so the
+//! edit-plan engine can rewrite a single property in place; pool members
+//! get their slots from `BigipPoolMember.field_offsets`. `stanza_slot` is
 //! populated from each object's range so `--scf` / auto output matches
 //! Python. The synthesised `ltm rule .refs` sub-object is deferred (see
 //! `rule_refs_value`).
@@ -289,12 +291,13 @@ fn build_object_ref(kind: &str, full_path: &str, obj: &ModelObject, root: &Rc<Ro
 
     let fields = project_fields(kind, obj, root);
     let stanza_slot = stanza_slot_for(obj, root);
+    let field_slots = collect_field_slots(obj, &fields, root);
 
     let object_ref = Rc::new(ObjectRef {
         kind: kind.to_owned(),
         full_path: full_path.to_owned(),
         fields,
-        field_slots: IndexMap::new(),
+        field_slots,
         stanza_slot,
         config_uri: root.uri.clone(),
     });
@@ -345,6 +348,155 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
         ModelObject::DataGroup(o) => o.range,
         _ => None,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Field-slot byte-range discovery — port of `_engine._collect_field_slots`
+// ---------------------------------------------------------------------------
+
+/// Locate each top-level scalar property's value span inside its stanza —
+/// port of `_engine._collect_field_slots`.
+///
+/// Returns a map of TMSH field name → [`FieldSlot`] for every field that
+/// appears as a single-line `key value` property in the source *and* is a
+/// known projected field. Compound list / sub-block values and identity
+/// fields (whose location is the header) are simply absent.
+fn collect_field_slots(
+    obj: &ModelObject,
+    fields: &IndexMap<String, Value>,
+    root: &Rc<Root>,
+) -> IndexMap<String, FieldSlot> {
+    let Some(rng) = model_range(obj) else {
+        return IndexMap::new();
+    };
+    let body_start = rng.start.offset as usize;
+    let body_end = rng.end.offset as usize;
+    let Some(body_text) = root.source.get(body_start..body_end) else {
+        return IndexMap::new();
+    };
+    let mut slots: IndexMap<String, FieldSlot> = IndexMap::new();
+    for (key, value_start, value_end, value_text) in iter_top_level_scalar_slots(body_text) {
+        if !fields.contains_key(&key) {
+            continue;
+        }
+        slots.insert(
+            key,
+            FieldSlot {
+                source_uri: root.uri.clone(),
+                start: body_start + value_start,
+                end: body_start + value_end,
+                raw_text: value_text,
+            },
+        );
+    }
+    slots
+}
+
+/// Yield `(key, value_start, value_end, value_text)` for scalar lines at the
+/// stanza's top brace-depth — port of `_engine._iter_top_level_scalar_slots`.
+fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)> {
+    let target_depth = i32::from(body.trim_start().starts_with('{'));
+    let mut depth = 0i32;
+    let mut line_start = 0usize;
+    let mut out = Vec::new();
+    for line in split_keep_ends(body) {
+        let line_end = line_start + line.len();
+        let stripped = line.trim();
+        if !stripped.is_empty()
+            && !stripped.starts_with('#')
+            && depth == target_depth
+            && let Some(parsed) = parse_scalar_slot_line(line, line_start)
+        {
+            out.push(parsed);
+        }
+        depth = brace_depth_after_line(line, depth);
+        line_start = line_end;
+    }
+    out
+}
+
+/// Split *body* into lines keeping the trailing `\n` — mirrors Python's
+/// `str.splitlines(keepends=True)` for the `\n`-only line endings SCF uses.
+fn split_keep_ends(body: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let bytes = body.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b'\n' {
+            out.push(&body[start..=i]);
+            start = i + 1;
+        }
+    }
+    if start < body.len() {
+        out.push(&body[start..]);
+    }
+    out
+}
+
+/// Parse one top-level scalar property line — port of
+/// `_engine._parse_scalar_slot_line`.
+fn parse_scalar_slot_line(line: &str, line_start: usize) -> Option<(String, usize, usize, String)> {
+    let content = line.strip_suffix('\n').unwrap_or(line);
+    let bytes = content.as_bytes();
+    let mut pos = 0usize;
+    while pos < bytes.len() && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
+        pos += 1;
+    }
+    if pos >= bytes.len() || matches!(bytes[pos], b'{' | b'}' | b'#') {
+        return None;
+    }
+    let key_start = pos;
+    while pos < bytes.len() && !matches!(bytes[pos], b' ' | b'\t' | b'{' | b'}') {
+        pos += 1;
+    }
+    let key = &content[key_start..pos];
+    if key.is_empty() {
+        return None;
+    }
+    while pos < bytes.len() && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
+        pos += 1;
+    }
+    if pos >= bytes.len() {
+        return None;
+    }
+    let value = content[pos..].trim_end_matches([' ', '\t']);
+    if value.is_empty() || value.contains('{') || value.contains('}') {
+        return None;
+    }
+    let value_start = line_start + pos;
+    let value_end = value_start + value.len();
+    Some((key.to_owned(), value_start, value_end, value.to_owned()))
+}
+
+/// Update brace depth for one line, ignoring quoted strings — port of
+/// `_engine._brace_depth_after_line`.
+fn brace_depth_after_line(line: &str, depth: i32) -> i32 {
+    let mut depth = depth;
+    let mut in_quote = false;
+    let mut escaped = false;
+    for ch in line.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' && in_quote {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_quote = !in_quote;
+            continue;
+        }
+        if in_quote {
+            continue;
+        }
+        if ch == '{' {
+            depth += 1;
+        } else if ch == '}' {
+            depth = (depth - 1).max(0);
+        }
+    }
+    depth
 }
 
 // ---------------------------------------------------------------------------
@@ -687,11 +839,28 @@ fn member_object_ref(member: &BigipPoolMember, root: &Rc<Root>) -> Value {
         .s("connection-limit", &member.connection_limit)
         .s("rate-limit", &member.rate_limit)
         .done();
+    // Port of `_member_object_ref`'s slot wiring: each captured field offset
+    // becomes a `FieldSlot` over the value span so member properties
+    // (`address`, `description`, …) are individually editable.
+    let mut field_slots: IndexMap<String, FieldSlot> = IndexMap::new();
+    for (key, (start, end)) in &member.field_offsets {
+        if let Some(raw_text) = root.source.get(*start..*end) {
+            field_slots.insert(
+                key.clone(),
+                FieldSlot {
+                    source_uri: root.uri.clone(),
+                    start: *start,
+                    end: *end,
+                    raw_text: raw_text.to_owned(),
+                },
+            );
+        }
+    }
     Value::ObjectRef(Rc::new(ObjectRef {
         kind: "ltm pool-member".to_owned(),
         full_path: member.name.clone(),
         fields,
-        field_slots: IndexMap::new(),
+        field_slots,
         stanza_slot: None,
         config_uri: root.uri.clone(),
     }))

@@ -1,4 +1,4 @@
-//! Read-only query runner — port of the read path of
+//! Query runner — port of the per-file (non-merge) path of
 //! `dialects/f5/query/runner.py` (`run_query`, `QueryOptions`,
 //! `QueryResult`).
 //!
@@ -7,15 +7,18 @@
 //! expression and options, it parses the expression once, evaluates it
 //! against each source in order, and returns a [`QueryResult`].
 //!
-//! Only the **read** path is ported. Mutating queries (`Assignment` nodes)
-//! are detected via [`QueryResult::has_mutation`] so the verb can reject them
-//! cleanly; the engine itself already errors on assignment evaluation.
+//! Mutating **field-value** assignments are supported: each statement's queued
+//! [`EditOp`](crate::edit_plan::EditOp)s are applied to the running source
+//! after the statement evaluates, and the rewritten text lands on
+//! [`QueryResult::edits_per_file`] (`has_mutation` flags whether any edit was
+//! queued). Identity-field rewrites / `rename*` are surfaced as a clear
+//! [`QueryError::Edit`] by the edit-plan engine; `--merge` is not yet ported.
 
 use std::collections::HashMap;
 
 use tcl_bigip::parser::parse_bigip_conf;
 
-use crate::ast::{Expr, Program};
+use crate::edit_plan::{AppliedSource, apply};
 use crate::errors::QueryError;
 use crate::eval::{EvalContext, Root, evaluate_statement};
 use crate::value::Value;
@@ -46,60 +49,12 @@ pub struct QueryResult {
     /// `(uri, values)` in source order — port of `values_per_file`, kept as
     /// an ordered `Vec` so the verb renders files in input order.
     pub values_per_file: Vec<(String, Vec<Value>)>,
-    /// Whether the query *attempted* a mutation (any `Assignment` in the
-    /// AST). A read-only query is `false`; a mutating one is `true` so the
-    /// verb can reject it.
+    /// Per-file `AppliedSource` for mutating queries, in source order — port
+    /// of `edits_per_file`. Empty for read-only queries.
+    pub edits_per_file: Vec<(String, AppliedSource)>,
+    /// Whether the query *attempted* a mutation (queued any edit op). A
+    /// read-only query is `false`.
     pub has_mutation: bool,
-}
-
-/// Return `true` when any statement in *program* contains an assignment.
-///
-/// Mirrors the `has_mutation` bookkeeping in `run_query`: the Python runner
-/// flips it when an edit op is queued. In the read-only port no mutating
-/// builtin is registered, so an `Assignment` node is the only mutation
-/// surface — detect it statically.
-fn program_has_mutation(program: &Program) -> bool {
-    program.statements.iter().any(expr_has_assignment)
-}
-
-fn expr_has_assignment(node: &Expr) -> bool {
-    match node {
-        Expr::Assignment { .. } => true,
-        Expr::Literal { .. } | Expr::Identity { .. } | Expr::Variable { .. } => false,
-        Expr::ObjectLiteral { entries, .. } => entries.iter().any(|(_, v)| expr_has_assignment(v)),
-        Expr::ListLiteral { inner, .. } => inner.as_deref().is_some_and(expr_has_assignment),
-        Expr::PathExpr { head, steps, .. } => {
-            head.as_deref().is_some_and(expr_has_assignment)
-                || steps.iter().any(|step| match step {
-                    crate::ast::PathStep::Subscript {
-                        index: Some(index), ..
-                    } => expr_has_assignment(index),
-                    _ => false,
-                })
-        }
-        Expr::Call { args, .. } => args.iter().any(expr_has_assignment),
-        Expr::BinOp { lhs, rhs, .. } => expr_has_assignment(lhs) || expr_has_assignment(rhs),
-        Expr::UnaryOp { operand, .. } => expr_has_assignment(operand),
-        Expr::Pipe { lhs, rhs, .. } => expr_has_assignment(lhs) || expr_has_assignment(rhs),
-        Expr::LetBinding { source, body, .. } => {
-            expr_has_assignment(source) || expr_has_assignment(body)
-        }
-        Expr::CommaStream { parts, .. } => parts.iter().any(expr_has_assignment),
-        Expr::IfThenElse {
-            cond,
-            then_body,
-            elifs,
-            else_body,
-            ..
-        } => {
-            expr_has_assignment(cond)
-                || expr_has_assignment(then_body)
-                || elifs
-                    .iter()
-                    .any(|(c, b)| expr_has_assignment(c) || expr_has_assignment(b))
-                || else_body.as_deref().is_some_and(expr_has_assignment)
-        }
-    }
 }
 
 /// Derive a default `$name` from a URI (port of `runner._filename_stem`).
@@ -167,51 +122,87 @@ fn build_named_roots(
 
 /// Parse *query* and run it against each `(uri, source)` in *sources*.
 ///
-/// Read-only port of `runner.run_query`: the expression is parsed once and
-/// shared across files; each source takes its turn as the primary input (the
-/// `.` of a top-level statement) in source order. Variables (`$name`) bind
-/// to every loaded source so cross-file lookups resolve.
+/// Port of the per-file (non-merge) path of `runner.run_query`: the
+/// expression is parsed once and shared across files; each source takes its
+/// turn as the primary input (the `.` of a top-level statement) in source
+/// order. Variables (`$name`) bind to every loaded source so cross-file
+/// lookups resolve.
+///
+/// Mutating field-edit assignments queue [`EditOp`](crate::edit_plan::EditOp)s
+/// on the per-statement context; after each statement the queued edits are
+/// applied to the running source text, so a `;`-separated chain sees the
+/// post-edit source on the next statement. The rewritten text lands on
+/// [`QueryResult::edits_per_file`].
 ///
 /// # Errors
 ///
 /// Returns the [`QueryError`] from [`parse_query`](crate::parse_query) when
-/// the expression fails to parse, or any evaluation error raised against a
-/// source (faithful to `run_query`'s parse-error → `QueryError` behaviour).
+/// the expression fails to parse, any evaluation error raised against a
+/// source, or any edit-apply error (identity-field write, overlapping edits,
+/// non-writable compound value).
 pub fn run_query(
     query: &str,
     sources: &[(String, String)],
     opts: &QueryOptions,
 ) -> Result<QueryResult, QueryError> {
     let program = crate::parse_query(query)?;
-    let has_mutation = program_has_mutation(&program);
 
     let mut result = QueryResult {
         values_per_file: Vec::with_capacity(sources.len()),
-        has_mutation,
+        edits_per_file: Vec::new(),
+        has_mutation: false,
     };
 
-    // Mutating queries are detected but not evaluated by the read-only
-    // runner; return early so the verb can reject them. (The engine would
-    // also error on assignment evaluation, but returning here keeps the
-    // contract explicit and side-effect-free.)
-    if has_mutation {
-        return Ok(result);
-    }
-
     for (uri, source) in sources {
-        let named_roots = build_named_roots(sources, opts);
-        let root = build_root(uri, source, opts);
-        let mut ctx = EvalContext {
-            root,
-            named_roots,
-            merge_mode: false,
-            bindings: HashMap::new(),
-        };
-        let mut values: Vec<Value> = Vec::new();
+        let mut current_source = source.clone();
+        let mut accumulated_values: Vec<Value> = Vec::new();
+        let mut accumulated_field_edits = 0usize;
+        let mut attempted_mutation = false;
+
         for stmt in &program.statements {
-            values.extend(evaluate_statement(stmt, &mut ctx)?);
+            // Rebuild the root against the post-edit text so a multi-statement
+            // `;` chain reads coherent intermediate state.
+            let named_roots = build_named_roots(sources, opts);
+            let root = build_root(uri, &current_source, opts);
+            let mut ctx = EvalContext {
+                root,
+                named_roots,
+                merge_mode: false,
+                bindings: HashMap::new(),
+                edits: crate::edit_plan::EditPlan::new(),
+            };
+            accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
+
+            if ctx.edits.has_edits() {
+                attempted_mutation = true;
+                // Edits target the iterating source (cross-file `$other.x`
+                // edits are a deferred edge case); apply against the running
+                // text for this URI.
+                let mut sources_now: HashMap<String, String> = HashMap::new();
+                sources_now.insert(uri.clone(), current_source.clone());
+                let applied = apply(&ctx.edits, &sources_now)?;
+                if let Some(self_applied) = applied.get(uri) {
+                    current_source.clone_from(&self_applied.new_source);
+                    accumulated_field_edits += self_applied.field_edits;
+                }
+            }
         }
-        result.values_per_file.push((uri.clone(), values));
+
+        result
+            .values_per_file
+            .push((uri.clone(), accumulated_values));
+        if attempted_mutation {
+            result.has_mutation = true;
+            result.edits_per_file.push((
+                uri.clone(),
+                AppliedSource {
+                    uri: uri.clone(),
+                    original: source.clone(),
+                    new_source: current_source,
+                    field_edits: accumulated_field_edits,
+                },
+            ));
+        }
     }
     Ok(result)
 }

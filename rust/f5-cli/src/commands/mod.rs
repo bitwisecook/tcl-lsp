@@ -7,6 +7,7 @@
 
 pub mod cleanup;
 pub mod diff;
+pub mod difflib;
 pub mod explain;
 pub mod extract;
 pub mod graph;

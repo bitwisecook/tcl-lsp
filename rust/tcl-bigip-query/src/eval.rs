@@ -143,6 +143,9 @@ pub struct EvalContext {
     /// Lexical `expr as $name | body` bindings; `$name` lookup checks here
     /// first and falls back to `named_roots`.
     pub bindings: HashMap<String, Value>,
+    /// Edit ops queued by assignment statements; applied by the runner after
+    /// each statement evaluates (port of `evaluator.EvalContext.edits`).
+    pub edits: crate::edit_plan::EditPlan,
 }
 
 impl EvalContext {
@@ -153,6 +156,7 @@ impl EvalContext {
             named_roots: HashMap::new(),
             merge_mode: false,
             bindings: HashMap::new(),
+            edits: crate::edit_plan::EditPlan::new(),
         }
     }
 }
@@ -1262,8 +1266,8 @@ pub fn pyr_pub(s: &str) -> String {
 
 fn eval_assignment(
     target: &Expr,
-    _op: &str,
-    _rhs: &Expr,
+    op: &str,
+    rhs: &Expr,
     source: Option<&Expr>,
     current: &Value,
     ctx: &mut EvalContext,
@@ -1273,19 +1277,26 @@ fn eval_assignment(
         None => current.clone(),
     };
     let targets = resolve_assignment_targets(target, &path_input, ctx)?;
-    // Building the EditOp / applying the rewrite is the edit-plan increment;
-    // an external-JSON query never resolves a writable `ObjectRef` target,
-    // so reaching here means a BIG-IP-rooted mutating query.
-    if targets.is_empty() {
-        return Ok(Value::Stream(Vec::new()));
+    let mut produced: Vec<Value> = Vec::new();
+    for target in &targets {
+        let new_value = compute_assignment_value(op, rhs, target, current, ctx)?;
+        let edit_op = build_edit_op(target, op, new_value.clone(), ctx);
+        ctx.edits.add(edit_op);
+        produced.push(new_value);
     }
-    Err(QueryError::eval(
-        "assignment edit-plan application is not yet wired in the Rust port",
-    ))
+    match produced.len() {
+        0 => Ok(Value::Stream(Vec::new())),
+        1 => Ok(produced.pop().unwrap()),
+        _ => Ok(Value::Stream(produced)),
+    }
 }
 
 /// A single resolved writable LHS (port of `evaluator._AssignTarget`).
-struct AssignTarget;
+struct AssignTarget {
+    obj: Rc<ObjectRef>,
+    field_name: String,
+    current_value: Value,
+}
 
 fn resolve_assignment_targets(
     target: &Expr,
@@ -1330,14 +1341,69 @@ fn resolve_assignment_targets(
                 obj.describe()
             )));
         };
-        if !o.fields.contains_key(final_name) {
+        let Some(current_value) = o.fields.get(final_name) else {
             return Err(QueryError::eval(format!(
                 "{}: no field {}",
                 o.kind,
                 pyr(final_name)
             )));
-        }
-        targets.push(AssignTarget);
+        };
+        targets.push(AssignTarget {
+            obj: Rc::clone(o),
+            field_name: final_name.clone(),
+            current_value: current_value.clone(),
+        });
     }
     Ok(targets)
+}
+
+/// Compute the new value for one assignment target — port of
+/// `evaluator._compute_assignment_value`.
+fn compute_assignment_value(
+    op: &str,
+    rhs: &Expr,
+    target: &AssignTarget,
+    outer: &Value,
+    ctx: &mut EvalContext,
+) -> Result<Value, QueryError> {
+    match op {
+        "=" => flatten_one(eval(rhs, outer, ctx)?),
+        "|=" => flatten_one(eval(rhs, &target.current_value, ctx)?),
+        "+=" => {
+            let rhs_val = flatten_one(eval(rhs, outer, ctx)?)?;
+            add(target.current_value.clone(), rhs_val)
+        }
+        "-=" => {
+            let rhs_val = flatten_one(eval(rhs, outer, ctx)?)?;
+            sub(target.current_value.clone(), rhs_val)
+        }
+        other => Err(QueryError::eval(format!(
+            "unknown assignment operator: {other}"
+        ))),
+    }
+}
+
+/// Build the [`EditOp`](crate::edit_plan::EditOp) for one resolved target —
+/// port of `evaluator._build_edit_op`.
+fn build_edit_op(
+    target: &AssignTarget,
+    op: &str,
+    new_value: Value,
+    ctx: &EvalContext,
+) -> crate::edit_plan::EditOp {
+    let source_uri = if target.obj.config_uri.is_empty() {
+        ctx.root.uri.clone()
+    } else {
+        target.obj.config_uri.clone()
+    };
+    crate::edit_plan::EditOp {
+        source_uri,
+        object_path: target.obj.full_path.clone(),
+        object_kind: target.obj.kind.clone(),
+        field_name: target.field_name.clone(),
+        operator: op.to_owned(),
+        new_value,
+        field_slot: target.obj.field_slots.get(&target.field_name).cloned(),
+        stanza_slot: target.obj.stanza_slot.clone(),
+    }
 }

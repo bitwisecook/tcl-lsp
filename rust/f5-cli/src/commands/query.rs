@@ -6,16 +6,23 @@
 //! `tcl_bigip_query::run_query` runner, and renders the per-file values with
 //! `tcl_bigip_query::output::render`.
 //!
-//! Deferred (cleanly rejected / ignored): mutations (`--write` / `--in-place`
-//! / assignment), `--merge` cross-file ref-walking, side-inputs, network
-//! probes, renderers, and the `--help-*` actions.
+//! Field-value mutations (`=` / `|=` / `+=` / `-=`) are supported: the
+//! default is a unified-diff preview, `--write` prints the rewritten config,
+//! and `--in-place` overwrites the input. Identity-field writes (`.name = …`)
+//! and the `rename*` builtins are deferred (cleanly rejected) — they route
+//! through the unported rename token-rewrite engine.
+//!
+//! Deferred (cleanly rejected / ignored): `--merge` cross-file ref-walking,
+//! side-inputs, network probes, renderers, and the `--help-*` actions.
 
 use std::io::Write as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tcl_bigip_io::read_path;
 use tcl_bigip_query::value::Value;
-use tcl_bigip_query::{QueryOptions, output, run_query};
+use tcl_bigip_query::{QueryOptions, QueryResult, output, run_query};
+
+use super::difflib;
 
 /// The mutually-exclusive output-mode flags, resolved to an `output::render`
 /// mode by [`OutputModeFlags::resolve`]. Mirrors the `--scf` / `--raw` /
@@ -137,13 +144,13 @@ pub fn run_query_verb(
         return Ok(2);
     }
 
-    // Mutation surfaces are deferred in the read-only port.
-    if flags.write || flags.in_place {
-        eprintln!("error: mutating queries are not yet supported in the Rust port");
-        return Ok(2);
-    }
     if flags.merge {
         eprintln!("error: --merge is not yet supported in the Rust port");
+        return Ok(2);
+    }
+    // `--in-place` requires a real path, not stdin (mirrors `_run_query`).
+    if flags.in_place && inputs.iter().any(|p| p.as_os_str() == "-") {
+        eprintln!("error: --in-place requires a path, not stdin");
         return Ok(2);
     }
 
@@ -221,11 +228,63 @@ pub fn run_query_verb(
     };
 
     if result.has_mutation {
-        eprintln!("error: mutating queries are not yet supported in the Rust port");
-        return Ok(2);
+        return emit_mutation(&result, &path_for_uri, flags);
     }
 
     emit_values(&result, sources.len(), mode, flags.strict)
+}
+
+/// Emit the result of a mutating query — port of `query._emit_mutation`.
+///
+/// Default: a unified-diff preview per changed file. `--write`: the rewritten
+/// config to stdout. `--in-place`: overwrite each input. A no-op (no file
+/// changed) exits 1, or 2 under `--strict`.
+fn emit_mutation(
+    result: &QueryResult,
+    path_for_uri: &[(String, String)],
+    flags: QueryFlags,
+) -> anyhow::Result<u8> {
+    let mut any_changed = false;
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    for (uri, applied) in &result.edits_per_file {
+        // A "mutating" query that produced no actual textual change exits 1
+        // (no-op), mirroring `f5 rename`.
+        if applied.new_source == applied.original {
+            continue;
+        }
+        any_changed = true;
+        let path_str = path_for_uri
+            .iter()
+            .find(|(u, _)| u == uri)
+            .map_or(uri.as_str(), |(_, p)| p.as_str());
+        let rewritten = &applied.new_source;
+        if flags.in_place && path_str != "-" {
+            std::fs::write(Path::new(path_str), rewritten)?;
+            continue;
+        }
+        if flags.write {
+            write!(out, "{rewritten}")?;
+            continue;
+        }
+        let from = path_str.to_owned();
+        let to = format!("{path_str} (modified)");
+        let a = difflib::splitlines_keepends(&applied.original);
+        let b = difflib::splitlines_keepends(&applied.new_source);
+        let diff = difflib::unified_diff(&a, &b, &from, &to);
+        write!(out, "{diff}")?;
+    }
+    if !any_changed {
+        if flags.strict {
+            eprintln!(
+                "error: --strict: mutating query produced no textual change \
+                 (no matches).  Check the path / predicate."
+            );
+            return Ok(2);
+        }
+        return Ok(1);
+    }
+    Ok(0)
 }
 
 /// Render the per-file values — port of `_emit_values` (read path).
