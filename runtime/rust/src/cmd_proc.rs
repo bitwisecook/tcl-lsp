@@ -62,14 +62,20 @@ pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
         let parts = split_list(e).map_err(|er| er.message().to_vec())?;
         match parts.len() {
             0 => return Err(b"argument with no name".to_vec()),
-            1 => params.push(Param {
-                name: parts[0].clone(),
-                default: None,
-            }),
-            2 => params.push(Param {
-                name: parts[0].clone(),
-                default: Some(parts[1].clone()),
-            }),
+            1 => {
+                check_param_name(&parts[0])?;
+                params.push(Param {
+                    name: parts[0].clone(),
+                    default: None,
+                });
+            }
+            2 => {
+                check_param_name(&parts[0])?;
+                params.push(Param {
+                    name: parts[0].clone(),
+                    default: Some(parts[1].clone()),
+                });
+            }
             _ => {
                 let mut m = b"too many fields in argument specifier \"".to_vec();
                 m.extend_from_slice(e);
@@ -79,6 +85,36 @@ pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
         }
     }
     Ok(params)
+}
+
+/// A formal parameter name must be a scalar simple name: not an array element
+/// (`a(1)`) and not namespace-qualified (`a::b`). Mirrors the scan in C's
+/// `TclCreateProc` (`tclProc.c`): an `(` anywhere before the final char with a
+/// trailing `)` is an array element; a `::` anywhere before the final char makes
+/// the name non-simple.
+fn check_param_name(name: &[u8]) -> Result<(), Vec<u8>> {
+    if name.is_empty() {
+        return Ok(());
+    }
+    let last = name.len() - 1;
+    let mut i = 0;
+    while i < last {
+        if name[i] == b'(' {
+            if name[last] == b')' {
+                let mut m = b"formal parameter \"".to_vec();
+                m.extend_from_slice(name);
+                m.extend_from_slice(b"\" is an array element");
+                return Err(m);
+            }
+        } else if name[i] == b':' && name[i + 1] == b':' {
+            let mut m = b"formal parameter \"".to_vec();
+            m.extend_from_slice(name);
+            m.extend_from_slice(b"\" is not a simple name");
+            return Err(m);
+        }
+        i += 1;
+    }
+    Ok(())
 }
 
 // -- apply -----------------------------------------------------------------
@@ -103,7 +139,14 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let params = match parse_params(&parts[0]) {
         Ok(p) => p,
-        Err(e) => return interp.set_error(&e),
+        Err(e) => {
+            // A malformed parameter list: report the parse error, then add the
+            // `(parsing lambda expression "<lambda>")` errorInfo frame (C's
+            // `Tcl_ApplyObjCmd` after a failed `TclCreateProc`).
+            let code = interp.set_error(&e);
+            interp.append_lambda_parse_frame(&lambda);
+            return code;
+        }
     };
     let ns = if parts.len() == 3 {
         interp.ensure_namespace(&parts[2])

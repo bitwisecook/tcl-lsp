@@ -2506,6 +2506,26 @@ impl Interp {
         self.exc.borrow_mut().already_logged = false;
     }
 
+    /// Append `"\n    (parsing lambda expression \"<name>\")"` to errorInfo — the
+    /// `apply` lambda-parse failure frame (C's `Tcl_AppendObjToErrorInfo` in
+    /// `Tcl_ApplyObjCmd`). Unlike [`append_frame_line`](Self::append_frame_line)
+    /// it carries no `line N` suffix. Clears `already_logged` so the enclosing
+    /// `apply` command still logs its own `invoked from within` frame.
+    pub(crate) fn append_lambda_parse_frame(&mut self, name: &[u8]) {
+        if self.exc.borrow().info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        {
+            let mut exc = self.exc.borrow_mut();
+            let buf = exc.info.as_mut().expect("seeded above");
+            buf.extend_from_slice(b"\n    (parsing lambda expression \"");
+            buf.extend_from_slice(name);
+            buf.extend_from_slice(b"\")");
+        }
+        self.exc.borrow_mut().already_logged = false;
+    }
+
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
         let line = self.exc.borrow().line;
         if self.exc.borrow().info.is_none() {
