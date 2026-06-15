@@ -3150,12 +3150,31 @@ dict 325, error 261, eval 12/12 held).
   value" — matching C, where the substitution's bytecode unwinds the
   expr-bearing command. Threaded as `propagated_code` through `InterpExprCtx`.
 
+Adjacent `apply`/`proc` parameter + diagnostic fixes (same session), in
+`cmd_proc.rs`/`interp.rs` against `tclProc.c` (`TclCreateProc`,
+`Tcl_ApplyObjCmd`, `ProcWrongNumArgs`) and `tclIndexObj.c` (`Tcl_WrongNumArgs`).
+apply.test 21→31, proc.test 20→24; no regressions.
+
+- A malformed lambda parameter list adds the `(parsing lambda expression
+  "<lambda>")` errorInfo frame after the parse error.
+- `parse_params` rejects non-scalar formal names: `a(1)` (array element) and
+  `a::b` (not a simple name) — shared by `proc` and `apply`.
+- `apply` resolves its namespace (prepending `::`) and errors `namespace "<n>"
+  not found` instead of creating it.
+- `info level N` of a lambda reports the real `apply <lambdaExpr> ?arg ...?`
+  invocation, not the `apply lambdaExpr` usage prefix.
+- A `wrong # args` message list-quotes a genuine single-word proc name (Bug
+  942757: `a b  c` → `{a b  c}`, `` → `{}`), gated by `CallMeta.quote_name` so
+  `apply`/TclOO multi-word usage prefixes stay raw.
+
 Out of scope here (deliberately deferred): the `info frame` `level`-omission
 reachability rule for `uplevel`-redirected frames (info-38.2–38.6 — needs
 cmd-frame↔CallFrame reachability threading), `switch -regexp` and `interp debug`
-features (info-30.13/14/16/17/19/20), and `info cmdtype`/`cmdcount`
-(info-40/info-3). Untouched per the parallel-work exclusion: `cmd_string.rs` and
-the `string` helpers in `rust/tcl-syntax/src/`.
+features (info-30.13/14/16/17/19/20), `info cmdtype`/`cmdcount`
+(info-40/info-3), the alias-rewrite `wrong # args` prefix (apply-4.3–4.5), and
+insertion-ordered `info locals` (apply-8.2/8.3 — the var table is a sorted
+`BTreeMap`). Untouched per the parallel-work exclusion: `cmd_string.rs` and the
+`string` helpers in `rust/tcl-syntax/src/`.
 
 ### Outstanding
 
