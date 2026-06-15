@@ -2958,6 +2958,24 @@ Two linked fixes:
   mechanism as command-subst/`eval`/`namespace eval`, replacing the prior
   `script_stack` + proc-command-line heuristic.
 
+### SYNC inbound — 2026-06-15 (`[subst]` command-substitution line tracking)
+
+`info.test` 172 → 195 (zero regressions; trace 199, oo 357, ooProp 55/55,
+namespace 238, subst 21, eval 12, proc 20, switch 54 all held). A `[...]` inside
+a `subst` argument now reports the line it sits on (C compiles `subst` with the
+argument's line table). `do_subst` gained a located variant that reads the
+argument word's TIP 280 location (`arg_location`), aligns the enclosing frame's
+`line_base`/`file` to it for the duration, and routes each `WordPart::Command`
+through `eval_command_subst` (the shared command-substitution line-advance path)
+instead of a bare `eval_str`. The argument's `[...]` slices borrow from the
+argument bytes, so their offsets — and thus file-absolute lines — follow from the
+same `line_of` helper. Internal callers (`dict map` key subst) pass `None` and
+track relative to the enclosing frame.
+
+Remaining `info-30`/`info-33` failures are the `{*}` literal-expansion locations,
+`info-31` (script-in-variable nuances), and a few `info-24`/`info-22` interaction
+cases (dict for/with/filter, traces).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_

@@ -4222,16 +4222,56 @@ impl Interp {
         src: &[u8],
         flags: crate::subst::SubstFlags,
     ) -> Result<Vec<u8>, Code> {
+        self.do_subst_located(src, flags, None)
+    }
+
+    /// [`do_subst`](Self::do_subst) with the input string's TIP 280 location
+    /// (the `subst` command's argument word): a `[...]` inside the substituted
+    /// string then reports the line it appears on (C compiles `subst` with the
+    /// argument's line table). `loc` is `None` for internal callers that do not
+    /// track lines (`dict map` key substitution), where the `[...]` is line-
+    /// tracked relative to the enclosing frame as usual.
+    pub(crate) fn do_subst_located(
+        &mut self,
+        src: &[u8],
+        flags: crate::subst::SubstFlags,
+        loc: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Result<Vec<u8>, Code> {
         let body = crate::subst::scan(src, flags);
         match &body {
             WordBody::Literal(b) => Ok(b.to_vec()),
-            WordBody::Parts(parts) => self.resolve_subst_parts(parts),
+            WordBody::Parts(parts) => {
+                // Align the enclosing frame to the argument word's file+line, so
+                // each `[...]`'s line (computed by `eval_command_subst` against
+                // `src`) is file-absolute. Saved/restored around the resolution.
+                let saved = loc.and_then(|(file, line)| {
+                    let mut frames = self.cmd_frames.borrow_mut();
+                    frames.last_mut().map(|top| {
+                        let prev = (top.line_base, top.file.clone());
+                        top.line_base = line.saturating_sub(1);
+                        if file.is_some() {
+                            top.file = file;
+                        }
+                        prev
+                    })
+                });
+                let result = self.resolve_subst_parts(src, parts);
+                if let Some((line_base, file)) = saved {
+                    if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+                        top.line_base = line_base;
+                        top.file = file;
+                    }
+                }
+                result
+            }
         }
     }
 
-    /// Resolve substitution `parts` to bytes, propagating any non-OK code (the
-    /// `subst`-command path; cf. `substitute_word`, which builds an object).
-    fn resolve_subst_parts(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+    /// Resolve substitution `parts` (scanned from `src`) to bytes, propagating
+    /// any non-OK code (the `subst`-command path; cf. `substitute_word`, which
+    /// builds an object). `src` lets a `[...]` part advance the `info frame`
+    /// line to its own position via [`eval_command_subst`](Self::eval_command_subst).
+    fn resolve_subst_parts(&mut self, src: &[u8], parts: &[WordPart]) -> Result<Vec<u8>, Code> {
         let mut out = Vec::new();
         for part in parts {
             match part {
@@ -4250,7 +4290,7 @@ impl Interp {
                     }
                 }
                 WordPart::Command(script) => {
-                    let code = self.eval_str(script);
+                    let code = self.eval_command_subst(src, script);
                     if code != Code::Ok {
                         return Err(code);
                     }

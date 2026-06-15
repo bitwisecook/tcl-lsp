@@ -448,7 +448,10 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, USAGE);
     }
     let src = obj_bytes(argv[i]);
-    match interp.do_subst(&src, flags) {
+    // TIP 280: a `[...]` inside the substituted string reports the line it sits
+    // on, derived from the argument word's recorded source location.
+    let loc = interp.arg_location(argv[i]);
+    match interp.do_subst_located(&src, flags, loc) {
         Ok(bytes) => {
             interp.set_result_bytes(&bytes);
             Code::Ok
