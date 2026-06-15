@@ -13,6 +13,9 @@ use serde_json::{Map, Value, json};
 
 use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
+use tcl_compiler::gvn::{
+    find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
+};
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
@@ -380,6 +383,49 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     Value::Array(out)
 }
 
+/// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
+/// LICM). Mirrors `_serialise_gvn` — `{code, message, expression, range,
+/// firstRange, severity: info}`. Composes the three ported `*_for_cu`
+/// finders and de-duplicates on `(code, span, first_span)`. Optimiser-
+/// derived → `_NO_PARITY_KEYS`, pinned by a Rust unit test.
+#[must_use]
+pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let dialect = Some(result.dialect.as_str());
+    let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
+    all.extend(find_partial_redundancies_for_cu(
+        &result.unit,
+        registry,
+        dialect,
+    ));
+    all.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
+
+    let mut seen = std::collections::HashSet::new();
+    let out: Vec<Value> = all
+        .iter()
+        .filter(|w| {
+            seen.insert((
+                w.code.clone(),
+                w.span.start(),
+                w.span.end(),
+                w.first_span.start(),
+                w.first_span.end(),
+            ))
+        })
+        .map(|w| {
+            json!({
+                "code": w.code,
+                "message": w.message,
+                "expression": w.expression_text,
+                "range": range_dict(w.span, li, source),
+                "firstRange": range_dict(w.first_span, li, source),
+                "severity": "info",
+            })
+        })
+        .collect();
+    Value::Array(out)
+}
+
 /// Renderer severity for a taint code. Mirrors `annotations.taint_severity`
 /// (`T1*` prefix or `T3001`-`T3004` → error, else warning).
 fn taint_severity(code: &str) -> &'static str {
@@ -631,6 +677,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "taintWarnings".to_owned(),
         serialise_taint(result, &li, &result.source),
     );
+    out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
     Value::Object(out)
 }
 
@@ -678,6 +725,23 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn gvn_reports_redundant_computation() {
+        let result = run_pipeline(
+            "set x [list 1 2 3]\nset a [llength $x]\nset b [llength $x]\nputs $a$b",
+            "tcl8.6",
+        );
+        let gvn = serialise_result(&result)["gvn"].clone();
+        let arr = gvn.as_array().unwrap();
+        let o105 = arr
+            .iter()
+            .find(|w| w["code"] == "O105")
+            .expect("O105 finding");
+        assert_eq!(o105["expression"], "llength $x");
+        assert_eq!(o105["severity"], "info");
+        assert!(o105["firstRange"]["startOffset"].is_number());
     }
 
     #[test]
