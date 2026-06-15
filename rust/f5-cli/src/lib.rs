@@ -129,6 +129,23 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             format,
             output.as_deref(),
         ),
+        Command::Rename {
+            old,
+            new,
+            path,
+            output,
+            in_place,
+            write,
+            format,
+        } => commands::rename::run_rename(
+            old,
+            new,
+            path,
+            output.as_deref(),
+            *in_place,
+            *write,
+            format,
+        ),
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Completion { shell } => {
             use clap::CommandFactory;

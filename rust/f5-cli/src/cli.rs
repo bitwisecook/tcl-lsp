@@ -209,25 +209,28 @@ pub enum Command {
     },
 
     /// Rename a BIG-IP object full-path and update every reference.
+    // The `old` / `new` help strings are clap-visible (they must read exactly
+    // as the Python verb's argparse help, so no Markdown backticks).
+    #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "mv")]
     Rename {
-        inputs: Vec<PathBuf>,
-        /// Existing object full-path.
-        #[arg(long, value_name = "PATH")]
+        /// Old full-path (e.g. /Common/old_pool).
         old: String,
-        /// New object full-path.
-        #[arg(long, value_name = "PATH")]
+        /// New full-path (e.g. /Common/new_pool).
         new: String,
-        /// Rewrite the input file in place.
-        #[arg(long = "in-place")]
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: String,
+        /// Write rewritten config here (default: stdout, dry-run).
+        #[arg(long, short, value_name = "FILE", group = "rename_output")]
+        output: Option<PathBuf>,
+        /// Overwrite the input file with the rewritten config.
+        #[arg(long = "in-place", group = "rename_output")]
         in_place: bool,
-        /// Emit the rewritten config (not a dry-run diff).
+        /// Print rewritten config to stdout instead of a unified-diff preview.
         #[arg(long)]
         write: bool,
         #[command(flatten)]
         format: FormatArgs,
-        #[arg(long, short, value_name = "FILE")]
-        output: Option<PathBuf>,
     },
 
     /// Run BIG-IP best-practice / structural checks.
