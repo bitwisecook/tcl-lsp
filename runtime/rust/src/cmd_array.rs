@@ -8,10 +8,9 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::list;
 use crate::obj::TclObj;
-use crate::parse::split_list;
 
 /// Register `array`.
 pub fn install(interp: &mut Interp) {
@@ -100,7 +99,11 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
     if argv.len() != 4 {
         return wrong_args(interp, b"array set arrayName list");
     }
-    let kvs = match split_list(&obj_bytes(argv[3])) {
+    // Read the *element objects* (not a re-split into fresh strings) so each
+    // value keeps its `Tcl_Obj` identity through the array — C shares objs by
+    // reference, and TIP 280 keys a literal's source location on that identity
+    // (so a `-body {…}` stored via `array set` still evaluates as `type source`).
+    let kvs = match crate::list::list_elements(argv[3]) {
         Ok(v) => v,
         Err(e) => return interp.set_error(e.message()),
     };
@@ -108,9 +111,9 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
         return interp.set_error(b"list must have an even number of elements");
     }
     for pair in kvs.chunks_exact(2) {
-        let v = new_string(&pair[1]); // rc 0; var_set_elem retains
-        if let Err(e) = interp.var_set_elem(name, &pair[0], v) {
-            drop_fresh(v);
+        // `var_set_elem` retains the live value obj (no fresh allocation).
+        let key = obj_bytes(pair[0]);
+        if let Err(e) = interp.var_set_elem(name, &key, pair[1]) {
             return crate::builtins::var_error(interp, name, e);
         }
     }

@@ -169,6 +169,10 @@ struct CmdFrame {
     oo: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
 }
 
+/// A TIP 280 literal-argument location: `(objPtr, file, line)` (C's `lineLABCPtr`
+/// entry) — see [`Interp::arg_locs`].
+type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
+
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
     /// A non-empty result: the replacement command prefix to dispatch.
@@ -507,6 +511,15 @@ pub struct InterpState {
     /// reports file-relative `info frame` lines). Set per command just before
     /// dispatch; consumers must read it before re-entering the eval loop.
     arg_lines: RefCell<Vec<u32>>,
+    /// TIP 280 literal-argument locations (C's `lineLABCPtr`): a stack of
+    /// `(objPtr, file, line)` for each literal word of every command executing in
+    /// a *sourced* context. When such a literal is later evaluated as a script
+    /// (`eval`/`uplevel $bodyVar`), the eval reports `type source` at the
+    /// literal's original file+line instead of `type eval` — the test-body case
+    /// (tcltest's `uplevel 1 $script`). Entries are pushed before a command
+    /// dispatches and truncated after it returns (dynamic scope), so the obj
+    /// pointers stay valid for the lookup.
+    arg_locs: RefCell<Vec<ArgLoc>>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -577,6 +590,7 @@ impl Interp {
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
             arg_lines: RefCell::new(Vec::new()),
+            arg_locs: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
             bgerror: RefCell::new(Vec::new()),
@@ -2629,6 +2643,84 @@ impl Interp {
         self.eval_framed(script, frame)
     }
 
+    /// `eval` of a single body **object** — like [`eval_body`](Self::eval_body),
+    /// but a literal obj with a recorded source location (TIP 280 LABC) runs as
+    /// `type source` at its original file+line (the test-body case) rather than
+    /// `type eval`.
+    pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
+        // A pure list is one command, dispatched by element identity (so a
+        // contained literal keeps its source location — C's list-eval path).
+        if crate::list::is_pure_list(obj) {
+            return self.dispatch_list_obj(obj);
+        }
+        let mut frame = self.inherited_cmd_frame();
+        if let Some((file, line)) = self.arg_loc(obj) {
+            frame.kind = FrameKind::Source;
+            frame.file = file;
+            frame.line_base = line.saturating_sub(1);
+        }
+        let bytes = obj_bytes(obj);
+        self.eval_framed(&bytes, frame)
+    }
+
+    /// Dispatch a pure-list script object as a single command, using its element
+    /// objects directly (no stringify/re-parse) — this preserves each element's
+    /// `Tcl_Obj` identity, so a nested `eval`/`uplevel $bodyVar` still finds the
+    /// body's TIP 280 source location.
+    fn dispatch_list_obj(&mut self, obj: *mut TclObj) -> Code {
+        let elems = match crate::list::list_elements(obj) {
+            Ok(e) => e,
+            Err(e) => return self.error(e.message()),
+        };
+        if elems.is_empty() {
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        for &e in &elems {
+            // SAFETY: live element; take an owning +1 for the call.
+            unsafe { obj::incr_ref_count(e) };
+        }
+        let code = self.dispatch(&elems);
+        release_all(&elems);
+        code
+    }
+
+    /// `uplevel` of a single body **object** — the redirected-scope variant of
+    /// [`eval_body_obj`](Self::eval_body_obj). A located literal keeps its source
+    /// provenance; a dynamic body is `type eval`, no file.
+    pub(crate) fn eval_uplevel_obj(&mut self, target_level: usize, obj: *mut TclObj) -> Code {
+        let loc = self.arg_loc(obj);
+        let prev_level = self.frames.borrow_mut().set_active_level(target_level);
+        let prev_ns = self.current_ns.get();
+        self.current_ns
+            .set(self.frames.borrow().frame_ns(target_level));
+        let code = if crate::list::is_pure_list(obj) {
+            // Pure list → one command by element identity (see `dispatch_list_obj`).
+            self.dispatch_list_obj(obj)
+        } else {
+            let mut frame = self.inherited_cmd_frame();
+            frame.level = target_level;
+            frame.omit_level = true;
+            match loc {
+                Some((file, line)) => {
+                    frame.kind = FrameKind::Source;
+                    frame.file = file;
+                    frame.line_base = line.saturating_sub(1);
+                }
+                None => {
+                    frame.kind = FrameKind::Eval;
+                    frame.file = None;
+                    frame.line_base = 0;
+                }
+            }
+            let bytes = obj_bytes(obj);
+            self.eval_framed(&bytes, frame)
+        };
+        self.frames.borrow_mut().set_active_level(prev_level);
+        self.current_ns.set(prev_ns);
+        code
+    }
+
     /// Evaluate one parsed command, then — if it errored — append its
     /// `while executing` / `invoked from within` frame to the error trace
     /// (`TclLogCommandInfo`), using the command's source slice and line.
@@ -2704,13 +2796,45 @@ impl Interp {
             .iter()
             .map(|w| cmd_line + count_newlines(&src[w0..w.start.min(src.len())]))
             .collect();
+
+        // TIP 280 LABC: in a sourced context, record each literal word's obj →
+        // (file, line) so a later `eval`/`uplevel` of that obj reports `type
+        // source`. Gated to commands without `{*}` (so word index == argv index)
+        // and popped after dispatch (dynamic scope; the objs live until then).
+        let file = self.cmd_frames.borrow().last().and_then(|f| f.file.clone());
+        let mut pushed = 0usize;
+        if file.is_some() && words.iter().all(|w| !w.expand) {
+            let mut locs = self.arg_locs.borrow_mut();
+            for (i, w) in words.iter().enumerate() {
+                if matches!(w.body, parse::WordBody::Literal(_)) {
+                    locs.push((argv[i], file.clone(), arg_lines[i]));
+                    pushed += 1;
+                }
+            }
+        }
         *self.arg_lines.borrow_mut() = arg_lines;
 
         let code = self.dispatch(&argv);
+        if pushed > 0 {
+            let mut locs = self.arg_locs.borrow_mut();
+            let keep = locs.len() - pushed;
+            locs.truncate(keep);
+        }
         // Safe to release argv now: a command that made an argv element its
         // result did so via set_obj_result, which holds an independent +1.
         release_all(&argv);
         code
+    }
+
+    /// The recorded TIP 280 source location of a script obj (C's `lineLABCPtr`
+    /// lookup), or `None` for a dynamic/computed script. Scans newest-first.
+    fn arg_loc(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
+        self.arg_locs
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(o, _, _)| *o == obj)
+            .map(|(_, f, l)| (f.clone(), *l))
     }
 
     /// Look up `argv[0]` and invoke it; on a miss, fall to the `unknown` handler

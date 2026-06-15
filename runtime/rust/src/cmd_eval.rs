@@ -49,10 +49,14 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"eval arg ?arg ...?");
     }
-    let script = join_body(&argv[1..]);
-    // `eval` runs its body as its own `info frame` level (inheriting the
-    // enclosing proc/level).
-    let code = interp.eval_body(&script);
+    // A single body argument keeps its object identity, so a literal from a
+    // sourced file evaluates as `type source` (TIP 280 LABC); multiple args are
+    // concatenated into a fresh dynamic script (`type eval`).
+    let code = if argv.len() == 2 {
+        interp.eval_body_obj(argv[1])
+    } else {
+        interp.eval_body(&join_body(&argv[1..]))
+    };
     if code == Code::Error {
         // `("eval" body line N)` — a body evaluated through a fresh frame.
         interp.append_body_frame(b"eval");
@@ -84,8 +88,11 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if body_start >= argv.len() {
         return wrong_args(interp, usage);
     }
-    let script = join_body(&argv[body_start..]);
-    let code = interp.eval_uplevel(target, &script);
+    let code = if body_start == argv.len() - 1 {
+        interp.eval_uplevel_obj(target, argv[body_start])
+    } else {
+        interp.eval_uplevel(target, &join_body(&argv[body_start..]))
+    };
     if code == Code::Error {
         // `("uplevel" body line N)`.
         interp.append_body_frame(b"uplevel");

@@ -2857,6 +2857,39 @@ rework):
 - **`info library`** with `tcl_library` unset reports `no library has been
   specified for Tcl` (info-10.3).
 
+### SYNC inbound — 2026-06-15 (base-layer: Tcl_Obj identity through eval / TIP 280 literal locations)
+
+Digging into the `info frame` failures surfaced a **base-layer smell**: scripts
+were evaluated as raw *bytes*, discarding the `Tcl_Obj` identity that C uses to
+carry a literal's source location (the `lineLABCPtr` table) — so an eval'd body
+literal (tcltest's `uplevel 1 $script`) reported `type eval` instead of `type
+source`. The fix is structural, not a patch (info.test 127 → 132, var.test
+59 → 72, expr-old 405; zero regressions across namespace/trace/oo/dict/string/
+list/lsearch/proc):
+
+- **TIP 280 literal-argument locations** (`Interp::arg_locs`, C's `lineLABCPtr`):
+  each literal word of a command running in a *sourced* context records
+  `objPtr → (file, line)` (dynamic scope: pushed before dispatch, popped after).
+  A later `eval`/`uplevel` of that same object reports `type source` at the
+  literal's original file+line.
+- **`eval`/`uplevel` evaluate by object, not bytes** (`eval_body_obj`/
+  `eval_uplevel_obj`): a single body argument keeps its object identity for the
+  LABC lookup; multiple args concatenate to a dynamic (`type eval`) script.
+- **Pure lists evaluate by element identity** (`dispatch_list_obj`): a *canonical*
+  list (`TclListObjIsCanonical`) is dispatched as one command from its element
+  objects — no stringify/re-parse — so `uplevel 1 [list cmd $bodyVar]` preserves
+  the nested body's source location (the tcltest `Eval`/`RunTest` chain). A new
+  `canonical` flag on the list rep distinguishes a list built from objects
+  (`new_list_obj`/append, pure) from one shimmered from a string (re-parsed).
+- **`array set` preserves value identity** — it stores the element *objects*
+  (via `list_elements`) instead of re-creating fresh strings, so a value kept in
+  an array (tcltest's option array) keeps its rep and source location (this is
+  what lifted var.test).
+
+Still off for the `info-30`/`info-33` clusters: the *line within* a bs+nl
+continuation and inline control bodies (`if`/`while`) — the type/file/source
+frame is now correct, only the precise line lags (a line-accounting follow-up).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
