@@ -17,6 +17,15 @@ ipnet = "2"
 libm = "0.2"
 regex = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
+# Network-probe layer (port of dialects/f5/query/_probes.py), gated behind
+# --enable-probes. x509-parser + sha2 back the deterministic, byte-parity
+# `x509_parse`; ureq / rustls / dns-lookup back the faithful-only live probes.
+x509-parser = "0.18"
+sha2 = "0.10"
+dns-lookup = "3"
+ureq = "3"
+rustls = "0.23"
+rustls-native-certs = "0.8"
 
 [dev-dependencies]
 temp-env = "0.3"

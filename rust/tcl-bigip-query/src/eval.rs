@@ -135,6 +135,14 @@ pub fn root_container(root: &Rc<Root>) -> Value {
     projection::root_container(root)
 }
 
+/// Reader hook for `ucs_cert` — port of the `UCS_CERT_READER` contextvar.
+///
+/// Maps `(config_uri, cache_path)` to an `x509_parse`-shaped [`Value`] dict.
+/// `dialects` must not import the `tooling` UCS layer, so the CLI injects this
+/// callable (see `tooling/f5/verbs/query.py::_make_ucs_cert_reader`). `None`
+/// means "not wired", and `ucs_cert` raises a clear error.
+pub type UcsCertReader = Rc<dyn Fn(&str, &str) -> Result<Value, QueryError>>;
+
 /// Evaluation context (port of `evaluator.EvalContext`).
 pub struct EvalContext {
     pub root: Rc<Root>,
@@ -146,6 +154,17 @@ pub struct EvalContext {
     /// Edit ops queued by assignment statements; applied by the runner after
     /// each statement evaluates (port of `evaluator.EvalContext.edits`).
     pub edits: crate::edit_plan::EditPlan,
+    /// Whether live network probes are enabled (port of the `PROBES_ENABLED`
+    /// contextvar — the `--enable-probes` flag). When `false`, every network
+    /// probe builtin raises the gating error before touching the network.
+    pub probes_enabled: bool,
+    /// Optional CA bundle path used by TLS-aware probes (`url_*` /
+    /// `tls_handshake`) for chain verification — port of `TLS_CA_BUNDLE`.
+    /// `None` falls back to the system trust store.
+    pub ca_bundle: Option<String>,
+    /// Reader hook for `ucs_cert` (port of `UCS_CERT_READER`). `None` means
+    /// no reader is wired (e.g. when driven outside the f5 CLI).
+    pub ucs_cert_reader: Option<UcsCertReader>,
 }
 
 impl EvalContext {
@@ -157,6 +176,9 @@ impl EvalContext {
             merge_mode: false,
             bindings: HashMap::new(),
             edits: crate::edit_plan::EditPlan::new(),
+            probes_enabled: false,
+            ca_bundle: None,
+            ucs_cert_reader: None,
         }
     }
 }

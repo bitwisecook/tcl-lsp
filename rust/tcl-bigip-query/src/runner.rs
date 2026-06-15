@@ -28,11 +28,15 @@ use crate::value::Value;
 
 /// Explicit, ambient-free configuration for a query run.
 ///
-/// Port of the read-relevant subset of `runner.QueryOptions`. Mutation,
-/// merge, side-inputs, and network probes are out of scope for the
-/// read-only runner; `partitions` and `names` are kept because they affect
-/// parsing and `$name` resolution.
-#[derive(Debug, Clone, Default)]
+/// Port of the read-relevant subset of `runner.QueryOptions`. Mutation and
+/// merge are out of scope for the read-only runner; `partitions` and `names`
+/// are kept because they affect parsing and `$name` resolution. Network
+/// probes (`--enable-probes` / `--ca-bundle` / the UCS reader) thread through
+/// to the [`EvalContext`].
+//
+// `Debug` is hand-written because `ucs_cert_reader` is an `Rc<dyn Fn>`, which
+// is not `Debug`; `Default` / `Clone` derive cleanly (`Option`/`Rc`).
+#[derive(Clone, Default)]
 pub struct QueryOptions {
     /// Explicit `$name -> uri` bindings (`--name N=PATH`). When empty, names
     /// are auto-derived from each URI's filename stem.
@@ -47,6 +51,29 @@ pub struct QueryOptions {
     /// config + one side input renders with a banner, matching Python) but
     /// never iterates as the primary `.` input.
     pub side_inputs: Vec<SideInput>,
+    /// Opt the query in to live network probes (`--enable-probes`). When
+    /// `false`, every probe builtin raises the gating error. Threaded onto
+    /// [`EvalContext::probes_enabled`].
+    pub enable_probes: bool,
+    /// CA bundle path for TLS-aware probes (`--ca-bundle`). Threaded onto
+    /// [`EvalContext::ca_bundle`].
+    pub ca_bundle: Option<String>,
+    /// `ucs_cert` reader hook (the CLI injects a UCS-aware reader). Threaded
+    /// onto [`EvalContext::ucs_cert_reader`].
+    pub ucs_cert_reader: Option<crate::eval::UcsCertReader>,
+}
+
+impl std::fmt::Debug for QueryOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryOptions")
+            .field("names", &self.names)
+            .field("partitions", &self.partitions)
+            .field("side_inputs", &self.side_inputs)
+            .field("enable_probes", &self.enable_probes)
+            .field("ca_bundle", &self.ca_bundle)
+            .field("ucs_cert_reader", &self.ucs_cert_reader.is_some())
+            .finish()
+    }
 }
 
 /// One bound structured side-input — port of the runner's `input_specs` +
@@ -225,6 +252,9 @@ pub fn run_query(
                 merge_mode: false,
                 bindings: HashMap::new(),
                 edits: crate::edit_plan::EditPlan::new(),
+                probes_enabled: opts.enable_probes,
+                ca_bundle: opts.ca_bundle.clone(),
+                ucs_cert_reader: opts.ucs_cert_reader.clone(),
             };
             accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
 

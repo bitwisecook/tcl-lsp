@@ -212,6 +212,8 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         table,
         table_lineart,
         strict,
+        enable_probes,
+        ca_bundle,
         render_name,
         render_opt,
         ..
@@ -275,6 +277,10 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
             write: *write,
             in_place: *in_place,
             strict: *strict,
+        },
+        &commands::query::ProbeArgs {
+            enable_probes: *enable_probes,
+            ca_bundle: ca_bundle.clone(),
         },
     )
 }

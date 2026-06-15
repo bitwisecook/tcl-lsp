@@ -370,6 +370,17 @@ pub enum Command {
         /// Exit non-zero when a read-only query matched nothing.
         #[arg(long)]
         strict: bool,
+        /// Opt the query in to live network probes (the ping / portping /
+        /// traceroute / HTTP / socket / TLS-handshake builtins). Without this
+        /// flag those builtins raise rather than touching the network — keeps
+        /// the default invocation offline-safe.
+        #[arg(long = "enable-probes")]
+        enable_probes: bool,
+        /// CA bundle to trust for TLS-aware probes (the HTTP and TLS-handshake
+        /// builtins). Defaults to the platform trust store. Only used when a
+        /// query runs a TLS probe.
+        #[arg(long = "ca-bundle", value_name = "PATH")]
+        ca_bundle: Option<String>,
         /// Dispatch output through a renderer plugin (mermaid / gantt /
         /// ascii-blocks). Overrides the output-mode flags.
         #[arg(long = "render", short = 'R', value_name = "NAME")]

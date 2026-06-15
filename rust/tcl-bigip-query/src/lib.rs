@@ -43,6 +43,7 @@ pub mod jsonfmt;
 pub mod lexer;
 pub mod output;
 pub mod parser;
+pub mod probes;
 pub mod projection;
 pub mod renderers;
 pub mod rewrite;

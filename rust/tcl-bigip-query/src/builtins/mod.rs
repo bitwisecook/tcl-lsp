@@ -88,7 +88,7 @@ pub fn lookup(name: &str) -> Option<&'static BuiltinSpec> {
     REGISTRY.get_or_init(build_registry).get(name)
 }
 
-fn plain(
+pub(crate) fn plain(
     name: &'static str,
     category: &'static str,
     min_args: usize,
@@ -238,6 +238,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r.extend(encoding::registrations());
     r.extend(graph::registrations());
     r.extend(rename::registrations());
+    r.extend(crate::probes::registrations());
     r.extend(crate::special::registrations());
     r
 }

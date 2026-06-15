@@ -18,9 +18,11 @@
 //! `json_load` / `jsonl_load` / `csv_load` / `f5log_load` builtins load the
 //! same shapes ad-hoc.
 //!
-//! Deferred (cleanly rejected / ignored): `--merge` cross-file ref-walking,
-//! network probes, and the `--help-dsl` / `--help-builtins` / `--help-examples`
-//! actions. `cert_load` is deferred (the x509 parse lands with the probes).
+//! Deferred (cleanly rejected / ignored): `--merge` cross-file ref-walking
+//! and the `--help-dsl` / `--help-builtins` / `--help-examples` actions. Live
+//! network probes (`dns` / `ping` / `http` / `tls` / x509 + `cert_load`) land
+//! gated behind `--enable-probes`; `ucs_cert` is deferred (no UCS reader is
+//! wired — it raises the same "run it through the f5 CLI" deferral error).
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -460,6 +462,14 @@ pub struct QueryFlags {
     pub strict: bool,
 }
 
+/// The live-probe flags, mirroring `--enable-probes` / `--ca-bundle`. Threaded
+/// into the runner's [`EvalContext`] so the network builtins can gate on the
+/// `--enable-probes` opt-in and the TLS-aware probes can pick up a CA bundle.
+pub struct ProbeArgs {
+    pub enable_probes: bool,
+    pub ca_bundle: Option<String>,
+}
+
 /// The raw side-input flag groups, mirroring the `--input-*` / `--input`
 /// argparse args. Parsed + validated inside [`run_query_verb`] so the error
 /// wording / order matches `_run_query` exactly.
@@ -472,6 +482,10 @@ pub struct InputArgs<'a> {
 }
 
 /// `f5 query` (read-only).
+//
+// Mirrors `_run_query`'s argparse fan-out; the argument count and length track
+// the Python entry point one-for-one.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn run_query_verb(
     expression: Option<&str>,
     inputs: &[PathBuf],
@@ -480,6 +494,7 @@ pub fn run_query_verb(
     mode: &str,
     render_opts: &BTreeMap<String, String>,
     flags: QueryFlags,
+    probes: &ProbeArgs,
 ) -> anyhow::Result<u8> {
     // Mirror `_run_query`'s up-front validation order and messages.
     let Some(expression) = expression else {
@@ -592,6 +607,14 @@ pub fn run_query_verb(
         names: resolved_names,
         partitions: std::collections::HashMap::new(),
         side_inputs,
+        enable_probes: probes.enable_probes,
+        ca_bundle: probes.ca_bundle.clone(),
+        // `ucs_cert` re-opens a cert from inside a UCS, which means
+        // decrypting + un-tarring the archive — that lives in the `tooling`
+        // UCS layer and is deferred in this port. With no reader wired,
+        // `ucs_cert` raises the same clean "no UCS reader is wired" deferral
+        // error Python raises when `UCS_CERT_READER` is unset.
+        ucs_cert_reader: None,
     };
 
     let result = match run_query(expression, &sources, &query_opts) {
