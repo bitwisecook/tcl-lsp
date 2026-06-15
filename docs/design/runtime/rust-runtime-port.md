@@ -3079,6 +3079,46 @@ untouched. `set_ensemble_config` now uses a new `NamespaceArena::rebind_resolved
 path`) instead of `create_ensemble`. Found by Codex review on PR #607; verified
 vs `tclsh9.0`, namespace 238 held.
 
+### SYNC inbound — 2026-06-15 (`string` subcommand long-tail: dispatch, compare/case/trim/word, `tcl::prefix`)
+
+Chunk: the `string` ensemble's non-`string is` subcommands in
+`runtime/rust/src/cmd_string.rs`, written against `tclCmdMZ.c`
+(`Tcl_StringObjCmd` and friends), `tclStringObj.c`
+(`TclStringFirst`/`TclStringLast`), `tclObj.c` (`ParseBoolean`), `tclUtf.c`
+(`Tcl_UniCharIsWordChar`), and `tclIndexObj.c` (`PrefixMatchObjCmd`). `string is`
+itself (groups 6/25/32) was rebased onto the canonical `str_is` from PR #607;
+this work only **adds the list/dict fail-index** that #607's version left at the
+string length. `string.test` 564→684 / 705 across the full sequence; no
+regressions in the file.
+
+- **Subcommand dispatch** resolves by unambiguous prefix (`Tcl_GetIndexFromObj`),
+  so `string fir`/`string co` work and `string trim` still beats its
+  `trimleft`/`trimright` prefixes.
+- **`compare`/`equal`**: enforce the 4..=7 arg bound, prefix-match
+  `-nocase`/`-length`, and read `-length` as a wide int (negative ⇒ "no limit",
+  bignum ⇒ "integer value too large to represent").
+- **`first`/`last`**: empty needle ⇒ -1; `last`'s index caps the match's final
+  character (latest start = `lastIndex + 1 - needleLen`).
+- **`map`/`match`**: `-nocase` by ≥2-char prefix, else `bad option … must be
+  -nocase`.
+- **`toupper`/`tolower`/`totitle`**: simple (1:1) Unicode case mapping, a lone
+  index maps just that character, and the four Latin digraphs title-case to their
+  mixed-case form.
+- **`trim`/`trimleft`/`trimright`**: character-based with Tcl's full default
+  whitespace set (`tclDefaultTrimSet`) and per-command usage strings.
+- **word chars** (`wordstart`/`wordend`, `string is wordchar`) include connector
+  punctuation (Unicode `Pc`).
+- **`tcl::prefix`** validates option values ("missing value for -error/-message",
+  even-length `-error` list), surfaces the full Tcl list-parse error (with the
+  offending fragment) for bad tables, computes `longest` per character, and
+  registers `::tcl::string::reverse`.
+- **`string is list`/`dict`** now report the character index where list parsing
+  fails (an odd-but-valid dict reports -1), improving #607's `class_check`.
+
+Out of scope here (blocked elsewhere): bignum `string index` arithmetic
+(`cmd_list::index_spec`), surrogate `\u` distinctness (lexer collapses to
+U+FFFD), and `tcl::prefix -error` return options (interp return-options).
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
