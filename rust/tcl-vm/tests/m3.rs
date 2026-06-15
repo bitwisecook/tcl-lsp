@@ -189,6 +189,15 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn linsert_lreplace_inline() {
+    out_eq("puts [linsert {a c} 1 b]\n", "a b c\n");
+    out_eq("puts [linsert {a b} end c]\n", "a b c\n");
+    out_eq("puts [lreplace {a b c d} 1 2 X]\n", "a X d\n");
+    out_eq("puts [lreplace {a b c} 1 1]\n", "a c\n");
+    out_eq("puts [linsert {1 2 3} 0 0]\n", "0 1 2 3\n");
+}
+
+#[test]
 fn format_command() {
     out_eq("puts [format %05d 42]\n", "00042\n");
     out_eq("puts [format \"%d-%s\" 5 hi]\n", "5-hi\n");

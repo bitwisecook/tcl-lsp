@@ -664,6 +664,53 @@ impl Vm {
                     (Err(e), _) | (_, Err(e)) => return Tick::Return(err(e.message)),
                 }
             }
+            // Inline `lreplace`/`linsert` (C Tcl `INST_LREPLACE4`). Operands:
+            // [argc, mode] where mode 1 = lreplace, 2 = linsert. Stack holds
+            // `argc` values in push order: list, index arg(s), then elements.
+            Op::LREPLACE4 => {
+                let argc = usize::try_from(imm0(instr)).unwrap_or(0);
+                let mode = imm_at(instr, 1);
+                let take = f.stack.len().saturating_sub(argc);
+                let vals: Vec<Value> = f.stack.split_off(take);
+                let result = match vals.split_first() {
+                    None => Vec::new(),
+                    Some((list_v, _)) => {
+                        let items = match list_v.as_list() {
+                            Ok(l) => (*l).clone(),
+                            Err(e) => return Tick::Return(err(e.message)),
+                        };
+                        let n = items.len();
+                        let nlen = isize::try_from(n).unwrap_or(isize::MAX);
+                        if mode == 1 {
+                            // lreplace: list first last ?elem ...?
+                            let first = vals.get(1).map_or(0, |v| imm_index_value(v, n)).max(0);
+                            let last = vals.get(2).map_or(-1, |v| imm_index_value(v, n));
+                            let new_elems = vals.get(3..).unwrap_or(&[]);
+                            let fu = usize::try_from(first).unwrap_or(0).min(n);
+                            let mut r = items[..fu].to_vec();
+                            r.extend_from_slice(new_elems);
+                            if last >= first {
+                                let last = last.min(nlen - 1);
+                                let lu = usize::try_from(last + 1).unwrap_or(n).min(n);
+                                r.extend_from_slice(&items[lu..]);
+                            } else {
+                                r.extend_from_slice(&items[fu..]);
+                            }
+                            r
+                        } else {
+                            // linsert: list index ?elem ...? ("end" → after last).
+                            let idx = vals.get(1).map_or(0, |v| imm_index_value(v, n + 1));
+                            let idx = usize::try_from(idx.max(0)).unwrap_or(0).min(n);
+                            let new_elems = vals.get(2..).unwrap_or(&[]);
+                            let mut r = items[..idx].to_vec();
+                            r.extend_from_slice(new_elems);
+                            r.extend_from_slice(&items[idx..]);
+                            r
+                        }
+                    }
+                };
+                f.stack.push(Value::list(result));
+            }
 
             // -- foreach (C Tcl INST_FOREACH_*): aux var groups on the
             //    instruction; foreach_start jumps to step; step binds the loop
