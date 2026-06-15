@@ -9,14 +9,15 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 indexmap = "2"
 ipnet = "2"
 libm = "0.2"
 regex = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 
 [dev-dependencies]
-serde_json = { version = "1", features = ["preserve_order"] }
 temp-env = "0.3"
 
 [lints]
