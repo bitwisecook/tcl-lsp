@@ -61,6 +61,10 @@ members = [
 ]
 exclude = [
     "editors/zed",
+    # The compiler-explorer WASM facade is a cdylib for wasm32-unknown-unknown;
+    # wasm-bindgen's generated glue needs `unsafe`, which the workspace
+    # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.
+    "rust/tcl-explorer-wasm",
     # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it
