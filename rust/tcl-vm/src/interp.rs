@@ -1,7 +1,7 @@
 //! The interpreter state (`Vm`): the call-frame stack, the command table, the
 //! compiled-proc registry, and the variable/command/eval surface.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{self, Write};
 use std::rc::Rc;
 
@@ -115,6 +115,51 @@ impl Vm {
         }
     }
 
+    /// All registered command names (for `info commands`).
+    pub(crate) fn command_names(&self) -> Vec<String> {
+        self.commands.keys().cloned().collect()
+    }
+
+    /// The `ProcDef` for a user proc, if `name` resolves to one (`info body`/`args`).
+    pub(crate) fn proc_def(&self, name: &str) -> Option<Rc<crate::command::ProcDef>> {
+        match self.lookup_command(name) {
+            Some(Command::Proc(p)) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// User-proc names (for `info procs`).
+    pub(crate) fn proc_names(&self) -> Vec<String> {
+        self.commands
+            .iter()
+            .filter(|(_, c)| matches!(c, Command::Proc(_)))
+            .map(|(n, _)| n.clone())
+            .collect()
+    }
+
+    /// The invocation argv of the frame at absolute `level` (`info level N`).
+    pub(crate) fn frame_argv(&self, level: usize) -> Option<Vec<Value>> {
+        self.frames.get(level).map(|f| f.call_argv.clone())
+    }
+
+    /// Scalar variable names visible in the current frame (`info vars`/`locals`).
+    pub(crate) fn local_scalar_names(&self) -> Vec<String> {
+        self.frames.last().map_or_else(Vec::new, |f| {
+            f.locals
+                .iter()
+                .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+                .map(|(n, _)| n.clone())
+                .collect()
+        })
+    }
+
+    /// Global variable names (`info globals`).
+    pub(crate) fn global_names(&self) -> Vec<String> {
+        self.frames
+            .first()
+            .map_or_else(Vec::new, |f| f.locals.keys().cloned().collect())
+    }
+
     /// Set a local directly in the current frame (proc argument binding).
     pub(crate) fn set_local(&mut self, name: &str, value: Value) {
         if let Some(f) = self.frames.last_mut() {
@@ -189,6 +234,78 @@ impl Vm {
         self.frames
             .get(lvl)
             .is_some_and(|f| matches!(f.locals.get(&nm), Some(Local::Scalar(_))))
+    }
+
+    /// Whether a scalar or array variable named `name` exists (`info exists`).
+    pub(crate) fn has_var(&self, name: &str) -> bool {
+        let (lvl, nm) = self.locate(name);
+        matches!(
+            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
+            Some(Local::Scalar(_) | Local::Array(_))
+        )
+    }
+
+    // -- arrays (link-aware via `locate`) --
+
+    pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
+        let (lvl, nm) = self.locate(name);
+        match self.frames.get(lvl)?.locals.get(&nm) {
+            Some(Local::Array(m)) => m.get(key).cloned(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn set_array_elem(
+        &mut self,
+        name: &str,
+        key: &str,
+        value: Value,
+    ) -> Result<(), String> {
+        let (lvl, nm) = self.locate(name);
+        let frame = self
+            .frames
+            .get_mut(lvl)
+            .expect("locate returns a valid level");
+        match frame.locals.get_mut(&nm) {
+            Some(Local::Array(m)) => {
+                m.insert(key.to_owned(), value);
+                Ok(())
+            }
+            Some(Local::Scalar(_)) => {
+                Err(format!("can't set \"{name}({key})\": variable isn't array"))
+            }
+            Some(Local::Link { .. }) => unreachable!("locate resolves links"),
+            None => {
+                let mut m = BTreeMap::new();
+                m.insert(key.to_owned(), value);
+                frame.locals.insert(nm, Local::Array(m));
+                Ok(())
+            }
+        }
+    }
+
+    pub(crate) fn array_is(&self, name: &str) -> bool {
+        let (lvl, nm) = self.locate(name);
+        matches!(
+            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
+            Some(Local::Array(_))
+        )
+    }
+
+    pub(crate) fn array_pairs(&self, name: &str) -> Vec<(String, Value)> {
+        let (lvl, nm) = self.locate(name);
+        match self.frames.get(lvl).and_then(|f| f.locals.get(&nm)) {
+            Some(Local::Array(m)) => m.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub(crate) fn array_unset_elem(&mut self, name: &str, key: &str) {
+        let (lvl, nm) = self.locate(name);
+        if let Some(Local::Array(m)) = self.frames.get_mut(lvl).and_then(|f| f.locals.get_mut(&nm))
+        {
+            m.remove(key);
+        }
     }
 
     /// Publish `errorInfo` / `errorCode` into the global frame.

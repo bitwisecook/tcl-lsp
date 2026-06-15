@@ -1,0 +1,132 @@
+//! The `info` ensemble — introspection over the retained frame/proc metadata.
+//!
+//! Implemented against the data M2 deliberately kept (per-frame proc name +
+//! invocation argv, `ProcDef.body_src`/`params`, the command table) so the
+//! answers are correct rather than faked — the subsystem the WASM work found
+//! painful when that metadata was missing.
+
+use tcl_runtime_api::Completion;
+use tcl_syntax::glob::string_match;
+
+use crate::interp::{Vm, err, ok};
+use crate::value::Value;
+
+pub(crate) fn register(vm: &mut Vm) {
+    vm.register("info", cmd_info);
+}
+
+fn ilen(n: usize) -> i64 {
+    i64::try_from(n).unwrap_or(i64::MAX)
+}
+
+/// Filter + sort names by an optional glob pattern.
+fn filtered(mut names: Vec<String>, pat: Option<&str>) -> Value {
+    names.retain(|n| pat.is_none_or(|p| string_match(p, n)));
+    names.sort();
+    Value::list(names.into_iter().map(Value::string).collect())
+}
+
+/// Split `arr(key)` into base + key; `None` if not an element reference.
+fn array_ref(name: &str) -> Option<(&str, &str)> {
+    let open = name.find('(')?;
+    if name.ends_with(')') && open > 0 {
+        Some((&name[..open], &name[open + 1..name.len() - 1]))
+    } else {
+        None
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((sub, rest)) = args.split_first() else {
+        return err("wrong # args: should be \"info subcommand ?arg ...?\"");
+    };
+    match &*sub.to_str() {
+        "exists" => match rest {
+            [name] => {
+                let n = name.to_str();
+                let exists = if let Some((base, key)) = array_ref(&n) {
+                    vm.get_array_elem(base, key).is_some()
+                } else {
+                    vm.has_var(&n)
+                };
+                ok(Value::bool(exists))
+            }
+            _ => err("wrong # args: should be \"info exists varName\""),
+        },
+        "level" => match rest {
+            [] => ok(Value::int(ilen(vm.current_level()))),
+            [n] => match n.as_int() {
+                Ok(lvl) if lvl >= 0 => match vm.frame_argv(usize::try_from(lvl).unwrap_or(0)) {
+                    Some(av) => ok(Value::list(av)),
+                    None => err(format!("bad level \"{}\"", n.to_str())),
+                },
+                _ => err(format!("bad level \"{}\"", n.to_str())),
+            },
+            _ => err("wrong # args: should be \"info level ?number?\""),
+        },
+        "commands" => ok(filtered(
+            vm.command_names(),
+            rest.first().map(Value::to_str).as_deref(),
+        )),
+        "procs" => ok(filtered(
+            vm.proc_names(),
+            rest.first().map(Value::to_str).as_deref(),
+        )),
+        "vars" | "locals" => ok(filtered(
+            vm.local_scalar_names(),
+            rest.first().map(Value::to_str).as_deref(),
+        )),
+        "globals" => ok(filtered(
+            vm.global_names(),
+            rest.first().map(Value::to_str).as_deref(),
+        )),
+        "body" => match rest {
+            [name] => match vm.proc_def(&name.to_str()) {
+                Some(p) => ok(p.body_src.clone()),
+                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            },
+            _ => err("wrong # args: should be \"info body procname\""),
+        },
+        "args" => match rest {
+            [name] => match vm.proc_def(&name.to_str()) {
+                Some(p) => ok(Value::list(
+                    p.params
+                        .iter()
+                        .map(|pp| Value::string(pp.name.as_str()))
+                        .collect(),
+                )),
+                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            },
+            _ => err("wrong # args: should be \"info args procname\""),
+        },
+        "default" => match rest {
+            [name, arg, var] => match vm.proc_def(&name.to_str()) {
+                Some(p) => {
+                    let an = arg.to_str();
+                    match p.params.iter().find(|pp| pp.name == *an) {
+                        Some(pp) => {
+                            if let Some(d) = &pp.default {
+                                vm.set_var(&var.to_str(), d.clone());
+                                ok(Value::bool(true))
+                            } else {
+                                vm.set_var(&var.to_str(), Value::empty());
+                                ok(Value::bool(false))
+                            }
+                        }
+                        None => err(format!(
+                            "procedure \"{}\" doesn't have an argument \"{an}\"",
+                            name.to_str()
+                        )),
+                    }
+                }
+                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            },
+            _ => err("wrong # args: should be \"info default procname arg varname\""),
+        },
+        "tclversion" => ok(Value::string("9.0")),
+        "patchlevel" => ok(Value::string("9.0.0")),
+        "nameofexecutable" | "script" => ok(Value::empty()),
+        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+    }
+}

@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use tcl_bytecode::{FunctionAsm, Instruction, ModuleAsm, Op, Operand};
+use tcl_bytecode::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
@@ -88,6 +88,49 @@ fn label0(instr: &Instruction) -> Option<&str> {
 
 fn pop(f: &mut Frame) -> Value {
     f.stack.pop().unwrap_or_else(Value::empty)
+}
+
+fn ilen(n: usize) -> i64 {
+    i64::try_from(n).unwrap_or(i64::MAX)
+}
+
+/// Resolve a bytecode-immediate index (`N`, or `end`-relative encoded relative
+/// to `INDEX_END`) against a length, mirroring `format.rs`'s decode.
+fn imm_index(imm: i32, len: usize) -> isize {
+    let n = isize::try_from(len).unwrap_or(isize::MAX);
+    if imm <= INDEX_END {
+        (n - 1) + (imm as isize - INDEX_END as isize)
+    } else {
+        imm as isize
+    }
+}
+
+/// Resolve a runtime index value (`N`/`end`/`end-N`) against a length.
+fn imm_index_value(v: &Value, len: usize) -> isize {
+    crate::command::resolve_index(&v.to_str(), len).unwrap_or(-1)
+}
+
+/// List element at signed index, or empty when out of range.
+fn get_at(items: &[Value], i: isize) -> Value {
+    usize::try_from(i)
+        .ok()
+        .and_then(|x| items.get(x))
+        .cloned()
+        .unwrap_or_else(Value::empty)
+}
+
+/// Sublist `[lo..=hi]` clamped to bounds; empty when the range is empty.
+fn slice(items: &[Value], lo: isize, hi: isize) -> Value {
+    let len = isize::try_from(items.len()).unwrap_or(isize::MAX);
+    if hi < 0 || lo >= len {
+        return Value::list(Vec::new());
+    }
+    let lo = usize::try_from(lo.max(0)).unwrap_or(0);
+    let hi = usize::try_from(hi.min(len - 1)).unwrap_or(0);
+    if lo > hi {
+        return Value::list(Vec::new());
+    }
+    Value::list(items[lo..=hi].to_vec())
 }
 
 fn code_from_int(n: i32) -> Code {
@@ -402,6 +445,124 @@ impl Vm {
             Op::INCR_SCALAR1_IMM => {
                 let name = lvt_name(imm0(instr));
                 try_op!(self.incr_var(f, &name, i64::from(imm_at(instr, 1))));
+            }
+
+            // -- arrays --
+            Op::LOAD_ARRAY_STK => {
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                match self.get_array_elem(&name, &key) {
+                    Some(v) => f.stack.push(v),
+                    None => {
+                        return Tick::Return(err(format!(
+                            "can't read \"{name}({key})\": no such element in array"
+                        )));
+                    }
+                }
+            }
+            Op::STORE_ARRAY_STK => {
+                let value = pop(f);
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                if let Err(e) = self.set_array_elem(&name, &key, value.clone()) {
+                    return Tick::Return(err(e));
+                }
+                f.stack.push(value);
+            }
+            Op::LOAD_ARRAY1 => {
+                let name = lvt_name(imm0(instr));
+                let key = pop(f).to_str();
+                match self.get_array_elem(&name, &key) {
+                    Some(v) => f.stack.push(v),
+                    None => {
+                        return Tick::Return(err(format!(
+                            "can't read \"{name}({key})\": no such element in array"
+                        )));
+                    }
+                }
+            }
+            Op::STORE_ARRAY1 => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let key = pop(f).to_str();
+                if let Err(e) = self.set_array_elem(&name, &key, value.clone()) {
+                    return Tick::Return(err(e));
+                }
+                f.stack.push(value);
+            }
+            Op::ARRAY_EXISTS_IMM => {
+                let name = lvt_name(imm0(instr));
+                f.stack.push(Value::bool(self.array_is(&name)));
+            }
+
+            // -- lists (inline opcodes) --
+            Op::LIST => {
+                let n = usize::try_from(imm0(instr)).unwrap_or(0);
+                if f.stack.len() < n {
+                    return Tick::Return(err("list: stack underflow"));
+                }
+                let items = f.stack.split_off(f.stack.len() - n);
+                f.stack.push(Value::list(items));
+            }
+            Op::LIST_LENGTH => {
+                let l = pop(f);
+                match l.as_list() {
+                    Ok(items) => f.stack.push(Value::int(ilen(items.len()))),
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
+            }
+            Op::LIST_INDEX => {
+                let idx = pop(f);
+                let l = pop(f);
+                let items = match l.as_list() {
+                    Ok(i) => i,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let i = imm_index_value(&idx, items.len());
+                f.stack.push(get_at(&items, i));
+            }
+            Op::LIST_INDEX_IMM => {
+                let l = pop(f);
+                let items = match l.as_list() {
+                    Ok(i) => i,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let i = imm_index(imm0(instr), items.len());
+                f.stack.push(get_at(&items, i));
+            }
+            Op::LIST_RANGE_IMM => {
+                let l = pop(f);
+                let items = match l.as_list() {
+                    Ok(i) => i,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let lo = imm_index(imm0(instr), items.len()).max(0);
+                let hi = imm_index(imm_at(instr, 1), items.len());
+                f.stack.push(slice(&items, lo, hi));
+            }
+            Op::LIST_CONCAT => {
+                let b = pop(f);
+                let a = pop(f);
+                match (a.as_list(), b.as_list()) {
+                    (Ok(ai), Ok(bi)) => {
+                        let mut v = (*ai).clone();
+                        v.extend(bi.iter().cloned());
+                        f.stack.push(Value::list(v));
+                    }
+                    (Err(e), _) | (_, Err(e)) => return Tick::Return(err(e.message)),
+                }
+            }
+
+            // -- dict validation: consumes the (dup'd) TOS, validates even length --
+            Op::VERIFY_DICT => {
+                let top = pop(f);
+                match top.as_list() {
+                    Ok(items) if items.len() % 2 == 0 => {}
+                    Ok(_) => {
+                        return Tick::Return(err("missing value to go with key"));
+                    }
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
             }
 
             // -- arithmetic / bitwise / shift --

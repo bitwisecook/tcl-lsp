@@ -5,16 +5,20 @@
 //! `upvar`/`global`/`variable` alias). Name resolution follows links to the
 //! owning frame, mirroring `tooling/vm/scope.py::CallFrame._resolve`.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use tcl_runtime_api::NsId;
 
 use crate::value::Value;
 
-/// A variable cell in a frame: a scalar, or a link to another frame's variable.
+/// A variable cell in a frame: a scalar, an array, or a link to another frame's
+/// variable.
 pub(crate) enum Local {
     /// A scalar value owned by this frame.
     Scalar(Value),
+    /// An associative array (element key → value). `BTreeMap` gives a
+    /// deterministic `array names`/`array get` order.
+    Array(BTreeMap<String, Value>),
     /// An alias to `name` in frame `level` (`upvar`/`global`/`variable`).
     Link {
         /// Target frame level.

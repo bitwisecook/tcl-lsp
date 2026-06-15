@@ -15,6 +15,11 @@
 pub mod error;
 pub mod value;
 
+mod cmd_array;
+mod cmd_dict;
+mod cmd_info;
+mod cmd_list;
+mod cmd_string;
 mod command;
 mod exec;
 mod expr;

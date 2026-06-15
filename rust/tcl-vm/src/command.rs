@@ -65,6 +65,11 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("global", cmd_global);
     vm.register("upvar", cmd_upvar);
     vm.register("variable", cmd_variable);
+    crate::cmd_array::register(vm);
+    crate::cmd_list::register(vm);
+    crate::cmd_string::register(vm);
+    crate::cmd_dict::register(vm);
+    crate::cmd_info::register(vm);
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -142,6 +147,23 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => ok(v),
         Err(e) => err(e.message),
     }
+}
+
+/// Resolve a Tcl index spec (`N`, `end`, `end-N`, `end+N`) against a length.
+/// Returns a possibly out-of-range signed index; callers clamp/empty as needed.
+pub(crate) fn resolve_index(spec: &str, len: usize) -> Option<isize> {
+    let s = spec.trim();
+    let n = isize::try_from(len).unwrap_or(isize::MAX);
+    if s == "end" {
+        return Some(n - 1);
+    }
+    if let Some(rest) = s.strip_prefix("end-") {
+        return rest.trim().parse::<isize>().ok().map(|k| n - 1 - k);
+    }
+    if let Some(rest) = s.strip_prefix("end+") {
+        return rest.trim().parse::<isize>().ok().map(|k| n - 1 + k);
+    }
+    s.parse::<isize>().ok()
 }
 
 /// Parse a proc parameter spec (`"a b {c 1} args"`) into params + `has_args`.
