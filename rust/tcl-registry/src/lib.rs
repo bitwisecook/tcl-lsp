@@ -84,6 +84,7 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use cache::registry_for_dialect;
+pub use dialects::{KNOWN_DIALECTS, available_dialects};
 pub use hover::ArgValue;
 pub use patterns::{FormatType, PatternType};
 pub use registry::{CommandRegistry, ResolvedTerminator};

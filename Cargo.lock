@@ -1893,6 +1893,8 @@ dependencies = [
 name = "tcl-explorer"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "tcl-compiler",
  "tcl-lexer",
  "tcl-registry",

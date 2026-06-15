@@ -14,6 +14,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod serialise;
+pub mod views;
+
+pub use serialise::{serialise_meta, serialise_result};
+
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_registry::registry_for_dialect;
 
