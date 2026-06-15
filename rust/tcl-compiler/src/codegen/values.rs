@@ -21,6 +21,21 @@ impl CodegenCtx<'_> {
         );
     }
 
+    /// Push a *verbatim* literal — a braced / constant word that the VM must
+    /// push exactly as-is, suppressing runtime word substitution. The literal
+    /// bytes are identical to [`push_lit`]; only the out-of-band
+    /// `push_verbatim` flag differs, so disassembly stays byte-stable.
+    pub fn push_lit_verbatim(&mut self, value: &str) {
+        let idx = self.literals.intern(value);
+        let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
+        let pos = self.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(idx))],
+            &format!("\"{}\"", esc(value, 40)),
+        );
+        self.instructions[pos].push_verbatim = true;
+    }
+
     /// Push a literal using a fresh slot (no deduplication).
     pub fn push_lit_no_dedup(&mut self, value: &str) {
         let idx = self.literals.register(value);

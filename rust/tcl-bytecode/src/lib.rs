@@ -725,6 +725,14 @@ pub struct Instruction {
     /// stack before the opcode. Not rendered in disassembly (keeps identity
     /// stable).
     pub foreach_vars: Option<Vec<Vec<String>>>,
+    /// `PUSH1`/`PUSH4` only: the literal is a *verbatim* (braced / constant)
+    /// word and must be pushed exactly as-is, suppressing the runtime word
+    /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
+    /// (see `tcl-vm::subst::subst_word`). This is the Rust analogue of the
+    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling, carried out-of-band
+    /// so the literal pool and disassembly stay byte-identical (keeps identity
+    /// stable).
+    pub push_verbatim: bool,
 }
 
 impl Instruction {
@@ -741,6 +749,7 @@ impl Instruction {
             source_line: 0,
             source_cmd_text: String::new(),
             foreach_vars: None,
+            push_verbatim: false,
         }
     }
 }

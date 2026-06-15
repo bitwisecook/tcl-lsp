@@ -228,3 +228,30 @@ fn info_default() {
         "99\n",
     );
 }
+
+#[test]
+fn proc_body_command_subst() {
+    // A proc body is a braced literal: its `[...]` must NOT be substituted at
+    // definition time — it runs per-call, against the proc's locals.
+    out_eq(
+        "proc f {s} { return [string length $s] }\nputs [f hello]\n",
+        "5\n",
+    );
+    out_eq(
+        "proc f {l} { return [lindex $l 1] }\nputs [f {a b c}]\n",
+        "b\n",
+    );
+}
+
+#[test]
+fn braced_literal_not_substituted() {
+    out_eq("set x {a [b] $c}\nputs $x\n", "a [b] $c\n");
+}
+
+#[test]
+fn catch_body_suppressed_until_eval() {
+    out_eq(
+        "set rc [catch { error boom } msg]\nputs \"$rc $msg\"\n",
+        "1 boom\n",
+    );
+}

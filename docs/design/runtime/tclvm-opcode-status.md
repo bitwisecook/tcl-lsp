@@ -13,7 +13,7 @@
   **not yet executed** by the VM.
 - `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
   matching the C Tcl mnemonic/operands).
-Status (auto-countable): **76 executed · 61 enum-only · 54 missing · 191 total**.
+Status (auto-countable): **94 executed · 43 enum-only · 54 missing · 191 total**.
 Keep this in sync when adding opcodes — update the row and the count.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
@@ -87,10 +87,10 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [~] `pushReturnCode`
 - [x] `streq`
 - [x] `strneq`
-- [~] `strcmp`
-- [~] `strlen`
-- [~] `strindex`
-- [~] `strmatch`
+- [x] `strcmp`
+- [x] `strlen`
+- [x] `strindex`
+- [x] `strmatch`
 - [x] `list`
 - [x] `listIndex`
 - [x] `listLength`
@@ -155,10 +155,10 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [~] `dictExists`
 - [x] `verifyDict`
 - [~] `strmap`
-- [~] `strfind`
-- [~] `strrfind`
-- [~] `strrangeImm`
-- [~] `strrange`
+- [x] `strfind`
+- [x] `strrfind`
+- [x] `strrangeImm`
+- [x] `strrange`
 - [ ] `yield`
 - [ ] `coroName`
 - [~] `tailcall`
@@ -181,13 +181,13 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `foreach_step`
 - [x] `foreach_end`
 - [ ] `lmap_collect`
-- [~] `strtrim`
-- [~] `strtrimLeft`
-- [~] `strtrimRight`
+- [x] `strtrim`
+- [x] `strtrimLeft`
+- [x] `strtrimRight`
 - [~] `concatStk`
-- [~] `strcaseUpper`
-- [~] `strcaseLower`
-- [~] `strcaseTitle`
+- [x] `strcaseUpper`
+- [x] `strcaseLower`
+- [x] `strcaseTitle`
 - [~] `strreplace`
 - [ ] `originCmd`
 - [ ] `tclooNext`
@@ -202,10 +202,10 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [~] `lappendListStk`
 - [ ] `clockRead`
 - [ ] `dictGetDef`
-- [~] `strlt`
-- [~] `strgt`
-- [~] `strle`
-- [~] `strge`
+- [x] `strlt`
+- [x] `strgt`
+- [x] `strle`
+- [x] `strge`
 - [~] `lreplace4`
 - [ ] `constImm`
 - [ ] `constStk`

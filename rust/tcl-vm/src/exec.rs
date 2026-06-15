@@ -173,6 +173,32 @@ fn slice(items: &[Value], lo: isize, hi: isize) -> Value {
     Value::list(items[lo..=hi].to_vec())
 }
 
+/// Character substring `[lo..=hi]` (clamped), empty when the range is empty.
+fn char_range(chars: &[char], lo: isize, hi: isize) -> Value {
+    let len = isize::try_from(chars.len()).unwrap_or(isize::MAX);
+    if hi < 0 || lo >= len {
+        return Value::string("");
+    }
+    let lo = usize::try_from(lo.max(0)).unwrap_or(0);
+    let hi = usize::try_from(hi.min(len - 1)).unwrap_or(0);
+    if lo > hi {
+        return Value::string("");
+    }
+    Value::string(chars[lo..=hi].iter().collect::<String>())
+}
+
+/// Character index of `needle` in `hay` (`string first`/`last`), or -1.
+fn char_find(hay: &str, needle: &str, last: bool) -> i64 {
+    let byte = if last {
+        hay.rfind(needle)
+    } else {
+        hay.find(needle)
+    };
+    byte.map_or(-1, |b| {
+        i64::try_from(hay[..b].chars().count()).unwrap_or(-1)
+    })
+}
+
 fn code_from_int(n: i32) -> Code {
     match n {
         1 => Code::Error,
@@ -389,9 +415,17 @@ impl Vm {
                     .and_then(|idx| lits.get(idx))
                     .cloned()
                     .unwrap_or_default();
-                match crate::subst::subst_word(&raw, self) {
-                    Ok(v) => f.stack.push(v),
-                    Err(e) => return Tick::Return(err(e.message)),
+                // A verbatim (braced / constant) literal suppresses all word
+                // substitution — it is pushed exactly as the codegen interned
+                // it (the codegen sets this flag for braced words / `proc`
+                // bodies / constant assignments).
+                if instr.push_verbatim {
+                    f.stack.push(Value::string(raw));
+                } else {
+                    match crate::subst::subst_word(&raw, self) {
+                        Ok(v) => f.stack.push(v),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    }
                 }
             }
             Op::POP => {
@@ -716,6 +750,115 @@ impl Vm {
             Op::GE => try_op!(cmp(f, BinOp::Ge)),
             Op::STR_EQ => try_op!(cmp(f, BinOp::StrEq)),
             Op::STR_NEQ => try_op!(cmp(f, BinOp::StrNe)),
+            Op::STR_LT => try_op!(cmp(f, BinOp::StrLt)),
+            Op::STR_GT => try_op!(cmp(f, BinOp::StrGt)),
+            Op::STR_LE => try_op!(cmp(f, BinOp::StrLe)),
+            Op::STR_GE => try_op!(cmp(f, BinOp::StrGe)),
+            Op::STR_CMP => {
+                let b = pop(f);
+                let a = pop(f);
+                let ord = (*a.to_str()).cmp(&b.to_str());
+                f.stack.push(Value::int(match ord {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                }));
+            }
+
+            // -- string ops (inline; char-based, mirroring the reference VM) --
+            Op::STR_LEN => {
+                let s = pop(f).to_str();
+                f.stack.push(Value::int(ilen(s.chars().count())));
+            }
+            Op::STR_INDEX => {
+                let idx = pop(f);
+                let s = pop(f).to_str();
+                let chars: Vec<char> = s.chars().collect();
+                let v = crate::command::resolve_index(&idx.to_str(), chars.len())
+                    .and_then(|i| usize::try_from(i).ok())
+                    .and_then(|i| chars.get(i))
+                    .map_or_else(Value::empty, |c| Value::string(c.to_string()));
+                f.stack.push(v);
+            }
+            Op::STR_RANGE => {
+                let to = pop(f);
+                let from = pop(f);
+                let s = pop(f).to_str();
+                let chars: Vec<char> = s.chars().collect();
+                let lo = crate::command::resolve_index(&from.to_str(), chars.len()).unwrap_or(0);
+                let hi = crate::command::resolve_index(&to.to_str(), chars.len()).unwrap_or(-1);
+                f.stack.push(char_range(&chars, lo, hi));
+            }
+            Op::STR_RANGE_IMM => {
+                let s = pop(f).to_str();
+                let chars: Vec<char> = s.chars().collect();
+                let lo = imm_index(imm0(instr), chars.len());
+                let hi = imm_index(imm_at(instr, 1), chars.len());
+                f.stack.push(char_range(&chars, lo, hi));
+            }
+            Op::STR_FIND => {
+                let s = pop(f).to_str();
+                let needle = pop(f).to_str();
+                f.stack.push(Value::int(char_find(&s, &needle, false)));
+            }
+            Op::STR_RFIND => {
+                let s = pop(f).to_str();
+                let needle = pop(f).to_str();
+                f.stack.push(Value::int(char_find(&s, &needle, true)));
+            }
+            Op::STR_MATCH => {
+                let s = pop(f).to_str();
+                let pat = pop(f).to_str();
+                let nocase = imm0(instr) != 0;
+                f.stack
+                    .push(Value::bool(tcl_syntax::glob::string_case_match(
+                        &pat, &s, nocase,
+                    )));
+            }
+            Op::STR_UPPER => {
+                let s = pop(f).to_str();
+                f.stack.push(Value::string(s.to_uppercase()));
+            }
+            Op::STR_LOWER => {
+                let s = pop(f).to_str();
+                f.stack.push(Value::string(s.to_lowercase()));
+            }
+            Op::STR_TITLE => {
+                let s = pop(f).to_str();
+                let mut out = String::with_capacity(s.len());
+                for (i, c) in s.chars().enumerate() {
+                    if i == 0 {
+                        out.extend(c.to_uppercase());
+                    } else {
+                        out.extend(c.to_lowercase());
+                    }
+                }
+                f.stack.push(Value::string(out));
+            }
+            Op::STR_REVERSE => {
+                let s = pop(f).to_str();
+                f.stack
+                    .push(Value::string(s.chars().rev().collect::<String>()));
+            }
+            Op::STR_REPEAT => {
+                let count = pop(f);
+                let s = pop(f).to_str();
+                let n = count.as_int().unwrap_or(0).max(0);
+                f.stack
+                    .push(Value::string(s.repeat(usize::try_from(n).unwrap_or(0))));
+            }
+            Op::STR_TRIM | Op::STR_TRIM_LEFT | Op::STR_TRIM_RIGHT => {
+                let chars = pop(f).to_str();
+                let s = pop(f).to_str();
+                let set: Vec<char> = chars.chars().collect();
+                let pred = |c: char| set.contains(&c);
+                let out = match instr.op {
+                    Op::STR_TRIM => s.trim_matches(pred),
+                    Op::STR_TRIM_LEFT => s.trim_start_matches(pred),
+                    _ => s.trim_end_matches(pred),
+                };
+                f.stack.push(Value::string(out));
+            }
 
             // -- numeric/boolean coercion checks (expr result validation) --
             Op::TRY_CVT_TO_NUMERIC => {

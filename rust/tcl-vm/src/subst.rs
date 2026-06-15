@@ -44,6 +44,46 @@ fn command_end(b: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+/// If `word` is a single balanced brace group spanning the whole word
+/// (`{` … matching `}` at the final byte), return the inner slice. A braced
+/// literal suppresses *all* substitution, so the codegen marks such words by
+/// keeping their outer `{...}` braces (see `emit_one_proc_def` /
+/// `emit_cmd_subst_arg`); the runtime strips them here and returns the content
+/// verbatim, mirroring the reference VM's `PUSH` handling.
+fn whole_braced(word: &str) -> Option<&str> {
+    let b = word.as_bytes();
+    let n = b.len();
+    if n < 2 || b[0] != b'{' || b[n - 1] != b'}' {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut i = 0usize;
+    while i < n {
+        match b[i] {
+            b'\\' => {
+                i += 2;
+                continue;
+            }
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                // A premature return to depth 0 means the leading `{` does not
+                // match the trailing `}`, so this is not a whole-word literal.
+                if depth == 0 && i != n - 1 {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    if depth == 0 {
+        Some(&word[1..n - 1])
+    } else {
+        None
+    }
+}
+
 fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
     vm.get_var(name)
         .ok_or_else(|| TclError::new(format!("can't read \"{name}\": no such variable")))
@@ -66,6 +106,12 @@ fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
 pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     let b = word.as_bytes();
     let n = b.len();
+
+    // A whole-word braced literal suppresses all substitution: strip the outer
+    // braces and return the content verbatim.
+    if let Some(inner) = whole_braced(word) {
+        return Ok(Value::string(inner));
+    }
 
     // Fast path: the whole word is one command substitution.
     if b.first() == Some(&b'[')
