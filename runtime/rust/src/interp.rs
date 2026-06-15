@@ -583,6 +583,10 @@ pub struct InterpState {
     /// wrote it. `removed` is how many leading words of `source` map to the
     /// rewritten prefix. Set at the root dispatch, cleared when it returns.
     ensemble_rewrite: RefCell<Option<EnsembleRewrite>>,
+    /// The `expr rand()`/`srand()` PRNG seed (C's `iPtr->randSeed`); `None`
+    /// until first seeded (lazily from a nondeterministic source on first
+    /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
+    rand_seed: Cell<Option<i64>>,
     result: Cell<*mut TclObj>,
 }
 
@@ -635,6 +639,7 @@ impl Interp {
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
+            rand_seed: Cell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -3547,6 +3552,48 @@ impl Interp {
     /// Commands dispatched so far (`info cmdcount`).
     pub(crate) fn cmd_count(&self) -> u64 {
         self.cmd_count.get()
+    }
+
+    /// `expr srand(n)`: reset the PRNG seed to `n` (C's `ExprSrandFunc` — mask
+    /// to 31 bits, avoid the LCG's two fixed points), then return the first
+    /// `rand()` of the new sequence.
+    pub(crate) fn srand(&self, n: i64) -> f64 {
+        let mut seed = n & 0x7FFF_FFFF;
+        if seed == 0 || seed == 0x7FFF_FFFF {
+            seed ^= 123_459_876;
+        }
+        self.rand_seed.set(Some(seed));
+        self.rand_next()
+    }
+
+    /// `expr rand()`: advance the Park–Miller minimal-standard LCG and return a
+    /// double in `(0, 1)` (C's `ExprRandFunc`). Seeds nondeterministically on
+    /// first use if `srand` hasn't run.
+    pub(crate) fn rand_next(&self) -> f64 {
+        // Constants from `ExprRandFunc`: IA=16807, IM=2^31-1, IQ=127773, IR=2836.
+        const RAND_IA: i64 = 16807;
+        const RAND_IM: i64 = 2_147_483_647;
+        const RAND_IQ: i64 = 127_773;
+        const RAND_IR: i64 = 2836;
+        let mut seed = self.rand_seed.get().unwrap_or_else(|| {
+            // Nondeterministic first seed, kept in [1, 2^31-2].
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as i64)
+                .unwrap_or(1);
+            let mut s = t & 0x7FFF_FFFF;
+            if s == 0 || s == 0x7FFF_FFFF {
+                s ^= 123_459_876;
+            }
+            s
+        });
+        let tmp = seed / RAND_IQ;
+        seed = RAND_IA * (seed - tmp * RAND_IQ) - RAND_IR * tmp;
+        if seed < 0 {
+            seed += RAND_IM;
+        }
+        self.rand_seed.set(Some(seed));
+        seed as f64 * (1.0 / RAND_IM as f64)
     }
 
     /// The `info cmdtype` classification of `name`, or `None` if no such command.

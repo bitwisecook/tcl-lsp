@@ -11,7 +11,8 @@
 //! verified against tclsh 9.0.
 //!
 //! Needs the numeric tower (`as_math_num`), so it tracks the `have_tommath` cfg
-//! like `expr` itself. `rand`/`srand` (RNG state on the interp) are a follow-up.
+//! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
+//! are handled here directly rather than via the pure shared dispatch.
 
 use tcl_syntax::expr::mathfunc::{dispatch, Num};
 use tcl_syntax::naming::qualifier_segments;
@@ -19,12 +20,46 @@ use tcl_syntax::naming::qualifier_segments;
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
-/// Every function name [`dispatch`] understands — registered as
-/// `::tcl::mathfunc::<name>`. (`rand`/`srand` need interp RNG state; deferred.)
+/// Every math function — registered as `::tcl::mathfunc::<name>`. Most forward
+/// to the shared [`dispatch`]; `rand`/`srand` are handled inline (interp state).
 const MATHFUNCS: &[&str] = &[
-    "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
-    "exp", "floor", "fmod", "hypot", "int", "isqrt", "isfinite", "isinf", "isnan", "log", "log10",
-    "max", "min", "pow", "round", "sin", "sinh", "sqrt", "tan", "tanh", "wide",
+    "abs",
+    "acos",
+    "asin",
+    "atan",
+    "atan2",
+    "bool",
+    "ceil",
+    "cos",
+    "cosh",
+    "double",
+    "entier",
+    "exp",
+    "floor",
+    "fmod",
+    "hypot",
+    "int",
+    "isqrt",
+    "isfinite",
+    "isinf",
+    "isnan",
+    "isnormal",
+    "issubnormal",
+    "isunordered",
+    "log",
+    "log10",
+    "max",
+    "min",
+    "pow",
+    "rand",
+    "round",
+    "sin",
+    "sinh",
+    "sqrt",
+    "srand",
+    "tan",
+    "tanh",
+    "wide",
 ];
 
 /// Register `::tcl::mathfunc::*`.
@@ -59,6 +94,26 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     if amax.is_some_and(|m| n > m) {
         return wrong_func_args(interp, b"too many arguments for math function \"", fname);
+    }
+
+    // `rand`/`srand` carry PRNG state on the interp, so they bypass the pure
+    // shared dispatch (C's `ExprRandFunc`/`ExprSrandFunc`).
+    match lname.as_str() {
+        "rand" => {
+            interp.set_result(obj::new_double_obj(interp.rand_next()));
+            return Code::Ok;
+        }
+        "srand" => {
+            // The seed is the operand's low 64 bits (C's `TclGetWideBitsFromObj`);
+            // a non-integer operand is an error.
+            if !crate::bignum::is_integer(argv[1]) {
+                return interp.set_error(b"argument to math function didn't have numeric value");
+            }
+            let seed = crate::bignum::truncate_to_wide(argv[1]);
+            interp.set_result(obj::new_double_obj(interp.srand(seed)));
+            return Code::Ok;
+        }
+        _ => {}
     }
 
     // `wide`/`int`/`entier` on an *integer* operand work on the tower directly,
@@ -111,7 +166,8 @@ fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn arity(name: &str) -> (usize, Option<usize>) {
     match name {
         "min" | "max" => (1, None),
-        "atan2" | "hypot" | "fmod" | "pow" => (2, Some(2)),
+        "atan2" | "hypot" | "fmod" | "pow" | "isunordered" => (2, Some(2)),
+        "rand" => (0, Some(0)),
         _ => (1, Some(1)),
     }
 }
