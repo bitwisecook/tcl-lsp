@@ -2832,7 +2832,7 @@ separate follow-up). Large *float* `int`/`entier` (bignum result, e.g.
 
 ### SYNC inbound — 2026-06-15 (`info` non-frame surface)
 
-`info.test` 106 → 126 (zero regressions), the tractable non-`info frame` items
+`info.test` 106 → 127 (zero regressions), the tractable non-`info frame` items
 (the big `info-30`/`info-33`/`info-24` clusters remain the TIP-280 line-tracking
 rework):
 
@@ -2854,6 +2854,8 @@ rework):
   array (`can't set "a": variable is array`; info-6.2, 6.9).
 - **`info script ?filename?`** set-form sets (and returns) the current script
   name (info-16.6/16.7/16.8).
+- **`info library`** with `tcl_library` unset reports `no library has been
+  specified for Tcl` (info-10.3).
 
 ### Outstanding
 

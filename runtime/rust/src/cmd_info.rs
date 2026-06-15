@@ -197,7 +197,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(o);
                     Code::Ok
                 }
-                None => interp.set_error(b"variable \"::tcl_library\" undefined"),
+                None => interp.set_error(b"no library has been specified for Tcl"),
             }
         }
         b"hostname" => {
