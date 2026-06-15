@@ -3603,18 +3603,18 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)?;
         Some(match cmd {
-            // A coroutine registers as a builtin resume command, but reports its
-            // own `coroutine` type (C's `TclNRCoroutineObjCmd` cmdType).
+            // A coroutine resume command and the per-object `my`/`myclass`
+            // commands all register as builtins but report their own cmdType
+            // (C's per-command registrations).
             Command::Builtin(_) => {
-                let is_coro = self
+                let fqn = self
                     .namespaces
                     .borrow()
-                    .resolve_fqn(self.current_ns.get(), name)
-                    .is_some_and(|fqn| self.coros.borrow().contains_key(&fqn));
-                if is_coro {
-                    b"coroutine"
-                } else {
-                    b"native"
+                    .resolve_fqn(self.current_ns.get(), name);
+                match fqn {
+                    Some(fqn) if self.coros.borrow().contains_key(&fqn) => b"coroutine",
+                    Some(fqn) => self.oo_private_cmd_kind(&fqn).unwrap_or(b"native"),
+                    None => b"native",
                 }
             }
             Command::Proc(_) => b"proc",
