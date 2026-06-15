@@ -2747,6 +2747,15 @@ impl Interp {
             return self.dispatch_list_obj(body, frame);
         }
         if let Some((file, line)) = self.arg_loc(body) {
+            // Inside a proc the enclosing command (`while`/`for`/`if`/`foreach`/
+            // `try`) is compiled inline, so its literal body runs in the **same**
+            // `info frame` level — no new frame, the shared frame's line just
+            // advances to each body command (C's bytecode inlining). At the top
+            // level (uncompiled command form) the body is evaluated as its own
+            // frame (`TclEvalObjEx`), matching tclsh's `info frame` depth.
+            if self.in_proc() {
+                return self.eval_shared_located_body(body, line);
+            }
             let mut frame = self.inherited_cmd_frame();
             frame.kind = FrameKind::Source;
             frame.file = file;
@@ -2755,6 +2764,36 @@ impl Interp {
             return self.eval_framed(&bytes, frame);
         }
         self.eval_unlocated_body(&obj_bytes(body))
+    }
+
+    /// Evaluate a located-literal control body that is **inlined** into the
+    /// enclosing frame (the in-proc case of [`eval_control_body`]). The enclosing
+    /// frame is shared (no new `info frame` level); its `line_base` is shifted so
+    /// the body's commands report their own file-absolute lines, then restored.
+    /// The body literal lives in the same source as the enclosing frame, so the
+    /// frame's `kind`/`file` already match — only the line mapping changes.
+    fn eval_shared_located_body(&mut self, body: *mut TclObj, line: u32) -> Code {
+        let saved = {
+            let mut frames = self.cmd_frames.borrow_mut();
+            frames.last_mut().map(|top| {
+                let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                top.line_base = line.saturating_sub(1);
+                saved
+            })
+        };
+        let Some((line_base, line, cmd)) = saved else {
+            // No enclosing frame to share (shouldn't happen under `in_proc`) —
+            // fall back to a body-relative eval rather than panic.
+            return self.eval_unlocated_body(&obj_bytes(body));
+        };
+        let bytes = obj_bytes(body);
+        let code = self.eval_script_mode(&bytes, None, true);
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            top.line_base = line_base;
+            top.line = line;
+            top.cmd = cmd;
+        }
+        code
     }
 
     /// The TIP 280 source location recorded for `obj` (the literal-argument
