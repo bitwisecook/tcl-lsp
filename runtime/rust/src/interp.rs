@@ -126,6 +126,11 @@ pub(crate) struct CallMeta<'a> {
     /// constructor (the `create`/`new` invocation, e.g. `oo::object create foo`)
     /// so `info level 0` reflects the instantiation, not `<constructor>`.
     pub level_words: Option<Vec<Vec<u8>>>,
+    /// List-quote the command name in a `wrong # args` message (Bug 942757) — a
+    /// genuine single-word proc name (`a b  c` → `{a b  c}`, `` → `{}`). Off for
+    /// `apply`/TclOO whose `usage_called`/`usage_prefix` is a pre-joined
+    /// multi-word string (`apply lambdaExpr`, `obj method`) that must stay raw.
+    pub quote_name: bool,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -3892,6 +3897,7 @@ impl Interp {
                 same_level: false,
                 usage_prefix: None,
                 level_words: None,
+                quote_name: true,
             },
         )
     }
@@ -3929,7 +3935,7 @@ impl Interp {
         let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&self.proc_wrong_args(usage, params, supplied));
+            return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth.get() >= RECURSION_LIMIT {
@@ -3985,7 +3991,7 @@ impl Interp {
                 self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&self.proc_wrong_args(usage, params, supplied));
+                return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
             };
             if stored.is_err() {
                 self.frames.borrow_mut().pop();
@@ -4587,6 +4593,7 @@ impl Interp {
         called: &[u8],
         params: &[Param],
         supplied: usize,
+        quote_name: bool,
     ) -> Vec<u8> {
         if let Some(rw) = self.ensemble_rewrite() {
             // How many trailing words of `source` were the user's own arguments,
@@ -4605,7 +4612,7 @@ impl Interp {
                 return proc_usage_words(&prefix, &params[drop..], params);
             }
         }
-        proc_usage(called, params)
+        proc_usage(called, params, quote_name)
     }
 }
 
@@ -4637,9 +4644,16 @@ fn proc_usage_words(words: &[&[u8]], shown: &[Param], all: &[Param]) -> Vec<u8> 
     m
 }
 
-fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
+fn proc_usage(called: &[u8], params: &[Param], quote_name: bool) -> Vec<u8> {
     let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(called);
+    // A single-word proc name is list-quoted if it needs it — `a b  c` → `{a b  c}`,
+    // `` → `{}` (C's `Tcl_WrongNumArgs` via `TclScanElement`, Bug 942757). `apply`
+    // and TclOO pass a pre-joined multi-word usage prefix that must stay raw.
+    if quote_name {
+        crate::list::append_list_element(&mut m, called, false);
+    } else {
+        m.extend_from_slice(called);
+    }
     let n = params.len();
     for (i, p) in params.iter().enumerate() {
         m.push(b' ');

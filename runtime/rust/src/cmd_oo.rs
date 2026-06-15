@@ -5707,6 +5707,7 @@ impl Interp {
                 same_level: index > 0,
                 usage_prefix,
                 level_words,
+                quote_name: false,
             },
         );
         self.oo.borrow_mut().filter_handling = saved_fh;

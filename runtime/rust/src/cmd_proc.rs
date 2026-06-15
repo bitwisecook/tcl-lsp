@@ -199,6 +199,7 @@ fn apply_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             same_level: false,
             usage_prefix: None,
             level_words: Some(level_words),
+            quote_name: false,
         },
     )
 }
