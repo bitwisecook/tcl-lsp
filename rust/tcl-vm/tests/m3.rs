@@ -172,6 +172,56 @@ fn foreach_empty_list() {
 }
 
 #[test]
+fn unset_command() {
+    out_eq("set x 1\nunset x\nputs [info exists x]\n", "0\n");
+    out_eq("unset -nocomplain nope\nputs ok\n", "ok\n");
+    out_eq("set a(x) 1\nunset a(x)\nputs [info exists a(x)]\n", "0\n");
+}
+
+#[test]
+fn expr_math_functions() {
+    out_eq("puts [expr {abs(-5)}]\n", "5\n");
+    out_eq("puts [expr {max(3,7,2)}]\n", "7\n");
+    out_eq("puts [expr {min(3,7,2)}]\n", "2\n");
+    out_eq("puts [expr {int(3.9)}]\n", "3\n");
+    out_eq("puts [expr {sqrt(9.0)}]\n", "3.0\n");
+    out_eq("puts [expr {pow(2,10)}]\n", "1024.0\n");
+}
+
+#[test]
+fn expr_in_operator() {
+    out_eq("puts [expr {3 in {1 2 3}}]\n", "1\n");
+    out_eq("puts [expr {9 in {1 2 3}}]\n", "0\n");
+    out_eq("puts [expr {5 ni {1 2 3}}]\n", "1\n");
+}
+
+#[test]
+fn dict_incr_append_lappend() {
+    out_eq(
+        "set d [dict create a 1]\ndict incr d a 5\nputs [dict get $d a]\n",
+        "6\n",
+    );
+    out_eq(
+        "set d {}\ndict append d k foo\ndict append d k bar\nputs [dict get $d k]\n",
+        "foobar\n",
+    );
+    out_eq(
+        "set d {}\ndict lappend d k 1 2\nputs [dict get $d k]\n",
+        "1 2\n",
+    );
+}
+
+#[test]
+fn switch_glob_and_default() {
+    out_eq(
+        "switch -glob aa { a* {puts hit} default {puts no} }\n",
+        "hit\n",
+    );
+    out_eq("switch zz { a {puts a} default {puts def} }\n", "def\n");
+    out_eq("switch b { a {puts A} b {puts B} }\n", "B\n");
+}
+
+#[test]
 fn info_default() {
     out_eq(
         "proc f {a {b 99}} {}\ninfo default f b d\nputs $d\n",

@@ -20,6 +20,9 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::dict::set", |vm, a| dict_op(vm, "set", a));
     vm.register("::tcl::dict::unset", |vm, a| dict_op(vm, "unset", a));
     vm.register("::tcl::dict::for", |vm, a| dict_op(vm, "for", a));
+    vm.register("::tcl::dict::incr", |vm, a| dict_op(vm, "incr", a));
+    vm.register("::tcl::dict::append", |vm, a| dict_op(vm, "append", a));
+    vm.register("::tcl::dict::lappend", |vm, a| dict_op(vm, "lappend", a));
 }
 
 /// `dict subcommand ?arg ...?` — dispatch to the subcommand handler.
@@ -57,6 +60,32 @@ fn from_pairs(ps: &[(String, Value)]) -> Value {
 
 fn lookup<'a>(ps: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
     ps.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+}
+
+/// Read the dict in variable `varname`, transform the value at `key` via `f`
+/// (given the current value, if any), write it back, and return the new dict.
+/// Shared by `dict incr`/`append`/`lappend`.
+fn dict_update(
+    vm: &mut Vm,
+    varname: &Value,
+    key: &Value,
+    f: impl FnOnce(Option<&Value>) -> Result<Value, String>,
+) -> Completion<Value> {
+    let name = varname.to_str();
+    let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
+    let mut ps = match pairs(&cur) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let k = key.to_str();
+    let newv = match f(lookup(&ps, &k)) {
+        Ok(v) => v,
+        Err(e) => return err(e),
+    };
+    upsert(&mut ps, &k, newv);
+    let result = from_pairs(&ps);
+    vm.set_var(&name, result.clone());
+    ok(result)
 }
 
 fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
@@ -198,6 +227,56 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             let result = from_pairs(&ps);
             vm.set_var(&name, result.clone());
             ok(result)
+        }
+        "incr" => {
+            let [varname, key, amt @ ..] = rest else {
+                return err("wrong # args: should be \"dict incr dictVarName key ?increment?\"");
+            };
+            let inc = match amt.first() {
+                Some(v) => match v.as_int() {
+                    Ok(n) => n,
+                    Err(e) => return err(e.message),
+                },
+                None => 1,
+            };
+            dict_update(vm, varname, key, |old| {
+                let base = match old {
+                    Some(v) => match v.as_int() {
+                        Ok(n) => n,
+                        Err(e) => return Err(e.message),
+                    },
+                    None => 0,
+                };
+                Ok(Value::int(base.wrapping_add(inc)))
+            })
+        }
+        "append" => {
+            let [varname, key, strs @ ..] = rest else {
+                return err("wrong # args: should be \"dict append dictVarName key ?value ...?\"");
+            };
+            dict_update(vm, varname, key, |old| {
+                let mut s = old.map(|v| v.to_str().to_string()).unwrap_or_default();
+                for v in strs {
+                    s.push_str(&v.to_str());
+                }
+                Ok(Value::string(s))
+            })
+        }
+        "lappend" => {
+            let [varname, key, vals @ ..] = rest else {
+                return err("wrong # args: should be \"dict lappend dictVarName key ?value ...?\"");
+            };
+            dict_update(vm, varname, key, |old| {
+                let mut items = match old {
+                    Some(v) => match v.as_list() {
+                        Ok(i) => (*i).clone(),
+                        Err(e) => return Err(e.message),
+                    },
+                    None => Vec::new(),
+                };
+                items.extend(vals.iter().cloned());
+                Ok(Value::list(items))
+            })
         }
         "for" => cmd_dict_for(vm, rest),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),

@@ -247,10 +247,15 @@ impl ExprOps for ExprEval<'_> {
         self.vm.eval_source(script).map(|c| c.result)
     }
 
-    fn call(&mut self, function: &str, _args: Vec<Value>) -> Result<Value, TclError> {
-        Err(TclError::new(format!(
-            "unknown math function \"{function}\""
-        )))
+    fn call(&mut self, function: &str, args: Vec<Value>) -> Result<Value, TclError> {
+        let name = format!("tcl::mathfunc::{function}");
+        match self.vm.dispatch_builtin(&name, &args) {
+            Some(c) if c.code.is_ok() => Ok(c.result),
+            Some(c) => Err(TclError::new(c.result.to_str().to_string())),
+            None => Err(TclError::new(format!(
+                "unknown math function \"{function}\""
+            ))),
+        }
     }
 
     fn arith(&mut self, op: BinOp, l: Value, r: Value) -> Result<Value, TclError> {

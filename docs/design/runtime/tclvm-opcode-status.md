@@ -13,8 +13,7 @@
   **not yet executed** by the VM.
 - `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
   matching the C Tcl mnemonic/operands).
-
-Status (auto-countable): **71 executed · 66 enum-only · 54 missing · 191 total**.
+Status (auto-countable): **76 executed · 61 enum-only · 54 missing · 191 total**.
 Keep this in sync when adding opcodes — update the row and the count.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
@@ -79,7 +78,7 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `uminus`
 - [x] `bitnot`
 - [x] `not`
-- [~] `tryCvtToNumeric`
+- [x] `tryCvtToNumeric`
 - [x] `break`
 - [x] `continue`
 - [~] `beginCatch4`
@@ -119,8 +118,8 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [x] `listIndexImm`
 - [x] `listRangeImm`
 - [x] `startCommand`
-- [~] `listIn`
-- [~] `listNotIn`
+- [x] `listIn`
+- [x] `listNotIn`
 - [~] `pushReturnOpts`
 - [x] `returnStk`
 - [~] `dictGet`
@@ -149,7 +148,7 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [ ] `unsetScalar`
 - [ ] `unsetArray`
 - [ ] `unsetArrayStk`
-- [~] `unsetStk`
+- [x] `unsetStk`
 - [ ] `dictExpand`
 - [ ] `dictRecombineStk`
 - [ ] `dictRecombineImm`
@@ -195,7 +194,7 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [ ] `tclooNextClass`
 - [ ] `yieldToInvoke`
 - [~] `numericType`
-- [~] `tryCvtToBoolean`
+- [x] `tryCvtToBoolean`
 - [~] `strclass`
 - [~] `lappendList`
 - [~] `lappendListArray`

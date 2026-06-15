@@ -65,11 +65,14 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("global", cmd_global);
     vm.register("upvar", cmd_upvar);
     vm.register("variable", cmd_variable);
+    vm.register("unset", cmd_unset);
     crate::cmd_array::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);
     crate::cmd_info::register(vm);
+    crate::cmd_math::register(vm);
+    crate::cmd_switch::register(vm);
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -361,6 +364,41 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         vm.publish_error(&einfo, &ecode);
     }
     ok(Value::int(comp.code.as_int()))
+}
+
+/// `unset ?-nocomplain? ?--? name ...` — remove variables / array elements.
+fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let mut rest = args;
+    let mut nocomplain = false;
+    while let Some(first) = rest.first() {
+        match &*first.to_str() {
+            "-nocomplain" => {
+                nocomplain = true;
+                rest = &rest[1..];
+            }
+            "--" => {
+                rest = &rest[1..];
+                break;
+            }
+            s if s.starts_with('-') => rest = &rest[1..],
+            _ => break,
+        }
+    }
+    for n in rest {
+        let name = n.to_str();
+        if let Some(open) = name.find('(')
+            && name.ends_with(')')
+            && open > 0
+        {
+            vm.array_unset_elem(&name[..open], &name[open + 1..name.len() - 1]);
+            continue;
+        }
+        let existed = vm.unset_var(&name);
+        if !existed && !nocomplain {
+            return err(format!("can't unset \"{name}\": no such variable"));
+        }
+    }
+    ok(Value::empty())
 }
 
 /// `global name ?name ...?` — link names to the global frame.

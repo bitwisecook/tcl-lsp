@@ -338,9 +338,29 @@ impl Vm {
         self.register_command(&simple, cmd);
     }
 
+    /// Dispatch a *builtin* command by name (no proc activation). Returns `None`
+    /// for a proc or unknown command. Used by `expr` math-function calls.
+    pub(crate) fn dispatch_builtin(
+        &mut self,
+        name: &str,
+        argv: &[Value],
+    ) -> Option<Completion<Value>> {
+        match self.lookup_command(name) {
+            Some(Command::Builtin(f)) => Some(f(self, argv)),
+            _ => None,
+        }
+    }
+
     /// Parse and evaluate a Tcl expression string against this VM.
+    ///
+    /// A whole expression that doesn't parse (e.g. a plain string subject the
+    /// `switch` codegen feeds through `exprStk`) yields the string itself,
+    /// matching the reference VM's lenient `exprStk`.
     pub fn eval_expr(&mut self, src: &str) -> Result<Value, TclError> {
         let node = parse_expr(src, None);
+        if matches!(node, tcl_syntax::expr::ExprNode::Raw { .. }) {
+            return Ok(Value::string(src));
+        }
         let mut ops = ExprEval { vm: self };
         eval(&node, &mut ops)
     }

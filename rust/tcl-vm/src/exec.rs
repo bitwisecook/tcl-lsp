@@ -580,6 +580,27 @@ impl Vm {
                 let hi = imm_index(imm_at(instr, 1), items.len());
                 f.stack.push(slice(&items, lo, hi));
             }
+            Op::LIST_IN | Op::LIST_NOT_IN => {
+                let list = pop(f);
+                let needle = pop(f);
+                let items = match list.as_list() {
+                    Ok(i) => i,
+                    Err(e) => return Tick::Return(err(e.message)),
+                };
+                let n = needle.to_str();
+                let found = items.iter().any(|v| *v.to_str() == *n);
+                let r = if instr.op == Op::LIST_IN {
+                    found
+                } else {
+                    !found
+                };
+                f.stack.push(Value::bool(r));
+            }
+            Op::UNSET_STK => {
+                // operand = flags (e.g. -nocomplain); M3 ignores it.
+                let name = pop(f).to_str();
+                self.unset_var(&name);
+            }
             Op::LIST_CONCAT => {
                 let b = pop(f);
                 let a = pop(f);
@@ -695,6 +716,26 @@ impl Vm {
             Op::GE => try_op!(cmp(f, BinOp::Ge)),
             Op::STR_EQ => try_op!(cmp(f, BinOp::StrEq)),
             Op::STR_NEQ => try_op!(cmp(f, BinOp::StrNe)),
+
+            // -- numeric/boolean coercion checks (expr result validation) --
+            Op::TRY_CVT_TO_NUMERIC => {
+                let v = pop(f);
+                if v.as_int().is_ok() || v.as_double().is_ok() {
+                    f.stack.push(v);
+                } else {
+                    return Tick::Return(err(format!(
+                        "can't use non-numeric string \"{}\" as operand of arithmetic",
+                        v.to_str()
+                    )));
+                }
+            }
+            Op::TRY_CVT_TO_BOOLEAN => {
+                let v = pop(f);
+                match v.as_bool() {
+                    Ok(_) => f.stack.push(v),
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
+            }
 
             // -- unary --
             Op::UMINUS => try_op!(un(f, UnaryOp::Neg)),
