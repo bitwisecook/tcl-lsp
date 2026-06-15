@@ -21,6 +21,7 @@ use tcl_bigip::parser::parse_bigip_conf;
 use crate::edit_plan::{AppliedSource, apply};
 use crate::errors::QueryError;
 use crate::eval::{EvalContext, Root, evaluate_statement};
+use crate::inputs::{InputSpec, parse_input};
 use crate::value::Value;
 
 /// Explicit, ambient-free configuration for a query run.
@@ -37,6 +38,27 @@ pub struct QueryOptions {
     /// Per-URI BIG-IP partition (`--partition PATH=PARTITION`). Defaults to
     /// `Common` when a URI is absent.
     pub partitions: HashMap<String, String>,
+    /// Structured side-inputs (`--input-{json,jsonl,csv,f5log}` / `--input
+    /// KIND`). Each entry binds `$name` to a JSON-backed [`Root`] parsed from
+    /// `source` per its [`InputSpec`]. The `uri` is the side-input's file
+    /// URI; it participates in the multi-file source count (so a single
+    /// config + one side input renders with a banner, matching Python) but
+    /// never iterates as the primary `.` input.
+    pub side_inputs: Vec<SideInput>,
+}
+
+/// One bound structured side-input — port of the runner's `input_specs` +
+/// `side_resolved_names` pairing.
+#[derive(Debug, Clone)]
+pub struct SideInput {
+    /// The `$NAME` the parsed value binds to.
+    pub name: String,
+    /// The side-input file's URI.
+    pub uri: String,
+    /// The raw file text.
+    pub source: String,
+    /// How to parse `source`.
+    pub spec: InputSpec,
 }
 
 /// The combined output of a single read-only `run_query` invocation.
@@ -84,6 +106,23 @@ fn build_root(uri: &str, source: &str, opts: &QueryOptions) -> std::rc::Rc<Root>
     Root::bigip(uri.to_owned(), source.to_owned(), config)
 }
 
+/// Parse every structured side-input into a JSON-backed [`Root`] keyed by
+/// its bound `$NAME` — port of the runner's `_build_structured_root` loop.
+///
+/// Each side-input's `source` is parsed per its [`InputSpec`] into a
+/// [`Value`] and wrapped in [`Root::json`]; parse failures surface with the
+/// same `{uri}: invalid {kind} input (...)` wording the Python runner uses.
+fn build_side_roots(
+    side_inputs: &[SideInput],
+) -> Result<HashMap<String, std::rc::Rc<Root>>, QueryError> {
+    let mut roots = HashMap::with_capacity(side_inputs.len());
+    for si in side_inputs {
+        let value = parse_input(&si.source, &si.uri, &si.spec)?;
+        roots.insert(si.name.clone(), Root::json(si.uri.clone(), value));
+    }
+    Ok(roots)
+}
+
 /// Build the `$name -> Root` bindings for every loaded source.
 ///
 /// Port of `runner._build_named_roots`: explicit `--name N=PATH` win;
@@ -92,6 +131,7 @@ fn build_root(uri: &str, source: &str, opts: &QueryOptions) -> std::rc::Rc<Root>
 /// earlier name keeps working.
 fn build_named_roots(
     sources: &[(String, String)],
+    side_roots: &HashMap<String, std::rc::Rc<Root>>,
     opts: &QueryOptions,
 ) -> HashMap<String, std::rc::Rc<Root>> {
     let mut bindings: HashMap<String, std::rc::Rc<Root>> = HashMap::new();
@@ -116,6 +156,13 @@ fn build_named_roots(
             continue;
         }
         bindings.insert(stem, build_root(uri, src, opts));
+    }
+    // Side-input `$NAME` bindings win over (and never participate in) the
+    // BIG-IP auto-naming: they're bound by explicit name only. The CLI has
+    // already rejected name collisions between side inputs, so a plain
+    // insert is faithful to `full_names = {**resolved_names, **json_names}`.
+    for (name, root) in side_roots {
+        bindings.insert(name.clone(), std::rc::Rc::clone(root));
     }
     bindings
 }
@@ -147,6 +194,11 @@ pub fn run_query(
 ) -> Result<QueryResult, QueryError> {
     let program = crate::parse_query(query)?;
 
+    // Parse every structured side-input into a JSON-backed root once. These
+    // bind to `$NAME` but never iterate as the primary `.` input — mirroring
+    // the runner's `_is_json_source` skip of the per-file loop.
+    let side_roots = build_side_roots(&opts.side_inputs)?;
+
     let mut result = QueryResult {
         values_per_file: Vec::with_capacity(sources.len()),
         edits_per_file: Vec::new(),
@@ -162,7 +214,7 @@ pub fn run_query(
         for stmt in &program.statements {
             // Rebuild the root against the post-edit text so a multi-statement
             // `;` chain reads coherent intermediate state.
-            let named_roots = build_named_roots(sources, opts);
+            let named_roots = build_named_roots(sources, &side_roots, opts);
             let root = build_root(uri, &current_source, opts);
             let mut ctx = EvalContext {
                 root,

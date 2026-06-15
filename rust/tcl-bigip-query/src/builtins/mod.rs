@@ -35,11 +35,13 @@ use crate::jsonfmt;
 use crate::value::{self, Value};
 
 mod encoding;
+pub(crate) use encoding::json_to_value;
 mod graph;
 mod math;
 mod net;
 
 pub(crate) use graph::extract_rule_refs;
+mod inputs_load;
 mod regex_str;
 mod string;
 mod time_dt;
@@ -231,6 +233,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r.extend(time_dt::registrations());
     r.extend(regex_str::registrations());
     r.extend(value2::registrations());
+    r.extend(inputs_load::registrations());
     r.extend(encoding::registrations());
     r.extend(graph::registrations());
     r.extend(crate::special::registrations());

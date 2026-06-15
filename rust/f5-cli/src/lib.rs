@@ -138,6 +138,11 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         expression,
         inputs,
         name,
+        input_json,
+        input_jsonl,
+        input_csv,
+        input_f5log,
+        input,
         merge,
         write,
         in_place,
@@ -154,6 +159,7 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         help_builtins,
         help_examples,
         help_renderers,
+        help_inputs,
         ..
     } = command
     else {
@@ -163,6 +169,13 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
     // `--help-renderers` is fully ported (the registry catalogue is static).
     if *help_renderers {
         print!("{}", commands::query::help_renderers_text());
+        return Ok(0);
+    }
+
+    // `--help-inputs` is fully ported (the built-in format catalogue is
+    // static — no user-plugin scan in the Rust port).
+    if *help_inputs {
+        print!("{}", commands::query::help_inputs_text());
         return Ok(0);
     }
 
@@ -206,6 +219,13 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         expression.as_deref(),
         inputs,
         name,
+        &commands::query::InputArgs {
+            input_json,
+            input_jsonl,
+            input_csv,
+            input_f5log,
+            input,
+        },
         &mode,
         &render_opts,
         commands::query::QueryFlags {

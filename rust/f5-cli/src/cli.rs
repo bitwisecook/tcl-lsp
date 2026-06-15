@@ -323,6 +323,21 @@ pub enum Command {
         /// Bind a named config (NAME=PATH, repeatable).
         #[arg(long = "name", value_name = "NAME=PATH")]
         name: Vec<String>,
+        /// Bind an external JSON file to $NAME as a side input (repeatable).
+        #[arg(long = "input-json", value_name = "NAME=PATH")]
+        input_json: Vec<String>,
+        /// Bind a JSON Lines (NDJSON) file to $NAME as a side input.
+        #[arg(long = "input-jsonl", value_name = "NAME=PATH")]
+        input_jsonl: Vec<String>,
+        /// Bind a CSV file to $NAME as a side input (optional :hdr1,hdr2,… ).
+        #[arg(long = "input-csv", value_name = "NAME=PATH[:hdr1,hdr2,…]")]
+        input_csv: Vec<String>,
+        /// Bind a BIG-IP log file to $NAME as a side input (structured events).
+        #[arg(long = "input-f5log", value_name = "NAME=PATH")]
+        input_f5log: Vec<String>,
+        /// Bind a file via a registered input format (KIND NAME=PATH, repeatable).
+        #[arg(long = "input", value_names = ["KIND", "NAME=PATH"], num_args = 2)]
+        input: Vec<String>,
         /// Merge all configs into one namespace.
         #[arg(long)]
         merge: bool,
@@ -381,6 +396,9 @@ pub enum Command {
         /// List the registered renderer plugins and exit.
         #[arg(long = "help-renderers")]
         help_renderers: bool,
+        /// List the registered input formats and exit.
+        #[arg(long = "help-inputs")]
+        help_inputs: bool,
     },
 
     /// Strip secrets and remap public IPs into a configurable CIDR pool.

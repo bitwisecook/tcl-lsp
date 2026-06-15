@@ -12,8 +12,15 @@
 //! and the `rename*` builtins are deferred (cleanly rejected) — they route
 //! through the unported rename token-rewrite engine.
 //!
+//! Side-inputs are supported: `--input-json` / `--input-jsonl` /
+//! `--input-csv` / `--input-f5log` and the generic `--input KIND NAME=PATH`
+//! bind an external JSON / JSONL / CSV / F5-log file to `$NAME`; the
+//! `json_load` / `jsonl_load` / `csv_load` / `f5log_load` builtins load the
+//! same shapes ad-hoc.
+//!
 //! Deferred (cleanly rejected / ignored): `--merge` cross-file ref-walking,
-//! side-inputs, network probes, renderers, and the `--help-*` actions.
+//! network probes, and the `--help-dsl` / `--help-builtins` / `--help-examples`
+//! actions. `cert_load` is deferred (the x509 parse lands with the probes).
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -98,6 +105,309 @@ fn parse_name_bindings(
     Ok(bindings)
 }
 
+/// A parsed `--input-<kind> NAME=PATH[:hdr,…]` binding: `(name, (path,
+/// csv_headers_or_None))`. Port of `_parse_input_bindings`' return shape.
+type InputBinding = (String, (String, Option<Vec<String>>));
+
+/// Parse a `--input-<kind> NAME=PATH[:hdr,…]` flag group — port of
+/// `query._parse_input_bindings`.
+///
+/// Returns the bindings (preserving order). `allow_csv_headers` enables
+/// the trailing `:hdr1,hdr2,…` CSV form. Mirrors Python's exact identifier
+/// rules, duplicate detection, and error wording.
+fn parse_input_bindings(
+    raw: &[String],
+    flag: &str,
+    allow_csv_headers: bool,
+) -> Result<Vec<InputBinding>, String> {
+    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
+    let mut bindings: Vec<InputBinding> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for entry in raw {
+        let Some((nm, pth)) = entry.split_once('=') else {
+            return Err(format!("{flag} expects NAME=PATH (got '{entry}')"));
+        };
+        if !name_re.is_match(nm) {
+            return Err(format!(
+                "{flag} '{entry}': '{nm}' is not a valid DSL identifier \
+                 (letters, digits, '_', '-'; cannot start with a digit)"
+            ));
+        }
+        if pth.is_empty() {
+            return Err(format!("{flag} '{entry}': PATH side cannot be empty"));
+        }
+        if seen.contains(nm) {
+            return Err(format!("{flag} {nm}: duplicate binding"));
+        }
+        let (resolved_path, headers) = if allow_csv_headers {
+            split_csv_path_headers(pth, flag, entry)?
+        } else {
+            (pth.to_owned(), None)
+        };
+        seen.insert(nm.to_owned());
+        bindings.push((nm.to_owned(), (resolved_path, headers)));
+    }
+    Ok(bindings)
+}
+
+/// Split `PATH[:hdr1,hdr2]` without treating path colons as headers — port
+/// of `query._split_csv_path_headers`.
+fn split_csv_path_headers(
+    value: &str,
+    flag: &str,
+    entry: &str,
+) -> Result<(String, Option<Vec<String>>), String> {
+    if !value.contains(':') {
+        return Ok((value.to_owned(), None));
+    }
+    // Python `value.rpartition(":")`.
+    let (path_part, headers_part) = value.rsplit_once(':').expect("colon present");
+    if headers_part.is_empty() {
+        return Err(format!(
+            "{flag} '{entry}': trailing ``:`` requires one or more header names (hdr1,hdr2,…)"
+        ));
+    }
+    let split_headers: Vec<String> = headers_part
+        .split(',')
+        .map(str::trim)
+        .filter(|h| !h.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+    if split_headers.is_empty() {
+        return Err(format!(
+            "{flag} '{entry}': trailing ``:`` requires one or more header names (hdr1,hdr2,…)"
+        ));
+    }
+    let header_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
+    if !split_headers.iter().all(|h| header_re.is_match(h)) {
+        // Not a header suffix (e.g. a POSIX / Windows path colon) — treat the
+        // whole value as the path.
+        return Ok((value.to_owned(), None));
+    }
+    if path_part.is_empty() {
+        return Err(format!("{flag} '{entry}': PATH side cannot be empty"));
+    }
+    Ok((path_part.to_owned(), Some(split_headers)))
+}
+
+/// Parse repeated `--input KIND NAME=PATH` argument pairs — port of
+/// `query._parse_custom_input_bindings`. Returns `(kind, name, path)`
+/// entries. KIND is validated against the registry by the caller.
+fn parse_custom_input_bindings(raw: &[String]) -> Result<Vec<(String, String, String)>, String> {
+    let name_re = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$").expect("valid regex");
+    let mut entries: Vec<(String, String, String)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // clap delivers the two-value `--input` flag as a flat list of pairs.
+    for pair in raw.chunks(2) {
+        // `num_args = 2` guarantees full pairs, but guard defensively.
+        if pair.len() != 2 {
+            return Err(format!(
+                "--input expects two arguments KIND NAME=PATH (got {pair:?})"
+            ));
+        }
+        let kind = &pair[0];
+        let binding = &pair[1];
+        if kind.is_empty() {
+            return Err(format!("--input '{kind}': KIND cannot be empty"));
+        }
+        let Some((nm, pth)) = binding.split_once('=') else {
+            return Err(format!(
+                "--input {kind} expects NAME=PATH (got '{binding}')"
+            ));
+        };
+        if !name_re.is_match(nm) {
+            return Err(format!(
+                "--input {kind} '{binding}': '{nm}' is not a valid DSL \
+                 identifier (letters, digits, '_', '-'; cannot start with a digit)"
+            ));
+        }
+        if pth.is_empty() {
+            return Err(format!(
+                "--input {kind} '{binding}': PATH side cannot be empty"
+            ));
+        }
+        if seen.contains(nm) {
+            return Err(format!("--input {kind} {nm}: duplicate binding"));
+        }
+        seen.insert(nm.to_owned());
+        entries.push((kind.clone(), nm.to_owned(), pth.to_owned()));
+    }
+    Ok(entries)
+}
+
+/// The parsed side-input flag groups — the structured form of [`InputArgs`]
+/// after each `--input-*` group is validated. Each entry is a
+/// `(name, (path, csv_headers))` binding except the generic `--input`, which
+/// also carries its KIND.
+struct ParsedInputArgs {
+    json: Vec<InputBinding>,
+    jsonl: Vec<InputBinding>,
+    csv: Vec<InputBinding>,
+    f5log: Vec<InputBinding>,
+    custom: Vec<(String, String, String)>,
+}
+
+/// Validate every side-input flag group, in Python's order (json, jsonl,
+/// csv, f5log, generic). Returns the first parse error's message.
+fn parse_input_args(args: &InputArgs) -> Result<ParsedInputArgs, String> {
+    Ok(ParsedInputArgs {
+        json: parse_input_bindings(args.input_json, "--input-json", false)?,
+        jsonl: parse_input_bindings(args.input_jsonl, "--input-jsonl", false)?,
+        csv: parse_input_bindings(args.input_csv, "--input-csv", true)?,
+        f5log: parse_input_bindings(args.input_f5log, "--input-f5log", false)?,
+        custom: parse_custom_input_bindings(args.input)?,
+    })
+}
+
+/// Read each side-input file and build the `$NAME`-bound [`SideInput`]s —
+/// port of `_run_query`'s `_load_side_input` loop.
+///
+/// Each binding reads its file, collides-checks the URI against positional
+/// inputs and prior side inputs, and refuses to re-bind a `$NAME` already
+/// claimed by an earlier `--input*` flag. Returns `(message, exit_code)` on
+/// the first failure. Order matches Python: json, jsonl, csv, f5log, generic.
+fn load_side_inputs(
+    parsed: &ParsedInputArgs,
+    path_for_uri: &[(String, String)],
+    opts: &tcl_bigip_io::PassphraseOptions,
+) -> Result<Vec<tcl_bigip_query::SideInput>, (String, u8)> {
+    let mut side_inputs: Vec<tcl_bigip_query::SideInput> = Vec::new();
+    let mut side_names: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut side_uris: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // One typed group + its `--input-<kind>` flag + its `InputSpec` builder.
+    let typed_groups: [(&[InputBinding], &str, &str); 4] = [
+        (&parsed.json, "--input-json", "json"),
+        (&parsed.jsonl, "--input-jsonl", "jsonl"),
+        (&parsed.csv, "--input-csv", "csv"),
+        (&parsed.f5log, "--input-f5log", "f5log"),
+    ];
+    for (group, flag, kind) in typed_groups {
+        for (nm, (pth, hdr)) in group {
+            let spec = if kind == "csv" {
+                tcl_bigip_query::InputSpec::with_csv_headers("csv", hdr.clone())
+            } else {
+                tcl_bigip_query::InputSpec::new(kind)
+            };
+            load_one_side_input(
+                nm,
+                pth,
+                flag,
+                spec,
+                path_for_uri,
+                opts,
+                &mut side_inputs,
+                &mut side_names,
+                &mut side_uris,
+            )?;
+        }
+    }
+
+    // Generic `--input KIND NAME=PATH` — KIND validated against the registry.
+    for (kind, nm, pth) in &parsed.custom {
+        if !tcl_bigip_query::inputs::is_registered(kind) {
+            let registered = tcl_bigip_query::inputs::list_input_formats()
+                .iter()
+                .map(|s| s.name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err((
+                format!(
+                    "--input {kind} {nm}={pth}: unknown input format '{kind}' \
+                     (registered: {registered})"
+                ),
+                2,
+            ));
+        }
+        load_one_side_input(
+            nm,
+            pth,
+            &format!("--input {kind}"),
+            tcl_bigip_query::InputSpec::new(kind.clone()),
+            path_for_uri,
+            opts,
+            &mut side_inputs,
+            &mut side_names,
+            &mut side_uris,
+        )?;
+    }
+    Ok(side_inputs)
+}
+
+/// Load a single side-input file, threading the collision-tracking state.
+/// Port of the body of `_load_side_input`.
+#[allow(clippy::too_many_arguments)]
+fn load_one_side_input(
+    nm: &str,
+    pth: &str,
+    flag: &str,
+    spec: tcl_bigip_query::InputSpec,
+    path_for_uri: &[(String, String)],
+    opts: &tcl_bigip_io::PassphraseOptions,
+    side_inputs: &mut Vec<tcl_bigip_query::SideInput>,
+    side_names: &mut std::collections::HashMap<String, String>,
+    side_uris: &mut std::collections::HashSet<String>,
+) -> Result<(), (String, u8)> {
+    if let Some(prior_uri) = side_names.get(nm) {
+        return Err((
+            format!(
+                "{flag} {nm}={pth}: name ${nm} is already bound by a prior \
+                 --input* flag (to {prior_uri}); pick a different name"
+            ),
+            2,
+        ));
+    }
+    let (uri, src) =
+        read_path(pth, false, opts).map_err(|e| (format!("{flag} {nm}={pth}: {e}"), 2))?;
+    if path_for_uri.iter().any(|(u, _)| *u == uri) {
+        return Err((
+            format!("{flag} {nm}={pth}: URI {uri} is already loaded as a positional input"),
+            2,
+        ));
+    }
+    if side_uris.contains(&uri) {
+        return Err((
+            format!("{flag} {nm}={pth}: URI {uri} is already loaded as a side input"),
+            2,
+        ));
+    }
+    side_uris.insert(uri.clone());
+    side_names.insert(nm.to_owned(), uri.clone());
+    side_inputs.push(tcl_bigip_query::SideInput {
+        name: nm.to_owned(),
+        uri,
+        source: src,
+        spec,
+    });
+    Ok(())
+}
+
+/// Render the `--help-inputs` catalogue — port of the Python
+/// `_HelpInputFormatsAction`.
+#[must_use]
+pub fn help_inputs_text() -> String {
+    use std::fmt::Write as _;
+
+    let specs = tcl_bigip_query::inputs::list_input_formats();
+    if specs.is_empty() {
+        return "(no input formats registered)\n".to_string();
+    }
+    let mut out = String::from("Registered input formats:\n\n");
+    for spec in specs {
+        let _ = writeln!(out, "  {}", spec.name);
+        let _ = writeln!(out, "    summary: {}", spec.summary);
+        if !spec.details.is_empty() {
+            for line in spec.details.lines() {
+                let _ = writeln!(out, "    {line}");
+            }
+        }
+        out.push('\n');
+    }
+    out.push_str("Use --input KIND NAME=PATH to bind a file via any registered format.\n");
+    out
+}
+
 /// Parse repeated `--render-opt KEY=VALUE` into a flat map — port of
 /// `query._parse_render_opts`.
 ///
@@ -150,11 +460,23 @@ pub struct QueryFlags {
     pub strict: bool,
 }
 
+/// The raw side-input flag groups, mirroring the `--input-*` / `--input`
+/// argparse args. Parsed + validated inside [`run_query_verb`] so the error
+/// wording / order matches `_run_query` exactly.
+pub struct InputArgs<'a> {
+    pub input_json: &'a [String],
+    pub input_jsonl: &'a [String],
+    pub input_csv: &'a [String],
+    pub input_f5log: &'a [String],
+    pub input: &'a [String],
+}
+
 /// `f5 query` (read-only).
 pub fn run_query_verb(
     expression: Option<&str>,
     inputs: &[PathBuf],
     names: &[String],
+    input_args: &InputArgs,
     mode: &str,
     render_opts: &BTreeMap<String, String>,
     flags: QueryFlags,
@@ -186,6 +508,17 @@ pub fn run_query_verb(
 
     let name_map = match parse_name_bindings(names, &path_strs) {
         Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return Ok(2);
+        }
+    };
+
+    // Parse every side-input flag group up front (mirrors `_run_query`'s
+    // order: json, jsonl, csv, f5log, then the generic --input). Each
+    // surfaces a parse error before any file IO.
+    let parsed_inputs = match parse_input_args(input_args) {
+        Ok(p) => p,
         Err(e) => {
             eprintln!("error: {e}");
             return Ok(2);
@@ -239,9 +572,26 @@ pub fn run_query_verb(
         resolved_names.insert(nm, uri);
     }
 
+    // Load every structured side-input into `$NAME`-bound `SideInput`s
+    // (port of `_run_query`'s `_load_side_input` loop).
+    let side_inputs = match load_side_inputs(&parsed_inputs, &path_for_uri, &opts) {
+        Ok(s) => s,
+        Err((msg, code)) => {
+            eprintln!("error: {msg}");
+            return Ok(code);
+        }
+    };
+
+    // Side inputs participate in the multi-file source count (banner / JSON
+    // envelope) but never iterate as the primary `.` input — mirroring the
+    // Python runner, where they live in `sources` yet are skipped by the
+    // per-file loop's `_is_json_source` check.
+    let n_sources = sources.len() + side_inputs.len();
+
     let query_opts = QueryOptions {
         names: resolved_names,
         partitions: std::collections::HashMap::new(),
+        side_inputs,
     };
 
     let result = match run_query(expression, &sources, &query_opts) {
@@ -256,7 +606,7 @@ pub fn run_query_verb(
         return emit_mutation(&result, &path_for_uri, flags);
     }
 
-    emit_values(&result, sources.len(), mode, render_opts, flags.strict)
+    emit_values(&result, n_sources, mode, render_opts, flags.strict)
 }
 
 /// Emit the result of a mutating query — port of `query._emit_mutation`.
