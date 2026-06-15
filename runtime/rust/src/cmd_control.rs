@@ -44,6 +44,10 @@ fn break_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
         return wrong_args(interp, b"break");
     }
+    // `break`/`continue` carry no value — clear any prior result so `catch
+    // {break}` (and a `break` propagated out of an expr substitution) report the
+    // empty string, matching C (where each command entry resets the result).
+    interp.set_result_bytes(b"");
     Code::Break
 }
 
@@ -51,6 +55,7 @@ fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
         return wrong_args(interp, b"continue");
     }
+    interp.set_result_bytes(b"");
     Code::Continue
 }
 

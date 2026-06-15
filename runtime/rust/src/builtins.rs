@@ -540,8 +540,12 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
                     .do_subst(&k, crate::subst::SubstFlags::default())
                 {
                     Ok(v) => Some(v),
-                    Err(_) => {
+                    // The index's `[cmd]` completed with a non-OK code — carry it
+                    // (error, or `return`/`break`/`continue`) out of the whole
+                    // expression, exactly like a `[cmd]` operand.
+                    Err(code) => {
                         self.propagated = true;
+                        self.propagated_code = code;
                         return Err(crate::expr::ExprError::from_bytes(obj_bytes(
                             self.interp.get_obj_result(),
                         )));
@@ -588,8 +592,11 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             .do_subst(inner.as_bytes(), crate::subst::SubstFlags::default())
         {
             Ok(v) => Ok(crate::expr::Owned::fresh(crate::obj::new_string_bytes(&v))),
-            Err(_) => {
+            // A `"…"` operand whose `[cmd]` completed non-OK carries that code
+            // (error, or `return`/`break`/`continue`) out of the expression.
+            Err(code) => {
                 self.propagated = true;
+                self.propagated_code = code;
                 Err(crate::expr::ExprError::from_bytes(obj_bytes(
                     self.interp.get_obj_result(),
                 )))
