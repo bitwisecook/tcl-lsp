@@ -2084,6 +2084,26 @@ impl Interp {
         }
     }
 
+    /// Variable names in the namespace named `qualifier` (`info vars
+    /// ::ns::pattern`), or empty if it does not exist. An empty qualifier (a
+    /// leading `::pattern`) addresses the global namespace.
+    pub(crate) fn vars_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.var_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Proc names visible from the current namespace (`info procs`).
     pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
