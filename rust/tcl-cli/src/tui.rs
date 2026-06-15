@@ -40,8 +40,7 @@ struct App {
 
 impl App {
     fn new(data: Value) -> Self {
-        // Open on `ir` — `greentree` (TREE_VIEWS[0]) has no Rust backend yet,
-        // so it would show an empty "unavailable" note.
+        // Open on `ir` — the IR is the most useful entry point into the views.
         let view_idx = TREE_VIEWS.iter().position(|v| *v == "ir").unwrap_or(0);
         let roots = build_view(TREE_VIEWS[view_idx], &data);
         Self {

@@ -11,9 +11,11 @@
 /// CLI's `--show` grouping uses the separate `VIEW_GROUPS` mapping.
 pub type ViewMeta = (&'static str, &'static str, &'static str);
 
-/// The ordered view-tab table, mirroring Python's `_VIEW_META`.
+/// The ordered view-tab table. Diverges intentionally from Python's
+/// `_VIEW_META`: Rust's parser produces a single red-green CST (no separate
+/// legacy "green tree"), so the `greentree` tab is dropped and `cst` is the
+/// sole parse-tree view.
 pub const VIEW_META: &[ViewMeta] = &[
-    ("greentree", "Green Tree", "compiler"),
     ("cst", "CST", "compiler"),
     ("segments", "Segments", "compiler"),
     ("ir", "IR", "compiler"),

@@ -620,57 +620,6 @@ function renderTextDiff(origLines, optLines) {
   return html;
 }
 
-// Green token tree — proper tree with click/Space to expand every token to
-// its type, absolute character range, line:col span and verbatim text.
-// Opaque {...} / [...] tokens expand into their re-lexed child region.
-function renderGreentree() {
-  var pane = $('#pane-greentree');
-  var root = data.greentree;
-  if (!root) { pane.innerHTML = '<div class="empty-state">No green tree</div>'; return; }
-  var html = '<div class="section-header">green tree <span style="color:var(--text-dim);font-weight:normal">' +
-             esc(root.kind.toLowerCase()) + ' / ' + esc(root.mode.toLowerCase()) + ' &middot; ' + root.width + ' bytes</span></div>';
-  html += '<div class="gt-tree">' + gtTokens(root.tokens) + '</div>';
-  pane.innerHTML = html;
-  setupHoverHighlighting(pane);
-  setupExpandable(pane);
-}
-function gtTokens(tokens) {
-  if (!tokens || !tokens.length) return '<div class="gt-empty">(no tokens)</div>';
-  var html = '';
-  for (var t of tokens) {
-    var hasChild = !!t.child;
-    var opaque = t.type === 'STR' || t.type === 'CMD';
-    var errChild = hasChild && t.child.isError;
-    var cls = errChild ? 'gt-error' : (opaque ? 'gt-opaque' : '');
-    var oneLine = t.text.replace(/\n/g, '⏎');
-    var preview = oneLine.length > 48 ? oneLine.slice(0, 48) + '…' : oneLine;
-    html += '<div class="gt-node xpand ' + cls + '" tabindex="0" data-start="' + t.startOffset + '" data-end="' + t.endOffset + '">';
-    html += '<div class="xpand-head gt-head">';
-    html += '<span class="gt-toggle">' + (hasChild ? '▸' : '·') + '</span>';
-    html += '<span class="gt-type">' + esc(t.type) + '</span>';
-    html += '<span class="gt-text">' + esc(preview) + '</span>';
-    html += '<span class="gt-range">[' + t.startOffset + ':' + t.endOffset + ']</span>';
-    html += '</div>';
-    html += '<div class="xpand-detail">';
-    html += detailRow('token type', t.type);
-    html += detailRow('byte range', t.startOffset + '…' + t.endOffset + ' (' + Math.max(0, t.endOffset - t.startOffset) + ' bytes)');
-    html += detailRow('line:col', (t.startLine + 1) + ':' + (t.startCol + 1) + ' → ' + (t.endLine + 1) + ':' + (t.endCol + 1));
-    if (hasChild) html += detailRow('region', t.child.kind.toLowerCase() + ' / ' + t.child.mode.toLowerCase() + (t.child.isError ? ' (ERROR — unterminated)' : ''));
-    html += '<div class="xpand-detail-row"><span class="xpand-detail-k">text</span></div>';
-    html += '<pre class="gt-text-full">' + esc(t.text) + '</pre>';
-    html += '</div>';
-    if (hasChild) {
-      var c = t.child;
-      html += '<div class="xpand-children">';
-      html += '<div class="gt-region">' + esc(c.kind.toLowerCase()) + ' &middot; mode ' + esc(c.mode.toLowerCase()) + ' &middot; ' + c.width + ' bytes' + (c.isError ? ' &middot; <span style="color:var(--red)">ERROR</span>' : '') + '</div>';
-      html += gtTokens(c.tokens);
-      html += '</div>';
-    }
-    html += '</div>';
-  }
-  return html;
-}
-
 // Canonical red-green CST: DOCUMENT -> COMMAND -> WORD -> fragment, the
 // structural tree the whole pipeline rides on (counterpart to the green tree).
 function renderCst() {

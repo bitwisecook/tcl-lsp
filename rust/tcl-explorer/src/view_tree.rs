@@ -12,8 +12,6 @@
 
 use serde_json::Value;
 
-use crate::formatters::py_repr_str;
-
 /// One expandable row: a summary `label`, a `detail` table, and children.
 ///
 /// `Serialize` is for the differential parity harness (compared against
@@ -173,97 +171,6 @@ fn arr_to_strings(v: &Value) -> Vec<String> {
     v.as_array()
         .map(|a| a.iter().map(jstr).collect())
         .unwrap_or_default()
-}
-
-// --- Green tree ---
-
-const GT_OPAQUE: [&str; 2] = ["STR", "CMD"];
-
-fn token_node(t: &Value) -> ViewNode {
-    let ttype = s(t, "type");
-    let opaque = GT_OPAQUE.contains(&ttype.as_str());
-    let one_line = s(t, "text").replace('\n', "⏎");
-    let preview: String = if one_line.chars().count() <= 40 {
-        one_line.clone()
-    } else {
-        format!("{}…", one_line.chars().take(40).collect::<String>())
-    };
-    let (so, eo) = (s(t, "startOffset"), s(t, "endOffset"));
-    let label = format!("{ttype} {} [{so}:{eo}]", py_repr_str(&preview));
-    let span = (eo.parse::<i64>().unwrap_or(0) - so.parse::<i64>().unwrap_or(0)).max(0);
-    let mut detail = vec![
-        det("token type", ttype.clone()),
-        det("byte range", format!("{so}…{eo} ({span} bytes)")),
-        det(
-            "line:col",
-            format!(
-                "{}:{} → {}:{}",
-                t["startLine"].as_i64().unwrap_or(0) + 1,
-                t["startCol"].as_i64().unwrap_or(0) + 1,
-                t["endLine"].as_i64().unwrap_or(0) + 1,
-                t["endCol"].as_i64().unwrap_or(0) + 1,
-            ),
-        ),
-    ];
-    let mut children = Vec::new();
-    let child = &t["child"];
-    if child.is_object() {
-        let mut kind = format!(
-            "{} / {}",
-            s(child, "kind").to_lowercase(),
-            s(child, "mode").to_lowercase()
-        );
-        if child["isError"].as_bool().unwrap_or(false) {
-            kind.push_str(" (ERROR — unterminated)");
-        }
-        detail.push(det("region", kind));
-        children = arr(child, "tokens").iter().map(token_node).collect();
-    }
-    let text = s(t, "text");
-    detail.push(det(
-        "text",
-        if text.is_empty() {
-            "(empty)".to_owned()
-        } else {
-            text
-        },
-    ));
-    ViewNode::branch(
-        label,
-        detail,
-        children,
-        if opaque { Some("cyan") } else { None },
-    )
-}
-
-fn build_greentree(d: &Value) -> Vec<ViewNode> {
-    let root = &d["greentree"];
-    if !root.is_object() {
-        return vec![ViewNode::note("(green tree unavailable)", "red")];
-    }
-    let region = vec![
-        det(
-            "region",
-            format!(
-                "{} / {}",
-                s(root, "kind").to_lowercase(),
-                s(root, "mode").to_lowercase()
-            ),
-        ),
-        det("width", format!("{} bytes", s(root, "width"))),
-    ];
-    let label = format!(
-        "{} [{}] w={}",
-        s(root, "kind").to_lowercase(),
-        s(root, "mode").to_lowercase(),
-        s(root, "width")
-    );
-    vec![ViewNode::branch(
-        label,
-        region,
-        arr(root, "tokens").iter().map(token_node).collect(),
-        None,
-    )]
 }
 
 // --- IR ---
@@ -1046,9 +953,9 @@ fn build_callouts(d: &Value) -> Vec<ViewNode> {
 }
 
 /// The view ids the TUI renders as interactive trees (everything with a
-/// builder). `asm` / `wasm` stay on the text renderer. Mirrors `TREE_VIEWS`.
+/// builder). `asm` / `wasm` stay on the text renderer. `cst` is the parse
+/// tree (Rust has a single red-green CST, no separate "green tree").
 pub const TREE_VIEWS: &[&str] = &[
-    "greentree",
     "ir",
     "cfg",
     "ssa",
@@ -1073,7 +980,6 @@ pub const TREE_VIEWS: &[&str] = &[
 #[must_use]
 pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
     match view {
-        "greentree" => build_greentree(data),
         "ir" => build_ir(data),
         "cfg" => build_cfg(arr(data, "cfgPreSsa"), false),
         "ssa" => build_cfg(arr(data, "cfgPostSsa"), true),

@@ -1557,12 +1557,22 @@ mod tests {
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 14);
-        assert_eq!(meta["views"].as_array().unwrap().len(), 24);
+        // 23 views: Python's 24 minus the dropped `greentree` tab (Rust has a
+        // single red-green CST, no separate legacy green tree).
+        assert_eq!(meta["views"].as_array().unwrap().len(), 23);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
-        // First view tab matches the Python table head.
+        // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
             meta["views"][0],
-            json!({ "id": "greentree", "label": "Green Tree", "group": "compiler" })
+            json!({ "id": "cst", "label": "CST", "group": "compiler" })
+        );
+        assert!(
+            !meta["views"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["id"] == "greentree"),
+            "greentree tab must be dropped"
         );
     }
 

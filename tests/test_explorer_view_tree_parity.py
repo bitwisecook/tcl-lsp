@@ -65,6 +65,11 @@ def test_rust_build_view_matches_python(name: str) -> None:
     data = json.loads(json.dumps(serialise_result(run_pipeline(_CORPUS[name], dialect="tcl8.6"))))
     payload = json.dumps(data)
     for view in sorted(TREE_VIEWS):
+        # The Rust explorer intentionally drops the `greentree` view (Rust has
+        # a single red-green CST, no separate legacy green tree), so there is
+        # no Rust builder to compare against.
+        if view == "greentree":
+            continue
         py = [_node_json(n) for n in build_view(view, data)]
         out = subprocess.run(
             [str(binary), "--view-tree-stdin", view],

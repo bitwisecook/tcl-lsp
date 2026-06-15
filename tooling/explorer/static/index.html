@@ -957,7 +957,6 @@ puts $x"></textarea>
     <div class="output-panel" id="outputPanel" style="position:relative">
       <div class="tab-bar" id="tabBar">
         <div class="tab active" data-tab="ir">IR</div>
-        <div class="tab" data-tab="greentree">Green Tree</div>
         <div class="tab" data-tab="cst">CST</div>
         <div class="tab" data-tab="segments">Segments</div>
         <div class="tab" data-tab="cfg-pre">CFG</div>
@@ -983,7 +982,6 @@ puts $x"></textarea>
         <div class="tab-pane active" id="pane-ir">
           <div class="empty-state" id="emptyState">Loading compiler...</div>
         </div>
-        <div class="tab-pane" id="pane-greentree"></div>
         <div class="tab-pane" id="pane-cst"></div>
         <div class="tab-pane" id="pane-segments"></div>
         <div class="tab-pane" id="pane-cfg-pre"></div>
@@ -1229,7 +1227,6 @@ function renderAll() {
   updateIrulesTabVisibility();
   renderStats();
   renderIR();
-  renderGreentree();
   renderCst();
   renderSegments();
   renderCfgPre();

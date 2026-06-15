@@ -252,6 +252,16 @@ def _normalise(payload: dict) -> dict:
         payload["shimmer"] = _normalise_shimmer(payload["shimmer"])
     if isinstance(payload.get("loops"), list):
         payload["loops"] = _normalise_loops(payload["loops"])
+    # The Rust parser produces a single red-green CST (no separate legacy
+    # "green tree"), so the Rust explorer intentionally drops the `greentree`
+    # tab. Strip it from the Python `meta.views` list so the meta tab table
+    # compares equal. (The `greentree` data key is only emitted by Python, and
+    # the harness only compares keys the Rust side emits, so it is ignored.)
+    meta = payload.get("meta")
+    if isinstance(meta, dict) and isinstance(meta.get("views"), list):
+        meta = dict(meta)
+        meta["views"] = [v for v in meta["views"] if v.get("id") != "greentree"]
+        payload["meta"] = meta
     return payload
 
 
