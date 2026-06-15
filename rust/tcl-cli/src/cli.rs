@@ -257,6 +257,9 @@ pub enum Command {
         /// Views to show (ir, cfg, ssa, types, opt, taint, asm, wasm, ...).
         #[arg(long, value_name = "VIEW", value_delimiter = ',')]
         show: Vec<String>,
+        /// Emit the full machine-readable JSON (the explorer contract shape).
+        #[arg(long)]
+        json: bool,
         #[command(flatten)]
         colour: ColourArgs,
     },

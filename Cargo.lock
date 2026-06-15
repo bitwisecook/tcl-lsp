@@ -1855,6 +1855,7 @@ dependencies = [
  "serde_json",
  "tcl-cli-support",
  "tcl-compiler",
+ "tcl-explorer",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
