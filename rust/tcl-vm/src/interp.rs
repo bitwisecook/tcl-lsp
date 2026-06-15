@@ -53,6 +53,9 @@ pub struct Vm {
     ns_stack: Vec<String>,
     /// Existing namespaces (canonical names; `""` global is implicit).
     namespaces: std::collections::HashSet<String>,
+    /// Namespace scalar variables, keyed by canonical qualified name
+    /// (e.g. `tcltest::Version`). Persist across calls, unlike frame locals.
+    ns_vars: HashMap<String, Value>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     out: Box<dyn Write>,
@@ -75,6 +78,7 @@ impl Vm {
             module_procs: HashMap::new(),
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
+            ns_vars: HashMap::new(),
             packages: HashMap::new(),
             out,
             compiler: None,
@@ -196,6 +200,38 @@ impl Vm {
     /// Names of all provided packages.
     pub(crate) fn package_names(&self) -> Vec<String> {
         self.packages.keys().cloned().collect()
+    }
+
+    /// The canonical namespace-variable name a reference resolves to, if any:
+    /// a directly namespace-qualified name (`::a::b` / `a::b`, but not a plain
+    /// `::global`), or a simple name aliased to one via `variable` (an
+    /// `NsLink` in the current frame).
+    fn resolve_ns_var(&self, name: &str) -> Option<String> {
+        let stripped = name.strip_prefix("::").unwrap_or(name);
+        if stripped.contains("::") {
+            return Some(stripped.to_string());
+        }
+        match self.frames.last()?.locals.get(name) {
+            Some(Local::NsLink(q)) => Some(q.clone()),
+            _ => None,
+        }
+    }
+
+    /// Set a namespace variable (and ensure its namespace exists).
+    pub(crate) fn set_ns_var(&mut self, qual: &str, value: Value) {
+        if let Some((ns, _)) = qual.rsplit_once("::") {
+            self.declare_namespace(ns);
+        }
+        self.ns_vars.insert(qual.to_string(), value);
+    }
+
+    /// Alias a local `name` to the namespace variable `qual` in the current
+    /// frame (`variable name`).
+    pub(crate) fn add_ns_link(&mut self, name: &str, qual: &str) {
+        if let Some(f) = self.frames.last_mut() {
+            f.locals
+                .insert(name.to_owned(), Local::NsLink(qual.to_owned()));
+        }
     }
 
     pub(crate) fn module_proc(&self, qname: &str) -> Option<Rc<FunctionAsm>> {
@@ -325,6 +361,9 @@ impl Vm {
     /// Read a scalar (following links).
     #[must_use]
     pub fn get_var(&self, name: &str) -> Option<Value> {
+        if let Some(q) = self.resolve_ns_var(name) {
+            return self.ns_vars.get(&q).cloned();
+        }
         let (lvl, nm) = self.locate(name);
         match self.frames.get(lvl)?.locals.get(&nm) {
             Some(Local::Scalar(v)) => Some(v.clone()),
@@ -334,6 +373,10 @@ impl Vm {
 
     /// Write a scalar (following links to the owning frame).
     pub fn set_var(&mut self, name: &str, value: Value) {
+        if let Some(q) = self.resolve_ns_var(name) {
+            self.set_ns_var(&q, value);
+            return;
+        }
         let (lvl, nm) = self.locate(name);
         if let Some(f) = self.frames.get_mut(lvl) {
             f.locals.insert(nm, Local::Scalar(value));
@@ -369,6 +412,9 @@ impl Vm {
     pub(crate) fn exists_var(&self, name: &str) -> bool {
         if let Some((base, key)) = elem_ref(name) {
             return self.get_array_elem(base, key).is_some();
+        }
+        if let Some(q) = self.resolve_ns_var(name) {
+            return self.ns_vars.contains_key(&q);
         }
         self.has_var(name)
     }
@@ -421,6 +467,9 @@ impl Vm {
                 Err(format!("can't set \"{name}({key})\": variable isn't array"))
             }
             Some(Local::Link { .. }) => unreachable!("locate resolves links"),
+            Some(Local::NsLink(_)) => Err(format!(
+                "can't set \"{name}({key})\": namespace array variables are not yet supported"
+            )),
             None => {
                 let mut m = BTreeMap::new();
                 m.insert(key.to_owned(), value);

@@ -470,9 +470,20 @@ fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let mut i = 0;
     while i < args.len() {
         let name = args[i].to_str();
-        vm.add_link(&name, 0, &name);
+        // The full (namespace-qualified) variable, and the unqualified alias
+        // the surrounding body refers to it by.
+        let qual = vm.qualify_name(&name);
+        let local = name.rsplit("::").next().unwrap_or(&name).to_owned();
+        if qual.contains("::") {
+            // A genuine namespace variable: alias the local to it.
+            vm.add_ns_link(&local, &qual);
+        } else {
+            // Global namespace: behaves like a global scalar.
+            vm.add_link(&local, 0, &qual);
+        }
         if i + 1 < args.len() {
-            vm.set_var(&name, args[i + 1].clone());
+            // `set_var` follows the alias just installed to the real cell.
+            vm.set_var(&local, args[i + 1].clone());
             i += 2;
         } else {
             i += 1;

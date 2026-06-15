@@ -26,16 +26,6 @@ fn filtered(mut names: Vec<String>, pat: Option<&str>) -> Value {
     Value::list(names.into_iter().map(Value::string).collect())
 }
 
-/// Split `arr(key)` into base + key; `None` if not an element reference.
-fn array_ref(name: &str) -> Option<(&str, &str)> {
-    let open = name.find('(')?;
-    if name.ends_with(')') && open > 0 {
-        Some((&name[..open], &name[open + 1..name.len() - 1]))
-    } else {
-        None
-    }
-}
-
 #[allow(clippy::too_many_lines)]
 fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
@@ -43,15 +33,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match &*sub.to_str() {
         "exists" => match rest {
-            [name] => {
-                let n = name.to_str();
-                let exists = if let Some((base, key)) = array_ref(&n) {
-                    vm.get_array_elem(base, key).is_some()
-                } else {
-                    vm.has_var(&n)
-                };
-                ok(Value::bool(exists))
-            }
+            [name] => ok(Value::bool(vm.exists_var(&name.to_str()))),
             _ => err("wrong # args: should be \"info exists varName\""),
         },
         "level" => match rest {

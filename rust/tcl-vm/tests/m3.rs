@@ -222,6 +222,28 @@ fn namespace_introspection() {
 }
 
 #[test]
+fn namespace_variables() {
+    out_eq(
+        "namespace eval foo { variable v 42 }\nputs $::foo::v\n",
+        "42\n",
+    );
+    out_eq(
+        "namespace eval foo { variable v 42\nproc get {} { variable v; return $v } }\nputs [foo::get]\n",
+        "42\n",
+    );
+    // A namespace variable persists across calls.
+    out_eq(
+        "namespace eval foo { variable v 1\nproc inc {} { variable v; incr v; return $v } }\nputs [foo::inc][foo::inc]\n",
+        "23\n",
+    );
+    out_eq(
+        "namespace eval foo { variable v 5 }\nputs [info exists ::foo::v]\n",
+        "1\n",
+    );
+    out_eq("puts [info exists ::foo::nope]\n", "0\n");
+}
+
+#[test]
 fn package_stubs() {
     out_eq("puts [package require Tcl 8.5-]\n", "9.0\n");
     out_eq("puts [package vsatisfies 9.0 9.0-]\n", "1\n");
