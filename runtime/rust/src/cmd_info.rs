@@ -173,6 +173,19 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() > 4 {
                 return wrong_args(interp, b"info loaded ?interp? ?prefix?");
             }
+            // A named interp must resolve (C's `Tcl_GetChild` in
+            // `TclGetLoadedLibraries`); the empty path is the current interp.
+            // Nothing is ever loaded in this runtime, so the result is always
+            // empty — but an unknown interp is still an error.
+            if let Some(&a) = argv.get(2) {
+                let path = obj_bytes(a);
+                if !path.is_empty() && !interp.child_exists(&path) {
+                    let mut m = b"could not find interpreter \"".to_vec();
+                    m.extend_from_slice(&path);
+                    m.push(b'"');
+                    return interp.set_error(&m);
+                }
+            }
             interp.set_result_bytes(b"");
             Code::Ok
         }
