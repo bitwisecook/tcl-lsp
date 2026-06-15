@@ -879,15 +879,11 @@ impl Vm {
 
             // -- numeric/boolean coercion checks (expr result validation) --
             Op::TRY_CVT_TO_NUMERIC => {
+                // Best-effort normalisation (C Tcl `INST_TRY_CVT_TO_NUMERIC`):
+                // numeric values stay numeric, non-numeric values pass through
+                // unchanged — it never errors (e.g. `expr {1 ? "big" : "x"}`).
                 let v = pop(f);
-                if v.as_int().is_ok() || v.as_double().is_ok() {
-                    f.stack.push(v);
-                } else {
-                    return Tick::Return(err(format!(
-                        "can't use non-numeric string \"{}\" as operand of arithmetic",
-                        v.to_str()
-                    )));
-                }
+                f.stack.push(v);
             }
             Op::TRY_CVT_TO_BOOLEAN => {
                 let v = pop(f);

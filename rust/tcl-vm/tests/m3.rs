@@ -189,6 +189,18 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn expr_ternary_string_branches() {
+    // `tryCvtToNumeric` must pass non-numeric results through, not error.
+    out_eq("puts [expr {1 ? \"a\" : \"b\"}]\n", "a\n");
+    out_eq("puts [expr {0 ? \"a\" : \"b\"}]\n", "b\n");
+    out_eq(
+        "set x 5\nputs [expr {$x > 3 ? \"big\" : \"small\"}]\n",
+        "big\n",
+    );
+    out_eq("puts [expr {1 ? 2 : 3}]\n", "2\n");
+}
+
+#[test]
 fn expr_in_operator() {
     out_eq("puts [expr {3 in {1 2 3}}]\n", "1\n");
     out_eq("puts [expr {9 in {1 2 3}}]\n", "0\n");
