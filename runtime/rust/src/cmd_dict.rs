@@ -11,6 +11,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::dict;
+use crate::frame::VarError;
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 use crate::parse;
@@ -380,13 +381,32 @@ fn is_true(b: &[u8]) -> bool {
 
 /// The dict object to mutate for `dictVar`: the variable's (mutated in place if
 /// unshared), a COW copy, or a fresh empty dict. Returns `(obj, is_new)`.
+/// Read the dict-variable `name`, splitting an `arr(elem)` reference so a dict
+/// command can mutate an array element (and pick up a TIP 508 array default).
+fn dict_var_get(interp: &Interp, name: &[u8]) -> Option<*mut TclObj> {
+    let (base, elem) = crate::frame::split_array_ref(name);
+    match elem {
+        Some(k) => interp.var_get_elem(&base, &k),
+        None => interp.var_get(&base),
+    }
+}
+
+/// Write the dict-variable `name`, splitting an `arr(elem)` reference.
+fn dict_var_set(interp: &mut Interp, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+    let (base, elem) = crate::frame::split_array_ref(name);
+    match elem {
+        Some(k) => interp.var_set_elem(&base, &k, obj),
+        None => interp.var_set(&base, obj),
+    }
+}
+
 fn working_dict(interp: &mut Interp, name: &[u8]) -> Result<(*mut TclObj, bool), Code> {
     // A constant cannot be the target of a mutating dict op; reject before the
     // in-place update would bypass the store-time check.
     if let Some(c) = interp.const_write_check(name) {
         return Err(c);
     }
-    Ok(match interp.var_get(name) {
+    Ok(match dict_var_get(interp, name) {
         None => (dict::new_dict_obj(&[]), true),
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
@@ -396,7 +416,7 @@ fn working_dict(interp: &mut Interp, name: &[u8]) -> Result<(*mut TclObj, bool),
 /// Store a freshly built dict back into `dictVar` (when `is_new`) and set it as
 /// the result.
 fn store_dict(interp: &mut Interp, name: &[u8], target: *mut TclObj, is_new: bool) -> Code {
-    if is_new && interp.var_set(name, target).is_err() {
+    if is_new && dict_var_set(interp, name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, name);
     }
@@ -531,7 +551,10 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return c;
     }
 
-    let (target, is_new) = match interp.var_get(&name) {
+    if let Some(c) = interp.const_write_check(&name) {
+        return c;
+    }
+    let (target, is_new) = match dict_var_get(interp, &name) {
         None => (dict::new_dict_obj(&[]), true),
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
@@ -542,7 +565,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         return bad_dict(interp, e);
     }
-    if is_new && interp.var_set(&name, target).is_err() {
+    if is_new && dict_var_set(interp, &name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, &name);
     }
@@ -558,7 +581,10 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let name = obj_bytes(argv[2]);
     let key = obj_bytes(argv[3]);
 
-    let (target, is_new) = match interp.var_get(&name) {
+    if let Some(c) = interp.const_write_check(&name) {
+        return c;
+    }
+    let (target, is_new) = match dict_var_get(interp, &name) {
         None => (dict::new_dict_obj(&[]), true),
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
@@ -569,7 +595,7 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         return bad_dict(interp, e);
     }
-    if is_new && interp.var_set(&name, target).is_err() {
+    if is_new && dict_var_set(interp, &name, target).is_err() {
         drop_fresh(target);
         return cant_set(interp, &name);
     }
@@ -673,7 +699,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let body_obj = argv[argv.len() - 1];
     let pairs_args = &argv[3..argv.len() - 1];
 
-    let Some(d) = interp.var_get(&dict_var) else {
+    let Some(d) = dict_var_get(interp, &dict_var) else {
         return no_such_var(interp, &dict_var);
     };
     // Link phase: set each local to its key's value (or unset if absent).
@@ -697,7 +723,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Write-back: re-read the dict (the body may have replaced it), then apply
     // each local var (set if it exists, drop the key if it was unset).
-    if let Some(cur) = interp.var_get(&dict_var) {
+    if let Some(cur) = dict_var_get(interp, &dict_var) {
         if let Some(acc) = copy_dict(interp, cur) {
             for c in pairs_args.chunks_exact(2) {
                 let var = obj_bytes(c[1]);
@@ -710,7 +736,7 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     }
                 }
             }
-            if interp.var_set(&dict_var, acc).is_err() {
+            if dict_var_set(interp, &dict_var, acc).is_err() {
                 unsafe { obj::decr_ref_count(acc) };
                 return cant_set(interp, &dict_var);
             }
@@ -730,7 +756,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let body_obj = argv[argv.len() - 1];
     let path = &argv[3..argv.len() - 1];
 
-    let Some(d) = interp.var_get(&dict_var) else {
+    let Some(d) = dict_var_get(interp, &dict_var) else {
         return no_such_var(interp, &dict_var);
     };
     // Navigate the optional key path to the sub-dict.
@@ -758,7 +784,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Write-back: rebuild the sub-dict from the locals, then store it through
     // the key path (only the no-path case writes back nested updates here).
-    if let Some(cur) = interp.var_get(&dict_var) {
+    if let Some(cur) = dict_var_get(interp, &dict_var) {
         if path.is_empty() {
             if let Some(acc) = copy_dict(interp, cur) {
                 for key in &keys {
@@ -774,7 +800,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     }
                     unsafe { obj::decr_ref_count(kobj) };
                 }
-                if interp.var_set(&dict_var, acc).is_err() {
+                if dict_var_set(interp, &dict_var, acc).is_err() {
                     unsafe { obj::decr_ref_count(acc) };
                     return cant_set(interp, &dict_var);
                 }
