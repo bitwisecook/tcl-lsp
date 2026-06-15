@@ -285,17 +285,61 @@ practcl.tcl from ~1 s to low-ms).
 > the per-item walk under random edits — which the older `differential_incremental`
 > does not cover, as it exercises `analyse_commands`-based `analyse_incremental`).
 >
-> **Still falling back / not yet won (the next steps).**
-> - **Duplicate definitions** (e.g. `practcl.tcl` defines `::clay::uuid::generate`
->   twice) remain a genuine correctness fallback — last-def-wins (DFS) vs the
->   graft's merge.
+> **Where the remaining per-edit time actually goes (post-Phase-C profiling).**
+> Phase-timed on the salsa graph (warm DB, single-char body edit), the picture
+> that the original "memoise the tail" sub-tasks assumed turns out **not** to
+> hold — the tail's *emission* is already cheap; the cost is the unit **build**:
+>
+> - **The analyser tail's `emit_cfg_ssa_diagnostics` emission is ~6 ms** once it
+>   consumes the memoised `cu_override`; the 130 ms it costs on the *no-override*
+>   path (`analyse_per_item`) is entirely the **`CompilationUnit` build** it does
+>   for itself.  Every other tail emitter (W123 / arity / W120 / var-usage / W002
+>   / W304) is ~0 ms.  So *making the emission incremental buys almost nothing.*
+> - The dominant per-edit cost on a fast-path file is the **`CompilationUnit`
+>   build** — `memoised_compilation_unit`, run once in *each* of the two tracked
+>   queries (`file_analysis_incremental` + `compiler_check_diagnostics`).  On
+>   `parse_lemon.tcl` (7.4 kLOC, 177 fns): `build_for_memoized` ≈ 80 ms +
+>   `with_interprocedural` ≈ 19 ms, ×2 queries.  The per-function *lattices* are
+>   memoised (cache hits across edits), so this 80 ms is the **non-memoised
+>   whole-module work**: `lower_to_ir` + module `build_cfg` +
+>   `collect_call_site_constants` + the 177 lattice clone/rebases — i.e. O(file)
+>   lowering, the genuine floor.  `run_all_checks` (≈ 23 ms) + `optimise_unit`
+>   (≈ 13 ms) are minor by comparison.
+> - **Net:** fast-path large files already sit at the *target* — `parse_lemon`
+>   ≈ 150 ms (`file_analysis_incremental`) + 141 ms (`compiler_check`); `pki.tcl`
+>   (3.3 kLOC) ≈ 115 + 119 ms.  Driving them lower means attacking the
+>   lowering/CFG floor (incremental lexing/lowering, or sharing one built unit
+>   between the two queries when their `LexerConfig`s coincide — they differ only
+>   for tcl8.4 / iRules) — a larger architecture step, *not* the diagnostic-tail
+>   memoisation the original plan named.
+>
+> **Still falling back (fallback-reason census over the corpus, production
+> settings): `duplicate` 86, `variable_ns` 44, `proc_collision` 12,
+> `syntax_error` 11.**
+> - **Duplicate definitions** (`duplicate` + `proc_collision` ≈ 98 files, incl.
+>   `practcl.tcl`'s twice-defined `::clay::uuid::generate`) are the biggest
+>   remaining fallback class — and, like the Phase-B/C enclosing fallback, are
+>   *mostly over-conservative*: bypassing the fallback leaves **0 diagnostic
+>   divergence** and only ~19 internal symbol-table struct-diffs.  But the
+>   residual is a genuine nest of **last-definition-wins** semantics that the
+>   graft's position-independent merge can't cheaply reproduce: a whole-file
+>   `define_var` *overwrites* `all_variables` on each redefinition (discarding the
+>   earlier body's references — *including params*), and duplicate **class**
+>   definitions accumulate (`all_classes` / `instance_classes` / `global_scope`,
+>   e.g. `clay.tcl`, `practcl.tcl`).  A partial "`all_variables` last-wins" graft
+>   cut the residual to ~8 files but mishandled duplicate-proc param references —
+>   so the duplicate fast-path needs a dedicated, carefully-gated pass, not a
+>   quick patch.
 > - **OO method bodies** are walked *in place* in the shell pass (not deferred /
->   memoised); OO-heavy files (practcl: 244 methods vs 132 procs) therefore see
->   little body-memo benefit even on the fast path.
-> - **The whole-file tail** (`run_diagnostic_emitters`: `emit_cfg_ssa` +
->   W123 / arity) still re-runs every edit and dominates per-edit latency on the
->   largest files; making it incremental is the remaining lever (the original
->   task's sub-tasks #1–#4).
+>   memoised — 0 deferred methods on every file profiled); OO-heavy files
+>   (`practcl`: 244 methods vs 132 procs) see little body-memo benefit even once
+>   on the fast path.  Memoising them means routing `is_method` bodies through an
+>   isolated+grafted analysis like procs (with class / `self` / instance-var
+>   context), then handling the class-accumulation fallback.
+>
+> So `practcl` specifically needs *all three* — duplicate fast-path **and** method
+> memoisation **and** a cheaper unit build — before it leaves the full-rebuild
+> floor; each is a substantial, independently-gated piece.
 
 > **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
 > (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now
