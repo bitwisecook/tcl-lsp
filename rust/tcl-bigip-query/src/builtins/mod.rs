@@ -34,7 +34,13 @@ use crate::eval::EvalContext;
 use crate::jsonfmt;
 use crate::value::{self, Value};
 
+mod encoding;
+mod math;
+mod net;
+mod regex_str;
 mod string;
+mod time_dt;
+mod value2;
 
 /// How a builtin is invoked.
 pub enum Builtin {
@@ -159,6 +165,12 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
         plain("abs", "math", 1, Some(1), false, bi_abs),
     ];
     r.extend(string::registrations());
+    r.extend(math::registrations());
+    r.extend(net::registrations());
+    r.extend(time_dt::registrations());
+    r.extend(regex_str::registrations());
+    r.extend(value2::registrations());
+    r.extend(encoding::registrations());
     r.extend(crate::special::registrations());
     r
 }
