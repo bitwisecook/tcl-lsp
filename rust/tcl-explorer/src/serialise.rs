@@ -13,6 +13,7 @@ use serde_json::{Map, Value, json};
 
 use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
+use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
 use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
@@ -736,6 +737,103 @@ fn post_ssa_analysis(snap: &crate::FunctionSnapshot) -> Value {
     })
 }
 
+/// Serialise the `dataflow` view: the def-use data-flow graph. Mirrors
+/// `dataflow_graph_to_dict` over `extract_dataflow_graph`.
+///
+/// `_NO_PARITY`: `extract_dataflow_graph` sorts functions whereas Python
+/// emits top-level-first, and alias info comes from memory-SSA (not built
+/// here, so `aliases` are limited); the node/edge detail also follows the
+/// (divergent) Rust analyses.
+#[must_use]
+pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
+    let snaps = result.snapshots();
+    let inputs: Vec<FunctionInputs<'_>> = snaps
+        .iter()
+        .map(|s| FunctionInputs {
+            name: s.name,
+            ssa: &s.unit.ssa,
+            du: &s.unit.def_use,
+            sccp: Some(&s.unit.sccp),
+            mem: s.unit.memory_ssa.as_ref(),
+        })
+        .collect();
+    let graph = extract_dataflow_graph(&inputs);
+
+    let functions: Vec<Value> = graph
+        .functions
+        .iter()
+        .map(|f| {
+            let nodes: Vec<Value> = f
+                .nodes
+                .iter()
+                .map(|n| {
+                    json!({
+                        "name": n.name,
+                        "version": n.version,
+                        "block": n.block,
+                        "defKind": n.def_kind,
+                        "statementIndex": n.statement_index,
+                        "lattice": n.lattice,
+                        "typeInfo": n.type_info,
+                        "isDead": n.is_dead,
+                        "useCount": n.use_count,
+                    })
+                })
+                .collect();
+            let edges: Vec<Value> = f
+                .edges
+                .iter()
+                .map(|e| {
+                    json!({
+                        "fromName": e.from_name,
+                        "fromVersion": e.from_version,
+                        "toBlock": e.to_block,
+                        "toStatementIndex": e.to_statement_index,
+                        "edgeKind": e.edge_kind.as_str(),
+                        "toName": e.to_name,
+                        "toVersion": e.to_version,
+                    })
+                })
+                .collect();
+            let aliases: Vec<Value> = f
+                .aliases
+                .iter()
+                .map(|a| {
+                    json!({
+                        "localName": a.local_name,
+                        "localKind": a.local_kind,
+                        "targetName": a.target_name,
+                        "targetKind": a.target_kind,
+                        "reason": a.reason,
+                    })
+                })
+                .collect();
+            json!({
+                "name": f.function_name,
+                "nodes": nodes,
+                "edges": edges,
+                "aliases": aliases,
+                "summary": {
+                    "totalDefs": f.total_defs,
+                    "totalUses": f.total_uses,
+                    "deadDefs": f.dead_defs,
+                    "aliasedVars": f.aliased_vars,
+                },
+            })
+        })
+        .collect();
+
+    json!({
+        "functions": functions,
+        "summary": {
+            "totalDefs": graph.total_defs(),
+            "totalUses": graph.total_uses(),
+            "totalAliases": graph.total_aliases(),
+            "functionCount": graph.functions.len(),
+        },
+    })
+}
+
 /// Serialise the `bounds` view: interval-driven out-of-range findings per
 /// function. Mirrors `_serialise_bounds`.
 ///
@@ -1229,6 +1327,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
     out.insert("taintTracking".to_owned(), serialise_taint_tracking(result));
+    out.insert("dataflow".to_owned(), serialise_dataflow(result));
     out.insert(
         "asm".to_owned(),
         crate::asm::serialise_asm(result, &li, &result.source),
@@ -1371,6 +1470,23 @@ mod tests {
         assert_eq!(o105["expression"], "llength $x");
         assert_eq!(o105["severity"], "info");
         assert!(o105["firstRange"]["startOffset"].is_number());
+    }
+
+    #[test]
+    fn dataflow_emits_nodes_and_summary() {
+        let result = run_pipeline("set x 1\nset y [expr {$x + 1}]\nputs $y", "tcl8.6");
+        let df = serialise_result(&result)["dataflow"].clone();
+        assert!(df["functions"].is_array());
+        let summary = &df["summary"];
+        assert!(summary["totalDefs"].as_u64().unwrap() >= 2);
+        assert_eq!(
+            summary["functionCount"],
+            df["functions"].as_array().unwrap().len()
+        );
+        let f0 = &df["functions"].as_array().unwrap()[0];
+        assert!(f0["nodes"].is_array());
+        assert!(f0["edges"].is_array());
+        assert!(f0["aliases"].is_array());
     }
 
     #[test]

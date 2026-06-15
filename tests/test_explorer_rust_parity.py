@@ -95,6 +95,10 @@ _NO_PARITY_KEYS = {
     # divide-by-zero (W233) findings, so divzero is always [] and findings
     # come from the divergent Rust interval analysis.
     "bounds",
+    # dataflow: extract_dataflow_graph sorts functions (Python emits
+    # top-level first), aliases come from memory-SSA (not built here), and
+    # the node/edge detail follows the divergent Rust analyses.
+    "dataflow",
     "renderedProperties",
     "taintWarnings",
     "gvn",
