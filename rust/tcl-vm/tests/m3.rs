@@ -189,6 +189,19 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn upvar_to_array_element() {
+    // `upvar 0 arr(key) alias` aliases a scalar to an array element.
+    out_eq(
+        "proc f {} { set a(x) 1; upvar 0 a(x) al; set al 9; return $a(x) }\nputs [f]\n",
+        "9\n",
+    );
+    out_eq(
+        "proc f {} { set a(x) 5; upvar 0 a(x) al; return $al }\nputs [f]\n",
+        "5\n",
+    );
+}
+
+#[test]
 fn dynamic_proc_body() {
     // A proc whose name and/or body is built at runtime is compiled on demand.
     out_eq(

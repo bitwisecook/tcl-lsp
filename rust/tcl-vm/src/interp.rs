@@ -492,20 +492,45 @@ impl Vm {
         (level, nm)
     }
 
-    /// Read a scalar (following links).
+    /// Read a scalar (following links). A link may resolve to an array element
+    /// name (`upvar 0 arr(key) alias`), in which case the element is read.
     #[must_use]
     pub fn get_var(&self, name: &str) -> Option<Value> {
         let (lvl, nm) = self.locate(name);
-        match self.frames.get(lvl)?.locals.get(&nm) {
+        let frame = self.frames.get(lvl)?;
+        if let Some((base, key)) = elem_ref(&nm) {
+            return match frame.locals.get(base) {
+                Some(Local::Array(m)) => m.get(key).cloned(),
+                _ => None,
+            };
+        }
+        match frame.locals.get(&nm) {
             Some(Local::Scalar(v)) => Some(v.clone()),
             _ => None,
         }
     }
 
-    /// Write a scalar (following links to the owning frame).
     /// Write a scalar with no trace firing (frame argument binding, rollback).
+    /// A link resolving to an array element name writes that element.
     fn write_scalar_raw(&mut self, name: &str, value: Value) {
         let (lvl, nm) = self.locate(name);
+        if let Some((base, key)) = elem_ref(&nm) {
+            let (base, key) = (base.to_owned(), key.to_owned());
+            if let Some(f) = self.frames.get_mut(lvl) {
+                match f.locals.get_mut(&base) {
+                    Some(Local::Array(m)) => {
+                        m.insert(key, value);
+                    }
+                    Some(_) => {}
+                    None => {
+                        let mut m = BTreeMap::new();
+                        m.insert(key, value);
+                        f.locals.insert(base, Local::Array(m));
+                    }
+                }
+            }
+            return;
+        }
         if let Some(f) = self.frames.get_mut(lvl) {
             f.locals.insert(nm, Local::Scalar(value));
         }
