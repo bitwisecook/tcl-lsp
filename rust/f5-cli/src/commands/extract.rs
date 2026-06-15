@@ -5,9 +5,9 @@
 //! OpenPGP-encrypted); this writes the concatenated `bigip*.conf` members as a
 //! Single Configuration File for the rest of the f5 CLI.
 //!
-//! For the default `--format scf` the SCF text passes through verbatim, so this
-//! reaches byte-for-byte parity with the Python CLI. `tmsh` / `tmsh-delta`
-//! rendering needs the BIG-IP tmsh emitter (a later engine port).
+//! For the default `--format scf` the SCF text passes through verbatim. `tmsh`
+//! / `tmsh-delta` re-render the extracted config via the BIG-IP tmsh emit
+//! engine (`tcl_bigip::tmsh_emit`).
 
 use std::path::Path;
 
@@ -46,14 +46,15 @@ pub fn run_extract(
     let scf = ucs_archive_to_scf(&raw, &provider, include_extras, &label)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    if format.format != "scf" {
-        anyhow::bail!(
-            "`f5 extract --format {}` is not yet implemented in the Rust port (needs the tmsh emitter)",
-            format.format
-        );
-    }
+    let rendered = crate::commands::emit::render_config(
+        &scf,
+        &format.format,
+        "create",
+        format.transaction,
+        "",
+    );
 
     let target = OutputTarget::from_arg(output);
-    write_text_output(&target, &scf)?;
+    write_text_output(&target, &rendered)?;
     Ok(0)
 }

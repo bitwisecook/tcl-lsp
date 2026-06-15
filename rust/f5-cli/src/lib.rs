@@ -205,6 +205,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             format,
             output,
         } => commands::unredact::run_unredact(map_file, path, format, output.as_deref()),
+        Command::Tmsh {
+            path,
+            output,
+            modify,
+            include,
+        } => commands::tmsh::run_tmsh(path, output.as_deref(), *modify, include),
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Completion { shell } => {
             use clap::CommandFactory;

@@ -307,7 +307,11 @@ pub enum Command {
     /// Emit a tmsh script that creates every object in the input config.
     #[command(visible_alias = "scf2tmsh")]
     Tmsh {
-        inputs: Vec<PathBuf>,
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: PathBuf,
+        /// Write the tmsh script here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
         /// Emit `modify` commands instead of `create`.
         #[arg(long)]
         modify: bool,

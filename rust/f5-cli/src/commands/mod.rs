@@ -8,6 +8,7 @@
 pub mod cleanup;
 pub mod diff;
 pub mod difflib;
+pub mod emit;
 pub mod explain;
 pub mod extract;
 pub mod graph;
@@ -19,5 +20,6 @@ pub mod rename;
 pub mod scf;
 pub mod split;
 pub mod stats;
+pub mod tmsh;
 pub mod unredact;
 pub mod validate;

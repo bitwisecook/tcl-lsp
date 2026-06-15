@@ -27,6 +27,7 @@ pub mod parser;
 pub mod range;
 pub mod redact;
 pub mod stats;
+pub mod tmsh_emit;
 pub mod value;
 
 pub use range::{Position, Range};
