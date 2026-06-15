@@ -5,18 +5,18 @@
 
 use std::collections::HashMap;
 
-use super::{Instruction, Op, Operand};
+use crate::{Instruction, Op, Operand};
 
 /// Replace 4-byte jumps with 1-byte jumps when relative offset fits.
 ///
 /// Iterates up to `max_iters` times until no more replacements are
 /// possible (each replacement may change offsets enough to enable
 /// further replacements).
-pub(crate) fn optimise_jumps(
-    instrs: &mut [Instruction],
-    labels: &HashMap<String, usize>,
-    max_iters: u32,
-) {
+///
+/// `implicit_hasher`: call sites always pass a default `HashMap`; threading a
+/// hasher type parameter through the layout pass is noise for no win.
+#[allow(clippy::implicit_hasher)]
+pub fn optimise_jumps(instrs: &mut [Instruction], labels: &HashMap<String, usize>, max_iters: u32) {
     let jump4_to_jump1: &[(Op, Op)] = &[
         (Op::JUMP4, Op::JUMP1),
         (Op::JUMP_TRUE4, Op::JUMP_TRUE1),
@@ -87,7 +87,8 @@ pub(crate) fn optimise_jumps(
 /// `implicit_hasher` is allowed because call sites always construct a
 /// default `HashMap`; plumbing a hasher parameter through the whole
 /// layout pass is noise for no measurable win.
-pub(crate) fn resolve_layout(
+#[allow(clippy::implicit_hasher)]
+pub fn resolve_layout(
     instrs: &mut [Instruction],
     labels: &HashMap<String, usize>,
 ) -> HashMap<String, usize> {
@@ -115,7 +116,7 @@ pub(crate) fn resolve_layout(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::{Instruction, Op, Operand};
+    use crate::{Instruction, Op, Operand};
 
     #[test]
     fn resolve_layout_basic() {
