@@ -332,6 +332,29 @@ pub enum Command {
         /// Apply edits in place.
         #[arg(long = "in-place")]
         in_place: bool,
+        // Output-mode flags (mutually exclusive). Each sets `output_mode`
+        // to the matching `output::render` mode; the default is `auto`.
+        /// Render every selected value as an SCF stanza when possible.
+        #[arg(long = "scf", group = "query_output_mode")]
+        scf: bool,
+        /// Render scalar values one per line, no quoting.
+        #[arg(long = "raw", group = "query_output_mode")]
+        raw: bool,
+        /// Print only the full-path of each object / reference produced.
+        #[arg(long = "paths-only", group = "query_output_mode")]
+        paths_only: bool,
+        /// Render the result as a JSON array.
+        #[arg(long = "json", group = "query_output_mode")]
+        json: bool,
+        /// Render the result as an ASCII grid.
+        #[arg(long = "table", group = "query_output_mode")]
+        table: bool,
+        /// Like --table but with Unicode box-drawing borders.
+        #[arg(long = "table-lineart", group = "query_output_mode")]
+        table_lineart: bool,
+        /// Exit non-zero when a read-only query matched nothing.
+        #[arg(long)]
+        strict: bool,
         #[command(flatten)]
         format: FormatArgs,
         /// Show the DSL grammar reference and exit.

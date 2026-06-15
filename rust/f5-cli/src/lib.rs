@@ -115,6 +115,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             output.as_deref(),
             passphrase,
         ),
+        cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Completion { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();
@@ -128,4 +129,57 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             anyhow::bail!("`f5 {verb}` is not yet implemented in the Rust port");
         }
     }
+}
+
+/// Route `Command::Query` to the read-only query verb, mapping the output-mode
+/// flags and rejecting the deferred help actions.
+fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
+    let Command::Query {
+        expression,
+        inputs,
+        name,
+        merge,
+        write,
+        in_place,
+        scf,
+        raw,
+        paths_only,
+        json,
+        table,
+        table_lineart,
+        strict,
+        help_dsl,
+        help_builtins,
+        help_examples,
+        ..
+    } = command
+    else {
+        unreachable!("dispatch_query is only called with Command::Query");
+    };
+
+    // Help actions are deferred in the read-only port.
+    if *help_dsl || help_builtins.is_some() || *help_examples {
+        anyhow::bail!("`f5 query` help actions are not yet ported in the Rust port");
+    }
+    let mode = commands::query::OutputModeFlags {
+        scf: *scf,
+        raw: *raw,
+        paths_only: *paths_only,
+        json: *json,
+        table: *table,
+        table_lineart: *table_lineart,
+    }
+    .resolve();
+    commands::query::run_query_verb(
+        expression.as_deref(),
+        inputs,
+        name,
+        mode,
+        commands::query::QueryFlags {
+            merge: *merge,
+            write: *write,
+            in_place: *in_place,
+            strict: *strict,
+        },
+    )
 }

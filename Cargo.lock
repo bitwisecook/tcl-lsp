@@ -407,6 +407,7 @@ dependencies = [
  "serde_json",
  "tcl-bigip",
  "tcl-bigip-io",
+ "tcl-bigip-query",
  "tcl-cli-support",
  "tcl-registry",
 ]

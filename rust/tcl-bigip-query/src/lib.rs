@@ -37,6 +37,7 @@ pub mod lexer;
 pub mod output;
 pub mod parser;
 pub mod projection;
+pub mod runner;
 pub mod special;
 pub mod value;
 
@@ -45,4 +46,5 @@ pub use errors::QueryError;
 pub use eval::{EvalContext, Root, evaluate, evaluate_statement};
 pub use lexer::{Token, TokenKind, tokenise};
 pub use parser::parse_query;
+pub use runner::{QueryOptions, QueryResult, run_query};
 pub use value::{ObjectRef, PathRef, Value};

@@ -11,6 +11,7 @@ pub mod explain;
 pub mod extract;
 pub mod graph;
 pub mod merge;
+pub mod query;
 pub mod scf;
 pub mod split;
 pub mod stats;
