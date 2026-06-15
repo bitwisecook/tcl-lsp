@@ -347,19 +347,32 @@ practcl.tcl from ~1 s to low-ms).
 > **86.6% → 92.2%**, 100% byte-identical, 0 diagnostic divergence.
 >
 > **Still not won.**
-> - **OO method *bodies* are walked in place** (not memoised), so method-heavy
->   files now take the fast path (proc + lattice memo engages) but their own
->   per-edit latency stays high until `is_method` bodies are routed through an
->   isolated+grafted+memoised analysis like procs (class / `self` / instance-var
->   context).  The cleanest next step.
 > - **The `variable ns::x` (`variable_ns`) + `syntax_error` fallbacks** remain
 >   (correct, narrow).
 > - **The `CompilationUnit` lowering floor** (~80 ms O(file) `lower_to_ir` +
 >   module `build_cfg`) is the per-edit floor for fast-path files; lowering them
 >   incrementally is the remaining architecture-level lever.
 > - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
->   definer and is OO-heavy, so it needs method-body memoisation + the lowering
->   floor before it leaves the full-rebuild path.
+>   definer and is OO-heavy, so it needs the lowering floor before it leaves the
+>   full-rebuild path.
+
+> **OO method-body memoisation (shipped).** Method bodies were walked *in place*
+> in pass 2 (not memoised), so a body edit re-walked every method.  They are now
+> analysed as offset-0 isolated units and grafted like procs: `DeferredBody`
+> carries the method's defining namespace + params + class instance variables,
+> `analyse_proc_body_isolated` reconstructs a `ScopeKind::Method` scope (so
+> `in_method` dispatch recording fires) with the instance variables pre-bound,
+> and the proc/method pass-2 branches are unified through `body_fn` +
+> `graft_proc_body`.  `ItemBodyKey` gains `is_method` + `class_variables`.  W308
+> object tracking is the one method-specific subtlety — a method resolves the
+> class against the whole file's classes, not analyse's DFS prefix, so a method
+> that *actually* records an instance falls back (detected precisely: captured
+> candidates are replayed at graft and the fallback fires only when
+> `instance_classes` truly changed, so benign `dict create` stays fast).  Result:
+> pt_rdengine_oo.tcl (2.2 kLOC, 113 methods) per-edit **165 ms → 44 ms**;
+> cookiejar / disjointset / metaclass 8–16 ms.  Coverage holds at 92.2%,
+> byte-identical; gated by `method_body_edit_recomputes_one_item` + the corpus +
+> edit fuzzer.
 
 > **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
 > (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now
