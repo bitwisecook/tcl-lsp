@@ -25,6 +25,7 @@ use tcl_compiler::irules_checks::{
     find_collect_flow_warnings, find_hoistable_set_warnings, find_http_flow_warnings,
     find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
 };
+use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::optimiser::{apply_optimisations, optimise};
 use tcl_compiler::segmenter::segment_commands;
 use tcl_compiler::shimmer::{
@@ -867,6 +868,42 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
     Value::Array(out)
 }
 
+/// Serialise the `loops` view: the natural-loop forest per function, with
+/// nesting depth. Mirrors `_serialise_loops` over the ported
+/// `build_loop_forest`. Depth = 1 + the number of *other* loop headers
+/// that dominate this loop's header.
+#[must_use]
+pub fn serialise_loops(result: &ExplorerResult) -> Value {
+    let funcs: Vec<Value> = result
+        .snapshots()
+        .iter()
+        .map(|snap| {
+            let executable = &snap.unit.sccp.executable_blocks;
+            let forest = build_loop_forest(&snap.unit.cfg, &snap.unit.ssa, executable);
+            let headers = forest.headers();
+            let loops: Vec<Value> = forest
+                .loops
+                .iter()
+                .map(|lp| {
+                    let depth = 1 + headers
+                        .iter()
+                        .filter(|h| **h != lp.header && dominates(&snap.unit.ssa, h, &lp.header))
+                        .count();
+                    json!({
+                        "header": lp.header,
+                        "depth": depth,
+                        "blockCount": lp.blocks.len(),
+                        "blocks": lp.blocks,
+                        "latches": lp.latches,
+                    })
+                })
+                .collect();
+            json!({ "name": snap.name, "loops": loops })
+        })
+        .collect();
+    Value::Array(funcs)
+}
+
 /// Serialise the `bounds` view: interval-driven out-of-range findings per
 /// function. Mirrors `_serialise_bounds`.
 ///
@@ -1340,6 +1377,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("types".to_owned(), serialise_types(result));
     out.insert("cst".to_owned(), crate::cst::serialise_cst(&result.source));
     out.insert("segments".to_owned(), serialise_segments(&result.source));
+    out.insert("loops".to_owned(), serialise_loops(result));
     out.insert("intervals".to_owned(), serialise_intervals(result));
     out.insert("bounds".to_owned(), serialise_bounds(result));
     out.insert(
@@ -1530,6 +1568,35 @@ mod tests {
         assert!(f0["nodes"].is_array());
         assert!(f0["edges"].is_array());
         assert!(f0["aliases"].is_array());
+    }
+
+    #[test]
+    fn loops_detects_for_loop_with_depth() {
+        let result = run_pipeline("for {set i 0} {$i < 10} {incr i} { puts $i }", "tcl8.6");
+        let loops = serialise_result(&result)["loops"].clone();
+        let top = &loops.as_array().unwrap()[0];
+        let lps = top["loops"].as_array().unwrap();
+        assert_eq!(lps.len(), 1, "one natural loop for a single for-loop");
+        let lp = &lps[0];
+        assert_eq!(lp["depth"], 1);
+        assert!(lp["header"].as_str().unwrap().contains("header"));
+        assert!(!lp["latches"].as_array().unwrap().is_empty());
+        assert_eq!(
+            lp["blockCount"].as_u64().unwrap(),
+            lp["blocks"].as_array().unwrap().len() as u64
+        );
+    }
+
+    #[test]
+    fn loops_empty_for_straightline_code() {
+        let result = run_pipeline("set x 1\nputs $x", "tcl8.6");
+        let loops = serialise_result(&result)["loops"].clone();
+        assert!(
+            loops.as_array().unwrap()[0]["loops"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

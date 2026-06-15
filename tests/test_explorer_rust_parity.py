@@ -216,6 +216,21 @@ def _normalise_shimmer(warnings: list) -> list:
     return [{k: v for k, v in w.items() if k != "message"} for w in warnings]
 
 
+def _normalise_loops(funcs: list) -> list:
+    """Sort each function's loops by header.
+
+    The loop *set* and contents match Python, but the list order differs
+    (Rust iterates reverse-postorder; Python iterates the unordered block
+    set), so order is normalised away before the content comparison.
+    """
+    out = []
+    for fn in funcs:
+        fn = dict(fn)
+        fn["loops"] = sorted(fn.get("loops", []), key=lambda l: l["header"])
+        out.append(fn)
+    return out
+
+
 def _normalise(payload: dict) -> dict:
     """Strip known, characterised cross-implementation divergences so the
     remaining contract is compared exactly. Applied to both sides."""
@@ -235,6 +250,8 @@ def _normalise(payload: dict) -> dict:
         payload["types"] = _normalise_types(payload["types"])
     if isinstance(payload.get("shimmer"), list):
         payload["shimmer"] = _normalise_shimmer(payload["shimmer"])
+    if isinstance(payload.get("loops"), list):
+        payload["loops"] = _normalise_loops(payload["loops"])
     return payload
 
 
