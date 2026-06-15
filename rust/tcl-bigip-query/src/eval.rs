@@ -1405,5 +1405,8 @@ fn build_edit_op(
         new_value,
         field_slot: target.obj.field_slots.get(&target.field_name).cloned(),
         stanza_slot: target.obj.stanza_slot.clone(),
+        // Evaluator-driven assignments are strict: a zero-occurrence identity
+        // rename raises. Only the tolerant `rename()` builtin sets this false.
+        strict: true,
     }
 }

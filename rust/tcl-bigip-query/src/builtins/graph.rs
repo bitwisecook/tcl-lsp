@@ -271,6 +271,24 @@ pub(crate) fn extract_rule_refs(
     )
 }
 
+/// Distinct reverse-referrer full-paths of `target` over the root graph —
+/// mirrors the `rename` builtin's `compute_grep(direction="reverse",
+/// max_depth=1, use_exact=True)` call. The seed (`target` itself) is excluded.
+#[must_use]
+pub(crate) fn reverse_referrers(target: &str, root: &Rc<Root>) -> Vec<String> {
+    let graph = root.graph();
+    let mut out: Vec<String> = Vec::new();
+    for node in related_one_hop(&graph, target, Direction::Reverse) {
+        if node.identifier == target {
+            continue;
+        }
+        if !out.iter().any(|s| s == &node.identifier) {
+            out.push(node.identifier.clone());
+        }
+    }
+    out
+}
+
 /// Registry entries for the graph builtins (all [`Builtin::Ctx`]).
 pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     vec![

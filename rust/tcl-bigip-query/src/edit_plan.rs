@@ -1,16 +1,15 @@
-//! Edit plan: collect and apply query-driven source edits.
+//! Edit plan: collect, route, and apply query-driven source edits.
 //!
-//! Faithful port of the **field-slot rewrite path** of
-//! `dialects/f5/query/edit_plan.py`. Every assignment produced by the
-//! evaluator turns into an [`EditOp`]; [`apply`] groups them by source URI,
-//! splices each non-identity edit into the source text via its
-//! [`FieldSlot`], and returns one [`AppliedSource`] per touched URI.
-//!
-//! Out of scope (deferred — they route through the rename token-rewrite
-//! engine which is not ported): identity-field writes (`.name = ...`) and
-//! the `rename*` builtins. The evaluator/applier surface those as a clear
-//! [`QueryError::Edit`]; the prefix-cascade (`PrefixRewrite`) branch is
-//! likewise omitted.
+//! Faithful port of `dialects/f5/query/edit_plan.py`. Every assignment
+//! produced by the evaluator turns into an [`EditOp`]; [`apply`] groups them
+//! by source URI, routes identity-field writes (`.name = ...`,
+//! `.name |= with_partition(...)`) through
+//! [`rename_object`](crate::rewrite::rename_object), runs cascading
+//! [`PrefixRewrite`]s (`rename_partition` / `rename_folder` /
+//! `rename_prefix`), splices each remaining non-identity edit into the source
+//! text via its [`FieldSlot`], and returns one [`AppliedSource`] per touched
+//! URI — carrying the [`RenameReport`](crate::rewrite::RenameReport)s the CLI
+//! surfaces on stderr.
 //!
 //! The applier is intentionally text-oriented: it never round-trips through
 //! the parser, so comments, whitespace, key order, and unknown stanzas all
@@ -18,11 +17,15 @@
 
 use std::collections::HashMap;
 
+use regex::Regex;
+
 use crate::errors::QueryError;
+use crate::rewrite::{RenameReport, rename_object};
 use crate::value::{FieldSlot, Value};
 
-/// Identity fields whose location is the stanza header — writes to these
-/// route through the (unported) rename engine and are rejected.
+/// Identity fields whose location is the stanza header — writes to these route
+/// through the [`rename_object`] token-rewrite engine. Mirrors
+/// `edit_plan._IDENTITY_FIELDS`.
 const IDENTITY_FIELDS: &[&str] = &["name", "full-path"];
 
 /// `(object_kind, field_name)` pairs that `+=` / `=` may materialise as a
@@ -35,10 +38,8 @@ const MATERIALISABLE_KIND_FIELDS: &[(&str, &str)] = &[
     ("ltm virtual", "policies"),
 ];
 
-/// A single (object, field) → new-value edit recorded by the evaluator.
-///
-/// Port of `edit_plan.EditOp` (field-slot fields only — the `strict` /
-/// prefix-rewrite machinery is rename-specific and out of scope).
+/// A single (object, field) → new-value edit recorded by the evaluator — port
+/// of `edit_plan.EditOp`.
 #[derive(Debug, Clone)]
 pub struct EditOp {
     pub source_uri: String,
@@ -50,49 +51,129 @@ pub struct EditOp {
     pub new_value: Value,
     pub field_slot: Option<FieldSlot>,
     pub stanza_slot: Option<FieldSlot>,
+    /// When `true` (the default), a zero-occurrence rename raises
+    /// [`QueryError::Edit`]. The tolerant `rename()` builtin sets this `false`
+    /// so the applier skips a no-match silently and the CLI surfaces it via
+    /// the post-apply diff + exit-code 1. Mirrors `EditOp.strict`.
+    pub strict: bool,
+}
+
+/// What the byte *before* a cascade match must satisfy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Before {
+    /// No constraint.
+    Any,
+    /// The Python negative look-behind `(?<![A-Za-z0-9_/.\-])` — the preceding
+    /// byte must not be a BIG-IP identifier char (start-of-string passes).
+    NotIdent,
+}
+
+/// What the byte *after* a cascade match must satisfy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum After {
+    /// No constraint.
+    Any,
+    /// The Python look-ahead `(?=[A-Za-z0-9_])` — the next byte must be a name
+    /// char (so an exact-prefix match still hits but trailing whitespace /
+    /// punctuation does not).
+    RequireNameChar,
+    /// The Python negative look-ahead `(?![A-Za-z0-9_/.\-])` — the next byte
+    /// must not be an identifier char (end-of-string passes).
+    NotIdent,
+}
+
+/// A whole-source token-bounded prefix substitution — port of
+/// `edit_plan.PrefixRewrite`.
+///
+/// Used by cascade operations (`rename_partition` / `rename_folder` /
+/// `rename_prefix`) that rewrite *every* occurrence of a prefix — including
+/// ones embedded in compound values (destination addresses, pool-member
+/// names, iRule body literals) that are not standalone object identifiers and
+/// so fall outside [`rename_object`]'s token-bounded match.
+///
+/// Python compiles a single `re.Pattern` with look-behind / look-ahead token
+/// boundaries; the `regex` crate supports neither, so the boundaries are
+/// hoisted out of the [`Regex`] into [`Before`] / [`After`] and applied as a
+/// manual byte check around each `core` match in [`apply`]. The substitution
+/// stays identifier-safe and byte-identical to Python.
+#[derive(Debug, Clone)]
+pub struct PrefixRewrite {
+    pub source_uri: String,
+    /// Human-readable LHS, for stderr summaries.
+    pub label: String,
+    /// The match core — the Python pattern with its look-behind / look-ahead
+    /// assertions stripped (those move to `before` / `after`).
+    pub pattern: Regex,
+    pub before: Before,
+    pub after: After,
+    /// Replacement template using `$1` / `${1}` back-refs against `pattern`'s
+    /// capture groups (Python `\g<1>` becomes `$1`).
+    pub replacement: String,
+    /// Human-readable rendering of the destination for the stderr summary —
+    /// `replacement` may carry regex back-refs (`$1`) that confuse users.
+    /// Defaults to `replacement` when empty.
+    pub human_new: String,
+}
+
+/// Whether `b` is a BIG-IP identifier char — `[A-Za-z0-9_/.\-]`.
+fn is_ident_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-')
 }
 
 /// Collected edits, applied once at the end of a query run — port of
-/// `edit_plan.EditPlan` (the `ops` list; prefix rewrites are out of scope).
+/// `edit_plan.EditPlan` (`ops` + `prefix_rewrites`).
 #[derive(Debug, Default)]
 pub struct EditPlan {
     pub ops: Vec<EditOp>,
+    pub prefix_rewrites: Vec<PrefixRewrite>,
 }
 
 impl EditPlan {
     #[must_use]
     pub fn new() -> Self {
-        EditPlan { ops: Vec::new() }
+        EditPlan {
+            ops: Vec::new(),
+            prefix_rewrites: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, op: EditOp) {
         self.ops.push(op);
     }
 
+    pub fn add_prefix(&mut self, rewrite: PrefixRewrite) {
+        self.prefix_rewrites.push(rewrite);
+    }
+
     #[must_use]
     pub fn has_edits(&self) -> bool {
-        !self.ops.is_empty()
+        !self.ops.is_empty() || !self.prefix_rewrites.is_empty()
     }
 }
 
 /// One source file's result after edits land — port of
-/// `edit_plan.AppliedSource` (`rename_reports` always empty in this port).
+/// `edit_plan.AppliedSource`.
 #[derive(Debug, Clone)]
 pub struct AppliedSource {
     pub uri: String,
     pub original: String,
     pub new_source: String,
+    pub rename_reports: Vec<RenameReport>,
     pub field_edits: usize,
 }
 
 /// Apply every op in *plan* to *sources*, returning one [`AppliedSource`] per
-/// touched URI — port of `edit_plan.apply` (field-slot path).
+/// touched URI — port of `edit_plan.apply`.
 ///
-/// Identity-field writes are rejected with a clear error (deferred to the
-/// rename engine); `+=` / `-=` on an identity field is likewise rejected.
+/// Cascading prefix rewrites run first, then identity writes route through
+/// [`rename_object`], and finally field edits are spliced. Mixing a prefix
+/// rewrite with a field edit in the same statement is rejected (the rewrite
+/// shifts byte offsets, invalidating field-slot ranges); `+=` / `-=` on an
+/// identity field is rejected (arithmetic on a name is nonsensical).
 ///
 /// # Errors
-/// Returns [`QueryError::Edit`] for identity-field writes, overlapping edits,
+/// Returns [`QueryError::Edit`] for identity `+=` / `-=`, prefix/field mixing,
+/// an empty rename target, a strict zero-occurrence rename, overlapping edits,
 /// non-writable compound values, or values that cannot be encoded in SCF.
 pub fn apply<S: std::hash::BuildHasher>(
     plan: &EditPlan,
@@ -107,45 +188,250 @@ pub fn apply<S: std::hash::BuildHasher>(
         }
         by_uri.entry(op.source_uri.clone()).or_default().push(op);
     }
+    let mut prefix_by_uri: HashMap<String, Vec<&PrefixRewrite>> = HashMap::new();
+    for pr in &plan.prefix_rewrites {
+        if !by_uri.contains_key(&pr.source_uri) && !prefix_by_uri.contains_key(&pr.source_uri) {
+            order.push(pr.source_uri.clone());
+        }
+        prefix_by_uri
+            .entry(pr.source_uri.clone())
+            .or_default()
+            .push(pr);
+    }
 
     let mut out: HashMap<String, AppliedSource> = HashMap::new();
     for uri in order {
-        let ops = &by_uri[&uri];
-
-        // Split identity vs field ops; reject identity-field writes.
-        let mut field_ops: Vec<&EditOp> = Vec::new();
-        for op in ops {
-            if IDENTITY_FIELDS.contains(&op.field_name.as_str()) {
-                if op.operator == "+=" || op.operator == "-=" {
-                    return Err(QueryError::edit(format!(
-                        "assignment {} to identity field {} is not supported",
-                        op.operator,
-                        crate::eval::pyr_pub(&op.field_name)
-                    )));
-                }
-                return Err(QueryError::edit(
-                    "identity-field rewrites / rename are not yet supported in the Rust port",
-                ));
-            }
-            field_ops.push(op);
-        }
-
+        let ops = by_uri.get(&uri).cloned().unwrap_or_default();
+        let prefixes = prefix_by_uri.get(&uri).cloned().unwrap_or_default();
         let source = sources
             .get(&uri)
             .ok_or_else(|| QueryError::edit(format!("no source loaded for {uri}")))?;
-        let field_edit_count = field_ops.len();
-        let new_source = splice_edits(source, &field_ops, &uri)?;
-        out.insert(
-            uri.clone(),
-            AppliedSource {
-                uri: uri.clone(),
-                original: source.clone(),
-                new_source,
-                field_edits: field_edit_count,
-            },
-        );
+        let applied = apply_one_uri(&uri, source, &ops, &prefixes)?;
+        out.insert(uri, applied);
     }
     Ok(out)
+}
+
+/// Apply the ops + prefix rewrites for a single URI — the per-file body of
+/// [`apply`].
+fn apply_one_uri(
+    uri: &str,
+    source: &str,
+    ops: &[&EditOp],
+    prefixes: &[&PrefixRewrite],
+) -> Result<AppliedSource, QueryError> {
+    if !prefixes.is_empty()
+        && ops
+            .iter()
+            .any(|op| !IDENTITY_FIELDS.contains(&op.field_name.as_str()))
+    {
+        return Err(QueryError::edit(
+            "cannot mix prefix-cascade rewrites (e.g. rename_partition) with \
+             field edits in a single statement; split them with ';' and the \
+             runner will apply each statement against the post-rewrite source",
+        ));
+    }
+
+    let mut current = source.to_owned();
+    let mut rename_reports: Vec<RenameReport> = Vec::new();
+
+    // Cascading prefix rewrites first, building a synthetic RenameReport per
+    // pattern so the CLI can surface the count.
+    for pr in prefixes {
+        let (new_text, count) = apply_prefix_rewrite(pr, &current);
+        if count == 0 {
+            continue;
+        }
+        current = new_text;
+        rename_reports.push(RenameReport {
+            old: pr.label.clone(),
+            new: if pr.human_new.is_empty() {
+                pr.replacement.clone()
+            } else {
+                pr.human_new.clone()
+            },
+            occurrences: count,
+            new_source: String::new(),
+        });
+    }
+
+    // Split identity vs field ops.
+    let mut identity_ops: Vec<&EditOp> = Vec::new();
+    let mut field_ops: Vec<&EditOp> = Vec::new();
+    for op in ops {
+        if IDENTITY_FIELDS.contains(&op.field_name.as_str()) {
+            if op.operator == "+=" || op.operator == "-=" {
+                return Err(QueryError::edit(format!(
+                    "assignment {} to identity field {} is not supported",
+                    op.operator,
+                    crate::eval::pyr_pub(&op.field_name)
+                )));
+            }
+            identity_ops.push(op);
+        } else {
+            field_ops.push(op);
+        }
+    }
+
+    // Route identity writes through `rename_object`.
+    for op in &identity_ops {
+        apply_identity_rename(op, &mut current, &mut rename_reports)?;
+    }
+
+    let field_edit_count = field_ops.len();
+    if !field_ops.is_empty() {
+        current = splice_edits(&current, &field_ops, uri)?;
+    }
+
+    Ok(AppliedSource {
+        uri: uri.to_owned(),
+        original: source.to_owned(),
+        new_source: current,
+        rename_reports,
+        field_edits: field_edit_count,
+    })
+}
+
+/// Route one identity-field write through [`rename_object`], updating
+/// `current` and recording a [`RenameReport`] (port of `edit_plan.apply`'s
+/// identity-op loop body).
+fn apply_identity_rename(
+    op: &EditOp,
+    current: &mut String,
+    rename_reports: &mut Vec<RenameReport>,
+) -> Result<(), QueryError> {
+    let mut new_path = stringify(&op.new_value);
+    if new_path.is_empty() {
+        return Err(QueryError::edit(format!(
+            "rename target for {} produced an empty value",
+            crate::eval::pyr_pub(&op.object_path)
+        )));
+    }
+    // Bare-leaf new values resolve against the existing object's partition +
+    // folder context so `.name = "X"` keeps the object in the same partition.
+    if !new_path.contains('/') && op.object_path.contains('/') {
+        let folder = op.object_path.rsplit_once('/').map_or("", |(head, _)| head);
+        new_path = format!("{folder}/{new_path}");
+    }
+    let report = rename_object(current, &op.object_path, &new_path, &op.object_kind)
+        .map_err(QueryError::edit)?;
+    if report.occurrences == 0 {
+        if op.strict {
+            return Err(QueryError::edit(format!(
+                "rename of {} matched no source text",
+                crate::eval::pyr_pub(&op.object_path)
+            )));
+        }
+        // Tolerant rename: leave the source unchanged, emit no report.
+        return Ok(());
+    }
+    current.clone_from(&report.new_source);
+    rename_reports.push(report);
+    Ok(())
+}
+
+/// Apply one [`PrefixRewrite`] to `source`, honouring its [`Before`] /
+/// [`After`] token boundaries manually (the `regex` crate lacks look-around).
+///
+/// Returns the rewritten text and the replacement count. The scan is
+/// non-overlapping and left-to-right, mirroring Python `re.subn`: each accepted
+/// match advances the cursor past the matched core, so the count matches the
+/// Python engine's on the same input.
+fn apply_prefix_rewrite(pr: &PrefixRewrite, source: &str) -> (String, usize) {
+    let bytes = source.as_bytes();
+    let mut out = String::with_capacity(source.len());
+    let mut count = 0usize;
+    let mut cursor = 0usize;
+    while cursor <= source.len() {
+        let Some(caps) = pr.pattern.captures_at(source, cursor) else {
+            break;
+        };
+        let m = caps.get(0).unwrap();
+        let (start, end) = (m.start(), m.end());
+        // Token-boundary checks around the matched core. A boundary failure is
+        // not a match (Python's look-around fails silently and `re` advances
+        // one position), so re-search from `start + 1` rather than consuming.
+        let before_ok = match pr.before {
+            Before::Any => true,
+            Before::NotIdent => start == 0 || !is_ident_byte(bytes[start - 1]),
+        };
+        let after_ok = match pr.after {
+            After::Any => true,
+            After::RequireNameChar => {
+                end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_')
+            }
+            After::NotIdent => end == bytes.len() || !is_ident_byte(bytes[end]),
+        };
+        if !(before_ok && after_ok) {
+            // Advance one byte and retry; nothing committed yet.
+            let next = if start >= cursor {
+                start + 1
+            } else {
+                cursor + 1
+            };
+            // Emit up to `next` so the cursor stays a valid char boundary.
+            let next = floor_char_boundary(source, next.min(source.len()));
+            out.push_str(&source[cursor..next]);
+            if next == cursor {
+                break;
+            }
+            cursor = next;
+            continue;
+        }
+        // Accepted match: emit the gap then the expanded replacement.
+        out.push_str(&source[cursor..start]);
+        let mut dst = String::new();
+        caps.expand(&pr.replacement, &mut dst);
+        out.push_str(&dst);
+        count += 1;
+        cursor = if end > start {
+            end
+        } else {
+            // Zero-width match: emit one byte to make progress.
+            if end < source.len() {
+                let next = floor_char_boundary(source, end + 1);
+                out.push_str(&source[end..next]);
+                next
+            } else {
+                end + 1
+            }
+        };
+    }
+    if cursor < source.len() {
+        out.push_str(&source[cursor..]);
+    }
+    (out, count)
+}
+
+/// Round `idx` down to the nearest UTF-8 char boundary (stable equivalent of
+/// `str::floor_char_boundary`).
+fn floor_char_boundary(s: &str, idx: usize) -> usize {
+    let mut i = idx.min(s.len());
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
+/// Port of `edit_plan._stringify`.
+fn stringify(value: &Value) -> String {
+    match value {
+        Value::PathRef(p) => p.full_path.clone(),
+        other => describe_str(other),
+    }
+}
+
+/// `str(value)` for a scalar — mirrors Python `str()` on the assignment
+/// value types a rename target produces (string / int / float / bool / None).
+fn describe_str(value: &Value) -> String {
+    match value {
+        Value::Str(s) => s.clone(),
+        Value::Int(i) => i.to_string(),
+        Value::Float(f) => crate::jsonfmt::py_float_repr(*f),
+        Value::Bool(b) => if *b { "True" } else { "False" }.to_owned(),
+        Value::Null => "None".to_owned(),
+        other => other.describe(),
+    }
 }
 
 /// Apply non-identity edits to *source* — port of `edit_plan._splice_edits`.

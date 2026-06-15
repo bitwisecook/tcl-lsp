@@ -7,12 +7,14 @@
 //! expression and options, it parses the expression once, evaluates it
 //! against each source in order, and returns a [`QueryResult`].
 //!
-//! Mutating **field-value** assignments are supported: each statement's queued
-//! [`EditOp`](crate::edit_plan::EditOp)s are applied to the running source
-//! after the statement evaluates, and the rewritten text lands on
+//! Mutating assignments are supported — field-value writes
+//! (`=` / `|=` / `+=` / `-=`) and identity-field rewrites / `rename*`
+//! (token-bounded source rewrites). Each statement's queued
+//! [`EditOp`](crate::edit_plan::EditOp)s / `PrefixRewrite`s are applied to the
+//! running source after the statement evaluates, and the rewritten text plus
+//! [`RenameReport`](crate::rewrite::RenameReport)s land on
 //! [`QueryResult::edits_per_file`] (`has_mutation` flags whether any edit was
-//! queued). Identity-field rewrites / `rename*` are surfaced as a clear
-//! [`QueryError::Edit`] by the edit-plan engine; `--merge` is not yet ported.
+//! queued); `--merge` is not yet ported.
 
 use std::collections::HashMap;
 
@@ -209,6 +211,7 @@ pub fn run_query(
         let mut current_source = source.clone();
         let mut accumulated_values: Vec<Value> = Vec::new();
         let mut accumulated_field_edits = 0usize;
+        let mut accumulated_rename_reports: Vec<crate::rewrite::RenameReport> = Vec::new();
         let mut attempted_mutation = false;
 
         for stmt in &program.statements {
@@ -236,6 +239,7 @@ pub fn run_query(
                 if let Some(self_applied) = applied.get(uri) {
                     current_source.clone_from(&self_applied.new_source);
                     accumulated_field_edits += self_applied.field_edits;
+                    accumulated_rename_reports.extend(self_applied.rename_reports.iter().cloned());
                 }
             }
         }
@@ -251,6 +255,7 @@ pub fn run_query(
                     uri: uri.clone(),
                     original: source.clone(),
                     new_source: current_source,
+                    rename_reports: accumulated_rename_reports,
                     field_edits: accumulated_field_edits,
                 },
             ));

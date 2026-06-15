@@ -43,6 +43,7 @@ mod net;
 pub(crate) use graph::extract_rule_refs;
 mod inputs_load;
 mod regex_str;
+mod rename;
 mod string;
 mod time_dt;
 mod value2;
@@ -236,6 +237,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r.extend(inputs_load::registrations());
     r.extend(encoding::registrations());
     r.extend(graph::registrations());
+    r.extend(rename::registrations());
     r.extend(crate::special::registrations());
     r
 }

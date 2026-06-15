@@ -1,7 +1,6 @@
-//! Engine-level tests for the field-value edit-plan path (`run_query`
-//! mutation): scalar assignments, `|=` transforms, `+=` list materialisation,
-//! pool-member field edits, no-op detection, and the deferred identity-field
-//! rejection.
+//! Engine-level tests for the edit-plan path (`run_query` mutation): scalar
+//! assignments, `|=` transforms, `+=` list materialisation, pool-member field
+//! edits, no-op detection, and identity-field rename routing.
 //!
 //! Self-contained: builds a tiny synthetic SCF config inline and drives the
 //! pure `run_query` runner, asserting the rewritten source and the
@@ -115,12 +114,32 @@ fn select_nothing_queues_no_edit() {
 }
 
 #[test]
-fn identity_field_write_is_deferred() {
-    let err = run_query(r#".ltm.pool[] | .name = "/Common/p2""#, &sources(), &opts())
-        .expect_err("identity write must error");
+fn identity_field_write_routes_through_rename() {
+    // `.name = "/Common/p2"` rewrites the pool header *and* the virtual's
+    // `pool /Common/p1` reference (token-bounded), and records a RenameReport.
+    let result = run_query(r#".ltm.pool[] | .name = "/Common/p2""#, &sources(), &opts())
+        .expect("identity rename should succeed");
+    assert!(result.has_mutation);
+    let (_, applied) = &result.edits_per_file[0];
+    assert_eq!(applied.field_edits, 0);
+    assert!(applied.new_source.contains("ltm pool /Common/p2 {"));
+    assert!(applied.new_source.contains("pool /Common/p2"));
+    assert!(!applied.new_source.contains("/Common/p1"));
+    assert_eq!(applied.rename_reports.len(), 1);
+    let rep = &applied.rename_reports[0];
+    assert_eq!(rep.old, "/Common/p1");
+    assert_eq!(rep.new, "/Common/p2");
+    assert_eq!(rep.occurrences, 2);
+}
+
+#[test]
+fn identity_field_inc_dec_still_rejected() {
+    // `+=` / `-=` on an identity field is nonsensical and stays an error.
+    let err = run_query(r#".ltm.pool[] | .name += "x""#, &sources(), &opts())
+        .expect_err("identity += must error");
     assert!(
         err.to_string()
-            .contains("identity-field rewrites / rename are not yet supported"),
+            .contains("assignment += to identity field 'name' is not supported"),
         "unexpected error: {err}"
     );
 }

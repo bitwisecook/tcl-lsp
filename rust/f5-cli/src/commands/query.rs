@@ -623,6 +623,16 @@ fn emit_mutation(
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     for (uri, applied) in &result.edits_per_file {
+        // Surface every rename report on stderr — port of `_emit_mutation`'s
+        // `renamed {old!r} -> {new!r} ({n} occurrence(s))` loop.
+        for rep in &applied.rename_reports {
+            eprintln!(
+                "renamed {} -> {} ({} occurrence(s))",
+                tcl_bigip_query::eval::pyr_pub(&rep.old),
+                tcl_bigip_query::eval::pyr_pub(&rep.new),
+                rep.occurrences
+            );
+        }
         // A "mutating" query that produced no actual textual change exits 1
         // (no-op), mirroring `f5 rename`.
         if applied.new_source == applied.original {

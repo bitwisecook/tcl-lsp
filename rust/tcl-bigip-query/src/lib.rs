@@ -8,10 +8,11 @@
 //! the front-end — the [`lexer`] (tokeniser), the [`ast`] node types, and
 //! the recursive-descent [`parser`]; the [`value`] model; the [`projection`]
 //! layer over the typed `tcl-bigip` model; the [`eval`]uator + builtin
-//! library; the output renderers; and the field-value [`edit_plan`] engine
-//! (`=` / `|=` / `+=` / `-=` assignments → in-place source rewrite). Still to
-//! come (tracked in `docs/rust-cli-port.md`): identity-field rewrites and the
-//! `rename*` builtins (the token-rewrite rename engine), and `--merge`.
+//! library; the output renderers; the field-value [`edit_plan`] engine
+//! (`=` / `|=` / `+=` / `-=` assignments → in-place source rewrite); plus the
+//! token-bounded [`rewrite`] rename engine (identity-field
+//! writes and the `rename*` builtins). Still to come (tracked in
+//! `docs/rust-cli-port.md`): `--merge`.
 //!
 //! The pure engine is I/O-free (typed in → typed out); the prompts and
 //! stdout shaping live in the `f5-cli` binary.
@@ -44,6 +45,7 @@ pub mod output;
 pub mod parser;
 pub mod projection;
 pub mod renderers;
+pub mod rewrite;
 pub mod runner;
 pub mod special;
 pub mod value;
@@ -55,5 +57,6 @@ pub use eval::{EvalContext, Root, evaluate, evaluate_statement};
 pub use inputs::InputSpec;
 pub use lexer::{Token, TokenKind, tokenise};
 pub use parser::parse_query;
+pub use rewrite::{RenameReport, rename_object};
 pub use runner::{QueryOptions, QueryResult, SideInput, run_query};
 pub use value::{ObjectRef, PathRef, Value};

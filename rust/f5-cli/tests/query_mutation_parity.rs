@@ -1,15 +1,17 @@
 //! Differential parity tests for the **mutating** `f5 query` verb — the
-//! field-value edit-plan engine (`=` / `|=` / `+=` / `-=`).
+//! field-value edit-plan engine (`=` / `|=` / `+=` / `-=`) and the token-bounded
+//! rename engine (identity-field writes + the `rename*` builtins).
 //!
 //! Runs the built `f5-query` binary against the committed `bigip.conf`
 //! fixture and asserts stdout matches a golden captured from
 //! `python -m tooling.f5.main query`. Self-contained: no Python at test time.
 //!
 //! Goldens embed a `__FIXTURES__` placeholder where the diff's `--- ` /
-//! `+++ ` headers carry the on-disk path of the fixtures directory; the test
-//! substitutes the real (canonicalised) path before comparing so the goldens
-//! stay portable. Only in-scope field-edit cases are covered — identity-field
-//! writes and `rename*` are deferred (and separately asserted to error).
+//! `+++ ` headers (and any error text) carry the on-disk path of the fixtures
+//! directory; the test substitutes the real (canonicalised) path before
+//! comparing so the goldens stay portable. Rename cases assert **both**
+//! streams — stdout (`.out.golden`) and the stderr `renamed …` reports /
+//! `error:` line (`.err.golden`).
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -69,6 +71,148 @@ fn assert_query(golden: &str, ok_codes: &[i32], args: &[&str]) {
 fn assert_exit_empty(code: i32, args: &[&str]) {
     let actual = run_query(args, &[code]);
     assert_eq!(actual, "", "expected empty stdout for {args:?}");
+}
+
+/// Run the verb and capture both streams plus the exit code, asserting the
+/// code is in `ok_codes`.
+fn run_query_both(args: &[&str], ok_codes: &[i32]) -> (String, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+        .arg("query")
+        .args(args)
+        .output()
+        .expect("failed to spawn f5-query binary");
+    let code = output.status.code().unwrap_or(-1);
+    assert!(
+        ok_codes.contains(&code),
+        "f5-query query {args:?} exited {code}\nstderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    (
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+/// Read a golden, expanding `__FIXTURES__` to the real fixtures path.
+fn golden(name: &str) -> String {
+    std::fs::read_to_string(fixtures_dir().join(name))
+        .unwrap_or_else(|e| panic!("read golden {name}: {e}"))
+        .replace("__FIXTURES__", &fixtures_path())
+}
+
+/// Assert a rename query reproduces the Python CLI byte-for-byte on **both**
+/// stdout (the diff / `--write` payload) and stderr (the `renamed …` reports /
+/// `error:` line), matching `<base>.out.golden` / `<base>.err.golden`.
+///
+/// The fixture is passed as its canonical absolute path so the diff headers and
+/// any error text embed exactly the prefix the goldens capture (under
+/// `__FIXTURES__`).
+fn assert_rename(base: &str, ok_codes: &[i32], extra: &[&str]) {
+    let conf = conf();
+    let mut args: Vec<&str> = Vec::new();
+    args.push(extra[0]); // the query expression
+    args.push(&conf);
+    args.extend_from_slice(&extra[1..]);
+    let (out, err) = run_query_both(&args, ok_codes);
+    assert_eq!(
+        out,
+        golden(&format!("{base}.out.golden")),
+        "{base}: stdout does not match the Python CLI"
+    );
+    assert_eq!(
+        err,
+        golden(&format!("{base}.err.golden")),
+        "{base}: stderr (renamed reports / error) does not match the Python CLI"
+    );
+}
+
+// --- rename engine: identity-field writes + rename* builtins ------------
+
+#[test]
+fn rename_identity_field_write_diff() {
+    // Cookbook #6 — identity-field write routes through `rename_object`,
+    // rewriting the header + every reference; the `renamed …` report lands on
+    // stderr.
+    assert_rename(
+        "rename-identity-diff",
+        &[0],
+        &[r#".ltm.pool["/Common/web_pool"].name = "/Common/web_pool_v2""#],
+    );
+}
+
+#[test]
+fn rename_builtin_diff() {
+    assert_rename(
+        "rename-builtin-diff",
+        &[0],
+        &[r#"rename("/Common/web_pool","/Common/web_pool_renamed")"#],
+    );
+}
+
+#[test]
+fn rename_builtin_write() {
+    assert_rename(
+        "rename-builtin-write",
+        &[0],
+        &[
+            r#"rename("/Common/web_pool","/Common/web_pool_renamed")"#,
+            "--write",
+        ],
+    );
+}
+
+#[test]
+fn rename_prefix_cascade_diff() {
+    // `rename_prefix` — token-bounded prefix cascade (covers headers, node
+    // refs, pool-member identifiers, and references).
+    assert_rename(
+        "rename-prefix-diff",
+        &[0],
+        &[r#"rename_prefix("/Common/web","/Tenant_A/web")"#],
+    );
+}
+
+#[test]
+fn rename_cookbook11_with_partition_diff() {
+    // Cookbook #11 — `.name |= with_partition(., "Tenant_A")` per-object
+    // identity rewrite; emits one `renamed …` report per matched pool.
+    assert_rename(
+        "rename-cookbook11-diff",
+        &[0],
+        &[r#".ltm.pool["~^/Common/"] | .name |= with_partition(., "Tenant_A")"#],
+    );
+}
+
+#[test]
+fn rename_partition_common_refused() {
+    // Cookbook #10 shape — both engines refuse renaming `/Common`; assert the
+    // identical `error:` line and exit code 2.
+    assert_rename(
+        "rename-partition-refused",
+        &[2],
+        &[r#"rename_partition("Common","Tenant_A")"#],
+    );
+}
+
+#[test]
+fn rename_cross_partition_visibility_refused() {
+    // Moving `/Common/web_pool` to `/Tenant_A` would break visibility for its
+    // `/Common` referrers — both engines refuse with the same message.
+    assert_rename(
+        "rename-crosspart-refused",
+        &[2],
+        &[r#"rename("/Common/web_pool","/Tenant_A/web_pool")"#],
+    );
+}
+
+#[test]
+fn rename_zero_occurrence_is_noop() {
+    // Tolerant `rename()` of a non-existent object: no report, no diff, exit 1.
+    assert_rename(
+        "rename-zero-occ",
+        &[1],
+        &[r#"rename("/Common/nonexistent","/Common/whatever")"#],
+    );
 }
 
 // --- diff preview (default) ---------------------------------------------
@@ -184,25 +328,5 @@ fn select_nothing_queues_no_edit_exits_0() {
             r#".ltm.virtual[] | select(.name == "nope") | .pool = "x""#,
             &conf(),
         ],
-    );
-}
-
-// --- deferred: identity-field writes error cleanly ----------------------
-
-#[test]
-fn identity_field_write_is_rejected() {
-    let output = Command::new(env!("CARGO_BIN_EXE_f5-query"))
-        .arg("query")
-        .args([
-            r#".ltm.pool["/Common/web_pool"] | .name = "/Common/wp2""#,
-            &conf(),
-        ])
-        .output()
-        .expect("spawn");
-    assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("identity-field rewrites / rename are not yet supported"),
-        "unexpected stderr: {stderr}"
     );
 }
