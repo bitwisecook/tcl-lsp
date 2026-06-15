@@ -47,11 +47,12 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"append" => append(interp, argv),
         b"lappend" => lappend(interp, argv),
         b"incr" => incr(interp, argv),
+        b"info" => info(interp, argv),
         _ => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(&sub);
             m.extend_from_slice(
-                b"\": must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with",
+                b"\": must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with",
             );
             interp.set_error(&m)
         }
@@ -121,6 +122,22 @@ fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"0");
     Code::Ok
+}
+
+/// `dict info dictionary` — a human-readable description (its exact form is
+/// unspecified; we report the entry count). Validates the dict first.
+fn info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"dict info dictionary");
+    }
+    match dict::dict_pairs(argv[2]) {
+        Ok(pairs) => {
+            let s = format!("{} entries in table", pairs.len());
+            interp.set_result_bytes(s.as_bytes());
+            Code::Ok
+        }
+        Err(e) => bad_dict(interp, e),
+    }
 }
 
 /// `dict size dictionary`
@@ -539,18 +556,16 @@ fn not_integer(interp: &mut Interp, b: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-/// `dict set dictVarName key value` — set in the dict held by the variable.
+/// `dict set dictVarName key ?key ...? value` — set the value at a (possibly
+/// nested) key path in the dict held by the variable, creating intermediate
+/// dicts along the path as needed.
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 5 {
+    if argv.len() < 5 {
         return wrong_args(interp, b"dict set dictVarName key ?key ...? value");
     }
     let name = obj_bytes(argv[2]);
-    let key = argv[3];
-    let value = argv[4];
-    if let Some(c) = interp.const_write_check(&name) {
-        return c;
-    }
-
+    let keys = &argv[3..argv.len() - 1];
+    let value = argv[argv.len() - 1];
     if let Some(c) = interp.const_write_check(&name) {
         return c;
     }
@@ -559,7 +574,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(o) if obj::is_shared(o) => (obj::duplicate(o), true),
         Some(o) => (o, false),
     };
-    if let Err(e) = dict::dict_set(target, key, value) {
+    if let Err(e) = dict_path_set(target, keys, value) {
         if is_new {
             drop_fresh(target);
         }
@@ -571,6 +586,32 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result(target);
     Code::Ok
+}
+
+/// Set `value` at the key path `keys` (len ≥ 1) within the **unshared** dict
+/// `dict`, descending through (and copy-on-write replacing) intermediate
+/// sub-dicts, creating empty ones for missing path segments.
+fn dict_path_set(
+    dict: *mut TclObj,
+    keys: &[*mut TclObj],
+    value: *mut TclObj,
+) -> Result<(), dict::DictError> {
+    if let [last] = keys {
+        return dict::dict_set(dict, *last, value);
+    }
+    let (head, rest) = keys.split_first().expect("len >= 2 here");
+    // The sub-dict for `head`: an unshared one we can mutate (copy a shared one,
+    // create an empty one for a missing segment).
+    let sub = match dict::dict_get(dict, &obj_bytes(*head))? {
+        Some(s) if !obj::is_shared(s) => s,
+        Some(s) => obj::duplicate(s),    // rc 0
+        None => dict::new_dict_obj(&[]), // rc 0
+    };
+    dict_path_set(sub, rest, value)?;
+    // Re-bind the (modified) sub-dict into its parent. This is required even when
+    // `sub` was mutated in place: it invalidates the parent's string rep so the
+    // nested change is visible up the chain.
+    dict::dict_set(dict, *head, sub)
 }
 
 /// `dict unset dictVarName key` — remove from the dict held by the variable.
