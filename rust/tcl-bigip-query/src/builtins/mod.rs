@@ -193,6 +193,8 @@ pub(crate) fn type_name(v: &Value) -> &'static str {
         Value::Stream(_) => "stream",
         Value::List(_) => "list",
         Value::Object(_) => "dict",
+        // Python `_type_name` falls back to `type(value).__name__`.
+        Value::Container(_) => "Container",
         Value::Drop => "Drop",
     }
 }
@@ -298,6 +300,8 @@ pub(crate) fn to_jsonable(v: &Value) -> Value {
             }
             Value::Object(m)
         }
+        // Python `_to_jsonable` falls back to `str(value)` for a Container.
+        Value::Container(c) => Value::Str(format!("container({})", c.kind)),
         Value::Drop => Value::Str("Drop".to_string()),
     }
 }

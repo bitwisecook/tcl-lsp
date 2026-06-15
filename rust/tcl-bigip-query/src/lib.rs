@@ -36,6 +36,7 @@ pub mod jsonfmt;
 pub mod lexer;
 pub mod output;
 pub mod parser;
+pub mod projection;
 pub mod special;
 pub mod value;
 

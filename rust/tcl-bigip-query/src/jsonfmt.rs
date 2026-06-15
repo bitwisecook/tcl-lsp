@@ -65,6 +65,10 @@ fn write_value(out: &mut String, value: &Value, level: Option<usize>, sort_keys:
                 sort_keys,
             );
         }
+        Value::Container(c) => {
+            // Python `_to_json` falls back to `str(value)` for a Container.
+            write_string(out, &format!("container({})", c.kind));
+        }
         Value::ObjectRef(o) => {
             // `_to_json(ObjectRef)` → {"kind", "full-path", "fields": {...}}.
             let fields = Value::Object(o.fields.clone());

@@ -29,6 +29,8 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
+use crate::projection::Container;
+
 /// A single property value's byte location in the source text.
 ///
 /// `range` covers just the value half of `key value` — assigning a new value
@@ -124,6 +126,9 @@ pub enum Value {
     PathRef(Rc<PathRef>),
     /// A projected BIG-IP object.
     ObjectRef(Rc<ObjectRef>),
+    /// A navigable namespace / kind container projected from a
+    /// `BigipConfig` (port of `projection.Container`).
+    Container(Rc<Container>),
     /// The `select` "drop this value" sentinel (port of `evaluator._DROP`).
     Drop,
 }
@@ -141,6 +146,7 @@ impl Value {
     pub fn describe(&self) -> String {
         match self {
             Value::Null => "null".to_string(),
+            Value::Container(c) => format!("container({})", c.kind),
             Value::ObjectRef(o) => format!("object({})", o.kind),
             Value::PathRef(p) => format!(
                 "path-ref({})",
@@ -178,6 +184,7 @@ impl Value {
             Value::Stream(_) => "Stream",
             Value::PathRef(_) => "PathRef",
             Value::ObjectRef(_) => "ObjectRef",
+            Value::Container(_) => "Container",
             Value::Drop => "Drop",
         }
     }
@@ -200,7 +207,8 @@ pub fn truthy(value: &Value) -> bool {
         Value::Int(i) => *i != 0,
         Value::Float(f) => *f != 0.0,
         Value::Object(map) => !map.is_empty(),
-        Value::ObjectRef(_) => true,
+        // `Container` (like `ObjectRef`) is always truthy.
+        Value::ObjectRef(_) | Value::Container(_) => true,
     }
 }
 
@@ -285,8 +293,9 @@ fn sort_tag(v: &Value) -> u8 {
         Value::Str(_) | Value::PathRef(_) => 3,
         Value::List(_) => 4,
         Value::Object(_) | Value::ObjectRef(_) => 5,
-        // Stream / Drop fall into Python's `(6, str(value))` bucket.
-        Value::Stream(_) | Value::Drop => 6,
+        // Stream / Container / Drop fall into Python's `(6, str(value))`
+        // bucket.
+        Value::Stream(_) | Value::Container(_) | Value::Drop => 6,
     }
 }
 

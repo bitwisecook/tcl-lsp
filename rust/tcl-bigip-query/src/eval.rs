@@ -6,10 +6,10 @@
 //! `Stream` continues to flow through pipes one value at a time.
 //!
 //! This increment implements the full jq-flavoured core over the plain
-//! value model + `Stream` / `ObjectRef` / `PathRef`. The [`Container`]
-//! navigation branches (projection over a real `BigipConfig`) and the
-//! assignment → edit-plan path are wired in later increments; queries over
-//! external-JSON roots never reach them.
+//! value model + `Stream` / `ObjectRef` / `PathRef`, plus the
+//! [`Container`](crate::projection::Container) navigation branches
+//! (projection over a real `BigipConfig`). The assignment → edit-plan path
+//! is wired in a later increment.
 
 // Index / length casts between `usize` and `i64` mirror Python's unbounded
 // integer indexing and are intentional throughout the evaluator. The
@@ -22,24 +22,43 @@
     clippy::needless_pass_by_value
 )]
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use tcl_bigip::parser::BigipConfig;
 
 use crate::ast::{Expr, LitValue, PathStep};
 use crate::builtins::{self, Builtin};
 use crate::errors::QueryError;
+use crate::projection;
 use crate::value::{self, ObjectRef, PathRef, Value};
 
 /// The per-file evaluation root (port of `values.Root`).
 ///
 /// For external-JSON roots `json_value` carries the parsed value and `.`
-/// uses native dict/list semantics. BIG-IP roots (with a parsed config +
-/// projection) land in a later increment.
-#[derive(Debug)]
+/// uses native dict/list semantics. BIG-IP roots carry the parsed
+/// [`BigipConfig`] + the source text, and the projection layer navigates
+/// them lazily through [`Container`](crate::projection::Container) / [`ObjectRef`] / [`PathRef`].
 pub struct Root {
     pub uri: String,
     pub source: String,
     pub json_value: Option<Value>,
+    /// The parsed BIG-IP configuration (empty for JSON roots).
+    pub config: BigipConfig,
+    /// Lazily built `(kind, full-path) -> ObjectRef` cache. Port of
+    /// `Root._object_cache`; the compound key disambiguates objects that
+    /// share a full-path across kinds.
+    pub object_cache: RefCell<HashMap<(String, String), Rc<ObjectRef>>>,
+}
+
+impl std::fmt::Debug for Root {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Root")
+            .field("uri", &self.uri)
+            .field("is_json", &self.is_json())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Root {
@@ -50,6 +69,26 @@ impl Root {
             uri: uri.into(),
             source: String::new(),
             json_value: Some(value),
+            config: BigipConfig::default(),
+            object_cache: RefCell::new(HashMap::new()),
+        })
+    }
+
+    /// Build a BIG-IP-backed root — `.` resolves to the synthetic
+    /// `<root>` container over the parsed *config*. Port of the BIG-IP
+    /// branch of `values.Root`.
+    #[must_use]
+    pub fn bigip(
+        uri: impl Into<String>,
+        source: impl Into<String>,
+        config: BigipConfig,
+    ) -> Rc<Root> {
+        Rc::new(Root {
+            uri: uri.into(),
+            source: source.into(),
+            json_value: None,
+            config,
+            object_cache: RefCell::new(HashMap::new()),
         })
     }
 
@@ -61,14 +100,10 @@ impl Root {
 
 /// Return the synthetic top-level input for *root* — port of
 /// `projection.root_container`. JSON roots yield their parsed value
-/// directly; BIG-IP roots yield a `Container` (a later increment).
+/// directly; BIG-IP roots yield the synthetic `<root>` [`Container`](crate::projection::Container).
 #[must_use]
 pub fn root_container(root: &Rc<Root>) -> Value {
-    if let Some(v) = &root.json_value {
-        return v.clone();
-    }
-    // BIG-IP projection lands later; unreachable for the JSON core.
-    Value::Null
+    projection::root_container(root)
 }
 
 /// Evaluation context (port of `evaluator.EvalContext`).
@@ -518,6 +553,7 @@ fn field_step(value: &Value, name: &str, ctx: &mut EvalContext) -> Result<Vec<Va
             Some(target) => field_step(&Value::ObjectRef(target), name, ctx),
             None => Ok(Vec::new()),
         },
+        Value::Container(c) => Ok(vec![c.lookup(name)?]),
         Value::ObjectRef(o) => match o.fields.get(name) {
             Some(v) => Ok(vec![v.clone()]),
             None => Err(QueryError::eval(format!(
@@ -543,6 +579,21 @@ fn subscript_root(value: &Value, ctx: &mut EvalContext) -> Result<Value, QueryEr
             Some(target) => subscript_root(&Value::ObjectRef(target), ctx),
             None => Ok(Value::Stream(Vec::new())),
         },
+        Value::Container(c) => {
+            // Flatten container → container → object until the entries are
+            // no longer all containers (port of `_subscript_root`'s loop).
+            let mut entries: Vec<Value> = c.entries().values().cloned().collect();
+            while !entries.is_empty() && entries.iter().all(|e| matches!(e, Value::Container(_))) {
+                let mut flat = Vec::new();
+                for sub in &entries {
+                    if let Value::Container(sc) = sub {
+                        flat.extend(sc.entries().values().cloned());
+                    }
+                }
+                entries = flat;
+            }
+            Ok(Value::List(entries))
+        }
         Value::List(_) | Value::Stream(_) => Ok(value.clone()),
         Value::Object(map) => Ok(Value::List(map.values().cloned().collect())),
         Value::ObjectRef(o) => Ok(Value::List(o.fields.values().cloned().collect())),
@@ -563,6 +614,14 @@ fn regex_subscript(
             Some(target) => regex_subscript(&Value::ObjectRef(target), pattern, ctx),
             None => Ok(Vec::new()),
         },
+        Value::Container(c) => {
+            let entries = c.entries();
+            let keys = c.regex_keys(pattern)?;
+            Ok(keys
+                .iter()
+                .filter_map(|k| entries.get(k).cloned())
+                .collect())
+        }
         Value::Object(map) => {
             let rx = builtins::safe_regex_compile(pattern, "regex subscript")
                 .map_err(eval_from_builtin)?;
@@ -599,6 +658,25 @@ fn subscript_step(
             None => Err(QueryError::eval(format!(
                 "cannot subscript unresolved path {}",
                 pyr(&p.full_path)
+            ))),
+        },
+        Value::Container(c) => match index {
+            Value::Str(key) => c.lookup(key),
+            Value::Int(i) => {
+                let entries = c.entries();
+                let keys: Vec<&String> = entries.keys().collect();
+                match resolve_index(*i, keys.len()) {
+                    Some(idx) => Ok(entries[keys[idx]].clone()),
+                    None => Err(QueryError::eval(format!(
+                        "{}: index {i} out of range",
+                        c.kind
+                    ))),
+                }
+            }
+            other => Err(QueryError::eval(format!(
+                "cannot subscript {} with {}",
+                value.describe(),
+                other.describe()
             ))),
         },
         Value::List(items) => {
@@ -674,10 +752,11 @@ fn resolve_index(i: i64, len: usize) -> Option<usize> {
     }
 }
 
-/// `PathRef` resolution requires the projection layer; for JSON roots (which
-/// never produce `PathRef`s) this is always `None`.
-fn resolve_pathref(_ref: &Rc<PathRef>, _ctx: &mut EvalContext) -> Option<Rc<ObjectRef>> {
-    None
+/// Resolve the `ObjectRef` a `PathRef` points to — delegates to the
+/// projection layer against `ctx.root`. JSON roots (which never produce
+/// `PathRef`s) yield `None`.
+fn resolve_pathref(reference: &Rc<PathRef>, ctx: &mut EvalContext) -> Option<Rc<ObjectRef>> {
+    projection::resolve_pathref(reference, &ctx.root)
 }
 
 // ---------------------------------------------------------------------------
@@ -1124,9 +1203,22 @@ fn eval_from_builtin(e: QueryError) -> QueryError {
     QueryError::Eval(e.message().to_string())
 }
 
+/// `eval_from_builtin` exposed to the projection module's `Container`
+/// regex-subscript path.
+#[must_use]
+pub fn eval_from_builtin_pub(e: QueryError) -> QueryError {
+    eval_from_builtin(e)
+}
+
 /// Python `repr()` of a string for `{name!r}`-style error messages.
 fn pyr(s: &str) -> String {
     crate::lexer::py_repr_str(s)
+}
+
+/// `pyr` exposed to the projection module's error messages.
+#[must_use]
+pub fn pyr_pub(s: &str) -> String {
+    pyr(s)
 }
 
 // ---------------------------------------------------------------------------
