@@ -2025,7 +2025,7 @@ explicit actions (CLI, chat, MCP) default to `full`.
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
-- Node.js 24+ with npm
+- Node.js 24+ with npm (pinned to v12 via `packageManager`; run `corepack enable npm`)
 - VS Code 1.93+
 
 ## Quick start

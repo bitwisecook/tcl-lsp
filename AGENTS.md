@@ -72,7 +72,10 @@ The six `[project.scripts]` entries are: `tcl-lsp`, `tcl`,
 ## Prerequisites
 
 - Python 3.10+ with [uv](https://docs.astral.sh/uv/)
-- Node.js 24+ with npm
+- Node.js 24+ with npm (the npm CLI is pinned to v12 via the
+  `packageManager` field in `editors/vscode/package.json`; run
+  `corepack enable npm` once so `npm` resolves to the pinned version —
+  the bare `corepack enable` only shims pnpm/yarn)
 
 ### Claude Code on the web — pre-installed toolchains and sources
 
