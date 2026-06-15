@@ -12,3 +12,4 @@ pub mod graph;
 pub mod merge;
 pub mod scf;
 pub mod split;
+pub mod stats;

@@ -21,6 +21,7 @@ pub mod graph;
 pub mod model;
 pub mod parser;
 pub mod range;
+pub mod stats;
 pub mod value;
 
 pub use range::{Position, Range};

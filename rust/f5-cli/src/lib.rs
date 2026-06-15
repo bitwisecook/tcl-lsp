@@ -76,6 +76,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             passphrase,
             output.as_deref(),
         ),
+        Command::Stats {
+            inputs,
+            top,
+            json,
+            output,
+        } => commands::stats::run_stats(inputs, *top, *json, output.as_deref()),
         Command::Graph {
             inputs,
             format,

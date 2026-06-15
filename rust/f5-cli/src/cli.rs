@@ -86,6 +86,8 @@ pub enum Command {
         top: Option<usize>,
         #[arg(long)]
         json: bool,
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Generate `tmsh delete` commands for unreferenced objects.
