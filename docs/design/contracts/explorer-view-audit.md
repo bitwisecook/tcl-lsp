@@ -53,15 +53,14 @@ backlog all reflect that intent.
 
 ## Action backlog (derived from this audit)
 
-1. **Surface dead stores honestly.** Rust computes dead stores as optimiser
-   **O109** findings (`optimiser/elimination.rs::emit_dead_stores_and_unused`,
-   over `fu.def_use.chains` — each dead chain already knows its block,
-   statement index, variable, and SSA version). Expose a public structured
-   finder and populate `cfgPostSsa.analysis.deadStores`, the dead-store
-   `callouts`, and `stats.deadStores` from it — sourced from where Rust
-   *actually* determines them, not a naive SSA re-derivation (which would
-   over-report without the optimiser's purity / scope-alias / place-model
-   suppression).
+1. **Surface dead stores honestly.** ✅ **Done.** Rust computes dead stores as
+   optimiser **O109** findings (`optimiser/elimination.rs`). Added the public
+   `optimiser::DeadStore` type and `find_dead_stores(cu, registry, dialect)`
+   (a collector on `PassContext` populated alongside the O109 emit, so it
+   reuses the optimiser's full purity / scope-alias / place-model / cross-event
+   suppression — not a naive SSA re-derivation). The explorer now populates
+   `cfgPostSsa.analysis.deadStores`, `stats.deadStores`, and the `deadStore`
+   callouts from it.
 
 2. **Track the gaps (🐞) as compiler work, not explorer pinning.** `bounds`
    (W233 / execution-intent), `gvn` (under-detection), `renderedProperties`

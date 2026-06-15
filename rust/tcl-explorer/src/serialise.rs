@@ -26,7 +26,7 @@ use tcl_compiler::irules_checks::{
     find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
-use tcl_compiler::optimiser::{apply_optimisations, optimise};
+use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise};
 use tcl_compiler::segmenter::segment_commands;
 use tcl_compiler::shimmer::{
     find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
@@ -592,13 +592,20 @@ fn ssa_value_detail(
 /// per-statement SSA `uses`/`defs` with lattice + type detail, plus a
 /// function-level `analysis` block. Mirrors `_serialise_cfg_post_ssa`.
 ///
-/// `_NO_PARITY`: `analysis.deadStores` is always `[]` (the Rust liveness
-/// pass is unported) and the lattice/type detail comes from the divergent
-/// Rust analyses; `constantBranches`/`unreachableBlocks`/`inferredTypes`
-/// come from SCCP + the type lattice.
+/// `_NO_PARITY`: `analysis.deadStores` lists the optimiser's **O109** dead
+/// stores (where Rust actually computes them, with full suppression), which
+/// differs from Python's standalone-liveness `dead_stores`. The
+/// lattice/type detail comes from the Rust analyses;
+/// `constantBranches`/`unreachableBlocks`/`inferredTypes` come from SCCP +
+/// the type lattice.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    // Dead stores are O109 optimiser findings (Rust has no standalone
+    // liveness pass); compute them once for the whole unit, then attach each
+    // to its function's analysis block below.
+    let registry = registry_for_dialect(&result.dialect);
+    let dead_stores = find_dead_stores(&result.unit, registry, Some(&result.dialect));
     let funcs: Vec<Value> = result
         .snapshots()
         .iter()
@@ -686,7 +693,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
                 "edges": serialise_cfg_edges(cfg, &order),
-                "analysis": post_ssa_analysis(snap),
+                "analysis": post_ssa_analysis(snap, &dead_stores),
             })
         })
         .collect();
@@ -694,7 +701,13 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 }
 
 /// The function-level `analysis` block of the post-SSA CFG view.
-fn post_ssa_analysis(snap: &crate::FunctionSnapshot) -> Value {
+///
+/// `dead_stores` is the whole-unit O109 list; the entries for this function
+/// (matched by qualified name) are emitted in `deadStores`.
+fn post_ssa_analysis(
+    snap: &crate::FunctionSnapshot,
+    dead_stores: &[tcl_compiler::optimiser::DeadStore],
+) -> Value {
     let sccp = &snap.unit.sccp;
     let constant_branches: Vec<Value> = sccp
         .constant_branches
@@ -733,10 +746,27 @@ fn post_ssa_analysis(snap: &crate::FunctionSnapshot) -> Value {
         }
     }
 
+    // O109 dead stores for this function, in block/statement order.
+    let mut fn_dead: Vec<&tcl_compiler::optimiser::DeadStore> = dead_stores
+        .iter()
+        .filter(|d| d.function == snap.name)
+        .collect();
+    fn_dead.sort_by(|a, b| (&a.block, a.statement_index).cmp(&(&b.block, b.statement_index)));
+    let dead_store_values: Vec<Value> = fn_dead
+        .iter()
+        .map(|d| {
+            json!({
+                "block": d.block,
+                "stmtIndex": d.statement_index,
+                "variable": d.variable,
+                "version": d.version,
+            })
+        })
+        .collect();
+
     json!({
         "constantBranches": constant_branches,
-        // The Rust liveness pass that fills dead stores is unported.
-        "deadStores": Vec::<Value>::new(),
+        "deadStores": dead_store_values,
         "unreachableBlocks": unreachable,
         "inferredTypes": Value::Object(inferred),
     })
@@ -1160,10 +1190,11 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
 
 /// Serialise the `stats` summary. Mirrors `compute_stats`.
 ///
-/// `_NO_PARITY`: `deadStores` is `0` (the Rust liveness pass is unported)
-/// and the warning counts come from the Rust analyses (which diverge from
-/// Python). `dataflow*` counts are omitted — `dataflow` is unported, and
-/// Python only adds them when a dataflow graph is present.
+/// `_NO_PARITY`: `deadStores` counts the optimiser's **O109** dead stores
+/// (Rust has no standalone liveness pass) and the warning counts come from
+/// the Rust analyses (which diverge from Python). `dataflow*` counts are
+/// omitted — `dataflow` is unported, and Python only adds them when a
+/// dataflow graph is present.
 fn serialise_stats(result: &ExplorerResult) -> Value {
     let registry = registry_for_dialect(&result.dialect);
     let dialect = Some(result.dialect.as_str());
@@ -1192,12 +1223,14 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
     gvn.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
     let taint = find_taint_warnings_for_cu(&result.unit, registry, dialect).len();
     let rewrites = optimise(&result.source, registry).len();
+    // Dead stores are O109 optimiser findings (no standalone liveness pass).
+    let dead_stores = find_dead_stores(&result.unit, registry, dialect).len();
 
     json!({
         "procedures": result.unit.ir_module.procedures.len(),
         "functions": result.snapshots().len(),
         "blocks": result.total_blocks(),
-        "deadStores": 0,
+        "deadStores": dead_stores,
         "unreachableBlocks": unreachable,
         "rewrites": rewrites,
         "shimmerWarnings": shimmer,
@@ -1267,9 +1300,9 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 /// `_serialise_annotation` + `_group_annotations_by_line`.
 ///
 /// `_NO_PARITY`: aggregates the optimiser / shimmer / gvn / taint sources
-/// (which diverge from Python) and **omits dead-store callouts** — the Rust
-/// liveness pass that fills `FunctionAnalysis.dead_stores` is unported.
-/// constant-branch + unreachable-block callouts come from `sccp`.
+/// (which diverge from Python). Dead-store callouts come from the optimiser's
+/// **O109** findings (Rust has no standalone liveness pass); constant-branch
+/// + unreachable-block callouts come from `sccp`.
 #[allow(clippy::too_many_lines)]
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry = registry_for_dialect(&result.dialect);
@@ -1288,8 +1321,30 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         );
     }
 
-    // Constant branches + unreachable blocks (from SCCP), per function.
+    // Dead stores (O109 optimiser findings — Rust has no standalone liveness
+    // pass), constant branches, and unreachable blocks, per function.
+    let dead_stores = find_dead_stores(&result.unit, registry, dialect);
     for snap in result.snapshots() {
+        for dead in dead_stores.iter().filter(|d| d.function == snap.name) {
+            let Some(block) = snap.unit.cfg.blocks.get(&dead.block) else {
+                continue;
+            };
+            let Ok(idx) = usize::try_from(dead.statement_index) else {
+                continue;
+            };
+            if let Some(stmt) = block.statements.get(idx) {
+                anns.push(Ann {
+                    span: stmt.span(),
+                    label: format!(
+                        "{}: dead store {}#{}",
+                        snap.name, dead.variable, dead.version
+                    ),
+                    kind: "deadStore",
+                    severity: "warning",
+                    priority: 1,
+                });
+            }
+        }
         for branch in &snap.unit.sccp.constant_branches {
             if let Some(span) = branch.span {
                 let dir = if branch.value { "true" } else { "false" };
@@ -1632,6 +1687,42 @@ mod tests {
         assert!(v["irOptimised"]["topLevel"].is_array());
         assert!(v["cfgPreSsaOptimised"].is_array());
         assert!(!v["cfgPreSsaOptimised"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn dead_stores_surface_from_o109() {
+        // `set x 1` is overwritten by `set x 2` before any read — the
+        // optimiser's O109 finding surfaces in cfgPostSsa.analysis, stats,
+        // and as a deadStore callout (Rust has no standalone liveness pass).
+        let result = run_pipeline("proc f {} { set x 1; set x 2; return $x }", "tcl8.6");
+        let value = serialise_result(&result);
+
+        let dead: Vec<&Value> = value["cfgPostSsa"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|fn_| fn_["analysis"]["deadStores"].as_array().unwrap())
+            .collect();
+        assert_eq!(dead.len(), 1, "one dead store");
+        assert_eq!(dead[0]["variable"], "x");
+        assert_eq!(dead[0]["version"], 1);
+
+        assert_eq!(value["stats"]["deadStores"], 1);
+        assert!(
+            value["annotations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|a| a["kind"] == "deadStore"),
+            "a deadStore callout is emitted"
+        );
+    }
+
+    #[test]
+    fn no_dead_stores_when_value_is_read() {
+        let result = run_pipeline("proc f {} { set x 1; return $x }", "tcl8.6");
+        let value = serialise_result(&result);
+        assert_eq!(value["stats"]["deadStores"], 0);
     }
 
     #[test]
