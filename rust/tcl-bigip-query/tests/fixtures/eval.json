@@ -1416,6 +1416,150 @@
     "output": "[\n  [\n    1,\n    2,\n    3\n  ]\n]\n"
   },
   {
+    "query": "http_status",
+    "input": {
+      "status": 200,
+      "body": "ok",
+      "headers": {
+        "x": "y"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  200\n]\n"
+  },
+  {
+    "query": "http_status",
+    "input": {
+      "body": "no status"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "http_body",
+    "input": {
+      "status": 204,
+      "body": "hello"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"hello\"\n]\n"
+  },
+  {
+    "query": "http_body",
+    "input": {
+      "status": 204
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"\"\n]\n"
+  },
+  {
+    "query": "http_body_json",
+    "input": {
+      "body": "{\"a\":1,\"b\":[2,3]}"
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"a\": 1,\n    \"b\": [\n      2,\n      3\n    ]\n  }\n]\n"
+  },
+  {
+    "query": "http_body_json",
+    "input": {
+      "body_json": {
+        "k": "v"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"k\": \"v\"\n  }\n]\n"
+  },
+  {
+    "query": "http_headers",
+    "input": {
+      "headers": {
+        "content-type": "text/html"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"content-type\": \"text/html\"\n  }\n]\n"
+  },
+  {
+    "query": "http_header(\"Content-Type\")",
+    "input": {
+      "headers": {
+        "content-type": "text/html"
+      }
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"text/html\"\n]\n"
+  },
+  {
+    "query": "http_header(\"missing\")",
+    "input": {
+      "headers": {}
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  null\n]\n"
+  },
+  {
+    "query": "http_ok",
+    "input": {
+      "status": 200
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_ok",
+    "input": {
+      "status": 404
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "http_redirect",
+    "input": {
+      "status": 301
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_client_error",
+    "input": {
+      "status": 404
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_server_error",
+    "input": {
+      "status": 503
+    },
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "http_status",
+    "input": 5,
+    "mode": "json",
+    "kind": "err",
+    "output": "http_status: argument must be an HTTP response dict (got int)"
+  },
+  {
     "query": ".a + .b",
     "input": {
       "a": 1,

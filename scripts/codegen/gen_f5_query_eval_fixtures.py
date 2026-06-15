@@ -180,6 +180,22 @@ CASES: list[tuple[str, object, str]] = [
     # mixed-type jq ordering
     ("sort", MIXED, "json"),
     ("unique", [3, 1, 2, 1], "json"),
+    # http_* response accessors (pure dict extractors)
+    ("http_status", {"status": 200, "body": "ok", "headers": {"x": "y"}}, "json"),
+    ("http_status", {"body": "no status"}, "json"),
+    ("http_body", {"status": 204, "body": "hello"}, "json"),
+    ("http_body", {"status": 204}, "json"),
+    ("http_body_json", {"body": '{"a":1,"b":[2,3]}'}, "json"),
+    ("http_body_json", {"body_json": {"k": "v"}}, "json"),
+    ("http_headers", {"headers": {"content-type": "text/html"}}, "json"),
+    ('http_header("Content-Type")', {"headers": {"content-type": "text/html"}}, "json"),
+    ('http_header("missing")', {"headers": {}}, "json"),
+    ("http_ok", {"status": 200}, "json"),
+    ("http_ok", {"status": 404}, "json"),
+    ("http_redirect", {"status": 301}, "json"),
+    ("http_client_error", {"status": 404}, "json"),
+    ("http_server_error", {"status": 503}, "json"),
+    ("http_status", 5, "json"),
     # error cases
     (".a + .b", {"a": 1, "b": "x"}, "json"),
     ("keys", 5, "json"),
