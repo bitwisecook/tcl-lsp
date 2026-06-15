@@ -7,10 +7,24 @@
 //! `exists`) operate on canonical names; `export`/`import` are accepted as
 //! no-ops for now (the codegen already records export/import metadata).
 
-use tcl_runtime_api::Completion;
+use tcl_runtime_api::{Code, Completion};
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+
+/// Run `body` as a script in namespace `target`, absorbing a top-level
+/// `return` at the boundary (a namespace body completes like a proc body).
+fn eval_in_ns(vm: &mut Vm, target: String, body: &str) -> Completion<Value> {
+    vm.declare_namespace(&target);
+    vm.push_ns(target);
+    let result = vm.eval_source(body);
+    vm.pop_ns();
+    match result {
+        Ok(c) if c.code == Code::Return => ok(c.result),
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("namespace", cmd_namespace);
@@ -70,6 +84,34 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let ns = canon_ns(vm, &first(rest));
             ok(Value::bool(vm.namespace_exists(&ns)))
         }
+        // `namespace code script` captures the current namespace as a callback
+        // command prefix: `::namespace inscope <ns> <script>`.
+        "code" => {
+            let script = first(rest);
+            let ns = display_ns(vm.current_ns());
+            ok(Value::list(vec![
+                Value::string("::namespace"),
+                Value::string("inscope"),
+                Value::string(ns),
+                Value::string(script),
+            ]))
+        }
+        // `namespace inscope ns script ?arg ...?` runs `script` (with any extra
+        // args appended as list elements) in namespace `ns`.
+        "inscope" => ns_inscope(vm, rest),
+        "which" => {
+            // `namespace which ?-command|-variable? name` → resolved full name.
+            let name = rest
+                .last()
+                .map(|v| v.to_str().to_string())
+                .unwrap_or_default();
+            let resolved = if vm.lookup_command(&name).is_some() {
+                display_ns(&vm.qualify_name(&name))
+            } else {
+                String::new()
+            };
+            ok(Value::string(resolved))
+        }
         // Accepted no-ops (metadata only, for now).
         "export" | "import" | "forget" | "delete" | "ensemble" | "unknown" => ok(Value::empty()),
         other => err(format!(
@@ -99,6 +141,22 @@ fn tail(name: &str) -> String {
     name.rsplit("::").next().unwrap_or(name).to_string()
 }
 
+fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((ns, parts)) = rest.split_first() else {
+        return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
+    };
+    if parts.is_empty() {
+        return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
+    }
+    let target = canon_ns(vm, &ns.to_str());
+    let body = parts
+        .iter()
+        .map(|v| v.to_str().to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
+    eval_in_ns(vm, target, &body)
+}
+
 fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((ns, body_parts)) = rest.split_first() else {
         return err("wrong # args: should be \"namespace eval name arg ?arg ...?\"");
@@ -113,14 +171,7 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    vm.declare_namespace(&child);
-    vm.push_ns(child);
-    let result = vm.eval_source(&body);
-    vm.pop_ns();
-    match result {
-        Ok(c) => c,
-        Err(e) => err(e.message),
-    }
+    eval_in_ns(vm, child, &body)
 }
 
 #[cfg(test)]

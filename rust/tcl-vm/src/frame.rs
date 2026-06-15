@@ -26,9 +26,6 @@ pub(crate) enum Local {
         /// Target variable name within that frame.
         name: String,
     },
-    /// An alias to a namespace variable (`variable name`), by its canonical
-    /// qualified name (e.g. `tcltest::Version`).
-    NsLink(String),
 }
 
 /// One call frame.

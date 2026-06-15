@@ -261,6 +261,32 @@ fn namespace_variables() {
 }
 
 #[test]
+fn namespace_array_variables() {
+    out_eq(
+        "namespace eval foo { variable a\nset a(x) 1\nset a(y) 2 }\nputs [lsort [array names ::foo::a]]\n",
+        "x y\n",
+    );
+    // An array namespace variable mutated through a `variable`-linked local,
+    // persisting across calls.
+    out_eq(
+        "namespace eval foo { variable cnt\nset cnt(n) 0\nproc bump {} { variable cnt; incr cnt(n); return $cnt(n) } }\nputs [foo::bump][foo::bump]\n",
+        "12\n",
+    );
+}
+
+#[test]
+fn namespace_code_inscope() {
+    out_eq(
+        "namespace eval foo { variable v 7 }\nputs [namespace inscope ::foo { return $v }]\n",
+        "7\n",
+    );
+    out_eq(
+        "namespace eval foo { proc cb {} { return [namespace code {set x 1}] } }\nputs [foo::cb]\n",
+        "::namespace inscope ::foo {set x 1}\n",
+    );
+}
+
+#[test]
 fn package_stubs() {
     out_eq("puts [package require Tcl 8.5-]\n", "9.0\n");
     out_eq("puts [package vsatisfies 9.0 9.0-]\n", "1\n");
