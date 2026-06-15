@@ -15,7 +15,8 @@ use tcl_compiler::cfg::{Function, Terminator};
 use tcl_compiler::cfg_layout::{build_cfg_edges, ordered_block_names};
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::ir::{Module, Script, Statement};
-use tcl_lexer::{LineIndex, Span};
+use tcl_compiler::segmenter::segment_commands;
+use tcl_lexer::{LineIndex, Span, TokenType};
 use tcl_registry::available_dialects;
 use tcl_syntax::expr::ast::render_expr;
 
@@ -379,6 +380,54 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
     Value::Array(funcs)
 }
 
+/// Serialise the `segments` view: the `SegmentedCommand` list with each
+/// command's closer-inclusive range, source slice, words (in `word_piece`
+/// form with per-word shape flags), and forward-attached preceding comment.
+/// Mirrors `_serialise_segments`.
+///
+/// `name` is the first word's text; `subcommand` is always `null` (the CST
+/// segment path does not resolve subcommands). `braced` is whether the
+/// word's first fragment is a braced `{…}` (`Str`) token; `quoted` whether
+/// its raw begins with `"` — both derived from the representative token, as
+/// the Python CST derives them from the first fragment.
+#[must_use]
+pub fn serialise_segments(source: &str) -> Value {
+    let bytes = source.as_bytes();
+    let segments: Vec<Value> = segment_commands(source)
+        .iter()
+        .map(|seg| {
+            let words: Vec<Value> = seg
+                .argv
+                .iter()
+                .enumerate()
+                .map(|(i, tok)| {
+                    let start = tok.span.start() as usize;
+                    json!({
+                        "text": seg.texts[i],
+                        "startOffset": tok.span.start(),
+                        "endOffset": tok.span.end(),
+                        "single": seg.single_token_word[i],
+                        "braced": tok.kind == TokenType::Str,
+                        "quoted": bytes.get(start) == Some(&b'"'),
+                        "expand": seg.expand_word.as_ref().is_some_and(|e| e[i]),
+                    })
+                })
+                .collect();
+            let (start, end) = (seg.span.start() as usize, seg.span.end() as usize);
+            json!({
+                "name": seg.texts.first().cloned().unwrap_or_default(),
+                "startOffset": seg.span.start(),
+                "endOffset": seg.span.end(),
+                "slice": source.get(start..end).unwrap_or(""),
+                "precedingComment": seg.preceding_comment,
+                "subcommand": Value::Null,
+                "words": words,
+            })
+        })
+        .collect();
+    Value::Array(segments)
+}
+
 /// Serialise a full pipeline result to the explorer contract JSON.
 ///
 /// Currently emits the ported view families; subsequent EXP-* increments
@@ -401,6 +450,7 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
     }
     out.insert("types".to_owned(), serialise_types(result));
+    out.insert("segments".to_owned(), serialise_segments(&result.source));
     Value::Object(out)
 }
 
@@ -448,6 +498,30 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn segments_reports_words_with_shape_flags() {
+        let segs = serialise_segments("string length \"hi\"");
+        let arr = segs.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        let cmd = &arr[0];
+        assert_eq!(cmd["name"], "string");
+        assert_eq!(cmd["subcommand"], Value::Null);
+        let words = cmd["words"].as_array().unwrap();
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[0]["text"], "string");
+        assert_eq!(words[2]["quoted"], true);
+        assert_eq!(words[2]["braced"], false);
+    }
+
+    #[test]
+    fn segments_marks_braced_words() {
+        let segs = serialise_segments("if {$x} { puts hi }");
+        let words = segs[0]["words"].as_array().unwrap();
+        // `{$x}` is a braced word.
+        assert_eq!(words[1]["braced"], true);
+        assert_eq!(words[1]["quoted"], false);
     }
 
     #[test]
