@@ -80,6 +80,7 @@ pub enum Command {
     #[command(visible_alias = "summary")]
     Stats {
         /// Config inputs (.conf/.scf/.ucs, or '-' for stdin).
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         /// Show the top N most-referenced objects.
         #[arg(long, value_name = "N")]
@@ -93,6 +94,7 @@ pub enum Command {
     /// Generate `tmsh delete` commands for unreferenced objects.
     #[command(visible_alias = "clean")]
     Cleanup {
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         /// Keep this object path even if unreferenced (repeatable).
         #[arg(long = "keep", value_name = "PATH")]
@@ -242,6 +244,7 @@ pub enum Command {
     /// Emit the object reference graph as DOT, JSON, or Mermaid.
     #[command(visible_alias = "deps")]
     Graph {
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         #[arg(long, default_value = "dot", value_parser = ["dot", "json", "mermaid"])]
         format: String,
