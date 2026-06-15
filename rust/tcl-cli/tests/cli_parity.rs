@@ -170,3 +170,23 @@ fn explore_summary_lists_views() {
     assert!(text.contains("Compiler explorer summary"));
     assert!(text.contains("ir:"));
 }
+
+#[test]
+fn explore_text_renders_box_drawing_trees() {
+    let out = run_tcl(&[
+        "explore",
+        "--source",
+        "set x 1\nputs $x",
+        "--text",
+        "--show",
+        "ir",
+        "--no-colour",
+    ]);
+    let text = String::from_utf8(out).expect("utf-8 text render");
+    assert!(text.contains("=== ir ==="), "section header present");
+    assert!(
+        text.contains("├── ") || text.contains("└── "),
+        "box-drawing tree connectors present"
+    );
+    assert!(!text.contains('\x1b'), "no ANSI escapes with --no-colour");
+}
