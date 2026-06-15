@@ -2890,14 +2890,32 @@ Inline control-command bodies (`if`/`while`/`for`/`foreach`) now also advance
 the `info frame` line via `eval_control_body` (a located literal body runs as its
 own line-advancing source frame; info.test → 138).
 
-Still off for `info-30`/`info-33`: the precise *line digit* within a
-backslash-newline continuation and across **nested** `[…]` substitutions
-(info-30.0 reports the command's line, off by the bs+nl). That needs cumulative
-line threading (C's `TclAdvanceContinuations`) — each nested substitution carries
-its own source buffer while sharing the frame's `line_base`, so the line must be
-threaded through, not recomputed per buffer. That is a contained line-accounting
-effort (a parser/`info frame` follow-up), distinct from the base-layer obj-model
-fix above; the type/file/source-frame are now correct.
+### SYNC inbound — 2026-06-15 (command-substitution line advancement)
+
+`info.test` 138 → 158 (zero regressions; trace 199, oo 357, ooProp 55/55,
+eval 12/12 all held). This closes the `info-30`/`info-33` *line digit* gap: a
+command inside `[…]` now reports the line it actually appears on, even when the
+bracket spans lines or follows a `\`-newline continuation, and through **nested**
+substitutions.
+
+The insight that made it a few lines instead of C's `TclAdvanceContinuations`
+bookkeeping: a `[…]`'s inner script is a borrowed sub-slice of the enclosing
+parsed buffer (`WordPart::Command(&'s [u8])`), so its start offset — and thus
+its file-absolute line — comes straight from the original source via the shared
+`line_of` helper. Backslash-newline continuations are *real* newlines in that
+buffer, so plain newline counting already matches C's continuation-adjusted
+result; no separate continuation-position table is needed.
+
+Mechanically (`eval_command_subst`): a `[cmd]` is **not** a new `info frame`
+level — C compiles it into the enclosing command's bytecode, so `info frame`
+depth is unchanged — but it *does* advance the reported `line`. So rather than
+pushing a frame, the substitution shares the enclosing frame and temporarily
+shifts its `line_base` to `(enclosing line_base + line_of(src, bracket_offset))
+- 1`, evaluates the inner script in a new `eval_script_mode(.., advance_shared:
+true)` that advances `line`/`cmd` without pushing a level, then restores the
+enclosing frame's `line_base`/`line`/`cmd`. Nested substitutions compose
+naturally: each inner buffer's offset is taken against *its* enclosing `src`,
+and the `line_base` it inherits already carries the outer shift.
 
 ### Outstanding
 

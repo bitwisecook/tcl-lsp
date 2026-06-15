@@ -2571,8 +2571,24 @@ impl Interp {
     /// it (so `info frame` sees the live command/line); an unframed call (`None`,
     /// i.e. command substitution) leaves the enclosing frame untouched.
     fn eval_script(&mut self, src: &[u8], owned: Option<CmdFrame>) -> Code {
+        self.eval_script_mode(src, owned, false)
+    }
+
+    /// [`eval_script`](Self::eval_script) with an explicit `advance_shared` mode:
+    /// when `owned` is `None` but `advance_shared` is set, the enclosing frame is
+    /// shared (not pushed — no new level) yet its `line`/`cmd` still advance with
+    /// each command. This is the command-substitution case (see
+    /// [`eval_command_subst`](Self::eval_command_subst)); the caller sets up and
+    /// restores the shared frame's `line_base`.
+    fn eval_script_mode(
+        &mut self,
+        src: &[u8],
+        owned: Option<CmdFrame>,
+        advance_shared: bool,
+    ) -> Code {
         self.eval_depth.set(self.eval_depth.get() + 1);
-        let owns_frame = owned.is_some();
+        let pushed = owned.is_some();
+        let owns_frame = pushed || advance_shared;
         if let Some(f) = owned {
             self.cmd_frames.borrow_mut().push(f);
         }
@@ -2592,7 +2608,7 @@ impl Interp {
                 break; // error/return/break/continue propagate up
             }
         }
-        if owns_frame {
+        if pushed {
             self.cmd_frames.borrow_mut().pop();
         }
         self.eval_depth.set(self.eval_depth.get() - 1);
@@ -2663,6 +2679,48 @@ impl Interp {
     pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
         let frame = self.inherited_cmd_frame();
         self.eval_framed(script, frame)
+    }
+
+    /// Evaluate a `[...]` command substitution's inner `script`. A `[cmd]` is
+    /// **not** a new `info frame` level (C compiles it into the enclosing
+    /// command's bytecode — `info frame` depth is unchanged), but it *does*
+    /// advance the reported `line`: a command inside the brackets reports the
+    /// line it actually appears on, even when the bracket spans lines or follows
+    /// a `\`-newline continuation. `script` is a sub-slice of `src` (it borrows
+    /// from the parsed buffer), so its start offset — and thus its file-absolute
+    /// line — comes straight from the original source: bs+nl continuations are
+    /// real newlines there, so plain newline counting matches C's TIP 280 result
+    /// without C's separate continuation-line `adjust` bookkeeping.
+    ///
+    /// The enclosing frame's location (`line_base`/`line`/`cmd`) is saved and
+    /// restored around the inner eval so the rest of the enclosing command keeps
+    /// reporting its own line once the substitution returns.
+    fn eval_command_subst(&mut self, src: &[u8], script: &[u8]) -> Code {
+        let offset = (script.as_ptr() as usize).wrapping_sub(src.as_ptr() as usize);
+        let saved = {
+            let mut frames = self.cmd_frames.borrow_mut();
+            match frames.last_mut() {
+                Some(top) if offset <= src.len() => {
+                    let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                    // Shift the body-relative base so the inner script's line 1
+                    // maps to the bracket's file-absolute line.
+                    top.line_base = (top.line_base + line_of(src, offset)).saturating_sub(1);
+                    Some(saved)
+                }
+                _ => None,
+            }
+        };
+        // Share the enclosing frame but advance its line/cmd through the inner
+        // commands (the third eval mode: no new frame, but line tracking on).
+        let code = self.eval_script_mode(script, None, saved.is_some());
+        if let Some((line_base, line, cmd)) = saved {
+            if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+                top.line_base = line_base;
+                top.line = line;
+                top.cmd = cmd;
+            }
+        }
+        code
     }
 
     /// `eval` of a single body **object** — like [`eval_body`](Self::eval_body),
@@ -2772,7 +2830,7 @@ impl Interp {
     fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
         let mut argv: Vec<*mut TclObj> = Vec::new();
         for w in words {
-            let obj = match self.substitute_word(&w.body) {
+            let obj = match self.substitute_word(src, &w.body) {
                 Ok(o) => o, // owned (+1)
                 Err(code) => {
                     release_all(&argv);
@@ -3994,7 +4052,7 @@ impl Interp {
     /// Substitute one word's body into an **owned** (`+1`) object.
     /// A `Variable` reference to an unset variable, or a `[cmd]` that errors,
     /// returns `Err(code)` with the interp result already set.
-    fn substitute_word(&mut self, body: &WordBody) -> Result<*mut TclObj, Code> {
+    fn substitute_word(&mut self, src: &[u8], body: &WordBody) -> Result<*mut TclObj, Code> {
         match body {
             WordBody::Literal(bytes) => {
                 let obj = new_string(bytes);
@@ -4035,7 +4093,7 @@ impl Interp {
                             // Command substitution propagates *any* non-OK
                             // completion code (`return`/`break`/`continue`, not
                             // just error) out of `[...]`, matching C Tcl.
-                            let code = self.eval_str(script);
+                            let code = self.eval_command_subst(src, script);
                             if code != Code::Ok {
                                 return Err(code);
                             }
@@ -4066,7 +4124,7 @@ impl Interp {
                             }
                         }
                         WordPart::Command(script) => {
-                            let code = self.eval_str(script);
+                            let code = self.eval_command_subst(src, script);
                             if code != Code::Ok {
                                 return Err(code);
                             }
