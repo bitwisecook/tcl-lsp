@@ -341,6 +341,66 @@ pub fn memoised_compilation_unit<'db>(
     .with_interprocedural(registry, dialect_opt)
 }
 
+/// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
+/// the salsa key that lets the two diagnostics consumers *share* one built
+/// [`CompilationUnit`].  Only `expand_syntax` / `irules_brace_separator` vary
+/// between [`LexerConfig::default`] (the analyser tail) and
+/// [`LexerConfig::for_dialect`] (the optimiser); the rest are always the default
+/// (`strict_quoting = false`, zero base offsets) on both paths.  The two configs
+/// **coincide for every dialect except `tcl8.4` / `f5-irules`**, so for the
+/// common case both consumers intern the same key and demand the same
+/// [`compilation_unit`] — built once per edit instead of twice.
+#[salsa::interned]
+pub struct LexerCfgKey<'db> {
+    pub expand_syntax: bool,
+    pub irules_brace_separator: bool,
+}
+
+impl LexerCfgKey<'_> {
+    /// The full [`tcl_lexer::LexerConfig`] this key represents (the two
+    /// interned fields + the invariant defaults both diagnostics paths use).
+    fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig {
+            expand_syntax: self.expand_syntax(db),
+            irules_brace_separator: self.irules_brace_separator(db),
+            ..tcl_lexer::LexerConfig::default()
+        }
+    }
+}
+
+/// Intern a [`LexerCfgKey`] from a concrete [`tcl_lexer::LexerConfig`].
+fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<'_> {
+    LexerCfgKey::new(db, config.expand_syntax, config.irules_brace_separator)
+}
+
+/// The shared, memoised [`CompilationUnit`] for a document under a given lexer
+/// config — built via [`memoised_compilation_unit`] (per-procedure lattices on
+/// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
+/// `(file, cfg)` so the analyser tail ([`file_analysis_incremental`]) and the
+/// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
+/// build per edit** whenever their configs coincide (every dialect bar `tcl8.4`
+/// / `f5-irules`); for those two dialects the configs differ, so each consumer
+/// builds its own (status quo).  Byte-identical to a direct
+/// `memoised_compilation_unit` call.
+#[salsa::tracked]
+pub fn compilation_unit<'db>(
+    db: &'db dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'db>,
+) -> Arc<CompilationUnit> {
+    let dialect = file.dialect(db).clone();
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let registry = db.registry(&dialect);
+    Arc::new(memoised_compilation_unit(
+        db,
+        file.text(db),
+        &registry,
+        false,
+        cfg.to_config(db),
+        dialect_opt,
+    ))
+}
+
 /// Incremental whole-file analysis: the per-item path with each `proc` body's
 /// isolated analysis memoised via [`item_body_analysis`], so a body edit
 /// recomputes one body + the cheap shell instead of the whole walk; the
@@ -365,20 +425,14 @@ pub fn file_analysis_incremental(
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
-    // `cu_override` seam.  The registry (`db.registry`) + default lexer config
-    // mirror what `emit_cfg_ssa_diagnostics` builds for itself, so the supplied
-    // unit is the one it would otherwise build.
-    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
-    let registry = db.registry(&dialect);
-    let cu = memoised_compilation_unit(
-        db,
-        &text,
-        &registry,
-        false,
-        tcl_lexer::LexerConfig::default(),
-        dialect_opt,
-    );
-    analyser.set_cu_override(Arc::new(cu));
+    // `cu_override` seam, via the shared [`compilation_unit`] query.  The default
+    // lexer config mirrors what `emit_cfg_ssa_diagnostics` builds for itself, so
+    // the supplied unit is the one it would otherwise build; routing through the
+    // tracked query lets `compiler_check_diagnostics` reuse this exact build in
+    // the same edit whenever the dialect's config matches the default (every
+    // dialect but `tcl8.4` / `f5-irules`).
+    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::default());
+    analyser.set_cu_override(compilation_unit(db, file, cfg_key));
 
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
         let key = ItemBodyKey::new(
@@ -434,18 +488,15 @@ fn compiler_diagnostics_from_unit(
 /// `lift_compiler_diagnostics` build.
 #[salsa::tracked]
 pub fn compiler_check_diagnostics(db: &dyn TclDb, file: SourceFile) -> Arc<CompilerDiagnostics> {
-    let text = file.text(db).clone();
     let dialect = file.dialect(db).clone();
     let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
     let registry = db.registry(&dialect);
-    let cu = memoised_compilation_unit(
-        db,
-        &text,
-        &registry,
-        false,
-        tcl_lexer::LexerConfig::for_dialect(&dialect),
-        dialect_opt,
-    );
+    // Share the analyser tail's build via the [`compilation_unit`] query when the
+    // dialect's lexer config matches the default (every dialect but `tcl8.4` /
+    // `f5-irules`): the optimiser lowers with the dialect config, so a matching
+    // config interns the same `LexerCfgKey` and reuses the same per-edit build.
+    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(&dialect));
+    let cu = compilation_unit(db, file, cfg_key);
     Arc::new(compiler_diagnostics_from_unit(&cu, &registry, dialect_opt))
 }
 
@@ -755,6 +806,71 @@ mod tests {
                 .count(),
             1,
             "length-changing body edit -> exactly ONE lattice recomputes (offset-invariant): {after:?}"
+        );
+    }
+
+    /// Both diagnostics consumers must **share one `compilation_unit` build per
+    /// edit** when their lexer configs coincide (every dialect but `tcl8.4` /
+    /// `f5-irules`): demanding `file_analysis_incremental` then
+    /// `compiler_check_diagnostics` in the same revision executes
+    /// `compilation_unit` exactly once.  For `tcl8.4` the configs differ
+    /// (`expand_syntax`), so each consumer builds its own — executed twice.
+    #[test]
+    fn compilation_unit_shared_across_consumers() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let src = "proc a {x} { return $x }\nproc b {} { a 1 }\n";
+        let count_cu = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .iter()
+                .filter(|s| s.contains("compilation_unit"))
+                .count()
+        };
+
+        // tcl8.6: default == for_dialect, so the two consumers share one build.
+        let file86 = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+        let _ = file_analysis_incremental(&db, file86, cfg);
+        let _ = compiler_check_diagnostics(&db, file86);
+        assert_eq!(
+            count_cu(&log),
+            1,
+            "tcl8.6: both consumers share exactly one compilation_unit build"
+        );
+
+        // tcl8.4: for_dialect disables `{*}` expansion, so the configs differ
+        // and each consumer builds its own unit (two executions).
+        let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned());
+        let _ = file_analysis_incremental(&db, file84, cfg);
+        let _ = compiler_check_diagnostics(&db, file84);
+        assert_eq!(
+            count_cu(&log),
+            2,
+            "tcl8.4: differing lexer configs -> a separate build per consumer"
+        );
+
+        // A fresh edit re-shares for tcl8.6 (one build for the new revision).
+        file86
+            .set_text(&mut db)
+            .to("proc a {x} { return $x }\nproc b {} { a 2 }\n".to_owned());
+        let _ = file_analysis_incremental(&db, file86, cfg);
+        let _ = compiler_check_diagnostics(&db, file86);
+        assert_eq!(
+            count_cu(&log),
+            1,
+            "after an edit, tcl8.6 again shares one build across both consumers"
         );
     }
 }

@@ -83,6 +83,18 @@ fn main() {
             .to(if t2 { edited.clone() } else { src.clone() });
         compiler_check_diagnostics(&db, file)
     });
+    // Production shape: the server demands BOTH queries after one didChange, so
+    // the shared `compilation_unit` build is paid once per edit (the second
+    // consumer's demand is a same-revision cache hit when configs coincide).
+    let mut t3 = false;
+    time("BOTH queries per edit (production)", 5, || {
+        t3 = !t3;
+        file.set_text(&mut db)
+            .to(if t3 { edited.clone() } else { src.clone() });
+        let a = file_analysis_incremental(&db, file, cfg);
+        let c = compiler_check_diagnostics(&db, file);
+        (a, c)
+    });
 
     println!("\n== compiler-check tail breakdown (whole-file, no memo) ==");
     let registry = db.registry(dialect);
