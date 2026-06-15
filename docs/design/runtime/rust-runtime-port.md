@@ -3190,6 +3190,30 @@ insertion-ordered `info locals` (apply-8.2/8.3 — the var table is a sorted
 `BTreeMap`). Untouched per the parallel-work exclusion: `cmd_string.rs` and the
 `string` helpers in `rust/tcl-syntax/src/`.
 
+### SYNC inbound — 2026-06-15 (subst completion codes, `const`/TIP 677, `array for`/`array default`/TIP 508)
+
+Moved on to the larger untapped subsystems (subst.test, var.test).
+
+- **subst.test 22 → 44.** `subst` option parsing now matches `TclSubstOptions`
+  (prefix-matched `-no*` over every leading arg, `bad`/`ambiguous` errors), and
+  a `[...]`/`$arr([...])` completion code follows compiled-subst / `TclSubstTokens`:
+  `break` ends the substitution (returning what's accumulated), `continue`
+  contributes nothing, `return`/other substitutes the result, only an error
+  propagates. Remaining: the "missing close-bracket / partial-eval" nasty cases
+  (subst-5.5–5.10, 12.x) and the `[return {]}]` bracket-brace-nesting scan (8.5).
+- **var.test 76 → 155.** Implemented the `const` command (TIP 677): a
+  `VAR_CONSTANT` flag in `VarTable`, the `const` lookup errors, write/incr/unset
+  rejection (with `lappend`/`dict set`/`regsub`/`gets` rejecting up front since
+  their in-place update bypasses the store-time check), namespace + TclOO
+  resolution, and `info constant`/`info consts`. Added `array for {k v}` (element
+  iteration with break/continue/return + "array changed during iteration") and
+  `array default` (TIP 508): a per-array default returned for a missing-element
+  read, pinned shared so a read-modify-write copies rather than corrupting it.
+  Remaining var.test const/array-default gaps need array-ref-aware
+  `var_get`/`var_set` in the `dict`/`append` paths (and `append` is in the
+  parallel-owned `cmd_string.rs`): var-24.7/8/13/14/15, var-26.2/27.2,
+  var-26.17/27.17.
+
 ### SYNC inbound — 2026-06-15 (`switch -regexp`/TIP #75, the 5 missing math functions, `info loaded`/`cmdtype`)
 
 Picked up the remaining info.test clusters plus the adjacent `switch` family.
