@@ -143,13 +143,11 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(interp, b"for start test next command");
     }
-    let (init, cond, next, body) = (
-        obj_bytes(argv[1]),
-        obj_bytes(argv[2]),
-        obj_bytes(argv[3]),
-        argv[4],
-    );
-    match interp.eval_str(&init) {
+    let (init, cond, next, body) = (argv[1], obj_bytes(argv[2]), argv[3], argv[4]);
+    // `start`/`next` are scripts too — run them through `eval_control_body` so a
+    // located literal reports `type source` at its own line (TIP 280), matching
+    // the body. (Their result is discarded; only their completion code matters.)
+    match interp.eval_control_body(init) {
         Code::Ok => {}
         other => return other,
     }
@@ -164,7 +162,7 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Break => break,
             other => return other,
         }
-        match interp.eval_str(&next) {
+        match interp.eval_control_body(next) {
             Code::Ok => {}
             other => return other,
         }

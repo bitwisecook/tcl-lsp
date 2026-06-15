@@ -3007,6 +3007,16 @@ reports `type source` at its own line — covering the `info-24.7/8/9`
 (`dict for`/`with`/`filter` interaction) and `{*}`-expanded `dict for`/`map`
 bodies.
 
+### SYNC inbound — 2026-06-15 (`for` start/next script frames)
+
+`info.test` 212 → 214 (zero regressions; for 51, while 45, foreach 38, trace 199,
+oo 357 held). `for`'s `start` and `next` scripts were evaluated with a bare
+`eval_str`; they now route through `eval_control_body` like the body, so a located
+literal (including a `{*}`-expanded element) reports `type source` at its own
+line. Remaining `info-33` failures are a distinct issue — `return`/non-OK codes
+propagating out of a `for`/`while` **test expression**'s command substitution
+(`for {*}{… {[return …]} …}`), not line tracking.
+
 ### Outstanding
 
 _(empty — populated as Zig lands behavioural fixes during the port)_
