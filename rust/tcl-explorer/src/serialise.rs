@@ -19,7 +19,7 @@ use tcl_compiler::gvn::{
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
-use tcl_compiler::optimiser::optimise;
+use tcl_compiler::optimiser::{apply_optimisations, optimise};
 use tcl_compiler::segmenter::segment_commands;
 use tcl_compiler::shimmer::{
     find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
@@ -383,6 +383,21 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
     Value::Array(out)
 }
 
+/// Serialise the `optimisedSource` key: the source after applying the
+/// optimiser's rewrites, or `null` when unchanged. Mirrors
+/// `result.optimised_source if != source else None`. Optimiser-derived →
+/// `_NO_PARITY_KEYS`, pinned by a Rust unit test.
+#[must_use]
+pub fn serialise_optimised_source(result: &ExplorerResult, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let optimised = apply_optimisations(source, &optimise(source, registry));
+    if optimised == source {
+        Value::Null
+    } else {
+        Value::String(optimised)
+    }
+}
+
 /// Serialise the `gvn` view: redundant-computation hints (GVN/CSE + PRE +
 /// LICM). Mirrors `_serialise_gvn` — `{code, message, expression, range,
 /// firstRange, severity: info}`. Composes the three ported `*_for_cu`
@@ -678,6 +693,10 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         serialise_taint(result, &li, &result.source),
     );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
+    out.insert(
+        "optimisedSource".to_owned(),
+        serialise_optimised_source(result, &result.source),
+    );
     Value::Object(out)
 }
 
@@ -725,6 +744,21 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(children[0]["label"], "clause 1: $x > 0");
         assert_eq!(children[1]["label"], "else");
+    }
+
+    #[test]
+    fn optimised_source_reflects_constant_fold() {
+        let result = run_pipeline("set x [expr {1 + 2}]\nputs $x", "tcl8.6");
+        let opt = serialise_result(&result)["optimisedSource"].clone();
+        // The constant fold changes the source, so it is a non-null string.
+        let s = opt.as_str().expect("optimised source string");
+        assert!(s.contains("set x 3"));
+    }
+
+    #[test]
+    fn optimised_source_null_when_unchanged() {
+        let result = run_pipeline("puts hello", "tcl8.6");
+        assert_eq!(serialise_result(&result)["optimisedSource"], Value::Null);
     }
 
     #[test]

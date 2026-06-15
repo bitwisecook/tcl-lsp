@@ -81,7 +81,13 @@ _SHAPE_ONLY_KEYS = {"interprocedural"}
 # view faithfully shows whichever backend produced it, so these views are
 # pinned by Rust-side unit tests and the backends' own suites instead.
 # (Tracked under the compiler / analyser work in docs/rust-rewrite.md.)
-_NO_PARITY_KEYS = {"optimisations", "renderedProperties", "taintWarnings", "gvn"}
+_NO_PARITY_KEYS = {
+    "optimisations",
+    "optimisedSource",
+    "renderedProperties",
+    "taintWarnings",
+    "gvn",
+}
 
 
 def _rust_binary() -> Path | None:
