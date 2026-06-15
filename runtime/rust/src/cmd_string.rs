@@ -708,8 +708,10 @@ fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> 
             }
             // `-length` reads a wide int (`TclGetWideIntFromObj`): a negative or
             // out-of-`Tcl_Size` value means "no limit", a bignum overflows.
+            // `try_from` keeps an over-wide length as `None` rather than wrapping
+            // (`w as usize` truncates on 32-bit targets such as wasm32).
             match get_wide(&obj_bytes(argv[i + 1])) {
-                Ok(w) => length = if w < 0 { None } else { Some(w as usize) },
+                Ok(w) => length = usize::try_from(w).ok(),
                 Err(WideErr::TooLarge) => {
                     return interp.set_error(b"integer value too large to represent");
                 }
