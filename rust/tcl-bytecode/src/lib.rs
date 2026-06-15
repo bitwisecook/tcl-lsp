@@ -719,6 +719,12 @@ pub struct Instruction {
     pub source_line: u32,
     /// Original command text for `errorInfo`.
     pub source_cmd_text: String,
+    /// Loop-variable groups for `FOREACH_START`/`lmap` only — the analogue of
+    /// C Tcl's `ForeachInfo.varLists` (`tclExecute.c` `INST_FOREACH_*`). One
+    /// inner `Vec<String>` per iterator group; the value lists are pushed on the
+    /// stack before the opcode. Not rendered in disassembly (keeps identity
+    /// stable).
+    pub foreach_vars: Option<Vec<Vec<String>>>,
 }
 
 impl Instruction {
@@ -734,6 +740,7 @@ impl Instruction {
             no_fold: false,
             source_line: 0,
             source_cmd_text: String::new(),
+            foreach_vars: None,
         }
     }
 }

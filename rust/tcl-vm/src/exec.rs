@@ -20,12 +20,30 @@ use crate::expr;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
+/// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
+struct ForeachState {
+    /// Loop-variable groups (from the `FOREACH_START` aux).
+    var_groups: Vec<Vec<String>>,
+    /// The value list for each group.
+    lists: Vec<Vec<Value>>,
+    /// Current iteration (0-based).
+    iter_num: usize,
+    /// Total iterations = max over groups of ceil(listLen / numVars).
+    iter_max: usize,
+    /// Instruction index of the loop body (just after `FOREACH_START`).
+    body_idx: usize,
+}
+
 /// One activation record: a bytecode function in mid-execution.
 struct Frame {
     asm: Rc<FunctionAsm>,
     off2idx: Rc<HashMap<i32, usize>>,
+    /// `FOREACH_START` index → paired `FOREACH_STEP` index (the implicit jump).
+    foreach_pairs: Rc<HashMap<usize, usize>>,
     pc: usize,
     stack: Vec<Value>,
+    /// Active `foreach` loops in this activation (innermost last).
+    foreach_stack: Vec<ForeachState>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
@@ -36,15 +54,37 @@ struct Frame {
 impl Frame {
     fn new(asm: Rc<FunctionAsm>, is_proc: bool) -> Self {
         let off2idx = Rc::new(build_off2idx(&asm));
+        let foreach_pairs = Rc::new(pair_foreach(&asm));
         Self {
             asm,
             off2idx,
+            foreach_pairs,
             pc: 0,
             stack: Vec::new(),
+            foreach_stack: Vec::new(),
             last_result: Value::empty(),
             is_proc,
         }
     }
+}
+
+/// Pair each `FOREACH_START` with its `FOREACH_STEP` by nesting order
+/// (`foreach_start … body … foreach_step` nests like balanced brackets).
+fn pair_foreach(asm: &FunctionAsm) -> HashMap<usize, usize> {
+    let mut pairs = HashMap::new();
+    let mut stack: Vec<usize> = Vec::new();
+    for (i, instr) in asm.instructions.iter().enumerate() {
+        match instr.op {
+            Op::FOREACH_START => stack.push(i),
+            Op::FOREACH_STEP => {
+                if let Some(s) = stack.pop() {
+                    pairs.insert(s, i);
+                }
+            }
+            _ => {}
+        }
+    }
+    pairs
 }
 
 /// What one instruction step does to the trampoline.
@@ -551,6 +591,74 @@ impl Vm {
                     }
                     (Err(e), _) | (_, Err(e)) => return Tick::Return(err(e.message)),
                 }
+            }
+
+            // -- foreach (C Tcl INST_FOREACH_*): aux var groups on the
+            //    instruction; foreach_start jumps to step; step binds the loop
+            //    vars and jumps back to the body, or falls through to end. --
+            Op::FOREACH_START => {
+                let start_idx = f.pc - 1;
+                let body_idx = f.pc;
+                let groups = instr.foreach_vars.clone().unwrap_or_default();
+                let n = groups.len();
+                if f.stack.len() < n {
+                    return Tick::Return(err("foreach: stack underflow"));
+                }
+                let raw = f.stack.split_off(f.stack.len() - n);
+                let mut value_lists = Vec::with_capacity(n);
+                let mut iter_max = 0;
+                for (gi, lv) in raw.iter().enumerate() {
+                    let items = match lv.as_list() {
+                        Ok(x) => (*x).clone(),
+                        Err(e) => return Tick::Return(err(e.message)),
+                    };
+                    let nv = groups[gi].len().max(1);
+                    iter_max = iter_max.max(items.len().div_ceil(nv));
+                    value_lists.push(items);
+                }
+                f.foreach_stack.push(ForeachState {
+                    var_groups: groups,
+                    lists: value_lists,
+                    iter_num: 0,
+                    iter_max,
+                    body_idx,
+                });
+                if let Some(&step) = f.foreach_pairs.get(&start_idx) {
+                    f.pc = step;
+                }
+            }
+            Op::FOREACH_STEP => {
+                let (binds, body, more) = {
+                    match f.foreach_stack.last_mut() {
+                        None => (Vec::new(), 0usize, false),
+                        Some(st) if st.iter_num >= st.iter_max => (Vec::new(), 0, false),
+                        Some(st) => {
+                            let it = st.iter_num;
+                            let mut binds: Vec<(String, Value)> = Vec::new();
+                            for (gi, group) in st.var_groups.iter().enumerate() {
+                                let nv = group.len();
+                                for (j, var) in group.iter().enumerate() {
+                                    let v = st.lists[gi]
+                                        .get(it * nv + j)
+                                        .cloned()
+                                        .unwrap_or_else(Value::empty);
+                                    binds.push((var.clone(), v));
+                                }
+                            }
+                            st.iter_num += 1;
+                            (binds, st.body_idx, true)
+                        }
+                    }
+                };
+                if more {
+                    for (name, v) in binds {
+                        self.set_var(&name, v);
+                    }
+                    f.pc = body;
+                }
+            }
+            Op::FOREACH_END => {
+                f.foreach_stack.pop();
             }
 
             // -- dict validation: consumes the (dup'd) TOS, validates even length --

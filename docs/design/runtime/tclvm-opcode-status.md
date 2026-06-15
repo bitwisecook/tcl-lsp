@@ -14,7 +14,7 @@
 - `[ ]` — **not yet in** the `Op` enum (needs adding to `tcl-bytecode` first,
   matching the C Tcl mnemonic/operands).
 
-Status (auto-countable): **68 executed · 69 enum-only · 54 missing · 191 total**.
+Status (auto-countable): **71 executed · 66 enum-only · 54 missing · 191 total**.
 Keep this in sync when adding opcodes — update the row and the count.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
@@ -178,9 +178,9 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [~] `invokeReplace`
 - [x] `listConcat`
 - [ ] `expandDrop`
-- [~] `foreach_start`
-- [~] `foreach_step`
-- [~] `foreach_end`
+- [x] `foreach_start`
+- [x] `foreach_step`
+- [x] `foreach_end`
 - [ ] `lmap_collect`
 - [~] `strtrim`
 - [~] `strtrimLeft`
@@ -210,7 +210,6 @@ Keep this in sync when adding opcodes — update the row and the count.
 - [~] `lreplace4`
 - [ ] `constImm`
 - [ ] `constStk`
-
 ## Notes
 
 - The `Op` enum also carries dialect-only opcodes (`irule*`) that are **not**

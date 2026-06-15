@@ -139,6 +139,39 @@ fn info_introspection() {
 }
 
 #[test]
+fn foreach_single() {
+    out_eq("foreach x {a b c} { puts $x }\n", "a\nb\nc\n");
+}
+
+#[test]
+fn foreach_multi_var() {
+    out_eq("foreach {k v} {a 1 b 2} { puts \"$k=$v\" }\n", "a=1\nb=2\n");
+}
+
+#[test]
+fn foreach_two_lists() {
+    out_eq("foreach x {1 2} y {3 4} { puts \"$x$y\" }\n", "13\n24\n");
+}
+
+#[test]
+fn foreach_uneven_pads_empty() {
+    out_eq("foreach {a b} {1 2 3} { puts \"$a-$b\" }\n", "1-2\n3-\n");
+}
+
+#[test]
+fn foreach_accumulate() {
+    out_eq(
+        "set s 0\nforeach n {1 2 3 4} { incr s $n }\nputs $s\n",
+        "10\n",
+    );
+}
+
+#[test]
+fn foreach_empty_list() {
+    out_eq("foreach x {} { puts no }\nputs done\n", "done\n");
+}
+
+#[test]
 fn info_default() {
     out_eq(
         "proc f {a {b 99}} {}\ninfo default f b d\nputs $d\n",

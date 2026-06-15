@@ -20,6 +20,10 @@ pub struct ForeachInfo {
     pub end: String,
     /// List arguments to the foreach/lmap command.
     pub list_args: Vec<String>,
+    /// Loop-variable groups (one per iterator), reconstructed from the
+    /// header `Call`'s `defs` + `foreach_groups`. Carried onto the
+    /// `FOREACH_START` instruction so the VM can bind them (C Tcl `ForeachInfo`).
+    pub var_groups: Vec<Vec<String>>,
 }
 
 /// Metadata about a complex foreach: one whose body is empty and
@@ -60,15 +64,31 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
             continue;
         };
         for stmt in &blk.statements {
-            if let Statement::Call { command, args, .. } = stmt
+            if let Statement::Call {
+                command,
+                args,
+                defs,
+                foreach_groups,
+                ..
+            } = stmt
                 && (command == "foreach" || command == "lmap")
             {
+                // Split the flattened `defs` into per-iterator groups.
+                let sizes = foreach_groups.clone().unwrap_or_else(|| vec![defs.len()]);
+                let mut var_groups = Vec::with_capacity(sizes.len());
+                let mut i = 0;
+                for sz in sizes {
+                    let end = (i + sz).min(defs.len());
+                    var_groups.push(defs[i..end].to_vec());
+                    i = end;
+                }
                 info.insert(
                     bn.clone(),
                     ForeachInfo {
                         body: true_target.clone(),
                         end: false_target.clone(),
                         list_args: args.clone(),
+                        var_groups,
                     },
                 );
                 break;
