@@ -158,8 +158,18 @@ jobs:
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
-          corepack enable
-          cd editors/vscode && npm --version
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly (`corepack enable npm`) or the shim isn't created and
+          # the npm bundled with setup-node wins. Assert the pin is live so a
+          # silent regression fails loudly instead of using the wrong npm.
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
 
       # `package-lock.json` is committed, so installs are pinned by hash.
       # Cache the npm metadata directory keyed on the lockfile so the
@@ -298,8 +308,18 @@ jobs:
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
-          corepack enable
-          cd editors/vscode && npm --version
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly (`corepack enable npm`) or the shim isn't created and
+          # the npm bundled with setup-node wins. Assert the pin is live so a
+          # silent regression fails loudly instead of using the wrong npm.
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
 
       # `package-lock.json` is committed, so installs are pinned by hash.
       # Cache the npm metadata directory keyed on the lockfile so the
