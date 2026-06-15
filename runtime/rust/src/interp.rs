@@ -1354,6 +1354,43 @@ impl Interp {
         )
     }
 
+    /// `array default set arrayName value` — set the array's TIP 508 default
+    /// (creating an empty array if needed). `Err` if the name is a scalar / its
+    /// namespace is missing.
+    pub(crate) fn set_array_default(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        crate::vars::set_array_default(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+            obj,
+        )
+    }
+
+    /// The array's TIP 508 default value (borrowed), or `None`.
+    pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::array_default(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
+    /// `array default unset arrayName` — drop the array's default value.
+    pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+        crate::vars::unset_array_default(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        );
+    }
+
     /// The call-frame level a variable trace on `base` should be tied to, so it
     /// dies with the frame (C frees a local var's trace list at frame teardown).
     /// `Some(level)` for an unqualified name resolving frame-local in a proc;

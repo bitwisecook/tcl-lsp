@@ -148,7 +148,7 @@ fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match interp.var_set(&base, argv[2]) {
         Ok(()) => {
             interp.mark_constant(&base);
-            interp.set_result(argv[2]);
+            interp.set_result_bytes(b""); // C's `const` yields an empty result
             Code::Ok
         }
         Err(e) => var_error(interp, &name, e),

@@ -48,10 +48,100 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"set" => array_set(interp, argv, &name),
         b"unset" => array_unset(interp, argv, &name),
         b"for" => array_for(interp, argv),
+        b"default" => array_default(interp, argv),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be exists, for, get, names, set, size, or unset");
+            m.extend_from_slice(
+                b"\": must be default, exists, for, get, names, set, size, or unset",
+            );
+            interp.set_error(&m)
+        }
+    }
+}
+
+/// `array default set|get|exists|unset arrayName ?value?` (TIP 508) — the array's
+/// default value for reads of missing elements.
+fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // argv: array default <subcmd> arrayName ?value?
+    if argv.len() < 4 {
+        return wrong_args(interp, b"array default subcommand arrayName ?value?");
+    }
+    let sub = obj_bytes(argv[2]);
+    let name = obj_bytes(argv[3]);
+    match sub.as_slice() {
+        b"set" => {
+            if argv.len() != 5 {
+                return wrong_args(interp, b"array default set arrayName value");
+            }
+            match interp.set_array_default(&name, argv[4]) {
+                Ok(()) => {
+                    interp.set_result(argv[4]);
+                    Code::Ok
+                }
+                // C: `can't array default set "ary": variable isn't array`.
+                Err(_) => {
+                    let mut m = b"can't array default set \"".to_vec();
+                    m.extend_from_slice(&name);
+                    m.extend_from_slice(b"\": variable isn't array");
+                    interp.set_error(&m)
+                }
+            }
+        }
+        b"get" => {
+            if argv.len() != 4 {
+                return wrong_args(interp, b"array default get arrayName");
+            }
+            // Missing var or scalar both error (C: `!varPtr || undefined || !isArray`).
+            if !interp.var_is_array(&name) {
+                return not_array(interp, &name);
+            }
+            match interp.array_default(&name) {
+                Some(o) => {
+                    interp.set_result(o);
+                    Code::Ok
+                }
+                None => {
+                    interp.error_with_code(b"array has no default value", b"TCL READ ARRAY DEFAULT")
+                }
+            }
+        }
+        b"exists" => {
+            if argv.len() != 4 {
+                return wrong_args(interp, b"array default exists arrayName");
+            }
+            // An undefined variable has no default — not an error (C).
+            if !interp.var_exists(&name) {
+                interp.set_result_bytes(b"0");
+            } else if !interp.var_is_array(&name) {
+                return not_array(interp, &name);
+            } else {
+                interp.set_result_bytes(if interp.array_default(&name).is_some() {
+                    b"1"
+                } else {
+                    b"0"
+                });
+            }
+            Code::Ok
+        }
+        b"unset" => {
+            if argv.len() != 4 {
+                return wrong_args(interp, b"array default unset arrayName");
+            }
+            // A missing variable is a silent no-op; a scalar errors (C).
+            if interp.var_exists(&name) {
+                if !interp.var_is_array(&name) {
+                    return not_array(interp, &name);
+                }
+                interp.unset_array_default(&name);
+            }
+            interp.set_result_bytes(b"");
+            Code::Ok
+        }
+        other => {
+            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            m.extend_from_slice(other);
+            m.extend_from_slice(b"\": must be exists, get, set, or unset");
             interp.set_error(&m)
         }
     }

@@ -121,6 +121,9 @@ pub struct VarTable {
     /// `variable is a constant`. Names are simple (table-local); a name stays
     /// here for the table's lifetime since a constant cannot be unset.
     consts: std::collections::BTreeSet<Vec<u8>>,
+    /// Per-array default values (TIP 508 `array default set`): array name → the
+    /// value returned for a read of a missing element. Each owns a **+1**.
+    array_defaults: BTreeMap<Vec<u8>, *mut TclObj>,
 }
 
 impl VarTable {
@@ -137,6 +140,42 @@ impl VarTable {
     /// Names of the `const` scalars in this table (`info consts`).
     pub(crate) fn const_names(&self) -> Vec<&[u8]> {
         self.consts.iter().map(|k| k.as_slice()).collect()
+    }
+
+    /// Set array `name`'s default value (`array default set`), releasing any
+    /// prior default. The table pins the value with **+2**: one for ownership,
+    /// and one so a read of the default always sees it as *shared* — a
+    /// read-modify-write (`lappend`/`append`/`dict`) then copies rather than
+    /// mutating the stored default in place (TIP 508 copy-on-write).
+    pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+        // SAFETY: retain the new default twice, release any prior one twice.
+        unsafe {
+            obj::incr_ref_count(obj);
+            obj::incr_ref_count(obj);
+        }
+        if let Some(old) = self.array_defaults.insert(name.to_vec(), obj) {
+            unsafe {
+                obj::decr_ref_count(old);
+                obj::decr_ref_count(old);
+            }
+        }
+    }
+
+    /// Array `name`'s default value, if one is set (`array default get`, and the
+    /// fallback for a read of a missing element). Borrowed; the table keeps its +1.
+    pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+        self.array_defaults.get(name).copied()
+    }
+
+    /// Remove array `name`'s default value (`array default unset`).
+    pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+        if let Some(old) = self.array_defaults.remove(name) {
+            // SAFETY: balances the +2 taken in `set_array_default`.
+            unsafe {
+                obj::decr_ref_count(old);
+                obj::decr_ref_count(old);
+            }
+        }
     }
 
     /// Flag the scalar `name` `const` (the `const` command, after its value is
@@ -219,12 +258,30 @@ impl VarTable {
     /// Remove the whole variable `name` (scalar or array); returns whether it
     /// existed. Releases every object it owned.
     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+        // A removed array drops its TIP 508 default too.
+        self.unset_array_default(name);
         match self.vars.remove(name) {
             Some(v) => {
                 v.release();
                 true
             }
             None => false,
+        }
+    }
+
+    /// Ensure `name` is an (at least empty) array — `array default set` creates
+    /// the array even with no elements. Returns `Err(IsScalar)` if `name` is a
+    /// scalar. (`IsScalar` reuses the closest existing variant; the caller maps
+    /// it to the `array default set` message.)
+    pub(crate) fn ensure_array(&mut self, name: &[u8]) -> Result<(), VarError> {
+        match self.vars.get(name) {
+            Some(Var::Array(_)) => Ok(()),
+            Some(Var::Scalar(_)) => Err(VarError::IsScalar),
+            Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
+            None => {
+                self.vars.insert(name.to_vec(), Var::Array(BTreeMap::new()));
+                Ok(())
+            }
         }
     }
 
@@ -292,6 +349,13 @@ impl Drop for VarTable {
     fn drop(&mut self) {
         for (_, var) in std::mem::take(&mut self.vars) {
             var.release();
+        }
+        for (_, obj) in std::mem::take(&mut self.array_defaults) {
+            // SAFETY: balances the +2 taken in `set_array_default`.
+            unsafe {
+                obj::decr_ref_count(obj);
+                obj::decr_ref_count(obj);
+            }
         }
     }
 }
