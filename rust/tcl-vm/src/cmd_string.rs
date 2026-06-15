@@ -240,12 +240,14 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let n = name.to_str();
     let mut s = vm
-        .get_var(&n)
+        .var_get(&n)
         .map_or_else(String::new, |v| v.to_str().to_string());
     for v in vals {
         s.push_str(&v.to_str());
     }
     let result = Value::string(s);
-    vm.set_var(&n, result.clone());
+    if let Err(e) = vm.var_set(&n, result.clone()) {
+        return err(e);
+    }
     ok(result)
 }

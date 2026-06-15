@@ -100,7 +100,7 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"lappend varName ?value ...?\"");
     };
     let n = name.to_str();
-    let mut items: Vec<Value> = match vm.get_var(&n) {
+    let mut items: Vec<Value> = match vm.var_get(&n) {
         Some(v) => match as_list(&v) {
             Ok(i) => (*i).clone(),
             Err(c) => return c,
@@ -109,7 +109,9 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     items.extend(vals.iter().cloned());
     let result = Value::list(items);
-    vm.set_var(&n, result.clone());
+    if let Err(e) = vm.var_set(&n, result.clone()) {
+        return err(e);
+    }
     ok(result)
 }
 

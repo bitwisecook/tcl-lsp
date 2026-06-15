@@ -26,6 +26,17 @@ pub(crate) fn err(message: impl Into<String>) -> Completion<Value> {
     Completion::new(Code::Error, Value::string(m), Value::empty())
 }
 
+/// Split an `arr(key)` variable reference into `(base, key)`, or `None` for a
+/// plain scalar/array name. The key may be empty; the base must not be.
+fn elem_ref(name: &str) -> Option<(&str, &str)> {
+    let open = name.find('(')?;
+    if open > 0 && name.ends_with(')') {
+        Some((&name[..open], &name[open + 1..name.len() - 1]))
+    } else {
+        None
+    }
+}
+
 /// The bytecode VM's interpreter state.
 pub struct Vm {
     /// Call-frame stack; `frames[0]` is the global scope.
@@ -248,15 +259,28 @@ impl Vm {
     /// Whether `name` exists, resolving an `arr(key)` element reference to the
     /// element — the `info exists` / `existStk` semantic.
     pub(crate) fn exists_var(&self, name: &str) -> bool {
-        if let Some(open) = name.find('(')
-            && name.ends_with(')')
-            && open > 0
-        {
-            return self
-                .get_array_elem(&name[..open], &name[open + 1..name.len() - 1])
-                .is_some();
+        if let Some((base, key)) = elem_ref(name) {
+            return self.get_array_elem(base, key).is_some();
         }
         self.has_var(name)
+    }
+
+    /// Read `name`, resolving an `arr(key)` reference to the array element —
+    /// the runtime-name analogue used by `set`/`incr`/`append`/`lappend`.
+    pub(crate) fn var_get(&self, name: &str) -> Option<Value> {
+        if let Some((base, key)) = elem_ref(name) {
+            return self.get_array_elem(base, key);
+        }
+        self.get_var(name)
+    }
+
+    /// Write `name`, resolving an `arr(key)` reference to the array element.
+    pub(crate) fn var_set(&mut self, name: &str, value: Value) -> Result<(), String> {
+        if let Some((base, key)) = elem_ref(name) {
+            return self.set_array_elem(base, key, value);
+        }
+        self.set_var(name, value);
+        Ok(())
     }
 
     // -- arrays (link-aware via `locate`) --

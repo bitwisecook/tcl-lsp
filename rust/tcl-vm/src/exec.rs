@@ -520,6 +520,12 @@ impl Vm {
                 let name = lvt_name(imm0(instr));
                 try_op!(self.incr_var(f, &name, i64::from(imm_at(instr, 1))));
             }
+            Op::INCR_ARRAY_STK_IMM => {
+                // Stack: [name, key]; operand is the immediate increment.
+                let key = pop(f).to_str();
+                let name = pop(f).to_str();
+                try_op!(self.incr_var(f, &format!("{name}({key})"), i64::from(imm0(instr))));
+            }
             Op::EXIST_SCALAR => {
                 // The slot name may be an `arr(key)` element reference baked
                 // into the LVT (the codegen names the slot `a(x)`), so resolve
@@ -1030,12 +1036,12 @@ impl Vm {
         name: &str,
         amount: i64,
     ) -> Result<(), Completion<Value>> {
-        let old = match self.get_var(name) {
+        let old = match self.var_get(name) {
             Some(v) => v.as_int().map_err(|e| err(e.message))?,
             None => 0,
         };
         let next = Value::int(old.wrapping_add(amount));
-        self.set_var(name, next.clone());
+        self.var_set(name, next.clone()).map_err(err)?;
         f.stack.push(next);
         Ok(())
     }

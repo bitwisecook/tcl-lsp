@@ -271,6 +271,26 @@ fn info_exists_local_scalar() {
 }
 
 #[test]
+fn array_element_incr_append_lappend() {
+    // incr/append/lappend must resolve `arr(key)` to the array element, both
+    // at top level (incrArrayStkImm) and on proc locals (invokeStk builtins).
+    out_eq("set a(x) 1\nincr a(x)\nputs $a(x)\n", "2\n");
+    out_eq("set a(x) 5\nincr a(x) 3\nputs $a(x)\n", "8\n");
+    out_eq(
+        "proc f {} { set a(x) 1; incr a(x); return $a(x) }\nputs [f]\n",
+        "2\n",
+    );
+    out_eq(
+        "proc f {} { set a(x) hi; append a(x) bye; return $a(x) }\nputs [f]\n",
+        "hibye\n",
+    );
+    out_eq(
+        "proc f {} { set a(x) 1; lappend a(x) 2 3; return $a(x) }\nputs [f]\n",
+        "1 2 3\n",
+    );
+}
+
+#[test]
 fn info_exists_local_array_elem() {
     out_eq(
         "proc f {} { set a(x) 1; return [info exists a(x)] }\nputs [f]\n",

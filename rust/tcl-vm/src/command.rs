@@ -80,13 +80,13 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [name] => {
             let n = name.to_str();
-            vm.get_var(&n)
+            vm.var_get(&n)
                 .map_or_else(|| err(format!("can't read \"{n}\": no such variable")), ok)
         }
-        [name, value] => {
-            vm.set_var(&name.to_str(), value.clone());
-            ok(value.clone())
-        }
+        [name, value] => match vm.var_set(&name.to_str(), value.clone()) {
+            Ok(()) => ok(value.clone()),
+            Err(e) => err(e),
+        },
         _ => err("wrong # args: should be \"set varName ?newValue?\""),
     }
 }
@@ -124,7 +124,7 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         _ => return err("wrong # args: should be \"incr varName ?increment?\""),
     };
-    let old = match vm.get_var(&name) {
+    let old = match vm.var_get(&name) {
         Some(v) => match v.as_int() {
             Ok(n) => n,
             Err(e) => return err(e.message),
@@ -132,7 +132,9 @@ fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         None => 0,
     };
     let next = Value::int(old.wrapping_add(amount));
-    vm.set_var(&name, next.clone());
+    if let Err(e) = vm.var_set(&name, next.clone()) {
+        return err(e);
+    }
     ok(next)
 }
 
