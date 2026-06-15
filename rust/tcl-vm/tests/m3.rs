@@ -189,6 +189,23 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn source_command() {
+    let mut path = std::env::temp_dir();
+    path.push(format!("tclvm_source_{}.tcl", std::process::id()));
+    std::fs::write(
+        &path,
+        "proc greet {n} { return \"hi $n\" }\nset ::loaded 1\n",
+    )
+    .expect("write temp");
+    let src = format!(
+        "source {}\nputs [greet bob]\nputs $::loaded\n",
+        path.display()
+    );
+    out_eq(&src, "hi bob\n1\n");
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
 fn namespace_eval_and_procs() {
     out_eq(
         "namespace eval foo { proc bar {} { return hi } }\nputs [foo::bar]\n",

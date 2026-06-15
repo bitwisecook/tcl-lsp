@@ -56,6 +56,7 @@ pub enum Command {
 pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("set", cmd_set);
     vm.register("puts", cmd_puts);
+    vm.register("source", cmd_source);
     vm.register("incr", cmd_incr);
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
@@ -93,6 +94,25 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(e) => err(e),
         },
         _ => err("wrong # args: should be \"set varName ?newValue?\""),
+    }
+}
+
+/// `source ?-encoding name? fileName` — read a file and evaluate it as a
+/// script in the current context. The optional `-encoding` flag is accepted
+/// and ignored (files are read as UTF-8).
+fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let path = match args {
+        [file] => file.to_str(),
+        [flag, _enc, file] if &*flag.to_str() == "-encoding" => file.to_str(),
+        _ => return err("wrong # args: should be \"source ?-encoding name? fileName\""),
+    };
+    let contents = match std::fs::read_to_string(&*path) {
+        Ok(c) => c,
+        Err(e) => return err(format!("couldn't read file \"{path}\": {e}")),
+    };
+    match vm.eval_source(&contents) {
+        Ok(c) => c,
+        Err(e) => err(e.message),
     }
 }
 
