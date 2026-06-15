@@ -275,6 +275,13 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
     if argv.len() != 4 {
         return wrong_args(interp, b"array set arrayName list");
     }
+    // An array-element name (`foo(bar)`) can't be the target of `array set`.
+    if crate::frame::split_array_ref(name).1.is_some() {
+        let mut m = b"can't set \"".to_vec();
+        m.extend_from_slice(name);
+        m.extend_from_slice(b"\": variable isn't array");
+        return interp.set_error(&m);
+    }
     // Read the *element objects* (not a re-split into fresh strings) so each
     // value keeps its `Tcl_Obj` identity through the array — C shares objs by
     // reference, and TIP 280 keys a literal's source location on that identity
