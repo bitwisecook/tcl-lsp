@@ -840,9 +840,10 @@ Highlights of the newer verbs:
   `$M$<salt>$<base64>` envelope BIG-IP stores; `decrypt-secrets` recovers the
   clear text.  Both leave values already in the target form untouched, so
   they are idempotent.  The key is supplied via `--f5mku KEY`,
-  `--f5mku-file FILE`, or `$F5MKU`; the AES-ECB transform runs on the
-  bundled pure-Python cipher, so it works in the zipapp with no
-  `cryptography` dependency.
+  `--f5mku-file FILE`, or `$F5MKU`, otherwise it is read from a secure
+  `F5 MKU Key:` terminal prompt (suppress with `--no-key-prompt`); the
+  AES-ECB transform runs on the bundled pure-Python cipher, so it works
+  in the zipapp with no `cryptography` dependency.
 
   ```sh
   f5mku -K > key.txt                                       # on the device

@@ -26,6 +26,7 @@ from ._paths import add_passphrase_args, provider_from_args, read_path
 from ._registry import verb
 
 _F5MKU_ENV = "F5MKU"
+_KEY_PROMPT = "F5 MKU Key: "
 
 
 def _add_key_args(p: argparse.ArgumentParser) -> None:
@@ -37,7 +38,8 @@ def _add_key_args(p: argparse.ArgumentParser) -> None:
         metavar="KEY",
         help=(
             "base64 unit master key (the value `f5mku -K` prints on the "
-            f"device).  Falls back to ${_F5MKU_ENV} when omitted."
+            f"device).  Falls back to ${_F5MKU_ENV}, then a secure "
+            "terminal prompt."
         ),
     )
     group.add_argument(
@@ -45,10 +47,26 @@ def _add_key_args(p: argparse.ArgumentParser) -> None:
         metavar="FILE",
         help="read the base64 master key from FILE (e.g. `f5mku -K > key.txt`).",
     )
+    group.add_argument(
+        "--no-key-prompt",
+        action="store_true",
+        help="never prompt on the terminal for the master key; require a flag or $F5MKU instead.",
+    )
+
+
+def _interactive() -> bool:
+    """Whether a controlling terminal is available to prompt on."""
+    for stream in (sys.stdin, sys.stderr):
+        try:
+            if stream is not None and stream.isatty():
+                return True
+        except (ValueError, AttributeError):  # pragma: no cover - closed stream
+            pass
+    return False
 
 
 def _resolve_key(args: argparse.Namespace) -> str:
-    """Resolve the master key from --f5mku / --f5mku-file / $F5MKU."""
+    """Resolve the master key from --f5mku / --f5mku-file / $F5MKU / prompt."""
     if args.f5mku:
         return args.f5mku.strip()
     if args.f5mku_file:
@@ -56,8 +74,18 @@ def _resolve_key(args: argparse.Namespace) -> str:
     env = os.environ.get(_F5MKU_ENV)
     if env:
         return env.strip()
+    if not getattr(args, "no_key_prompt", False) and _interactive():
+        import getpass
+
+        try:
+            entered = getpass.getpass(_KEY_PROMPT)
+        except (EOFError, KeyboardInterrupt) as exc:  # pragma: no cover - tty only
+            raise ValueError("master key entry cancelled") from exc
+        if entered.strip():
+            return entered.strip()
     raise ValueError(
-        f"no master key supplied; pass --f5mku KEY, --f5mku-file FILE, or set ${_F5MKU_ENV}"
+        f"no master key supplied; pass --f5mku KEY, --f5mku-file FILE, set ${_F5MKU_ENV}, "
+        "or run in an interactive terminal to be prompted"
     )
 
 

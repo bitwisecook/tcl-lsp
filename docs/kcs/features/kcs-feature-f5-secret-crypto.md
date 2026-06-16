@@ -44,9 +44,11 @@ f5 decrypt-secrets bigip.conf -k BHDLd0bbao1VlwpTk1sioQ==
 ```
 
 The key is resolved from `--f5mku KEY`, then `--f5mku-file FILE`, then the
-`$F5MKU` environment variable.  Output goes to stdout unless `-o FILE` is
-given, and `--format scf|tmsh` re-renders the result the same way the
-other rewriting verbs do.
+`$F5MKU` environment variable, and finally a secure `F5 MKU Key:`
+terminal prompt (no echo).  Pass `--no-key-prompt` to fail instead of
+prompting in non-interactive runs.  Output goes to stdout unless
+`-o FILE` is given, and `--format scf|tmsh` re-renders the result the
+same way the other rewriting verbs do.
 
 ### Which values are affected
 
