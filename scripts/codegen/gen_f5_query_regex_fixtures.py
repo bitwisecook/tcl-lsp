@@ -113,13 +113,13 @@ QUERIES: list[str] = [
     # explode / implode (round trip)
     'explode("abc")',
     'explode("")',
-    'implode([97, 98, 99])',
-    'implode([72, 105])',
-    'implode([])',
+    "implode([97, 98, 99])",
+    "implode([72, 105])",
+    "implode([])",
     # ascii
-    'ascii(65)',
-    'ascii(97)',
-    'ascii(48)',
+    "ascii(65)",
+    "ascii(97)",
+    "ascii(48)",
     # utf8bytelength
     'utf8bytelength("hello")',
     'utf8bytelength("")',
@@ -146,14 +146,14 @@ QUERIES: list[str] = [
     'match(42, "x")',
     'sub(42, "a", "b")',
     'implode(["a"])',
-    'implode([-1])',
-    'implode([1114112])',
-    'ascii(-1)',
-    'ascii(1114112)',
+    "implode([-1])",
+    "implode([1114112])",
+    "ascii(-1)",
+    "ascii(1114112)",
     'index(42, "x")',
-    'explode(42)',
-    'utf8bytelength(42)',
-    'csv({a: 1})',
+    "explode(42)",
+    "utf8bytelength(42)",
+    "csv({a: 1})",
 ]
 
 
