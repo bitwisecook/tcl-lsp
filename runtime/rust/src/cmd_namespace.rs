@@ -565,32 +565,43 @@ fn dest_has_own(interp: &Interp, dest: NsId, simple: &[u8]) -> bool {
     interp.namespaces().command_names(dest).contains(&simple)
 }
 
-/// `namespace qualifiers` text op: everything before the last `::` (trailing
-/// `::`-runs trimmed); empty if unqualified.
+/// `namespace qualifiers` text op: everything before the last `::` separator,
+/// with the whole trailing colon-run trimmed (`foo:::` → `foo`, `:::::` → ``);
+/// empty if unqualified.
 fn qualifiers(s: &[u8]) -> &[u8] {
-    match find_last_sep(s) {
-        Some(i) => &s[..i],
+    match last_sep_run(s) {
+        Some((start, _)) => &s[..start],
         None => b"",
     }
 }
 
-/// `namespace tail` text op: the simple name after the last `::`.
+/// `namespace tail` text op: the simple name after the last `::` separator (the
+/// whole colon-run is skipped, so `foo:::` → ``).
 fn tail(s: &[u8]) -> &[u8] {
-    match find_last_sep(s) {
-        Some(i) => &s[i + 2..],
+    match last_sep_run(s) {
+        Some((_, end)) => &s[end..],
         None => s,
     }
 }
 
-/// Index of the last `::` separator in `s`, or `None`.
-fn find_last_sep(s: &[u8]) -> Option<usize> {
-    if s.len() < 2 {
-        return None;
-    }
-    let mut i = s.len() - 1;
-    while i >= 1 {
-        if s[i] == b':' && s[i - 1] == b':' {
-            return Some(i - 1);
+/// The byte range `(start, end)` of the last `::` separator run in `s` (a run is
+/// two or more consecutive colons), or `None` if there is none. `s[..start]` is
+/// the qualifier and `s[end..]` the tail (C's `NamespaceQualifiersCmd` /
+/// `NamespaceTailCmd` colon-run handling).
+fn last_sep_run(s: &[u8]) -> Option<(usize, usize)> {
+    // Scan back for the last "::" pair, then extend over every adjacent colon.
+    let mut i = s.len();
+    while i >= 2 {
+        if s[i - 1] == b':' && s[i - 2] == b':' {
+            let mut start = i - 2;
+            while start > 0 && s[start - 1] == b':' {
+                start -= 1;
+            }
+            let mut end = i;
+            while end < s.len() && s[end] == b':' {
+                end += 1;
+            }
+            return Some((start, end));
         }
         i -= 1;
     }
