@@ -97,3 +97,48 @@ fn highlight_html_matches_python() {
         "greet.highlight-html.golden",
     );
 }
+
+// `symbols` is wired onto the analyser scope tree. The analyser is not yet a
+// full 1:1 port (e.g. explicit `::`-qualified proc names report the simple
+// name, and some implicitly-created variables aren't recorded), so these
+// goldens use a fixture that exercises the faithful subset — namespaces,
+// nested procs, namespace variables, params, and iRules `when` events — and
+// lock the wiring + JSON/text serialisation shape byte-for-byte.
+#[test]
+fn symbols_text_matches_python() {
+    let input = fixtures_dir().join("symbols.tcl");
+    assert_matches_golden(&["symbols", input.to_str().unwrap()], "symbols.golden");
+}
+
+#[test]
+fn symbols_json_matches_python() {
+    let input = fixtures_dir().join("symbols.tcl");
+    assert_matches_golden(
+        &["symbols", "--json", input.to_str().unwrap()],
+        "symbols.json.golden",
+    );
+}
+
+// `symbolgraph` is wired onto the analyser scope tree + command-invocation
+// records. Like `symbols` it inherits the analyser gaps (explicit
+// `::`-qualified proc names report the simple name, which also skews
+// `ref_count`/`proc_references`; some variable references aren't tracked), so
+// the goldens use the same faithful-subset fixture and lock the scope/ref
+// serialisation shape byte-for-byte.
+#[test]
+fn symbolgraph_text_matches_python() {
+    let input = fixtures_dir().join("symbols.tcl");
+    assert_matches_golden(
+        &["symbolgraph", input.to_str().unwrap()],
+        "symbolgraph.golden",
+    );
+}
+
+#[test]
+fn symbolgraph_json_matches_python() {
+    let input = fixtures_dir().join("symbols.tcl");
+    assert_matches_golden(
+        &["symbolgraph", "--json", input.to_str().unwrap()],
+        "symbolgraph.json.golden",
+    );
+}
