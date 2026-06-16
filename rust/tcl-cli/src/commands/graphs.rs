@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use tcl_cli_support::{
     OutputTarget, combine_sources, ensure_ascii, read_input_documents, write_text_output,
 };
-use tcl_compiler::analyser::{AnalysisResult, Analyser, ProcDef, Scope, ScopeKind, VarDef};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind, VarDef};
 use tcl_lexer::{LineIndex, Span};
 
 use crate::cli::InputArgs;
@@ -197,16 +197,24 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let mut lines = vec![format!("symbols: {}", entries.len())];
     for entry in &entries {
         let indent = "  ".repeat(entry.depth);
-        let line_suffix = entry.line.map_or_else(String::new, |l| format!(" (line {l})"));
+        let line_suffix = entry
+            .line
+            .map_or_else(String::new, |l| format!(" (line {l})"));
         if entry.kind == "function" {
             let params = entry
                 .params
                 .as_ref()
                 .map(|p| p.join(", "))
                 .unwrap_or_default();
-            lines.push(format!("{indent}function {}({params}){line_suffix}", entry.name));
+            lines.push(format!(
+                "{indent}function {}({params}){line_suffix}",
+                entry.name
+            ));
         } else {
-            lines.push(format!("{indent}{} {}{line_suffix}", entry.kind, entry.name));
+            lines.push(format!(
+                "{indent}{} {}{line_suffix}",
+                entry.kind, entry.name
+            ));
         }
     }
     write_text_output(&target, &lines.join("\n"))?;
@@ -348,7 +356,10 @@ fn collect_var_values(
         .collect();
     let mut vars: Vec<&VarDef> = scope.variables.values().collect();
     vars.sort_by(|a, b| {
-        match (param_pos.get(a.name.as_str()), param_pos.get(b.name.as_str())) {
+        match (
+            param_pos.get(a.name.as_str()),
+            param_pos.get(b.name.as_str()),
+        ) {
             (Some(ia), Some(ib)) => ia.cmp(ib),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
@@ -447,7 +458,12 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     let result = Analyser::new().analyse(&source, &input.dialect);
     let line_index = LineIndex::new(&source);
 
-    let scopes = vec![scope_to_value(&result.global_scope, &result, &line_index, &source)];
+    let scopes = vec![scope_to_value(
+        &result.global_scope,
+        &result,
+        &line_index,
+        &source,
+    )];
 
     // proc_references: every proc's deduped call sites, source-ordered keys.
     let mut all_procs: Vec<&ProcDef> = result.all_procs.values().collect();
@@ -470,7 +486,10 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
         .map(|pr| {
             let mut map = serde_json::Map::new();
             map.insert("name".to_string(), json!(pr.name));
-            map.insert("line".to_string(), json!(line0(&line_index, pr.range.start())));
+            map.insert(
+                "line".to_string(),
+                json!(line0(&line_index, pr.range.start())),
+            );
             if let Some(version) = &pr.version {
                 map.insert("version".to_string(), json!(version));
             }

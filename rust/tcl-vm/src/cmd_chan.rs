@@ -263,7 +263,11 @@ fn cmd_tell(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (id, offset, origin) = match args {
-        [c, o] => (c.to_str().to_string(), o.as_int().unwrap_or(0), "start".to_string()),
+        [c, o] => (
+            c.to_str().to_string(),
+            o.as_int().unwrap_or(0),
+            "start".to_string(),
+        ),
         [c, o, w] => (
             c.to_str().to_string(),
             o.as_int().unwrap_or(0),
@@ -316,12 +320,7 @@ pub(crate) fn is_std(id: &str) -> bool {
 
 /// Write `text` (optionally with a trailing newline) to channel `id`. Used by
 /// `puts`. Standard channels follow the VM's output / process stderr.
-pub(crate) fn chan_puts(
-    vm: &mut Vm,
-    id: &str,
-    text: &str,
-    newline: bool,
-) -> Result<(), String> {
+pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Result<(), String> {
     match id {
         "stdout" => {
             vm.write_output(text, newline);

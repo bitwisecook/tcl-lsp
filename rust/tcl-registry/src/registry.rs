@@ -341,12 +341,11 @@ impl CommandRegistry {
             description: events.description(&name).unwrap_or("").to_owned(),
             side: props.map_or("unknown", crate::events::EventProps::side_label),
             // Python models "no transport" as `None`, not an empty string.
-            transport: props.and_then(|p| {
-                (!p.transport.is_empty()).then(|| p.transport.join("/"))
-            }),
+            transport: props.and_then(|p| (!p.transport.is_empty()).then(|| p.transport.join("/"))),
             implied_profiles: {
-                let mut v: Vec<&'static str> =
-                    props.map(|p| p.implied_profiles.to_vec()).unwrap_or_default();
+                let mut v: Vec<&'static str> = props
+                    .map(|p| p.implied_profiles.to_vec())
+                    .unwrap_or_default();
                 v.sort_unstable();
                 v
             },

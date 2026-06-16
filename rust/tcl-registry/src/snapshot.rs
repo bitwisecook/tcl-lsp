@@ -453,9 +453,7 @@ pub fn event_graph_snapshot() -> Json {
         entry.insert("event".to_owned(), Json::s(*name));
         entry.insert(
             "props".to_owned(),
-            events
-                .get_props(name)
-                .map_or(Json::Null, event_props_json),
+            events.get_props(name).map_or(Json::Null, event_props_json),
         );
         entry.insert(
             "orderIndex".to_owned(),
@@ -519,17 +517,17 @@ pub fn event_graph_snapshot() -> Json {
         let mut c = BTreeMap::new();
         c.insert("chain_id".to_owned(), Json::s(chain.chain_id));
         c.insert("description".to_owned(), Json::s(chain.description));
-        c.insert("profiles".to_owned(), Json::str_array(sorted(chain.profiles)));
+        c.insert(
+            "profiles".to_owned(),
+            Json::str_array(sorted(chain.profiles)),
+        );
         c.insert("steps".to_owned(), Json::Array(steps));
         c.insert("notes".to_owned(), Json::s(chain.notes));
         flow_chains.insert(chain.chain_id.to_owned(), Json::Object(c));
     }
 
     let mut root = BTreeMap::new();
-    root.insert(
-        "schema".to_owned(),
-        Json::s("tcl-lsp/registry/events/v1"),
-    );
+    root.insert("schema".to_owned(), Json::s("tcl-lsp/registry/events/v1"));
     root.insert("dialect".to_owned(), Json::s(dialect));
     root.insert(
         "eventCount".to_owned(),
