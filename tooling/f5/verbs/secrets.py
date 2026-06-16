@@ -14,12 +14,12 @@ idempotent and safe to re-run.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 from dialects.f5.bigip.rewrite import rewrite_secrets
 from tooling.f5 import f5mku
+from tooling.f5.f5_remote.secret_input import SecretInputError, resolve_secret
 
 from ._emit import add_format_arg, render_config
 from ._paths import add_passphrase_args, provider_from_args, read_path
@@ -54,35 +54,26 @@ def _add_key_args(p: argparse.ArgumentParser) -> None:
     )
 
 
-def _interactive() -> bool:
-    """Whether a controlling terminal is available to prompt on."""
-    for stream in (sys.stdin, sys.stderr):
-        try:
-            if stream is not None and stream.isatty():
-                return True
-        except (ValueError, AttributeError):  # pragma: no cover - closed stream
-            pass
-    return False
-
-
 def _resolve_key(args: argparse.Namespace) -> str:
-    """Resolve the master key from --f5mku / --f5mku-file / $F5MKU / prompt."""
-    if args.f5mku:
-        return args.f5mku.strip()
-    if args.f5mku_file:
-        return Path(args.f5mku_file).read_text(encoding="utf-8").strip()
-    env = os.environ.get(_F5MKU_ENV)
-    if env:
-        return env.strip()
-    if not getattr(args, "no_key_prompt", False) and _interactive():
-        import getpass
+    """Resolve the master key from --f5mku / --f5mku-file / $F5MKU / prompt.
 
-        try:
-            entered = getpass.getpass(_KEY_PROMPT)
-        except (EOFError, KeyboardInterrupt) as exc:  # pragma: no cover - tty only
-            raise ValueError("master key entry cancelled") from exc
-        if entered.strip():
-            return entered.strip()
+    The base64 key is whitespace-trimmed (``strip=True``) so a file or
+    env value carrying a trailing newline — ``f5mku -K > key.txt`` — still
+    works.
+    """
+    try:
+        key = resolve_secret(
+            explicit=args.f5mku,
+            file=args.f5mku_file,
+            env_var=_F5MKU_ENV,
+            allow_prompt=not getattr(args, "no_key_prompt", False),
+            prompt=_KEY_PROMPT,
+            strip=True,
+        )
+    except SecretInputError as exc:
+        raise ValueError(str(exc)) from exc
+    if key:
+        return key
     raise ValueError(
         f"no master key supplied; pass --f5mku KEY, --f5mku-file FILE, set ${_F5MKU_ENV}, "
         "or run in an interactive terminal to be prompted"

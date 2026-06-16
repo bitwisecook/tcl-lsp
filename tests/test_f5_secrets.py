@@ -217,13 +217,15 @@ def test_cli_bad_key_errors(tmp_path, capsys):
 def test_cli_key_from_prompt(tmp_path, capsys, monkeypatch):
     import getpass
 
-    from tooling.f5.verbs import secrets
+    from tooling.f5.f5_remote import secret_input
 
     conf = tmp_path / "bigip.conf"
     conf.write_text(_CONF, encoding="utf-8")
     monkeypatch.delenv("F5MKU", raising=False)
-    monkeypatch.setattr(secrets, "_interactive", lambda: True)
-    monkeypatch.setattr(getpass, "getpass", lambda prompt="": _KEY)
+    monkeypatch.setattr(secret_input, "_has_tty", lambda: True)
+    monkeypatch.setattr(
+        getpass, "getpass", lambda prompt="": _KEY + "\n"
+    )  # trailing newline trimmed
     code, out, _ = _run(["decrypt-secrets", str(conf)], capsys)
     assert code == 0
     assert out  # decrypt ran with the prompted key
@@ -232,12 +234,12 @@ def test_cli_key_from_prompt(tmp_path, capsys, monkeypatch):
 def test_cli_no_key_prompt_skips_prompt(tmp_path, capsys, monkeypatch):
     import getpass
 
-    from tooling.f5.verbs import secrets
+    from tooling.f5.f5_remote import secret_input
 
     conf = tmp_path / "bigip.conf"
     conf.write_text(_CONF, encoding="utf-8")
     monkeypatch.delenv("F5MKU", raising=False)
-    monkeypatch.setattr(secrets, "_interactive", lambda: True)
+    monkeypatch.setattr(secret_input, "_has_tty", lambda: True)
 
     def _boom(prompt=""):
         raise AssertionError("should not prompt when --no-key-prompt is set")
