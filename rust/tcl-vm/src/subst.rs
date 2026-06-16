@@ -235,32 +235,35 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
         return Ok(Value::string(word));
     }
 
-    // General scan: copy literal runs, substituting `${…}` and `[…]`.
-    let mut out: Vec<u8> = Vec::with_capacity(n);
+    // General scan: copy literal runs (backslash-decoded), substituting `${…}`
+    // and `[…]`. Literal runs carry escapes the codegen left to prevent re-
+    // substitution (`\$`/`\[`) or genuine escapes (`\n`, `\t`, …); decode them.
+    let mut out = String::with_capacity(n);
     let mut i = 0usize;
     let mut lit = 0usize;
     while i < n {
         match b[i] {
-            // Keep `\X` literal but stop X from being read as a trigger.
+            // `\X` is a literal escape, not a trigger; skip it in the scan (it
+            // is decoded with the surrounding literal run when copied).
             b'\\' => i = (i + 2).min(n),
             b'$' if i + 1 < n && b[i + 1] == b'{' => {
-                out.extend_from_slice(&b[lit..i]);
+                out.push_str(&tcl_syntax::backslash::decode(&word[lit..i]));
                 if let Some(rel) = word[i + 2..].find('}') {
                     let close = i + 2 + rel;
                     let v = read_var(vm, &word[i + 2..close])?;
-                    out.extend_from_slice(v.to_str().as_bytes());
+                    out.push_str(&v.to_str());
                     i = close + 1;
                 } else {
-                    out.push(b'$');
+                    out.push('$');
                     i += 1;
                 }
                 lit = i;
             }
             b'[' => {
                 if let Some(end) = command_end(b, i) {
-                    out.extend_from_slice(&b[lit..i]);
+                    out.push_str(&tcl_syntax::backslash::decode(&word[lit..i]));
                     let v = eval_subst(vm, &word[i + 1..end])?;
-                    out.extend_from_slice(v.to_str().as_bytes());
+                    out.push_str(&v.to_str());
                     i = end + 1;
                     lit = i;
                 } else {
@@ -270,6 +273,6 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             _ => i += 1,
         }
     }
-    out.extend_from_slice(&b[lit..n]);
-    Ok(Value::string(String::from_utf8_lossy(&out).into_owned()))
+    out.push_str(&tcl_syntax::backslash::decode(&word[lit..n]));
+    Ok(Value::string(out))
 }
