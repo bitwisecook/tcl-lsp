@@ -1,1 +1,4 @@
-dataflow: taintWarnings=0 taintedVars=0 pure=3 impure=1
+dataflow: taintWarnings=2 taintedVars=1 pure=3 impure=1
+taint warnings:
+  T100 line 20: Tainted variable $userinput flows into eval; possible code injection
+  W313 line 21: file delete with a variable path ($userinput) risks path-traversal. Normalise with [file normalize] and verify it stays within the intended directory.

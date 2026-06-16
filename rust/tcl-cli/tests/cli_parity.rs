@@ -176,19 +176,20 @@ fn callgraph_json_matches_python() {
 
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
 // for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
-// `_effect_region_str`) and the taint engine (`find_taint_warnings` over the top
-// level + each procedure unit for `taint_warnings`, and the `FunctionUnit`
-// taint lattices for `tainted_variables`). The `proc_effects` half is at parity
-// (it rides on the closed interproc engine). The **taint half is engine-gapped**
-// (documented in docs/rust-cli-port.md): the Rust taint engine emits only the
-// `T100` sink family (Python also emits setter-constraint / uri-split /
-// path-concat / destructive-file codes), and its taint propagation differs (it
-// can mark a proc-param-derived global tainted where Python does not). So this
-// golden keeps to procs with no taint sources/sinks — both taint outputs stay
-// empty — while still exercising the closed `proc_effects` half: pure procs plus
-// an impure `puts`-calling proc (region-free — `reads`/`writes` = `NONE`, not
-// `UNKNOWN_STATE`), locking the `proc_effects` + summary serialisation
-// byte-for-byte.
+// `_effect_region_str`) and the taint engine. The `taint_warnings` half now
+// aggregates all five Python warning families per scope, in Python's order
+// (sink-injection / setter-constraint / uri-split / path-concat /
+// destructive-file), mirroring `compiler_checks::run_all_checks`; the fixture
+// exercises a top-level `eval $tainted` (`T100`) and a `file delete -- $tainted`
+// (`W313`). `tainted_variables` walks the per-unit lattices. The `proc_effects`
+// half is at parity (closed interproc engine), incl. an impure `puts`-calling
+// proc (region-free — `reads`/`writes` = `NONE`). **Remaining taint gaps**
+// (documented in docs/rust-cli-port.md): no inter-procedural taint solve
+// (`_solve_interprocedural_taints`), so a global written inside a proc is
+// over-tainted (the version-0 global seeding) where Python is precise; and the
+// `T102` option-injection check doesn't yet model ensemble subcommands /
+// Python's option-scan region + message label (e.g. `file delete $tainted`
+// without `--`). The fixture stays clear of both so it locks byte-for-byte.
 #[test]
 fn dataflow_text_matches_python() {
     let input = fixtures_dir().join("dataflow.tcl");

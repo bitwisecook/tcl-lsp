@@ -20,7 +20,12 @@ use tcl_compiler::analyser::{AnalysisResult, Analyser, ProcDef, Scope, ScopeKind
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::ir::Module as IrModule;
 use tcl_compiler::side_effects::EffectRegion;
-use tcl_compiler::taint::find_taint_warnings;
+use tcl_compiler::taint::{
+    find_destructive_file_warnings, find_setter_constraint_warnings, find_taint_warnings,
+    is_irules_dialect,
+};
+use tcl_compiler::path_concat::find_path_concat_warnings;
+use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
 
 use crate::cli::InputArgs;
@@ -855,10 +860,15 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 // dataflow
 // ---------------------------------------------------------------------------
 
-/// Aggregate the `T100`-family taint sink warnings for one function unit
-/// into the dataflow JSON shape (port of `build_dataflow_graph`'s warning
-/// loop; every Rust taint warning is a `TaintWarning`, so `variable` /
-/// `sink_command` are always present).
+/// Aggregate every taint warning kind for one function unit into the
+/// dataflow JSON shape — a faithful port of the per-scope loop in Python
+/// `compiler.taint.find_taint_warnings`, which runs five families in a
+/// fixed order: sink injection (`_find_taint_sinks`), setter-constraint,
+/// uri-split, path-concat, then destructive-file. Mirrors the same order
+/// and dialect gating as `compiler_checks::run_all_checks`. Every kind
+/// yields a `variable` + `sink_command` (Python's path-concat warning is a
+/// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
+/// carries no command field, so we supply the same constant).
 fn collect_taint_warnings(
     fu: &FunctionUnit,
     registry: &tcl_registry::CommandRegistry,
@@ -866,22 +876,74 @@ fn collect_taint_warnings(
     line_index: &LineIndex,
     out: &mut Vec<Value>,
 ) {
-    let warnings = find_taint_warnings(
+    let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
+        out.push(json!({
+            "code": code,
+            "line": line0(line_index, span.start()),
+            "message": message,
+            "variable": variable,
+            "sink_command": sink,
+        }));
+    };
+
+    // 1. Sink injection (T100 / T101 / T102 families).
+    for w in find_taint_warnings(
         &fu.cfg,
         &fu.ssa,
         &fu.taints,
         &fu.sccp.executable_blocks,
         registry,
         Some(dialect),
-    );
-    for w in warnings {
-        out.push(json!({
-            "code": w.code,
-            "line": line0(line_index, w.span.start()),
-            "message": w.message,
-            "variable": w.variable,
-            "sink_command": w.sink_command,
-        }));
+    ) {
+        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+    }
+
+    // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
+    // gate internally too; skipping the walk under a non-iRules dialect
+    // matches `compiler_checks` and avoids needless work.
+    if is_irules_dialect(Some(dialect)) {
+        for w in find_setter_constraint_warnings(
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            Some(dialect),
+        ) {
+            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        }
+        for w in find_uri_split_suggestions(
+            &fu.cfg,
+            &fu.ssa,
+            Some(&fu.sccp.values),
+            &fu.sccp.executable_blocks,
+            registry,
+            Some(dialect),
+        ) {
+            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        }
+    }
+
+    // 4. Path-concat (`W201`). Python reports `sink_command="set"`.
+    for w in find_path_concat_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.rendered_props,
+        &fu.taints,
+        &fu.sccp.executable_blocks,
+    ) {
+        push(&w.code, w.span, &w.message, &w.variable, "set");
+    }
+
+    // 5. Destructive-file (`W313`).
+    for w in find_destructive_file_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.taints,
+        &fu.sccp.executable_blocks,
+        registry,
+    ) {
+        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
     }
 }
 

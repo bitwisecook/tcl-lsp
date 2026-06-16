@@ -16,5 +16,8 @@ proc report {x} {
     puts "scaled: [scale $x]"
 }
 
+set userinput [gets stdin]
+eval $userinput
+file delete -- $userinput
 set total [scale 21]
 report 21

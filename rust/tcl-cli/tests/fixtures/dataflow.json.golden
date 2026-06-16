@@ -1,6 +1,26 @@
 {
-  "taint_warnings": [],
-  "tainted_variables": [],
+  "taint_warnings": [
+    {
+      "code": "T100",
+      "line": 19,
+      "message": "Tainted variable $userinput flows into eval; possible code injection",
+      "variable": "userinput",
+      "sink_command": "eval"
+    },
+    {
+      "code": "W313",
+      "line": 20,
+      "message": "file delete with a variable path ($userinput) risks path-traversal. Normalise with [file normalize] and verify it stays within the intended directory.",
+      "variable": "userinput",
+      "sink_command": "file delete"
+    }
+  ],
+  "tainted_variables": [
+    {
+      "scope": "<top-level>",
+      "variable": "userinput"
+    }
+  ],
   "proc_effects": [
     {
       "name": "::add",
@@ -32,8 +52,8 @@
     }
   ],
   "summary": {
-    "total_taint_warnings": 0,
-    "tainted_variable_count": 0,
+    "total_taint_warnings": 2,
+    "tainted_variable_count": 1,
     "pure_proc_count": 3,
     "impure_proc_count": 1
   }

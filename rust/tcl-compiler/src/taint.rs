@@ -1136,7 +1136,9 @@ fn classify_network_interp_sinks(
 /// `PATH_BOUNDED` colour.  The message is softened (not suppressed) for a
 /// normalised-but-unguarded path.  Mirrors
 /// `core/compiler/taint/_sinks.py::_find_destructive_file_warnings`.
-pub(crate) fn find_destructive_file_warnings(
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn find_destructive_file_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -2056,7 +2058,8 @@ fn emit_option_injection(
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
-pub(crate) fn find_setter_constraint_warnings(
+#[allow(clippy::implicit_hasher)]
+pub fn find_setter_constraint_warnings(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
