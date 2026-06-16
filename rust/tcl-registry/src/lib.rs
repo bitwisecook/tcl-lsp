@@ -35,6 +35,7 @@ pub mod arity;
 pub mod bigip;
 pub mod body_kind;
 pub mod cache;
+pub mod command_snapshot;
 pub mod commands;
 pub mod const_fold;
 pub mod dialects;

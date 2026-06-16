@@ -215,5 +215,12 @@ bitflags! {
         /// Single source of truth for the former
         /// `OVERRIDABLE_LIBRARY_PROCS` list.
         const OVERRIDABLE_LIBRARY_PROC  = 1 << 51;
+
+        /// The WASM backend lowers this command to a structural construct
+        /// that imports / emits no runtime helper of its own (`foreach`,
+        /// `namespace`, `package`, `proc`).  Mirrors Python's
+        /// `CommandSpec.wasm_emits_nothing`, consulted by the WASM import
+        /// collector (`compiler/codegen/wasm/_imports.py`).
+        const WASM_EMITS_NOTHING        = 1 << 52;
     }
 }

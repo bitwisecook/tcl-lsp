@@ -1,0 +1,33 @@
+{
+  "taint_warnings": [],
+  "tainted_variables": [],
+  "proc_effects": [
+    {
+      "name": "::add",
+      "pure": true,
+      "reads": "NONE",
+      "writes": "NONE",
+      "has_barrier": false
+    },
+    {
+      "name": "::geom::area",
+      "pure": true,
+      "reads": "NONE",
+      "writes": "NONE",
+      "has_barrier": false
+    },
+    {
+      "name": "::scale",
+      "pure": true,
+      "reads": "NONE",
+      "writes": "NONE",
+      "has_barrier": false
+    }
+  ],
+  "summary": {
+    "total_taint_warnings": 0,
+    "tainted_variable_count": 0,
+    "pure_proc_count": 3,
+    "impure_proc_count": 0
+  }
+}

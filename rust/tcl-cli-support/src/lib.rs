@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 
 pub mod chrome;
+pub mod difflib;
 mod highlight;
 mod input;
 mod output;

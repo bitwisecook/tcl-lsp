@@ -132,7 +132,10 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
         dialects: Some(DialectSet::NON_IRULES_OPERATORS),
-        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::WASM_EMITS_NOTHING,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[SideEffect {
