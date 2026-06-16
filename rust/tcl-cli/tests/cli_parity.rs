@@ -144,18 +144,21 @@ fn symbolgraph_json_matches_python() {
 }
 
 // `callgraph` is wired onto the interprocedural engine (`tcl-compiler`
-// `InterproceduralAnalysis`, via a new `ProcSummary::direct_calls` accessor)
-// for nodes + proc→proc edges, and onto the analyser's command invocations for
-// call-site resolution + top-level edges. The interproc engine is not yet a
-// 1:1 port — it does not detect calls nested in `[cmd …]` command
-// substitutions inside a proc body, classifies a proc's purity/effects
-// differently from Python when it calls another proc (Python skips the callee's
-// command-effect at the call site; global-variable writes live in a separate
-// `writes_global` flag, not the effect-region string), so proc→proc edges and
-// some `pure`/`effects` node fields inherit those gaps and converge as the
-// engine does. This golden therefore uses a faithful-subset fixture — pure leaf
-// procs invoked from the top level — that locks the node/edge/roots/leaves
-// serialisation + top-level call-site resolution byte-for-byte.
+// `InterproceduralAnalysis`, via the `ProcSummary::direct_calls` accessor) for
+// nodes + proc→proc edges, and onto the analyser's command invocations for
+// call-site resolution + top-level edges. The interproc-engine closure that
+// flips proc→proc edges to parity has landed: the call scanner now detects
+// calls nested in `[cmd …]` substitutions (`return [add …]` / `set x [f …]`),
+// a resolved internal call no longer applies the callee's command-effect
+// locally (so `pure` matches Python), and a global-variable write is recorded
+// via `writes_global` rather than the effect-region string. This fixture
+// exercises real proc→proc edges (with multiple call sites), a namespace proc,
+// roots and leaves, all byte-identical. **Residual gap** (documented in
+// docs/rust-cli-port.md): `classify_side_effects` ignores a command's
+// structured `side_effects` and falls back to `UNKNOWN_STATE`, so the `effects`
+// string still diverges for a proc that calls an untracked-effect command
+// (`puts` / `log`) — a separate side-effects-classification workstream — hence
+// this fixture keeps to pure procs.
 #[test]
 fn callgraph_text_matches_python() {
     let input = fixtures_dir().join("callgraph.tcl");

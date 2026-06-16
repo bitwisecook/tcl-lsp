@@ -1028,24 +1028,7 @@ fn scan_call_facts(
     facts: &mut LocalFacts,
     params: &HashSet<String>,
 ) {
-    let ci = classify_side_effects(registry, command, args, dialect, None);
-    if ci.dynamic_barrier {
-        facts.has_barrier = true;
-        facts.local_pure = false;
-        facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
-        facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
-    }
-    let (r, w) = ci.to_effect_regions();
-    facts.effect_reads |= r;
-    facts.effect_writes |= w;
-    if w.intersects(EffectRegion::GLOBAL_STATE) {
-        facts.writes_global = true;
-    }
-    if !ci.pure {
-        facts.local_pure = false;
-    }
-
-    // Resolve internal-proc call targets. Special case
+    // Resolve internal-proc call targets first. Special case
     // for iRules' ``call <proc>`` indirection: when the
     // command is literally ``call`` and the first arg is
     // a plain identifier, treat it as a direct invocation
@@ -1056,11 +1039,35 @@ fn scan_call_facts(
     } else {
         resolve_internal_call(command, caller, known)
     };
+
+    // Mirror Python `_scan_local_facts`: a call that resolves to an internal
+    // proc contributes ONLY a call-graph edge — its purity / effects flow
+    // through the interprocedural fixpoints from the callee's summary, so the
+    // command's own side-effect classification is NOT applied locally.
+    // Non-internal commands apply their classified side effects.
     if let Some(target) = &internal_target {
         facts.direct_calls.insert(target.clone());
-    } else if registry.get(command).is_none() {
-        facts.has_unknown_calls = true;
-        facts.local_pure = false;
+    } else {
+        let ci = classify_side_effects(registry, command, args, dialect, None);
+        if ci.dynamic_barrier {
+            facts.has_barrier = true;
+            facts.local_pure = false;
+            facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+            facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+        }
+        let (r, w) = ci.to_effect_regions();
+        facts.effect_reads |= r;
+        facts.effect_writes |= w;
+        if w.intersects(EffectRegion::GLOBAL_STATE) {
+            facts.writes_global = true;
+        }
+        if !ci.pure {
+            facts.local_pure = false;
+        }
+        if registry.get(command).is_none() {
+            facts.has_unknown_calls = true;
+            facts.local_pure = false;
+        }
     }
 
     // Param-trait observation: any param whose `$p`
@@ -1208,25 +1215,36 @@ fn scan_statement(
                 scan_statement(inner, caller, known, registry, dialect, facts, params);
             }
         }
-        Statement::AssignConst { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            // A write to a `::`-qualified name OR a name aliased into
-            // global / namespace scope earlier in the body (`global g;
-            // set g 5`) mutates caller-visible state (SYNC-JUN02b-2).
-            if is_global_or_namespace(name) || facts.global_aliases.contains(name.as_str()) {
-                facts.writes_global = true;
-                facts.local_pure = false;
-                facts.effect_writes |= EffectRegion::GLOBAL_STATE;
+        Statement::AssignConst { name, .. } | Statement::AssignExpr { name, .. } => {
+            note_assign_global_write(name, facts);
+        }
+        Statement::AssignValue { name, value, .. } => {
+            note_assign_global_write(name, facts);
+            // Mirror Python `_scan_local_facts`'s `IRAssignValue` path: a
+            // `[cmd …]` substitution in the assigned value is a call site
+            // (`set y [double $x]`), so its callees become call-graph edges.
+            if value.contains('[') {
+                scan_value_substitutions(value, caller, known, registry, dialect, facts, params);
             }
-            // SYNC-JUN02d-2: a `set`/`incr` to a level-1 upvar alias is a
-            // write-back to the caller's variable → mark the param VarWrite.
-            mark_upvar_alias_write(name, facts);
+        }
+        Statement::Incr { name, amount, .. } => {
+            note_assign_global_write(name, facts);
+            if let Some(amount) = amount
+                && amount.contains('[')
+            {
+                scan_value_substitutions(amount, caller, known, registry, dialect, facts, params);
+            }
         }
         Statement::Return { value, expr, .. } => {
             let kind = classify_return(value.as_deref(), expr.as_ref(), params);
             facts.returns.push(kind);
+            // Mirror Python's `IRReturn` path: scan `[cmd …]` substitutions in
+            // the return value (`return [add $x $x]`) for call-graph edges.
+            if let Some(value) = value
+                && value.contains('[')
+            {
+                scan_value_substitutions(value, caller, known, registry, dialect, facts, params);
+            }
         }
         Statement::Call {
             command,
@@ -1484,6 +1502,65 @@ fn scan_expr_for_calls(
 /// record call-graph edges for each one.  Recurses into
 /// `ArgRole::Body`-role arguments so `if {[catch {p}]} ...` also
 /// sees `p` as a call.
+/// Record the caller-visible-state effect of an assignment to `name`.
+/// A write to a `::`-qualified name OR a name aliased into global /
+/// namespace scope earlier in the body (`global g; set g 5`) mutates
+/// caller-visible state (SYNC-JUN02b-2). Mirrors Python
+/// `_scan_local_facts`'s `IRAssignValue` path: the write is recorded via
+/// `writes_global` ONLY — it does not enter the coarse [`EffectRegion`]
+/// set (which tracks HTTP / response-lifecycle / unknown state, not plain
+/// variable storage), so the `callgraph`/`dataflow` effect string stays
+/// `NONE` for a purely global-mutating proc. Also upgrades a level-1
+/// upvar alias write to `VarWrite` (SYNC-JUN02d-2).
+fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
+    if is_global_or_namespace(name) || facts.global_aliases.contains(name) {
+        facts.writes_global = true;
+        facts.local_pure = false;
+    }
+    mark_upvar_alias_write(name, facts);
+}
+
+/// Scan every `[cmd …]` command substitution embedded in a value /
+/// expression `text` for call-graph edges — port of Python
+/// `_scan_embedded_commands`. The text is lexed under the document
+/// dialect; each [`TokenType::Cmd`] token's inner script is handed to
+/// [`scan_source_for_calls`] (which resolves the head, applies the
+/// callee's effects, and recurses into `BODY`-role args).
+fn scan_value_substitutions(
+    text: &str,
+    caller: &str,
+    known: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    facts: &mut LocalFacts,
+    params: &HashSet<String>,
+) {
+    if !text.contains('[') {
+        return;
+    }
+    let lexer = tcl_lexer::Lexer::with_source_map(
+        tcl_lexer::SourceMap::new(text),
+        tcl_lexer::LexerConfig::for_dialect(dialect.unwrap_or_default()),
+    );
+    let Ok(tokens) = lexer.tokenise_all() else {
+        return;
+    };
+    for tok in &tokens {
+        if tok.kind != tcl_lexer::TokenType::Cmd {
+            continue;
+        }
+        let start = tok.span.start() as usize + tok.content_offset as usize;
+        let end = tok.span.end() as usize;
+        if start <= end
+            && end <= text.len()
+            && text.is_char_boundary(start)
+            && text.is_char_boundary(end)
+        {
+            scan_source_for_calls(&text[start..end], caller, known, registry, dialect, facts, params);
+        }
+    }
+}
+
 fn scan_source_for_calls(
     source: &str,
     caller: &str,

@@ -1,7 +1,17 @@
 {
   "nodes": [
     {
-      "name": "::dec",
+      "name": "::add",
+      "params": [
+        "a",
+        "b"
+      ],
+      "line": 0,
+      "pure": true,
+      "effects": "NONE"
+    },
+    {
+      "name": "::double",
       "params": [
         "x"
       ],
@@ -10,53 +20,66 @@
       "effects": "NONE"
     },
     {
-      "name": "::inc",
+      "name": "::math::triple",
       "params": [
-        "x"
+        "n"
       ],
-      "line": 0,
+      "line": 14,
       "pure": true,
       "effects": "NONE"
     },
     {
-      "name": "::util::tag",
+      "name": "::quad",
       "params": [
-        "s"
+        "x"
       ],
-      "line": 9,
+      "line": 8,
       "pure": true,
       "effects": "NONE"
     }
   ],
   "edges": [
     {
-      "caller": "<top-level>",
-      "callee": "::inc",
+      "caller": "::double",
+      "callee": "::add",
       "call_sites": [
         {
-          "line": 14,
-          "character": 7
+          "line": 5,
+          "character": 12
+        }
+      ]
+    },
+    {
+      "caller": "::quad",
+      "callee": "::double",
+      "call_sites": [
+        {
+          "line": 9,
+          "character": 11
+        },
+        {
+          "line": 10,
+          "character": 12
         }
       ]
     },
     {
       "caller": "<top-level>",
-      "callee": "::dec",
+      "callee": "::quad",
       "call_sites": [
         {
-          "line": 15,
-          "character": 7
+          "line": 19,
+          "character": 12
         }
       ]
     }
   ],
   "roots": [
     "<top-level>",
-    "::util::tag"
+    "::math::triple"
   ],
   "leaf_procs": [
-    "::dec",
-    "::inc",
-    "::util::tag"
+    "::add",
+    "::math::triple"
   ]
 }

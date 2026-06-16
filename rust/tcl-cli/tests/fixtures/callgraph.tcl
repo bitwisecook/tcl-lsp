@@ -1,16 +1,20 @@
-proc inc {x} {
-    return [expr {$x + 1}]
+proc add {a b} {
+    return [expr {$a + $b}]
 }
 
-proc dec {x} {
-    return [expr {$x - 1}]
+proc double {x} {
+    return [add $x $x]
 }
 
-namespace eval ::util {
-    proc tag {s} {
-        return "tag:$s"
+proc quad {x} {
+    set y [double $x]
+    return [double $y]
+}
+
+namespace eval ::math {
+    proc triple {n} {
+        return [expr {$n * 3}]
     }
 }
 
-set n [inc 41]
-set m [dec 7]
+set result [quad 5]
