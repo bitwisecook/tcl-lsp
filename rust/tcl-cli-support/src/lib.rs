@@ -17,6 +17,7 @@ mod input;
 mod output;
 pub mod prompt;
 mod registry;
+pub mod secret_input;
 
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{CliError, InputDocument, combine_sources, read_input_documents};

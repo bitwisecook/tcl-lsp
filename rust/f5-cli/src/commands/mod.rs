@@ -28,6 +28,7 @@ pub mod registry_dump;
 pub mod remote;
 pub mod rename;
 pub mod scf;
+pub mod secrets;
 pub mod split;
 pub mod stats;
 pub mod tmsh;

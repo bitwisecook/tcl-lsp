@@ -13,6 +13,7 @@
 
 mod cli;
 mod commands;
+pub mod f5mku;
 
 use std::ffi::OsString;
 use std::process::ExitCode;
@@ -205,6 +206,37 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             format,
             output,
         } => commands::unredact::run_unredact(map_file, path, format, output.as_deref()),
+        Command::EncryptSecrets {
+            path,
+            output,
+            key,
+            salt,
+            passphrase,
+            format,
+        } => commands::secrets::run_secrets(
+            commands::secrets::Mode::Encrypt,
+            path,
+            key,
+            salt.as_deref(),
+            passphrase,
+            format,
+            output.as_deref(),
+        ),
+        Command::DecryptSecrets {
+            path,
+            output,
+            key,
+            passphrase,
+            format,
+        } => commands::secrets::run_secrets(
+            commands::secrets::Mode::Decrypt,
+            path,
+            key,
+            None,
+            passphrase,
+            format,
+            output.as_deref(),
+        ),
         Command::Tmsh {
             path,
             output,
