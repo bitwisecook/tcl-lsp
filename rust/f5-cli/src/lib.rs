@@ -286,6 +286,29 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             schema,
             *list_schemas,
         ),
+        Command::ExplainFlow {
+            pcap,
+            paths,
+            tshark,
+            keylog,
+            tshark_filter,
+            simulate,
+            no_event_bodies,
+            max_event_lines,
+            json,
+            output,
+        } => commands::explain_flow::run_explain_flow(
+            pcap,
+            paths,
+            *tshark,
+            keylog.as_deref(),
+            tshark_filter.as_deref(),
+            *simulate,
+            *no_event_bodies,
+            *max_event_lines,
+            *json,
+            output.as_deref(),
+        ),
         Command::EnrichPcapng {
             config,
             input,
@@ -391,12 +414,6 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             let mut cmd = Cli::command();
             clap_complete::generate(*shell, &mut cmd, "f5-query", &mut std::io::stdout());
             Ok(0)
-        }
-        // Verbs not yet ported (the BIG-IP engines land in later phases) fall
-        // through to a clear not-implemented error.
-        other => {
-            let verb = other.verb_name();
-            anyhow::bail!("`f5 {verb}` is not yet implemented in the Rust port");
         }
     }
 }

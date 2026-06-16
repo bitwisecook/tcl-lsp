@@ -152,7 +152,15 @@ const IPV6_AH: u8 = 51;
 /// Walk IPv6 extension headers past `ip_off` to find the L4 header. Returns
 /// `(final_next_header, l4_off, l4_len)` or `None` when the L4 isn't
 /// recompute-safe.
-fn ipv6_l4_locator(packet: &[u8], ip_off: usize) -> Option<(u8, usize, usize)> {
+/// Locate the L4 header inside an IPv6 packet, walking extension headers.
+///
+/// Returns `(proto, l4_off, l4_len)` — the upper-layer protocol number, the
+/// absolute offset of the L4 header, and the remaining L4 length — or `None`
+/// when the chain is fragmented / encrypted / malformed. Mirrors Python's
+/// `_ipv6_l4_locator` in `dialects/f5/bigip/pcap_remap.py`; exposed for the
+/// flow extractor so there is a single canonical walker.
+#[must_use]
+pub fn ipv6_l4_locator(packet: &[u8], ip_off: usize) -> Option<(u8, usize, usize)> {
     if ip_off + 40 > packet.len() {
         return None;
     }

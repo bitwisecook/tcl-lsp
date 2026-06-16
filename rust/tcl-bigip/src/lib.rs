@@ -20,6 +20,7 @@ pub mod canonical;
 pub mod cleanup;
 pub mod convert;
 pub mod f5_trailer;
+pub mod flow;
 pub mod graph;
 pub mod grep;
 pub mod irule_context;

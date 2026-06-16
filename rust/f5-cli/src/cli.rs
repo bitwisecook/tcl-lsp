@@ -769,42 +769,6 @@ pub enum Command {
     },
 }
 
-impl Command {
-    /// The canonical verb name, used in not-yet-implemented messages and logs.
-    pub fn verb_name(&self) -> &'static str {
-        match self {
-            Command::Stats { .. } => "stats",
-            Command::Cleanup { .. } => "cleanup",
-            Command::Grep { .. } => "grep",
-            Command::Extract { .. } => "extract",
-            Command::Diff { .. } => "diff",
-            Command::Split { .. } => "split",
-            Command::Merge { .. } => "merge",
-            Command::Rename { .. } => "rename",
-            Command::Validate { .. } => "validate",
-            Command::Explain { .. } => "explain",
-            Command::Graph { .. } => "graph",
-            Command::Tmsh { .. } => "tmsh",
-            Command::Convert { .. } => "convert",
-            Command::Query { .. } => "query",
-            Command::Redact { .. } => "redact",
-            Command::Unredact { .. } => "unredact",
-            Command::EncryptSecrets { .. } => "encrypt-secrets",
-            Command::DecryptSecrets { .. } => "decrypt-secrets",
-            Command::Fetch { .. } => "fetch",
-            Command::Push { .. } => "push",
-            Command::Pull { .. } => "pull",
-            Command::ExplainFlow { .. } => "explain-flow",
-            Command::EnrichPcapng { .. } => "enrich-pcapng",
-            Command::EnrichWireshark { .. } => "enrich-wireshark",
-            Command::PcapRemap { .. } => "pcap-remap",
-            Command::RegistryDump { .. } => "registry-dump",
-            Command::Completion { .. } => "completion",
-            Command::Irule { .. } => "irule",
-        }
-    }
-}
-
 /// Shared iRule input flags (`_add_irule_input_arguments`): a flexible mix of
 /// `.tcl`/`.irul`/`.irule` files, bigip.conf/SCF, UCS, `--source` snippets, or
 /// `-` for stdin, plus `--dialect` (default `f5-irules`) and `-o/--output`.

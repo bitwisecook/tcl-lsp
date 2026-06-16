@@ -16,6 +16,7 @@ serde_json = "1"
 regex = "1"
 ipnet = "2"
 sha2 = "0.10"
+indexmap = "2"
 
 [lints]
 workspace = true
