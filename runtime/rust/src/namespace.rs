@@ -284,12 +284,21 @@ impl Namespaces {
     pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let absolute = name.starts_with(b"::");
         let segments = split_qualifier(name);
-        let (simple, ns_parts) = segments.split_last()?;
+        // C: a trailing `::` names the `{}` (empty) variable in the qualified
+        // namespace — every segment is then a namespace component (the simple
+        // name being `""`), unlike the usual "last segment is the var" split.
+        let (simple, ns_parts): (Vec<u8>, &[&[u8]]) =
+            if tcl_syntax::naming::ends_with_separator(name) {
+                (Vec::new(), &segments[..])
+            } else {
+                let (s, parts) = segments.split_last()?;
+                ((*s).to_vec(), parts)
+            };
         let mut ns = if absolute { GLOBAL } else { current };
         for part in ns_parts {
             ns = *self.arena[ns].children.get(*part)?;
         }
-        Some((ns, (*simple).to_vec()))
+        Some((ns, simple))
     }
 
     /// Sorted variable names in namespace `ns` (`info vars`/`globals`).
@@ -333,6 +342,13 @@ impl Namespaces {
     /// Namespace `ns`'s variable table (mutable).
     pub(crate) fn var_table_mut(&mut self, ns: NsId) -> &mut VarTable {
         &mut self.arena[ns].vars
+    }
+
+    /// The simple (unqualified) name of `ns` — its last component (`::a::b` →
+    /// `b`); empty for the global namespace. C's `Namespace.name`.
+    #[must_use]
+    pub(crate) fn simple_name(&self, ns: NsId) -> Vec<u8> {
+        self.arena[ns].name.clone()
     }
 
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).

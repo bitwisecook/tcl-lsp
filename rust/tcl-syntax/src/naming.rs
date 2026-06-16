@@ -20,8 +20,12 @@ pub fn is_qualified(name: &[u8]) -> bool {
 
 /// Split a (possibly qualified) name on `::`, dropping empty segments — so
 /// `::a::b::cmd` → `[a, b, cmd]`, `::cmd` → `[cmd]`, `cmd` → `[cmd]`, `::` → `[]`.
-/// Each `::` (or run of colons) is one separator; the trailing component is the
-/// simple name. Mirrors `TclGetNamespaceForQualName`'s component walk.
+/// A run of **two or more** colons is one separator (all consecutive colons are
+/// consumed), while a lone interior colon is an ordinary name character, so
+/// `a:::b` → `[a, b]` and `a:b` → `[a:b]`. A trailing separator drops its empty
+/// tail (`a::b::` → `[a, b]`); callers that care about the `{}`-named cmd/var a
+/// trailing `::` denotes test for it themselves. Mirrors
+/// `TclGetNamespaceForQualName`'s component walk (`tclNamesp.c`).
 #[must_use]
 pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
     let mut out = Vec::new();
@@ -32,7 +36,12 @@ pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
             if i > seg_start {
                 out.push(&name[seg_start..i]);
             }
+            // C skips the `::` then every subsequent `:`, so a colon run of any
+            // length is a single separator.
             i += 2;
+            while i < name.len() && name[i] == b':' {
+                i += 1;
+            }
             seg_start = i;
         } else {
             i += 1;
@@ -42,6 +51,15 @@ pub fn qualifier_segments(name: &[u8]) -> Vec<&[u8]> {
         out.push(&name[seg_start..]);
     }
     out
+}
+
+/// Does `name` end with a namespace separator (a run of ≥2 colons)? In a
+/// command or variable name such a trailing `::` names the `{}` (empty) entity
+/// in the qualified namespace (`TclGetNamespaceForQualName`), so the simple name
+/// is `""` rather than the last [`qualifier_segments`] element.
+#[must_use]
+pub fn ends_with_separator(name: &[u8]) -> bool {
+    name.len() >= 2 && name[name.len() - 1] == b':' && name[name.len() - 2] == b':'
 }
 
 /// Strip a variable reference's substitution sigil (`$`, `${…}`) while
@@ -374,7 +392,17 @@ mod tests {
         assert!(qualifier_segments(b"::").is_empty());
         // a trailing separator drops the empty tail; a lone interior colon stays.
         assert_eq!(qualifier_segments(b"a::b::"), vec![&b"a"[..], b"b"]);
-        assert_eq!(qualifier_segments(b"a:::b"), vec![&b"a"[..], b":b"]);
+        // a run of >=2 colons is one separator (all consecutive colons consumed).
+        assert_eq!(qualifier_segments(b"a:::b"), vec![&b"a"[..], b"b"]);
+        assert_eq!(qualifier_segments(b"a::::b"), vec![&b"a"[..], b"b"]);
+        assert_eq!(
+            qualifier_segments(b":::test_ns_1:::::test_ns_2:::"),
+            vec![&b"test_ns_1"[..], b"test_ns_2"]
+        );
+        // a lone interior colon is an ordinary name character.
+        assert_eq!(qualifier_segments(b"a:b"), vec![&b"a:b"[..]]);
+        assert!(ends_with_separator(b"a::b::"));
+        assert!(!ends_with_separator(b"a::b"));
     }
 
     #[test]
