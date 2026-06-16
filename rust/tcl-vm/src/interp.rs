@@ -89,6 +89,9 @@ pub struct Vm {
     channels: HashMap<String, crate::cmd_chan::Channel>,
     /// Monotonic counter for minting fresh channel ids.
     chan_counter: u32,
+    /// Stack of file paths currently being evaluated by `source`. The top is
+    /// what `info script` returns; empty when not inside a `source`.
+    script_stack: Vec<String>,
 }
 
 /// A single registered variable trace.
@@ -125,6 +128,7 @@ impl Vm {
             compiler: None,
             channels: HashMap::new(),
             chan_counter: 2,
+            script_stack: Vec::new(),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -174,6 +178,30 @@ impl Vm {
         // The table is keyed by canonical names (no leading `::`).
         let key = name.strip_prefix("::").unwrap_or(name);
         self.commands.insert(key.to_owned(), cmd);
+    }
+
+    /// The canonical table key `name` resolves to (honouring the current
+    /// namespace, like [`Self::lookup_command`]), if such a command exists.
+    fn command_key(&self, name: &str) -> Option<String> {
+        if let Some(abs) = name.strip_prefix("::") {
+            return self.commands.contains_key(abs).then(|| abs.to_owned());
+        }
+        let cur = self.current_ns();
+        if !cur.is_empty() {
+            let q = format!("{cur}::{name}");
+            if self.commands.contains_key(&q) {
+                return Some(q);
+            }
+        }
+        self.commands
+            .contains_key(name)
+            .then(|| name.to_owned())
+    }
+
+    /// Resolve and remove the command `name`, returning it (for `rename`).
+    pub(crate) fn take_command(&mut self, name: &str) -> Option<Command> {
+        let key = self.command_key(name)?;
+        self.commands.remove(&key)
     }
 
     /// Resolve a command name to its definition, honouring the current
@@ -335,12 +363,39 @@ impl Vm {
     /// traces are distinct from each other and from whole-array traces.
     fn trace_key(&self, name: &str) -> String {
         if let Some((base, key)) = elem_ref(name) {
-            let (lvl, nm) = self.locate(base);
+            let base = self.trace_qualify(base);
+            let (lvl, nm) = self.locate(&base);
             format!("{lvl}\u{0}{nm}({key})")
         } else {
-            let (lvl, nm) = self.locate(name);
+            let name = self.trace_qualify(name);
+            let (lvl, nm) = self.locate(&name);
             format!("{lvl}\u{0}{nm}")
         }
+    }
+
+    /// Resolve a bare variable name to its namespace-qualified form when the
+    /// current scope is a `namespace eval` body, matching how `set`/`variable`
+    /// bind a namespace variable. Unlike [`Self::ns_var_fallback`] this does not
+    /// require the variable to already exist — `trace add variable foo …` at
+    /// namespace-script level targets `::ns::foo` even before it is created, so
+    /// the key matches the resolved name a later read inside a proc produces.
+    fn trace_qualify(&self, name: &str) -> String {
+        if name.contains("::") || !self.in_ns_script() {
+            return name.to_string();
+        }
+        let cur = self.current_ns();
+        if cur.is_empty() {
+            return name.to_string();
+        }
+        // A genuine local in the namespace-eval frame shadows the namespace var.
+        if self
+            .frames
+            .last()
+            .is_some_and(|f| f.locals.contains_key(name))
+        {
+            return name.to_string();
+        }
+        format!("{cur}::{name}")
     }
 
     /// Register a `trace add variable` callback.
@@ -511,6 +566,23 @@ impl Vm {
     /// afterwards, so the script's variable references and `info level` resolve
     /// against the target activation. A `Return` completion is passed through to
     /// the calling frame (as the reference `uplevel` does).
+    /// Push the path of a file being `source`d; the matching [`Self::pop_script`]
+    /// restores the previous one. Drives `info script`.
+    pub(crate) fn push_script(&mut self, path: String) {
+        self.script_stack.push(path);
+    }
+
+    /// Pop the current `source` path (see [`Self::push_script`]).
+    pub(crate) fn pop_script(&mut self) {
+        self.script_stack.pop();
+    }
+
+    /// The path of the file currently being `source`d (`info script`); empty
+    /// when evaluation is not inside a `source`.
+    pub(crate) fn current_script(&self) -> &str {
+        self.script_stack.last().map_or("", String::as_str)
+    }
+
     pub(crate) fn eval_at_level(&mut self, target: usize, src: &str) -> Completion<Value> {
         if target >= self.frames.len() {
             return err(format!("bad level \"{target}\""));

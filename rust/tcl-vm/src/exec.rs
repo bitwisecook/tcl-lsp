@@ -1127,6 +1127,22 @@ impl Vm {
                     Err(res)
                 }
             }
+            Some(Command::Alias(target)) => {
+                // Evaluate `target prefix… args…` as a command so the alias
+                // works even when the target is a compiled control command
+                // (`try`, `if`, …) that has no runtime builtin.
+                let mut argv: Vec<Value> = (*target).clone();
+                argv.extend_from_slice(&words[1..]);
+                let script = tcl_syntax::list::join_list(argv.iter().map(Value::to_str));
+                match self.eval_source(&script) {
+                    Ok(res) if res.code.is_ok() => {
+                        f.stack.push(res.result);
+                        Ok(None)
+                    }
+                    Ok(res) => Err(res),
+                    Err(e) => Err(err(e.message)),
+                }
+            }
             None => Err(err(format!("invalid command name \"{name}\""))),
         }
     }

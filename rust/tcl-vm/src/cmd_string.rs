@@ -10,6 +10,40 @@ use crate::value::Value;
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("string", cmd_string);
     vm.register("append", cmd_append);
+    // The compiler lowers `string <sub>` to a direct `::tcl::string::<sub>`
+    // invocation (the ensemble-rewrite path); register those as forwarders onto
+    // the `string` dispatcher. `BuiltinFn` is a plain `fn`, so each closure must
+    // be non-capturing (a literal subcommand name).
+    vm.register("::tcl::string::cat", |vm, a| string_op(vm, "cat", a));
+    vm.register("::tcl::string::compare", |vm, a| string_op(vm, "compare", a));
+    vm.register("::tcl::string::equal", |vm, a| string_op(vm, "equal", a));
+    vm.register("::tcl::string::first", |vm, a| string_op(vm, "first", a));
+    vm.register("::tcl::string::index", |vm, a| string_op(vm, "index", a));
+    vm.register("::tcl::string::insert", |vm, a| string_op(vm, "insert", a));
+    vm.register("::tcl::string::is", |vm, a| string_op(vm, "is", a));
+    vm.register("::tcl::string::last", |vm, a| string_op(vm, "last", a));
+    vm.register("::tcl::string::length", |vm, a| string_op(vm, "length", a));
+    vm.register("::tcl::string::map", |vm, a| string_op(vm, "map", a));
+    vm.register("::tcl::string::match", |vm, a| string_op(vm, "match", a));
+    vm.register("::tcl::string::range", |vm, a| string_op(vm, "range", a));
+    vm.register("::tcl::string::repeat", |vm, a| string_op(vm, "repeat", a));
+    vm.register("::tcl::string::replace", |vm, a| string_op(vm, "replace", a));
+    vm.register("::tcl::string::reverse", |vm, a| string_op(vm, "reverse", a));
+    vm.register("::tcl::string::tolower", |vm, a| string_op(vm, "tolower", a));
+    vm.register("::tcl::string::totitle", |vm, a| string_op(vm, "totitle", a));
+    vm.register("::tcl::string::toupper", |vm, a| string_op(vm, "toupper", a));
+    vm.register("::tcl::string::trim", |vm, a| string_op(vm, "trim", a));
+    vm.register("::tcl::string::trimleft", |vm, a| string_op(vm, "trimleft", a));
+    vm.register("::tcl::string::trimright", |vm, a| string_op(vm, "trimright", a));
+}
+
+/// Dispatch a `::tcl::string::<sub>` forwarder by prepending the subcommand and
+/// running the normal `string` handler.
+fn string_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
+    let mut full = Vec::with_capacity(args.len() + 1);
+    full.push(Value::string(sub));
+    full.extend_from_slice(args);
+    cmd_string(vm, &full)
 }
 
 fn ilen(n: usize) -> i64 {
@@ -17,46 +51,57 @@ fn ilen(n: usize) -> i64 {
 }
 
 #[allow(clippy::too_many_lines)]
+/// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
+/// resolution and the error message.
+const STRING_SUBS: &[&str] = &[
+    "cat", "compare", "equal", "first", "index", "insert", "is", "last", "length", "map", "match",
+    "range", "repeat", "replace", "reverse", "tolower", "totitle", "toupper", "trim", "trimleft",
+    "trimright", "wordend", "wordstart",
+];
+
+/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name,
+/// honouring Tcl's unique-prefix matching. Returns the standard error message on
+/// no/ambiguous match.
+fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
+    if let Some(&s) = STRING_SUBS.iter().find(|&&s| s == input) {
+        return Ok(s);
+    }
+    let mut hits = STRING_SUBS.iter().filter(|&&s| s.starts_with(input));
+    match (hits.next(), hits.next()) {
+        (Some(&s), None) if !input.is_empty() => Ok(s),
+        _ => {
+            let mut list = String::new();
+            for (i, s) in STRING_SUBS.iter().enumerate() {
+                if i > 0 {
+                    list.push_str(", ");
+                }
+                if i == STRING_SUBS.len() - 1 {
+                    list.push_str("or ");
+                }
+                list.push_str(s);
+            }
+            Err(format!(
+                "unknown or ambiguous subcommand \"{input}\": must be {list}"
+            ))
+        }
+    }
+}
+
 fn cmd_string(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"string subcommand ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let canon = match resolve_string_sub(&sub.to_str()) {
+        Ok(c) => c,
+        Err(e) => return err(e),
+    };
+    match canon {
         "length" => match rest {
             [s] => ok(Value::int(ilen(s.to_str().chars().count()))),
             _ => err("wrong # args: should be \"string length string\""),
         },
-        "index" => match rest {
-            [s, i] => {
-                let chars: Vec<char> = s.to_str().chars().collect();
-                match resolve_index(&i.to_str(), chars.len())
-                    .and_then(|x| usize::try_from(x).ok())
-                    .and_then(|x| chars.get(x))
-                {
-                    Some(c) => ok(Value::string(c.to_string())),
-                    None => ok(Value::empty()),
-                }
-            }
-            _ => err("wrong # args: should be \"string index string charIndex\""),
-        },
-        "range" => match rest {
-            [s, first, last] => {
-                let chars: Vec<char> = s.to_str().chars().collect();
-                let len = chars.len();
-                let lo = resolve_index(&first.to_str(), len).unwrap_or(0).max(0);
-                let hi = resolve_index(&last.to_str(), len).unwrap_or(-1);
-                let lo = usize::try_from(lo).unwrap_or(0);
-                if hi < 0 || lo >= len {
-                    return ok(Value::empty());
-                }
-                let hi = usize::try_from(hi).unwrap_or(0).min(len - 1);
-                if lo > hi {
-                    return ok(Value::empty());
-                }
-                ok(Value::string(chars[lo..=hi].iter().collect::<String>()))
-            }
-            _ => err("wrong # args: should be \"string range string first last\""),
-        },
+        "index" => string_index(rest),
+        "range" => string_range(rest),
         "equal" => str_compare(rest, true),
         "compare" => str_compare(rest, false),
         "match" => match rest {
@@ -121,8 +166,94 @@ fn cmd_string(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [class, s] => ok(Value::bool(string_is(&class.to_str(), &s.to_str()))),
             _ => err("wrong # args: should be \"string is class ?-strict? str\""),
         },
-        other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
+        "replace" => string_replace(rest),
+        "insert" => string_insert(rest),
+        // Resolved to a valid-but-unimplemented subcommand.
+        other => err(format!(
+            "string {other} is not yet implemented in this VM"
+        )),
     }
+}
+
+/// `string index string charIndex` — the character at `charIndex`, or empty.
+fn string_index(rest: &[Value]) -> Completion<Value> {
+    let [s, i] = rest else {
+        return err("wrong # args: should be \"string index string charIndex\"");
+    };
+    let chars: Vec<char> = s.to_str().chars().collect();
+    match resolve_index(&i.to_str(), chars.len())
+        .and_then(|x| usize::try_from(x).ok())
+        .and_then(|x| chars.get(x))
+    {
+        Some(c) => ok(Value::string(c.to_string())),
+        None => ok(Value::empty()),
+    }
+}
+
+/// `string range string first last` — the substring `first..=last` (clamped).
+fn string_range(rest: &[Value]) -> Completion<Value> {
+    let [s, first, last] = rest else {
+        return err("wrong # args: should be \"string range string first last\"");
+    };
+    let chars: Vec<char> = s.to_str().chars().collect();
+    let len = chars.len();
+    let lo = resolve_index(&first.to_str(), len).unwrap_or(0).max(0);
+    let hi = resolve_index(&last.to_str(), len).unwrap_or(-1);
+    let lo = usize::try_from(lo).unwrap_or(0);
+    if hi < 0 || lo >= len {
+        return ok(Value::empty());
+    }
+    let hi = usize::try_from(hi).unwrap_or(0).min(len - 1);
+    if lo > hi {
+        return ok(Value::empty());
+    }
+    ok(Value::string(chars[lo..=hi].iter().collect::<String>()))
+}
+
+/// `string replace string first last ?newstring?` — remove chars first..last
+/// (inclusive), optionally inserting newstring. Out-of-range or first>last
+/// leaves the string unchanged.
+fn string_replace(rest: &[Value]) -> Completion<Value> {
+    if rest.len() < 3 || rest.len() > 4 {
+        return err("wrong # args: should be \"string replace string first last ?string?\"");
+    }
+    let (s, first, last) = (&rest[0], &rest[1], &rest[2]);
+    let chars: Vec<char> = s.to_str().chars().collect();
+    let len = chars.len();
+    let lo = resolve_index(&first.to_str(), len).unwrap_or(0).max(0);
+    let hi = resolve_index(&last.to_str(), len).unwrap_or(-1);
+    let lo_u = usize::try_from(lo).unwrap_or(0);
+    if hi < 0 || lo_u >= len || hi < lo {
+        return ok(Value::string(s.to_str().to_string()));
+    }
+    let hi_u = usize::try_from(hi).unwrap_or(0).min(len - 1);
+    let mut out: String = chars[..lo_u].iter().collect();
+    if let [_, _, _, repl] = rest {
+        out.push_str(&repl.to_str());
+    }
+    out.extend(chars[hi_u + 1..].iter());
+    ok(Value::string(out))
+}
+
+/// `string insert string index insertString` — insert before char `index`.
+/// Unlike most string ops, `end` denotes the position *after* the last
+/// character (so `end` appends).
+fn string_insert(rest: &[Value]) -> Completion<Value> {
+    let [s, idx, ins] = rest else {
+        return err("wrong # args: should be \"string insert string index insertString\"");
+    };
+    let chars: Vec<char> = s.to_str().chars().collect();
+    let len = chars.len();
+    let at = resolve_index(&idx.to_str(), len + 1).unwrap_or(0);
+    let at = if at < 0 {
+        0
+    } else {
+        usize::try_from(at).unwrap_or(len).min(len)
+    };
+    let mut out: String = chars[..at].iter().collect();
+    out.push_str(&ins.to_str());
+    out.extend(chars[at..].iter());
+    ok(Value::string(out))
 }
 
 fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {

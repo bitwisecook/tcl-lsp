@@ -50,6 +50,10 @@ pub enum Command {
     Builtin(BuiltinFn),
     /// A user procedure (dispatched by the engine, which pushes an activation).
     Proc(Rc<ProcDef>),
+    /// An `interp alias` — invoking the command evaluates these target words
+    /// (the target command plus any fixed prefix arguments) with the call's own
+    /// arguments appended.
+    Alias(Rc<Vec<Value>>),
 }
 
 /// Register the builtin set on `vm`.
@@ -57,6 +61,9 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("set", cmd_set);
     vm.register("puts", cmd_puts);
     vm.register("source", cmd_source);
+    vm.register("tcl::build-info", cmd_build_info);
+    vm.register("interp", cmd_interp);
+    vm.register("rename", cmd_rename);
     vm.register("incr", cmd_incr);
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
@@ -118,9 +125,87 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => return err(format!("couldn't read file \"{path}\": {e}")),
     };
-    match vm.eval_source(&contents) {
+    // Track the path so `info script` (and callers like `[file dirname [info
+    // script]]`) resolve relative to the file being sourced.
+    vm.push_script(path.to_string());
+    let result = match vm.eval_source(&contents) {
         Ok(c) => c,
         Err(e) => err(e.message),
+    };
+    vm.pop_script();
+    result
+}
+
+/// `tcl::build-info ?option?` — report build-time configuration. With no
+/// argument it returns the patchlevel/build string; with an option name it
+/// returns 1 if that build option was set, else 0. This VM is a plain release
+/// build, so every queryable flag (`debug`, `purify`, `memdebug`,
+/// `no-deprecate`, …) is absent and reports 0.
+fn cmd_build_info(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [] => ok(Value::string("9.0.0")),
+        [_option] => ok(Value::int(0)),
+        _ => err("wrong # args: should be \"tcl::build-info ?option?\""),
+    }
+}
+
+/// `rename oldName newName` — rename a command, or delete it when `newName` is
+/// empty.
+fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [old, new] = args else {
+        return err("wrong # args: should be \"rename oldName newName\"");
+    };
+    let old_name = old.to_str();
+    let Some(cmd) = vm.take_command(&old_name) else {
+        return err(format!(
+            "can't rename \"{old_name}\": command doesn't exist"
+        ));
+    };
+    let new_name = new.to_str();
+    if !new_name.is_empty() {
+        // An unqualified target binds in the current namespace; a qualified one
+        // is used as given. `register_command` canonicalises the key.
+        let key = if new_name.contains("::") {
+            new_name.to_string()
+        } else {
+            vm.qualify_name(&new_name)
+        };
+        vm.register_command(&key, cmd);
+    }
+    ok(Value::empty())
+}
+
+/// `interp` — the subset the stdlib/test suite needs in a single-interpreter
+/// VM. Only the current interpreter (`{}` path) is modelled, so `slaves`/`exists`
+/// answer for it and the unsupported sub-interpreter operations are rejected.
+fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((sub, rest)) = args.split_first() else {
+        return err("wrong # args: should be \"interp cmd ?arg ...?\"");
+    };
+    match &*sub.to_str() {
+        // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
+        "alias" => match rest {
+            [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
+                if !src_path.to_str().is_empty() || !target_path.to_str().is_empty() {
+                    return err("only the current interpreter ({}) is supported");
+                }
+                let words: Vec<Value> = target.to_vec();
+                vm.register_command(&src_cmd.to_str(), Command::Alias(Rc::new(words)));
+                ok(src_cmd.clone())
+            }
+            _ => err(
+                "wrong # args: should be \"interp alias srcPath srcCmd targetPath targetCmd ?arg ...?\"",
+            ),
+        },
+        "exists" => match rest {
+            [] => ok(Value::int(1)),
+            [path] => ok(Value::bool(path.to_str().is_empty())),
+            _ => err("wrong # args: should be \"interp exists ?path?\""),
+        },
+        "slaves" | "children" => ok(Value::empty()),
+        other => err(format!(
+            "bad option \"{other}\": only alias, exists, and slaves are supported"
+        )),
     }
 }
 
