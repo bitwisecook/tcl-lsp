@@ -628,6 +628,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-cli-support",
+ "tcl-irules",
  "tcl-lsp-core",
  "tcl-registry",
  "ureq",
@@ -2244,6 +2245,7 @@ name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "sha2",
  "tcl-syntax",
 ]
 

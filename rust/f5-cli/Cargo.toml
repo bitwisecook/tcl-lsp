@@ -20,6 +20,7 @@ tcl-cli-support = { path = "../tcl-cli-support" }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-bigip-io = { path = "../tcl-bigip-io" }
 tcl-bigip-query = { path = "../tcl-bigip-query" }
+tcl-irules = { path = "../tcl-irules" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-registry = { path = "../tcl-registry" }
 serde = { version = "1", features = ["derive"] }

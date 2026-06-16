@@ -188,7 +188,8 @@ fn resolve_name<T>(name: &str, table: &KindMap<'_, T>, default_partition: &str) 
 /// fresh `BigipConfig()` whose partition defaults to `Common`, but
 /// `resolve_name` only consults it for non-`/`-prefixed names, which the
 /// merged-input path never produces differently across files).
-fn merge_configs(configs: &[(String, &BigipConfig)]) -> BigipConfig {
+#[must_use]
+pub fn merge_configs(configs: &[(String, &BigipConfig)]) -> BigipConfig {
     let mut merged = BigipConfig::default();
     // Track last-wins per (table_name, full_path) for typed objects and per
     // key for generic objects, preserving first-seen order like dict.update.
