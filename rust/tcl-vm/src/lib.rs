@@ -24,6 +24,7 @@ mod cmd_info;
 mod cmd_list;
 mod cmd_math;
 mod cmd_namespace;
+mod cmd_binary;
 mod cmd_prefix;
 mod cmd_package;
 mod cmd_regexp;
