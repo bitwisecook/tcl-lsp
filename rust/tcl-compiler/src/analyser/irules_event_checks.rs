@@ -19,6 +19,9 @@
 //! - **IRULE4001** (WARNING): write to `static::` outside `RULE_INIT`.
 //! - **IRULE4003** (HINT): variable scoping concern across events.
 //! - **IRULE5001** (HINT): ungated `log` in a high-frequency event.
+//! - **IRULE5003** (HINT): `while {$v != 0}` decrement loop can miss zero.
+//! - **IRULE5006** (WARNING): top-level-only command in a nested body.
+//! - **IRULE5007** (WARNING): event-context command used at top level.
 //! - **IRULE6001** (WARNING): global namespace variable usage.
 
 use std::sync::OnceLock;
@@ -136,6 +139,96 @@ impl Analyser {
         self.emit_irule4001_static_write(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule4003_var_scope(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule6001_global_var(cmd_name, args, arg_tokens, cmd_tok, event_ref);
+        self.emit_irule5006_top_level_only(cmd_name, cmd_tok);
+        self.emit_irule5007_event_context(cmd_name, cmd_tok, event_ref);
+        self.emit_irule5003_loop_bound_inequality(cmd_name, args, arg_tokens);
+    }
+
+    /// **IRULE5003.** `while {$var != 0} { incr var -1 }` can miss zero.
+    fn emit_irule5003_loop_bound_inequality(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if cmd_name != "while" || args.len() < 2 {
+            return;
+        }
+        let Some(tok) = arg_tokens.first() else {
+            return;
+        };
+        let Some(var_name) = find_loop_ne_zero(&args[0]) else {
+            return;
+        };
+        if !body_decrements(&args[1], &var_name) {
+            return;
+        }
+        self.result.diagnostics.push(Diagnostic {
+            code: "IRULE5003".to_string(),
+            span: tok.span,
+            message: format!(
+                "Loop condition '${var_name} != 0' can miss zero if decremented past it. \
+                 Consider '${var_name} > 0'."
+            ),
+            severity: Severity::Hint,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **IRULE5006.** A top-level-only command (`when` / `proc` /
+    /// `priority` / `timing`) used inside a nested body.
+    fn emit_irule5006_top_level_only(&mut self, cmd_name: &str, cmd_tok: Token) {
+        if self.body_depth == 0 {
+            return;
+        }
+        let is_top_level = self
+            .registry
+            .as_ref()
+            .is_some_and(|r| r.is_irules_top_level_only(cmd_name));
+        if !is_top_level {
+            return;
+        }
+        self.result.diagnostics.push(Diagnostic {
+            code: "IRULE5006".to_string(),
+            span: cmd_tok.span,
+            message: format!("'{cmd_name}' is only valid at the top level of an iRule."),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **IRULE5007.** An event-context command (one with event
+    /// requirements) used at the top level, outside any `when` block.
+    fn emit_irule5007_event_context(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        event: Option<&str>,
+    ) {
+        if self.body_depth != 0 || event.is_some() {
+            return;
+        }
+        let Some(registry) = self.registry.as_ref() else {
+            return;
+        };
+        if registry.is_irules_top_level_only(cmd_name) {
+            return;
+        }
+        let requires_event = registry
+            .get(cmd_name)
+            .is_some_and(|s| s.event_requires.is_some());
+        if !requires_event {
+            return;
+        }
+        self.result.diagnostics.push(Diagnostic {
+            code: "IRULE5007".to_string(),
+            span: cmd_tok.span,
+            message: format!(
+                "'{cmd_name}' requires an event context — use it inside a `when` block."
+            ),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
     }
 
     /// **IRULE1002.** `when` references an unknown iRules event name.
@@ -562,6 +655,156 @@ fn var_referenced_in(var_name: &str, body: &str) -> bool {
     false
 }
 
+/// Port of `_LOOP_NE_ZERO_RE.search` — find the first `$var != 0` /
+/// `$var ne 0` / `0 != $var` / `0 ne $var` comparison and return the bare
+/// variable name.  Mirrors the leftmost-match, alternation-A-then-B order
+/// of the Python regex.
+fn find_loop_ne_zero(condition: &str) -> Option<String> {
+    let b = condition.as_bytes();
+    for i in 0..b.len() {
+        if let Some(name) = match_dollar_ne_zero(b, i) {
+            return Some(name);
+        }
+        if let Some(name) = match_zero_ne_dollar(b, i) {
+            return Some(name);
+        }
+    }
+    None
+}
+
+/// `\$\{?(\w+)\}? \s* (?:!=|ne) \s* 0`
+fn match_dollar_ne_zero(b: &[u8], mut p: usize) -> Option<String> {
+    if b.get(p)? != &b'$' {
+        return None;
+    }
+    p += 1;
+    let braced = b.get(p) == Some(&b'{');
+    if braced {
+        p += 1;
+    }
+    let name_start = p;
+    while p < b.len() && is_word_byte(b[p]) {
+        p += 1;
+    }
+    if p == name_start {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&b[name_start..p]).into_owned();
+    if braced && b.get(p) == Some(&b'}') {
+        p += 1;
+    }
+    p = skip_ws(b, p);
+    p = match_ne_op(b, p)?;
+    p = skip_ws(b, p);
+    if b.get(p) == Some(&b'0') {
+        Some(name)
+    } else {
+        None
+    }
+}
+
+/// `0 \s* (?:!=|ne) \s* \$\{?(\w+)\}?`
+fn match_zero_ne_dollar(b: &[u8], mut p: usize) -> Option<String> {
+    if b.get(p)? != &b'0' {
+        return None;
+    }
+    p += 1;
+    p = skip_ws(b, p);
+    p = match_ne_op(b, p)?;
+    p = skip_ws(b, p);
+    if b.get(p)? != &b'$' {
+        return None;
+    }
+    p += 1;
+    let braced = b.get(p) == Some(&b'{');
+    if braced {
+        p += 1;
+    }
+    let name_start = p;
+    while p < b.len() && is_word_byte(b[p]) {
+        p += 1;
+    }
+    if p == name_start {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&b[name_start..p]).into_owned())
+}
+
+/// Match `!=` or `ne`, returning the position past the operator.
+fn match_ne_op(b: &[u8], p: usize) -> Option<usize> {
+    if b.get(p) == Some(&b'!') && b.get(p + 1) == Some(&b'=') {
+        Some(p + 2)
+    } else if b.get(p) == Some(&b'n') && b.get(p + 1) == Some(&b'e') {
+        Some(p + 2)
+    } else {
+        None
+    }
+}
+
+/// Port of `_INCR_DECREMENT_RE.finditer` — does *body* contain
+/// `incr <var> -<digits>` (word-bounded) for the given variable?
+fn body_decrements(body: &str, var_name: &str) -> bool {
+    let b = body.as_bytes();
+    let mut search = 0usize;
+    while let Some(rel) = body[search..].find("incr") {
+        let kw = search + rel;
+        search = kw + 4;
+        // `\bincr` — word boundary before `incr`.
+        if kw > 0 && is_word_byte(b[kw - 1]) {
+            continue;
+        }
+        let mut p = kw + 4;
+        // `\s+`
+        let ws_start = p;
+        p = skip_ws(b, p);
+        if p == ws_start {
+            continue;
+        }
+        // `(\w+)`
+        let name_start = p;
+        while p < b.len() && is_word_byte(b[p]) {
+            p += 1;
+        }
+        if p == name_start {
+            continue;
+        }
+        let name = &body[name_start..p];
+        // `\s+`
+        let ws2 = p;
+        p = skip_ws(b, p);
+        if p == ws2 {
+            continue;
+        }
+        // `-\d+`
+        if b.get(p) != Some(&b'-') {
+            continue;
+        }
+        p += 1;
+        let digit_start = p;
+        while p < b.len() && b[p].is_ascii_digit() {
+            p += 1;
+        }
+        if p == digit_start {
+            continue;
+        }
+        // `\b` after the digits — next char must be a non-word byte or end.
+        if b.get(p).is_some_and(|c| is_word_byte(*c)) {
+            continue;
+        }
+        if name == var_name {
+            return true;
+        }
+    }
+    false
+}
+
+fn skip_ws(b: &[u8], mut p: usize) -> usize {
+    while p < b.len() && is_ws(b[p]) {
+        p += 1;
+    }
+    p
+}
+
 fn is_ws(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r')
 }
@@ -675,9 +918,71 @@ mod tests {
     }
 
     #[test]
+    fn irule5006_fires_for_proc_in_nested_body() {
+        assert!(has(
+            "when HTTP_REQUEST { proc helper {} { return 1 } }",
+            "IRULE5006"
+        ));
+    }
+
+    #[test]
+    fn irule5006_quiet_for_top_level_proc() {
+        assert!(!has("proc helper {} { return 1 }", "IRULE5006"));
+    }
+
+    #[test]
+    fn irule5007_fires_for_event_command_at_top_level() {
+        assert!(has("HTTP::respond 200", "IRULE5007"));
+    }
+
+    #[test]
+    fn irule5007_quiet_inside_when_block() {
+        assert!(!has("when HTTP_REQUEST { HTTP::respond 200 }", "IRULE5007"));
+    }
+
+    #[test]
     fn irule4003_fires_for_cross_event_variable() {
         let src = "when HTTP_REQUEST { set token abc }\nwhen CLIENT_DATA { log local0. $token }";
         assert!(has(src, "IRULE4003"));
+    }
+
+    #[test]
+    fn irule5003_fires_for_ne_zero_decrement_loop() {
+        assert!(has(
+            "when HTTP_REQUEST { while {$count != 0} { incr count -1 } }",
+            "IRULE5003"
+        ));
+    }
+
+    #[test]
+    fn irule5003_fires_for_zero_ne_braced_form() {
+        assert!(has(
+            "when HTTP_REQUEST { while {0 ne ${n}} { incr n -2 } }",
+            "IRULE5003"
+        ));
+    }
+
+    #[test]
+    fn irule5003_quiet_for_greater_than_zero() {
+        assert!(!has(
+            "when HTTP_REQUEST { while {$x > 0} { incr x -1 } }",
+            "IRULE5003"
+        ));
+    }
+
+    #[test]
+    fn irule5003_quiet_when_body_decrements_other_var() {
+        assert!(!has(
+            "when HTTP_REQUEST { while {$count != 0} { incr other -1 } }",
+            "IRULE5003"
+        ));
+    }
+
+    #[test]
+    fn find_loop_ne_zero_handles_both_orders() {
+        assert_eq!(find_loop_ne_zero("$count != 0").as_deref(), Some("count"));
+        assert_eq!(find_loop_ne_zero("0 ne ${n}").as_deref(), Some("n"));
+        assert_eq!(find_loop_ne_zero("$x > 0"), None);
     }
 
     #[test]
