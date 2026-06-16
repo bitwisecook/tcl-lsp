@@ -17,6 +17,13 @@
       "has_barrier": false
     },
     {
+      "name": "::report",
+      "pure": false,
+      "reads": "NONE",
+      "writes": "NONE",
+      "has_barrier": false
+    },
+    {
       "name": "::scale",
       "pure": true,
       "reads": "NONE",
@@ -28,6 +35,6 @@
     "total_taint_warnings": 0,
     "tainted_variable_count": 0,
     "pure_proc_count": 3,
-    "impure_proc_count": 0
+    "impure_proc_count": 1
   }
 }

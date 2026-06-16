@@ -1,1 +1,1 @@
-dataflow: taintWarnings=0 taintedVars=0 pure=3 impure=0
+dataflow: taintWarnings=0 taintedVars=0 pure=3 impure=1

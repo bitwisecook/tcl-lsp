@@ -151,14 +151,14 @@ fn symbolgraph_json_matches_python() {
 // calls nested in `[cmd …]` substitutions (`return [add …]` / `set x [f …]`),
 // a resolved internal call no longer applies the callee's command-effect
 // locally (so `pure` matches Python), and a global-variable write is recorded
-// via `writes_global` rather than the effect-region string. This fixture
-// exercises real proc→proc edges (with multiple call sites), a namespace proc,
-// roots and leaves, all byte-identical. **Residual gap** (documented in
-// docs/rust-cli-port.md): `classify_side_effects` ignores a command's
-// structured `side_effects` and falls back to `UNKNOWN_STATE`, so the `effects`
-// string still diverges for a proc that calls an untracked-effect command
-// (`puts` / `log`) — a separate side-effects-classification workstream — hence
-// this fixture keeps to pure procs.
+// via `writes_global` rather than the effect-region string. The
+// side-effects-classification closure has also landed: `classify_side_effects`
+// now consults a command's structured `side_effects`, so a proc that calls an
+// untracked-effect command (`puts`) is impure yet region-free — matching
+// Python — instead of falling back to `UNKNOWN_STATE`. This fixture exercises
+// real proc→proc edges (with multiple call sites), a namespace proc, an impure
+// `puts`-calling proc (no `[pure]` marker, a leaf + top-level edge), and roots
+// and leaves, all byte-identical.
 #[test]
 fn callgraph_text_matches_python() {
     let input = fixtures_dir().join("callgraph.tcl");
@@ -184,9 +184,11 @@ fn callgraph_json_matches_python() {
 // `T100` sink family (Python also emits setter-constraint / uri-split /
 // path-concat / destructive-file codes), and its taint propagation differs (it
 // can mark a proc-param-derived global tainted where Python does not). So this
-// golden uses a faithful subset — pure procs with no taint sources/sinks — where
-// both taint outputs are empty, locking the `proc_effects` + summary
-// serialisation byte-for-byte.
+// golden keeps to procs with no taint sources/sinks — both taint outputs stay
+// empty — while still exercising the closed `proc_effects` half: pure procs plus
+// an impure `puts`-calling proc (region-free — `reads`/`writes` = `NONE`, not
+// `UNKNOWN_STATE`), locking the `proc_effects` + summary serialisation
+// byte-for-byte.
 #[test]
 fn dataflow_text_matches_python() {
     let input = fixtures_dir().join("dataflow.tcl");

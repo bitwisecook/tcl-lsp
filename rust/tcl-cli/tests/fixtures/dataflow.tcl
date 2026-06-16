@@ -12,4 +12,9 @@ namespace eval ::geom {
     }
 }
 
+proc report {x} {
+    puts "scaled: [scale $x]"
+}
+
 set total [scale 21]
+report 21
