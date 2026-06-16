@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_class_name};
+use crate::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_class_name};
 
 /// Escape a literal value for disassembly comments.
 ///
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn format_function_asm_basic() {
-        use crate::codegen::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand};
+        use crate::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand};
         use std::collections::HashMap;
 
         let mut lit = LiteralTable::new();

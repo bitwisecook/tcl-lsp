@@ -6,6 +6,7 @@
 
 use crate::ir::Statement;
 
+use super::helpers::{SubstPart, parse_subst_template};
 use super::values::{is_qualified, needs_stk_var_ref, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, Op, Operand};
 
@@ -88,7 +89,10 @@ impl CodegenCtx<'_> {
                 if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
                 }
-                self.push_lit(value);
+                // A constant value is verbatim: push it as-is so the VM does
+                // not run word substitution on any `[…]` / `$` it contains
+                // (e.g. `set x {a [b] $c}`).
+                self.push_lit_verbatim(value);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
                 true
@@ -176,7 +180,7 @@ impl CodegenCtx<'_> {
             self.emit_expanded_call(command, args, ew);
             *used_generic_invoke = true;
         } else {
-            self.emit_call(command, args, used_generic_invoke);
+            self.emit_call(command, args, tokens, used_generic_invoke);
         }
     }
 
@@ -213,6 +217,14 @@ impl CodegenCtx<'_> {
             Statement::Return { value, .. } => {
                 let val = value.as_deref().unwrap_or("");
                 self.emit_value_interpolated(val);
+                // A top-level `RETURN_IMM` pops the result *and* an options dict;
+                // push the empty options so the pair sits at the top of the
+                // stack regardless of any leftover from a preceding statement
+                // (e.g. an `if` with no `else`). Proc bodies fold this to a
+                // `DONE`, which returns the single top value, so no options push.
+                if !self.is_proc {
+                    self.push_lit("");
+                }
                 self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
             }
 
@@ -291,6 +303,50 @@ impl CodegenCtx<'_> {
             self.emit(Op::VERIFY_DICT, vec![]);
             return;
         }
+        // Whole-word variable-index array element `$arr($idx)`: route through
+        // `load_var` (base + substituted key) rather than the literal/runtime
+        // subst path, which cannot resolve the bare `$idx` inside the index.
+        if value.starts_with('$')
+            && value.ends_with(')')
+            && let Some(parts) = parse_subst_template(value)
+            && parts.len() == 1
+            && let SubstPart::Var(name) = &parts[0]
+            && split_array_ref(name).is_some()
+        {
+            self.load_var(name);
+            return;
+        }
+        // Interpolated string containing an array-element variable
+        // (`"…$arr($idx)…"`): the runtime `subst_word` fallback can substitute a
+        // normalised `${name}` but not an array element with a substituted
+        // index, so decompose the word at compile time. Plain `$scalar`
+        // interpolation keeps its existing (deferred-literal) lowering.
+        if (value.contains('$') || value.contains('['))
+            && let Some(parts) = parse_subst_template(value)
+            && parts.len() > 1
+            && parts.iter().any(
+                |p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()),
+            )
+        {
+            for part in &parts {
+                match part {
+                    SubstPart::Lit(text) => self.push_lit(text),
+                    SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
+                    SubstPart::Scalar(name) => {
+                        self.push_lit(name);
+                        self.emit(Op::LOAD_STK, vec![]);
+                    }
+                    SubstPart::Var(name) => self.load_var(name),
+                }
+            }
+            self.emit(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(
+                    i32::try_from(parts.len()).expect("part count fits in i32"),
+                )],
+            );
+            return;
+        }
         // Default: push as literal
         self.push_lit(value);
     }
@@ -333,7 +389,13 @@ impl CodegenCtx<'_> {
     }
 
     /// Emit a regular command call.
-    pub fn emit_call(&mut self, cmd: &str, args: &[String], used_generic_invoke: &mut bool) {
+    pub fn emit_call(
+        &mut self,
+        cmd: &str,
+        args: &[String],
+        tokens: Option<&crate::ir::CommandTokens>,
+        used_generic_invoke: &mut bool,
+    ) {
         // break/continue inside loops: emit jump instead of invokeStk
         if cmd == "continue"
             && let Some(cont_lbl) = self.continue_target.clone()
@@ -354,9 +416,24 @@ impl CodegenCtx<'_> {
             return;
         }
 
-        self.push_lit(cmd);
-        for a in args {
-            self.emit_value_interpolated(a);
+        // The command name may itself be a substitution (`$Verify($opt) …`,
+        // `[lookup] …`); emit it through the per-word path. A plain literal name
+        // still lowers to a single `push`, so normal calls are unchanged.
+        self.emit_cmd_word(cmd, false);
+        for (i, a) in args.iter().enumerate() {
+            // A braced single-token word (`{…}`, lexed as `TokenType::Str`) is
+            // a verbatim literal — e.g. a `proc` body — so push it as-is and
+            // suppress runtime substitution. `argv[0]` is the command word, so
+            // arg `i` maps to `argv_kinds[i + 1]`.
+            let braced = tokens.is_some_and(|t| {
+                t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
+                    && t.single_token_word.get(i + 1).copied().unwrap_or(false)
+            });
+            if braced {
+                self.push_lit_verbatim(a);
+            } else {
+                self.emit_value_interpolated(a);
+            }
         }
         let arg_count = i32::try_from(1 + args.len())
             .expect("invoke argument count fits in i32 (bytecode limit)");

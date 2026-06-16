@@ -464,6 +464,7 @@ impl Analyser {
                     namespace: ns_prefix.clone(),
                     scope_name: raw_name.clone(),
                     params: params.clone(),
+                    class_variables: Vec::new(),
                 });
             } else {
                 self.analyse_body(&body_text, body_tok, &child_path);

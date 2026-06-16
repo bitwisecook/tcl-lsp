@@ -22,6 +22,7 @@ pub mod convert;
 pub mod f5_trailer;
 pub mod graph;
 pub mod grep;
+pub mod irule_context;
 pub mod jsonfmt;
 pub mod lint;
 pub mod model;

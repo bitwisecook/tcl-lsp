@@ -136,6 +136,10 @@ impl CodegenCtx<'_> {
         if self.is_proc {
             self.emit(Op::DONE, vec![]);
         } else {
+            // Top-level `RETURN_IMM` pops [result, options]; push the empty
+            // options dict so the pair is the top of stack even when a prior
+            // statement (e.g. `if` with no `else`) left a value behind.
+            self.push_lit("");
             self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(0)]);
         }
     }

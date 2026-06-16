@@ -1,0 +1,22 @@
+# Family-B runtime contract: the state-mutation protocol shared across Tcl
+# runtimes (the bytecode VM now, the runtime/rust WASM port later).
+#
+# Pure types + trait signatures over an associated `Value`, plus the
+# `CompileService` injection point for runtime `eval`. No implementations —
+# this is the published interface. See
+# `docs/design/common-runtime-emitter-architecture.md` (§4f/§4g, Family B).
+[package]
+name = "tcl-runtime-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Family-B runtime-state contract (Code/Completion, handles, role traits, CompileService) for Tcl runtimes"
+
+[dependencies]
+tcl-bytecode = { path = "../tcl-bytecode" }
+
+[lints]
+workspace = true

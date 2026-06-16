@@ -43,8 +43,11 @@ resolver = "2"
 members = [
     "rust/tcl-lexer",
     "rust/tcl-syntax",
+    "rust/tcl-bytecode",
+    "rust/tcl-runtime-api",
     "rust/tcl-registry",
     "rust/tcl-compiler",
+    "rust/tcl-vm",
     "rust/tcl-bigip",
     "rust/tcl-bigip-io",
     "rust/tcl-bigip-query",
@@ -79,10 +82,10 @@ exclude = [
 version = "0.1.0"
 edition = "2024"
 # 2024 is the current Rust edition (editions ship ~every 3 years: 2015 / 2018 /
-# 2021 / 2024). MSRV moved forward to a recent stable now that the workspace is
-# on the 2024 edition and built/tested against rustc 1.96 (≥ 1.85 was already
-# required for salsa 0.26 / tcl-lsp-db and the runtime/rust port's is_none_or).
-rust-version = "1.94"
+# 2021 / 2024). MSRV tracks the toolchain the workspace is built/tested against
+# (rustc 1.96); ≥ 1.85 was already required for salsa 0.26 / tcl-lsp-db and the
+# runtime/rust port's is_none_or.
+rust-version = "1.96"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 authors = ["tcl-lsp contributors"]

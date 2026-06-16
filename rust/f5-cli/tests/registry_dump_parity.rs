@@ -4,9 +4,9 @@
 //! captured from `python -m tooling.f5.main registry-dump …`. Self-contained:
 //! no Python at test time.
 //!
-//! Only the byte-parity sections (`profiles`, `objects`) are asserted against a
-//! golden. The `commands` / `events` / `all` sections are deferred in the Rust
-//! port (they embed the event-validity cross-product and hover prose
+//! The byte-parity sections (`profiles`, `objects`, `events`) are asserted
+//! against a golden. The `commands` / `all` sections are deferred in the Rust
+//! port (they embed the per-command traits/scalars dicts and hover prose
 //! catalogue), so they are asserted to fail cleanly with exit code 2.
 
 use std::path::PathBuf;
@@ -51,6 +51,14 @@ fn objects_section_matches_golden() {
 }
 
 #[test]
+fn events_section_matches_golden() {
+    // The iRules event graph: per-event props (with the `transport`
+    // string/list/null remapping), firing order, flow chains (incl. `notes`),
+    // and the content-addressed valid-command digests.
+    assert_section_matches("events", "registry_dump_events.golden");
+}
+
+#[test]
 fn profiles_section_to_file_matches_golden() {
     // `--output FILE` writes the same canonical JSON plus a trailing newline,
     // exactly like the Python verb's `fh.write(text + "\n")`.
@@ -75,7 +83,7 @@ fn profiles_section_to_file_matches_golden() {
 
 #[test]
 fn deferred_sections_fail_cleanly() {
-    for section in ["commands", "events", "all"] {
+    for section in ["commands", "all"] {
         let output = run_f5(&["registry-dump", "--section", section]);
         assert_eq!(
             output.status.code(),
@@ -91,8 +99,8 @@ fn deferred_sections_fail_cleanly() {
 
 #[test]
 fn default_section_is_all_and_deferred() {
-    // The default `--section all` contains the deferred commands/events
-    // snapshots, so the bare verb is deferred too.
+    // The default `--section all` contains the deferred commands snapshot, so
+    // the bare verb is deferred too.
     let output = run_f5(&["registry-dump"]);
     assert_eq!(output.status.code(), Some(2));
 }

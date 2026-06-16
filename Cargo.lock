@@ -628,6 +628,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-cli-support",
+ "tcl-irules",
  "tcl-lsp-core",
  "tcl-registry",
  "ureq",
@@ -2104,6 +2105,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bytecode"
+version = "0.1.0"
+dependencies = [
+ "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-cli"
 version = "0.1.0"
 dependencies = [
@@ -2143,6 +2152,7 @@ name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "tcl-bytecode",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
@@ -2244,7 +2254,15 @@ name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "sha2",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
 ]
 
 [[package]]
@@ -2253,6 +2271,18 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
  "tcl-lexer",
+]
+
+[[package]]
+name = "tcl-vm"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "tcl-bytecode",
+ "tcl-compiler",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-syntax",
 ]
 
 [[package]]

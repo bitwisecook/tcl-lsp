@@ -206,7 +206,12 @@ impl FunctionUnit {
 /// Complete compilation artefacts for a source document.
 ///
 /// Built once, consumed many times across the diagnostics cycle.
-#[derive(Debug, Clone)]
+///
+/// `PartialEq` enables the salsa-native [`compilation_unit`] query (in
+/// `tcl-lsp-db`) to return `Arc<CompilationUnit>` — both diagnostics consumers
+/// share one build per edit — using salsa's equality-backed memoisation, exactly
+/// as `FunctionUnit` does for [`function_lattice`].
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompilationUnit {
     /// Source text (kept so downstream passes that need raw
     /// lexing can re-scan ranges without reparsing).

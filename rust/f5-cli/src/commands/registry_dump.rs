@@ -8,16 +8,20 @@
 //!
 //! - `profiles` — fully ported, byte-identical to Python.
 //! - `objects` — fully ported, byte-identical to Python.
-//! - `commands` / `events` — **deferred**. Both embed the full
-//!   event-validity cross-product (`validCommandsDigest` /
-//!   `validEventsDigest`) and, for commands, the hover prose catalogue
-//!   (`summary`); these reflect Python-internal derivation machinery without a
-//!   clean, byte-identical Rust equivalent. They (and `all`, which contains
-//!   them) report a clear not-yet-ported error.
+//! - `events` — fully ported, byte-identical to Python (the per-event
+//!   valid-command list is content-addressed via `validCommandsDigest`,
+//!   exactly as Python does).
+//! - `commands` — **deferred**. It embeds the full per-command traits/scalars
+//!   dicts (mirroring the Python `CommandSpec` dataclass field layout) and the
+//!   hover prose catalogue (`summary`), which have no clean, byte-identical
+//!   Rust equivalent. It (and `all`, which contains it) reports a clear
+//!   not-yet-ported error.
 
 use std::path::Path;
 
-use tcl_registry::snapshot::{object_graph_snapshot, profile_graph_snapshot};
+use tcl_registry::snapshot::{
+    event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot,
+};
 
 /// Run the `registry-dump` verb for `section`, writing to `output`
 /// (`None` = stdout).
@@ -25,12 +29,13 @@ pub fn run_registry_dump(section: &str, output: Option<&Path>) -> anyhow::Result
     let json = match section {
         "profiles" => profile_graph_snapshot(),
         "objects" => object_graph_snapshot(),
-        "commands" | "events" | "all" => {
+        "events" => event_graph_snapshot(),
+        "commands" | "all" => {
             anyhow::bail!(
                 "`f5 registry-dump --section {section}` is not yet ported in the Rust port \
-                 (the `commands` / `events` snapshots embed the event-validity cross-product \
+                 (the `commands` snapshot embeds the full per-command traits/scalars dicts \
                  and hover prose catalogue, which have no byte-identical Rust equivalent yet); \
-                 the `profiles` and `objects` sections are available"
+                 the `profiles`, `objects`, and `events` sections are available"
             );
         }
         other => anyhow::bail!("unknown registry-dump section: {other}"),
