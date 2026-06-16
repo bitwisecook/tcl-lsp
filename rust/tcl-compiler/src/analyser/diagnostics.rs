@@ -9682,7 +9682,10 @@ mod tests {
                     tcl_lexer::LexerConfig::default(),
                     "tcl",
                     &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
-                        let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                        let key = format!(
+                            "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                            req.qname, req.body, req.params, req.param_constants
+                        );
                         if let Some(fu) = cache.get(&key) {
                             return fu.clone();
                         }
@@ -9693,7 +9696,15 @@ mod tests {
                             req.upvar_procs.clone(),
                             req.proc_params.clone(),
                         );
-                        let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                        let pc =
+                            crate::compilation_unit::decode_param_constants(req.param_constants);
+                        let fu = FunctionUnit::build_with_param_constants(
+                            req.qname,
+                            cfg,
+                            req.params,
+                            &registry,
+                            pc.as_ref(),
+                        );
                         cache.insert(key, fu.clone());
                         fu
                     },
@@ -9763,7 +9774,10 @@ mod tests {
                 // before the callback sees it, so a shifted-but-unedited proc
                 // hits and the builder rebases the cached offset-0 unit.
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
-                    let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                    let key = format!(
+                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                        req.qname, req.body, req.params, req.param_constants
+                    );
                     if let Some(fu) = cache.get(&key) {
                         return fu.clone();
                     }
@@ -9774,7 +9788,14 @@ mod tests {
                         req.upvar_procs.clone(),
                         req.proc_params.clone(),
                     );
-                    let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                    let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
+                    let fu = FunctionUnit::build_with_param_constants(
+                        req.qname,
+                        cfg,
+                        req.params,
+                        &registry,
+                        pc.as_ref(),
+                    );
                     cache.insert(key, fu.clone());
                     fu
                 },

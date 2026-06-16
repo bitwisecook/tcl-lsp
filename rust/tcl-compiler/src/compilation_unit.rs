@@ -60,6 +60,13 @@ pub struct LatticeRequest<'a> {
     pub proc_params: &'a HashMap<String, Vec<String>>,
     /// Analysis dialect — selects the registry the lattice pipeline runs under.
     pub dialect: &'a str,
+    /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
+    /// (from [`params_constants_from_call_sites`]), encoded in the
+    /// deterministic, hashable `(param, version, string)` form the memo key
+    /// interns (see [`encode_param_constants`]).  Empty means "no seeds".
+    /// Position-independent — keyed by parameter name + SSA version, never by
+    /// span — so it rebases trivially with the rest of the offset-0 unit.
+    pub param_constants: &'a [(String, u32, String)],
 }
 
 /// Salsa-native per-procedure lattice memo used by
@@ -289,8 +296,10 @@ impl CompilationUnit {
     /// memo hit (and reused, rebased).  The result is byte-identical to
     /// [`Self::build_for_with_config`]; only the redundant SSA/SCCP/type/
     /// rendered recompute for an unchanged procedure body is skipped.
-    /// Procedures with interprocedural `param_constants`, the top level, and
-    /// methods are always built fresh (no stable offset-0 key); the
+    /// Interprocedural `param_constants` (caller-uniform-literal SCCP seeds) are
+    /// folded into the memo key, so a procedure with them still memoises (it
+    /// rebuilds only when a caller's literal at that position changes).  The top
+    /// level and methods are always built fresh (no stable offset-0 key); the
     /// cross-function interproc taint re-run still runs over the whole unit in
     /// [`Self::with_interprocedural`].
     pub fn build_for_memoized(
@@ -353,15 +362,20 @@ impl CompilationUnit {
                 params_constants_from_call_sites(params, &call_site_constants, qname);
             let proc = ir_module.procedures.get(qname);
             let body_offset = proc.map_or(0, |p| p.span.start());
+            // Encode the interprocedural seeds into the hashable form the memo
+            // key carries.  The interproc `param_constants` are folded *into*
+            // the key (not a fresh-build escape hatch as before), so a procedure
+            // with caller-uniform literals still engages the memo — its key
+            // simply also distinguishes the seeds, so it rebuilds iff a caller's
+            // literal at that position changes.  `None` means a seed shape we
+            // can't intern (defensive; the current producer only emits string
+            // consts) → build fresh.
+            let encoded_pc = encode_param_constants(param_constants.as_ref());
             // Route through the memo only when (a) a cache is present, (b) the
             // procedure has a real body, (c) the module context is available,
-            // and (d) there are no interprocedural `param_constants` — those
-            // depend on call sites elsewhere in the module, so the body alone
-            // does not determine the unit; build those fresh.
-            let memoised = match (cache.as_mut(), proc, cfg_context.as_ref()) {
-                (Some(memo), Some(proc), Some((upvar_procs, proc_params)))
-                    if param_constants.is_none() =>
-                {
+            // and (d) the seeds encode into the hashable key form.
+            let memoised = match (cache.as_mut(), proc, cfg_context.as_ref(), encoded_pc) {
+                (Some(memo), Some(proc), Some((upvar_procs, proc_params)), Some(encoded_pc)) => {
                     // Normalise the body to offset 0 so a shifted-but-unchanged
                     // procedure produces an identical request (memo hit); rebase
                     // the returned unit back to the procedure's real position.
@@ -374,6 +388,7 @@ impl CompilationUnit {
                         upvar_procs,
                         proc_params,
                         dialect,
+                        param_constants: &encoded_pc,
                     });
                     crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
                     Some(fu)
@@ -639,6 +654,60 @@ fn params_constants_from_call_sites(
     } else {
         Some(consts)
     }
+}
+
+/// Encode interprocedural `param_constants` (caller-uniform-literal SCCP seeds)
+/// into the deterministic, hashable form interned into the salsa-native
+/// `FnLatticeKey`.  [`params_constants_from_call_sites`] only ever emits
+/// `Const(String)` seeds, so the encoding is a sorted vec of `(param, version,
+/// string)` triples; sorting makes the encoding independent of hash-map
+/// iteration order so equal seeds always intern to the same key.
+///
+/// `None` input (no seeds) encodes to an empty vec.  Returns `None` only if a
+/// seed has some other lattice shape — a shape we can't faithfully intern, so
+/// the caller falls back to a fresh build rather than silently dropping it.
+/// Defensive: the current producer never emits a non-string seed.
+#[must_use]
+pub(crate) fn encode_param_constants(
+    param_constants: Option<&HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>>,
+) -> Option<Vec<(String, u32, String)>> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    let Some(map) = param_constants else {
+        return Some(Vec::new());
+    };
+    let mut out = Vec::with_capacity(map.len());
+    for ((name, version), val) in map {
+        let LatticeValue::Const(ConstValue::String(s)) = val else {
+            return None;
+        };
+        out.push((name.clone(), *version, s.clone()));
+    }
+    out.sort();
+    Some(out)
+}
+
+/// Inverse of [`encode_param_constants`]: rebuild the SCCP seed map a
+/// `function_lattice` build feeds to [`FunctionUnit::build_with_param_constants`].
+/// An empty slice (no seeds) decodes to `None`.
+#[must_use]
+pub fn decode_param_constants(
+    encoded: &[(String, u32, String)],
+) -> Option<HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    if encoded.is_empty() {
+        return None;
+    }
+    Some(
+        encoded
+            .iter()
+            .map(|(name, version, s)| {
+                (
+                    (name.clone(), *version),
+                    LatticeValue::Const(ConstValue::String(s.clone())),
+                )
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]

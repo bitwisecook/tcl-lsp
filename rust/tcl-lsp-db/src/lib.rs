@@ -241,8 +241,12 @@ pub struct CfgContext<'db> {
 /// params + dialect — *not* its position — so a shifted-but-unchanged body
 /// interns to the same key and reuses the cached [`function_lattice`] (the
 /// builder rebases the result to the body's span).  Procedures with
-/// interprocedural `param_constants` are built fresh and never interned, so the
-/// key needs no `param_constants`.
+/// interprocedural `param_constants` (caller-uniform-literal SCCP seeds) are
+/// memoised too: the encoded seeds are part of the key, so such a procedure
+/// reuses its cached lattice across edits and rebuilds only when a caller's
+/// literal at that position changes (which re-interns to a new key).  The seeds
+/// are position-independent (keyed by parameter name + SSA version), so they do
+/// not break the offset-invariance of the body key.
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
@@ -254,6 +258,11 @@ pub struct FnLatticeKey<'db> {
     pub context: CfgContext<'db>,
     #[returns(ref)]
     pub dialect: String,
+    /// Encoded interprocedural SCCP seeds (`(param, version, string)`, sorted);
+    /// empty means none.  Decoded by
+    /// [`tcl_compiler::compilation_unit::decode_param_constants`] in [`function_lattice`].
+    #[returns(ref)]
+    pub param_constants: Vec<(String, u32, String)>,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -262,8 +271,12 @@ pub struct FnLatticeKey<'db> {
 /// `FnLatticeKey`, so salsa reuses every other procedure's lattice; a shifted
 /// body interns to the same key (cache hit).  Rebuilds the CFG via the same
 /// `build_cfg_function_with_upvars` call `build_cfg` makes per procedure, so the
-/// result equals the whole-module build's unit (modulo offset).  The
-/// interprocedural taint re-run still happens at aggregation time
+/// result equals the whole-module build's unit (modulo offset).  SCCP is seeded
+/// with the key's interprocedural `param_constants` (caller-uniform-literal
+/// folds), decoded back to the seed map `build_for_inner` would pass on the
+/// fresh path — so a procedure with such seeds memoises instead of bypassing the
+/// cache, and rebuilds only when a caller's literal at that position changes (a
+/// new key).  The interprocedural taint re-run still happens at aggregation time
 /// (`with_interprocedural`).  Uses `db.registry` — byte-identical to the
 /// registry both diagnostics consumers build (`build_default` + `load_dialect`).
 #[salsa::tracked]
@@ -274,11 +287,14 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         context.proc_params(db).iter().cloned().collect();
     let registry = db.registry(key.dialect(db));
     let cfg = build_cfg_function_with_upvars(key.qname(db), key.body(db), true, upvar, proc_params);
-    Arc::new(FunctionUnit::build(
+    let param_constants =
+        tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
+    Arc::new(FunctionUnit::build_with_param_constants(
         key.qname(db),
         cfg,
         key.params(db),
         &registry,
+        param_constants.as_ref(),
     ))
 }
 
@@ -341,6 +357,7 @@ pub fn memoised_compilation_unit<'db>(
                 req.params.to_vec(),
                 context,
                 req.dialect.to_owned(),
+                req.param_constants.to_vec(),
             );
             (*function_lattice(db, key)).clone()
         },
@@ -869,6 +886,82 @@ mod tests {
                 .count(),
             1,
             "length-changing body edit -> exactly ONE lattice recomputes (offset-invariant): {after:?}"
+        );
+    }
+
+    /// A procedure that takes a parameter every caller passes the same literal
+    /// for (interprocedural `param_constants`) must engage the salsa-native
+    /// lattice memo — historically it bypassed it and was rebuilt fresh every
+    /// edit.  Folding the encoded seeds into [`FnLatticeKey`] means: (1) all
+    /// three procedures' lattices are `function_lattice` executions on the cold
+    /// build; (2) a length-changing edit to an *unrelated* proc shifts the
+    /// param-constant callee but reuses its lattice (offset-invariant cache
+    /// hit), recomputing exactly one; (3) changing the caller's literal
+    /// re-interns the callee's key, so its lattice rebuilds.
+    #[test]
+    fn function_lattice_memoises_param_constant_procs() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let lattice_execs = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("function_lattice"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        // `other` first so editing it shifts the two below; `target` takes a
+        // param `caller` always passes the literal `42` for -> param_constants.
+        let file = SourceFile::new(
+            &db,
+            "proc other {} { set z 1 }\n\
+             proc target {x} { set y $x }\n\
+             proc caller {} { target 42 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = file_analysis_incremental(&db, file, cfg);
+        assert_eq!(
+            lattice_execs(&log),
+            3,
+            "cold build: every proc (incl. the param-constant callee) memoised"
+        );
+
+        // Length-changing edit to `other` shifts `target`/`caller`; their
+        // offset-0 bodies (and `target`'s param_constants) are unchanged, so
+        // they are cache hits — exactly one lattice recomputes.
+        file.set_text(&mut db).to("proc other {} { set z 123456789 }\n\
+             proc target {x} { set y $x }\n\
+             proc caller {} { target 42 }\n"
+            .to_owned());
+        let _ = file_analysis_incremental(&db, file, cfg);
+        assert_eq!(
+            lattice_execs(&log),
+            1,
+            "unrelated body edit -> param-constant callee reused (offset-invariant hit)"
+        );
+
+        // Change the caller's literal -> `target`'s param_constants change ->
+        // its `FnLatticeKey` re-interns -> its lattice rebuilds.
+        file.set_text(&mut db).to("proc other {} { set z 123456789 }\n\
+             proc target {x} { set y $x }\n\
+             proc caller {} { target 99 }\n"
+            .to_owned());
+        let _ = file_analysis_incremental(&db, file, cfg);
+        assert!(
+            lattice_execs(&log) >= 1,
+            "caller literal change rebuilds the param-constant callee's lattice"
         );
     }
 
