@@ -248,6 +248,58 @@ pub struct Analyser {
     /// def — one of the divergences the per-item path must reproduce.  `None` on
     /// the whole-file `analyse` path (reads resolve against the populated scope).
     pub(super) capture_global_reads: Option<Vec<(String, tcl_lexer::Span)>>,
+    /// Deferred W002 (disabled-in-dialect command) diagnostics whose
+    /// user-proc-shadowing suppression is a **cross-item** fact (the file's full
+    /// `all_procs`).  On the per-item path an isolated body has only its own
+    /// procs, so a would-be-W002 site that the body can't prove shadowed is
+    /// captured here (qualified call name + the built diagnostic) instead of
+    /// emitted; [`Self::graft_proc_body`] rebases the span and
+    /// [`Self::flush_disabled_command_diagnostics`] re-applies the shadow check
+    /// against the merged `all_procs` in the tail.  Empty on the whole-file
+    /// `analyse` path (W002 is emitted inline there), so the tail flush is a
+    /// no-op — byte-identical.
+    pub(super) pending_disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// Deferred W304 (missing `--` option terminator) diagnostics whose
+    /// severity/message depend on resolving a `$var` against the **most recent
+    /// literal `set` in the whole file** ([`last_literal_set_value_for_var`],
+    /// which scans `self.source`).  An isolated body's `self.source` is only the
+    /// body, so an enclosing-scope `set` is invisible — the lone source-dependent
+    /// W304 branch (`Var`, dynamic, not option-looking).  On the per-item path
+    /// such sites are captured here (rebased token + label + body-local fix /
+    /// span) instead of emitted, and [`Self::flush_w304_diagnostics`] classifies
+    /// them in the tail where `self.source` is the full file.  Empty on the
+    /// whole-file path (emitted inline) — byte-identical.
+    pub(super) pending_w304: Vec<(
+        tcl_lexer::Token,
+        String,
+        Vec<super::types::CodeFix>,
+        tcl_lexer::Span,
+    )>,
+    /// **Experimental probe flag.**  When `true`, the per-item path does *not*
+    /// take the `body_needs_enclosing_context` fallback (bodies that declare /
+    /// write enclosing-scope variables or define classes).  Used by the
+    /// `per_item_divergence` probe to surface exactly what still diverges so the
+    /// fast path can be widened to cover them.  The genuine correctness
+    /// fallbacks (recovery, duplicate definitions) still fire.  Defaults to
+    /// `false`; production paths are unaffected.
+    pub probe_skip_enclosing_fallback: bool,
+    /// Deferred `TclOO` instance-creation candidates (`set v [Cls new]` /
+    /// `Cls create v`) captured by an isolated proc body, which has an *empty*
+    /// `all_classes` and so can't resolve the (sibling) class.  Each is the raw
+    /// `(command, args)`; [`Self::graft_proc_body`] replays
+    /// `record_instance_creation` against the shell's full `all_classes` so the
+    /// `instance_classes` map matches a whole-file walk.  `None` on the whole-file
+    /// path (instances resolve inline).
+    pub(super) pending_instances: Option<Vec<(String, Vec<String>)>>,
+    /// **Experimental probe flag.**  When `true`, the per-item path does *not*
+    /// take the duplicate-definition fallback, to measure the residual
+    /// divergence the duplicate fast-path must still close.  Defaults to `false`.
+    pub probe_skip_duplicate_fallback: bool,
+    /// **Probe telemetry.**  Set by [`Self::analyse_per_item_with`] to `true`
+    /// when the run completed on the incremental per-item path and `false` when
+    /// it fell back to a full rebuild.  Read by perf/coverage probes; ignored by
+    /// production callers (which only consume the returned `AnalysisResult`).
+    pub took_fast_path: bool,
 }
 
 /// W108 non-ASCII detection mode — mirrors the `tclLsp.style.nonAscii`
@@ -334,6 +386,12 @@ impl Analyser {
             deferred_bodies: Vec::new(),
             cu_override: None,
             capture_global_reads: None,
+            pending_disabled_commands: Vec::new(),
+            pending_w304: Vec::new(),
+            pending_instances: None,
+            probe_skip_enclosing_fallback: false,
+            probe_skip_duplicate_fallback: false,
+            took_fast_path: false,
         }
     }
 
@@ -1117,6 +1175,8 @@ impl Analyser {
             diag_registry.load_dialect(d);
         }
         self.emit_unresolved_command_diagnostics(&diag_registry);
+        self.flush_disabled_command_diagnostics();
+        self.flush_w304_diagnostics();
         self.flush_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
         self.emit_variable_usage_diagnostics();

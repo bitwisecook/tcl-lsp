@@ -1185,14 +1185,24 @@ pub(crate) fn find_destructive_file_warnings(
                 path_start += 1;
             }
             // One W313 per statement (first offending path variable).
-            for (name, &ver) in &ssa_stmt.uses {
-                let in_path = args
-                    .iter()
-                    .skip(path_start)
-                    .any(|a| arg_var_names(a).contains(name));
-                if !in_path {
-                    continue;
+            // Collect candidate path variables in argument (source) order:
+            // `ssa_stmt.uses` is a `HashMap`, so iterating it would pick a
+            // nondeterministic variable for a multi-path sink like
+            // `file rename $a $b` — making the warning's message (and the memo
+            // vs whole-module builds) differ run-to-run.
+            let mut seen: HashSet<String> = HashSet::new();
+            let mut ordered: Vec<String> = Vec::new();
+            for a in args.iter().skip(path_start) {
+                for name in arg_var_names_ordered(a) {
+                    if seen.insert(name.clone()) {
+                        ordered.push(name);
+                    }
                 }
+            }
+            for name in &ordered {
+                let Some(&ver) = ssa_stmt.uses.get(name) else {
+                    continue;
+                };
                 let t = taints
                     .get(&(name.clone(), ver))
                     .copied()
@@ -1249,7 +1259,15 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 /// A lightweight stand-in for `_arg_var_names`'s VAR-token scan covering
 /// the path-argument shapes W313 cares about (`$p`, `${p}`, `"$d/$f"`).
 fn arg_var_names(arg: &str) -> HashSet<String> {
-    let mut names = HashSet::new();
+    arg_var_names_ordered(arg).into_iter().collect()
+}
+
+/// Variable names referenced in `arg`, in left-to-right source order with
+/// duplicates preserved.  Callers that need a deterministic *first* variable
+/// (e.g. W313's "first offending path variable") iterate this rather than the
+/// `HashSet` from [`arg_var_names`], whose order is nondeterministic.
+fn arg_var_names_ordered(arg: &str) -> Vec<String> {
+    let mut names = Vec::new();
     let bytes = arg.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -1260,7 +1278,7 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
         if bytes.get(i + 1) == Some(&b'{')
             && let Some(rel) = arg[i + 2..].find('}')
         {
-            names.insert(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
+            names.push(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
             i = i + 2 + rel + 1;
             continue;
         }
@@ -1272,7 +1290,7 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
             j += 1;
         }
         if j > start {
-            names.insert(normalise_var_name(&arg[start..j]).to_owned());
+            names.push(normalise_var_name(&arg[start..j]).to_owned());
             i = j;
         } else {
             i += 1;

@@ -45,21 +45,27 @@ pub fn def_range_map(ssa: &SsaFunction) -> HashMap<ValueKey, Span> {
 /// 3. A zero span `{ start: 0, end: 0 }`.
 #[must_use]
 pub(crate) fn phi_span(phi: &Phi, ssa: &SsaFunction, def_map: &HashMap<ValueKey, Span>) -> Span {
-    // Try each incoming version.
-    for &ver in phi.incoming.values() {
-        if let Some(&sp) = def_map.get(&(phi.name.clone(), ver)) {
-            return sp;
-        }
+    // `phi.incoming` is a `HashMap`, so a "first match in iteration order" pick
+    // would make the warning's anchor vary run-to-run (and between the offset-0
+    // memo build and the whole-module build — the latent nondeterminism the
+    // `compiler_check_corpus` guard catches).  Choose deterministically: the
+    // earliest (smallest) incoming def span.
+    let earliest = phi
+        .incoming
+        .values()
+        .filter_map(|&ver| def_map.get(&(phi.name.clone(), ver)).copied())
+        .min_by_key(|sp| (sp.start(), sp.end()));
+    if let Some(sp) = earliest {
+        return sp;
     }
 
-    // Fallback: first statement in any block.
-    for block in ssa.blocks.values() {
-        if let Some(ss) = block.statements.first() {
-            return ss.statement.span();
-        }
-    }
-
-    Span::new(0, 0)
+    // Fallback: the earliest first-statement span across blocks (`ssa.blocks` is
+    // also a `HashMap`, so likewise pick deterministically).
+    ssa.blocks
+        .values()
+        .filter_map(|block| block.statements.first().map(|ss| ss.statement.span()))
+        .min_by_key(|sp| (sp.start(), sp.end()))
+        .unwrap_or_else(|| Span::new(0, 0))
 }
 
 #[cfg(test)]
