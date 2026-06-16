@@ -80,7 +80,7 @@ of the underlying Rust engine**, not by the CLI code:
 | `diff` | ⛔ stub | multi-layer AST/IR/CFG diff + serialise |
 | `explore` | ⛔ stub | explorer report port |
 | `find-legacy` | ⛔ stub | analyser-based detection |
-| `registry-dump` | 🚧 partial | `profiles` + `objects` snapshots byte-parity (`tcl-registry::snapshot`). `commands`/`events` (and default `all`) deferred — they embed the full event-validity cross-product + command prose (the ~191-vs-~1236 registry-data gap), same boundary as `irule event-info` |
+| `registry-dump` | 🚧 partial | `profiles` + `objects` + `events` snapshots byte-parity (`tcl-registry::snapshot`). **`events`**: ports `event_graph_snapshot` — per-event protocol props (`EventProps`→`props` with the `transport` string/list/null remapping), firing order (`orderIndex`/`masterOrder`), flow chains (incl. the new `FlowChain.notes` data) + the content-addressed `validCommandsDigest` (sha2) over the `event_info` cross-product; emitted via the `snapshot.rs` `Json` builder (json.dumps indent=2 sort_keys). `commands` (and default `all`) deferred — they embed the per-command `traits`/`scalars` dicts + command prose (no clean byte-identical Rust mapping; the Rust `CommandSpec` is a different shape) |
 | `help` (`docs`) | ⛔ stub | KCS SQLite DB (`rusqlite`, embed `kcs.sqlite`) |
 | `minimize` (`repro`) | ⛔ stub | `server/features/minimize.py` |
 | `pkg` / `venv` / `docker` | ⛔ stub | the `tclpkg` subsystem (manifest/resolver/lockfile/CAS/registry/venv/docker) |
@@ -213,15 +213,17 @@ Keystone progress / remaining pieces:
 > byte-identical to Python for all 176 events (HTTP_REQUEST: 1290). This is
 > the registry-data half of the old `~191-vs-~1236` `irule event-info` gap.
 
-> **`registry-dump` `commands`/`events`/`all` — still deferred.** The
-> `profiles`/`objects` sections are byte-parity. `events` is now tractable
-> (the event-validity cross-product + digest land via `event_info`, modulo a
-> `FlowChain.notes` data add + `EventProps` field/transport remapping), but
-> `commands`/`all` embed `command_registry_snapshot`'s per-command `traits`
-> (≈50 keys) / `scalars` dicts, which mirror the Python `CommandSpec`
-> *dataclass field layout* — no clean byte-identical Rust mapping (the Rust
-> `CommandSpec` is a different shape, traits are bitflags). Same boundary as
-> the `tcl` `registry-dump commands`/`events` deferral.
+> **`registry-dump` `events` — DONE; `commands`/`all` — still deferred.** The
+> `profiles`/`objects`/`events` sections are byte-parity. `events` landed via
+> `event_graph_snapshot` (`tcl-registry::snapshot`): the event-validity
+> cross-product + sha2 `validCommandsDigest` come from `event_info`, plus a
+> `FlowChain.notes` data add and the `EventProps`→`props` field/transport
+> remapping (string for single, list for dual, null for none). `commands`/`all`
+> still embed `command_registry_snapshot`'s per-command `traits` (≈50 keys) /
+> `scalars` dicts, which mirror the Python `CommandSpec` *dataclass field
+> layout* — no clean byte-identical Rust mapping (the Rust `CommandSpec` is a
+> different shape, traits are bitflags). Same boundary as the `tcl`
+> `registry-dump commands` deferral.
 
 ## Prioritised remaining roadmap
 

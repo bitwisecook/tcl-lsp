@@ -145,6 +145,8 @@ pub struct FlowChain {
     pub profiles: &'static [&'static str],
     /// Ordered steps.
     pub steps: Vec<FlowStep>,
+    /// Any caveats or implementation notes (mirrors Python `FlowChain.notes`).
+    pub notes: &'static str,
 }
 
 /// An entry in the master event firing order.
@@ -322,6 +324,13 @@ impl EventRegistry {
     /// when the event isn't in the firing-order table.
     fn master_order_index(&self, event: &str) -> Option<usize> {
         self.order.iter().position(|e| e.event == event)
+    }
+
+    /// Position of `event` in the master firing order, or `None` when the
+    /// event isn't in it (mirrors Python `NAMESPACE_REGISTRY.event_index`).
+    #[must_use]
+    pub fn event_index(&self, event: &str) -> Option<usize> {
+        self.master_order_index(event)
     }
 }
 
@@ -2423,6 +2432,7 @@ fn flow_chains() -> Vec<FlowChain> {
     vec![
         FlowChain {
             chain_id: "plain_tcp",
+            notes: "",
             description: "Plain TCP (tcp profile only)",
             profiles: &["TCP"],
             steps: vec![
@@ -2490,6 +2500,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_http",
+            notes: "",
             description: "TCP + HTTP",
             profiles: &["HTTP", "TCP"],
             steps: vec![
@@ -2587,6 +2598,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_clientssl_http",
+            notes: "",
             description: "TCP + ClientSSL + HTTP (client-side TLS termination)",
             profiles: &["CLIENTSSL", "HTTP", "TCP"],
             steps: vec![
@@ -2708,6 +2720,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_clientssl_serverssl_http",
+            notes: "",
             description: "Full HTTPS (ClientSSL + ServerSSL + HTTP)",
             profiles: &["CLIENTSSL", "HTTP", "SERVERSSL", "TCP"],
             steps: vec![
@@ -2853,6 +2866,9 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_clientssl_serverssl_http_collect",
+            notes: "Both HTTP_REQUEST_DATA and HTTP_RESPONSE_DATA fire because \
+                    the iRule calls HTTP::collect in the respective request/response \
+                    events.  Client sends a POST with body.",
             description: "Full HTTPS with HTTP::collect (request + response body)",
             profiles: &["CLIENTSSL", "HTTP", "SERVERSSL", "TCP"],
             steps: vec![
@@ -2992,6 +3008,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "udp_dns",
+            notes: "",
             description: "UDP + DNS",
             profiles: &["DNS", "UDP"],
             steps: vec![
@@ -3023,6 +3040,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_dns",
+            notes: "",
             description: "TCP + DNS",
             profiles: &["DNS", "TCP"],
             steps: vec![

@@ -1970,6 +1970,7 @@ name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "sha2",
  "tcl-syntax",
 ]
 
