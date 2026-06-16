@@ -948,20 +948,56 @@ fn collect_taint_warnings(
 }
 
 /// Tainted variable names in `fu` (deduplicated, sorted for a
-/// deterministic order). Python iterates the taint lattice map in SSA
-/// insertion order; the Rust taint map is a `HashMap`, so the order is
-/// recovered by sorting — this only matters once the taint engine starts
-/// reporting tainted variables (the documented taint gap).
+/// deterministic order). Python iterates the per-unit taint lattice map
+/// (`analysis.taints`) in SSA insertion order; the Rust taint map is a
+/// `HashMap`, so the order is recovered by sorting.
+///
+/// Version-0 entries are skipped: a `(name, 0)` slot is the enclosing-
+/// scope / pre-existing value, and the only way it becomes tainted is the
+/// conservative cross-procedure global-write seeding in `propagate_taints`
+/// (e.g. `::store` in `proc save {v} { set ::store $v }`). Python's
+/// per-unit `analysis.taints` does no such seeding, so it never surfaces a
+/// version-0-tainted variable — filtering them here matches Python's
+/// `tainted_variables` output without disturbing the seeding the sink
+/// warnings rely on.
 fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
-    let mut names: Vec<&str> = fu
+    // Definition-site offset of each `(name, version)` SSA value, so
+    // tainted variables order by where they are defined — recovering
+    // Python's SSA/source iteration order over `analysis.taints` rather
+    // than an alphabetical sort. Each SSA version is defined once, so
+    // `or_insert` records that single site.
+    let mut def_offset: std::collections::HashMap<(&str, u32), u32> =
+        std::collections::HashMap::new();
+    for block in fu.ssa.blocks.values() {
+        for st in &block.statements {
+            let off = st.statement.span().start();
+            for (name, &ver) in &st.defs {
+                def_offset.entry((name.as_str(), ver)).or_insert(off);
+            }
+        }
+    }
+
+    let mut entries: Vec<(&str, u32)> = fu
         .taints
         .iter()
-        .filter(|(_, lattice)| lattice.is_tainted())
-        .map(|((name, _version), _)| name.as_str())
+        .filter(|((_, version), lattice)| *version != 0 && lattice.is_tainted())
+        .map(|((name, version), _)| (name.as_str(), *version))
         .collect();
-    names.sort_unstable();
-    names.dedup();
-    names
+    // (def offset, version, name) keeps the order deterministic and
+    // source-ordered; values defined outside this unit (no def site) sort
+    // last.
+    entries.sort_by_key(|(name, ver)| {
+        (
+            def_offset.get(&(*name, *ver)).copied().unwrap_or(u32::MAX),
+            *ver,
+            *name,
+        )
+    });
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    entries
+        .into_iter()
+        .filter_map(|(name, _)| seen.insert(name).then_some(name))
+        .collect()
 }
 
 /// Build the dataflow / taint graph payload — port of

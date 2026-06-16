@@ -187,15 +187,19 @@ fn callgraph_json_matches_python() {
 // `T103` (regex injection) fires for tainted `regexp`/`regsub` patterns. The
 // fixture exercises `eval $tainted` (`T100`), `file delete $tainted`
 // (`T102` + `W313`), and `regexp $tainted …` (`T103` + `T102`), in Python's
-// order. `tainted_variables` walks the per-unit lattices. The `proc_effects`
-// half is at parity (closed interproc engine), incl. an impure `puts`-calling
-// proc (region-free — `reads`/`writes` = `NONE`). **Remaining taint gap**
-// (documented in docs/rust-cli-port.md): no inter-procedural taint solve
-// (`_solve_interprocedural_taints`), so a global written inside a proc is
-// over-tainted (the version-0 global seeding) where Python is precise, and the
-// per-unit `tainted_variables` ordering is alphabetical rather than
-// definition-order. The fixture keeps a single tainted variable so it locks
-// byte-for-byte.
+// order. `tainted_variables` walks the per-unit lattices, ordered by SSA
+// definition site (matching Python's `analysis.taints` iteration) and
+// skipping version-0 entries — a `(global, 0)` slot is only ever tainted by
+// the conservative cross-proc global-write seeding, which Python's per-unit
+// analysis never surfaces (so `proc save {v} { set ::store $v }` no longer
+// reports `::store`). The `proc_effects` half is at parity (closed interproc
+// engine), incl. an impure `puts`-calling proc (region-free) and a
+// global-writing proc. **Remaining taint gap** (documented in
+// docs/rust-cli-port.md): no inter-procedural taint *solve*
+// (`_solve_interprocedural_taints`), so a tainted argument flowing into a
+// proc parameter and then into a sink inside that proc is not yet warned
+// (cross-proc entry-taint). The fixture exercises a global-writing proc but
+// no cross-proc entry-taint sink, so it locks byte-for-byte.
 #[test]
 fn dataflow_text_matches_python() {
     let input = fixtures_dir().join("dataflow.tcl");
