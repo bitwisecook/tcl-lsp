@@ -53,6 +53,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             commands::diag::run_diag(input, diag)
         }
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
+        Command::Symbols { input, json } => commands::graphs::run_symbols(input, *json),
         Command::CmdInfo {
             command,
             dialect,

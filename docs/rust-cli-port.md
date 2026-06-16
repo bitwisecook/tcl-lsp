@@ -72,7 +72,8 @@ of the underlying Rust engine**, not by the CLI code:
 | `opt` (`optimise`) | ✅ wired | profile semantics correct (FULL=single-pass); output tracks the **optimiser** (O100/O109/O117 gaps) |
 | `dis` (`asm`) | ⛔ deferred | CLI uses the VM compiler (`compile_script`: literal processing + foreach desugaring) in the excluded `runtime/rust` crate — not the raw codegen pipeline |
 | `compwasm` (`wasm`) | ⛔ stub | wasm codegen pipeline + binary output |
-| `symbols`/`callgraph`/`symbolgraph`/`dataflow`/`diagram` | ⛔ stub | need the serialise JSON shapes; `Scope.procs` is a `HashMap` (unordered) so output ordering won't match without sorting; analyser-gapped |
+| `symbols` (`syms`) | ✅ wired | ports `_collect_scope_symbol_entries` + `_detect_event_entries` over the analyser scope tree (`tcl-compiler` `analyser`). `Scope.procs`/`variables` are `HashMap`s, so sorted by defining-token offset to recover Python's source-order dict iteration. Text + JSON. Golden-tested on the faithful subset (`symbols.tcl`: namespaces, nested procs, namespace variables, params, `when` events). **Analyser gaps** (output tracks the analyser, converges as it does): explicit `::`-qualified proc names report the simple name (`::unknown` → `unknown`); some implicitly-created variables (`append`-created globals, certain loop vars) aren't recorded |
+| `callgraph`/`symbolgraph`/`dataflow`/`diagram` | ⛔ stub | need the serialise JSON shapes + `interproc`/`taint`/IR-module wiring (`analyser/semantic_graph.py`, `tooling/diagram/extract.py`); analyser-gapped |
 | `diff` | ⛔ stub | multi-layer AST/IR/CFG diff + serialise |
 | `explore` | ⛔ stub | explorer report port |
 | `find-legacy` | ⛔ stub | analyser-based detection |

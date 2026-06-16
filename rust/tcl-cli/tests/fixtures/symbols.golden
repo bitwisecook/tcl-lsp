@@ -1,0 +1,11 @@
+symbols: 10
+event HTTP_REQUEST (line 23)
+event HTTP_RESPONSE (line 26)
+function main() (line 18)
+namespace ::app (line 2)
+  function greet(who, greeting) (line 6)
+  variable count (line 3)
+  variable name (line 4)
+  namespace ::app::util (line 11)
+    function clamp(value, lo, hi) (line 12)
+  function helper(x) (line 19)
