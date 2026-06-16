@@ -63,6 +63,9 @@ pub struct Vm {
     ns_stack: Vec<String>,
     /// Existing namespaces (canonical names; `""` global is implicit).
     namespaces: std::collections::HashSet<String>,
+    /// Export patterns per namespace (canonical name → glob patterns), set by
+    /// `namespace export` and consulted by `namespace import`.
+    ns_exports: HashMap<String, Vec<String>>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
@@ -104,6 +107,7 @@ impl Vm {
             module_procs: HashMap::new(),
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
+            ns_exports: HashMap::new(),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
@@ -227,6 +231,57 @@ impl Vm {
     /// Whether a canonical namespace name exists.
     pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
         ns.is_empty() || self.namespaces.contains(ns)
+    }
+
+    /// Record `namespace export` patterns for the current namespace.
+    pub(crate) fn add_exports(&mut self, patterns: &[String]) {
+        let ns = self.current_ns().to_string();
+        self.ns_exports
+            .entry(ns)
+            .or_default()
+            .extend_from_slice(patterns);
+    }
+
+    /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
+    /// exported command of the source namespace matching the glob into the
+    /// current namespace under its tail name. Returns the imported tail names.
+    pub(crate) fn import_commands(&mut self, pattern: &str) -> Vec<String> {
+        let abs = pattern.strip_prefix("::").unwrap_or(pattern);
+        let (src_ns, glob) = match abs.rsplit_once("::") {
+            Some((ns, g)) => (ns.to_string(), g.to_string()),
+            None => (String::new(), abs.to_string()),
+        };
+        let exports = self.ns_exports.get(&src_ns).cloned().unwrap_or_default();
+        let prefix = if src_ns.is_empty() {
+            String::new()
+        } else {
+            format!("{src_ns}::")
+        };
+        // Candidate commands: those in the source namespace whose tail matches
+        // the import glob and an export pattern.
+        let mut to_import: Vec<(String, Command)> = Vec::new();
+        for (cmd_name, cmd) in &self.commands {
+            let Some(tail) = cmd_name.strip_prefix(&prefix) else {
+                continue;
+            };
+            if tail.is_empty() || tail.contains("::") {
+                continue;
+            }
+            if tcl_syntax::glob::string_match(&glob, tail)
+                && exports
+                    .iter()
+                    .any(|p| tcl_syntax::glob::string_match(p, tail))
+            {
+                to_import.push((tail.to_string(), cmd.clone()));
+            }
+        }
+        let mut imported = Vec::new();
+        for (tail, cmd) in to_import {
+            let alias = self.qualify_name(&tail);
+            self.register_command(&alias, cmd);
+            imported.push(tail);
+        }
+        imported
     }
 
     /// Immediate child namespaces of `parent` (canonical names).
@@ -549,6 +604,8 @@ impl Vm {
     /// name (`upvar 0 arr(key) alias`), in which case the element is read.
     #[must_use]
     pub fn get_var(&self, name: &str) -> Option<Value> {
+        let resolved = self.ns_var_fallback(name);
+        let name = resolved.as_deref().unwrap_or(name);
         let (lvl, nm) = self.locate(name);
         if let Some((base, key)) = elem_ref(&nm) {
             // The base may itself be a link (`variable`/`upvar` to a namespace
@@ -568,6 +625,8 @@ impl Vm {
     /// Write a scalar with no trace firing (frame argument binding, rollback).
     /// A link resolving to an array element name writes that element.
     fn write_scalar_raw(&mut self, name: &str, value: Value) {
+        let resolved = self.ns_var_fallback(name);
+        let name = resolved.as_deref().unwrap_or(name);
         let (lvl, nm) = self.locate(name);
         if let Some((base, key)) = elem_ref(&nm) {
             // Resolve the array base onward (it may be a link to a namespace
@@ -679,10 +738,41 @@ impl Vm {
     // -- arrays (link-aware via `locate`) --
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
-        let (lvl, nm) = self.locate(name);
+        let resolved = self.ns_var_fallback(name);
+        let lookup = resolved.as_deref().unwrap_or(name);
+        let (lvl, nm) = self.locate(lookup);
         match self.frames.get(lvl)?.locals.get(&nm) {
             Some(Local::Array(m)) => m.get(key).cloned(),
             _ => None,
+        }
+    }
+
+    /// When an unqualified `name` is not a local in the current frame but the
+    /// current namespace has a variable `ns::name`, resolve to that qualified
+    /// name. This is the namespace-variable fallback (a namespace script or an
+    /// undeclared access reaching an existing namespace variable). Only
+    /// resolves to variables that already exist, so frame locals are unaffected.
+    fn ns_var_fallback(&self, name: &str) -> Option<String> {
+        if name.contains("::") {
+            return None;
+        }
+        let cur = self.current_ns();
+        if cur.is_empty() {
+            return None;
+        }
+        let top = self.frames.last()?;
+        if top.locals.contains_key(name) {
+            return None;
+        }
+        let q = format!("{cur}::{name}");
+        if self
+            .frames
+            .first()
+            .is_some_and(|g| g.locals.contains_key(&q))
+        {
+            Some(q)
+        } else {
+            None
         }
     }
 
@@ -693,6 +783,8 @@ impl Vm {
         key: &str,
         value: Value,
     ) -> Result<(), Completion<Value>> {
+        let resolved = self.ns_var_fallback(name);
+        let name = resolved.as_deref().unwrap_or(name);
         let (lvl, nm) = self.locate(name);
         let frame = self
             .frames

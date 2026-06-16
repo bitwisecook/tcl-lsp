@@ -189,6 +189,19 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn namespace_export_import() {
+    out_eq(
+        "namespace eval foo { namespace export greet\nproc greet {} { return hi }\nproc secret {} { return no } }\nnamespace import ::foo::*\nputs [greet]\n",
+        "hi\n",
+    );
+    // Non-exported commands are not imported.
+    out_eq(
+        "namespace eval foo { namespace export greet\nproc greet {} { return hi }\nproc secret {} { return no } }\nnamespace import ::foo::*\nputs [catch secret]\n",
+        "1\n",
+    );
+}
+
+#[test]
 fn namespace_eval_upvar_alias() {
     // tcltest idiom: a `namespace eval` body aliases an array element to a
     // namespace variable, which a proc then reads/writes via `variable`.

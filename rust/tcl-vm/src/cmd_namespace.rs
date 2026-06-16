@@ -114,8 +114,29 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             };
             ok(Value::string(resolved))
         }
+        "export" => {
+            // `namespace export ?-clear? pattern ...` — record export patterns.
+            let pats: Vec<String> = rest
+                .iter()
+                .map(|v| v.to_str().to_string())
+                .filter(|p| p != "-clear")
+                .collect();
+            vm.add_exports(&pats);
+            ok(Value::empty())
+        }
+        "import" => {
+            // `namespace import ?-force? pattern ...`
+            for p in rest {
+                let pat = p.to_str();
+                if &*pat == "-force" {
+                    continue;
+                }
+                vm.import_commands(&pat);
+            }
+            ok(Value::empty())
+        }
         // Accepted no-ops (metadata only, for now).
-        "export" | "import" | "forget" | "delete" | "ensemble" | "unknown" => ok(Value::empty()),
+        "forget" | "delete" | "ensemble" | "unknown" => ok(Value::empty()),
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be \
              children, current, eval, exists, export, parent, qualifiers, or tail"
