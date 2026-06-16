@@ -72,6 +72,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 ## How-Tos
 
+- [kcs-howto-build-multiplatform-vsix.md](kcs-howto-build-multiplatform-vsix.md)
+  — build the universal VS Code `.vsix` that bundles a native server per
+  platform, and add a new platform.
 - [kcs-howto-add-compiler-pass.md](kcs-howto-add-compiler-pass.md) — add
   a new pass to the compiler pipeline.
 - [kcs-howto-ir-cfg-ssa-diagnostics.md](kcs-howto-ir-cfg-ssa-diagnostics.md)

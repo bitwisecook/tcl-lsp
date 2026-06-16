@@ -134,6 +134,43 @@ ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
 
 # Cargo build profile for the native Rust LSP server (rust-server target).
 PROFILE ?= release
+
+# Native-server cross-compilation.  The universal VSIX bundles one
+# `tcl-lsp-server` binary per supported platform under
+# `server/<platform>-<arch>/`.  Each entry maps a Rust target triple to the
+# VSIX bundle directory (which equals Node's `process.platform-process.arch`).
+SERVER_TARGET_MAP := \
+	x86_64-apple-darwin:darwin-x64 \
+	aarch64-apple-darwin:darwin-arm64 \
+	x86_64-unknown-linux-gnu:linux-x64 \
+	aarch64-unknown-linux-gnu:linux-arm64 \
+	riscv64gc-unknown-linux-gnu:linux-riscv64 \
+	x86_64-pc-windows-msvc:win32-x64 \
+	aarch64-pc-windows-msvc:win32-arm64
+SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
+
+# Targets the current host can build natively / with cross-linkers.  Linux
+# builds the three Linux triples (x86_64 native + aarch64/riscv64 cross);
+# macOS builds both Darwin triples; a Windows runner builds both win32 triples.
+SERVER_UNAME_S := $(shell uname -s)
+ifeq ($(SERVER_UNAME_S),Linux)
+  SERVER_TARGETS_HOST := x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu
+else ifeq ($(SERVER_UNAME_S),Darwin)
+  SERVER_TARGETS_HOST := aarch64-apple-darwin x86_64-apple-darwin
+else
+  SERVER_TARGETS_HOST := x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+endif
+
+# The set of triples staged into the universal VSIX.  Defaults to the
+# host-buildable subset (a partial-universal VSIX for local dev); CI overrides
+# with the full matrix: `make package-vsix BUNDLED_TARGETS="$(SERVER_TARGETS_ALL)"`.
+BUNDLED_TARGETS ?= $(SERVER_TARGETS_HOST)
+
+# This host's own Rust target triple — the one binary cargo can always build
+# with no cross toolchain.  Used by the `smoke-vsix` gate for a dependency-light
+# native-only VSIX (the full multi-platform build is CI's job).
+SERVER_TARGET_NATIVE := $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
+
 ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
 ZIPAPP_WASM    := $(BUILD_DIR)/tcl-wasm-compiler-$(VERSION).pyz
 CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
@@ -161,7 +198,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-clis test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -220,7 +257,7 @@ publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
 
-$(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build/zipapps.py $(ROOT)scripts/zipapp-main/lsp.py $(ROOT)scripts/install/filter_readme.py
+$(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -233,12 +270,28 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 		$(EXT_DIR)/ $(STAGE_DIR)/
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
-	@echo "==> Building LSP server zipapp"
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
-		--version $(VERSION) \
-		--output $(STAGE_DIR)/tcl-lsp-server.pyz
+	@echo "==> Bundling native tcl-lsp-server binaries: $(BUNDLED_TARGETS)"
+	@set -eu; \
+		missing=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			triple="$${pair%%:*}"; dir="$${pair##*:}"; \
+			case " $(BUNDLED_TARGETS) " in *" $$triple "*) ;; *) continue;; esac; \
+			case "$$triple" in *windows*) exe="tcl-lsp-server.exe";; *) exe="tcl-lsp-server";; esac; \
+			src="$(ROOT)target/$$triple/release/$$exe"; \
+			if [ ! -f "$$src" ]; then missing="$$missing $$triple"; continue; fi; \
+			mkdir -p "$(STAGE_DIR)/server/$$dir"; \
+			cp "$$src" "$(STAGE_DIR)/server/$$dir/$$exe"; \
+			chmod +x "$(STAGE_DIR)/server/$$dir/$$exe"; \
+			echo "    server/$$dir/$$exe"; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "ERROR: missing built server binaries for:$$missing"; \
+			echo "Build them first: make server-cross-build  (host targets)"; \
+			echo "             or:  make server-cross-build-all  (all 7 — needs cross deps)"; \
+			exit 1; \
+		fi
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
-	$(PYTHON) $(ROOT)scripts/install/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
+	node $(ROOT)scripts/install/filter-readme.mjs $(README_SRC) --editor "VS Code" -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
@@ -257,19 +310,42 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			echo "$$BAD_ENTRIES"; \
 			exit 1; \
 		fi
+	@# The native server has replaced the Python pyz — there must be no .pyz
+	@# and no raw Python server source in the package.
 	@set -euo pipefail; \
 		PYZ_COUNT="$$(unzip -Z1 $(VSIX_FILE) | grep -c '\.pyz$$' || true)"; \
-		if [[ "$$PYZ_COUNT" -eq 0 ]]; then \
-			echo "VSIX missing .pyz server bundle!"; \
+		if [[ "$$PYZ_COUNT" -ne 0 ]]; then \
+			echo "VSIX contains a .pyz — the native server should have replaced it:"; \
+			unzip -Z1 $(VSIX_FILE) | grep '\.pyz$$'; \
 			exit 1; \
 		fi
 	@set -euo pipefail; \
-		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(server/|compiler/|analyser/|dialects/|shared/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
+		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(compiler/|analyser/|dialects/|shared/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
 		if [[ -n "$$RAW_SERVER" ]]; then \
-			echo "VSIX contains raw Python source/pyproject.toml/uv.lock (should be .pyz only):"; \
+			echo "VSIX contains raw Python source/pyproject.toml/uv.lock (should be native binaries only):"; \
 			echo "$$RAW_SERVER"; \
 			exit 1; \
 		fi
+	@# Every requested target must ship a binary under server/<dir>/.
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(VSIX_FILE))"; \
+		want=0; have=0; missing=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			triple="$${pair%%:*}"; dir="$${pair##*:}"; \
+			case " $(BUNDLED_TARGETS) " in *" $$triple "*) ;; *) continue;; esac; \
+			case "$$triple" in *windows*) exe="tcl-lsp-server.exe";; *) exe="tcl-lsp-server";; esac; \
+			want=$$((want+1)); \
+			if echo "$$entries" | grep -qx "extension/server/$$dir/$$exe"; then \
+				have=$$((have+1)); \
+			else \
+				missing="$$missing server/$$dir/$$exe"; \
+			fi; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "VSIX missing expected native server binaries:$$missing"; \
+			exit 1; \
+		fi; \
+		echo "==> VSIX bundles $$have/$$want native server binaries"
 
 # Test targets
 
@@ -597,6 +673,72 @@ rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 
 # Build both native Rust CLIs in one go.
 rust-clis: rust-tcl rust-f5 ## Build the native Rust `tcl` + `f5-query` CLIs
+
+# Cross-compile + smoke-test tcl-lsp-server for the multi-platform universal
+# VSIX.  Every workspace crate is pure Rust, so only the linker varies per
+# target (see .cargo/config.toml).  Linux uses QEMU user-mode to smoke foreign
+# arches; macOS runs Darwin binaries natively; Windows targets build on a
+# Windows runner.
+
+ensure-server-cross-deps: ## Install cross-compile deps (rustup targets + linkers) for this host
+	@set -eu; \
+	if ! command -v rustup >/dev/null 2>&1; then \
+		echo "ERROR: rustup not found — install Rust via rustup (need 1.95+)."; exit 1; \
+	fi; \
+	case "$(SERVER_UNAME_S)" in \
+	Linux) \
+		echo "==> Adding Linux cross targets"; \
+		rustup target add aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu >/dev/null 2>&1 || true; \
+		if ! command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || ! command -v riscv64-linux-gnu-gcc >/dev/null 2>&1; then \
+			echo "==> Installing cross-linkers (sudo apt-get)"; \
+			sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu; \
+		fi; \
+		if ! command -v qemu-aarch64 >/dev/null 2>&1; then \
+			echo "==> Installing qemu-user"; \
+			sudo apt-get install -y qemu-user; \
+		fi; \
+		;; \
+	Darwin) \
+		echo "==> Adding Darwin cross targets"; \
+		rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true; \
+		echo "  (macOS uses the system cc — no extra linker or QEMU needed)"; \
+		;; \
+	*) \
+		echo "==> Adding Windows cross targets"; \
+		rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc >/dev/null 2>&1 || true; \
+		;; \
+	esac; \
+	echo "==> Cross-compile deps ready for $(SERVER_UNAME_S)"
+
+server-cross-build: ## Cross-compile tcl-lsp-server for this host's native + cross targets
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then echo "ERROR: cargo not found."; exit 1; fi; \
+	echo "==> Cross-compiling tcl-lsp-server: $(SERVER_TARGETS_HOST)"; \
+	for t in $(SERVER_TARGETS_HOST); do \
+		echo "  building $$t..."; \
+		cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $$t --quiet; \
+	done; \
+	echo "==> Done"
+
+server-cross-build-all: ## Cross-compile tcl-lsp-server for all 7 targets (CI fan-in)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then echo "ERROR: cargo not found."; exit 1; fi; \
+	echo "==> Cross-compiling tcl-lsp-server for all targets: $(SERVER_TARGETS_ALL)"; \
+	for t in $(SERVER_TARGETS_ALL); do \
+		echo "  building $$t..."; \
+		cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $$t --quiet \
+			|| { echo "    (skipped $$t — not buildable on this host)"; continue; }; \
+	done; \
+	echo "==> Done"
+
+print-server-targets-all: ## Print the full set of native-server target triples (CI helper)
+	@echo $(SERVER_TARGETS_ALL)
+
+server-cross-test: ## Smoke-test built tcl-lsp-server binaries (QEMU on Linux, native on macOS)
+	@bash $(ROOT)scripts/test-cross-server.sh
+
+server-cross-test-build: ## Cross-build then smoke-test tcl-lsp-server binaries
+	@bash $(ROOT)scripts/test-cross-server.sh --build
 
 # Opt-in: run the VS Code extension integration tests against the NATIVE Rust
 # server.  Mirrors `test-ext` but exports TCL_LSP_SERVER_KIND=rust + the binary
@@ -1057,8 +1199,15 @@ smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipap
 	@echo "All zipapp smoke tests passed."
 
 smoke-vsix: compile $(BUILD_INFO) ## Build and verify the VSIX packages without error
-	@echo "==> Smoke-testing VSIX build"
-	$(MAKE) package-vsix
+	@echo "==> Smoke-testing VSIX build (native server only: $(SERVER_TARGET_NATIVE))"
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1 || [ -z "$(SERVER_TARGET_NATIVE)" ]; then \
+		echo "ERROR: cargo/rustc are required to build the native tcl-lsp-server for the VSIX smoke."; \
+		exit 1; \
+	fi; \
+	echo "==> Building native tcl-lsp-server ($(SERVER_TARGET_NATIVE))"; \
+	cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $(SERVER_TARGET_NATIVE) --quiet
+	$(MAKE) package-vsix BUNDLED_TARGETS="$(SERVER_TARGET_NATIVE)"
 
 # npm / TypeScript
 
