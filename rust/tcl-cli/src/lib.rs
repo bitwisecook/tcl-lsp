@@ -55,6 +55,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
         Command::Symbols { input, json } => commands::graphs::run_symbols(input, *json),
         Command::Symbolgraph { input, json } => commands::graphs::run_symbolgraph(input, *json),
+        Command::Callgraph { input, json } => commands::graphs::run_callgraph(input, *json),
         Command::CmdInfo {
             command,
             dialect,

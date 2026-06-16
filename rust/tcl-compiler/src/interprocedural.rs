@@ -130,6 +130,12 @@ pub struct ProcSummary {
     pub arity: Arity,
     /// Names of procedures this one calls (transitive closure).
     pub calls: Vec<String>,
+    /// Names of procedures this one calls *directly* (no transitive
+    /// closure), sorted and resolved to in-module proc qnames. Mirrors
+    /// Python's local (non-transitive) `ProcSummary.calls`; consumed by
+    /// the `callgraph` verb's `build_call_graph`, which needs the direct
+    /// call set so the edge list carries no spurious A→C transitive edges.
+    pub direct_calls: Vec<String>,
     /// True if the body contains a barrier command.
     pub has_barrier: bool,
     /// True if the body calls a command not in the registry and
@@ -167,6 +173,7 @@ impl ProcSummary {
             params: Vec::new(),
             arity: Arity::any(),
             calls: Vec::new(),
+            direct_calls: Vec::new(),
             has_barrier: false,
             has_unknown_calls: true,
             writes_global: true,
@@ -569,6 +576,7 @@ fn build_method_summaries(
 
         let mut calls: Vec<String> = facts.direct_calls.iter().cloned().collect();
         calls.sort();
+        let direct_calls = calls.clone();
         let (returns_constant, constant_return, passthrough, depends) =
             summarise_returns(&facts.returns);
 
@@ -580,6 +588,7 @@ fn build_method_summaries(
                     params: method.params.clone(),
                     arity: Arity::exact(u32::try_from(method.params.len()).unwrap_or(u32::MAX)),
                     calls,
+                    direct_calls,
                     has_barrier: facts.has_barrier,
                     has_unknown_calls: facts.has_unknown_calls,
                     writes_global: facts.writes_global,
@@ -858,6 +867,8 @@ fn materialise_summaries(
             .into_iter()
             .collect();
         calls_list.sort();
+        let mut direct_calls: Vec<String> = facts.direct_calls.iter().cloned().collect();
+        direct_calls.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
         let (returns_constant, constant_return, passthrough, depends) =
@@ -879,6 +890,7 @@ fn materialise_summaries(
                 params: proc.params.clone(),
                 arity: Arity::exact(u32::try_from(proc.params.len()).unwrap_or(u32::MAX)),
                 calls: calls_list,
+                direct_calls,
                 has_barrier: facts.has_barrier,
                 has_unknown_calls: facts.has_unknown_calls,
                 writes_global: facts.writes_global,

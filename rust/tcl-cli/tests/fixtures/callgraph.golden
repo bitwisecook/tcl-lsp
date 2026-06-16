@@ -1,0 +1,10 @@
+call graph: procs=3 edges=2
+procs:
+  ::dec(x) (line 5) [pure]
+  ::inc(x) (line 1) [pure]
+  ::util::tag(s) (line 10) [pure]
+edges:
+  <top-level> -> ::inc
+  <top-level> -> ::dec
+roots: <top-level>, ::util::tag
+leaves: ::dec, ::inc, ::util::tag

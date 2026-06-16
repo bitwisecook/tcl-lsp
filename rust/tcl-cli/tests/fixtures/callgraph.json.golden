@@ -1,0 +1,62 @@
+{
+  "nodes": [
+    {
+      "name": "::dec",
+      "params": [
+        "x"
+      ],
+      "line": 4,
+      "pure": true,
+      "effects": "NONE"
+    },
+    {
+      "name": "::inc",
+      "params": [
+        "x"
+      ],
+      "line": 0,
+      "pure": true,
+      "effects": "NONE"
+    },
+    {
+      "name": "::util::tag",
+      "params": [
+        "s"
+      ],
+      "line": 9,
+      "pure": true,
+      "effects": "NONE"
+    }
+  ],
+  "edges": [
+    {
+      "caller": "<top-level>",
+      "callee": "::inc",
+      "call_sites": [
+        {
+          "line": 14,
+          "character": 7
+        }
+      ]
+    },
+    {
+      "caller": "<top-level>",
+      "callee": "::dec",
+      "call_sites": [
+        {
+          "line": 15,
+          "character": 7
+        }
+      ]
+    }
+  ],
+  "roots": [
+    "<top-level>",
+    "::util::tag"
+  ],
+  "leaf_procs": [
+    "::dec",
+    "::inc",
+    "::util::tag"
+  ]
+}
