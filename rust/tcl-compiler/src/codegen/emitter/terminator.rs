@@ -23,6 +23,9 @@ impl CodegenCtx<'_> {
     /// after this block (for fallthrough elision), or `None` if this is
     /// the last block in layout order.
     pub fn emit_term(&mut self, term: &Terminator, next_block: Option<&str>) {
+        // Carry the terminator's source span (jump condition / return
+        // value) onto the instructions it lowers to, when one exists.
+        self.current_span = term.span();
         match term {
             Terminator::Goto { target, .. } => {
                 if Some(target.as_str()) != next_block {
@@ -156,6 +159,8 @@ impl CodegenCtx<'_> {
         let Terminator::Return { value, expr, .. } = term else {
             unreachable!("emit_proc_return called with non-Return terminator");
         };
+        // Stamp the return's source span onto its instructions.
+        self.current_span = term.span();
         let val = value.as_deref().unwrap_or("");
         let is_cmd_subst = expr.is_none() && val.starts_with('[') && val.ends_with(']');
         let is_final = next_block.is_none();

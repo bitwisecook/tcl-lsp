@@ -47,7 +47,7 @@ backlog all reflect that intent.
 | `irules` (`irulesFlow`) | 🏗 | Fires only for the iRules dialect; finders are ported. |
 | `eventOrder` | ✅ | Byte-for-byte (reuses `EventRegistry::{order_events, event_multiplicity}`). `[]` for plain Tcl. |
 | `callouts` (`annotations` / `…ByLine`) | 🏗 + 🐞 | Aggregates the optimiser/shimmer/gvn/taint sources. **Omits dead-store callouts** (same O109 item as `cfgPostSsa`). *Action: add once dead stores are surfaced.* |
-| `asm` / `asmOptimised` | 🏗 + 🐞 | Honest Rust bytecode. `sourceLine` is always 0 and the `Instruction` carries no per-op source span (`range` is null) — a codegen-metadata gap. Label numbering differs by design. Pinned by the bytecode-compare gate. |
+| `asm` / `asmOptimised` | 🏗 | Honest Rust bytecode. **Per-op source spans now plumbed:** the emitter stamps each `Instruction` with the byte `source_span` of the construct it lowered from (statement / branch condition / return value), so the explorer emits a real `range` + 1-based `sourceLine` and the GUI's click-to-source + source-comment grouping light up. Synthetic ops with no source (loop-result pushes, fallthrough jumps, padding NOPs) keep `range: null` / `sourceLine: 0` — honest. Label numbering still differs by design. Pinned by the bytecode-compare gate (the span is metadata; the instruction stream is unchanged). |
 | `wasm` / `wasmOptimised` | ⛔ | The WASM emitter is unported (≈14K Python LOC). `null` today; lights up when the emitter chunk lands. |
 | `stats` | 🏗 + 🐞 | `deadStores` is `0` (same O109 item); warning counts follow the Rust analyses. |
 
@@ -65,9 +65,13 @@ backlog all reflect that intent.
 2. **Track the gaps (🐞) as compiler work, not explorer pinning.** `bounds`
    (W233 / execution-intent), `gvn` (under-detection), `renderedProperties`
    (command-subst over-report), `taint` proc-order determinism, `dataflow`
-   aliases (memory-SSA), `asm` per-instruction source spans. These stay
-   Rust-pinned in the explorer (the view is honest) but belong on the
-   analyser/codegen backlog in `docs/rust-rewrite.md`.
+   aliases (memory-SSA). These stay Rust-pinned in the explorer (the view is
+   honest) but belong on the analyser/codegen backlog in
+   `docs/rust-rewrite.md`. ✅ **`asm` per-instruction source spans — done.**
+   The emitter now stamps `Instruction::source_span` from the lowered
+   construct's span (`CodegenCtx::current_span`, set per statement /
+   terminator and reset for synthetic ops); the explorer maps it to the
+   per-op `range` + `sourceLine`.
 
 3. **Add Rust-native views** the Python contract never had. ✅ **Done.** Three
    additive keys (skipped by the parity harness via `_RUST_NATIVE_KEYS`, each

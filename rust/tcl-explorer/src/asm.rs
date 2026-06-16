@@ -5,12 +5,16 @@
 //! stream with resolved jump targets, label anchors, jump tables, and the
 //! flat-text `text` snippet (reused from `codegen::format::format_function_asm`).
 //!
-//! **Per-instruction `range` is `null`:** the Rust bytecode `Instruction`
-//! carries only a `source_line`, not a source span, so click-to-source is
-//! at function granularity (the entry's `sourceRange`) until a span is
-//! plumbed through the emitter. The bytecode itself is the Rust codegen's
-//! (tracked against tclsh by the bytecode-compare gate), so this view is
-//! `_NO_PARITY` versus the Python serialiser and pinned by a Rust test.
+//! **Per-instruction `range`:** the emitter stamps each
+//! [`Instruction`](tcl_compiler::codegen::Instruction) with the byte
+//! `source_span` of the construct it lowered from (statement, branch
+//! condition, return value); this serialiser maps that span to a
+//! line:col `range` plus a 1-based `sourceLine` for click-to-source.
+//! Synthetic instructions with no direct source (loop-result pushes,
+//! fallthrough jumps, padding NOPs) keep `range: null` / `sourceLine: 0`.
+//! The bytecode itself is the Rust codegen's (tracked against tclsh by
+//! the bytecode-compare gate), so this view is `_NO_PARITY` versus the
+//! Python serialiser and pinned by a Rust test.
 
 // Byte offsets and instruction indices are bounded by the source size, so
 // the usize/i32 conversions never truncate in practice — mirror the same
@@ -49,6 +53,8 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         &module.top_level.name,
         "top",
         top_source_range(&result.unit.ir_module, li, source),
+        li,
+        source,
     ));
 
     let mut qnames: Vec<&String> = module.procedures.keys().collect();
@@ -61,7 +67,7 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
             .procedures
             .get(qname)
             .map_or(Value::Null, |p| range_dict(p.span, li, source));
-        entries.push(function_explorer(asm, qname, "proc", src_range));
+        entries.push(function_explorer(asm, qname, "proc", src_range, li, source));
     }
     Value::Array(entries)
 }
@@ -96,7 +102,14 @@ fn resolve_label(
 /// Build one function's explorer entry (mirrors `format_function_explorer`
 /// composed with the `sourceRange` wiring of `_serialise_asm`).
 #[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
-fn function_explorer(asm: &FunctionAsm, name: &str, kind: &str, source_range: Value) -> Value {
+fn function_explorer(
+    asm: &FunctionAsm,
+    name: &str,
+    kind: &str,
+    source_range: Value,
+    li: &LineIndex,
+    source: &str,
+) -> Value {
     let instrs = &asm.instructions;
 
     let mut offset_to_idx: HashMap<i32, usize> = HashMap::new();
@@ -191,6 +204,17 @@ fn function_explorer(asm: &FunctionAsm, name: &str, kind: &str, source_range: Va
         } else {
             format!("{mnemonic} {operand_text}")
         };
+        // Per-op source mapping: the emitter stamps each instruction with
+        // the byte span of the construct it lowered from (when known).
+        // Map it to a line:col `range` and a 1-based `sourceLine` here;
+        // synthetic ops (no span) stay `null` / line 0.
+        let (range, source_line) = match instr.source_span {
+            Some(span) => (
+                range_dict(span, li, source),
+                li.position_at(span.start()).line + 1,
+            ),
+            None => (Value::Null, instr.source_line),
+        };
         let idx = rows.len();
         rows.push(json!({
             "idx": idx,
@@ -201,8 +225,8 @@ fn function_explorer(asm: &FunctionAsm, name: &str, kind: &str, source_range: Va
             "fullText": full_text,
             "offset": instr.offset,
             "size": instr.op.size(),
-            "range": Value::Null,
-            "sourceLine": instr.source_line,
+            "range": range,
+            "sourceLine": source_line,
             "comment": instr.comment,
             "jumpTarget": jump_target,
             "jumpTable": jump_table.unwrap_or(Value::Null),
@@ -293,6 +317,85 @@ fn retarget(rows: &mut [Value]) {
         if let Some(entries) = row["jumpTable"].as_array_mut() {
             for e in entries {
                 fix(e);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::run_pipeline;
+
+    /// Collect every `kind == "instr"` row across all asm entries.
+    fn instr_rows(asm: &Value) -> Vec<&Value> {
+        asm.as_array()
+            .expect("asm view is an array")
+            .iter()
+            .flat_map(|entry| entry["instructions"].as_array().unwrap().iter())
+            .filter(|row| row["kind"] == "instr")
+            .collect()
+    }
+
+    #[test]
+    fn instructions_carry_per_op_source_range() {
+        // Two statements on two lines: the second `set` lowers on line 2.
+        let source = "set x 1\nset y 2";
+        let result = run_pipeline(source, "tcl8.6");
+        let li = LineIndex::new(source);
+        let asm = serialise_asm(&result, &li, source);
+
+        let rows = instr_rows(&asm);
+        assert!(!rows.is_empty(), "expected emitted instructions");
+
+        // At least one instruction must now carry a real (non-null) range
+        // with a 1-based sourceLine — the per-op span plumbing.
+        let mapped: Vec<&Value> = rows.iter().filter(|r| !r["range"].is_null()).copied().collect();
+        assert!(
+            !mapped.is_empty(),
+            "no instruction carried a source range: {rows:#?}"
+        );
+        for row in &mapped {
+            let range = &row["range"];
+            let source_line = row["sourceLine"].as_u64().expect("sourceLine is a number");
+            assert!(source_line >= 1, "mapped op has 1-based sourceLine");
+            // sourceLine is the 1-based startLine of the range.
+            assert_eq!(
+                source_line,
+                range["startLine"].as_u64().unwrap() + 1,
+                "sourceLine matches range startLine+1"
+            );
+        }
+
+        // The second statement (`set y 2`) starts on line 2 (0-based line
+        // 1), so some instruction must map there.
+        assert!(
+            mapped
+                .iter()
+                .any(|r| r["range"]["startLine"].as_u64() == Some(1)),
+            "expected an op mapped to the second source line"
+        );
+    }
+
+    #[test]
+    fn synthetic_ops_have_null_range() {
+        // An empty proc body emits only synthetic instructions (push "" /
+        // done) with no source construct — their range stays null.
+        let source = "proc p {} {}\n";
+        let result = run_pipeline(source, "tcl8.6");
+        let li = LineIndex::new(source);
+        let asm = serialise_asm(&result, &li, source);
+
+        let proc_entry = asm
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["name"] == "::p")
+            .expect("proc ::p present");
+        for row in proc_entry["instructions"].as_array().unwrap() {
+            if row["kind"] == "instr" {
+                assert!(row["range"].is_null(), "synthetic op range is null: {row:#?}");
+                assert_eq!(row["sourceLine"], json!(0), "synthetic op sourceLine is 0");
             }
         }
     }
