@@ -557,9 +557,13 @@ impl Namespaces {
     pub fn delete_namespace_by_id(&mut self, ns: NsId) {
         let victims = self.descendant_ids(ns);
         self.delete_subtree(ns);
-        // Unlink from the parent so the name no longer resolves.
+        // Unlink from the parent so the name no longer resolves by lookup, but
+        // keep the node's own `name`/`parent` intact: a call frame still active
+        // in this (now dying) namespace must keep reporting its fully-qualified
+        // name from `namespace current` until it pops (C keeps the dying
+        // `Namespace` alive via its activation count — namespace-7.1).
         if let Some(parent) = self.arena[ns].parent {
-            let name = std::mem::take(&mut self.arena[ns].name);
+            let name = self.arena[ns].name.clone();
             self.arena[parent].children.remove(&name);
         }
         // Drop the deleted namespaces from every other namespace's `namespace
