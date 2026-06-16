@@ -27,9 +27,17 @@ use tcl_registry::snapshot::Json;
 const CONTEXT: usize = 3;
 
 /// Expand / validate the `--show` layer list (port of `_parse_diff_layers`).
-/// `all` expands to every layer; duplicates are dropped preserving order.
+/// `all` expands to the **implemented** layers (`ast`, `ir`); `cfg` is omitted
+/// until its serialiser lands, so the default (`--show all`) and a bare
+/// `tcl diff LEFT RIGHT` work rather than erroring on the unported layer. An
+/// explicit `--show cfg` is still accepted and produces the clear
+/// "not yet implemented" error from `layer_payload`. Duplicates are dropped,
+/// preserving order.
 fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
-    const ALL: [&str; 3] = ["ast", "ir", "cfg"];
+    const KNOWN: [&str; 3] = ["ast", "ir", "cfg"];
+    // `all` covers only the layers that are ported; re-add `cfg` here once its
+    // serialiser is implemented.
+    const ALL_IMPLEMENTED: [&str; 2] = ["ast", "ir"];
     let mut selected: Vec<&'static str> = Vec::new();
     for raw in show {
         for token in raw.split(',') {
@@ -38,14 +46,14 @@ fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
                 continue;
             }
             let names: &[&str] = match token {
-                "all" => &ALL,
+                "all" => &ALL_IMPLEMENTED,
                 "ast" => &["ast"],
                 "ir" => &["ir"],
                 "cfg" => &["cfg"],
                 other => anyhow::bail!("unknown diff layer: {other} (expected ast,ir,cfg,all)"),
             };
             for name in names {
-                let canonical = ALL.iter().find(|n| *n == name).copied().expect("known");
+                let canonical = KNOWN.iter().find(|n| *n == name).copied().expect("known");
                 if !selected.contains(&canonical) {
                     selected.push(canonical);
                 }
