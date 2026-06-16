@@ -17,4 +17,9 @@ namespace eval ::math {
     }
 }
 
+proc report {x} {
+    puts "result: [quad $x]"
+}
+
 set result [quad 5]
+report 5

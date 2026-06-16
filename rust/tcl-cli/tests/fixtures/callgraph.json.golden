@@ -36,6 +36,15 @@
       "line": 8,
       "pure": true,
       "effects": "NONE"
+    },
+    {
+      "name": "::report",
+      "params": [
+        "x"
+      ],
+      "line": 19,
+      "pure": false,
+      "effects": "NONE"
     }
   ],
   "edges": [
@@ -68,8 +77,18 @@
       "callee": "::quad",
       "call_sites": [
         {
-          "line": 19,
+          "line": 23,
           "character": 12
+        }
+      ]
+    },
+    {
+      "caller": "<top-level>",
+      "callee": "::report",
+      "call_sites": [
+        {
+          "line": 24,
+          "character": 0
         }
       ]
     }
@@ -80,6 +99,7 @@
   ],
   "leaf_procs": [
     "::add",
-    "::math::triple"
+    "::math::triple",
+    "::report"
   ]
 }

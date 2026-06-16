@@ -20,7 +20,12 @@ use tcl_compiler::analyser::{AnalysisResult, Analyser, ProcDef, Scope, ScopeKind
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::ir::Module as IrModule;
 use tcl_compiler::side_effects::EffectRegion;
-use tcl_compiler::taint::find_taint_warnings;
+use tcl_compiler::taint::{
+    find_destructive_file_warnings, find_setter_constraint_warnings, find_taint_warnings,
+    is_irules_dialect,
+};
+use tcl_compiler::path_concat::find_path_concat_warnings;
+use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
 
 use crate::cli::InputArgs;
@@ -855,10 +860,15 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 // dataflow
 // ---------------------------------------------------------------------------
 
-/// Aggregate the `T100`-family taint sink warnings for one function unit
-/// into the dataflow JSON shape (port of `build_dataflow_graph`'s warning
-/// loop; every Rust taint warning is a `TaintWarning`, so `variable` /
-/// `sink_command` are always present).
+/// Aggregate every taint warning kind for one function unit into the
+/// dataflow JSON shape — a faithful port of the per-scope loop in Python
+/// `compiler.taint.find_taint_warnings`, which runs five families in a
+/// fixed order: sink injection (`_find_taint_sinks`), setter-constraint,
+/// uri-split, path-concat, then destructive-file. Mirrors the same order
+/// and dialect gating as `compiler_checks::run_all_checks`. Every kind
+/// yields a `variable` + `sink_command` (Python's path-concat warning is a
+/// `TaintWarning` with `sink_command="set"`; the Rust `PathConcatWarning`
+/// carries no command field, so we supply the same constant).
 fn collect_taint_warnings(
     fu: &FunctionUnit,
     registry: &tcl_registry::CommandRegistry,
@@ -866,40 +876,128 @@ fn collect_taint_warnings(
     line_index: &LineIndex,
     out: &mut Vec<Value>,
 ) {
-    let warnings = find_taint_warnings(
+    let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
+        out.push(json!({
+            "code": code,
+            "line": line0(line_index, span.start()),
+            "message": message,
+            "variable": variable,
+            "sink_command": sink,
+        }));
+    };
+
+    // 1. Sink injection (T100 / T101 / T102 families).
+    for w in find_taint_warnings(
         &fu.cfg,
         &fu.ssa,
         &fu.taints,
         &fu.sccp.executable_blocks,
         registry,
         Some(dialect),
-    );
-    for w in warnings {
-        out.push(json!({
-            "code": w.code,
-            "line": line0(line_index, w.span.start()),
-            "message": w.message,
-            "variable": w.variable,
-            "sink_command": w.sink_command,
-        }));
+    ) {
+        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+    }
+
+    // 2 + 3. Setter-constraint + uri-split are iRules-only. The helpers
+    // gate internally too; skipping the walk under a non-iRules dialect
+    // matches `compiler_checks` and avoids needless work.
+    if is_irules_dialect(Some(dialect)) {
+        for w in find_setter_constraint_warnings(
+            registry,
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            Some(dialect),
+        ) {
+            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        }
+        for w in find_uri_split_suggestions(
+            &fu.cfg,
+            &fu.ssa,
+            Some(&fu.sccp.values),
+            &fu.sccp.executable_blocks,
+            registry,
+            Some(dialect),
+        ) {
+            push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
+        }
+    }
+
+    // 4. Path-concat (`W201`). Python reports `sink_command="set"`.
+    for w in find_path_concat_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.rendered_props,
+        &fu.taints,
+        &fu.sccp.executable_blocks,
+    ) {
+        push(&w.code, w.span, &w.message, &w.variable, "set");
+    }
+
+    // 5. Destructive-file (`W313`).
+    for w in find_destructive_file_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.taints,
+        &fu.sccp.executable_blocks,
+        registry,
+    ) {
+        push(&w.code, w.span, &w.message, &w.variable, &w.sink_command);
     }
 }
 
 /// Tainted variable names in `fu` (deduplicated, sorted for a
-/// deterministic order). Python iterates the taint lattice map in SSA
-/// insertion order; the Rust taint map is a `HashMap`, so the order is
-/// recovered by sorting — this only matters once the taint engine starts
-/// reporting tainted variables (the documented taint gap).
+/// deterministic order). Python iterates the per-unit taint lattice map
+/// (`analysis.taints`) in SSA insertion order; the Rust taint map is a
+/// `HashMap`, so the order is recovered by sorting.
+///
+/// Version-0 entries are skipped: a `(name, 0)` slot is the enclosing-
+/// scope / pre-existing value, and the only way it becomes tainted is the
+/// conservative cross-procedure global-write seeding in `propagate_taints`
+/// (e.g. `::store` in `proc save {v} { set ::store $v }`). Python's
+/// per-unit `analysis.taints` does no such seeding, so it never surfaces a
+/// version-0-tainted variable — filtering them here matches Python's
+/// `tainted_variables` output without disturbing the seeding the sink
+/// warnings rely on.
 fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
-    let mut names: Vec<&str> = fu
+    // Definition-site offset of each `(name, version)` SSA value, so
+    // tainted variables order by where they are defined — recovering
+    // Python's SSA/source iteration order over `analysis.taints` rather
+    // than an alphabetical sort. Each SSA version is defined once, so
+    // `or_insert` records that single site.
+    let mut def_offset: std::collections::HashMap<(&str, u32), u32> =
+        std::collections::HashMap::new();
+    for block in fu.ssa.blocks.values() {
+        for st in &block.statements {
+            let off = st.statement.span().start();
+            for (name, &ver) in &st.defs {
+                def_offset.entry((name.as_str(), ver)).or_insert(off);
+            }
+        }
+    }
+
+    let mut entries: Vec<(&str, u32)> = fu
         .taints
         .iter()
-        .filter(|(_, lattice)| lattice.is_tainted())
-        .map(|((name, _version), _)| name.as_str())
+        .filter(|((_, version), lattice)| *version != 0 && lattice.is_tainted())
+        .map(|((name, version), _)| (name.as_str(), *version))
         .collect();
-    names.sort_unstable();
-    names.dedup();
-    names
+    // (def offset, version, name) keeps the order deterministic and
+    // source-ordered; values defined outside this unit (no def site) sort
+    // last.
+    entries.sort_by_key(|(name, ver)| {
+        (
+            def_offset.get(&(*name, *ver)).copied().unwrap_or(u32::MAX),
+            *ver,
+            *name,
+        )
+    });
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    entries
+        .into_iter()
+        .filter_map(|(name, _)| seen.insert(name).then_some(name))
+        .collect()
 }
 
 /// Build the dataflow / taint graph payload — port of

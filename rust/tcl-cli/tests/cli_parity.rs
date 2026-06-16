@@ -164,14 +164,14 @@ fn symbolgraph_json_matches_python() {
 // calls nested in `[cmd …]` substitutions (`return [add …]` / `set x [f …]`),
 // a resolved internal call no longer applies the callee's command-effect
 // locally (so `pure` matches Python), and a global-variable write is recorded
-// via `writes_global` rather than the effect-region string. This fixture
-// exercises real proc→proc edges (with multiple call sites), a namespace proc,
-// roots and leaves, all byte-identical. **Residual gap** (documented in
-// docs/rust-cli-port.md): `classify_side_effects` ignores a command's
-// structured `side_effects` and falls back to `UNKNOWN_STATE`, so the `effects`
-// string still diverges for a proc that calls an untracked-effect command
-// (`puts` / `log`) — a separate side-effects-classification workstream — hence
-// this fixture keeps to pure procs.
+// via `writes_global` rather than the effect-region string. The
+// side-effects-classification closure has also landed: `classify_side_effects`
+// now consults a command's structured `side_effects`, so a proc that calls an
+// untracked-effect command (`puts`) is impure yet region-free — matching
+// Python — instead of falling back to `UNKNOWN_STATE`. This fixture exercises
+// real proc→proc edges (with multiple call sites), a namespace proc, an impure
+// `puts`-calling proc (no `[pure]` marker, a leaf + top-level edge), and roots
+// and leaves, all byte-identical.
 #[test]
 fn callgraph_text_matches_python() {
     let input = fixtures_dir().join("callgraph.tcl");
@@ -277,17 +277,30 @@ fn diff_ir_json_matches_python() {
 
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
 // for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
-// `_effect_region_str`) and the taint engine (`find_taint_warnings` over the top
-// level + each procedure unit for `taint_warnings`, and the `FunctionUnit`
-// taint lattices for `tainted_variables`). The `proc_effects` half is at parity
-// (it rides on the closed interproc engine). The **taint half is engine-gapped**
-// (documented in docs/rust-cli-port.md): the Rust taint engine emits only the
-// `T100` sink family (Python also emits setter-constraint / uri-split /
-// path-concat / destructive-file codes), and its taint propagation differs (it
-// can mark a proc-param-derived global tainted where Python does not). So this
-// golden uses a faithful subset — pure procs with no taint sources/sinks — where
-// both taint outputs are empty, locking the `proc_effects` + summary
-// serialisation byte-for-byte.
+// `_effect_region_str`) and the taint engine. The `taint_warnings` half now
+// aggregates all five Python warning families per scope, in Python's order
+// (sink-injection / setter-constraint / uri-split / path-concat /
+// destructive-file), mirroring `compiler_checks::run_all_checks`. The
+// sink-injection family is reconciled with Python's per-statement order and
+// labels: `T102` option-injection now resolves the option-terminator profile
+// (`resolve_option_terminator`) so ensemble subcommands report a compound
+// label (`file delete`) and the option-scan region filters positions, and
+// `T103` (regex injection) fires for tainted `regexp`/`regsub` patterns. The
+// fixture exercises `eval $tainted` (`T100`), `file delete $tainted`
+// (`T102` + `W313`), and `regexp $tainted …` (`T103` + `T102`), in Python's
+// order. `tainted_variables` walks the per-unit lattices, ordered by SSA
+// definition site (matching Python's `analysis.taints` iteration) and
+// skipping version-0 entries — a `(global, 0)` slot is only ever tainted by
+// the conservative cross-proc global-write seeding, which Python's per-unit
+// analysis never surfaces (so `proc save {v} { set ::store $v }` no longer
+// reports `::store`). The `proc_effects` half is at parity (closed interproc
+// engine), incl. an impure `puts`-calling proc (region-free) and a
+// global-writing proc. **Remaining taint gap** (documented in
+// docs/rust-cli-port.md): no inter-procedural taint *solve*
+// (`_solve_interprocedural_taints`), so a tainted argument flowing into a
+// proc parameter and then into a sink inside that proc is not yet warned
+// (cross-proc entry-taint). The fixture exercises a global-writing proc but
+// no cross-proc entry-taint sink, so it locks byte-for-byte.
 #[test]
 fn dataflow_text_matches_python() {
     let input = fixtures_dir().join("dataflow.tcl");
@@ -344,6 +357,7 @@ fn registry_dump_faithful_subset_matches_python() {
         "registry-dump faithful-subset snapshot does not match the Python golden"
     );
 }
+
 #[test]
 fn explore_json_emits_the_contract_keys() {
     let out = run_tcl(&["explore", "--source", "set x 1\nputs $x", "--json"]);
