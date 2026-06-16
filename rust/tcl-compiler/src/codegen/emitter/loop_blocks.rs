@@ -20,11 +20,16 @@ pub struct ForeachInfo {
     pub end: String,
     /// List arguments to the foreach/lmap command.
     pub list_args: Vec<String>,
+    /// Loop-variable groups (one per iterator), reconstructed from the
+    /// header `Call`'s `defs` + `foreach_groups`. Carried onto the
+    /// `FOREACH_START` instruction so the VM can bind them (C Tcl `ForeachInfo`).
+    pub var_groups: Vec<Vec<String>>,
 }
 
-/// Metadata about a complex foreach: one whose body is empty and
-/// terminates with a Branch (the first statement is an `if` whose
-/// condition becomes the body terminator).
+/// Metadata about a complex foreach: one whose body block terminates with a
+/// Branch (the body's first/only control structure is an `if`/loop whose
+/// condition becomes the body terminator). The body may carry statements — e.g.
+/// the `<cond>` placeholder of an inline command substitution in the condition.
 ///
 /// The emitter must (a) emit `FOREACH_STEP`/`FOREACH_END` at the
 /// foreach_end block rather than the body, (b) route continue/break
@@ -60,15 +65,31 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
             continue;
         };
         for stmt in &blk.statements {
-            if let Statement::Call { command, args, .. } = stmt
+            if let Statement::Call {
+                command,
+                args,
+                defs,
+                foreach_groups,
+                ..
+            } = stmt
                 && (command == "foreach" || command == "lmap")
             {
+                // Split the flattened `defs` into per-iterator groups.
+                let sizes = foreach_groups.clone().unwrap_or_else(|| vec![defs.len()]);
+                let mut var_groups = Vec::with_capacity(sizes.len());
+                let mut i = 0;
+                for sz in sizes {
+                    let end = (i + sz).min(defs.len());
+                    var_groups.push(defs[i..end].to_vec());
+                    i = end;
+                }
                 info.insert(
                     bn.clone(),
                     ForeachInfo {
                         body: true_target.clone(),
                         end: false_target.clone(),
                         list_args: args.clone(),
+                        var_groups,
                     },
                 );
                 break;
@@ -94,9 +115,11 @@ pub fn detect_complex_foreach(
         let Some(body_blk) = cfg.blocks.get(&info.body) else {
             continue;
         };
-        if !body_blk.statements.is_empty() {
-            continue;
-        }
+        // A body that *branches* (an `if`/loop) is complex — `FOREACH_STEP`/
+        // `FOREACH_END` must move to the foreach_end block and body back-edges
+        // route to the step label. The body may still carry statements (e.g. a
+        // `<cond>` placeholder for a command substitution in the condition), so
+        // we key on the Branch terminator rather than an empty statement list.
         if !matches!(body_blk.terminator, Some(Terminator::Branch { .. })) {
             continue;
         }

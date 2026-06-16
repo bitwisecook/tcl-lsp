@@ -15,6 +15,11 @@ rules for the KCS/documentation split live in
 
 - [compiler-architecture.md](compiler-architecture.md) — high-level map of
   the multi-pass compiler pipeline with diagrams and cross-links.
+- [common-runtime-emitter-architecture.md](common-runtime-emitter-architecture.md)
+  — steering doc reasoning across the whole space (TCLVM bytecode emitter, WASM
+  emitter, and the runtimes/VM) to fix the right split and interface shapes: the
+  two interface families (emitter vs runtime-state), why the bytecode VM is a
+  reified-state runtime, and the WASM migration path (WASM engine untouched).
 - [example-script-walkthroughs.md](example-script-walkthroughs.md) — full
   pipeline traces for progressively complex Tcl scripts.
 - [code-importing-examples.md](code-importing-examples.md) — reference

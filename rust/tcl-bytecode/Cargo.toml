@@ -1,0 +1,29 @@
+# Bytecode artifact types for the Tcl 9 bytecode ("TCLVM") backend.
+#
+# The lean leaf crate that owns the shared bytecode *artifact* — the opcode set
+# (`Op`), `Instruction`/`FunctionAsm`/`ModuleAsm`, the interning tables, plus
+# instruction layout and disassembly. Extracted from `tcl-compiler::codegen` so
+# the codegen emitter and the bytecode VM can both depend on the artifact types
+# without the VM pulling in the whole compiler. See
+# `docs/design/common-runtime-emitter-architecture.md` (§3/§6, Family A).
+#
+# Dependency DAG (no cycles):
+#   tcl-lexer <- tcl-syntax <- tcl-bytecode <- { tcl-compiler, tcl-vm }
+#
+# Depends ONLY on `tcl-syntax` (for `BinOp`/`UnaryOp`), so it stays a
+# `forbid(unsafe)`, wasm32-clean leaf.
+[package]
+name = "tcl-bytecode"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Tcl 9 bytecode artifact types (opcodes, instructions, FunctionAsm/ModuleAsm, layout, disassembly)"
+
+[dependencies]
+tcl-syntax = { path = "../tcl-syntax" }
+
+[lints]
+workspace = true

@@ -317,7 +317,10 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             for la in &fi.list_args {
                 ctx.emit_value(la, false);
             }
-            ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
+            let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
+            // Carry the loop-variable groups (C Tcl `ForeachInfo.varLists`) so
+            // the VM can bind them; not rendered in disassembly.
+            ctx.instructions[fs_idx].foreach_vars = Some(fi.var_groups.clone());
             ctx.cmd_index += 1;
             continue;
         }
