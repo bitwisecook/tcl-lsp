@@ -214,6 +214,21 @@ impl BracketIndex {
         lvl
     }
 
+    /// The structural bracket events in offset order: `(offset, delta)`
+    /// where `delta` is `+1` for a structural `[` and `-1` for a `]`.
+    /// Brackets inside inert spans are not recorded.
+    #[must_use]
+    pub fn events(&self) -> &[(u32, i32)] {
+        &self.events
+    }
+
+    /// Inert byte ranges where `[` / `]` are literal: `(start, end,
+    /// terminated)`. `terminated` is `false` for a span that runs to EOF.
+    #[must_use]
+    pub fn inert_spans(&self) -> &[(u32, u32, bool)] {
+        &self.inert
+    }
+
     /// **The recovery decision, from the index alone.** `true` when
     /// inserting a single `]` at byte offset `off` makes the source
     /// bracket-balanced (zero unterminated `[`), computed via a prefix
@@ -535,6 +550,20 @@ impl BraceIndex {
             lvl = (lvl + d).max(0);
         }
         lvl
+    }
+
+    /// The structural brace events in offset order: `(offset, delta)`
+    /// where `delta` is `+1` for a structural `{` and `-1` for a `}`.
+    #[must_use]
+    pub fn events(&self) -> &[(u32, i32)] {
+        &self.events
+    }
+
+    /// Inert byte ranges where `{` / `}` are literal: `(start, end,
+    /// terminated)`.
+    #[must_use]
+    pub fn inert_spans(&self) -> &[(u32, u32, bool)] {
+        &self.inert
     }
 
     /// `true` when inserting a single `}` at byte offset `off` makes the

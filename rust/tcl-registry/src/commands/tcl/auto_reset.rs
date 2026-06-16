@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_reset",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {

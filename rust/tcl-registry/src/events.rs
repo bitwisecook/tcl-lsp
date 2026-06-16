@@ -64,6 +64,19 @@ pub struct EventProps {
 }
 
 impl EventProps {
+    /// Human-readable connection-side label — one of `"client-side"`,
+    /// `"server-side"`, `"client-side and server-side"`, or `"global"`.
+    /// Mirrors `event_side_label`.
+    #[must_use]
+    pub fn side_label(&self) -> &'static str {
+        match (self.client_side, self.server_side) {
+            (true, true) => "client-side and server-side",
+            (true, false) => "client-side",
+            (false, true) => "server-side",
+            (false, false) => "global",
+        }
+    }
+
     /// Default: not side-specific, no transport, flow = true.
     const DEFAULT: Self = Self {
         client_side: false,
@@ -132,6 +145,8 @@ pub struct FlowChain {
     pub profiles: &'static [&'static str],
     /// Ordered steps.
     pub steps: Vec<FlowStep>,
+    /// Any caveats or implementation notes (mirrors Python `FlowChain.notes`).
+    pub notes: &'static str,
 }
 
 /// An entry in the master event firing order.
@@ -150,6 +165,7 @@ pub struct EventRegistry {
     flow_chains: Vec<FlowChain>,
     once_per_connection: HashSet<&'static str>,
     per_request: HashSet<&'static str>,
+    descriptions: HashMap<&'static str, &'static str>,
 }
 
 impl EventRegistry {
@@ -168,6 +184,33 @@ impl EventRegistry {
             flow_chains: flow_chains(),
             once_per_connection: once_per_connection(),
             per_request: per_request(),
+            descriptions: crate::event_descriptions::EVENT_DESCRIPTIONS
+                .iter()
+                .copied()
+                .collect(),
+        }
+    }
+
+    /// Description prose for `event`, or `None` when none is recorded.
+    /// Mirrors `get_event_description`.
+    #[must_use]
+    pub fn description(&self, event: &str) -> Option<&'static str> {
+        self.descriptions.get(event).copied()
+    }
+
+    /// Multiplicity category for `event` — one of `"init"`,
+    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`. Mirrors
+    /// `event_multiplicity`.
+    #[must_use]
+    pub fn multiplicity(&self, event: &str) -> &'static str {
+        if event == "RULE_INIT" {
+            "init"
+        } else if self.is_once_per_connection(event) {
+            "once_per_connection"
+        } else if self.is_per_request(event) {
+            "per_request"
+        } else {
+            "unknown"
         }
     }
 
@@ -246,6 +289,43 @@ impl EventRegistry {
         self.per_request.contains(event)
     }
 
+    /// The multiplicity category for an event: `"init"`,
+    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`.
+    ///
+    /// Mirrors `event_multiplicity` in `namespace_data.py`.
+    #[must_use]
+    pub fn event_multiplicity(&self, event: &str) -> &'static str {
+        if event == "RULE_INIT" {
+            "init"
+        } else if self.once_per_connection.contains(event) {
+            "once_per_connection"
+        } else if self.per_request.contains(event) {
+            "per_request"
+        } else {
+            "unknown"
+        }
+    }
+
+    /// Sort `events` into canonical firing order. Events absent from the
+    /// master-order table are appended in sorted order, so none are dropped.
+    ///
+    /// Mirrors `order_events` in `namespace_data.py`. Callers pass a unique
+    /// set of names (duplicates would each be kept).
+    #[must_use]
+    pub fn order_events(&self, events: &[String]) -> Vec<String> {
+        let mut known: Vec<(usize, String)> = Vec::new();
+        let mut unknown: Vec<String> = Vec::new();
+        for evt in events {
+            match self.master_order_index(evt) {
+                Some(idx) => known.push((idx, evt.clone())),
+                None => unknown.push(evt.clone()),
+            }
+        }
+        known.sort();
+        unknown.sort();
+        known.into_iter().map(|(_, e)| e).chain(unknown).collect()
+    }
+
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///
@@ -281,6 +361,13 @@ impl EventRegistry {
     /// when the event isn't in the firing-order table.
     fn master_order_index(&self, event: &str) -> Option<usize> {
         self.order.iter().position(|e| e.event == event)
+    }
+
+    /// Position of `event` in the master firing order, or `None` when the
+    /// event isn't in it (mirrors Python `NAMESPACE_REGISTRY.event_index`).
+    #[must_use]
+    pub fn event_index(&self, event: &str) -> Option<usize> {
+        self.master_order_index(event)
     }
 }
 
@@ -2382,6 +2469,7 @@ fn flow_chains() -> Vec<FlowChain> {
     vec![
         FlowChain {
             chain_id: "plain_tcp",
+            notes: "",
             description: "Plain TCP (tcp profile only)",
             profiles: &["TCP"],
             steps: vec![
@@ -2449,6 +2537,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_http",
+            notes: "",
             description: "TCP + HTTP",
             profiles: &["HTTP", "TCP"],
             steps: vec![
@@ -2546,6 +2635,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_clientssl_http",
+            notes: "",
             description: "TCP + ClientSSL + HTTP (client-side TLS termination)",
             profiles: &["CLIENTSSL", "HTTP", "TCP"],
             steps: vec![
@@ -2667,6 +2757,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_clientssl_serverssl_http",
+            notes: "",
             description: "Full HTTPS (ClientSSL + ServerSSL + HTTP)",
             profiles: &["CLIENTSSL", "HTTP", "SERVERSSL", "TCP"],
             steps: vec![
@@ -2812,6 +2903,9 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_clientssl_serverssl_http_collect",
+            notes: "Both HTTP_REQUEST_DATA and HTTP_RESPONSE_DATA fire because \
+                    the iRule calls HTTP::collect in the respective request/response \
+                    events.  Client sends a POST with body.",
             description: "Full HTTPS with HTTP::collect (request + response body)",
             profiles: &["CLIENTSSL", "HTTP", "SERVERSSL", "TCP"],
             steps: vec![
@@ -2951,6 +3045,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "udp_dns",
+            notes: "",
             description: "UDP + DNS",
             profiles: &["DNS", "UDP"],
             steps: vec![
@@ -2982,6 +3077,7 @@ fn flow_chains() -> Vec<FlowChain> {
         },
         FlowChain {
             chain_id: "tcp_dns",
+            notes: "",
             description: "TCP + DNS",
             profiles: &["DNS", "TCP"],
             steps: vec![

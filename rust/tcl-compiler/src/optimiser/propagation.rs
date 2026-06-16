@@ -261,12 +261,25 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         has_dynamic_trace,
         rewritten: &rewritten,
     };
-    let pending: Vec<(Optimisation, Optimisation)> = fu
+    let mut pending: Vec<(Optimisation, Optimisation)> = fu
         .def_use
         .chains
         .values()
         .filter_map(|chain| forward_candidate(&env, chain))
         .collect();
+    // `def_use.chains` is a `HashMap`, so the candidate order — and hence the
+    // monotonic group ids allocated below — would vary run-to-run (and between
+    // the offset-0 memo build and the whole-module build).  Sort on the edit
+    // spans so emission order, group numbering, and the final Vec are
+    // byte-identical regardless of map iteration order.
+    pending.sort_by_key(|(inline, delete)| {
+        (
+            inline.span.start(),
+            inline.span.end(),
+            delete.span.start(),
+            delete.span.end(),
+        )
+    });
 
     // Emit, allocating a shared group id per inline/delete pair so the
     // two edits apply all-or-nothing.

@@ -11,6 +11,7 @@ authors.workspace = true
 [dependencies]
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
+tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-registry = { path = "../tcl-registry" }
 bitflags = "2"
 thiserror = "2.0"

@@ -285,16 +285,31 @@ pub fn run_all_checks(
         }
     }
 
-    // iRules-dialect non-taint checks.  Each of these is dialect-
-    // gated inside the helper (returns empty for non-iRules
-    // dialects), so calling them unconditionally is correct.
+    // iRules-dialect non-taint (module-level / control-flow) checks.
+    push_irules_flow_checks(cu, registry, dialect, &mut out);
+
+    // Deterministic ordering (producers emit in `HashMap`-iteration order);
+    // see [`sort_diagnostics`].
+    sort_diagnostics(&mut out);
+
+    out
+}
+
+/// Append the iRules-dialect module-level checks (IRULE5002/5004 +
+/// IRULE1005-1008/1201/1202/4004 + the unnormalised-getter warning).
+///
+/// Each helper is dialect-gated internally (returns empty for non-iRules
+/// dialects), so calling them unconditionally is correct.  Split out of
+/// [`run_all_checks`] to keep that aggregator within the line budget.
+fn push_irules_flow_checks(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    out: &mut Vec<Diagnostic>,
+) {
     for w in find_unnormalised_getter_warnings(cu, registry, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
-    // C44-irules-flow: control-flow checks (IRULE5002/5004 +
-    // IRULE1005-1008/1201/1202/4004).  Without these the helpers
-    // landed but never reached users via `run_all_checks` /
-    // LSP flows; addresses Codex review on PR #389.
     for w in find_unguarded_drop_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
@@ -307,8 +322,35 @@ pub fn run_all_checks(
     for w in find_hoistable_set_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
+}
 
-    out
+/// Impose a deterministic total order on diagnostics.
+///
+/// See [`run_all_checks`] — the per-pass producers emit in `HashMap`-iteration
+/// order, so a stable sort on `(span, code, category, severity, message,
+/// replacement)` is what makes the output byte-identical between the memoised
+/// per-procedure build and the whole-module build.
+fn sort_diagnostics(out: &mut [Diagnostic]) {
+    out.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            &a.code,
+            &a.category,
+            a.severity.as_str(),
+            &a.message,
+            &a.replacement,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                &b.code,
+                &b.category,
+                b.severity.as_str(),
+                &b.message,
+                &b.replacement,
+            ))
+    });
 }
 
 #[cfg(test)]

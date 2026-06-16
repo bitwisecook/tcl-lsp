@@ -91,6 +91,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::new(0, 1),
         detail: "Supplies a command to invoke during package require if no suitable version can be found.",
         synopsis: "package unknown ?command?",
@@ -130,6 +131,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

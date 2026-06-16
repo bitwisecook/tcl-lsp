@@ -1187,14 +1187,24 @@ pub fn find_destructive_file_warnings(
                 path_start += 1;
             }
             // One W313 per statement (first offending path variable).
-            for (name, &ver) in &ssa_stmt.uses {
-                let in_path = args
-                    .iter()
-                    .skip(path_start)
-                    .any(|a| arg_var_names(a).contains(name));
-                if !in_path {
-                    continue;
+            // Collect candidate path variables in argument (source) order:
+            // `ssa_stmt.uses` is a `HashMap`, so iterating it would pick a
+            // nondeterministic variable for a multi-path sink like
+            // `file rename $a $b` — making the warning's message (and the memo
+            // vs whole-module builds) differ run-to-run.
+            let mut seen: HashSet<String> = HashSet::new();
+            let mut ordered: Vec<String> = Vec::new();
+            for a in args.iter().skip(path_start) {
+                for name in arg_var_names_ordered(a) {
+                    if seen.insert(name.clone()) {
+                        ordered.push(name);
+                    }
                 }
+            }
+            for name in &ordered {
+                let Some(&ver) = ssa_stmt.uses.get(name) else {
+                    continue;
+                };
                 let t = taints
                     .get(&(name.clone(), ver))
                     .copied()
@@ -1251,7 +1261,15 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 /// A lightweight stand-in for `_arg_var_names`'s VAR-token scan covering
 /// the path-argument shapes W313 cares about (`$p`, `${p}`, `"$d/$f"`).
 fn arg_var_names(arg: &str) -> HashSet<String> {
-    let mut names = HashSet::new();
+    arg_var_names_ordered(arg).into_iter().collect()
+}
+
+/// Variable names referenced in `arg`, in left-to-right source order with
+/// duplicates preserved.  Callers that need a deterministic *first* variable
+/// (e.g. W313's "first offending path variable") iterate this rather than the
+/// `HashSet` from [`arg_var_names`], whose order is nondeterministic.
+fn arg_var_names_ordered(arg: &str) -> Vec<String> {
+    let mut names = Vec::new();
     let bytes = arg.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -1262,7 +1280,7 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
         if bytes.get(i + 1) == Some(&b'{')
             && let Some(rel) = arg[i + 2..].find('}')
         {
-            names.insert(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
+            names.push(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
             i = i + 2 + rel + 1;
             continue;
         }
@@ -1274,7 +1292,7 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
             j += 1;
         }
         if j > start {
-            names.insert(normalise_var_name(&arg[start..j]).to_owned());
+            names.push(normalise_var_name(&arg[start..j]).to_owned());
             i = j;
         } else {
             i += 1;
@@ -1562,6 +1580,45 @@ fn irule3002_name_position_safe(
     let Some(arg) = args.get(1) else { return false };
     let stripped = arg.trim();
     is_pure_var_ref(stripped) && normalise_var_name(stripped) == var_name
+}
+
+/// Find every taint warning across a whole compilation unit.
+///
+/// Public `*_for_cu` entry point (mirroring
+/// [`crate::shimmer::find_shimmer_warnings_for_cu`]) composing the
+/// `TaintWarning`-producing passes — sink detection, setter-constraint
+/// violations, iRules URI-split suggestions, and destructive-file warnings
+/// — over each function in the unit, in `cu.functions()` order. The
+/// path-concatenation pass is omitted: its Rust lattice colours are not yet
+/// assigned (latent, always empty today).
+#[must_use]
+pub fn find_taint_warnings_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<TaintWarning> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        let exec = &fu.sccp.executable_blocks;
+        out.extend(find_taint_warnings(
+            &fu.cfg, &fu.ssa, &fu.taints, exec, registry, dialect,
+        ));
+        out.extend(find_setter_constraint_warnings(
+            registry, &fu.cfg, &fu.ssa, &fu.taints, exec, dialect,
+        ));
+        out.extend(crate::uri_split::find_uri_split_suggestions(
+            &fu.cfg,
+            &fu.ssa,
+            Some(&fu.sccp.values),
+            exec,
+            registry,
+            dialect,
+        ));
+        out.extend(find_destructive_file_warnings(
+            &fu.cfg, &fu.ssa, &fu.taints, exec, registry,
+        ));
+    }
+    out
 }
 
 /// Run sink detection over a single function.
@@ -3837,6 +3894,26 @@ mod tests {
         assert!(
             plain.iter().all(|w| w.code != "IRULE3101"),
             "no IRULE3101 outside iRules, got {plain:?}",
+        );
+    }
+
+    #[test]
+    fn taint_warnings_emitted_in_deterministic_proc_order() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // `bbb` is defined *before* `aaa` in source. Per-proc warning order
+        // must follow qualified name (aaa, then bbb) — not source order and
+        // not the (random) HashMap order — so the output is reproducible.
+        let source = "proc bbb {p} { set v [exec $p]\n eval $v }\n\
+                      proc aaa {p} { set v [exec $p]\n eval $v }\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert_eq!(warnings.len(), 2, "one eval sink per proc: {warnings:?}");
+        // `aaa` is defined later in source (larger span) yet sorts first.
+        assert!(
+            warnings[0].span.start() > warnings[1].span.start(),
+            "expected name order (aaa before bbb) regardless of source order: {warnings:?}",
         );
     }
 }

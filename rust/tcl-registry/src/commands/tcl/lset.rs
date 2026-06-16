@@ -48,7 +48,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lset",
         traits: Traits::FRAME_HASH_BUILTIN,
-        dialects: Some(DialectSet::TCL85_PLUS),
+        dialects: None,
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

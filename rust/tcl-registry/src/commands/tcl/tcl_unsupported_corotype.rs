@@ -12,7 +12,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "::tcl::unsupported::corotype",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet::brief(

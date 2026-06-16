@@ -390,7 +390,7 @@ pub fn propagate_types(
 
             // Phi nodes at non-entry blocks.
             if bn != &cfg.entry {
-                let exec_preds: Vec<&str> = preds
+                let mut exec_preds: Vec<&str> = preds
                     .get(bn)
                     .map(|ps| {
                         ps.iter()
@@ -402,6 +402,12 @@ pub fn propagate_types(
                             .collect()
                     })
                     .unwrap_or_default();
+                // `predecessors()` yields a `HashSet`, so the fold order below is
+                // nondeterministic — and `type_join` is *not* order-independent
+                // for a 3+-way shimmer merge (it records only a `(from, to)`
+                // pair), so an unsorted fold makes the S101 message name
+                // different types run-to-run.  Sort for a stable join order.
+                exec_preds.sort_unstable();
 
                 for phi in &ssa_block.phis {
                     if exec_preds.is_empty() {

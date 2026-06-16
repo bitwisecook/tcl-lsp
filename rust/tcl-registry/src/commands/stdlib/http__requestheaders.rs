@@ -4,7 +4,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::requestHeaders",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

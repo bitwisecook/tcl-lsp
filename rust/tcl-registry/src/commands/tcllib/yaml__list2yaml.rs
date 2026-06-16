@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yaml::list2yaml",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Convert a Tcl list to a YAML string.",

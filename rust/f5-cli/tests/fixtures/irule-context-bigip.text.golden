@@ -1,0 +1,101 @@
+# ===== iRule /Common/route_by_host =====
+ltm rule /Common/route_by_host {
+    when HTTP_REQUEST {
+        if { [class match [HTTP::host] equals allowed_hosts] } {
+            switch -glob [HTTP::uri] {
+                "/api/*" {
+                    pool /Common/api_pool
+                }
+                default {
+                    pool /Common/web_pool
+                }
+            }
+        } else {
+            reject
+        }
+    }
+}
+
+# ===== referenced data-group /Common/allowed_hosts =====
+ltm data-group internal /Common/allowed_hosts {
+    records {
+        www.example.com { }
+        api.example.com { }
+        admin.example.com { }
+    }
+    type string
+}
+
+# ===== iRule /Common/ip_blocklist =====
+ltm rule /Common/ip_blocklist {
+    when CLIENT_ACCEPTED {
+        if { [class match [IP::remote_addr] equals blocked_ips] } {
+            drop
+        }
+    }
+}
+
+# ===== referenced data-group /Common/blocked_ips =====
+ltm data-group internal /Common/blocked_ips {
+    records {
+        10.0.0.0/8 {
+            data "RFC1918"
+        }
+        172.16.0.0/12 {
+            data "RFC1918"
+        }
+        192.168.0.0/16 {
+            data "RFC1918"
+        }
+    }
+    type ip
+}
+
+# ===== iRule /Common/uri_rewrite =====
+ltm rule /Common/uri_rewrite {
+    when HTTP_REQUEST priority 100 {
+        set redirect_target [class lookup [HTTP::uri] uri_redirect_map]
+        if { $redirect_target ne "" } {
+            HTTP::redirect "https://[HTTP::host]$redirect_target"
+        }
+    }
+}
+
+# ===== referenced data-group /Common/uri_redirect_map =====
+ltm data-group internal /Common/uri_redirect_map {
+    records {
+        /old-path {
+            data "/new-path"
+        }
+        /legacy {
+            data "/modern"
+        }
+    }
+    type string
+}
+
+# ===== iRule /Common/ssl_info =====
+ltm rule /Common/ssl_info {
+    when CLIENTSSL_HANDSHAKE {
+        log local0. "Client SSL: [SSL::cipher name] [SSL::cipher version]"
+    }
+}
+
+# ===== iRule /Common/bad_references =====
+ltm rule /Common/bad_references {
+    when HTTP_REQUEST {
+        # This references a data-group that does not exist
+        if { [class match [HTTP::host] equals nonexistent_datagroup] } {
+            drop
+        }
+        # This references a pool that does not exist
+        pool /Common/missing_pool
+        # This references a SNAT pool that does not exist
+        snatpool /Common/missing_snatpool
+    }
+}
+
+# ===== unresolved =====
+# data-group: nonexistent_datagroup
+# pool: /Common/missing_pool
+# snat-pool: /Common/missing_snatpool

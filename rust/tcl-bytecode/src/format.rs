@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_class_name};
+use crate::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_class_name};
 
 /// Escape a literal value for disassembly comments.
 ///
@@ -149,6 +149,21 @@ fn format_operand(
 }
 
 /// Render a [`FunctionAsm`] to its disassembly string form.
+/// Decode an instruction's operands to their display text, the way the
+/// flat disassembler does — reused by the compiler explorer's structured
+/// `asm` view so it does not re-implement the per-`Op` operand decoding.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn instruction_operand_text(instr: &Instruction, labels: &HashMap<String, usize>) -> String {
+    instr
+        .operands
+        .iter()
+        .enumerate()
+        .map(|(j, operand)| format_operand(operand, instr, j, labels).0)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Mirrors C Tcl 9.0.2's `tcl::unsupported::disassemble proc` output.
 #[must_use]
 #[allow(
@@ -300,7 +315,7 @@ mod tests {
 
     #[test]
     fn format_function_asm_basic() {
-        use crate::codegen::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand};
+        use crate::{FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand};
         use std::collections::HashMap;
 
         let mut lit = LiteralTable::new();

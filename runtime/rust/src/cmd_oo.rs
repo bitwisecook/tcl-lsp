@@ -4904,7 +4904,7 @@ impl Interp {
                     target: Vec::new(),
                     external,
                 });
-                let code = self.ns_eval(&ns_name, &script);
+                let code = self.ns_eval_no_frame(&ns_name, &script);
                 self.oo.borrow_mut().call_stack.pop();
                 // C's FinalizeEval: on error append `(in "<name> eval" script
                 // line N)`, where name is the object's name for a public call
@@ -5553,7 +5553,8 @@ impl Interp {
             self.oo.borrow_mut().fwd_usage = Some(fwd);
             let mut source = vec![head, target.to_vec()];
             source.extend(args.iter().map(|&a| obj_bytes(a)));
-            let is_root = self.begin_ensemble_rewrite(source, 2);
+            // `obj method` (2 words) is replaced by the forward `prefix`.
+            let is_root = self.begin_ensemble_rewrite(source, 2, prefix.len());
             self.oo.borrow_mut().call_stack.push(OoFrame {
                 object: obj.to_vec(),
                 chain,

@@ -25,6 +25,7 @@ use tcl_registry::CommandRegistry;
 use crate::compilation_unit::CompilationUnit;
 use crate::interprocedural::build_interprocedural_analysis;
 
+use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
 use super::{Optimisation, PassContext, PassId, run_passes};
 
@@ -75,7 +76,108 @@ pub fn optimise_unit(
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
     run_passes(&mut ctx, cu, &PassId::all());
-    select_non_overlapping(&ctx.optimisations)
+
+    // Determinism chokepoint.  Several passes iterate `HashMap`s
+    // (`cu.procedures`, def-use chains, SSA blocks), so both the emission order
+    // and the monotonic group ids vary run-to-run — and, critically, between the
+    // offset-0 per-procedure memo build and the whole-module build.  Canonicalise
+    // before overlap arbitration so the surviving set, its order, and group
+    // numbering are byte-identical given an equal `CompilationUnit` (the
+    // `compiler_check_corpus` guard's contract, and the precondition for salsa
+    // early-cutoff on [`compiler_check_diagnostics`]).
+    ctx.optimisations.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            &a.code,
+            &a.message,
+            &a.replacement,
+            a.hint_only,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                &b.code,
+                &b.message,
+                &b.replacement,
+                b.hint_only,
+            ))
+    });
+    let mut selected = select_non_overlapping(&ctx.optimisations);
+    renumber_groups(&mut selected);
+    selected
+}
+
+/// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.
+///
+/// Group ids are allocated by a monotonic counter during pass execution, so
+/// their absolute values depend on the (`HashMap`-iteration) order in which
+/// grouped rewrites were emitted.  Only the *partition* they encode is
+/// semantically meaningful (members of one group apply all-or-nothing), so
+/// remapping each distinct id to a first-appearance index makes the values
+/// deterministic while preserving the partition.  `opts` is assumed already in
+/// canonical order.
+fn renumber_groups(opts: &mut [Optimisation]) {
+    use std::collections::HashMap;
+    let mut remap: HashMap<u32, u32> = HashMap::new();
+    let mut next = 0u32;
+    for o in opts.iter_mut() {
+        if let Some(g) = o.group {
+            let new = *remap.entry(g).or_insert_with(|| {
+                let v = next;
+                next += 1;
+                v
+            });
+            o.group = Some(new);
+        }
+    }
+}
+
+/// Run every pass over `cu` and return the **O109 dead stores** the
+/// elimination pass determined eliminable (each keyed by function / block /
+/// statement / SSA value). Mirrors [`optimise_unit`] but exposes the
+/// structured dead-store records ([`PassContext::dead_stores`]) instead of
+/// the optimisation list — so tools (the compiler explorer's `cfgPostSsa`
+/// analysis, dead-store callouts, and `stats`) can show dead stores from
+/// where Rust actually computes them, with the optimiser's full suppression
+/// applied (purity, scope aliases, place model, cross-event scope).
+#[must_use]
+pub fn find_dead_stores(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<DeadStore> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    run_passes(&mut ctx, cu, &PassId::all());
+    ctx.dead_stores
+}
+
+/// Run the passes one at a time over a shared context and return, for each
+/// [`PassId`] in [`PassId::all`] order, the optimisations *that pass*
+/// produced (raw, before overlap arbitration). Powers the explorer's
+/// Rust-native "optimiser pass pipeline" view — there is no Python analogue
+/// because the Python optimiser is not structured as this pass sequence.
+///
+/// Equivalent to [`optimise_unit`] in effect (each pass sees the prior
+/// passes' context), but it attributes every finding to its originating pass.
+#[must_use]
+pub fn optimise_by_pass(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<(PassId, Vec<Optimisation>)> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    let mut by_pass = Vec::new();
+    for pass in PassId::all() {
+        let before = ctx.optimisations.len();
+        run_passes(&mut ctx, cu, &[pass]);
+        by_pass.push((pass, ctx.optimisations[before..].to_vec()));
+    }
+    by_pass
 }
 
 /// Build, run every pass, and return the full *unfiltered*

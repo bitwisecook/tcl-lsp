@@ -245,7 +245,7 @@ fn const_int_from_value(text: &str) -> Option<i64> {
 /// Abstract-evaluate `expr` over the current interval environment.  Mirrors
 /// `_eval_expr`.
 #[must_use]
-fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Interval {
+pub(crate) fn eval_expr(expr: &ExprNode, env: &HashMap<String, Interval>) -> Interval {
     match expr {
         ExprNode::Literal { .. } => literal_int(expr).map_or(TOP, constant),
         ExprNode::Var { name, .. } => env.get(name).copied().unwrap_or(TOP),

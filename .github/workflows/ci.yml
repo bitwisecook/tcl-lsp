@@ -253,10 +253,85 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           gh release upload "$tag" install.sh --clobber
 
-  # Build: VSIX package
+  # ---------------------------------------------------------------------
+  # build-server-matrix — cross-compile the native `tcl-lsp-server` for every
+  # supported platform.  Each runner builds its host's target triples (with
+  # cross-linkers for the foreign Linux arches), smoke-tests the native one,
+  # and uploads the binaries preserving `target/<triple>/release/`.  build-vsix
+  # downloads them all and bundles a single universal VSIX.
+  #
+  # Per the no-marketplace-tokens invariant this uses only GitHub's built-in
+  # token — nothing is published to a marketplace here.
+  #
+  # The triple→bundle-dir mapping lives in the Makefile (SERVER_TARGET_MAP);
+  # keep the matrix below and that map in sync (7 triples total).
+  build-server-matrix:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            id: darwin
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+          - os: ubuntu-24.04
+            id: linux
+            targets: x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu
+          - os: windows-latest
+            id: windows
+            targets: x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: stable
+
+      - name: Install Linux cross-linkers
+        if: matrix.id == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu qemu-user
+
+      - name: Cross-compile tcl-lsp-server
+        shell: bash
+        run: |
+          set -euo pipefail
+          for t in ${{ matrix.targets }}; do
+            echo "==> $t"
+            rustup target add "$t"
+            cargo build -p tcl-lsp-server --release --target "$t"
+          done
+
+      - name: Smoke-test built binaries
+        shell: bash
+        run: make server-cross-test
+
+      - name: Upload server binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: server-bins-${{ matrix.id }}
+          # Common ancestor of all matched files is `target/`, so the artifact
+          # stores `<triple>/release/<exe>` — build-vsix restores it under
+          # `target/` via download-artifact `path: target`.
+          path: |
+            target/*/release/tcl-lsp-server
+            target/*/release/tcl-lsp-server.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  # Build: universal VSIX package (bundles every native server binary)
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release, test-ext]
+    needs: [create-release, test-ext, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -274,7 +349,15 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      - uses: ./.github/actions/setup-build
+      # No Python setup: the VSIX bundles native binaries and the build
+      # (compile + filter-readme + vsce) is Node-only.
+
+      - name: Download native server binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: server-bins-*
+          path: target
+          merge-multiple: true
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -295,8 +378,9 @@ jobs:
       - name: Install npm dependencies
         run: cd editors/vscode && npm ci
 
+      # Bundle all seven native binaries into one universal VSIX.
       - name: Build and verify VSIX
-        run: make package-vsix
+        run: make package-vsix BUNDLED_TARGETS="$(make -s print-server-targets-all)"
 
       - uses: ./.github/actions/sign-and-upload
         with:

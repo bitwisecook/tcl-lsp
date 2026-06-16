@@ -19,5 +19,10 @@ anstyle = "1"
 tabled = "0.21"
 rpassword = "7"
 
+[dev-dependencies]
+# Scoped env-var mutation for the secret-input resolver tests (the workspace
+# forbids `unsafe`, so `std::env::set_var` cannot be called directly).
+temp-env = "0.3"
+
 [lints]
 workspace = true

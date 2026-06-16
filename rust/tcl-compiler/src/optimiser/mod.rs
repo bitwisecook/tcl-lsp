@@ -45,9 +45,10 @@ pub mod structure_elimination;
 pub mod tail_call;
 pub mod unused_procs;
 
+pub use elimination::DeadStore;
 pub use manager::{
-    apply_optimisations, optimise, optimise_raw, optimise_source_multipass, optimise_unit,
-    optimise_with_dialect,
+    apply_optimisations, find_dead_stores, optimise, optimise_by_pass, optimise_raw,
+    optimise_source_multipass, optimise_unit, optimise_with_dialect,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -189,6 +190,11 @@ pub struct PassContext<'a> {
     pub dialect: Option<&'a str>,
     /// Accumulator for produced optimisations.
     pub optimisations: Vec<Optimisation>,
+    /// Accumulator for the **O109 dead stores** the elimination pass
+    /// determined eliminable. Collected alongside the optimisations so tools
+    /// (the compiler explorer) can show dead stores from where Rust actually
+    /// computes them. See [`elimination::DeadStore`].
+    pub dead_stores: Vec<elimination::DeadStore>,
     /// Interprocedural analysis result. Passes consult it to
     /// resolve pure-proc targets, return-value facts, etc.
     pub interproc: InterproceduralAnalysis,
@@ -347,6 +353,22 @@ impl PassId {
             Self::TailCall => "tail_call",
             Self::UnusedProcs => "unused_procs",
             Self::CodeSinking => "code_sinking",
+        }
+    }
+
+    /// A human-readable one-line description of the pass.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::BranchFolding => "Constant-branch folding",
+            Self::Elimination => "Dead store / unreachable / unused elimination",
+            Self::ExprSimplify => "Expression simplification",
+            Self::PatternRecognition => "Idiomatic pattern recognition",
+            Self::Propagation => "Copy / constant propagation",
+            Self::StructureElimination => "Structural elimination",
+            Self::TailCall => "Tail-call rewrite",
+            Self::UnusedProcs => "Unused-procedure removal",
+            Self::CodeSinking => "Code sinking",
         }
     }
 }

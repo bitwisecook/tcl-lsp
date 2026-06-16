@@ -67,7 +67,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_messageBox",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Pop up a message window and wait for user response.",

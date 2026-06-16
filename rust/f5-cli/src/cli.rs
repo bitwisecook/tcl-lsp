@@ -70,6 +70,26 @@ impl PassphraseArgs {
     }
 }
 
+/// F5 unit master-key (`f5mku`) source flags shared by `encrypt-secrets` /
+/// `decrypt-secrets` (the `_add_key_args` group from `verbs/secrets.py`).
+// Help strings are clap-visible and must read like the Python argparse help;
+// the `f5mku -K` / `$F5MKU` tokens carry no Markdown, so silence the lint.
+#[allow(clippy::doc_markdown)]
+#[derive(Debug, Default, Args)]
+pub struct MasterKeyArgs {
+    /// base64 unit master key (the value `f5mku -K` prints on the device).
+    /// Falls back to $F5MKU, then a secure terminal prompt.
+    #[arg(short = 'k', long = "f5mku", value_name = "KEY")]
+    pub f5mku: Option<String>,
+    /// read the base64 master key from FILE (e.g. `f5mku -K > key.txt`).
+    #[arg(long = "f5mku-file", value_name = "FILE")]
+    pub f5mku_file: Option<PathBuf>,
+    /// never prompt on the terminal for the master key; require a flag or
+    /// $F5MKU instead.
+    #[arg(long = "no-key-prompt")]
+    pub no_key_prompt: bool,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Print object counts, partition breakdown, and top-references.
@@ -476,6 +496,42 @@ pub enum Command {
         output: Option<PathBuf>,
     },
 
+    /// Encrypt clear-text secrets in a bigip.conf under the f5mku master key.
+    #[command(name = "encrypt-secrets", visible_alias = "encrypt")]
+    EncryptSecrets {
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: String,
+        /// Write the result here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        key: MasterKeyArgs,
+        /// Force this two-character salt instead of a random one (deterministic
+        /// output; mainly for testing).
+        #[arg(long, value_name = "XX")]
+        salt: Option<String>,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
+        #[command(flatten)]
+        format: FormatArgs,
+    },
+
+    /// Decrypt `$M$...` secrets in a bigip.conf with the f5mku master key.
+    #[command(name = "decrypt-secrets", visible_alias = "decrypt")]
+    DecryptSecrets {
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: String,
+        /// Write the result here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        key: MasterKeyArgs,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
+        #[command(flatten)]
+        format: FormatArgs,
+    },
+
     /// Pull SCF or UCS from a live BIG-IP device (REST or SSH).
     // Help strings are clap-visible and must read exactly as the Python verb's
     // argparse help (the env-var names carry underscores), so no Markdown
@@ -725,6 +781,8 @@ impl Command {
             Command::Query { .. } => "query",
             Command::Redact { .. } => "redact",
             Command::Unredact { .. } => "unredact",
+            Command::EncryptSecrets { .. } => "encrypt-secrets",
+            Command::DecryptSecrets { .. } => "decrypt-secrets",
             Command::Fetch { .. } => "fetch",
             Command::Push { .. } => "push",
             Command::Pull { .. } => "pull",
