@@ -377,6 +377,40 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
 }
 
 #[test]
+fn foreach_synthetic_ops_carry_no_source_span() {
+    // Regression (PR #620 review): foreach_step / foreach_end are synthetic
+    // loop machinery with no Tcl source construct. The sticky statement span
+    // must be cleared after the body so they serialise as null `range` in the
+    // explorer asm view, rather than inheriting the last body statement's
+    // span (which would render them as clickable ranges on that statement).
+    use tcl_compiler::cfg_builder::build_cfg;
+    use tcl_compiler::lowering::lower_to_ir;
+
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir("foreach x {1 2 3} { set y $x }", &registry);
+    let cfg = build_cfg(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+
+    let foreach_ops: Vec<_> = asm
+        .top_level
+        .instructions
+        .iter()
+        .filter(|i| matches!(i.op, Op::FOREACH_STEP | Op::FOREACH_END))
+        .collect();
+    assert!(
+        !foreach_ops.is_empty(),
+        "expected foreach_step/foreach_end to be emitted"
+    );
+    for inst in foreach_ops {
+        assert_eq!(
+            inst.source_span, None,
+            "synthetic {:?} must not inherit a body statement's span",
+            inst.op
+        );
+    }
+}
+
+#[test]
 fn switch_glob_emits_generic_invoke_not_jump_table() {
     use tcl_compiler::cfg_builder::build_cfg_function;
     use tcl_compiler::ir::{SwitchArm, SwitchMode};

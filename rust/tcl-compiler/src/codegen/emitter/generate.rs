@@ -340,6 +340,11 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
                 ctx.emit_stmt_with_start_cmd(stmt, None, None);
             }
+            // foreach_step/foreach_end are synthetic loop machinery with no
+            // source construct; clear the sticky statement span so they
+            // serialise as null rather than inheriting the last body
+            // statement's range.
+            ctx.current_span = None;
             ctx.emit(Op::FOREACH_STEP, vec![]);
             ctx.emit(Op::FOREACH_END, vec![]);
             continue;

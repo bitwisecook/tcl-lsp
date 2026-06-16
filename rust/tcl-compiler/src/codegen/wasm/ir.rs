@@ -388,6 +388,32 @@ impl WasmModule {
         }
     }
 
+    /// Register an imported host function, returning its function index
+    /// (imports occupy indices `0..imports.len()`, before defined functions).
+    ///
+    /// This is the supported way to add imports: it interns the import's
+    /// signature into the type section so the emitted `type_idx` is always
+    /// valid. Constructing a [`WasmImport`] by hand and pushing it onto
+    /// [`Self::imports`] risks pointing at a type that `to_bytes` never
+    /// emits, since the serialiser only interns *defined-function*
+    /// signatures. Mirrors the Python emitter's `api.py` import setup.
+    pub fn add_import(
+        &mut self,
+        module: &str,
+        name: &str,
+        params: &[ValType],
+        results: &[ValType],
+    ) -> usize {
+        let type_idx = self.intern_type(params, results);
+        let func_idx = self.imports.len();
+        self.imports.push(WasmImport {
+            module: module.to_owned(),
+            name: name.to_owned(),
+            type_idx,
+        });
+        func_idx
+    }
+
     /// Intern a function signature, returning its type-section index.
     fn intern_type(&mut self, params: &[ValType], results: &[ValType]) -> usize {
         if let Some(idx) = self
@@ -443,7 +469,11 @@ impl WasmModule {
         }
 
         // Import section (host functions + optionally the runtime memory).
-        if !self.imports.is_empty() {
+        // Emit it whenever there are function imports *or* we import memory:
+        // a module that only needs runtime memory (e.g. for data segments)
+        // must still declare it, or it references memory 0 undefined and
+        // fails validation.
+        if !self.imports.is_empty() || self.import_memory {
             let mut entries: Vec<Vec<u8>> = self
                 .imports
                 .iter()
@@ -684,11 +714,9 @@ mod tests {
 
     fn sample_module() -> WasmModule {
         let mut m = WasmModule::new();
-        m.imports.push(WasmImport {
-            module: "tcl".into(),
-            name: "tcl_obj_get_int".into(),
-            type_idx: 0,
-        });
+        // Host helper with a signature no defined function shares, via the
+        // supported path so its type is interned.
+        m.add_import("tcl", "tcl_obj_get_int", &[ValType::I32], &[ValType::I64]);
         // A trivial exported `::top` that returns the i64 constant 42.
         m.functions.push(WasmFunction {
             name: "::top".into(),
@@ -781,5 +809,59 @@ mod tests {
         // nop then trailing end.
         assert_eq!(locals[5], WasmOp::Nop as u8);
         assert_eq!(*locals.last().unwrap(), WasmOp::End as u8);
+    }
+
+    #[test]
+    fn add_import_interns_signature_into_type_section() {
+        // The import's signature ([i32] -> [i64]) differs from the only
+        // defined function's (() -> [i64]); add_import must intern it so the
+        // import points at a real, distinct type index.
+        let mut m = sample_module();
+        let import_type_idx = m.imports[0].type_idx;
+        let _ = m.to_bytes(); // populates the rest of the type table
+        assert!(
+            import_type_idx < m.types.len(),
+            "import type_idx {import_type_idx} must reference an emitted type (have {})",
+            m.types.len()
+        );
+        assert_eq!(
+            m.types[import_type_idx],
+            (vec![ValType::I32], vec![ValType::I64]),
+            "interned import signature must round-trip"
+        );
+        // Two distinct signatures => two types.
+        assert_eq!(m.types.len(), 2);
+    }
+
+    #[test]
+    fn memory_only_module_still_declares_imported_memory() {
+        // A module with no function imports but import_memory = true (e.g.
+        // one that only writes data segments) must still emit the Import
+        // section carrying the memory import, else it references memory 0
+        // undefined and fails validation.
+        let mut m = WasmModule::new();
+        m.data_segments.push(WasmData {
+            offset: 0,
+            data: b"hi".to_vec(),
+        });
+        let bytes = m.to_bytes();
+        let mut i = 8;
+        let mut seen = Vec::new();
+        while i < bytes.len() {
+            let id = bytes[i];
+            let (len, adv) = read_uleb(&bytes[i + 1..]);
+            seen.push(id);
+            i += 1 + adv + len as usize;
+        }
+        assert!(
+            seen.contains(&(SectionId::Import as u8)),
+            "import section (with memory) must be present: {seen:?}"
+        );
+        assert!(
+            seen.contains(&(SectionId::Data as u8)),
+            "data section must be present: {seen:?}"
+        );
+        // The WAT view already shows the memory import; the binary must agree.
+        assert!(m.to_wat().contains("(import \"tcl\" \"memory\""));
     }
 }
