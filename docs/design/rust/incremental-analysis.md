@@ -375,36 +375,48 @@ practcl.tcl from ~1 s to low-ms).
 >     fresh-build** (pki 4 ms vs 38 ms; parse_lemon 6 ms vs 52 ms) and per-edit
 >     latency improves (pki BOTH-queries ~235 ms → ~150 ms; parse_lemon ~202 →
 >     ~191 ms, the smaller win eaten by the IR body-normalise needed to form the
->     offset-0 key).  It is **correct in isolation** but was reverted because it
->     *extends* the pre-existing memo byte-identity bug below to more procedures —
->     that must be fixed first.
+>     offset-0 key).  It is **correct in isolation** and was reverted only because
+>     it *extended* the memo byte-identity bug below to more procedures; with that
+>     bug now fixed (see "Memo byte-identity (fixed)"), it can land on top.
 > - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
 >   definer and is OO-heavy, so it needs that architectural step before it leaves
 >   the full-rebuild path.
 
-> **⚠ Pre-existing memo byte-identity bug (found, not yet fixed — highest
-> priority).**  The salsa-native lattice graph (#604) promises that the memoised
-> `build_for_memoized` (offset-0 per-procedure `function_lattice` + rebase) is
-> byte-identical to a fresh whole-module `build_for_with_config`.  A new corpus
-> differential (`tcl-lsp-db/tests/compiler_check_corpus.rs`, comparing
-> `compiler_check_diagnostics` vs `compiler_check_diagnostics_uncached`) shows it
-> **is not**: **~30% of corpus files diverge** (init/safe/http/tcltest/clock/…).
-> It is **per-file, not a cross-file cache collision** (fresh-db-per-file diverges
-> too), and surfaces as **`S101` shimmer check spans of *different width*** — so
-> the offset-0 build's analysis genuinely differs from the whole-module build's,
-> beyond a uniform offset (repro: `cargo run -p tcl-lsp-db --example cc_diff` with
-> `FILE=tmp/tcl8.6.16/library/safe.tcl`).  Both production diagnostics paths
-> consume the memo CU (the analyser tail via `cu_override`, the compiler-checks
-> via the `compilation_unit` query), so the LSP currently emits compiler-check
-> diagnostics that differ from a from-scratch analysis for ~30% of files.  The
-> existing guard (`compiler_check_diagnostics_matches_uncached`, 5 cases) and the
-> e2e suite happened to miss it; `per_item_corpus` does not exercise the memo CU
-> (its `emit_cfg_ssa` builds a fresh unit).  Suspected locus: `rebase_script` /
-> `rebase_function_unit` completeness vs what `find_shimmer_warnings` reads, or a
-> subtle `build_cfg_function_with_upvars` vs module-`build_cfg` difference.  The
-> corpus differential is committed `#[ignore]`d as the regression guard; un-ignore
-> when fixed.  **This blocks extending the lattice memo** (the `param_constants`
-> win above lands on top of it once green).
+> **Memo byte-identity (fixed).**  The salsa-native lattice graph (#604) promises
+> that the memoised `build_for_memoized` (offset-0 per-procedure `function_lattice`
+> + rebase) is byte-identical to a fresh whole-module `build_for_with_config`.  A
+> corpus differential (`tcl-lsp-db/tests/compiler_check_corpus.rs`, comparing
+> `compiler_check_diagnostics` vs `compiler_check_diagnostics_uncached`) found
+> ~30% of files diverging.  The root cause was **nondeterminism, not an
+> offset-0-vs-whole-module analysis difference** — both builds disagreed run-to-run
+> with themselves.  Five `HashMap`-iteration-order dependencies, each fixed to a
+> stable order:
+>
+> 1. **`shimmer::span::phi_span`** picked the *first* incoming def span in
+>    `phi.incoming` (a `HashMap`) → nondeterministic `S101` span; now the earliest
+>    (min) span.
+> 2. **`compiler_checks::run_all_checks`** emitted diagnostics in producer order
+>    (per-function `HashMap` walks); now sorted on a total
+>    `(span, code, category, severity, message, replacement)` key
+>    (`sort_diagnostics`).
+> 3. **`optimiser::optimise_unit`** allocated monotonic group ids and emitted in
+>    `cu.procedures` / def-use-chain `HashMap` order; now canonicalised before
+>    overlap arbitration (stable sort) with group ids renumbered by first
+>    appearance (`renumber_groups`).
+> 4. **`taint::find_destructive_file_warnings`** (W313) named the *first offending
+>    path variable* from `ssa_stmt.uses` (a `HashMap`), so `file rename $a $b`
+>    reported `$a` or `$b` at random; now iterates path variables in argument
+>    (source) order (`arg_var_names_ordered`).
+> 5. **`type_infer`** folded the order-sensitive `type_join` over a phi's
+>    predecessors in `HashSet` order — and `type_join` records only a `(from, to)`
+>    pair for a 3+-way shimmer, so the `S101` message named different types
+>    run-to-run; the predecessor list is now sorted before the fold.
+>
+> With these, the memo and whole-module builds agree byte-for-byte across the full
+> `tmp/` corpus (893 files), stable across process-level `HashMap` seeds.  The
+> corpus differential is the (now-passing) regression guard, `#[ignore]`d only for
+> being slow (`--ignored`, ~100 s).  This **unblocks extending the lattice memo**
+> (the `param_constants` win above can now land on top).
 
 > **OO method-body memoisation (shipped).** Method bodies were walked *in place*
 > in pass 2 (not memoised), so a body edit re-walked every method.  They are now

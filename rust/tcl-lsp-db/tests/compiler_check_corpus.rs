@@ -1,16 +1,19 @@
-//! **KNOWN-FAILING guard** for a pre-existing `function_lattice` memo divergence.
+//! Byte-identity guard for the `function_lattice` memo path.
 //!
 //! The memoised [`compiler_check_diagnostics`] (offset-0 per-procedure lattice +
 //! rebase, via `build_for_memoized`) must be **byte-identical** to a fresh,
-//! whole-module [`compiler_check_diagnostics_uncached`] build (`build_for_with_config`)
-//! — they are the two halves of the salsa-native lattice graph (#604).  They are
-//! **not**: over the `tmp/` corpus ~30% of files diverge (per-file, not a
-//! cross-file cache collision — fresh-db-per-file diverges too), surfacing as
-//! `S101` (shimmer) check spans of *different width* (so the offset-0 build's
-//! analysis genuinely differs from the whole-module build's, beyond offset).
-//! See `docs/design/rust/incremental-analysis.md` ("Pre-existing memo
-//! byte-identity bug").  Un-ignore once `build_for_memoized` is made byte-identical
-//! to `build_for_with_config`.
+//! whole-module [`compiler_check_diagnostics_uncached`] build
+//! (`build_for_with_config`) — they are the two halves of the salsa-native
+//! lattice graph (#604).
+//!
+//! This previously diverged for ~30% of the `tmp/` corpus, but the divergence
+//! was *nondeterminism*, not an offset-0-vs-whole-module analysis difference:
+//! several diagnostic producers folded over `HashMap`s in iteration order
+//! (phi-span resolution, `run_all_checks` output order, the optimiser's group-id
+//! allocation, W313's "first offending path variable", and the order-sensitive
+//! `type_join` fold over a phi's predecessors).  Each is now deterministic, so
+//! the memo and whole-module builds agree byte-for-byte.  See
+//! `docs/design/rust/incremental-analysis.md` ("Memo byte-identity").
 
 use std::path::{Path, PathBuf};
 
@@ -43,7 +46,7 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
 }
 
 #[test]
-#[ignore = "KNOWN-FAILING: pre-existing function_lattice memo divergence (~30% of corpus, S101); see incremental-analysis.md"]
+#[ignore = "slow corpus sweep (~100s over tmp/); run with --ignored"]
 fn compiler_check_memo_matches_uncached_over_corpus() {
     let dialect = "tcl8.6";
     let mut files = Vec::new();
