@@ -23,8 +23,15 @@ tcl-bigip-query = { path = "../tcl-bigip-query" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-registry = { path = "../tcl-registry" }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 regex = "1"
+# Remote verbs (`fetch` / `push` / `pull`): iControl REST over `ureq` + `rustls`,
+# Basic-auth encoding, and UTC fetch timestamps. All pure-Rust / unsafe-free and
+# already present in the workspace lockfile.
+ureq = "3"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rpassword = "7"
 
 [lints]
 workspace = true

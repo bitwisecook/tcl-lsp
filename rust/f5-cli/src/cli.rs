@@ -40,29 +40,6 @@ pub struct FormatArgs {
     pub transaction: bool,
 }
 
-/// Remote BIG-IP credential flags shared by `fetch` / `push` / `pull`.
-#[derive(Debug, Args)]
-pub struct RemoteArgs {
-    /// BIG-IP management host or IP.
-    #[arg(long, value_name = "HOST")]
-    pub host: Option<String>,
-    /// Username (falls back to env / config / prompt).
-    #[arg(long, value_name = "USER")]
-    pub user: Option<String>,
-    /// Password (falls back to env / config / prompt).
-    #[arg(long, value_name = "PASSWORD")]
-    pub password: Option<String>,
-    /// Management TCP port.
-    #[arg(long, value_name = "PORT")]
-    pub port: Option<u16>,
-    /// Skip TLS certificate verification.
-    #[arg(long)]
-    pub insecure: bool,
-    /// Per-request timeout in seconds.
-    #[arg(long, value_name = "SECS")]
-    pub timeout: Option<u64>,
-}
-
 /// UCS passphrase flags shared by verbs that read encrypted archives.
 #[derive(Debug, Default, Args)]
 pub struct PassphraseArgs {
@@ -491,46 +468,122 @@ pub enum Command {
     },
 
     /// Pull SCF or UCS from a live BIG-IP device (REST or SSH).
+    // Help strings are clap-visible and must read exactly as the Python verb's
+    // argparse help (the env-var names carry underscores), so no Markdown
+    // backticks.
+    #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "get")]
     Fetch {
-        #[command(flatten)]
-        remote: RemoteArgs,
-        /// Transport to use.
+        /// Device hostname / IP / alias (or set F5_HOST).
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// Username (or set F5_USER).
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Password (or set F5_PASSWORD).  Prompted interactively if absent.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// iControl REST HTTPS port (default 443).
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// SSH port for SSH transport (default 22).
+        #[arg(long = "ssh-port", value_name = "SSH_PORT")]
+        ssh_port: Option<u16>,
+        /// Transport: REST, SSH, or auto-fallback (default).
         #[arg(long, default_value = "auto", value_parser = ["auto", "rest", "ssh"])]
         transport: String,
-        /// Artifact(s) to retrieve.
-        #[arg(long, default_value = "scf", value_parser = ["scf", "ucs", "both"])]
-        format: String,
+        /// What to download (default: scf).
+        #[arg(long = "format", default_value = "scf", value_parser = ["scf", "ucs", "both"], value_name = "FORMAT")]
+        fmt: String,
+        /// Skip TLS certificate verification (default: yes — BIG-IP self-signs).
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        insecure: bool,
+        /// Per-request timeout in seconds (default: 120).
+        #[arg(long, default_value_t = 120.0, value_name = "SECS")]
+        timeout: f64,
+        /// Write artefacts to DIR.  Pass `-` to stream the SCF to stdout.
+        #[arg(long, short = 'o', value_name = "DIR")]
+        output: Option<String>,
+        /// Fail rather than prompt for missing credentials.
+        #[arg(long = "no-prompt")]
+        no_prompt: bool,
+        /// Print the cache directory path on stdout after a successful fetch.
+        #[arg(long = "print-path")]
+        print_path: bool,
     },
 
     /// Replace or create a single object on a live BIG-IP via iControl REST.
     Push {
-        /// Object kind (virtual/pool/node/rule).
+        /// Object kind to push.
+        #[arg(value_parser = ["virtual", "pool", "node", "rule"])]
         kind: String,
-        /// JSON payload file.
-        payload: PathBuf,
-        #[command(flatten)]
-        remote: RemoteArgs,
-        /// Create instead of replace.
+        /// Path to a JSON file (`-` for stdin) holding the iControl REST payload.
+        payload: String,
+        /// Device hostname / IP / alias.
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// Username.
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Password.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// HTTPS port (default 443).
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// Fail rather than prompt.
+        #[arg(long = "no-prompt")]
+        no_prompt: bool,
+        /// Skip TLS certificate verification (default: yes).
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        insecure: bool,
+        /// POST as a new object rather than PUT-replacing an existing one.
         #[arg(long)]
         create: bool,
-        /// Show the request without sending it.
+        /// Show the payload and target endpoint without sending.
         #[arg(long = "dry-run")]
         dry_run: bool,
+        /// Per-request timeout (default: 60s).
+        #[arg(long, default_value_t = 60.0, value_name = "SECS")]
+        timeout: f64,
     },
 
     /// Fetch a single object from a live BIG-IP.
+    // The `full_path` example carries a slash path; keep it backtick-free so the
+    // clap help reads as the Python argparse help does.
+    #[allow(clippy::doc_markdown)]
     Pull {
-        /// Object kind (virtual/pool/node/rule).
+        /// Object kind to fetch.
+        #[arg(value_parser = ["virtual", "pool", "node", "rule"])]
         kind: String,
-        /// Object full-path.
+        /// Full path of the object (e.g. /Common/vs_app).
         full_path: String,
-        #[command(flatten)]
-        remote: RemoteArgs,
+        /// Device hostname / IP / alias.
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// Username.
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Password.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// HTTPS port (default 443).
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// Fail rather than prompt.
+        #[arg(long = "no-prompt")]
+        no_prompt: bool,
+        /// Skip TLS certificate verification (default: yes).
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        insecure: bool,
+        /// Emit raw iControl REST JSON.
         #[arg(long)]
         json: bool,
-        #[arg(long, default_value = "scf", value_parser = ["scf", "json"])]
-        format: String,
+        /// Per-request timeout (default: 60s).
+        #[arg(long, default_value_t = 60.0, value_name = "SECS")]
+        timeout: f64,
+        #[command(flatten)]
+        format: FormatArgs,
     },
 
     /// Trace each flow in a PCAP through the BIG-IP config.

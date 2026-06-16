@@ -526,9 +526,12 @@ name = "f5-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
+ "chrono",
  "clap",
  "clap_complete",
  "regex",
+ "rpassword",
  "serde",
  "serde_json",
  "tcl-bigip",
@@ -537,6 +540,7 @@ dependencies = [
  "tcl-cli-support",
  "tcl-lsp-core",
  "tcl-registry",
+ "ureq",
 ]
 
 [[package]]
