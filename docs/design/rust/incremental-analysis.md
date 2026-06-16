@@ -368,16 +368,33 @@ practcl.tcl from ~1 s to low-ms).
 >     nearly all of them, and the memo was keyed *without* `param_constants` so
 >     those bypass it.  So the 52 ms is fresh SSA/SCCP/type/taint builds, and the
 >     headline lattice memo only helps callee-free procs.
->   - *Tried (param_constants in the key) then reverted — blocked by the bug
->     below, not by perf.* Folding `param_constants` into `FnLatticeKey` makes the
->     memo engage for all procs; with the cache verified hitting (a warm edit
->     re-executes 0–2 lattices, not 176), clone+rebase is **~9× cheaper than
->     fresh-build** (pki 4 ms vs 38 ms; parse_lemon 6 ms vs 52 ms) and per-edit
->     latency improves (pki BOTH-queries ~235 ms → ~150 ms; parse_lemon ~202 →
->     ~191 ms, the smaller win eaten by the IR body-normalise needed to form the
->     offset-0 key).  It is **correct in isolation** and was reverted only because
->     it *extended* the memo byte-identity bug below to more procedures; with that
->     bug now fixed (see "Memo byte-identity (fixed)"), it can land on top.
+>   - **`param_constants` folded into `FnLatticeKey` (shipped).** The
+>     caller-uniform-literal SCCP seeds (`param_constants` /
+>     `params_constants_from_call_sites`) are now part of the memo key, so a
+>     procedure with them engages the `function_lattice` memo instead of
+>     bypassing it via the old `param_constants.is_none()` guard.  The seeds are
+>     carried through `LatticeRequest` in a deterministic, hashable,
+>     position-independent encoding (`(param, version, string)`, sorted —
+>     `encode_param_constants` / `decode_param_constants`), with a defensive
+>     fresh-build fallback if a seed is ever not a string const (the only shape
+>     the producer emits).  `function_lattice` decodes the seeds and builds via
+>     `FunctionUnit::build_with_param_constants`, so a procedure rebuilds its
+>     lattice only when a caller's literal at that position changes (a new key)
+>     and is an offset-invariant cache hit otherwise.  With the memo now engaging
+>     for nearly all procs, clone+rebase is **~9× cheaper than fresh-build** (the
+>     measured-in-isolation figures: pki 4 ms vs 38 ms; parse_lemon 6 ms vs
+>     52 ms).  On the noisy CI box the aggregate BOTH-queries win is partly
+>     masked by the O(file) lowering floor that now dominates, but the achievable
+>     floor drops (pki BOTH min-of-N **~175 ms → ~153 ms**, matching the original
+>     ~150 ms experiment).  Byte-identical — the new
+>     `function_lattice_memoises_param_constant_procs` db test proves a
+>     param-constant callee now executes a `function_lattice` query and is reused
+>     across an unrelated edit, and the full corpus differential
+>     (`compiler_check_memo_matches_uncached_over_corpus`) + `differential_incremental`
+>     + `per_item_corpus` + e2e all stay green.  This was previously tried and
+>     reverted only because it *extended* the memo byte-identity bug below to more
+>     procedures; re-landed on top of that fix (#616, see "Memo byte-identity
+>     (fixed)").
 > - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
 >   definer and is OO-heavy, so it needs that architectural step before it leaves
 >   the full-rebuild path.
