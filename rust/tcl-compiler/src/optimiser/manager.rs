@@ -100,6 +100,32 @@ pub fn find_dead_stores(
     ctx.dead_stores
 }
 
+/// Run the passes one at a time over a shared context and return, for each
+/// [`PassId`] in [`PassId::all`] order, the optimisations *that pass*
+/// produced (raw, before overlap arbitration). Powers the explorer's
+/// Rust-native "optimiser pass pipeline" view — there is no Python analogue
+/// because the Python optimiser is not structured as this pass sequence.
+///
+/// Equivalent to [`optimise_unit`] in effect (each pass sees the prior
+/// passes' context), but it attributes every finding to its originating pass.
+#[must_use]
+pub fn optimise_by_pass(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<(PassId, Vec<Optimisation>)> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    let mut by_pass = Vec::new();
+    for pass in PassId::all() {
+        let before = ctx.optimisations.len();
+        run_passes(&mut ctx, cu, &[pass]);
+        by_pass.push((pass, ctx.optimisations[before..].to_vec()));
+    }
+    by_pass
+}
+
 /// Build, run every pass, and return the full *unfiltered*
 /// optimisation list (no overlap resolution). Exposed mainly for
 /// tests that want to inspect raw per-pass output before the

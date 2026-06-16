@@ -301,6 +301,28 @@ function renderOpt() {
   if (data.optimisedSource) { requestAnimationFrame(function() { drawOptBrackets(pane); }); setupOptDiffHover(pane); setupOptItemDiffScroll(pane); }
 }
 
+// Rust-native: the optimiser pass pipeline — each pass in execution order
+// with the rewrites it produced. Absent when served by the Python backend.
+function renderOptimiserPasses() {
+  var pane = $('#pane-optimiser-passes');
+  if (!pane) return;
+  var passes = data.optimiserPasses;
+  if (!passes || !passes.length) { pane.innerHTML = '<div class="empty-state">Optimiser pipeline unavailable</div>'; return; }
+  var html = '';
+  for (var p of passes) {
+    html += '<div class="section-header">' + esc(p.label) + ' <span style="color:var(--text-dim); font-weight:normal">' + esc(p.id) + ' &middot; ' + p.count + ' rewrite' + (p.count === 1 ? '' : 's') + '</span></div>';
+    if (!p.optimisations.length) {
+      html += '<div class="analysis-entry" style="color:var(--text-dim); margin-left:8px">(no rewrites)</div>';
+      continue;
+    }
+    for (var o of p.optimisations) {
+      html += '<div class="opt-item"' + sourceRangeAttrs(o.range) + '><span class="opt-code">' + esc(o.code) + '</span><span class="opt-msg">' + esc(o.message) + ' <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(o.range) + ']</span></span><span class="opt-repl">→ ' + esc(o.replacement) + '</span></div>';
+    }
+  }
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+}
+
 function computeDiffSegments(origLines, optLines) {
   var segments = [];
   if (origLines.length === optLines.length) {

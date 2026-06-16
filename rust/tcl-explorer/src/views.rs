@@ -29,6 +29,7 @@ pub const VIEW_META: &[ViewMeta] = &[
     ("interproc", "Interprocedural", "compiler"),
     ("rendered", "Rendered Props", "compiler"),
     ("opt", "Optimisations", "optimiser"),
+    ("optimiserPasses", "Pass Pipeline", "optimiser"),
     ("gvn", "GVN", "optimiser"),
     ("shimmer", "Shimmer", "optimiser"),
     ("taint", "Taint", "optimiser"),

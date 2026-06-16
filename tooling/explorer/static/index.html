@@ -969,6 +969,7 @@ puts $x"></textarea>
         <div class="tab" data-tab="rendered">Rendered</div>
         <div class="tab" data-tab="dataflow">Data Flow</div>
         <div class="tab" data-tab="opt">Optimiser</div>
+        <div class="tab" data-tab="optimiser-passes">Pass Pipeline</div>
         <div class="tab" data-tab="gvn">GVN</div>
         <div class="tab" data-tab="shimmer">Shimmer</div>
         <div class="tab" data-tab="taint">Taint</div>
@@ -994,6 +995,7 @@ puts $x"></textarea>
         <div class="tab-pane" id="pane-rendered"></div>
         <div class="tab-pane" id="pane-dataflow"></div>
         <div class="tab-pane" id="pane-opt"></div>
+        <div class="tab-pane" id="pane-optimiser-passes"></div>
         <div class="tab-pane" id="pane-gvn"></div>
         <div class="tab-pane" id="pane-shimmer"></div>
         <div class="tab-pane" id="pane-taint"></div>
@@ -1239,6 +1241,7 @@ function renderAll() {
   renderRendered();
   renderDataFlow();
   renderOpt();
+  renderOptimiserPasses();
   renderGvn();
   renderShimmer();
   renderTaint();
@@ -1259,6 +1262,7 @@ function updateBadges() {
     'types': data.types.reduce((n, f) => n + f.entries.length, 0),
     'rendered': (data.renderedProperties||[]).reduce((n, f) => n + f.entries.length, 0),
     'opt': data.optimisations.length,
+    'optimiser-passes': (data.optimiserPasses||[]).reduce((n, p) => n + p.count, 0),
     'gvn': data.gvn.length,
     'shimmer': data.shimmer.length,
     'taint': data.taintWarnings.length + data.taintTracking.reduce((n, f) => n + f.entries.length, 0),

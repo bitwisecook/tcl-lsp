@@ -68,6 +68,13 @@ _DIALECT = "tcl8.6"
 # until the underlying analyses converge.
 _SHAPE_ONLY_KEYS = {"interprocedural"}
 
+# Rust-native views with no Python `serialise_result` counterpart — they
+# surface internals the Python contract never had (see
+# docs/design/contracts/explorer-view-audit.md). Skipped by the differential
+# harness and stripped from the `meta.views` comparison; pinned by Rust unit
+# tests instead.
+_RUST_NATIVE_KEYS = {"optimiserPasses"}
+
 # Views whose Rust backend is materially different from Python, so a Python
 # differential is the wrong gate. Each is classified per
 # docs/design/contracts/explorer-view-audit.md as either "by design" (🏗 —
@@ -256,7 +263,11 @@ def _normalise(payload: dict) -> dict:
     meta = payload.get("meta")
     if isinstance(meta, dict) and isinstance(meta.get("views"), list):
         meta = dict(meta)
-        meta["views"] = [v for v in meta["views"] if v.get("id") != "greentree"]
+        # Python-only `greentree` tab (dropped in Rust) and the Rust-native
+        # views (no Python tab) are both removed so the shared tab table
+        # compares equal.
+        dropped = {"greentree"} | _RUST_NATIVE_KEYS
+        meta["views"] = [v for v in meta["views"] if v.get("id") not in dropped]
         payload["meta"] = meta
     return payload
 
@@ -273,6 +284,8 @@ def test_rust_serialiser_matches_python(name: str) -> None:
 
     assert rust, "Rust serialiser emitted no keys"
     for key in rust:
+        if key in _RUST_NATIVE_KEYS:
+            continue
         assert key in py, f"Rust emitted unknown contract key {key!r}"
         if key in _NO_PARITY_KEYS:
             continue

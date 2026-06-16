@@ -26,7 +26,7 @@ use tcl_compiler::irules_checks::{
     find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
-use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise};
+use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
 use tcl_compiler::segmenter::segment_commands;
 use tcl_compiler::shimmer::{
     find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
@@ -501,6 +501,41 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
         })
         .collect();
     Value::Array(opts)
+}
+
+/// Serialise the Rust-native `optimiserPasses` view: each optimiser pass in
+/// `PassId::all()` order with the optimisations it produced (raw, before the
+/// overlap arbitration the `optimisations` view applies).
+///
+/// **Rust-native** — there is no Python `serialise_result` counterpart, since
+/// the Python optimiser is not structured as this pass sequence. It surfaces
+/// the actual Rust pipeline: which pass found what, in execution order.
+#[must_use]
+pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let registry = registry_for_dialect(&result.dialect);
+    let passes: Vec<Value> = optimise_by_pass(&result.unit, registry, Some(&result.dialect))
+        .iter()
+        .map(|(pass, opts)| {
+            let optimisations: Vec<Value> = opts
+                .iter()
+                .map(|o| {
+                    json!({
+                        "code": o.code,
+                        "message": o.message,
+                        "range": range_dict(o.span, li, source),
+                        "replacement": o.replacement,
+                    })
+                })
+                .collect();
+            json!({
+                "id": pass.as_str(),
+                "label": pass.label(),
+                "count": optimisations.len(),
+                "optimisations": optimisations,
+            })
+        })
+        .collect();
+    Value::Array(passes)
 }
 
 /// Serialise the `intervals` view: the integer-interval domain per tracked
@@ -1533,6 +1568,11 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         "optimisations".to_owned(),
         serialise_optimisations(result, &li, &result.source),
     );
+    // Rust-native: the optimiser pass pipeline (no Python counterpart).
+    out.insert(
+        "optimiserPasses".to_owned(),
+        serialise_optimiser_passes(result, &li, &result.source),
+    );
     out.insert(
         "shimmer".to_owned(),
         serialise_shimmer(result, &li, &result.source),
@@ -1612,9 +1652,9 @@ mod tests {
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 14);
-        // 23 views: Python's 24 minus the dropped `greentree` tab (Rust has a
-        // single red-green CST, no separate legacy green tree).
-        assert_eq!(meta["views"].as_array().unwrap().len(), 23);
+        // 24 views: Python's 24 minus the dropped `greentree` tab (Rust has a
+        // single red-green CST) plus the Rust-native `optimiserPasses` view.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 24);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
@@ -1723,6 +1763,28 @@ mod tests {
         let result = run_pipeline("proc f {} { set x 1; return $x }", "tcl8.6");
         let value = serialise_result(&result);
         assert_eq!(value["stats"]["deadStores"], 0);
+    }
+
+    #[test]
+    fn optimiser_passes_lists_every_pass_in_order() {
+        // The Rust-native pass-pipeline view: all 9 passes in execution
+        // order, each with the optimisations it produced.
+        let result = run_pipeline("set x 1\nset y [expr {1 + 2}]\nputs $x$y", "tcl8.6");
+        let passes = serialise_result(&result)["optimiserPasses"].clone();
+        let arr = passes.as_array().unwrap();
+        assert_eq!(arr.len(), 9, "all nine passes are listed");
+        // Execution order is fixed (propagation first).
+        assert_eq!(arr[0]["id"], "propagation");
+        assert_eq!(arr[1]["id"], "branch_folding");
+        // Each entry carries a label, count, and the optimisations array.
+        for p in arr {
+            assert!(p["label"].is_string());
+            let opts = p["optimisations"].as_array().unwrap();
+            assert_eq!(p["count"].as_u64().unwrap() as usize, opts.len());
+        }
+        // Propagation folds the constant var-ref / interpolation here.
+        let prop = &arr[0];
+        assert!(prop["count"].as_u64().unwrap() >= 1);
     }
 
     #[test]

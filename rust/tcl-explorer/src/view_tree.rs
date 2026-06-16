@@ -728,6 +728,50 @@ fn build_opt(d: &Value) -> Vec<ViewNode> {
     }
 }
 
+fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
+    let out: Vec<ViewNode> = arr(d, "optimiserPasses")
+        .iter()
+        .map(|p| {
+            let opts: Vec<ViewNode> = arr(p, "optimisations")
+                .iter()
+                .map(|o| {
+                    ViewNode::leaf(
+                        format!(
+                            "{} {} → {}",
+                            s(o, "code"),
+                            s(o, "message"),
+                            s(o, "replacement")
+                        ),
+                        vec![
+                            det("code", s(o, "code")),
+                            det("message", s(o, "message")),
+                            det("replacement", s(o, "replacement")),
+                            det("range", rng(&o["range"])),
+                        ],
+                        Some("green"),
+                    )
+                })
+                .collect();
+            let count = s(p, "count");
+            ViewNode::branch(
+                format!("{} ({count})", s(p, "label")),
+                vec![det("pass", s(p, "id")), det("rewrites", count)],
+                opts,
+                Some(if arr(p, "optimisations").is_empty() {
+                    "dim"
+                } else {
+                    "green"
+                }),
+            )
+        })
+        .collect();
+    if out.is_empty() {
+        vec![ViewNode::note("(optimiser pipeline unavailable)", "dim")]
+    } else {
+        out
+    }
+}
+
 fn build_gvn(d: &Value) -> Vec<ViewNode> {
     let out: Vec<ViewNode> = arr(d, "gvn")
         .iter()
@@ -967,6 +1011,7 @@ pub const TREE_VIEWS: &[&str] = &[
     "interproc",
     "rendered",
     "opt",
+    "optimiserPasses",
     "gvn",
     "shimmer",
     "taint",
@@ -991,6 +1036,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "interproc" => build_interproc(data),
         "rendered" => build_rendered(data),
         "opt" => build_opt(data),
+        "optimiserPasses" => build_optimiser_passes(data),
         "gvn" => build_gvn(data),
         "shimmer" => build_shimmer(data),
         "taint" => build_taint(data),
