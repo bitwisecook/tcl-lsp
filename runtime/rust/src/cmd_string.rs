@@ -50,6 +50,12 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
     }
 
+    // A constant can't be appended to; reject before the in-place update would
+    // bypass the store-time constant check (var-26.2/27.2).
+    if let Some(c) = interp.const_write_check(&name) {
+        return c;
+    }
+
     // Pick the target: in place if it's an unshared plain string; else a fresh
     // plain string seeded from the current value (or empty).
     let (target, is_new) = match interp.var_get(&name) {
