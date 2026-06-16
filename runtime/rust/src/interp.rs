@@ -4576,11 +4576,18 @@ impl Interp {
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
         // error (C Tcl: `invoked "break" outside of a loop`).
+        // A *bare* `break`/`continue` command escaping the body (no enclosing
+        // loop) is the `invoked "break" outside of a loop` error; but `return
+        // -code break` (the body completed with `Code::Return`) propagates the
+        // raw completion code unchanged — C distinguishes these, e.g. an
+        // ensemble `-unknown` handler that does `return -code break` yields code
+        // 3, not the loop error (namespace-47.4).
+        let from_return = code == Code::Return;
         let settled = match self.settle_return(code) {
-            Code::Break if !meta.keep_loop_codes => {
+            Code::Break if !meta.keep_loop_codes && !from_return => {
                 self.error(b"invoked \"break\" outside of a loop")
             }
-            Code::Continue if !meta.keep_loop_codes => {
+            Code::Continue if !meta.keep_loop_codes && !from_return => {
                 self.error(b"invoked \"continue\" outside of a loop")
             }
             other => other,
@@ -4678,7 +4685,23 @@ impl Interp {
                     EnsembleUnknown::Failed(code) => return code,
                 }
             }
-            // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
+            // A namespace ensemble with no subcommands at all gets a distinct
+            // message; otherwise "unknown or ambiguous" (prefixes on) / "unknown"
+            // (prefixes off) followed by the candidate list (C's
+            // `NsEnsembleImplementationCmdNR`).
+            let ecode = {
+                let mut c = b"TCL LOOKUP SUBCOMMAND ".to_vec();
+                c.extend_from_slice(&sub);
+                c
+            };
+            if subs.is_empty() {
+                let mut m = b"unknown subcommand \"".to_vec();
+                m.extend_from_slice(&sub);
+                m.extend_from_slice(b"\": namespace ");
+                m.extend_from_slice(&self.namespaces.borrow().qualified_name(cfg.ns));
+                m.extend_from_slice(b" does not export any commands");
+                return self.error_with_code(&m, &ecode);
+            }
             let mut m = if cfg.prefixes {
                 b"unknown or ambiguous subcommand \"".to_vec()
             } else {
@@ -4687,7 +4710,7 @@ impl Interp {
             m.extend_from_slice(&sub);
             m.extend_from_slice(b"\": must be ");
             m.extend_from_slice(&crate::ensemble::must_be(&subs));
-            return self.error(&m);
+            return self.error_with_code(&m, &ecode);
         }
     }
 
