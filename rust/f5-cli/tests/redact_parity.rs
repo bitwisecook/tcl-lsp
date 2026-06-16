@@ -193,6 +193,78 @@ fn keep_ips_redacts_secrets_only() {
     );
 }
 
+/// Run a stdout-producing redact/unredact invocation (`--format tmsh` etc.)
+/// and return `(stdout, stderr)`. No `-o` / `--map-file`, so no sidecar map is
+/// written and the summary line carries no per-machine path.
+fn run_to_stdout(args: &[&str]) -> (String, String) {
+    let output = bin().args(args).output().expect("spawn f5-query");
+    assert!(
+        output.status.success(),
+        "{args:?} exited {:?}\nstderr: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    (
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn redact_format_tmsh_byte_parity() {
+    // `--format tmsh` re-renders the redacted config as a `tmsh modify` script
+    // (in-place rewriters use `modify`). With no `-o`/`--map-file` the script
+    // goes to stdout and no map is written.
+    let conf = conf();
+    let (out, err) = run_to_stdout(&["redact", &conf, "--format", "tmsh"]);
+    assert_eq!(out, golden("redact-tmsh.conf.golden"), "redact --format tmsh");
+    assert_eq!(err, golden("redact-tmsh.err.golden"), "redact tmsh summary");
+}
+
+#[test]
+fn redact_format_tmsh_transaction_byte_parity() {
+    // `--transaction` wraps the `tmsh modify` script in a `cli transaction`
+    // envelope.
+    let conf = conf();
+    let (out, err) = run_to_stdout(&["redact", &conf, "--format", "tmsh", "--transaction"]);
+    assert_eq!(
+        out,
+        golden("redact-tmsh-txn.conf.golden"),
+        "redact --format tmsh --transaction"
+    );
+    assert_eq!(
+        err,
+        golden("redact-tmsh-txn.err.golden"),
+        "redact tmsh transaction summary"
+    );
+}
+
+#[test]
+fn unredact_format_tmsh_byte_parity() {
+    // `unredact --format tmsh` re-renders the recovered config as a `tmsh
+    // modify` script. Drives committed `unredact-input.{conf,map}` (a frozen
+    // redaction) so the run is deterministic and Python-free.
+    let map = fixtures_dir()
+        .join("unredact-input.map")
+        .to_string_lossy()
+        .into_owned();
+    let red = fixtures_dir()
+        .join("unredact-input.conf")
+        .to_string_lossy()
+        .into_owned();
+    let (out, err) = run_to_stdout(&["unredact", &map, &red, "--format", "tmsh"]);
+    assert_eq!(
+        out,
+        golden("unredact-tmsh.conf.golden"),
+        "unredact --format tmsh"
+    );
+    assert_eq!(
+        err,
+        golden("unredact-tmsh.err.golden"),
+        "unredact tmsh summary"
+    );
+}
+
 #[test]
 fn redact_unredact_round_trip() {
     // redact (default direct remap) -> unredact restores every remapped IP.

@@ -5,8 +5,10 @@
 //! original value via [`tcl_bigip::redact::apply_map`].
 //!
 //! `--format scf` (default) emits the recovered text verbatim, reaching
-//! byte-for-byte parity. `tmsh` / `tmsh-delta` need the unported tmsh emitter
-//! and are cleanly rejected.
+//! byte-for-byte parity. `tmsh` / `tmsh-delta` re-render the recovered config
+//! via the BIG-IP tmsh emit engine (`tcl_bigip::tmsh_emit`); like the Python
+//! verb, no pre-edit original is threaded, so `tmsh-delta` treats every object
+//! as freshly created (and a non-config input falls back to raw text).
 
 use std::path::Path;
 
@@ -25,14 +27,6 @@ pub fn run_unredact(
     if map_file == "-" && path == "-" {
         eprintln!("error: cannot read both map file and input from stdin");
         return Ok(2);
-    }
-
-    // Deferred: `tmsh` / `tmsh-delta` need the unported tmsh emitter.
-    if format.format != "scf" {
-        anyhow::bail!(
-            "`f5 unredact --format {}` is not yet implemented in the Rust port (needs the tmsh emitter)",
-            format.format
-        );
     }
 
     let opts = crate::cli::PassphraseArgs::default().to_options();
@@ -61,7 +55,15 @@ pub fn run_unredact(
 
     let (out, count) = apply_map(&mut rm, &source, true);
 
-    // `--format scf` => verbatim (`render_config`).
+    // `--format scf` => verbatim; `tmsh` / `tmsh-delta` re-render. Like the
+    // Python verb, no pre-edit original is threaded (delta treats all as new).
+    let out = crate::commands::emit::render_config(
+        &out,
+        &format.format,
+        "modify",
+        format.transaction,
+        "",
+    );
     if let Some(o) = output {
         std::fs::write(o, &out)?;
     } else {
