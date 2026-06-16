@@ -42,11 +42,9 @@ node_modules/**
 **/*.pyo
 **/*.pyd
 
-# Raw Python source excluded (server is bundled as .pyz)
-server/**
-explorer/**
-pyproject.toml
-uv.lock
+# NOTE: the VSIX bundles the native `tcl-lsp-server` binary per platform under
+# `server/<platform>-<arch>/`, so `server/**` must NOT be excluded here. The
+# extension no longer ships any Python server (no .pyz, no raw Python source).
 
 # Misc
 **/.gitignore

@@ -68,8 +68,11 @@ Per-file `# tcl-dialect:` comment directives pin a specific dialect.
 
 ### VS Code
 
-The full-featured extension, distributed as a `.vsix`, bundles the LSP server
-and provides the richest integration.
+The full-featured extension, distributed as a `.vsix`, provides the richest
+integration. It bundles a self-contained native `tcl-lsp-server` binary for
+every supported platform — macOS, Linux, and Windows on x64 and arm64, plus
+Linux riscv64 — and launches the one matching your machine, so **no Python
+runtime is required**.
 
 **25+ commands** including: Restart Server, Select Dialect, Apply Safe Quick
 Fixes, Apply All Optimisations, Open in Tcl Compiler Explorer, Open Tk Preview,
