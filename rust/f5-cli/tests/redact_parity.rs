@@ -217,7 +217,11 @@ fn redact_format_tmsh_byte_parity() {
     // goes to stdout and no map is written.
     let conf = conf();
     let (out, err) = run_to_stdout(&["redact", &conf, "--format", "tmsh"]);
-    assert_eq!(out, golden("redact-tmsh.conf.golden"), "redact --format tmsh");
+    assert_eq!(
+        out,
+        golden("redact-tmsh.conf.golden"),
+        "redact --format tmsh"
+    );
     assert_eq!(err, golden("redact-tmsh.err.golden"), "redact tmsh summary");
 }
 

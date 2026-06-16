@@ -410,11 +410,7 @@ fn context_no_transitive_json() {
 #[test]
 fn context_standalone_irule_text() {
     // A standalone `.irule` is bundled as a synthetic single-rule config.
-    let (code, out, _) = run(&[
-        "irule",
-        "context",
-        &fixture("irule-lint-standalone.irule"),
-    ]);
+    let (code, out, _) = run(&["irule", "context", &fixture("irule-lint-standalone.irule")]);
     assert_eq!(code, 0);
     assert_eq!(out, golden("irule-context-standalone.text.golden"));
 }
