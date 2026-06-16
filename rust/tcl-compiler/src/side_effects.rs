@@ -626,10 +626,17 @@ impl Default for CalleeSummary {
 /// traits consulted today are `PURE`, `PURE_EVALUATION`,
 /// `EVALUATES_CODE`, `CREATES_BARRIER`, `DEFINES_PROCEDURE`, and
 /// `DESTROYS_VARIABLE`, plus the spec-level `assigns_variable_at`
-/// field. Subcommand-form resolution, structured
-/// `side_effect_hints`, and protocol-namespace classification
-/// (`HTTP::`, `SSL::`, …) are left as follow-ups.
+/// field, and the spec's structured `side_effects` (Python's
+/// `side_effect_hints`). A `PURE` command with a mutator subcommand
+/// (`HTTP::header insert …`) is downgraded to impure and a still-pure
+/// command surfaces its hint read-only. Full arity-based form
+/// resolution and the per-subcommand protocol-namespace write modelling
+/// (`_classify_protocol_ns_command`) are left as follow-ups.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "sequential registry-trait dispatch; splitting hurts readability"
+)]
 pub fn classify_side_effects(
     registry: &CommandRegistry,
     command: &str,
@@ -658,14 +665,56 @@ pub fn classify_side_effects(
         };
     }
 
-    // Pure evaluation (expr when braced) is always pure.
-    if spec.traits.contains(Traits::PURE_EVALUATION) || spec.traits.contains(Traits::PURE) {
+    // Pure evaluation (`expr` when braced) is always pure — checked first
+    // and unconditionally, mirroring Python's `is_pure_evaluation` short-
+    // circuit (no subcommand / hint handling applies).
+    if spec.traits.contains(Traits::PURE_EVALUATION) {
         return CommandSideEffects {
             pure: true,
             deterministic: true,
             dialect: dialect.map(str::to_owned),
             ..CommandSideEffects::default()
         };
+    }
+
+    // Command-level `PURE` commands. Two refinements from Python's pure
+    // branch:
+    //   1. A *mutator* subcommand downgrades purity — e.g. `HTTP::header`
+    //      is `PURE` but `HTTP::header insert …` mutates header state, so
+    //      it must fall through to the structured-hints classification
+    //      below (which yields the read+write effect). Without this a
+    //      header mutation reads as pure with no effects.
+    //   2. A still-pure command may carry a *read-only* hint — `HTTP::header`
+    //      (getter) reads header state. Python returns the structured hint
+    //      with `reads=true, writes=false`; reproduce that by forcing the
+    //      spec's hints read-only.
+    if spec.traits.contains(Traits::PURE) {
+        let effective_sub = args.first().map(String::as_str);
+        let sub_is_mutator = effective_sub
+            .and_then(|s| spec.subcommand(s))
+            .is_some_and(|sc| sc.mutator);
+        if !sub_is_mutator {
+            let effects = dialect_side_effect_hints(registry, command, effective_sub, dialect)
+                .map(|hints| {
+                    hints
+                        .into_iter()
+                        .map(|mut e| {
+                            e.reads = true;
+                            e.writes = false;
+                            e
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            return CommandSideEffects {
+                effects,
+                pure: true,
+                deterministic: true,
+                dialect: dialect.map(str::to_owned),
+                ..CommandSideEffects::default()
+            };
+        }
+        // Mutator subcommand → not pure; fall through to the hints block.
     }
 
     // Subcommand-level purity: ensemble commands (`string`, `dict`, `array`,
@@ -1381,6 +1430,49 @@ mod tests {
         let (r, w) = cse.to_effect_regions();
         assert_eq!(r, EffectRegion::NONE);
         assert_eq!(w, EffectRegion::NONE);
+    }
+
+    #[test]
+    fn pure_command_mutator_subcommand_downgrades_purity() {
+        // `HTTP::header` carries `Traits::PURE` + a structured `HttpHeader`
+        // read+write hint + `mutator` subcommands. The getter stays pure with
+        // a read-only effect; a mutator subcommand (`insert`) downgrades to
+        // impure with a read+write effect. Matches Python's pure branch
+        // (`HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
+        // HTTP_STATE) impure).
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(DialectSet::IRULES);
+
+        let getter = classify_side_effects(
+            &registry,
+            "HTTP::header",
+            &["value".into(), "Host".into()],
+            Some("f5-irules"),
+            None,
+        );
+        assert!(getter.pure, "HTTP::header getter should stay pure");
+        assert_eq!(
+            getter.to_effect_regions(),
+            (EffectRegion::HTTP_STATE, EffectRegion::NONE),
+            "pure getter reads header state, no write",
+        );
+
+        let insert = classify_side_effects(
+            &registry,
+            "HTTP::header",
+            &["insert".into(), "X-Foo".into(), "y".into()],
+            Some("f5-irules"),
+            None,
+        );
+        assert!(
+            !insert.pure,
+            "HTTP::header insert (mutator subcommand) must not be pure",
+        );
+        assert_eq!(
+            insert.to_effect_regions(),
+            (EffectRegion::HTTP_STATE, EffectRegion::HTTP_STATE),
+            "header mutation reads + writes header state",
+        );
     }
 
     #[test]
