@@ -17,7 +17,9 @@ use crate::value::Value;
 fn eval_in_ns(vm: &mut Vm, target: String, body: &str) -> Completion<Value> {
     vm.declare_namespace(&target);
     vm.push_ns(target);
+    vm.enter_ns_script();
     let result = vm.eval_source(body);
+    vm.leave_ns_script();
     vm.pop_ns();
     match result {
         Ok(c) if c.code == Code::Return => ok(c.result),

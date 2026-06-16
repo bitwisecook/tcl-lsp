@@ -70,6 +70,8 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("variable", cmd_variable);
     vm.register("unset", cmd_unset);
     vm.register("subst", cmd_subst);
+    vm.register("auto_load", cmd_auto_load);
+    vm.register("auto_import", |_, _| ok(Value::empty()));
     crate::cmd_array::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
@@ -115,6 +117,42 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return err(format!("couldn't read file \"{path}\": {e}")),
     };
     match vm.eval_source(&contents) {
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
+/// The standard library `parray` proc, defined on demand by `auto_load`.
+const PARRAY_SRC: &str = r#"proc ::parray {a {pattern *}} {
+    upvar 1 $a array
+    set maxl 0
+    foreach name [lsort [array names array $pattern]] {
+        if {[string length $name] > $maxl} {
+            set maxl [string length $name]
+        }
+    }
+    set maxl [expr {$maxl + [string length $a] + 2}]
+    foreach name [lsort [array names array $pattern]] {
+        set nameString [format %s(%s) $a $name]
+        puts stdout [format "%-*s = %s" $maxl $nameString $array($name)]
+    }
+}"#;
+
+/// `auto_load command` — there is no on-disk autoloader, but a few standard
+/// library procs are provided on demand (so e.g. `info body ::parray` works).
+/// Returns 1 if the command was made available, 0 otherwise.
+fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let name = args
+        .first()
+        .map(|v| v.to_str().to_string())
+        .unwrap_or_default();
+    let simple = name.rsplit("::").next().unwrap_or(&name);
+    let src = match simple {
+        "parray" => PARRAY_SRC,
+        _ => return ok(Value::int(0)),
+    };
+    match vm.eval_source(src) {
+        Ok(c) if c.code.is_ok() => ok(Value::int(1)),
         Ok(c) => c,
         Err(e) => err(e.message),
     }
@@ -518,7 +556,17 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while i + 1 < rest.len() {
         let other = rest[i].to_str();
         let local = rest[i + 1].to_str();
-        vm.add_link(&local, target, &other);
+        // Inside a `namespace eval` body, an unqualified alias names a namespace
+        // variable: store the link in the global frame under the qualified name
+        // (and resolve the target to its namespace-qualified location), so a
+        // proc's `variable <name>` finds the same cell.
+        if vm.in_ns_script() && !local.contains("::") && !vm.current_ns().is_empty() {
+            let alias = vm.qualify_name(&local);
+            let target_name = vm.qualify_name(&other);
+            vm.add_global_link(&alias, 0, &target_name);
+        } else {
+            vm.add_link(&local, target, &other);
+        }
         i += 2;
     }
     ok(Value::empty())

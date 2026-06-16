@@ -189,6 +189,20 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn namespace_eval_upvar_alias() {
+    // tcltest idiom: a `namespace eval` body aliases an array element to a
+    // namespace variable, which a proc then reads/writes via `variable`.
+    out_eq(
+        "namespace eval foo {\n  variable Opt\n  set Opt(d) 0\n  namespace eval ::foo {upvar 0 Opt(d) dbg}\n  proc r {} { variable dbg; return $dbg }\n}\nputs [foo::r]\n",
+        "0\n",
+    );
+    out_eq(
+        "namespace eval foo {\n  variable Opt\n  set Opt(d) 0\n  namespace eval ::foo {upvar 0 Opt(d) dbg}\n  proc setd {v} { variable dbg; set dbg $v }\n  proc r {} { variable Opt; return $Opt(d) }\n}\nfoo::setd 5\nputs [foo::r]\n",
+        "5\n",
+    );
+}
+
+#[test]
 fn upvar_to_namespace_array_element() {
     // `upvar` to an array element whose base is a `variable`-linked namespace
     // array resolves through the link.

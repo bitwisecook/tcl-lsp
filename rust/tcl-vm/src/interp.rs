@@ -71,6 +71,10 @@ pub struct Vm {
     var_traces: HashMap<String, Vec<VarTrace>>,
     /// Re-entrancy guard: `"<key>\0<op>"` entries for traces currently firing.
     active_traces: std::collections::HashSet<String>,
+    /// Nesting depth of `namespace eval`/`inscope` bodies currently executing.
+    /// While `> 0`, `upvar`/aliasing treats unqualified names as the current
+    /// namespace's variables (stored in the global frame) rather than locals.
+    ns_script_depth: u32,
     out: Box<dyn Write>,
     compiler: Option<Box<dyn CompileService>>,
 }
@@ -103,6 +107,7 @@ impl Vm {
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
+            ns_script_depth: 0,
             out,
             compiler: None,
         };
@@ -476,6 +481,34 @@ impl Vm {
                 },
             );
         }
+    }
+
+    /// Install a link in the global frame keyed by `alias` (a canonical,
+    /// namespace-qualified name). Used for namespace-level `upvar` aliases so
+    /// they coincide with the `variable`-resolved namespace variable.
+    pub(crate) fn add_global_link(&mut self, alias: &str, level: usize, target: &str) {
+        if let Some(f) = self.frames.first_mut() {
+            f.locals.insert(
+                alias.to_owned(),
+                Local::Link {
+                    level,
+                    name: target.to_owned(),
+                },
+            );
+        }
+    }
+
+    /// Whether a `namespace eval`/`inscope` body is currently executing.
+    pub(crate) fn in_ns_script(&self) -> bool {
+        self.ns_script_depth > 0
+    }
+
+    /// Enter/leave a `namespace eval`/`inscope` body (around its evaluation).
+    pub(crate) fn enter_ns_script(&mut self) {
+        self.ns_script_depth += 1;
+    }
+    pub(crate) fn leave_ns_script(&mut self) {
+        self.ns_script_depth = self.ns_script_depth.saturating_sub(1);
     }
 
     /// Resolve `name` to the (frame level, owning name) that actually owns it,
