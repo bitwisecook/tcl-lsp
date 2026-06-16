@@ -17,6 +17,7 @@ pub mod layout;
 use std::collections::HashMap;
 use std::fmt;
 
+use tcl_lexer::Span;
 use tcl_syntax::expr::ast::{BinOp, UnaryOp};
 
 /// Index sentinel for "end"-based Tcl index notation.
@@ -719,6 +720,12 @@ pub struct Instruction {
     pub source_line: u32,
     /// Original command text for `errorInfo`.
     pub source_cmd_text: String,
+    /// Byte span of the source construct this instruction was lowered
+    /// from, when known. `None` for synthetic instructions with no
+    /// direct source (loop-result pushes, fallthrough jumps, padding
+    /// NOPs). Stamped at emission time from `CodegenCtx::current_span`;
+    /// the explorer maps it to a line:col `range` for click-to-source.
+    pub source_span: Option<Span>,
     /// Loop-variable groups for `FOREACH_START`/`lmap` only — the analogue of
     /// C Tcl's `ForeachInfo.varLists` (`tclExecute.c` `INST_FOREACH_*`). One
     /// inner `Vec<String>` per iterator group; the value lists are pushed on the
@@ -748,6 +755,7 @@ impl Instruction {
             no_fold: false,
             source_line: 0,
             source_cmd_text: String::new(),
+            source_span: None,
             foreach_vars: None,
             push_verbatim: false,
         }

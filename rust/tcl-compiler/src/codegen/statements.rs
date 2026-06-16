@@ -30,6 +30,8 @@ impl CodegenCtx<'_> {
         count_override: Option<u32>,
         deferred_end_label: Option<&str>,
     ) {
+        // The wrapping startCommand shares the statement's source span.
+        self.current_span = Some(stmt.span());
         let count = count_override.unwrap_or(1);
         let emit_sc = self.cmd_index > 0;
         let mut end_label: Option<String> = None;
@@ -184,6 +186,9 @@ impl CodegenCtx<'_> {
 
     /// Dispatch a statement to the appropriate emission handler.
     pub fn emit_stmt(&mut self, stmt: &Statement, used_generic_invoke: &mut bool) {
+        // Stamp every instruction this statement lowers to with its source
+        // span so the explorer can map each op back to source.
+        self.current_span = Some(stmt.span());
         if self.emit_assign_or_incr(stmt) {
             return;
         }

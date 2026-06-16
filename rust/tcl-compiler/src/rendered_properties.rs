@@ -178,6 +178,7 @@ pub fn analyse_literal(text: &str) -> RenderedValueProps {
             b'\\' => may |= RenderedProperties::HAS_BACKSLASH,
             b'\r' | b'\n' => may |= RenderedProperties::HAS_CRLF,
             0 => may |= RenderedProperties::HAS_NULL,
+            b' ' | b'\t' => may |= RenderedProperties::HAS_LITERAL_SPACE,
             _ => {}
         }
     }
@@ -289,6 +290,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
     let mut must = RenderedProperties::NONE;
     let mut leading_resolved = false;
 
+    let mut saw_escape = false;
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -304,6 +306,7 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
                 i = skip_command_sub(bytes, i);
             }
             b'\\' => {
+                saw_escape = true;
                 let escape = scan_escape(bytes, i, leading_resolved);
                 may |= escape.may_add;
                 must |= escape.must_add;
@@ -356,7 +359,31 @@ fn scan_value_text(text: &str) -> RenderedValueProps {
             }
         }
     }
+    // Double-escape: if rendering the literal text leaves a residual
+    // backslash-escape sequence (e.g. `a\\b` → `a\b`, still `\b`), the
+    // value was double-escaped. Mirrors Python's per-ESC-token
+    // `_has_double_escape` on the rendered word.
+    if saw_escape && has_double_escape(&tcl_lexer::backslash_subst(text)) {
+        may |= RenderedProperties::HAS_DOUBLE_ESCAPE;
+    }
     RenderedValueProps { may, must }
+}
+
+/// Detect double-escaping: after rendering, the text still contains a
+/// backslash followed by a recognised escape character. Port of Python's
+/// `rendered_properties._has_double_escape`.
+#[must_use]
+fn has_double_escape(rendered: &str) -> bool {
+    // Same recognised-escape set as the Python predicate (note the literal
+    // space and semicolon).
+    const ESC_FOLLOW: &[u8] = b"abfnrtv\\{}[]$\"; xuU01234567";
+    let bytes = rendered.as_bytes();
+    if !bytes.contains(&b'\\') {
+        return false;
+    }
+    bytes
+        .windows(2)
+        .any(|w| w[0] == b'\\' && ESC_FOLLOW.contains(&w[1]))
 }
 
 /// Skip past `$name` or `${...}` starting at the `$` byte.
@@ -476,30 +503,36 @@ fn evaluate_value(
         return unknown_top();
     }
 
-    // Pure command substitution → opaque baseline (top), refined with
-    // registry hints.
+    // Pure command substitution → interpolated value. The source *word*
+    // carries no literal slash/backslash/CRLF/space — only the fact that
+    // it is interpolated (`HAS_INTERPOLATION`), refined with semantic
+    // registry hints. Mirrors Python's `_evaluate_rendered_props_for_value`
+    // (a minimal baseline, not the conservative lattice top — using `top`
+    // here over-reported every may-flag for command-substitution values).
     if let Some((cmd, args)) = parse_command_substitution(stripped) {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut rendered = unknown_top();
+        let mut may = RenderedProperties::HAS_INTERPOLATION;
         if is_path_returning(registry, &cmd, &arg_refs) {
-            rendered.may |= RenderedProperties::HAS_FORWARD_SLASH;
-        }
-        if is_normalised_getter(registry, &cmd, &arg_refs) {
-            rendered.may |= RenderedProperties::FULLY_NORMALISED;
-            return rendered;
+            may |= RenderedProperties::HAS_FORWARD_SLASH;
         }
         if is_unescape_command(registry, &cmd, &arg_refs) {
-            rendered.may |= RenderedProperties::WAS_UNESCAPED;
-            // Escalate to DOUBLE_UNESCAPED if any input use was
-            // already WAS_UNESCAPED (and not FULLY_NORMALISED).
+            may |= RenderedProperties::WAS_UNESCAPED;
+            // Escalate to DOUBLE_UNESCAPED when an input use was already
+            // WAS_UNESCAPED (and not FULLY_NORMALISED).
             let input_may = collect_use_may(uses, props);
             if input_may.contains(RenderedProperties::WAS_UNESCAPED)
                 && !input_may.contains(RenderedProperties::FULLY_NORMALISED)
             {
-                rendered.may |= RenderedProperties::DOUBLE_UNESCAPED;
+                may |= RenderedProperties::DOUBLE_UNESCAPED;
             }
         }
-        return rendered;
+        if is_normalised_getter(registry, &cmd, &arg_refs) {
+            may |= RenderedProperties::FULLY_NORMALISED;
+        }
+        return RenderedValueProps {
+            may,
+            must: RenderedProperties::NONE,
+        };
     }
 
     // Generic word — scan the literal + interpolation pattern.
@@ -799,6 +832,38 @@ mod tests {
         let p = analyse_literal("hello");
         assert_eq!(p.may, RenderedProperties::NONE);
         assert_eq!(p.must, RenderedProperties::NONE);
+    }
+
+    #[test]
+    fn command_substitution_value_uses_minimal_baseline() {
+        let registry = CommandRegistry::build_default();
+        let uses = HashMap::new();
+        let props = HashMap::new();
+        // `[list 1 2 3]` is opaque interpolation — only HAS_INTERPOLATION,
+        // never the full may-mask (the old over-report).
+        let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry);
+        assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
+        assert_eq!(p.must, RenderedProperties::NONE);
+        // `[exec ls]` likewise.
+        let p = evaluate_value("[exec ls]", &uses, &props, &registry);
+        assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
+    }
+
+    #[test]
+    fn double_escaped_literal_word_flags_double_escape() {
+        // `a\\b` renders to `a\b`; the residual `\b` is a double-escape.
+        let p = scan_value_text("a\\\\b");
+        assert!(p.may.contains(RenderedProperties::HAS_BACKSLASH));
+        assert!(p.may.contains(RenderedProperties::HAS_DOUBLE_ESCAPE));
+        // A bare interpolated word with no escapes has neither.
+        let p = scan_value_text("plain");
+        assert!(!p.may.contains(RenderedProperties::HAS_DOUBLE_ESCAPE));
+    }
+
+    #[test]
+    fn analyse_literal_flags_space() {
+        let p = analyse_literal("a b");
+        assert!(p.may.contains(RenderedProperties::HAS_LITERAL_SPACE));
     }
 
     #[test]

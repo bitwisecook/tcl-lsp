@@ -10,8 +10,10 @@
 # Dependency DAG (no cycles):
 #   tcl-lexer <- tcl-syntax <- tcl-bytecode <- { tcl-compiler, tcl-vm }
 #
-# Depends ONLY on `tcl-syntax` (for `BinOp`/`UnaryOp`), so it stays a
-# `forbid(unsafe)`, wasm32-clean leaf.
+# Depends on `tcl-syntax` (for `BinOp`/`UnaryOp`) and `tcl-lexer` (for the
+# `Span` carried as explorer source metadata on each `Instruction`) — both
+# already upstream in the DAG above, so it stays a `forbid(unsafe)`,
+# wasm32-clean leaf.
 [package]
 name = "tcl-bytecode"
 version.workspace = true
@@ -23,6 +25,7 @@ authors.workspace = true
 description = "Tcl 9 bytecode artifact types (opcodes, instructions, FunctionAsm/ModuleAsm, layout, disassembly)"
 
 [dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }
 
 [lints]

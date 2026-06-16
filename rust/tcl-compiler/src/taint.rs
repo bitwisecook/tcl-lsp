@@ -3645,4 +3645,24 @@ mod tests {
             "no IRULE3101 outside iRules, got {plain:?}",
         );
     }
+
+    #[test]
+    fn taint_warnings_emitted_in_deterministic_proc_order() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // `bbb` is defined *before* `aaa` in source. Per-proc warning order
+        // must follow qualified name (aaa, then bbb) — not source order and
+        // not the (random) HashMap order — so the output is reproducible.
+        let source = "proc bbb {p} { set v [exec $p]\n eval $v }\n\
+                      proc aaa {p} { set v [exec $p]\n eval $v }\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert_eq!(warnings.len(), 2, "one eval sink per proc: {warnings:?}");
+        // `aaa` is defined later in source (larger span) yet sorts first.
+        assert!(
+            warnings[0].span.start() > warnings[1].span.start(),
+            "expected name order (aaa before bbb) regardless of source order: {warnings:?}",
+        );
+    }
 }

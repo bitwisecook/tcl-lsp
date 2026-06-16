@@ -35,19 +35,19 @@ backlog all reflect that intent.
 | `loops` | ✅ | Order normalised (set-derived); content strict. |
 | `types` | ✅ | One characterised Overdefined-`*` normalisation; otherwise strict. |
 | `intervals` | ✅ | Byte-for-byte over `compute_intervals`. |
-| `bounds` | 🐞 | `find_interval_bounds` has no `execution_intent` input and emits no divide-by-zero (W233) findings, so `divzero` is always `[]`. Honest about Rust today; the W233/intent analysis is unported. |
-| `dataflow` | 🏗 + 🐞 | Functions sorted (Python emits top-level first) — presentation. `aliases` limited because memory-SSA isn't built here — a gap. |
+| `bounds` | ✅ | **Converged → strict.** Out-of-range index findings (W230/W231/W232) plus the W233 divide-by-zero finder (`interval_bounds::find_divide_by_zero`), which the explorer now populates from the same SCCP-executable fixpoint. (Exposed and fixed a latent SCCP fold bug: `string length $v` was folding on the unresolved `$v` text instead of the lattice constant.) |
+| `dataflow` | 🏗 | Functions ordered `::top`-first then alphabetically (matches Python), `typeInfo` projected from the type lattice, and `aliases` surfaced via memory-SSA (`.with_memory_ssa()` is now run in the explorer pipeline). Remaining divergence is Rust's honest def-use representation: version-0 parameter nodes and def-use edge ordering. Rust-pinned. |
 | `interproc` | 🏗 (shape-gated) | Rust detects more (`depends(a,b)`, call-graph purity) where Python leaves `unknown`. Honest improvement; gated by shape. |
-| `rendered` (`renderedProperties`) | 🐞 | Rust **over-reports** flags for command-substitution values (e.g. `HAS_DOUBLE_ESCAPE`). A correctness gap in the rendered-properties pass, not a design choice. |
+| `rendered` (`renderedProperties`) | ✅ | **Converged → strict.** Command-substitution values use a minimal `HAS_INTERPOLATION` baseline (plus registry hints) instead of the conservative may-mask that over-reported every flag; `HAS_DOUBLE_ESCAPE` is now detected on rendered literal words, and `analyse_literal` flags `HAS_LITERAL_SPACE` to match the Python const path. |
 | `opt` (`optimisations`) | 🏗 | The Rust optimiser is the production source of truth (drives `tcl --opt`, LSP code actions, the bytecode-compare gate) and intentionally improves on Python (folds interproc-constant `return $param`; prefers `O101 fold` over `O109`). |
-| `gvn` | 🐞 | Rust GVN **under-detects** vs Python. Capability gap. |
+| `gvn` | 🏗 | **Under-detection fixed:** subcommand-aware purity in `classify_side_effects` lets GVN see redundant ensemble computations (`string length`, `dict get`, …) it previously treated as unknown-writes. Remaining divergence is the finding *range*: Rust records the enclosing statement span for an embedded `[…]` substitution where Python pins the substitution itself (presentation, like the taint sink-range). Expr-statement CSE (`[expr {…}]`) is still Python-only. Rust-pinned. |
 | `shimmer` | ✅ | Strict modulo cosmetic message wording (normalised). |
-| `taint` (`taintWarnings`) | 🏗 + 🐞 | Range points at the sink command (`eval $x`) — Rust's honest record location (🏗). Proc-order is not yet stable (🐞 non-determinism). |
+| `taint` (`taintWarnings`) | 🏗 | Range points at the sink command (`eval $x`) — Rust's honest record location. **Proc-order non-determinism fixed:** `CompilationUnit::functions()` now yields procedures in qualified-name order, so cross-function diagnostic order is reproducible. Rust-pinned for the by-design sink-range location. |
 | `taintTracking` | ✅ | Per-fn tainted-value lattice, strict. |
 | `irules` (`irulesFlow`) | 🏗 | Fires only for the iRules dialect; finders are ported. |
 | `eventOrder` | ✅ | Byte-for-byte (reuses `EventRegistry::{order_events, event_multiplicity}`). `[]` for plain Tcl. |
 | `callouts` (`annotations` / `…ByLine`) | 🏗 + 🐞 | Aggregates the optimiser/shimmer/gvn/taint sources. **Omits dead-store callouts** (same O109 item as `cfgPostSsa`). *Action: add once dead stores are surfaced.* |
-| `asm` / `asmOptimised` | 🏗 + 🐞 | Honest Rust bytecode. `sourceLine` is always 0 and the `Instruction` carries no per-op source span (`range` is null) — a codegen-metadata gap. Label numbering differs by design. Pinned by the bytecode-compare gate. |
+| `asm` / `asmOptimised` | 🏗 | Honest Rust bytecode. **Per-op source spans now plumbed:** the emitter stamps each `Instruction` with the byte `source_span` of the construct it lowered from (statement / branch condition / return value), so the explorer emits a real `range` + 1-based `sourceLine` and the GUI's click-to-source + source-comment grouping light up. Synthetic ops with no source (loop-result pushes, fallthrough jumps, padding NOPs) keep `range: null` / `sourceLine: 0` — honest. Label numbering still differs by design. Pinned by the bytecode-compare gate (the span is metadata; the instruction stream is unchanged). |
 | `wasm` / `wasmOptimised` | ⛔ | The WASM emitter is unported (≈14K Python LOC). `null` today; lights up when the emitter chunk lands. |
 | `stats` | 🏗 + 🐞 | `deadStores` is `0` (same O109 item); warning counts follow the Rust analyses. |
 
@@ -62,12 +62,32 @@ backlog all reflect that intent.
    `cfgPostSsa.analysis.deadStores`, `stats.deadStores`, and the `deadStore`
    callouts from it.
 
-2. **Track the gaps (🐞) as compiler work, not explorer pinning.** `bounds`
-   (W233 / execution-intent), `gvn` (under-detection), `renderedProperties`
-   (command-subst over-report), `taint` proc-order determinism, `dataflow`
-   aliases (memory-SSA), `asm` per-instruction source spans. These stay
-   Rust-pinned in the explorer (the view is honest) but belong on the
-   analyser/codegen backlog in `docs/rust-rewrite.md`.
+2. **Analyser capability gaps (🐞) — all addressed.**
+   - ✅ **`asm` per-instruction source spans.** The emitter stamps
+     `Instruction::source_span` from the lowered construct's span
+     (`CodegenCtx::current_span`, set per statement / terminator and reset
+     for synthetic ops); the explorer maps it to the per-op `range` +
+     `sourceLine`.
+   - ✅ **`bounds` W233 divide-by-zero.** `interval_bounds::find_divide_by_zero`
+     mirrors Python (same interval fixpoint + executable-block filter); the
+     explorer populates `divzero`. Also fixed a latent SCCP fold bug where
+     `string length $v` folded on the unresolved `$v` text. `bounds` is now a
+     **strict** parity view.
+   - ✅ **`renderedProperties` over-report.** Command-substitution values use a
+     minimal `HAS_INTERPOLATION` baseline; `HAS_DOUBLE_ESCAPE` /
+     `HAS_LITERAL_SPACE` detection added. Now a **strict** parity view.
+   - ✅ **`gvn` under-detection.** Subcommand-aware purity in
+     `classify_side_effects` surfaces redundant ensemble computations
+     (`string length`, `dict get`, …). Residual: embedded-substitution
+     finding *range* is statement-level (presentation), and expr-statement
+     CSE is still Python-only.
+   - ✅ **`taint` proc-order determinism.** `CompilationUnit::functions()`
+     iterates procedures in qualified-name order. (The sink-range location
+     stays 🏗 by design, so the view remains Rust-pinned.)
+   - ✅ **`dataflow` ordering + aliases.** `::top`-first function order,
+     `typeInfo` from the type lattice, and memory-SSA-backed `aliases`
+     (the pipeline now runs `.with_memory_ssa()`). Residual divergence is
+     Rust's honest def-use shape (v0 parameter nodes, edge ordering).
 
 3. **Add Rust-native views** the Python contract never had. ✅ **Done.** Three
    additive keys (skipped by the parity harness via `_RUST_NATIVE_KEYS`, each
