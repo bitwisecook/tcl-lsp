@@ -88,6 +88,8 @@ references don't trigger false-positive orphan findings.
 | `f5 query` (alias `q`) | DSL-driven property edits and identity renames; readdressing, bulk field rewrites, and iRule reference edits all land here.  See [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
 | `f5 redact` (alias `sanitize`) | Strip secrets and remap public IPs into a configurable CIDR pool. |
 | `f5 unredact` (alias `unmap`) | Reverse a `redact` using its sidecar map file. |
+| `f5 encrypt-secrets` (alias `encrypt`) | Encrypt clear-text secrets under the `f5mku` master key.  See [`kcs-feature-f5-secret-crypto.md`](kcs-feature-f5-secret-crypto.md). |
+| `f5 decrypt-secrets` (alias `decrypt`) | Decrypt `$M$...` secrets with the `f5mku` master key.  See [`kcs-feature-f5-secret-crypto.md`](kcs-feature-f5-secret-crypto.md). |
 | `f5 pcap-remap` (alias `pcapmap`) | Apply a redaction map to a PCAP capture. |
 | `f5 split` | Write one `.conf` per partition under a directory (suitable for git). |
 | `f5 merge` | Concatenate per-partition `.conf`s back into one SCF. |

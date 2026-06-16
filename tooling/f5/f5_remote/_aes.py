@@ -1,17 +1,25 @@
-"""Pure-Python AES block cipher (encryption primitive only).
+"""Pure-Python AES block cipher (dependency-free).
 
-This is a self-contained, dependency-free implementation used as a
-*fallback* for decrypting encrypted (OpenPGP) UCS archives when no
-``gpg``/``gpg2`` binary is available — see :mod:`._openpgp`.  The
+This is a self-contained implementation used as a *fallback* for
+decrypting encrypted (OpenPGP) UCS archives when no ``gpg``/``gpg2``
+binary is available — see :mod:`._openpgp` — and for the F5 master-key
+(``f5mku``) secret crypto in :mod:`tooling.f5.f5mku`.  The UCS
 production path shells out to GnuPG (exactly what BIG-IP itself uses);
-this module exists purely so the zipapp can still decrypt a UCS on a
-host with no GnuPG installed, because the zipapp builder strips C
-extensions and therefore cannot bundle ``cryptography``/PGPy.
+this module exists so the zipapp can still do crypto on a host with no
+GnuPG installed, because the zipapp builder strips C extensions and
+therefore cannot bundle ``cryptography``/PGPy.
 
-Only the *forward* (encryption) transform is implemented: OpenPGP CFB
-mode — the only mode UCS encryption uses — runs the block cipher in the
-encryption direction for both encrypting and decrypting, so a decryptor
-never needs ``InvSubBytes``/``InvMixColumns``.
+The *forward* (encryption) transform (:meth:`AES.encrypt_block`) is the
+hot path: OpenPGP CFB mode — the only mode UCS encryption uses — runs
+the block cipher in the encryption direction for both encrypting and
+decrypting, so the UCS decryptor never touches the inverse transform.
+
+The *inverse* (decryption) transform (:meth:`AES.decrypt_block`) is
+needed for F5's ECB master-key mode, where decrypting a stored
+``$M$...`` secret requires running the cipher backwards.  It is a
+straightforward byte-oriented inverse cipher (``InvShiftRows`` /
+``InvSubBytes`` / ``InvMixColumns``) — clarity over speed, which is fine
+for the handful of short secrets a bigip.conf carries.
 
 Correctness is anchored by the FIPS-197 known-answer vectors and by
 round-trip tests against GnuPG output (see ``tests/test_f5_ucs_crypto.py``).
@@ -337,8 +345,54 @@ def _sub_word(w: int) -> int:
     )
 
 
+# Inverse S-box — the functional inverse of ``_SBOX`` (FIPS-197, Figure 14),
+# derived here rather than transcribed so the two tables can never drift.
+_INV_SBOX = bytearray(256)
+for _i, _v in enumerate(_SBOX):
+    _INV_SBOX[_v] = _i
+_INV_SBOX = bytes(_INV_SBOX)
+
+
+def _gmul(a: int, b: int) -> int:
+    """Multiply two bytes in GF(2^8) with the AES reduction polynomial."""
+    product = 0
+    for _ in range(8):
+        if b & 1:
+            product ^= a
+        carry = a & 0x80
+        a = (a << 1) & 0xFF
+        if carry:
+            a ^= 0x1B
+        b >>= 1
+    return product
+
+
+def _inv_shift_rows(state: bytearray) -> None:
+    """Cyclically shift each row right by its row index (column-major state)."""
+    for row in range(1, 4):
+        col = [state[row + 4 * c] for c in range(4)]
+        for c in range(4):
+            state[row + 4 * c] = col[(c - row) % 4]
+
+
+def _inv_sub_bytes(state: bytearray) -> None:
+    for i in range(16):
+        state[i] = _INV_SBOX[state[i]]
+
+
+def _inv_mix_columns(state: bytearray) -> None:
+    for c in range(4):
+        base = 4 * c
+        a0, a1, a2, a3 = state[base], state[base + 1], state[base + 2], state[base + 3]
+        state[base] = _gmul(a0, 14) ^ _gmul(a1, 11) ^ _gmul(a2, 13) ^ _gmul(a3, 9)
+        state[base + 1] = _gmul(a0, 9) ^ _gmul(a1, 14) ^ _gmul(a2, 11) ^ _gmul(a3, 13)
+        state[base + 2] = _gmul(a0, 13) ^ _gmul(a1, 9) ^ _gmul(a2, 14) ^ _gmul(a3, 11)
+        state[base + 3] = _gmul(a0, 11) ^ _gmul(a1, 13) ^ _gmul(a2, 9) ^ _gmul(a3, 14)
+
+
 class AES:
-    """AES-128/192/256 with only the forward (encrypt) block transform."""
+    """AES-128/192/256 with both the forward (encrypt) and inverse
+    (decrypt) block transforms."""
 
     __slots__ = ("_rk", "_rounds")
 
@@ -428,3 +482,29 @@ class AES:
         return struct.pack(
             ">4I", o0 & 0xFFFFFFFF, o1 & 0xFFFFFFFF, o2 & 0xFFFFFFFF, o3 & 0xFFFFFFFF
         )
+
+    def _add_round_key(self, state: bytearray, rnd: int) -> None:
+        """XOR the *rnd*-th round key into *state* (column-major bytes)."""
+        rk = self._rk
+        for c in range(4):
+            word = rk[4 * rnd + c]
+            state[4 * c] ^= (word >> 24) & 0xFF
+            state[4 * c + 1] ^= (word >> 16) & 0xFF
+            state[4 * c + 2] ^= (word >> 8) & 0xFF
+            state[4 * c + 3] ^= word & 0xFF
+
+    def decrypt_block(self, block: bytes) -> bytes:
+        """Decrypt a single 16-byte block (inverse cipher, FIPS-197 §5.3)."""
+        if len(block) != 16:
+            raise ValueError(f"AES block must be 16 bytes, got {len(block)}")
+        state = bytearray(block)
+        self._add_round_key(state, self._rounds)
+        for rnd in range(self._rounds - 1, 0, -1):
+            _inv_shift_rows(state)
+            _inv_sub_bytes(state)
+            self._add_round_key(state, rnd)
+            _inv_mix_columns(state)
+        _inv_shift_rows(state)
+        _inv_sub_bytes(state)
+        self._add_round_key(state, 0)
+        return bytes(state)

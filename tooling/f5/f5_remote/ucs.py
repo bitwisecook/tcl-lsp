@@ -47,6 +47,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Callable
 
+from .secret_input import SecretInputError, resolve_secret
+
 # Order matters: base must come first so partition declarations exist
 # before objects that reference them.
 _SCF_MEMBER_ORDER = (
@@ -108,44 +110,35 @@ def is_pgp_bytes(data: bytes) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _stdin_is_a_tty() -> bool:
-    try:
-        return sys.stdin is not None and sys.stdin.isatty()
-    except (ValueError, AttributeError):  # pragma: no cover - closed stdin
-        return False
-
-
 def resolve_passphrase(
     *,
     env_var: str | None = DEFAULT_PASSPHRASE_ENV,
     explicit: str | None = None,
+    file: str | os.PathLike[str] | None = None,
     allow_prompt: bool = True,
     prompt: str = "Enter UCS passphrase: ",
 ) -> str:
-    """Resolve a UCS passphrase from an explicit value, env var, or prompt.
+    """Resolve a UCS passphrase from an explicit value, file, env var, or prompt.
 
-    Resolution order: *explicit* (if non-empty) → ``$env_var`` (if set
-    and non-empty) → a secure :func:`getpass.getpass` prompt when
-    *allow_prompt* is true and stdin is an interactive terminal.  Raises
-    :class:`UcsPassphraseError` when none of those yields a passphrase
-    (e.g. non-interactive with the env var unset), so batch runs fail
-    fast with a clear message instead of blocking on a prompt.
+    A thin wrapper over :func:`tooling.f5.f5_remote.secret_input.resolve_secret`
+    that maps a missing or cancelled passphrase onto
+    :class:`UcsPassphraseError`, so batch runs fail fast with a clear
+    message instead of blocking on a prompt.  Passphrases are *not*
+    whitespace-trimmed — surrounding spaces can be significant.
     """
-    if explicit:
-        return explicit
-    if env_var:
-        from_env = os.environ.get(env_var)
-        if from_env:
-            return from_env
-    if allow_prompt and _stdin_is_a_tty():
-        import getpass
-
-        try:
-            entered = getpass.getpass(prompt)
-        except (EOFError, KeyboardInterrupt) as exc:  # pragma: no cover - tty only
-            raise UcsPassphraseError("passphrase entry cancelled") from exc
-        if entered:
-            return entered
+    try:
+        passphrase = resolve_secret(
+            explicit=explicit,
+            env_var=env_var,
+            file=file,
+            allow_prompt=allow_prompt,
+            prompt=prompt,
+            strip=False,
+        )
+    except SecretInputError as exc:
+        raise UcsPassphraseError("passphrase entry cancelled") from exc
+    if passphrase:
+        return passphrase
     raise UcsPassphraseError(
         "this UCS archive is encrypted and requires a passphrase; set the "
         f"{env_var} environment variable or run in an interactive terminal "
