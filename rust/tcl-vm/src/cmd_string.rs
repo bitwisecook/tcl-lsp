@@ -245,6 +245,16 @@ fn string_is(class: &str, s: &str) -> bool {
         "lower" => s.chars().all(char::is_lowercase),
         "punct" => s.chars().all(|c| c.is_ascii_punctuation()),
         "ascii" => s.is_ascii(),
+        // Mirror C Tcl's `Tcl_UniCharIs*` category masks (tclUtf.c): `print` is
+        // graphic characters plus the space separators (`GRAPH_BITS|SPACE_BITS`),
+        // `graph` is the same minus space, `control` is Cc/Cf, and `wordchar` is
+        // letters/digits/connector-punctuation. Exact over the ASCII range that
+        // [`Asciify`]-style callers exercise; the std category methods are the
+        // closest stable approximation for the wider Unicode tables.
+        "print" => s.chars().all(|c| !c.is_control()),
+        "graph" => s.chars().all(|c| !c.is_control() && !c.is_whitespace()),
+        "control" => s.chars().all(char::is_control),
+        "wordchar" => s.chars().all(|c| c.is_alphanumeric() || c == '_'),
         _ => false,
     }
 }

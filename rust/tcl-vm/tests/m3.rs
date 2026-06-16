@@ -651,3 +651,16 @@ fn channel_io() {
         "line one|line two\n",
     );
 }
+
+#[test]
+fn string_is_classes() {
+    out_eq("puts [string is print 4]\n", "1\n");
+    out_eq("puts [string is print \"hello world\"]\n", "1\n");
+    out_eq("puts [string is graph 4]\n", "1\n");
+    out_eq("puts [string is graph \" \"]\n", "0\n"); // space is not graph
+    // A real control char (tab/bell) is not printable; build it with `format`.
+    out_eq("puts [string is print [format %c 9]]\n", "0\n");
+    out_eq("puts [string is control [format %c 7]]\n", "1\n");
+    out_eq("puts [string is wordchar foo_1]\n", "1\n");
+    out_eq("puts [string is wordchar foo-1]\n", "0\n");
+}
