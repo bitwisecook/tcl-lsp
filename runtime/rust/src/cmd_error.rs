@@ -180,14 +180,33 @@ fn code_word_to_int(spec: &[u8]) -> Option<i64> {
         b"return" => Some(2),
         b"break" => Some(3),
         b"continue" => Some(4),
-        // A completion code must fit a 32-bit int (C's `Tcl_GetIntFromObj`).
-        _ => core::str::from_utf8(spec)
-            .ok()?
-            .trim()
-            .parse::<i32>()
-            .ok()
-            .map(i64::from),
+        // A completion code must fit a 32-bit int (C's `Tcl_GetIntFromObj`),
+        // accepting `0x`/`0o`/`0b`/`0d` radix prefixes and a sign.
+        _ => completion_code_int(spec).map(i64::from),
     }
+}
+
+/// Parse a completion-code integer like `TclGetIntFromObj`: optional sign then a
+/// `0x`/`0o`/`0b`/`0d` radix prefix (else decimal), within an `i32`.
+fn completion_code_int(spec: &[u8]) -> Option<i32> {
+    let s = core::str::from_utf8(spec).ok()?.trim();
+    let (neg, rest) = match s.as_bytes().first() {
+        Some(b'-') => (true, &s[1..]),
+        Some(b'+') => (false, &s[1..]),
+        _ => (false, s),
+    };
+    let (radix, digits) = match rest.as_bytes() {
+        [b'0', b'x' | b'X', ..] => (16, &rest[2..]),
+        [b'0', b'o' | b'O', ..] => (8, &rest[2..]),
+        [b'0', b'b' | b'B', ..] => (2, &rest[2..]),
+        [b'0', b'd' | b'D', ..] => (10, &rest[2..]),
+        _ => (10, rest),
+    };
+    if digits.is_empty() {
+        return None;
+    }
+    let mag = i32::from_str_radix(digits, radix).ok()?;
+    Some(if neg { mag.checked_neg()? } else { mag })
 }
 
 /// Does `pattern` (a list) match `errorcode` (a list) as a leading sublist?

@@ -28,7 +28,8 @@ use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
-/// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`).
+/// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`, plus arbitrary
+/// user codes from `return -code N` / `try on N`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Code {
     Ok,
@@ -36,11 +37,17 @@ pub enum Code {
     Return,
     Break,
     Continue,
+    /// A non-standard completion code (any `int` other than 0..4), produced by
+    /// `return -code N`. It propagates like an exception until a `catch`/`try`
+    /// reports it; it is never `0..=4` (those canonicalise to the named variants
+    /// via [`Code::from_int`]).
+    Other(i32),
 }
 
 impl Code {
-    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4) — what
-    /// `catch` returns and `return -code` / the `-code` options-dict entry use.
+    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4, or the
+    /// raw value for [`Code::Other`]) — what `catch` returns and `return -code` /
+    /// the `-code` options-dict entry use.
     #[must_use]
     pub(crate) fn as_int(self) -> i64 {
         match self {
@@ -49,6 +56,22 @@ impl Code {
             Code::Return => 2,
             Code::Break => 3,
             Code::Continue => 4,
+            Code::Other(n) => i64::from(n),
+        }
+    }
+
+    /// Map an integer completion code to a [`Code`]: `0..=4` to the named
+    /// variants, anything else to [`Code::Other`] (`TclProcessReturn` /
+    /// `TclGetCompletionCodeFromObj`).
+    #[must_use]
+    pub(crate) fn from_int(n: i32) -> Code {
+        match n {
+            0 => Code::Ok,
+            1 => Code::Error,
+            2 => Code::Return,
+            3 => Code::Break,
+            4 => Code::Continue,
+            other => Code::Other(other),
         }
     }
 }
@@ -4933,7 +4956,9 @@ impl Interp {
                     // non-error code (`return`, custom) substitutes its result.
                     // Only a genuine error propagates.
                     match self.eval_command_subst(src, script) {
-                        Code::Ok | Code::Return => out.extend_from_slice(&self.result_bytes()),
+                        Code::Ok | Code::Return | Code::Other(_) => {
+                            out.extend_from_slice(&self.result_bytes())
+                        }
                         Code::Break => break,
                         Code::Continue => {}
                         Code::Error => return Err(Code::Error),
