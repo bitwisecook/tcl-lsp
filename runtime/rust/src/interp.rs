@@ -190,8 +190,17 @@ struct CmdFrame {
     /// Added to a body-relative line to get the reported `line`. `0` for
     /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
     /// for a proc defined in a `source`d file it is the file line where the body
-    /// began minus one, so its commands report file-absolute lines.
+    /// began minus one, so its commands report file-absolute lines. An inline
+    /// body (`if`/`while`/`catch`) temporarily re-points this at the sub-body's
+    /// own base while it runs (`eval_shared_located_body`).
     line_base: u32,
+    /// The `line_base` of the **enclosing `codePtr->source`** — the proc/lambda/
+    /// eval body this frame's commands ultimately belong to — captured at frame
+    /// creation and *not* moved by the inline-body `line_base` shifts above. The
+    /// body-relative `errorLine` for `MakeProcError` is `line_base + <raw line> -
+    /// proc_line_base` (C computes `errorLine` against `codePtr->source`, which an
+    /// inline `catch`/`if` body shares with its proc).
+    proc_line_base: u32,
     /// The currently-executing command at this level (the `cmd` key) and its
     /// reported source line (the `line` key).
     cmd: Vec<u8>,
@@ -252,6 +261,7 @@ impl CmdFrame {
             omit_level: false,
             frame_index: 0,
             line_base: 0,
+            proc_line_base: 0,
             cmd: Vec::new(),
             line: 1,
             oo: None,
@@ -326,9 +336,6 @@ pub(crate) struct ExceptionState {
     /// an explicit empty code reads back empty, not the `NONE` default
     /// (error-4.5). Absent on every implicit error, so the default applies.
     code_explicit: bool,
-    /// 1-based source line of the innermost logged command, within its own
-    /// script (`errorLine`); read by `MakeProcError`'s `line N`.
-    line: u32,
     /// `ERR_ALREADY_LOGGED`: the current command has already been logged deeper
     /// in the same script, so its enclosing command must not re-log it.
     already_logged: bool,
@@ -347,6 +354,7 @@ pub(crate) struct CoroContext {
     return_code: Code,
     return_level: usize,
     exc: ExceptionState,
+    error_line: u32,
     arg_lines: Vec<u32>,
     eval_depth: usize,
     oo: crate::cmd_oo::OoExec,
@@ -366,6 +374,7 @@ impl CoroContext {
             return_code: Code::Ok,
             return_level: 1,
             exc: ExceptionState::default(),
+            error_line: 1,
             arg_lines: Vec::new(),
             eval_depth: 0,
             oo: crate::cmd_oo::OoExec::default(),
@@ -531,6 +540,14 @@ pub struct InterpState {
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
     /// The error stack-trace accumulator (PC-4).
     exc: RefCell<ExceptionState>,
+    /// `iPtr->errorLine`: the 1-based source line of the innermost command
+    /// logged into the error trace, within its own script. Unlike the
+    /// accumulating [`ExceptionState`], this is **persistent** interp state — it
+    /// is written only by [`log_command_info`](Self::log_command_info) (C's
+    /// `TclLogCommandInfo`), survives `catch` and the start of a fresh error
+    /// (`error msg info` / `throw` do not touch it, matching `ERR_ALREADY_LOGGED`
+    /// suppressing the log), and is read by `MakeProcError`'s `line N`.
+    error_line: Cell<u32>,
     /// Child interpreters (`interp create`), each a shared [`Interp`] handle keyed
     /// by name. The name is also a command in this interp
     /// (`Command::ChildInterp`).
@@ -667,6 +684,7 @@ impl Interp {
             return_level: Cell::new(1),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
             exc: RefCell::new(ExceptionState::default()),
+            error_line: Cell::new(1),
             children: RefCell::new(std::collections::BTreeMap::new()),
             interp_counter: Cell::new(0),
             hidden: RefCell::new(std::collections::BTreeMap::new()),
@@ -1278,6 +1296,7 @@ impl Interp {
             omit_level: false,
             frame_index: ns_index,
             line_base,
+            proc_line_base: line_base,
             cmd: Vec::new(),
             line: 1,
             oo: None,
@@ -2394,7 +2413,6 @@ impl Interp {
             info: None,
             code: code.to_vec(),
             code_explicit: false,
-            line: 1,
             already_logged: false,
         };
         Code::Error
@@ -2409,7 +2427,6 @@ impl Interp {
             info: None,
             code: code.to_vec(),
             code_explicit: false,
-            line: 1,
             already_logged: false,
         };
         Code::Error
@@ -2478,6 +2495,8 @@ impl Interp {
         ctx.return_level = rl;
         let ed = self.eval_depth.replace(ctx.eval_depth);
         ctx.eval_depth = ed;
+        let el = self.error_line.replace(ctx.error_line);
+        ctx.error_line = el;
     }
 
     /// Swap the execution context of the coroutine named `name` with the live
@@ -2567,7 +2586,6 @@ impl Interp {
             info: Some(info.to_vec()),
             code: code.to_vec(),
             code_explicit: false,
-            line: 1,
             already_logged: true,
         };
         Code::Error
@@ -2581,7 +2599,6 @@ impl Interp {
             info: None,
             code: code.to_vec(),
             code_explicit: false,
-            line: 1,
             already_logged: false,
         };
         Code::Error
@@ -2610,7 +2627,6 @@ impl Interp {
             info,
             code: errorcode.unwrap_or(b"NONE").to_vec(),
             code_explicit: errorcode.is_some(),
-            line: 1,
             already_logged,
         };
         if let Some(es) = errorstack {
@@ -2640,8 +2656,17 @@ impl Interp {
         // TIP 348: record this frame's inner context / uplevel boundary into the
         // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
         self.error_stack_log(&src[cmd.start..cmd.end]);
-        // errorLine = 1 + count('\n' in src[0..commandStart]) — C's exact loop.
-        let line = line_of(src, cmd.start);
+        // errorLine, measured against the enclosing `codePtr->source` (C's
+        // `TclLogCommandInfo`): the command's file-absolute line
+        // (`line_base + 1 + count('\n')`) minus the proc/eval body's base, so an
+        // inline `catch`/`if` body's commands still report their proc-body line.
+        // This is the *only* writer of `error_line`; it persists across `catch`
+        // and a subsequent `error msg info`.
+        let raw = line_of(src, cmd.start);
+        let line = self.cmd_frames.borrow().last().map_or(raw, |f| {
+            (f.line_base + raw).saturating_sub(f.proc_line_base).max(1)
+        });
+        self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
         if !started {
             // First frame: errorInfo is seeded from the error message (the result).
@@ -2661,7 +2686,6 @@ impl Interp {
             cmd_bytes
         };
         let mut exc = self.exc.borrow_mut();
-        exc.line = line;
         let buf = exc.info.as_mut().expect("seeded above");
         buf.extend_from_slice(b"\n    ");
         buf.extend_from_slice(verb);
@@ -2672,6 +2696,35 @@ impl Interp {
         }
         buf.push(b'"');
         exc.already_logged = true;
+        drop(exc);
+        // Pre-8.5 compatibility (C's `TclLogCommandInfo`, tclNamesp.c): if user
+        // code traces `::errorInfo` for writes, push the value out to the variable
+        // *now*, mid-unwind — firing the write trace while the failing command's
+        // call frame is still live (so the handler's `info level` sees it). Skipped
+        // (no var write) when nothing traces `::errorInfo`, so the normal path
+        // still publishes once, at the `catch`/top level.
+        if self.errorinfo_has_write_trace() {
+            let info = self.error_info();
+            let ei = new_string(&info);
+            if self.var_set(b"::errorInfo", ei).is_err() {
+                drop_fresh(ei);
+            }
+        }
+    }
+
+    /// Whether `::errorInfo` carries a user write-trace — C's `TclIsVarTraced`
+    /// gate in `TclLogCommandInfo` (we install no core `EstablishErrorInfoTraces`,
+    /// so any matching write trace qualifies).
+    fn errorinfo_has_write_trace(&self) -> bool {
+        if self.traces.borrow().traces.is_empty() {
+            return false;
+        }
+        let access_ns = self.trace_var_ns(b"::errorInfo");
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .any(|t| crate::cmd_trace::matches(t, b"::errorInfo", None, b"write", access_ns))
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
@@ -2774,7 +2827,7 @@ impl Interp {
     }
 
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
-        let line = self.exc.borrow().line;
+        let line = self.error_line.get();
         if self.exc.borrow().info.is_none() {
             let msg = self.result_bytes();
             self.exc.borrow_mut().info = Some(msg);
@@ -3025,7 +3078,12 @@ impl Interp {
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
     /// pushed for the duration). Used by proc calls, `eval`/`uplevel`, and
     /// `source`.
-    fn eval_framed(&mut self, src: &[u8], frame: CmdFrame) -> Code {
+    fn eval_framed(&mut self, src: &[u8], mut frame: CmdFrame) -> Code {
+        // A freshly pushed frame is its own `codePtr->source`, so `errorLine` is
+        // measured from this body's base (an inline `catch`/`if` body, by
+        // contrast, shares the enclosing frame via `eval_shared_located_body` and
+        // keeps the proc's `proc_line_base`).
+        frame.proc_line_base = frame.line_base;
         self.eval_script(src, Some(frame))
     }
 
@@ -3114,6 +3172,7 @@ impl Interp {
             // the same CallFrame.
             frame_index: top.map_or(0, |f| f.frame_index),
             line_base,
+            proc_line_base: line_base,
             cmd: Vec::new(),
             line: 1,
             oo: top.and_then(|f| f.oo.clone()),
@@ -4465,6 +4524,7 @@ impl Interp {
             omit_level: false,
             frame_index: proc_idx,
             line_base: meta.body_line_base,
+            proc_line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
             oo,
