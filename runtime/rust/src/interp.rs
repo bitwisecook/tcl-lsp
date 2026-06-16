@@ -592,6 +592,16 @@ pub struct InterpState {
     /// until first seeded (lazily from a nondeterministic source on first
     /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
     rand_seed: Cell<Option<i64>>,
+    /// The TIP 348 error stack (`info errorstack` / the options-dict
+    /// `-errorstack`): a flat list of element *values* built bottom-up as an
+    /// error unwinds — `INNER <ctx>` for the innermost command, `CALL <info
+    /// level 0>` per proc frame, `UP <delta>` per `uplevel` boundary. Rendered to
+    /// a Tcl list on demand.
+    error_stack: RefCell<Vec<Vec<u8>>>,
+    /// C's `iPtr->resetErrorStack`: set when the result is reset (a new error
+    /// episode is starting), so the next command logged clears the stack and
+    /// records its inner context. Starts `true`.
+    reset_error_stack: Cell<bool>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
     /// exception it superseded is stashed here so the next error-options build
@@ -653,6 +663,8 @@ impl Interp {
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
             rand_seed: Cell::new(None),
+            error_stack: RefCell::new(Vec::new()),
+            reset_error_stack: Cell::new(true),
             during: Cell::new(None),
             result: Cell::new(result),
         }));
@@ -2568,6 +2580,9 @@ impl Interp {
         if self.exc.borrow().already_logged {
             return;
         }
+        // TIP 348: record this frame's inner context / uplevel boundary into the
+        // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
+        self.error_stack_log(&src[cmd.start..cmd.end]);
         // errorLine = 1 + count('\n' in src[0..commandStart]) — C's exact loop.
         let line = line_of(src, cmd.start);
         let started = self.exc.borrow().info.is_some();
@@ -2810,6 +2825,75 @@ impl Interp {
         self.exc.borrow_mut().code_explicit = true;
     }
 
+    /// Record one command frame into the TIP 348 error stack as an error unwinds
+    /// (`Tcl_LogCommandInfo`'s errorStack half). On the first log of a new error
+    /// episode (`reset_error_stack`), the stack is cleared and seeded with `INNER
+    /// <command>`. Then, if the active frame is an `uplevel`-redirected one
+    /// (`framePtr != varFramePtr`), an `UP <delta>` entry is appended. `CALL`
+    /// entries are added separately at proc-frame boundaries
+    /// ([`error_stack_push_call`](Self::error_stack_push_call)).
+    pub(crate) fn error_stack_log(&self, command: &[u8]) {
+        if self.reset_error_stack.get() {
+            self.reset_error_stack.set(false);
+            let mut es = self.error_stack.borrow_mut();
+            es.clear();
+            es.push(b"INNER".to_vec());
+            es.push(command.to_vec());
+        }
+        let (top, active) = {
+            let f = self.frames.borrow();
+            (f.top_level(), f.current_level())
+        };
+        if top > active {
+            let mut es = self.error_stack.borrow_mut();
+            es.push(b"UP".to_vec());
+            es.push((top - active).to_string().into_bytes());
+        }
+    }
+
+    /// Append a TIP 348 `CALL <info level 0>` entry — the invocation words of a
+    /// proc/lambda/method frame that an error is unwinding out of. The words are
+    /// joined into a single Tcl-list element (so `g 1212` renders as `{g 1212}`).
+    pub(crate) fn error_stack_push_call(&self, words: &[Vec<u8>]) {
+        if self.reset_error_stack.get() {
+            // No inner context recorded yet (the error started at this boundary);
+            // nothing to chain a CALL onto until a command is logged.
+            return;
+        }
+        let mut value = Vec::new();
+        for (i, w) in words.iter().enumerate() {
+            if i > 0 {
+                value.push(b' ');
+            }
+            crate::list::append_list_element(&mut value, w, i == 0);
+        }
+        let mut es = self.error_stack.borrow_mut();
+        es.push(b"CALL".to_vec());
+        es.push(value);
+    }
+
+    /// Render the TIP 348 error stack as a Tcl list (`info errorstack` / the
+    /// options-dict `-errorstack` value).
+    pub(crate) fn error_stack_value(&self) -> Vec<u8> {
+        let es = self.error_stack.borrow();
+        let mut buf = Vec::new();
+        for (i, e) in es.iter().enumerate() {
+            if i > 0 {
+                buf.push(b' ');
+            }
+            crate::list::append_list_element(&mut buf, e, false);
+        }
+        buf
+    }
+
+    /// Mark the start of a new error episode (C's `iPtr->resetErrorStack = 1`,
+    /// set by `Tcl_ResetResult`): the *next* logged command rebuilds the stack.
+    /// The current contents are kept until then (so `info errorstack` after a
+    /// `catch` still reports the last error).
+    pub(crate) fn mark_error_stack_reset(&self) {
+        self.reset_error_stack.set(true);
+    }
+
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
     /// and reset the accumulator for the next error. Called when the error is
     /// caught (`catch`) or reaches the outermost eval.
@@ -2827,6 +2911,9 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState::default();
         // The exception is consumed: drop any `-during` chain link with it.
         self.clear_during();
+        // A new error episode starts fresh: the next logged command rebuilds the
+        // TIP 348 error stack (C's `Tcl_ResetResult` sets `resetErrorStack`).
+        self.mark_error_stack_reset();
     }
 
     /// Publish + reset, for `catch`/`try` once they have captured the options.
@@ -4329,6 +4416,9 @@ impl Interp {
         let code = self.eval_framed(body, proc_frame);
         // The frame's local variables (and any traces on them) die with it.
         let proc_level = self.frames.borrow().current_level();
+        // Capture `[info level 0]` (the invocation words) before the frame is
+        // popped — the TIP 348 `CALL` entry if this body unwinds with an error.
+        let call_words = self.level_words(proc_level);
         self.frames.borrow_mut().pop();
         if !self.traces.borrow().traces.is_empty() {
             self.clear_frame_var_traces(proc_level);
@@ -4351,6 +4441,10 @@ impl Interp {
         // frame and clear `already_logged` so the proc-call command logs next.
         if settled == Code::Error {
             self.make_proc_error(meta.err);
+            // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
+            if let Some(words) = call_words {
+                self.error_stack_push_call(&words);
+            }
         }
         settled
     }

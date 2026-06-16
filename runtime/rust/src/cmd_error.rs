@@ -95,6 +95,11 @@ fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
         // The full accumulated trace + code, not the (deferred) globals.
         pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
         pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
+        // TIP 348: the error stack built as the error unwound.
+        pairs.push((
+            new_string(b"-errorstack"),
+            new_string(&interp.error_stack_value()),
+        ));
         // TIP 329 exception chaining: when a `try` handler/`finally` threw over a
         // prior exception, that prior exception's options ride along as `-during`
         // (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
