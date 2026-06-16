@@ -1274,7 +1274,14 @@ impl Interp {
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None)
+        self.ns_eval_framed(name, body, None, true)
+    }
+
+    /// `namespace eval`-style body evaluation in `name` for callers that supply
+    /// their *own* errorInfo frame (the TclOO `eval`/`my eval` method, which logs
+    /// `(in "my eval" script line N)` instead of the `namespace eval` frame).
+    pub(crate) fn ns_eval_no_frame(&mut self, name: &[u8], body: &[u8]) -> Code {
+        self.ns_eval_framed(name, body, None, false)
     }
 
     /// `namespace eval` of a single body **object** — like
@@ -1285,7 +1292,7 @@ impl Interp {
     pub(crate) fn ns_eval_obj(&mut self, name: &[u8], obj: *mut TclObj) -> Code {
         let loc = self.arg_loc(obj);
         let bytes = obj_bytes(obj);
-        self.ns_eval_framed(name, &bytes, loc)
+        self.ns_eval_framed(name, &bytes, loc, true)
     }
 
     /// Shared `namespace eval` core: enter `name`, push a namespace var-scope
@@ -1299,6 +1306,7 @@ impl Interp {
         name: &[u8],
         body: &[u8],
         loc: Option<(Option<Rc<[u8]>>, u32)>,
+        add_eval_frame: bool,
     ) -> Code {
         let target = self
             .namespaces
@@ -1334,6 +1342,11 @@ impl Interp {
             lambda: None,
         };
         let code = self.eval_framed(body, frame);
+        if code == Code::Error && add_eval_frame {
+            // `(in namespace eval "::ns" script line N)` — the body's own frame.
+            let fqn = self.namespaces.borrow().qualified_name(target);
+            self.append_namespace_eval_frame(&fqn);
+        }
         self.frames.borrow_mut().pop();
         self.current_ns.set(saved);
         code
@@ -2822,6 +2835,17 @@ impl Interp {
         inner.push(b'"');
         inner.extend_from_slice(label);
         inner.extend_from_slice(b"\" body");
+        self.append_frame_line(&inner);
+        self.exc.borrow_mut().already_logged = false;
+    }
+
+    /// Append the `(in namespace eval "<fqn>" script line N)` errorInfo frame
+    /// when a `namespace eval` body unwinds with an error (C's `NamespaceEvalCmd`),
+    /// then clear `already_logged` so the `namespace eval` command itself logs.
+    pub(crate) fn append_namespace_eval_frame(&mut self, fqn: &[u8]) {
+        let mut inner = b"in namespace eval \"".to_vec();
+        inner.extend_from_slice(fqn);
+        inner.extend_from_slice(b"\" script");
         self.append_frame_line(&inner);
         self.exc.borrow_mut().already_logged = false;
     }

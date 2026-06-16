@@ -4904,7 +4904,7 @@ impl Interp {
                     target: Vec::new(),
                     external,
                 });
-                let code = self.ns_eval(&ns_name, &script);
+                let code = self.ns_eval_no_frame(&ns_name, &script);
                 self.oo.borrow_mut().call_stack.pop();
                 // C's FinalizeEval: on error append `(in "<name> eval" script
                 // line N)`, where name is the object's name for a public call
