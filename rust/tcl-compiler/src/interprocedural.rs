@@ -547,11 +547,16 @@ fn build_method_summaries(
             collect_instance_var_writes(&method.body, &method.instance_vars, &mut written_ivars);
         }
 
-        let pure_base = !facts.has_barrier
-            && !facts.has_unknown_calls
-            && !facts.writes_global
-            && written_ivars.is_empty()
-            && facts.effect_writes == EffectRegion::NONE;
+        // `local_pure` is the authoritative local-impurity signal (the
+        // proc fixpoint keys off the same flag): it is cleared by
+        // barriers, unknown calls, global writes, AND any command whose
+        // classification is impure — including region-free effects like
+        // `puts`/`log` (FILE_IO/LOG_IO write, `EffectRegion::NONE`). The
+        // old `effect_writes == NONE` proxy missed that last case, marking
+        // a `puts`-calling method spuriously pure. Instance-var writes
+        // (plain local `set ivar …`, region-free + locally pure) stay a
+        // separate method-only term.
+        let pure_base = facts.local_pure && written_ivars.is_empty();
         let mut is_pure = pure_base
             && facts
                 .direct_calls
@@ -1024,7 +1029,6 @@ fn scan_call_facts(
     caller: &str,
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
     facts: &mut LocalFacts,
     params: &HashSet<String>,
 ) {
@@ -1048,7 +1052,14 @@ fn scan_call_facts(
     if let Some(target) = &internal_target {
         facts.direct_calls.insert(target.clone());
     } else {
-        let ci = classify_side_effects(registry, command, args, dialect, None);
+        // Side-effect classification is dialect-agnostic here, mirroring
+        // Python's interproc (`classify_side_effects(cmd_word, cmd_args)` —
+        // no dialect): a command's effect profile reflects what it *does*,
+        // not which dialect it is valid in. (The document `dialect` still
+        // drives the lexer above so `[cmd …]` / bodies tokenise correctly.)
+        // This is why e.g. `log`/`puts` resolve to their LOG_IO/FILE_IO
+        // hints — impure but region-free — even under a Tcl dialect.
+        let ci = classify_side_effects(registry, command, args, None, None);
         if ci.dynamic_barrier {
             facts.has_barrier = true;
             facts.local_pure = false;
@@ -1293,9 +1304,7 @@ fn scan_statement(
                     mark_upvar_alias_write(d, facts);
                 }
             }
-            scan_call_facts(
-                command, args, caller, known, registry, dialect, facts, params,
-            );
+            scan_call_facts(command, args, caller, known, registry, facts, params);
         }
         Statement::If {
             clauses, else_body, ..
@@ -1586,7 +1595,7 @@ fn scan_source_for_calls(
             continue;
         }
         let texts = cmd.args();
-        scan_call_facts(name, texts, caller, known, registry, dialect, facts, params);
+        scan_call_facts(name, texts, caller, known, registry, facts, params);
         // Recurse into BODY-role args (e.g. `catch {p}` → `{p}` is
         // BODY).  The registry resolves the role using the same
         // logic as the top-level scanner.
