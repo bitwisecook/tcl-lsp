@@ -81,3 +81,18 @@ fn matched_virtual_with_back_side_matches_golden() {
     );
     assert_eq!(code, 0, "exit code for a matched capture");
 }
+
+#[test]
+fn matched_virtual_with_irule_events_matches_golden() {
+    // A rich iRule exercises the full event chain: ordered firing sequence
+    // (incl. the sorted "extra" custom event and correctly-omitted unfired
+    // events), verbatim event bodies, the LB::server back-side synthesis, and
+    // every HUD command family (IP/TCP/SSL/SNI/HTTP/header).
+    let (stdout, code) = run_explain_flow("explain-flow-matched.pcap", "explain-flow-rich.conf");
+    assert_eq!(
+        stdout,
+        golden("explain-flow-rich.golden"),
+        "matched explain-flow with iRule events must match the Python golden"
+    );
+    assert_eq!(code, 0, "exit code for a matched capture");
+}

@@ -10,15 +10,54 @@
 //! detail (profile chain, iRule event chain, LTM policy trace) and the
 //! `--tshark` / `--simulate` / `--json` paths land in following increments.
 
+use std::collections::HashSet;
 use std::path::Path;
+use std::sync::LazyLock;
 
+use indexmap::IndexMap;
 use regex::Regex;
-use tcl_bigip::flow::{Session, extract_flows, pair_sessions};
-use tcl_bigip::model::{BigipProfile, BigipVirtualServer, ModelObject};
+use tcl_bigip::flow::{Connection, Session, extract_flows, pair_sessions};
+use tcl_bigip::model::{BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType};
 use tcl_bigip::parser::BigipConfig;
 use tcl_cli_support::{OutputTarget, write_text_output};
 
 use crate::commands::explain;
+
+/// Canonical lifecycle order for L4/SSL/HTTP events on one request/response
+/// cycle. Mirrors `_EVENT_ORDER`.
+const EVENT_ORDER: &[&str] = &[
+    "RULE_INIT",
+    "CLIENT_ACCEPTED",
+    "CLIENTSSL_HANDSHAKE",
+    "CLIENTSSL_CLIENTHELLO",
+    "CLIENTSSL_SERVERHELLO_SEND",
+    "CLIENTSSL_DATA",
+    "HTTP_REQUEST",
+    "HTTP_REQUEST_DATA",
+    "HTTP_REQUEST_SEND",
+    "LB_SELECTED",
+    "LB_FAILED",
+    "SERVER_CONNECTED",
+    "SERVERSSL_HANDSHAKE",
+    "SERVERSSL_DATA",
+    "HTTP_RESPONSE",
+    "HTTP_RESPONSE_CONTINUE",
+    "HTTP_RESPONSE_DATA",
+    "CLIENT_DATA",
+    "SERVER_DATA",
+    "HTTP_DISCONNECT",
+    "CLIENT_CLOSED",
+    "SERVER_CLOSED",
+];
+
+/// `when EVENT {` opener. Mirrors the pattern in `_extract_event_blocks`.
+static EVENT_BLOCK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)\bwhen\s+([A-Z][A-Z0-9_]*)\s*\{").expect("event regex"));
+
+/// iRule command invocation inside `[ ... ]`. Mirrors `_HUD_TOKEN_RE`.
+static HUD_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\[\s*(HTTP::|SSL::|IP::|TCP::|LB::|SNI\b)([^\]\n]*?)\s*\]").expect("hud regex")
+});
 
 /// One HUD annotation: `(source-line excerpt, command, captured value)`.
 type Annotation = (String, String, String);
@@ -282,6 +321,253 @@ fn gtm_wide_ips_in_config(cfg: &BigipConfig) -> Vec<String> {
     out
 }
 
+fn find_rule<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipRule> {
+    cfg.objects.iter().find_map(|p| match &p.object {
+        ModelObject::Rule(rule) if rule.full_path == full_path => Some(rule),
+        _ => None,
+    })
+}
+
+/// The deduplicated profile types attached to *vs*. Mirrors
+/// `profile_types_for_virtual` (only resolved, present profiles count).
+fn profile_types_for_virtual(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<ProfileType> {
+    let mut out: Vec<ProfileType> = Vec::new();
+    for pref in vs.profiles.paths() {
+        if let Some(resolved) = resolve_profile(cfg, &pref)
+            && let Some(prof) = find_profile(cfg, &resolved)
+            && !out.contains(&prof.profile_type)
+        {
+            out.push(prof.profile_type);
+        }
+    }
+    out
+}
+
+/// Return `{event_name: body}` for every `when EVENT { … }` block. Brace-aware
+/// extractor; malformed (unbalanced) blocks are skipped. Mirrors
+/// `_extract_event_blocks` (last body wins on a duplicate event, first-seen
+/// position preserved).
+fn extract_event_blocks(rule_source: &str) -> IndexMap<String, String> {
+    let mut blocks: IndexMap<String, String> = IndexMap::new();
+    let bytes = rule_source.as_bytes();
+    let n = bytes.len();
+    for caps in EVENT_BLOCK_RE.captures_iter(rule_source) {
+        let event = caps.get(1).expect("group 1").as_str().to_owned();
+        let start = caps.get(0).expect("whole match").end();
+        let mut depth = 1i32;
+        let mut i = start;
+        while i < n && depth > 0 {
+            match bytes[i] {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                _ => {}
+            }
+            i += 1;
+        }
+        if depth == 0 {
+            let body = rule_source[start..i - 1].to_owned();
+            blocks.insert(event, body);
+        }
+    }
+    blocks
+}
+
+/// Pick the events from the rule that would plausibly fire for the connection,
+/// in lifecycle order. Faithful port of `_expected_event_sequence`.
+fn expected_event_sequence(
+    cfg: &BigipConfig,
+    vs: &BigipVirtualServer,
+    conn: &Connection,
+    rule_events: &[&str],
+) -> Vec<String> {
+    let types = profile_types_for_virtual(cfg, vs);
+    let has_http = types.contains(&ProfileType::Http);
+    let has_client_ssl = types.contains(&ProfileType::ClientSsl);
+    let has_server_ssl = types.contains(&ProfileType::ServerSsl);
+
+    let client = &conn.client;
+    let server = conn.server.as_ref();
+    let saw_tls = client.tls_clienthello || has_client_ssl;
+    let saw_http_req = client.http_request_seen || (has_http && client.proto == 6);
+    let saw_http_resp = server
+        .is_some_and(|s| s.http_response_seen || !s.http_response_code.is_empty())
+        || client.http_response_seen;
+    let saw_close =
+        client.tcp_fin || client.tcp_rst || server.is_some_and(|s| s.tcp_fin || s.tcp_rst);
+
+    let mut candidate: Vec<&str> = vec!["RULE_INIT", "CLIENT_ACCEPTED"];
+    if saw_tls {
+        candidate.extend(["CLIENTSSL_CLIENTHELLO", "CLIENTSSL_HANDSHAKE"]);
+    }
+    if saw_http_req {
+        candidate.extend(["HTTP_REQUEST", "HTTP_REQUEST_DATA"]);
+    }
+    candidate.extend(["LB_SELECTED", "SERVER_CONNECTED"]);
+    if has_server_ssl {
+        candidate.push("SERVERSSL_HANDSHAKE");
+    }
+    if saw_http_req {
+        candidate.push("HTTP_REQUEST_SEND");
+    }
+    if saw_http_resp {
+        candidate.extend(["HTTP_RESPONSE", "HTTP_RESPONSE_DATA"]);
+    }
+    if saw_close {
+        candidate.extend(["CLIENT_CLOSED", "SERVER_CLOSED"]);
+    }
+
+    let rule_set: HashSet<&str> = rule_events.iter().copied().collect();
+    let selected: Vec<String> = candidate
+        .iter()
+        .filter(|ev| rule_set.contains(**ev))
+        .map(|ev| (*ev).to_owned())
+        .collect();
+    let selected_set: HashSet<&str> = selected.iter().map(String::as_str).collect();
+    let mut extra: Vec<String> = rule_events
+        .iter()
+        .filter(|ev| !selected_set.contains(**ev) && !EVENT_ORDER.contains(*ev))
+        .map(|ev| (*ev).to_owned())
+        .collect();
+    extra.sort();
+    let mut out = selected;
+    out.extend(extra);
+    out
+}
+
+/// Resolve an iRule command token like `HTTP::host` against *conn*. Faithful
+/// port of `_hud_value_for`.
+#[allow(clippy::too_many_lines)]
+fn hud_value_for(token: &str, conn: &Connection) -> Option<String> {
+    let f = &conn.client;
+    let s = conn.server.as_ref();
+    let ne = |x: &str| -> Option<String> {
+        if x.is_empty() {
+            None
+        } else {
+            Some(x.to_owned())
+        }
+    };
+    let t = token;
+    if t == "HTTP::host" {
+        return ne(&f.http_host);
+    }
+    if t == "HTTP::method" {
+        return ne(&f.http_method);
+    }
+    if t == "HTTP::uri" {
+        return ne(&f.http_uri);
+    }
+    if t == "HTTP::path" {
+        return ne(&f.http_path);
+    }
+    if t == "HTTP::query" {
+        return ne(&f.http_query);
+    }
+    if t == "HTTP::version" {
+        return ne(&f.http_request_version);
+    }
+    if t == "HTTP::status" {
+        return ne(s.map_or("", |x| x.http_response_code.as_str()));
+    }
+    if t.starts_with("HTTP::header ") {
+        let name = t["HTTP::header".len()..]
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_lowercase();
+        if let Some(v) = f.request_header(&name) {
+            return Some(v.to_owned());
+        }
+        if let Some(server) = s
+            && let Some(v) = server.response_header(&name)
+        {
+            return Some(v.to_owned());
+        }
+        return None;
+    }
+    if t == "HTTP::cookie" {
+        return ne(&f.http_cookie);
+    }
+    if t == "HTTP::user_agent" {
+        return ne(&f.http_user_agent);
+    }
+    if t == "SSL::extensions" {
+        let mut bits: Vec<String> = Vec::new();
+        if !f.tls_sni.is_empty() {
+            bits.push(format!("sni={}", f.tls_sni));
+        }
+        if !f.tls_alpn.is_empty() {
+            bits.push(format!("alpn={}", f.tls_alpn));
+        }
+        return if bits.is_empty() {
+            None
+        } else {
+            Some(bits.join(", "))
+        };
+    }
+    if t == "SSL::cipher" {
+        return ne(&f.tls_chosen_cipher);
+    }
+    if t == "SSL::cipher version" {
+        return ne(&f.tls_chosen_version);
+    }
+    if t == "SSL::cert subject" {
+        return ne(&f.tls_cert_subject);
+    }
+    if t == "SSL::cert" {
+        return ne(&f.tls_cert_subject);
+    }
+    if t.to_uppercase() == "SNI" || t == "SSL::extensions servername" {
+        return ne(&f.tls_sni);
+    }
+    if t == "IP::client_addr" {
+        return Some(f.src_ip.clone());
+    }
+    if t == "IP::local_addr" {
+        return Some(f.dst_ip.clone());
+    }
+    if t == "IP::remote_addr" {
+        return Some(f.dst_ip.clone());
+    }
+    if t == "TCP::client_port" {
+        return (f.src_port != 0).then(|| f.src_port.to_string());
+    }
+    if t == "TCP::local_port" {
+        return (f.dst_port != 0).then(|| f.dst_port.to_string());
+    }
+    if t == "TCP::remote_port" {
+        return (f.dst_port != 0).then(|| f.dst_port.to_string());
+    }
+    // LB::server is filled by the caller from the back side.
+    None
+}
+
+/// Return `[(line_excerpt, command, captured_value), …]` for *body*. Faithful
+/// port of `_annotate_event_block` (one annotation per line).
+fn annotate_event_block(body: &str, conn: &Connection) -> Vec<Annotation> {
+    let mut out: Vec<Annotation> = Vec::new();
+    for line in py_splitlines(body) {
+        let stripped = line.trim();
+        if stripped.is_empty() || stripped.starts_with('#') {
+            continue;
+        }
+        for caps in HUD_TOKEN_RE.captures_iter(line) {
+            let ns = caps.get(1).expect("group 1").as_str();
+            let rest = caps.get(2).expect("group 2").as_str().trim();
+            let full = if ns == "SNI" {
+                "SNI".to_owned()
+            } else {
+                format!("{ns}{rest}")
+            };
+            if let Some(value) = hud_value_for(&full, conn) {
+                out.push((stripped.to_owned(), full, value));
+                break;
+            }
+        }
+    }
+    out
+}
+
 /// Produce a human-readable narrative of why the session ended.
 /// Faithful port of `_analyse_reset`.
 fn analyse_reset(session: &Session) -> String {
@@ -353,6 +639,8 @@ fn compute_explain_flow(
     pcap_display: &str,
     pcap_bytes: &[u8],
     configs: &[BigipConfig],
+    show_event_bodies: bool,
+    max_event_body_lines: usize,
 ) -> Result<ExplainFlowReport, String> {
     let dest_re = Regex::new(
         r"^(?P<path>/[^/\s]+/)?(?P<addr>\[[^\]]+\]|[0-9a-fA-F\.:]+)(?:%\d+)?:(?P<port>\d+|any)$",
@@ -437,6 +725,59 @@ fn compute_explain_flow(
             }
         }
 
+        // iRule event chain: ordered firing sequence, verbatim bodies, and
+        // HUD annotations tying iRule commands to captured connection state.
+        let mut event_sequence: Vec<String> = Vec::new();
+        let mut event_blocks: Vec<EventBlock> = Vec::new();
+        let mut event_annotations: Vec<EventAnnotation> = Vec::new();
+        for rref in vs.rules.paths() {
+            let resolved_rule =
+                resolve_name(cfg_hit, &rref, "rules").unwrap_or_else(|| rref.clone());
+            let Some(rule) = find_rule(cfg_hit, &resolved_rule) else {
+                continue;
+            };
+            let blocks = extract_event_blocks(&rule.source);
+            let rule_events: Vec<&str> = blocks.keys().map(String::as_str).collect();
+            let ordered_events = expected_event_sequence(cfg_hit, vs, front, &rule_events);
+            for ev in ordered_events {
+                event_sequence.push(format!("{resolved_rule}::{ev}"));
+                let full_body = &blocks[&ev];
+                let mut ann = annotate_event_block(full_body, front);
+                // Synthesise LB::server from a paired back side, if referenced.
+                if let Some(back) = &session.back {
+                    let bc = &back.client;
+                    let lb_value = format!("{}:{}", bc.dst_ip, bc.dst_port);
+                    if !ann.iter().any(|a| a.1.starts_with("LB::")) {
+                        for line in py_splitlines(full_body) {
+                            if line.contains("LB::server") {
+                                ann.push((
+                                    line.trim().to_owned(),
+                                    "LB::server".to_owned(),
+                                    lb_value,
+                                ));
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !ann.is_empty() {
+                    event_annotations.push((resolved_rule.clone(), ev.clone(), ann));
+                }
+                if show_event_bodies {
+                    let body_lines = py_splitlines(full_body);
+                    let body = if body_lines.len() > max_event_body_lines {
+                        format!(
+                            "{}\n... (truncated)",
+                            body_lines[..max_event_body_lines].join("\n")
+                        )
+                    } else {
+                        full_body.clone()
+                    };
+                    event_blocks.push((resolved_rule.clone(), ev.clone(), body));
+                }
+            }
+        }
+
         let ltm_policies = ltm_policies_for(cfg_hit, vs);
         let apm = apm_profile_for(cfg_hit, vs);
         let gtm = gtm_wide_ips_in_config(cfg_hit);
@@ -465,12 +806,14 @@ fn compute_explain_flow(
             profile_chain,
             pool_selected,
             snat_observed,
+            event_sequence,
+            event_blocks,
+            event_annotations,
             ltm_policies,
             apm_profile: apm,
             gtm_wide_ips: gtm,
             explain_text,
             reset_analysis: reset,
-            ..Default::default()
         });
     }
 
@@ -727,8 +1070,8 @@ pub fn run_explain_flow(
     keylog: Option<&Path>,
     tshark_filter: Option<&str>,
     simulate: bool,
-    _no_event_bodies: bool,
-    _max_event_lines: usize,
+    no_event_bodies: bool,
+    max_event_lines: usize,
     json: bool,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
@@ -760,8 +1103,14 @@ pub fn run_explain_flow(
         .collect();
 
     let pcap_bytes = std::fs::read(pcap)?;
-    let report = compute_explain_flow(&pcap.display().to_string(), &pcap_bytes, &configs)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let report = compute_explain_flow(
+        &pcap.display().to_string(),
+        &pcap_bytes,
+        &configs,
+        !no_event_bodies,
+        max_event_lines,
+    )
+    .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let target = OutputTarget::from_arg(output);
     write_text_output(&target, &report.text_report)?;
