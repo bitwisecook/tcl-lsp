@@ -1,0 +1,12 @@
+[
+  {
+    "uri": "__FIXTURES__/part-a.conf",
+    "values": []
+  },
+  {
+    "uri": "__FIXTURES__/part-b.conf",
+    "values": [
+      "p1"
+    ]
+  }
+]

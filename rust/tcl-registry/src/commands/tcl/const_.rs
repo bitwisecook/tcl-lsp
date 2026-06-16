@@ -11,7 +11,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "const",
-        dialects: Some(DialectSet::TCL90),
+        dialects: None,
         arity: Arity::new(2, 2),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

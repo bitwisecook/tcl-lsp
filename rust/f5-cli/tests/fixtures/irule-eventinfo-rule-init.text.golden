@@ -1,0 +1,7 @@
+event: RULE_INIT
+known: yes
+deprecated: no
+multiplicity: init
+description: Fires once when the iRule is loaded (device boot, config change, or iRule save). Use for initialising static:: variables only.
+side: global
+valid commands: 1126

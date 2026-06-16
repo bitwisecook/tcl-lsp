@@ -52,6 +52,7 @@ const NAMESPACE_SUBS: &[&[u8]] = &[
     b"path",
     b"qualifiers",
     b"tail",
+    b"unknown",
     b"upvar",
     b"which",
 ];
@@ -74,7 +75,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             _ => {
                 let mut m = b"unknown or ambiguous subcommand \"".to_vec();
                 m.extend_from_slice(&raw);
-                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, upvar, or which");
+                m.extend_from_slice(b"\": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which");
                 return interp.set_error(&m);
             }
         }
@@ -97,12 +98,43 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"ensemble" => ns_ensemble(interp, argv),
         b"inscope" => ns_inscope(interp, argv),
         b"code" => ns_code(interp, argv),
+        b"unknown" => ns_unknown(interp, argv),
         b"upvar" => ns_upvar(interp, argv),
         _ => unreachable!("subcommand resolved to a canonical name above"),
     }
 }
 
 // -- current / eval / exists / parent / children ---------------------------
+
+/// `namespace unknown ?handler?` — get or set the current namespace's
+/// unknown-command handler. The global namespace's default is `::unknown`; a
+/// sub-namespace with no handler reports the empty string (and falls back to
+/// `::unknown` at dispatch). Mirrors `NamespaceUnknownCmd` (`tclNamesp.c`).
+fn ns_unknown(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, b"namespace unknown ?script?");
+    }
+    let cur = interp.current_ns();
+    if argv.len() == 3 {
+        let handler = obj_bytes(argv[2]);
+        // The handler must be a well-formed list (command prefix); a parse error
+        // is reported *without* changing the current handler (namespace-52.12).
+        if let Err(e) = crate::parse::split_list(&handler) {
+            return interp.set_error(e.message());
+        }
+        interp.namespaces_mut().set_unknown_handler(cur, &handler);
+        interp.set_result_bytes(b"");
+        return Code::Ok;
+    }
+    // Get: the stored handler, or the interpreter default for the global ns.
+    let h = interp.namespaces().unknown_handler(cur).map(<[u8]>::to_vec);
+    match h {
+        Some(h) => interp.set_result_bytes(&h),
+        None if cur == crate::namespace::GLOBAL => interp.set_result_bytes(b"::unknown"),
+        None => interp.set_result_bytes(b""),
+    }
+    Code::Ok
+}
 
 /// `namespace current` — the FQN of the current namespace.
 fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -146,6 +178,11 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"namespace eval name arg ?arg...?");
     }
     let name = obj_bytes(argv[2]);
+    // A single body argument keeps its `Tcl_Obj` so a located literal runs as
+    // `type source` (TIP 280); multiple args concatenate into a dynamic body.
+    if argv.len() == 4 {
+        return interp.ns_eval_obj(&name, argv[3]);
+    }
     let mut body = Vec::new();
     for (i, &a) in argv[3..].iter().enumerate() {
         if i > 0 {
@@ -197,7 +234,21 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(ns) => ns,
         Err(code) => return code,
     };
-    let pattern = argv.get(3).map(|&a| obj_bytes(a));
+    // The pattern matches against children's *fully-qualified* names, so a
+    // pattern without a leading `::` is qualified with the target namespace's
+    // full name first (C's `NamespaceChildrenCmd`).
+    let pattern = argv.get(3).map(|&a| obj_bytes(a)).map(|p| {
+        if p.starts_with(b"::") {
+            p
+        } else {
+            let mut full = interp.namespaces().qualified_name(ns);
+            if full != b"::" {
+                full.extend_from_slice(b"::");
+            }
+            full.extend_from_slice(&p);
+            full
+        }
+    });
     let mut names: Vec<Vec<u8>> = interp
         .namespaces()
         .children(ns)
@@ -426,11 +477,9 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let mut path: Vec<NsId> = Vec::with_capacity(elems.len());
     for e in &elems {
-        let Some(ns) = interp.namespaces().find_namespace(cur, e) else {
-            let mut m = b"namespace \"".to_vec();
-            m.extend_from_slice(e);
-            m.extend_from_slice(b"\" not found");
-            return interp.set_error(&m);
+        let found = interp.namespaces().find_namespace(cur, e);
+        let Some(ns) = found else {
+            return ns_not_found(interp, e);
         };
         path.push(ns);
     }
@@ -455,15 +504,30 @@ fn resolve_arg_ns(
             let found = interp.namespaces().find_namespace(current, &name);
             match found {
                 Some(ns) => Ok(ns),
-                None => {
-                    let mut m = b"namespace \"".to_vec();
-                    m.extend_from_slice(&name);
-                    m.extend_from_slice(b"\" not found");
-                    Err(interp.set_error(&m))
-                }
+                None => Err(ns_not_found(interp, &name)),
             }
         }
     }
+}
+
+/// The `TclGetNamespaceFromObj` not-found error: a *relative* name names the
+/// current namespace context (`… not found in "::ns"`), an absolute one does not
+/// (`… not found`). Sets `-errorcode TCL LOOKUP NAMESPACE <name>`.
+fn ns_not_found(interp: &mut Interp, name: &[u8]) -> Code {
+    let mut m = b"namespace \"".to_vec();
+    m.extend_from_slice(name);
+    if name.starts_with(b"::") {
+        m.extend_from_slice(b"\" not found");
+    } else {
+        m.extend_from_slice(b"\" not found in \"");
+        let cur = interp.namespaces().qualified_name(interp.current_ns());
+        m.extend_from_slice(&cur);
+        m.push(b'"');
+    }
+    let code = tcl_syntax::list::join_list(
+        ["TCL", "LOOKUP", "NAMESPACE", &String::from_utf8_lossy(name)].iter(),
+    );
+    interp.error_with_code(&m, code.as_bytes())
 }
 
 /// Does the dest namespace hold a command of this name?
@@ -612,10 +676,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .namespaces()
         .find_namespace(interp.current_ns(), &ns_name)
     else {
-        let mut m = b"namespace \"".to_vec();
-        m.extend_from_slice(&ns_name);
-        m.extend_from_slice(b"\" not found");
-        return interp.set_error(&m);
+        return ns_not_found(interp, &ns_name);
     };
 
     let mut i = 3;
@@ -651,14 +712,26 @@ fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"namespace ensemble subcommand ?arg ...?");
     }
-    match obj_bytes(argv[2]).as_slice() {
+    // Subcommands resolve by exact name or unambiguous prefix (Tcl's index table).
+    let sub = obj_bytes(argv[2]);
+    const ENS_SUBS: [&[u8]; 3] = [b"configure", b"create", b"exists"];
+    let resolved: &[u8] = if let Some(&exact) = ENS_SUBS.iter().find(|s| **s == sub.as_slice()) {
+        exact
+    } else {
+        let mut it = ENS_SUBS.iter().filter(|s| s.starts_with(sub.as_slice()));
+        match (it.next(), it.next()) {
+            (Some(&c), None) => c,
+            _ => b"",
+        }
+    };
+    match resolved {
         b"create" => ens_create(interp, argv),
         b"exists" => ens_exists(interp, argv),
-        other => {
-            // `configure` is a follow-up; only create/exists are modelled.
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be create, or exists");
+        b"configure" => ens_configure(interp, argv),
+        _ => {
+            let mut m = b"bad subcommand \"".to_vec();
+            m.extend_from_slice(&sub);
+            m.extend_from_slice(b"\": must be configure, create, or exists");
             interp.set_error(&m)
         }
     }
@@ -670,55 +743,197 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ns = interp.current_ns();
     // Default ensemble command is the namespace's own FQN.
     let mut command = interp.namespaces().qualified_name(ns);
-    let mut map: Option<EnsembleMap> = None;
-    let mut subcommands: Option<Vec<Vec<u8>>> = None;
-    let mut prefixes = true;
+    let mut cfg = EnsembleConfig {
+        ns,
+        map: None,
+        subcommands: None,
+        prefixes: true,
+        parameters: Vec::new(),
+        unknown: Vec::new(),
+    };
 
     let opts = &argv[3..];
     if opts.len() % 2 != 0 {
         return interp.set_error(b"missing value for option");
     }
     for pair in opts.chunks_exact(2) {
-        let (opt, val) = (obj_bytes(pair[0]), pair[1]);
-        match opt.as_slice() {
-            b"-command" => command = obj_bytes(val),
-            b"-subcommands" => match crate::parse::split_list(&obj_bytes(val)) {
-                Ok(list) => subcommands = Some(list),
-                Err(e) => return interp.set_error(e.message()),
-            },
-            b"-map" => match parse_map(&obj_bytes(val)) {
-                Ok(m) => map = Some(m),
-                Err(e) => return interp.set_error(&e),
-            },
-            b"-prefixes" => match parse_bool(&obj_bytes(val)) {
-                Some(b) => prefixes = b,
-                None => {
-                    let mut m = b"expected boolean value but got \"".to_vec();
-                    m.extend_from_slice(&obj_bytes(val));
-                    m.push(b'"');
-                    return interp.set_error(&m);
-                }
-            },
-            _ => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(&opt);
-                m.extend_from_slice(b"\": should be -command, -map, -prefixes, or -subcommands");
-                return interp.set_error(&m);
-            }
+        let opt = obj_bytes(pair[0]);
+        // `-command` (create-only) names the ensemble command; the rest are the
+        // shared configuration options.
+        if opt.as_slice() == b"-command" {
+            command = obj_bytes(pair[1]);
+            continue;
+        }
+        if let Err(e) = apply_ensemble_option(&mut cfg, &opt, &obj_bytes(pair[1])) {
+            return interp.set_error(&e);
         }
     }
 
-    interp.create_ensemble(
-        &command,
-        EnsembleConfig {
-            ns,
-            map,
-            subcommands,
-            prefixes,
-        },
-    );
+    interp.create_ensemble(&command, cfg);
     interp.set_result_bytes(&command);
     Code::Ok
+}
+
+/// Apply one `-option value` to an [`EnsembleConfig`] (shared by `namespace
+/// ensemble create` and `configure`). Returns the C error text on a bad option
+/// or value.
+fn apply_ensemble_option(cfg: &mut EnsembleConfig, opt: &[u8], val: &[u8]) -> Result<(), Vec<u8>> {
+    match opt {
+        b"-subcommands" => {
+            cfg.subcommands =
+                Some(crate::parse::split_list(val).map_err(|e| e.message().to_vec())?);
+        }
+        b"-map" => {
+            // An empty `-map` clears it (C: a zero-length dict ⇒ no map).
+            let m = parse_map(val)?;
+            cfg.map = if m.is_empty() { None } else { Some(m) };
+        }
+        b"-parameters" => {
+            cfg.parameters = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
+        }
+        b"-unknown" => {
+            cfg.unknown = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
+        }
+        b"-prefixes" => {
+            cfg.prefixes = parse_bool(val).ok_or_else(|| {
+                let mut m = b"expected boolean value but got \"".to_vec();
+                m.extend_from_slice(val);
+                m.push(b'"');
+                m
+            })?;
+        }
+        _ => {
+            let mut m = b"bad option \"".to_vec();
+            m.extend_from_slice(opt);
+            m.extend_from_slice(
+                b"\": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown",
+            );
+            return Err(m);
+        }
+    }
+    Ok(())
+}
+
+/// `namespace ensemble configure cmd ?-option? ?value …?` — read or update an
+/// existing ensemble's configuration (`tclEnsemble.c`). No options: a dict of
+/// all settings; one bare `-option`: its value; `-option value …` pairs: update.
+fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 4 {
+        return wrong_args(
+            interp,
+            b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?",
+        );
+    }
+    let cmd = obj_bytes(argv[3]);
+    let Some(mut cfg) = interp.ensemble_config(&cmd) else {
+        // Distinguish a missing command from a non-ensemble one (C's wording).
+        if interp.command_exists(&cmd) {
+            let mut m = b"\"".to_vec();
+            m.extend_from_slice(&cmd);
+            m.extend_from_slice(b"\" is not an ensemble command");
+            return interp.set_error(&m);
+        }
+        let mut m = b"unknown command \"".to_vec();
+        m.extend_from_slice(&cmd);
+        m.push(b'"');
+        return interp.set_error(&m);
+    };
+    let rest = &argv[4..];
+    // Read all options as a dict.
+    if rest.is_empty() {
+        let d = ensemble_config_dict(interp, &cfg);
+        interp.set_result_bytes(&d);
+        return Code::Ok;
+    }
+    // Read a single option's value.
+    if rest.len() == 1 {
+        let opt = obj_bytes(rest[0]);
+        match ensemble_option_value(interp, &cfg, &opt) {
+            Some(v) => {
+                interp.set_result_bytes(&v);
+                Code::Ok
+            }
+            None => {
+                let mut m = b"bad option \"".to_vec();
+                m.extend_from_slice(&opt);
+                m.extend_from_slice(b"\": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown");
+                interp.set_error(&m)
+            }
+        }
+    } else {
+        // Update: `-option value` pairs.
+        if rest.len() % 2 != 0 {
+            return interp.set_error(b"missing value for option");
+        }
+        for pair in rest.chunks_exact(2) {
+            if let Err(e) =
+                apply_ensemble_option(&mut cfg, &obj_bytes(pair[0]), &obj_bytes(pair[1]))
+            {
+                return interp.set_error(&e);
+            }
+        }
+        interp.set_ensemble_config(&cmd, cfg);
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+}
+
+/// One ensemble `configure`/cget option's value (string form).
+fn ensemble_option_value(interp: &Interp, cfg: &EnsembleConfig, opt: &[u8]) -> Option<Vec<u8>> {
+    Some(match opt {
+        b"-namespace" => interp.namespaces().qualified_name(cfg.ns),
+        b"-prefixes" => {
+            if cfg.prefixes {
+                b"1".to_vec()
+            } else {
+                b"0".to_vec()
+            }
+        }
+        b"-parameters" => join_words(&cfg.parameters),
+        b"-unknown" => join_words(&cfg.unknown),
+        b"-subcommands" => cfg
+            .subcommands
+            .as_deref()
+            .map(join_words)
+            .unwrap_or_default(),
+        b"-map" => match &cfg.map {
+            Some(m) => {
+                let mut flat: Vec<Vec<u8>> = Vec::with_capacity(m.len() * 2);
+                for (k, prefix) in m {
+                    flat.push(k.clone());
+                    flat.push(join_words(prefix));
+                }
+                join_words(&flat)
+            }
+            None => Vec::new(),
+        },
+        _ => return None,
+    })
+}
+
+/// Join words into a Tcl list string.
+fn join_words(words: &[Vec<u8>]) -> Vec<u8> {
+    let strs: Vec<std::borrow::Cow<str>> =
+        words.iter().map(|w| String::from_utf8_lossy(w)).collect();
+    tcl_syntax::list::join_list(strs.iter()).into_bytes()
+}
+
+/// The full `-option value …` dict an ensemble's `configure` (no args) returns,
+/// in C's alphabetical option order.
+fn ensemble_config_dict(interp: &Interp, cfg: &EnsembleConfig) -> Vec<u8> {
+    let mut pairs: Vec<Vec<u8>> = Vec::new();
+    for opt in [
+        &b"-map"[..],
+        b"-namespace",
+        b"-parameters",
+        b"-prefixes",
+        b"-subcommands",
+        b"-unknown",
+    ] {
+        pairs.push(opt.to_vec());
+        pairs.push(ensemble_option_value(interp, cfg, opt).unwrap_or_default());
+    }
+    join_words(&pairs)
 }
 
 /// `namespace ensemble exists command` — 1 if it resolves to an ensemble.

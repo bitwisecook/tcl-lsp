@@ -31,6 +31,13 @@ use crate::parse::{self, ListError};
 /// `*mut TclObj` the list owns a `+1` of.
 struct TclList {
     elems: Vec<*mut TclObj>,
+    /// Whether the value's canonical form **is** its elements (C's
+    /// `TclListObjIsCanonical`): `true` for a list built from objects
+    /// (`new_list_obj`/append/replace), `false` for one shimmered from a string
+    /// (whose kept string rep may differ from the canonical list form). The eval
+    /// loop dispatches a canonical list by element identity; a non-canonical one
+    /// is re-parsed from its string ([`is_pure_list`]).
+    canonical: bool,
 }
 
 /// The `list` type descriptor — free/dup/update-string procs wired to the list
@@ -75,11 +82,13 @@ extern "C" fn list_free(obj: *mut TclObj) {
 extern "C" fn list_dup(src: *mut TclObj, dup: *mut TclObj) {
     // SAFETY: deep-copy the element vector and retain each element for the copy.
     unsafe {
-        let elems = list_ref(src).elems.clone();
+        let src_ref = list_ref(src);
+        let elems = src_ref.elems.clone();
+        let canonical = src_ref.canonical;
         for &e in &elems {
             obj::incr_ref_count(e);
         }
-        let boxed = Box::new(TclList { elems });
+        let boxed = Box::new(TclList { elems, canonical });
         obj::change_type(dup, &TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64);
     }
 }
@@ -115,7 +124,12 @@ fn ensure_list(obj: *mut TclObj) -> Result<(), ListError> {
         unsafe { obj::incr_ref_count(eo) };
         elems.push(eo);
     }
-    let boxed = Box::new(TclList { elems });
+    // Shimmered from a string: the kept string rep is the source of truth, so
+    // the value is *not* canonical (its string may not match the list form).
+    let boxed = Box::new(TclList {
+        elems,
+        canonical: false,
+    });
     obj::change_type(obj, &TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64);
     Ok(())
 }
@@ -129,7 +143,10 @@ pub fn new_list_obj(elems: &[*mut TclObj]) -> *mut TclObj {
         // SAFETY: each element is live; the list takes a +1.
         unsafe { obj::incr_ref_count(e) };
     }
-    let boxed = Box::new(TclList { elems: v });
+    let boxed = Box::new(TclList {
+        elems: v,
+        canonical: true,
+    });
     obj::alloc_typed(&TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64)
 }
 
@@ -149,6 +166,16 @@ pub fn list_index(obj: *mut TclObj, i: usize) -> Result<Option<*mut TclObj>, Lis
 
 /// Every element (borrowed pointers), e.g. for `Tcl_ListObjGetElements` /
 /// `foreach`. The returned objects are owned by the list.
+/// Whether `obj` is a **pure** list — it has the list internal rep and no
+/// string rep, so its canonical form is its elements (C's
+/// `TclListObjIsCanonical`). Such a value can be evaluated as a single command
+/// by element *identity* (preserving each element obj's TIP 280 source
+/// location), instead of being stringified and re-parsed.
+#[must_use]
+pub fn is_pure_list(obj: *mut TclObj) -> bool {
+    obj::obj_type_ptr(obj) == &TCL_LIST_TYPE && unsafe { list_ref(obj) }.canonical
+}
+
 pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, ListError> {
     ensure_list(obj)?;
     // SAFETY: list rep guaranteed.

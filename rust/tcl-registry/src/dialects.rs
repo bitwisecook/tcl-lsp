@@ -45,7 +45,56 @@ bitflags! {
 
         /// Tcl 8.6 and later.
         const TCL86_PLUS = Self::TCL86.bits() | Self::TCL90.bits();
+
+        /// Every modelled dialect *except* F5 iRules and Tk.
+        ///
+        /// The Python registry marks the math-operator commands
+        /// (`+`, `eq`, `tcl::mathop::*`, …) valid in every command
+        /// dialect *except* `f5-irules` (in iRules, operators live
+        /// inside `expr`, never as standalone command heads) and
+        /// `tk`. Mirrors that membership so the iRules event/command
+        /// cross-product (`commands_for_event`) excludes them.
+        const NON_IRULES_OPERATORS = Self::ALL_TCL.bits()
+            | Self::IAPPS.bits() | Self::EXPECT.bits()
+            | Self::SYNOPSYS.bits() | Self::CADENCE.bits()
+            | Self::XILINX.bits() | Self::QUARTUS.bits()
+            | Self::MENTOR.bits();
     }
+}
+
+/// Canonical dialect profile names, in sorted order.
+///
+/// Faithful port of Python's `KNOWN_DIALECTS`
+/// (`compiler/registry/dialects.py`), kept pre-sorted so
+/// [`available_dialects`] matches `sorted(KNOWN_DIALECTS)` exactly. This
+/// is the single source of truth for the explorer's dialect dropdown and
+/// the CLI's `--dialect` choices. Note it is a *superset* of the names
+/// [`DialectSet::parse`] resolves to a flag — config-only dialects
+/// (`f5-bigip`, `f5-tmsh`) appear here but collapse to plain Tcl when
+/// parsed, matching the Python registry's graceful fallback.
+pub const KNOWN_DIALECTS: &[&str] = &[
+    "cadence-eda-tcl",
+    "expect",
+    "f5-bigip",
+    "f5-iapps",
+    "f5-irules",
+    "f5-tmsh",
+    "intel-quartus-eda-tcl",
+    "mentor-eda-tcl",
+    "synopsys-eda-tcl",
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "xilinx-eda-tcl",
+];
+
+/// Return the canonical dialect profile names in sorted order.
+///
+/// Mirrors `available_dialects()` in `compiler/registry/runtime.py`.
+#[must_use]
+pub fn available_dialects() -> &'static [&'static str] {
+    KNOWN_DIALECTS
 }
 
 impl DialectSet {
@@ -96,6 +145,19 @@ impl DialectSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn available_dialects_is_sorted_and_complete() {
+        let d = available_dialects();
+        assert_eq!(d.len(), 14);
+        let mut sorted = d.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(d, sorted.as_slice(), "must be pre-sorted");
+        // Spot-check the names that diverge from DialectSet::parse.
+        assert!(d.contains(&"f5-bigip"));
+        assert!(d.contains(&"f5-tmsh"));
+        assert!(!d.contains(&"tk"));
+    }
 
     #[test]
     fn from_name_roundtrip() {

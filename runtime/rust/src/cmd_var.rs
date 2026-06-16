@@ -60,9 +60,7 @@ fn no_namespace(interp: &mut Interp, verb: &[u8], name: &[u8]) -> Code {
 /// `global varName ?varName ...?` — link each name's tail to the global of that
 /// name (resolved in the global namespace context).
 fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return wrong_args(interp, b"global varName ?varName ...?");
-    }
+    // `global` with no names is a no-op (TIP 323).
     for &a in &argv[1..] {
         let name = obj_bytes(a);
         match interp.resolve_var_target(GLOBAL, &name) {
@@ -79,9 +77,7 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `variable ?name value ...? name ?value?` — declare/link namespace variables,
 /// initialising those given a value. The trailing name may omit its value.
 pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return wrong_args(interp, b"variable ?name value ...? name ?value?");
-    }
+    // `variable` with no names is a no-op (TIP 323).
     let current = interp.current_ns();
     let mut i = 1;
     while i < argv.len() {
@@ -89,6 +85,14 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some((ns, tail)) = interp.resolve_var_target(current, &name) else {
             return no_namespace(interp, b"define", &name);
         };
+        // A `variable` may not name an array element (C's `TclObjLookupVarEx`
+        // rejects an `arr(elem)` target).
+        if crate::frame::split_array_ref(&tail).1.is_some() {
+            let mut m = b"can't define \"".to_vec();
+            m.extend_from_slice(&name);
+            m.extend_from_slice(b"\": name refers to an element in an array");
+            return interp.set_error(&m);
+        }
         // Install the link first; a following `var_set(tail, …)` then writes
         // *through* it into the target namespace (the link makes the unqualified
         // tail resolve there, in a proc or at namespace scope alike).
@@ -143,6 +147,15 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i + 1 < argv.len() {
         let other = obj_bytes(argv[i]);
         let local = obj_bytes(argv[i + 1]);
+        // The local name may not look like an array element (C's `MakeUpvar`).
+        if split_array_ref(&local).1.is_some() {
+            let mut m = b"bad variable name \"".to_vec();
+            m.extend_from_slice(&local);
+            m.extend_from_slice(
+                b"\": can't create a scalar variable that looks like an array element",
+            );
+            return interp.set_error(&m);
+        }
         let (base, elem) = split_array_ref(&other);
 
         let link = if is_qualified(&base) {
@@ -174,7 +187,21 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 elem,
             }
         };
-        interp.make_upvar(link, &local);
+        // A qualified local name (`ns::lnk`) creates a namespace link variable
+        // rather than a frame local; its namespace must exist.
+        if is_qualified(&local) {
+            match interp.resolve_var_target(interp.current_ns(), &local) {
+                Some((target_ns, tail)) => interp.make_upvar_in(target_ns, &tail, link),
+                None => {
+                    let mut m = b"can't create \"".to_vec();
+                    m.extend_from_slice(&local);
+                    m.extend_from_slice(b"\": parent namespace doesn't exist");
+                    return interp.set_error(&m);
+                }
+            }
+        } else {
+            interp.make_upvar(link, &local);
+        }
         i += 2;
     }
     interp.set_result_bytes(b"");

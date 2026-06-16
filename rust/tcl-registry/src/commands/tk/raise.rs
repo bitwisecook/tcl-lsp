@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "raise",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Raise a window's position in the stacking order.",

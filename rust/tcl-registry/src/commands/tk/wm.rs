@@ -61,6 +61,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "frame",
+        dialects: None,
         arity: Arity::exact(1),
         detail: "Return the platform-specific window identifier of the outermost frame.",
         synopsis: "wm frame window",
@@ -75,6 +76,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "grid",
+        dialects: None,
         arity: Arity::new(1, 5),
         detail: "Set or query the gridding information for the window.",
         synopsis: "wm grid window ?baseWidth baseHeight widthInc heightInc?",
@@ -244,7 +246,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "wm",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Communicate with the window manager.",

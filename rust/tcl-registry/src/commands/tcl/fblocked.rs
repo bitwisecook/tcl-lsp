@@ -11,6 +11,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fblocked",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),

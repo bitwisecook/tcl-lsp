@@ -32,6 +32,14 @@ pub struct EnsembleConfig {
     pub subcommands: Option<Vec<Vec<u8>>>,
     /// `-prefixes`: allow unambiguous-prefix subcommand matching (default true).
     pub prefixes: bool,
+    /// `-parameters`: formal parameter names that precede the subcommand in a
+    /// call (`ens p1 p2 sub args…`); their values are threaded in after the
+    /// resolved target (`target p1 p2 args…`). Empty for an ordinary ensemble.
+    pub parameters: Vec<Vec<u8>>,
+    /// `-unknown`: a handler command prefix invoked (as `handler… ensembleCmd
+    /// subcommand args…`) when a subcommand doesn't resolve, before erroring.
+    /// Empty for none.
+    pub unknown: Vec<Vec<u8>>,
 }
 
 /// Resolve `sub` against the (sorted) subcommand set: an exact match wins;

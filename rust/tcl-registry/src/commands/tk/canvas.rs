@@ -19,6 +19,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "bind",
+        dialects: None,
         arity: Arity::at_least(1),
         detail: "Associate a command with a canvas item event.",
         synopsis: "pathName bind tagOrId ?sequence? ?command?",
@@ -75,6 +76,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "focus",
+        dialects: None,
         arity: Arity::new(0, 1),
         detail: "Set or query the focus item for the canvas.",
         synopsis: "pathName focus ?tagOrId?",
@@ -96,6 +98,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lower",
+        dialects: None,
         arity: Arity::new(1, 2),
         detail: "Lower the items given by tagOrId in the display list.",
         synopsis: "pathName lower tagOrId ?belowThis?",
@@ -117,6 +120,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "raise",
+        dialects: None,
         arity: Arity::new(1, 2),
         detail: "Raise the items given by tagOrId in the display list.",
         synopsis: "pathName raise tagOrId ?aboveThis?",
@@ -124,6 +128,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "scale",
+        dialects: None,
         arity: Arity::exact(5),
         detail: "Rescale the coordinates of items.",
         synopsis: "pathName scale tagOrId xOrigin yOrigin xScale yScale",
@@ -366,7 +371,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "canvas",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a canvas widget.",

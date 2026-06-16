@@ -159,6 +159,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "eof",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::exact(1),
         detail: "Test for end of file.",
         synopsis: "chan eof channelId",
@@ -174,6 +175,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "event",
+        dialects: None,
         arity: Arity::new(2, 3),
         detail: "Set up channel event handler.",
         synopsis: "chan event channelId event ?script?",
@@ -189,6 +191,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "flush",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::exact(1),
         detail: "Flush buffered output.",
         synopsis: "chan flush channelId",
@@ -204,6 +207,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "gets",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         detail: "Read a line.",
@@ -332,6 +336,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "seek",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::new(2, 3),
         detail: "Set access position.",
         synopsis: "chan seek channelId offset ?origin?",
@@ -347,6 +352,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tell",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::exact(1),
         detail: "Return current position.",
         synopsis: "chan tell channelId",
@@ -463,7 +469,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
         traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL | Traits::HAS_DESTRUCTIVE_OPS,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        dialects: None,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         options: CMD_OPTIONS,

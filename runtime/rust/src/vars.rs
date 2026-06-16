@@ -276,9 +276,61 @@ pub(crate) fn get_elem(
 ) -> Option<*mut TclObj> {
     match resolve(frames, ns, current_ns, name) {
         Resolved::Place(p) if p.elem.is_none() => {
-            table(frames, ns, p.home)?.load_elem(&p.name, key)
+            let t = table(frames, ns, p.home)?;
+            // A missing element of an array with a TIP 508 default reads as the
+            // default (without creating the element).
+            t.load_elem(&p.name, key)
+                .or_else(|| t.array_default(&p.name))
         }
         _ => None,
+    }
+}
+
+/// `array default set arrayName value` — ensure the array exists and set its
+/// default value. `Err(IsScalar)` if the name is a non-array scalar.
+pub(crate) fn set_array_default(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+    obj: *mut TclObj,
+) -> Result<(), VarError> {
+    let place = match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => p,
+        Resolved::NoNamespace => return Err(VarError::NoSuchNamespace),
+        _ => return Err(VarError::IsScalar),
+    };
+    let t = table_mut(frames, ns, place.home);
+    t.ensure_array(&place.name)?;
+    t.set_array_default(&place.name, obj);
+    Ok(())
+}
+
+/// `array default get/exists` — the array's default value (following links), or
+/// `None` if the name isn't an array or has no default.
+pub(crate) fn array_default(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> Option<*mut TclObj> {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => table(frames, ns, p.home)?.array_default(&p.name),
+        _ => None,
+    }
+}
+
+/// `array default unset` — drop the array's default value (if any).
+pub(crate) fn unset_array_default(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) {
+    if let Resolved::Place(p) = resolve(frames, ns, current_ns, name) {
+        if p.elem.is_none() {
+            table_mut(frames, ns, p.home).unset_array_default(&p.name);
+        }
     }
 }
 
@@ -314,6 +366,36 @@ pub(crate) fn unset_elem(
         _ => return false,
     };
     table_mut(frames, ns, place.home).remove_elem(&place.name, key)
+}
+
+/// Flag the scalar `name` (following links to its home) `const` — the `const`
+/// command, after the value has been stored.
+pub(crate) fn mark_constant(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) {
+    if let Resolved::Place(p) = resolve(frames, ns, current_ns, name) {
+        if p.elem.is_none() {
+            table_mut(frames, ns, p.home).mark_constant(&p.name);
+        }
+    }
+}
+
+/// Whether `name` (following links) resolves to a `const` scalar.
+pub(crate) fn is_constant(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> bool {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home).is_some_and(|t| t.is_constant(&p.name))
+        }
+        _ => false,
+    }
 }
 
 /// Whether `name` resolves to an array variable (the `set a` array-vs-scalar
@@ -355,7 +437,14 @@ pub(crate) fn exists_elem(
     name: &[u8],
     key: &[u8],
 ) -> bool {
-    get_elem(frames, ns, current_ns, name, key).is_some()
+    // `info exists arr(k)` checks the *actual* element — an array default does
+    // not make a missing element "exist" (TIP 508).
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home).is_some_and(|t| t.load_elem(&p.name, key).is_some())
+        }
+        _ => false,
+    }
 }
 
 /// The element names of array `name` (`array names`/`array get`), or `None` if
@@ -474,6 +563,26 @@ pub(crate) fn make_upvar(
         _ => target,
     };
     link_local(frames, ns, current_ns, local, target);
+}
+
+/// `upvar … target ns::tail` — install the link as the namespace variable
+/// `home_ns::tail` (a qualified local name names a namespace link var, not a
+/// frame local; C's `MakeUpvar` with a `::`-containing local name).
+pub(crate) fn make_upvar_in(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    home_ns: NsId,
+    tail: &[u8],
+    target: Link,
+) {
+    let target = match target.home {
+        VarHome::Frame(0) => Link {
+            home: VarHome::Namespace(GLOBAL),
+            ..target
+        },
+        _ => target,
+    };
+    table_mut(frames, ns, VarHome::Namespace(home_ns)).insert_link(tail, target);
 }
 
 #[cfg(test)]

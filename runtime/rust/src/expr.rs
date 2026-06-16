@@ -18,25 +18,118 @@ use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj};
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, UnaryOp};
 
-/// An expr-evaluation error carrying Tcl's verbatim message bytes.
+/// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
+/// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExprError(pub Vec<u8>);
+pub struct ExprError {
+    pub msg: Vec<u8>,
+    pub code: Option<Vec<u8>>,
+}
 
 impl ExprError {
     fn msg(s: &[u8]) -> ExprError {
-        ExprError(s.to_vec())
+        ExprError {
+            msg: s.to_vec(),
+            code: None,
+        }
+    }
+    /// An error from owned message bytes (no `-errorcode`).
+    pub fn from_bytes(m: Vec<u8>) -> ExprError {
+        ExprError { msg: m, code: None }
+    }
+    /// An error from message bytes plus an optional `-errorcode` (an empty code
+    /// is treated as none).
+    pub fn from_parts(m: Vec<u8>, code: Vec<u8>) -> ExprError {
+        ExprError {
+            msg: m,
+            code: (!code.is_empty()).then_some(code),
+        }
+    }
+    /// An error with an explicit `-errorcode`.
+    fn with_code(m: &[u8], code: &[u8]) -> ExprError {
+        ExprError {
+            msg: m.to_vec(),
+            code: Some(code.to_vec()),
+        }
     }
 }
 
 pub(crate) fn arith_err(e: ArithError) -> ExprError {
-    ExprError::msg(match e {
-        ArithError::NonNumeric => b"can't use non-numeric string as operand of arithmetic",
-        ArithError::NonInteger => b"can't use floating-point value as operand of bitwise op",
-        ArithError::DivideByZero => b"divide by zero",
-        ArithError::NegativeShift => b"negative shift argument",
-        ArithError::ExponentTooLarge => b"exponent too large",
-        ArithError::Alloc => b"out of memory",
-    })
+    match e {
+        ArithError::NonNumeric => {
+            ExprError::msg(b"can't use non-numeric string as operand of arithmetic")
+        }
+        ArithError::NonInteger => {
+            ExprError::msg(b"can't use floating-point value as operand of bitwise op")
+        }
+        // C stamps the arithmetic `-errorcode`s (`tclExecute.c`).
+        ArithError::DivideByZero => {
+            ExprError::with_code(b"divide by zero", b"ARITH DIVZERO {divide by zero}")
+        }
+        ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
+        ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
+        ArithError::Alloc => ExprError::msg(b"out of memory"),
+    }
+}
+
+/// `cannot use {floating-point value|non-numeric string} "VALUE" as
+/// SIDEoperand of "OP"` — C's `IllegalExprOperandType` (`tclExecute.c`). `side`
+/// is `""` for a unary op, `"left "`/`"right "` for a binary one.
+fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
+    let mut m = b"cannot use ".to_vec();
+    m.extend_from_slice(if float {
+        b"floating-point value \""
+    } else {
+        b"non-numeric string \""
+    });
+    m.extend_from_slice(value);
+    m.extend_from_slice(b"\" as ");
+    m.extend_from_slice(side);
+    m.extend_from_slice(b"operand of \"");
+    m.extend_from_slice(op);
+    m.push(b'"');
+    ExprError::from_bytes(m)
+}
+
+/// Map a binary operator to its source symbol (for operand-type errors).
+fn binop_sym(op: BinOp) -> &'static [u8] {
+    match op {
+        BinOp::Add => b"+",
+        BinOp::Sub => b"-",
+        BinOp::Mul => b"*",
+        BinOp::Div => b"/",
+        BinOp::Mod => b"%",
+        BinOp::Pow => b"**",
+        BinOp::BitAnd => b"&",
+        BinOp::BitOr => b"|",
+        BinOp::BitXor => b"^",
+        BinOp::LShift => b"<<",
+        BinOp::RShift => b">>",
+        _ => b"?",
+    }
+}
+
+/// Build the operand-type error for a *binary* op: the offending operand is the
+/// first one (left, then right) that is non-numeric (for `NonNumeric`) or a
+/// float (for `NonInteger`). Other `ArithError`s keep their plain message.
+fn binop_err(e: ArithError, op: BinOp, lp: *mut TclObj, rp: *mut TclObj) -> ExprError {
+    let float = match e {
+        ArithError::NonInteger => true,
+        ArithError::NonNumeric => false,
+        other => return arith_err(other),
+    };
+    // `NonInteger`: the float operand; `NonNumeric`: the non-numeric one.
+    let left_bad = if float {
+        bignum::is_numeric(lp) && !bignum::is_integer(lp)
+    } else {
+        !bignum::is_numeric(lp)
+    };
+    let (val, side): (Vec<u8>, &[u8]) = if left_bad {
+        (obj::bytes_of(lp), b"left ")
+    } else {
+        (obj::bytes_of(rp), b"right ")
+    };
+    operand_type_err(float, &val, side, binop_sym(op))
 }
 
 /// An owned object reference (`rc +1`) that releases on drop — the discipline
@@ -129,7 +222,7 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
             let mut m = b"unknown math function \"".to_vec();
             m.extend_from_slice(name.as_bytes());
             m.push(b'"');
-            Err(ExprError(m))
+            Err(ExprError::from_bytes(m))
         }
     }
 }
@@ -179,23 +272,52 @@ impl ExprOps for TowerOps<'_> {
             _ => return Err(ExprError::msg(b"unsupported operator")),
         };
         // `left`/`right` stay alive until here, then release.
-        Ok(Owned::fresh(res.map_err(arith_err)?))
+        Ok(Owned::fresh(res.map_err(|e| binop_err(e, op, lp, rp))?))
     }
 
     fn unary(&mut self, op: UnaryOp, value: Owned) -> Result<Owned, ExprError> {
+        // A unary operand-type error names the value and the operator, with no
+        // left/right qualifier (`as operand of "OP"`).
+        let uerr = |e: ArithError, sym: &[u8]| -> ExprError {
+            match e {
+                ArithError::NonInteger => {
+                    operand_type_err(true, &obj::bytes_of(value.ptr()), b"", sym)
+                }
+                ArithError::NonNumeric => {
+                    operand_type_err(false, &obj::bytes_of(value.ptr()), b"", sym)
+                }
+                other => arith_err(other),
+            }
+        };
         match op {
             UnaryOp::Pos => {
                 if bignum::compare(value.ptr(), value.ptr()).is_none() {
-                    return Err(arith_err(ArithError::NonNumeric));
+                    return Err(operand_type_err(
+                        false,
+                        &obj::bytes_of(value.ptr()),
+                        b"",
+                        b"+",
+                    ));
                 }
                 Ok(value)
             }
-            UnaryOp::Neg => Ok(Owned::fresh(bignum::neg(value.ptr()).map_err(arith_err)?)),
-            UnaryOp::BitNot => Ok(Owned::fresh(bignum::bnot(value.ptr()).map_err(arith_err)?)),
-            UnaryOp::Not => {
-                let b = to_bool(value.ptr())?;
-                Ok(bool_obj(!b))
-            }
+            UnaryOp::Neg => Ok(Owned::fresh(
+                bignum::neg(value.ptr()).map_err(|e| uerr(e, b"-"))?,
+            )),
+            UnaryOp::BitNot => Ok(Owned::fresh(
+                bignum::bnot(value.ptr()).map_err(|e| uerr(e, b"~"))?,
+            )),
+            UnaryOp::Not => match to_bool(value.ptr()) {
+                Ok(b) => Ok(bool_obj(!b)),
+                // A `!` operand that is neither boolean nor numeric is an
+                // operand-type error (not the generic "expected boolean").
+                Err(_) => Err(operand_type_err(
+                    false,
+                    &obj::bytes_of(value.ptr()),
+                    b"",
+                    b"!",
+                )),
+            },
             UnaryOp::WordNot => Err(ExprError::msg(b"unsupported operator")),
         }
     }
@@ -221,7 +343,7 @@ impl ExprOps for TowerOps<'_> {
         bool_obj(b)
     }
     fn unsupported(&mut self, what: &str) -> ExprError {
-        ExprError(what.as_bytes().to_vec())
+        ExprError::from_bytes(what.as_bytes().to_vec())
     }
 }
 
@@ -250,7 +372,7 @@ pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
             let mut m = b"expected boolean value but got \"".to_vec();
             m.extend_from_slice(&bytes);
             m.push(b'"');
-            Err(ExprError(m))
+            Err(ExprError::from_bytes(m))
         }
     }
 }
@@ -386,7 +508,13 @@ mod tests {
 
     #[test]
     fn errors() {
-        assert_eq!(ev("1 / 0", &[]), Err(ExprError::msg(b"divide by zero")));
+        assert_eq!(
+            ev("1 / 0", &[]),
+            Err(ExprError::with_code(
+                b"divide by zero",
+                b"ARITH DIVZERO {divide by zero}"
+            ))
+        );
         assert!(ev("$missing + 1", &[]).is_err());
     }
 }

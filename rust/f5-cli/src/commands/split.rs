@@ -4,8 +4,8 @@
 //! helpers (`dialects/f5/bigip/emit.py`).
 //!
 //! For `--format scf` the per-partition text is written verbatim (the SCF passes
-//! through `render_config`), so it reaches byte-for-byte parity. `tmsh` /
-//! `tmsh-delta` need the BIG-IP tmsh emitter (a later engine port).
+//! through `render_config`). `--format tmsh` re-renders each partition via the
+//! BIG-IP tmsh emit engine (`tcl_bigip::tmsh_emit`) and writes `.tmsh` files.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,13 +22,6 @@ const DEFAULT_PARTITION: &str = "_no_partition";
 
 /// `f5 split` — write one `.conf` per partition under `output`.
 pub fn run_split(input: &Path, output: &Path, format: &FormatArgs) -> anyhow::Result<u8> {
-    if format.format != "scf" {
-        anyhow::bail!(
-            "`f5 split --format {}` is not yet implemented in the Rust port (needs the tmsh emitter)",
-            format.format
-        );
-    }
-
     let bytes =
         std::fs::read(input).with_context(|| format!("failed to read {}", input.display()))?;
     let source = String::from_utf8_lossy(&bytes).into_owned();
@@ -66,10 +59,22 @@ pub fn run_split(input: &Path, output: &Path, format: &FormatArgs) -> anyhow::Re
         by_partition.entry(partition).or_default().push(chunk);
     }
 
+    let suffix = if format.format == "tmsh" {
+        "tmsh"
+    } else {
+        "conf"
+    };
     for partition in &order {
         let text = by_partition[partition].join("\n");
-        let path = output.join(format!("{partition}.conf"));
-        std::fs::write(&path, text)
+        let rendered = crate::commands::emit::render_config(
+            &text,
+            &format.format,
+            "create",
+            format.transaction,
+            "",
+        );
+        let path = output.join(format!("{partition}.{suffix}"));
+        std::fs::write(&path, rendered)
             .with_context(|| format!("failed to write {}", path.display()))?;
     }
 

@@ -339,8 +339,8 @@ impl CfgBuilder {
         let end_block = self.new_block("switch_end");
         let default_block = self.new_block("switch_default");
 
-        // Create body blocks for each arm.
-        let body_targets: Vec<String> = arms.iter().map(|_| self.new_block("switch_arm")).collect();
+        let body_name = "switch_arm_body"; // matches the Python CFG builder naming
+        let body_targets: Vec<String> = arms.iter().map(|_| self.new_block(body_name)).collect();
 
         // Resolve fallthrough: fallthrough arms jump to the next
         // non-fallthrough body, or to default.

@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::workingDirectory",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set the working directory for tests.",

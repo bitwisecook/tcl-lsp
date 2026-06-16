@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "disabled_in_irules",
+        dialects: Some(DialectSet::ALL_TCL),
         ..CommandSpec::DEFAULT
     }
 }

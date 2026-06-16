@@ -44,6 +44,10 @@ fn break_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
         return wrong_args(interp, b"break");
     }
+    // `break`/`continue` carry no value — clear any prior result so `catch
+    // {break}` (and a `break` propagated out of an expr substitution) report the
+    // empty string, matching C (where each command entry resets the result).
+    interp.set_result_bytes(b"");
     Code::Break
 }
 
@@ -51,6 +55,7 @@ fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
         return wrong_args(interp, b"continue");
     }
+    interp.set_result_bytes(b"");
     Code::Continue
 }
 
@@ -64,7 +69,8 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if i >= argv.len() {
             return interp.set_error(b"wrong # args: no expression after \"if\" argument");
         }
-        let cond = obj_bytes(argv[i]);
+        let cond_obj = argv[i];
+        let cond = obj_bytes(cond_obj);
         i += 1;
         // optional `then` keyword.
         if i < argv.len() && obj_bytes(argv[i]).as_slice() == b"then" {
@@ -79,8 +85,8 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let body = argv[i];
         i += 1;
 
-        match crate::builtins::eval_bool_expr(interp, &cond) {
-            Ok(true) => return interp.eval_str(&obj_bytes(body)),
+        match crate::builtins::eval_bool_expr(interp, cond_obj) {
+            Ok(true) => return interp.eval_control_body(body),
             Ok(false) => {}
             Err(code) => return code,
         }
@@ -101,10 +107,10 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     return interp
                         .set_error(b"wrong # args: no script following \"else\" argument");
                 }
-                return interp.eval_str(&obj_bytes(argv[i]));
+                return interp.eval_control_body(argv[i]);
             }
             // A bare trailing body is the implicit else (`if {0} a b`).
-            _ => return interp.eval_str(&obj_bytes(argv[i])),
+            _ => return interp.eval_control_body(argv[i]),
         }
     }
 }
@@ -117,15 +123,15 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"while test command");
     }
-    let cond = obj_bytes(argv[1]);
-    let body = obj_bytes(argv[2]);
+    let cond = argv[1];
+    let body = argv[2];
     loop {
-        match crate::builtins::eval_bool_expr(interp, &cond) {
+        match crate::builtins::eval_bool_expr(interp, cond) {
             Ok(true) => {}
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             other => return other, // return / error propagate
@@ -143,28 +149,26 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(interp, b"for start test next command");
     }
-    let (init, cond, next, body) = (
-        obj_bytes(argv[1]),
-        obj_bytes(argv[2]),
-        obj_bytes(argv[3]),
-        obj_bytes(argv[4]),
-    );
-    match interp.eval_str(&init) {
+    let (init, cond, next, body) = (argv[1], argv[2], argv[3], argv[4]);
+    // `start`/`next` are scripts too — run them through `eval_control_body` so a
+    // located literal reports `type source` at its own line (TIP 280), matching
+    // the body. (Their result is discarded; only their completion code matters.)
+    match interp.eval_control_body(init) {
         Code::Ok => {}
         other => return other,
     }
     loop {
-        match crate::builtins::eval_bool_expr(interp, &cond) {
+        match crate::builtins::eval_bool_expr(interp, cond) {
             Ok(true) => {}
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(body) {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
             other => return other,
         }
-        match interp.eval_str(&next) {
+        match interp.eval_control_body(next) {
             Code::Ok => {}
             other => return other,
         }
@@ -205,7 +209,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
         };
         return wrong_args(interp, usage);
     }
-    let body = obj_bytes(argv[argv.len() - 1]);
+    let body = argv[argv.len() - 1];
 
     // Parse each group's variable names + values; track the iteration count.
     // A group is `(variable names, values)`.
@@ -245,7 +249,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 }
             }
         }
-        match interp.eval_str(&body) {
+        match interp.eval_control_body(body) {
             Code::Ok => {
                 if collect {
                     collected.push(obj_bytes(interp.get_obj_result()));

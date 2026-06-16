@@ -240,7 +240,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "event",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Generate, manage, and inspect virtual events.",

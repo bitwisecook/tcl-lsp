@@ -1,0 +1,3 @@
+error: --merge: refusing to merge configs that define the same object in more than one source:
+  /Common/dup (pools) in __FIXTURES__/merge-dup-a.conf and __FIXTURES__/merge-dup-b.conf
+  ltm::pool::/Common/dup (generic objects) in __FIXTURES__/merge-dup-a.conf and __FIXTURES__/merge-dup-b.conf

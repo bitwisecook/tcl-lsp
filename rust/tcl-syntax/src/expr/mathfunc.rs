@@ -55,9 +55,22 @@ pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
         | "sinh" | "cosh" | "tanh" => unary_float(name, args),
         "atan2" | "hypot" | "fmod" | "pow" => binary_float(name, args),
         "abs" | "int" | "entier" | "wide" | "double" | "bool" | "round" | "ceil" | "floor"
-        | "isqrt" | "isinf" | "isnan" | "isfinite" => type_conv(name, args),
+        | "isqrt" | "isinf" | "isnan" | "isfinite" | "isnormal" | "issubnormal" => {
+            type_conv(name, args)
+        }
+        "isunordered" => is_unordered(args),
         _ => None,
     }
+}
+
+/// `isunordered(x, y)` — 1 if either operand is NaN (they cannot be ordered),
+/// else 0 (C's `ExprIsUnorderedFunc`). Integers convert to finite doubles.
+fn is_unordered(vals: &[Num]) -> Option<Num> {
+    if vals.len() != 2 {
+        return None;
+    }
+    let nan = |v: Num| matches!(v, Num::Float(f) if f.is_nan());
+    Some(Num::Int(i64::from(nan(vals[0]) || nan(vals[1]))))
 }
 
 // `i64::MAX as f64` rounds up to 2^63, so the positive bound is
@@ -191,6 +204,14 @@ fn type_conv(name: &str, vals: &[Num]) -> Option<Num> {
             Num::Int(_) => Some(Num::Int(1)),
             Num::Float(f) => Some(Num::Int(i64::from(f.is_finite()))),
         },
+        // `fpclassify`-based predicates (C's `DoubleObjIsClass`): an integer
+        // operand converts to a finite double first.
+        "isnormal" => Some(Num::Int(i64::from(
+            v.as_f64().classify() == core::num::FpCategory::Normal,
+        ))),
+        "issubnormal" => Some(Num::Int(i64::from(
+            v.as_f64().classify() == core::num::FpCategory::Subnormal,
+        ))),
         _ if matches!(v, Num::Float(f) if f.is_nan()) => None,
         "abs" => match v {
             Num::Int(i) => i.checked_abs().map(Num::Int),
@@ -280,6 +301,41 @@ mod tests {
             dispatch("isinf", &[Num::Float(f64::NAN)]),
             Some(Num::Int(0))
         );
+    }
+
+    #[test]
+    fn fp_classification() {
+        // isnormal: integers widen to finite normal doubles; zero/NaN are not.
+        assert_eq!(dispatch("isnormal", &[Num::Float(1.0)]), Some(Num::Int(1)));
+        assert_eq!(dispatch("isnormal", &[Num::Int(7)]), Some(Num::Int(1)));
+        assert_eq!(dispatch("isnormal", &[Num::Float(0.0)]), Some(Num::Int(0)));
+        assert_eq!(
+            dispatch("isnormal", &[Num::Float(f64::NAN)]),
+            Some(Num::Int(0))
+        );
+        assert_eq!(
+            dispatch("isnormal", &[Num::Float(f64::MIN_POSITIVE / 2.0)]),
+            Some(Num::Int(0))
+        );
+        // issubnormal: the smallest denormal is subnormal; 1.0 is not.
+        assert_eq!(
+            dispatch("issubnormal", &[Num::Float(f64::from_bits(1))]),
+            Some(Num::Int(1))
+        );
+        assert_eq!(
+            dispatch("issubnormal", &[Num::Float(1.0)]),
+            Some(Num::Int(0))
+        );
+        // isunordered: 1 iff either operand is NaN.
+        assert_eq!(
+            dispatch("isunordered", &[Num::Float(f64::NAN), Num::Int(1)]),
+            Some(Num::Int(1))
+        );
+        assert_eq!(
+            dispatch("isunordered", &[Num::Int(1), Num::Float(2.0)]),
+            Some(Num::Int(0))
+        );
+        assert_eq!(dispatch("isunordered", &[Num::Int(1)]), None); // wrong arity
     }
 
     #[test]

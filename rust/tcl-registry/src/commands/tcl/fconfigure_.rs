@@ -11,6 +11,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fconfigure",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Channel)],

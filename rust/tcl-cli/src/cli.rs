@@ -257,6 +257,15 @@ pub enum Command {
         /// Views to show (ir, cfg, ssa, types, opt, taint, asm, wasm, ...).
         #[arg(long, value_name = "VIEW", value_delimiter = ',')]
         show: Vec<String>,
+        /// Emit the full machine-readable JSON (the explorer contract shape).
+        #[arg(long)]
+        json: bool,
+        /// Render the views as box-drawing text trees (ANSI colour by default).
+        #[arg(long)]
+        text: bool,
+        /// Launch the interactive terminal UI (requires the `tui` feature).
+        #[arg(long)]
+        tui: bool,
         #[command(flatten)]
         colour: ColourArgs,
     },

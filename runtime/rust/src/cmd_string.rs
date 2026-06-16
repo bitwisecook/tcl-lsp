@@ -18,9 +18,11 @@ use crate::obj::{self, TclObj};
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"append", append);
     interp.register_builtin(b"string", string_cmd);
-    // `::tcl::string::insert` is the real command the `string insert` ensemble
-    // maps to; some tests invoke it directly.
+    // `::tcl::string::insert`/`::tcl::string::reverse` are the real commands the
+    // `string insert`/`string reverse` ensemble entries map to; some tests (and
+    // the byte-compiler) invoke them directly.
     interp.register_builtin(b"::tcl::string::insert", tcl_string_insert);
+    interp.register_builtin(b"::tcl::string::reverse", tcl_string_reverse);
     // `tcl::prefix` — prefix matching against a table (`tclIndexObj.c`).
     interp.register_builtin(b"::tcl::prefix", tcl_prefix);
 }
@@ -46,6 +48,12 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             None => no_such_var(interp, &name),
         };
+    }
+
+    // A constant can't be appended to; reject before the in-place update would
+    // bypass the store-time constant check (var-26.2/27.2).
+    if let Some(c) = interp.const_write_check(&name) {
+        return c;
     }
 
     // Pick the target: in place if it's an unshared plain string; else a fresh
@@ -75,8 +83,20 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"string subcommand ?arg ...?");
     }
+    // The `string` ensemble resolves its subcommand by unambiguous prefix
+    // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
+    // its `trimleft`/`trimright` prefixes via the exact-match rule.
     let sub = obj_bytes(argv[1]);
-    match sub.as_slice() {
+    let canonical: &[u8] = match index_lookup(STRING_SUBCOMMANDS, &sub) {
+        Lookup::Found(i) => STRING_SUBCOMMANDS[i],
+        Lookup::None | Lookup::Ambiguous => {
+            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+            m.extend_from_slice(&sub);
+            m.extend_from_slice(b"\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart");
+            return interp.set_error(&m);
+        }
+    };
+    match canonical {
         b"length" => str_length(interp, argv),
         b"index" => str_index(interp, argv),
         b"range" => str_range(interp, argv),
@@ -100,14 +120,37 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"insert" => str_insert(interp, argv),
         b"wordstart" => str_word(interp, argv, true),
         b"wordend" => str_word(interp, argv, false),
-        _ => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(&sub);
-            m.extend_from_slice(b"\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart");
-            interp.set_error(&m)
-        }
+        _ => unreachable!("index_lookup only yields a known subcommand"),
     }
 }
+
+/// The `string` ensemble subcommands, in the order used by the
+/// "unknown or ambiguous subcommand" diagnostic.
+const STRING_SUBCOMMANDS: &[&[u8]] = &[
+    b"cat",
+    b"compare",
+    b"equal",
+    b"first",
+    b"index",
+    b"insert",
+    b"is",
+    b"last",
+    b"length",
+    b"map",
+    b"match",
+    b"range",
+    b"repeat",
+    b"replace",
+    b"reverse",
+    b"tolower",
+    b"totitle",
+    b"toupper",
+    b"trim",
+    b"trimleft",
+    b"trimright",
+    b"wordend",
+    b"wordstart",
+];
 
 fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
@@ -232,6 +275,16 @@ fn tcl_string_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     str_insert(interp, &shifted)
 }
 
+/// `::tcl::string::reverse string` — the command behind the `string reverse`
+/// ensemble entry. Re-aligns argv to the `string reverse …` shape.
+fn tcl_string_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 2 {
+        return wrong_args(interp, b"tcl::string::reverse string");
+    }
+    let shifted = [argv[0], argv[0], argv[1]];
+    str_reverse(interp, &shifted)
+}
+
 /// Render an option set as Tcl's `a, b, or c` / `a or b` / `a` enumeration.
 fn enum_must_be(items: &[Vec<u8>]) -> Vec<u8> {
     let mut m = Vec::new();
@@ -275,6 +328,129 @@ fn tcl_prefix(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+/// Reconstruct Tcl's full list-parse error message (`TclFindElement`,
+/// tclUtil.c), including the offending fragment for the "followed by" cases.
+/// Returns `None` when `s` is a well-formed list. Mirrors
+/// `tcl_syntax::list::find_element` (whose `ListError` message is fragment-less).
+fn list_error_message(s: &[u8]) -> Option<Vec<u8>> {
+    use tcl_syntax::list::is_list_space;
+    let len = s.len();
+    let mut pos = 0;
+    while pos < len {
+        while pos < len && is_list_space(s[pos]) {
+            pos += 1;
+        }
+        if pos >= len {
+            break;
+        }
+        let mut open_braces = 0usize;
+        let mut in_quotes = false;
+        let mut p = pos;
+        match s[p] {
+            b'{' => {
+                open_braces = 1;
+                p += 1;
+            }
+            b'"' => {
+                in_quotes = true;
+                p += 1;
+            }
+            _ => {}
+        }
+        loop {
+            if p >= len {
+                if open_braces != 0 {
+                    return Some(b"unmatched open brace in list".to_vec());
+                }
+                if in_quotes {
+                    return Some(b"unmatched open quote in list".to_vec());
+                }
+                break;
+            }
+            match s[p] {
+                b'{' if open_braces != 0 => open_braces += 1,
+                b'}' if open_braces > 1 => open_braces -= 1,
+                b'}' if open_braces == 1 => {
+                    p += 1;
+                    if p < len && !is_list_space(s[p]) {
+                        return Some(followed_by_message(b"braces", s, p));
+                    }
+                    break;
+                }
+                b'"' if in_quotes => {
+                    p += 1;
+                    if p < len && !is_list_space(s[p]) {
+                        return Some(followed_by_message(b"quotes", s, p));
+                    }
+                    break;
+                }
+                b'\\' => {
+                    p += if p + 1 < len { 2 } else { 1 };
+                    continue;
+                }
+                c if open_braces == 0 && !in_quotes && is_list_space(c) => break,
+                _ => {}
+            }
+            p += 1;
+        }
+        while p < len && is_list_space(s[p]) {
+            p += 1;
+        }
+        pos = p;
+    }
+    None
+}
+
+/// The character index at which Tcl list parsing of `text` fails, or `None` for
+/// a well-formed list. Mirrors the `STR_IS_LIST` failat loop in tclCmdMZ.c:
+/// walk element by element and, on the first error, skip leading element
+/// whitespace and report the character count up to that point.
+fn list_failat(text: &str) -> Option<i64> {
+    let bytes = text.as_bytes();
+    let mut pos = 0usize;
+    loop {
+        match tcl_syntax::list::find_element(text, pos) {
+            Ok(None) => return None,
+            Ok(Some(el)) => pos = el.next,
+            Err(_) => {
+                let mut p = pos;
+                while p < bytes.len() && tcl_syntax::list::is_list_space(bytes[p]) {
+                    p += 1;
+                }
+                return Some(text[..p].chars().count() as i64);
+            }
+        }
+    }
+}
+
+/// `list element in <kind> followed by "<fragment>" instead of space`, where the
+/// fragment runs from `p` to the next list-space (max 20 bytes, as in C).
+fn followed_by_message(kind: &[u8], s: &[u8], p: usize) -> Vec<u8> {
+    use tcl_syntax::list::is_list_space;
+    let mut q = p;
+    while q < s.len() && !is_list_space(s[q]) && q < p + 20 {
+        q += 1;
+    }
+    let mut m = b"list element in ".to_vec();
+    m.extend_from_slice(kind);
+    m.extend_from_slice(b" followed by \"");
+    m.extend_from_slice(&s[p..q]);
+    m.extend_from_slice(b"\" instead of space");
+    m
+}
+
+/// Split `s` as a Tcl list, or set the full list-parse error and return the
+/// failing `Code` (used by the `tcl::prefix` subcommands).
+fn split_list_or_error(interp: &mut Interp, s: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
+    match crate::parse::split_list(s) {
+        Ok(t) => Ok(t),
+        Err(e) => {
+            let msg = list_error_message(s).unwrap_or_else(|| e.message().to_vec());
+            Err(interp.set_error(&msg))
+        }
+    }
+}
+
 /// The table elements with `s` as a (string) prefix.
 fn prefix_matches(table: &[Vec<u8>], s: &[u8], exact: bool) -> Vec<usize> {
     table
@@ -291,42 +467,67 @@ fn prefix_matches(table: &[Vec<u8>], s: &[u8], exact: bool) -> Vec<usize> {
         .collect()
 }
 
+const PREFIX_MATCH_OPTIONS: &[&[u8]] = &[b"-error", b"-exact", b"-message"];
+
 fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // tcl::prefix match ?options? table string
+    if argv.len() < 4 {
+        return wrong_args(interp, b"tcl::prefix match ?options? table string");
+    }
     let mut exact = false;
     let mut message: Vec<u8> = b"option".to_vec();
-    let mut error_opts: Option<Vec<u8>> = None; // Some("") ⇒ return "" instead of erroring
+    let mut error_opts: Option<Vec<u8>> = None; // Some(opts) ⇒ -error given
+                                                // Options precede the trailing `table string`; `-error`/`-message` need a
+                                                // value that must not intrude into those last two arguments.
+    let opt_end = argv.len() - 2;
     let mut i = 2;
-    while i + 2 < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-exact" => {
+    while i < opt_end {
+        let opt = obj_bytes(argv[i]);
+        match index_lookup(PREFIX_MATCH_OPTIONS, &opt) {
+            Lookup::Found(1) => {
                 exact = true;
                 i += 1;
             }
-            b"-message" if i + 1 < argv.len() - 2 => {
+            Lookup::Found(2) => {
+                if i + 1 >= opt_end {
+                    return interp.set_error(b"missing value for -message");
+                }
                 message = obj_bytes(argv[i + 1]);
                 i += 2;
             }
-            b"-error" if i + 1 < argv.len() - 2 => {
-                error_opts = Some(obj_bytes(argv[i + 1]));
+            Lookup::Found(_) => {
+                if i + 1 >= opt_end {
+                    return interp.set_error(b"missing value for -error");
+                }
+                let val = obj_bytes(argv[i + 1]);
+                let elems = match split_list_or_error(interp, &val) {
+                    Ok(e) => e,
+                    Err(c) => return c,
+                };
+                if elems.len() % 2 != 0 {
+                    return interp.set_error(b"error options must have an even number of elements");
+                }
+                error_opts = Some(val);
                 i += 2;
             }
-            opt => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(opt);
+            bad => {
+                let verb: &[u8] = if matches!(bad, Lookup::Ambiguous) {
+                    b"ambiguous option \""
+                } else {
+                    b"bad option \""
+                };
+                let mut m = verb.to_vec();
+                m.extend_from_slice(&opt);
                 m.extend_from_slice(b"\": must be -error, -exact, or -message");
                 return interp.set_error(&m);
             }
         }
     }
-    if argv.len() - i != 2 {
-        return wrong_args(interp, b"tcl::prefix match ?options? table string");
-    }
-    let table = match crate::parse::split_list(&obj_bytes(argv[i])) {
+    let table = match split_list_or_error(interp, &obj_bytes(argv[argv.len() - 2])) {
         Ok(t) => t,
-        Err(e) => return interp.set_error(e.message()),
+        Err(c) => return c,
     };
-    let s = obj_bytes(argv[i + 1]);
+    let s = obj_bytes(argv[argv.len() - 1]);
     let hits = prefix_matches(&table, &s, exact);
     // Exact match always wins even if it is also a prefix of others.
     if let Some(&h) = hits.iter().find(|&&h| table[h] == s) {
@@ -369,9 +570,9 @@ fn tcl_prefix_all(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return wrong_args(interp, b"tcl::prefix all table string");
     }
-    let table = match crate::parse::split_list(&obj_bytes(argv[2])) {
+    let table = match split_list_or_error(interp, &obj_bytes(argv[2])) {
         Ok(t) => t,
-        Err(e) => return interp.set_error(e.message()),
+        Err(c) => return c,
     };
     let s = obj_bytes(argv[3]);
     let objs: Vec<*mut TclObj> = table
@@ -390,29 +591,32 @@ fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return wrong_args(interp, b"tcl::prefix longest table string");
     }
-    let table = match crate::parse::split_list(&obj_bytes(argv[2])) {
+    let table = match split_list_or_error(interp, &obj_bytes(argv[2])) {
         Ok(t) => t,
-        Err(e) => return interp.set_error(e.message()),
+        Err(c) => return c,
     };
     let s = obj_bytes(argv[3]);
     let hits: Vec<&Vec<u8>> = table.iter().filter(|e| e.starts_with(&s)).collect();
-    // Longest common prefix of all matching elements (at least `s`).
-    let mut longest: Vec<u8> = match hits.first() {
-        Some(f) => (*f).clone(),
+    // Longest common prefix of all matching elements (at least `s`), compared by
+    // character so a shared multi-byte lead byte never yields a partial char.
+    let mut longest: Vec<char> = match hits.first() {
+        Some(f) => String::from_utf8_lossy(f).chars().collect(),
         None => {
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
     };
     for e in &hits[1..] {
+        let ec: Vec<char> = String::from_utf8_lossy(e).chars().collect();
         let common = longest
             .iter()
-            .zip(e.iter())
+            .zip(ec.iter())
             .take_while(|(a, b)| a == b)
             .count();
         longest.truncate(common);
     }
-    interp.set_result_bytes(&longest);
+    let out: String = longest.iter().collect();
+    interp.set_result_bytes(out.as_bytes());
     Code::Ok
 }
 
@@ -438,7 +642,7 @@ fn str_word(interp: &mut Interp, argv: &[*mut TclObj], start: bool) -> Code {
         Some(i) => i,
         None => return bad_index(interp, &obj_bytes(argv[3])),
     };
-    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let is_word = is_word_char;
     let result: usize = if start {
         if n == 0 {
             0
@@ -488,27 +692,43 @@ fn str_compare_equal(interp: &mut Interp, argv: &[*mut TclObj], equal: bool) -> 
     } else {
         b"string compare ?-nocase? ?-length int? string1 string2"
     };
-    if argv.len() < 4 {
+    // C's `StringCmpOpts` allows 3..=6 args ([cmd, ?-nocase?, ?-length n?,
+    // s1, s2]); here `string` adds one, so 4..=7.
+    if argv.len() < 4 || argv.len() > 7 {
         return wrong_args(interp, usage);
     }
     let mut nocase = false;
     let mut length: Option<usize> = None;
-    // Options occupy everything before the trailing two strings.
+    // Options occupy everything before the trailing two strings, matching by
+    // prefix (at least two characters, like C's `strncmp(string, …, length)`
+    // with `length > 1`).
     let mut i = 2;
     while i < argv.len() - 2 {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-nocase" => {
-                nocase = true;
-                i += 1;
+        let opt = obj_bytes(argv[i]);
+        if opt.len() > 1 && b"-nocase".starts_with(opt.as_slice()) {
+            nocase = true;
+            i += 1;
+        } else if opt.len() > 1 && b"-length".starts_with(opt.as_slice()) {
+            if i + 1 >= argv.len() - 2 {
+                return wrong_args(interp, usage);
             }
-            b"-length" => {
-                match parse_isize(&obj_bytes(argv[i + 1])) {
-                    Some(n) => length = Some(n.max(0) as usize),
-                    None => return not_integer(interp, &obj_bytes(argv[i + 1])),
+            // `-length` reads a wide int (`TclGetWideIntFromObj`): a negative or
+            // out-of-`Tcl_Size` value means "no limit", a bignum overflows.
+            // `try_from` keeps an over-wide length as `None` rather than wrapping
+            // (`w as usize` truncates on 32-bit targets such as wasm32).
+            match get_wide(&obj_bytes(argv[i + 1])) {
+                Ok(w) => length = usize::try_from(w).ok(),
+                Err(WideErr::TooLarge) => {
+                    return interp.set_error(b"integer value too large to represent");
                 }
-                i += 2;
+                Err(WideErr::NotInteger) => return not_integer(interp, &obj_bytes(argv[i + 1])),
             }
-            _ => return wrong_args(interp, usage),
+            i += 2;
+        } else {
+            let mut m = b"bad option \"".to_vec();
+            m.extend_from_slice(&opt);
+            m.extend_from_slice(b"\": must be -nocase or -length");
+            return interp.set_error(&m);
         }
     }
     if argv.len() - i != 2 {
@@ -618,9 +838,11 @@ enum CaseMode {
 }
 
 /// `string toupper|tolower|totitle string ?first? ?last?` — case-map a character
-/// range (the whole string by default). ASCII case only for now (non-ASCII
-/// bytes pass through unchanged — Unicode case mapping is deferred); the range
-/// uses character indices via the shared `index_spec`/`char_to_byte` helpers.
+/// range (the whole string when no range is given). With a single index, only
+/// that one character is mapped (C's `last = first`); `totitle` title-cases the
+/// first character of the range and lower-cases the rest. Case mapping is simple
+/// (1:1) Unicode, matching `Tcl_UniCharTo{Upper,Lower,Title}`: a character whose
+/// Unicode mapping is not a single code point (e.g. `ß`→`SS`) is left unchanged.
 fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
     let usage: &[u8] = match mode {
         CaseMode::Upper => b"string toupper string ?first? ?last?",
@@ -630,83 +852,151 @@ fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
     if argv.len() < 3 || argv.len() > 5 {
         return wrong_args(interp, usage);
     }
-    let mut s = obj_bytes(argv[2]);
-    let n = char_count(&s);
-    if n == 0 {
-        interp.set_result_bytes(&s);
+    let s = obj_bytes(argv[2]);
+
+    // No range: map the entire string.
+    if argv.len() == 3 {
+        let mapped: String = map_case(&String::from_utf8_lossy(&s), mode);
+        interp.set_result_bytes(mapped.as_bytes());
         return Code::Ok;
     }
-    // Default range is the whole string; `?first?`/`?last?` narrow it.
-    let lo = match argv.get(3) {
-        Some(&a) => match index_spec(&obj_bytes(a), n) {
-            Some(i) => i.max(0) as usize,
-            None => return bad_index(interp, &obj_bytes(a)),
-        },
-        None => 0,
+
+    let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
+    let n = chars.len();
+    // The index `end`/`end±N` resolves against `n-1` (`TclGetIntForIndexM`).
+    let first = match index_spec(&obj_bytes(argv[3]), n) {
+        Some(i) => i.max(0) as usize,
+        None => return bad_index(interp, &obj_bytes(argv[3])),
     };
-    let hi = match argv.get(4) {
+    // A lone index maps just that character (`last = first`).
+    let last = match argv.get(4) {
         Some(&a) => match index_spec(&obj_bytes(a), n) {
             Some(i) => i,
             None => return bad_index(interp, &obj_bytes(a)),
         },
-        None => n as isize - 1,
+        None => first as isize,
     };
-    if hi < 0 || lo >= n || (hi as usize) < lo {
+    let last = if last >= n as isize {
+        n as isize - 1
+    } else {
+        last
+    };
+    if last < first as isize {
         interp.set_result_bytes(&s); // empty range ⇒ unchanged
         return Code::Ok;
     }
-    let hi = (hi as usize).min(n - 1);
-    let b0 = char_to_byte(&s, lo);
-    let b1 = char_to_byte(&s, hi + 1);
-    // For `totitle`, only the first character of the range is upper-cased.
-    let title_first_end = if matches!(mode, CaseMode::Title) {
-        char_to_byte(&s, lo + 1)
-    } else {
-        b0
-    };
-    for (off, byte) in s[b0..b1].iter_mut().enumerate() {
-        let upper = match mode {
-            CaseMode::Upper => true,
-            CaseMode::Lower => false,
-            CaseMode::Title => b0 + off < title_first_end,
+    let last = last as usize;
+
+    let mut out = String::with_capacity(s.len());
+    out.extend(&chars[..first]);
+    for (k, &c) in chars[first..=last].iter().enumerate() {
+        let cm = match mode {
+            CaseMode::Upper => simple_upper(c),
+            CaseMode::Lower => simple_lower(c),
+            // `totitle`: first char of the range title-cased, the rest lowered.
+            CaseMode::Title if k == 0 => simple_title(c),
+            CaseMode::Title => simple_lower(c),
         };
-        *byte = if upper {
-            byte.to_ascii_uppercase()
-        } else {
-            byte.to_ascii_lowercase()
-        };
+        out.push(cm);
     }
-    interp.set_result_bytes(&s);
+    out.extend(&chars[last + 1..]);
+    interp.set_result_bytes(out.as_bytes());
     Code::Ok
 }
 
+/// Map an entire string with the given case mode (`totitle` title-cases the very
+/// first character and lower-cases the rest, like `Tcl_UtfToTitle`).
+fn map_case(s: &str, mode: CaseMode) -> String {
+    match mode {
+        CaseMode::Upper => s.chars().map(simple_upper).collect(),
+        CaseMode::Lower => s.chars().map(simple_lower).collect(),
+        CaseMode::Title => s
+            .chars()
+            .enumerate()
+            .map(|(i, c)| {
+                if i == 0 {
+                    simple_title(c)
+                } else {
+                    simple_lower(c)
+                }
+            })
+            .collect(),
+    }
+}
+
+/// Simple (1:1) Unicode case mapping helpers, matching `Tcl_UniCharTo*`: when the
+/// full Unicode mapping is not a single code point, the character is unchanged.
+fn simple_upper(c: char) -> char {
+    let mut it = c.to_uppercase();
+    match (it.next(), it.next()) {
+        (Some(u), None) => u,
+        _ => c,
+    }
+}
+fn simple_lower(c: char) -> char {
+    let mut it = c.to_lowercase();
+    match (it.next(), it.next()) {
+        (Some(l), None) => l,
+        _ => c,
+    }
+}
+/// Title-case equals upper-case except for the four Latin digraphs, whose
+/// title form is the mixed-case middle code point (`Tcl_UniCharToTitle`).
+/// (`char::to_titlecase` is still unstable, so these are hard-coded.)
+fn simple_title(c: char) -> char {
+    match c {
+        '\u{01C4}' | '\u{01C5}' | '\u{01C6}' => '\u{01C5}',
+        '\u{01C7}' | '\u{01C8}' | '\u{01C9}' => '\u{01C8}',
+        '\u{01CA}' | '\u{01CB}' | '\u{01CC}' => '\u{01CB}',
+        '\u{01F1}' | '\u{01F2}' | '\u{01F3}' => '\u{01F2}',
+        _ => simple_upper(c),
+    }
+}
+
+/// Tcl's default trim set (`tclDefaultTrimSet`): ASCII whitespace plus the full
+/// Unicode whitespace/zero-width set, including NUL.
+const DEFAULT_TRIM: &[char] = &[
+    '\u{09}', '\u{0A}', '\u{0B}', '\u{0C}', '\u{0D}', ' ', '\u{0000}', '\u{0085}', '\u{00A0}',
+    '\u{1680}', '\u{180E}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}',
+    '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200A}', '\u{200B}', '\u{2028}', '\u{2029}',
+    '\u{202F}', '\u{205F}', '\u{2060}', '\u{3000}', '\u{FEFF}',
+];
+
+/// `string trim|trimleft|trimright string ?chars?` — strip leading/trailing
+/// characters that appear in `chars` (Tcl's default whitespace set otherwise).
+/// Matching is character-based so multi-byte trim characters work.
 fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return wrong_args(interp, b"string trim string ?chars?");
+        let usage: &[u8] = match (left, right) {
+            (true, true) => b"string trim string ?chars?",
+            (true, false) => b"string trimleft string ?chars?",
+            _ => b"string trimright string ?chars?",
+        };
+        return wrong_args(interp, usage);
     }
     let s = obj_bytes(argv[2]);
-    let trim_set: Option<Vec<u8>> = if argv.len() == 4 {
-        Some(obj_bytes(argv[3]))
+    let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
+    let set: Vec<char> = if argv.len() == 4 {
+        String::from_utf8_lossy(&obj_bytes(argv[3]))
+            .chars()
+            .collect()
     } else {
-        None
+        DEFAULT_TRIM.to_vec()
     };
-    let is_trim = |b: u8| match &trim_set {
-        Some(set) => set.contains(&b),
-        None => matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c),
-    };
-    let mut start = 0;
-    let mut end = s.len();
+    let mut lo = 0;
+    let mut hi = chars.len();
     if left {
-        while start < end && is_trim(s[start]) {
-            start += 1;
+        while lo < hi && set.contains(&chars[lo]) {
+            lo += 1;
         }
     }
     if right {
-        while end > start && is_trim(s[end - 1]) {
-            end -= 1;
+        while hi > lo && set.contains(&chars[hi - 1]) {
+            hi -= 1;
         }
     }
-    interp.set_result_bytes(&s[start..end]);
+    let out: String = chars[lo..hi].iter().collect();
+    interp.set_result_bytes(out.as_bytes());
     Code::Ok
 }
 
@@ -736,22 +1026,33 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
         None
     };
 
+    // Empty needles never match ("We don't find empty substrings" — C's
+    // TclStringFirst/TclStringLast both bail out for a zero-length needle).
+    if char_count(&needle) == 0 {
+        interp.set_result(obj::new_wide_int_obj(-1));
+        return Code::Ok;
+    }
+    let nlen = char_count(&needle);
+
     // Byte search restricted by the bound, then convert to a char index.
     let byte_pos = if first {
         // `startIndex`: search at or after it (clamp negatives to 0).
-        let start_char = bound.map_or(0, |i| i.max(0) as usize);
+        let start_char = bound.map_or(0, |i| i.max(0) as usize).min(n);
         let start_byte = char_to_byte(&hay, start_char);
         find_sub(&hay[start_byte..], &needle).map(|bp| bp + start_byte)
     } else {
-        // `lastIndex`: the match must *start* at or before it.
-        match bound {
-            Some(i) if i < 0 => None, // nothing can start before a negative index
-            _ => {
-                let last_char = bound.map_or(n, |i| i as usize);
-                let start_max = char_to_byte(&hay, last_char);
-                let slice_end = (start_max + needle.len()).min(hay.len());
-                rfind_sub(&hay[..slice_end], &needle)
-            }
+        // `lastIndex` (default `end`) caps the index of the match's *final*
+        // character: the latest start is `last + 1 - nlen`, so scan the prefix
+        // ending just past `last` for the rightmost needle.
+        let mut last: isize = bound.unwrap_or(n as isize - 1);
+        if last >= n as isize {
+            last = n as isize - 1;
+        }
+        if last + 1 < nlen as isize {
+            None
+        } else {
+            let slice_end = char_to_byte(&hay, (last + 1) as usize);
+            rfind_sub(&hay[..slice_end], &needle)
         }
     };
     let result = byte_pos.map_or(-1, |bp| char_count(&hay[..bp]) as i64);
@@ -763,17 +1064,20 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
 /// `tcl_syntax::glob` engine, so the dialect never drifts from the compiler /
 /// `switch -glob` / `lsearch -glob`).
 fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut rest = &argv[2..];
-    let mut nocase = false;
-    if !rest.is_empty() && obj_bytes(rest[0]) == b"-nocase" {
-        nocase = true;
-        rest = &rest[1..];
-    }
-    if rest.len() != 2 {
+    if argv.len() < 4 || argv.len() > 5 {
         return wrong_args(interp, b"string match ?-nocase? pattern string");
     }
-    let pat = obj_bytes(rest[0]);
-    let s = obj_bytes(rest[1]);
+    let mut nocase = false;
+    if argv.len() == 5 {
+        let opt = obj_bytes(argv[2]);
+        if is_nocase_opt(&opt) {
+            nocase = true;
+        } else {
+            return bad_nocase_option(interp, &opt);
+        }
+    }
+    let pat = obj_bytes(argv[argv.len() - 2]);
+    let s = obj_bytes(argv[argv.len() - 1]);
     let m = tcl_syntax::glob::string_case_match(
         &String::from_utf8_lossy(&pat),
         &String::from_utf8_lossy(&s),
@@ -787,17 +1091,20 @@ fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// scanning left to right and trying the keys in list order (first match wins,
 /// then skip past the replacement), per `tclCmdMZ.c` `StringMapCmd`.
 fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut rest = &argv[2..];
-    let mut nocase = false;
-    if !rest.is_empty() && obj_bytes(rest[0]) == b"-nocase" {
-        nocase = true;
-        rest = &rest[1..];
-    }
-    if rest.len() != 2 {
+    if argv.len() < 4 || argv.len() > 5 {
         return wrong_args(interp, b"string map ?-nocase? charMap string");
     }
-    let mapping = obj_bytes(rest[0]);
-    let s = obj_bytes(rest[1]);
+    let mut nocase = false;
+    if argv.len() == 5 {
+        let opt = obj_bytes(argv[2]);
+        if is_nocase_opt(&opt) {
+            nocase = true;
+        } else {
+            return bad_nocase_option(interp, &opt);
+        }
+    }
+    let mapping = obj_bytes(argv[argv.len() - 2]);
+    let s = obj_bytes(argv[argv.len() - 1]);
     let pairs = match crate::parse::split_list(&mapping) {
         Ok(p) => p,
         Err(e) => return interp.set_error(e.message()),
@@ -836,14 +1143,16 @@ fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// The recognised `string is` classes, for the bad-class diagnostic and to
-/// reject unknown classes before scanning.
+/// The recognised `string is` classes, in C's declaration order (`tclCmdMZ.c`
+/// `StringIsCmd`'s `isClasses[]`). The order is significant: it drives the
+/// `bad class`/`ambiguous class` "must be …" diagnostic, and the class is
+/// resolved against this table by exact name or unambiguous prefix.
 const IS_CLASSES: &[&[u8]] = &[
     b"alnum",
     b"alpha",
     b"ascii",
-    b"boolean",
     b"control",
+    b"boolean",
     b"dict",
     b"digit",
     b"double",
@@ -863,101 +1172,286 @@ const IS_CLASSES: &[&[u8]] = &[
     b"xdigit",
 ];
 
+/// `string is` option table (for the `-strict`/`-failindex` prefix match).
+const IS_OPTIONS: &[&[u8]] = &[b"-strict", b"-failindex"];
+
+/// The outcome of an exact/unambiguous-prefix table lookup (`Tcl_GetIndexFromObj`).
+enum Lookup {
+    /// Resolved to `table[index]` (exact match, or a unique prefix).
+    Found(usize),
+    /// The prefix matched more than one entry.
+    Ambiguous,
+    /// No entry matched.
+    None,
+}
+
+/// Resolve `arg` against `table` like `Tcl_GetIndexFromObj` (flags 0): an exact
+/// match wins, else a *unique* prefix; ambiguous and no-match are distinguished
+/// so the caller can emit `bad`/`ambiguous` as C does.
+fn index_lookup(table: &[&[u8]], arg: &[u8]) -> Lookup {
+    if let Some(i) = table.iter().position(|s| *s == arg) {
+        return Lookup::Found(i);
+    }
+    // A leading "-" with nothing after is not treated as an option/class prefix
+    // by Tcl_GetIndexFromObj; an empty arg matches nothing.
+    if arg.is_empty() {
+        return Lookup::None;
+    }
+    let mut found = None;
+    for (i, s) in table.iter().enumerate() {
+        if s.starts_with(arg) {
+            if found.is_some() {
+                return Lookup::Ambiguous;
+            }
+            found = Some(i);
+        }
+    }
+    match found {
+        Some(i) => Lookup::Found(i),
+        None => Lookup::None,
+    }
+}
+
 /// `string is class ?-strict? ?-failindex var? string`. Returns 1/0; with
-/// `-failindex`, stores the first failing character index (or -1) in `var`.
-/// Empty input is a class member unless `-strict`.
+/// `-failindex`, stores the first failing character index in `var` — but **only
+/// when the result is 0** (`StringIsCmd`). Empty input is a class member unless
+/// `-strict` (except `list`/`dict`, which ignore `-strict`).
 fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"string is class ?-strict? ?-failindex var? str";
-    // Bad arg count uses the generic "class"; an option error past a valid class
-    // names the class (C's `Tcl_WrongNumArgs(interp, 2, …)`).
     if argv.len() < 4 || argv.len() > 7 {
         return wrong_args(interp, USAGE);
     }
-    let class = obj_bytes(argv[2]);
-    if !IS_CLASSES.contains(&class.as_slice()) {
-        let mut m = b"bad class \"".to_vec();
-        m.extend_from_slice(&class);
-        m.extend_from_slice(b"\": must be alnum, alpha, ascii, boolean, control, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit");
-        return interp.set_error(&m);
-    }
-    let class_usage = || {
-        let mut m = b"string is ".to_vec();
-        m.extend_from_slice(&class);
-        m.extend_from_slice(b" ?-strict? ?-failindex var? str");
-        m
+    let class_arg = obj_bytes(argv[2]);
+    let class: &[u8] = match index_lookup(IS_CLASSES, &class_arg) {
+        Lookup::Found(i) => IS_CLASSES[i],
+        Lookup::Ambiguous => return interp.set_error(&class_err(b"ambiguous class", &class_arg)),
+        Lookup::None => return interp.set_error(&class_err(b"bad class", &class_arg)),
     };
 
+    // The last argument is always the string under test; the args between the
+    // class and it are options (`Tcl_GetIndexFromObj` over IS_OPTIONS).
     let last = argv.len() - 1;
     let mut strict = false;
     let mut failvar: Option<Vec<u8>> = None;
     let mut k = 3;
     while k < last {
         let opt = obj_bytes(argv[k]);
-        // Options match by unambiguous prefix (C's `Tcl_GetIndexFromObj`).
-        if !opt.is_empty() && b"-strict".starts_with(opt.as_slice()) {
-            k += 1;
-        } else if !opt.is_empty() && b"-failindex".starts_with(opt.as_slice()) {
-            if k + 1 >= last {
-                return wrong_args(interp, &class_usage());
+        match index_lookup(IS_OPTIONS, &opt) {
+            Lookup::Found(0) => {
+                strict = true;
+                k += 1;
             }
-            failvar = Some(obj_bytes(argv[k + 1]));
-            k += 2;
-        } else {
-            return wrong_args(interp, &class_usage());
-        }
-    }
-    // `-strict` may appear after `-failindex`; rescan for it (order-free).
-    for &a in &argv[3..last] {
-        let o = obj_bytes(a);
-        if !o.is_empty() && b"-strict".starts_with(o.as_slice()) {
-            strict = true;
+            Lookup::Found(_) => {
+                if k + 1 >= last {
+                    // C names the resolved class here (`string is double …`), not
+                    // the generic "class" the arg-count check uses.
+                    let mut usage = b"string is ".to_vec();
+                    usage.extend_from_slice(class);
+                    usage.extend_from_slice(b" ?-strict? ?-failindex var? str");
+                    return wrong_args(interp, &usage);
+                }
+                failvar = Some(obj_bytes(argv[k + 1]));
+                k += 2;
+            }
+            Lookup::Ambiguous => return interp.set_error(&option_err(b"ambiguous option", &opt)),
+            Lookup::None => return interp.set_error(&option_err(b"bad option", &opt)),
         }
     }
 
     let s = obj_bytes(argv[last]);
-    let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
+    let (ok, fail_index) = class_check(class, &s, strict);
 
-    let (ok, fail_index): (bool, i64) = if chars.is_empty() {
-        (!strict, -1)
-    } else {
-        match class.as_slice() {
-            b"integer" | b"wideinteger" | b"entier" => whole(is_tcl_integer(&chars), &chars),
-            b"double" => whole(is_tcl_double(&chars), &chars),
-            b"boolean" | b"true" | b"false" => whole(is_tcl_boolean(&chars, &class), &chars),
-            b"list" => whole(crate::parse::split_list(&s).is_ok(), &chars),
-            b"dict" => whole(
-                crate::parse::split_list(&s).is_ok_and(|l| l.len() % 2 == 0),
-                &chars,
-            ),
-            _ => {
-                // Per-character class: first failing char index.
-                match chars.iter().position(|&c| !char_class_ok(&class, c)) {
-                    Some(i) => (false, i as i64),
-                    None => (true, -1),
-                }
+    if !ok {
+        if let Some(var) = failvar {
+            let o = obj::new_wide_int_obj(fail_index);
+            if interp.var_set(&var, o).is_err() {
+                drop_fresh(o);
+                return cant_set(interp, &var);
             }
-        }
-    };
-
-    if let Some(var) = failvar {
-        let o = obj::new_wide_int_obj(if ok { -1 } else { fail_index });
-        if interp.var_set(&var, o).is_err() {
-            drop_fresh(o);
-            return cant_set(interp, &var);
         }
     }
     interp.set_result_bytes(if ok { b"1" } else { b"0" });
     Code::Ok
 }
 
-/// A whole-string class result: on failure the fail index is the length (no
-/// single offending char to point at), matching Tcl's behaviour closely enough
-/// for the classes the library exercises.
-fn whole(ok: bool, chars: &[char]) -> (bool, i64) {
-    if ok {
-        (true, -1)
+/// `bad class "X": must be …` / `ambiguous class "X": must be …`.
+fn class_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
+    let mut m = kind.to_vec();
+    m.extend_from_slice(b" \"");
+    m.extend_from_slice(arg);
+    m.extend_from_slice(b"\": must be ");
+    let classes: Vec<Vec<u8>> = IS_CLASSES.iter().map(|s| s.to_vec()).collect();
+    m.extend_from_slice(&crate::ensemble::must_be(&classes));
+    m
+}
+
+/// `bad option "X": must be -strict or -failindex` (two-item form: no comma).
+fn option_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
+    let mut m = kind.to_vec();
+    m.extend_from_slice(b" \"");
+    m.extend_from_slice(arg);
+    m.extend_from_slice(b"\": must be -strict or -failindex");
+    m
+}
+
+/// Run the class membership test. Returns `(is_member, fail_index)`; the fail
+/// index (a **character** offset, or -1) is only meaningful when not a member.
+fn class_check(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
+    match class {
+        b"integer" | b"wideinteger" | b"entier" | b"double" => is_number_class(class, s, strict),
+        b"boolean" | b"true" | b"false" => is_boolean_class(class, s, strict),
+        b"list" => {
+            // `list`/`dict` ignore strictness (empty is a well-formed list). On
+            // failure the index is where list parsing broke down, not the length.
+            let Ok(text) = std::str::from_utf8(s) else {
+                return (false, 0);
+            };
+            match list_failat(text) {
+                None => (true, -1),
+                Some(idx) => (false, idx),
+            }
+        }
+        b"dict" => {
+            let Ok(text) = std::str::from_utf8(s) else {
+                return (false, 0);
+            };
+            // A list-parse failure reports its character index; a valid but
+            // odd-sized list reports -1 (C only computes a failat for parse
+            // errors, matching `string-32.9a`).
+            if let Some(idx) = list_failat(text) {
+                return (false, idx);
+            }
+            let even = tcl_syntax::list::split_list(text).is_ok_and(|l| l.len() % 2 == 0);
+            (even, -1)
+        }
+        _ => {
+            // Per-character class: first failing char index.
+            if s.is_empty() {
+                return (!strict, 0);
+            }
+            for (failat, c) in String::from_utf8_lossy(s).chars().enumerate() {
+                if !char_class_ok(class, c) {
+                    return (false, failat as i64);
+                }
+            }
+            (true, -1)
+        }
+    }
+}
+
+/// Tcl numeric whitespace (matches `tcl_syntax::number`'s internal set): space,
+/// tab, newline, VT, FF, CR. `TclParseNumber` consumes a surrounding run of it.
+#[inline]
+fn is_num_ws(c: u8) -> bool {
+    matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r')
+}
+
+/// `string is integer|wideinteger|entier|double`. Defers to the shared
+/// `TclParseNumber` port: surrounding whitespace is allowed, the fail index is
+/// where parsing stopped, and `wideinteger` reports -1 on a value that parses
+/// but overflows a wide.
+fn is_number_class(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
+    use tcl_syntax::number::{self, Number, ParseFlags};
+
+    if s.is_empty() {
+        return (!strict, 0);
+    }
+    let Ok(st) = std::str::from_utf8(s) else {
+        return (false, 0);
+    };
+    let is_double = class == b"double";
+    let flags = ParseFlags {
+        integer_only: !is_double,
+        ..Default::default()
+    };
+    let Some(p) = number::parse(st, flags) else {
+        return (false, 0); // no numeric prefix at all → fail at the start
+    };
+    // For the integer classes, reject the `Inf`/`NaN` alpha forms that the
+    // shared parser still classifies (C's `TCL_PARSE_INTEGER_ONLY` would not).
+    let is_int_val = matches!(p.number, Number::Int(_) | Number::Big { .. });
+    if !is_double && !is_int_val {
+        return (false, 0);
+    }
+    // `TclParseNumber`'s end-pointer consumes a trailing whitespace run.
+    let mut stop = p.end;
+    while stop < s.len() && is_num_ws(s[stop]) {
+        stop += 1;
+    }
+    if stop < s.len() {
+        // Some prefix parsed, but not the whole string. The fail index equals
+        // the byte stop (everything up to it is ASCII ws/digits, so byte == char).
+        return (false, stop as i64);
+    }
+    // The entire string is a number.
+    if class == b"wideinteger" {
+        match p.number {
+            Number::Int(_) => (true, -1),
+            _ => (false, -1), // a valid integer, but it overflows a wide
+        }
     } else {
-        (false, chars.len() as i64)
+        (true, -1)
+    }
+}
+
+/// `string is boolean|true|false`. A non-member fails at index 0 (the whole
+/// string is rejected as one unit).
+fn is_boolean_class(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
+    match parse_boolean(s) {
+        Some(v) => {
+            let member = match class {
+                b"true" => v,
+                b"false" => !v,
+                _ => true,
+            };
+            (member, 0)
+        }
+        None => {
+            if strict {
+                (false, 0)
+            } else {
+                // Non-strict: empty is a member; anything else is not.
+                (s.is_empty(), 0)
+            }
+        }
+    }
+}
+
+/// `Tcl_GetBoolean`'s `ParseBoolean` (`tclObj.c`): `0`/`1`, or a case-insensitive
+/// unambiguous prefix of `true`/`false`/`yes`/`no`/`on`/`off`. Returns the
+/// boolean value, or `None` when the string is not a valid boolean.
+fn parse_boolean(s: &[u8]) -> Option<bool> {
+    let len = s.len();
+    if !(1..=5).contains(&len) {
+        return None; // "false" is the longest valid spelling
+    }
+    match s[0] {
+        b'0' => return (len == 1).then_some(false),
+        b'1' => return (len == 1).then_some(true),
+        _ => {}
+    }
+    // Lower-case, rejecting any byte outside the boolean-keyword letter set.
+    let mut lower = [0u8; 5];
+    for (i, &c) in s.iter().enumerate() {
+        let lc = c.to_ascii_lowercase();
+        if !matches!(
+            lc,
+            b'a' | b'e' | b'f' | b'l' | b'n' | b'o' | b'r' | b's' | b't' | b'u' | b'y'
+        ) {
+            return None;
+        }
+        lower[i] = lc;
+    }
+    let lc = &lower[..len];
+    // `strncmp(lc, keyword, len) == 0` ⇔ `keyword.starts_with(lc)`.
+    match lc[0] {
+        b'y' => b"yes".starts_with(lc).then_some(true),
+        b'n' => b"no".starts_with(lc).then_some(false),
+        b't' => b"true".starts_with(lc).then_some(true),
+        b'f' => b"false".starts_with(lc).then_some(false),
+        b'o' if len >= 2 && b"on".starts_with(lc) => Some(true),
+        b'o' if len >= 2 && b"off".starts_with(lc) => Some(false),
+        _ => None,
     }
 }
 
@@ -975,69 +1469,35 @@ fn char_class_ok(class: &[u8], c: char) -> bool {
         b"punct" => c.is_ascii_punctuation(),
         b"space" => c.is_whitespace(),
         b"upper" => c.is_uppercase(),
-        b"wordchar" => c.is_alphanumeric() || c == '_',
+        b"wordchar" => is_word_char(c),
         b"xdigit" => c.is_ascii_hexdigit(),
         _ => false,
     }
 }
 
-/// Tcl integer literal: optional sign, then decimal, or `0x`/`0o`/`0b` radix
-/// prefixes. No surrounding whitespace (`string is` is stricter than `expr`).
-fn is_tcl_integer(chars: &[char]) -> bool {
-    let mut i = 0;
-    if matches!(chars.first(), Some('+' | '-')) {
-        i = 1;
-    }
-    let rest = &chars[i..];
-    if rest.is_empty() {
-        return false;
-    }
-    if rest.len() >= 2 && rest[0] == '0' {
-        let (radix_ok, digits): (bool, &[char]) = match rest[1].to_ascii_lowercase() {
-            'x' => (true, &rest[2..]),
-            'o' => (true, &rest[2..]),
-            'b' => (true, &rest[2..]),
-            _ => (false, rest),
-        };
-        if radix_ok {
-            return !digits.is_empty()
-                && digits.iter().all(|&c| match rest[1].to_ascii_lowercase() {
-                    'x' => c.is_ascii_hexdigit(),
-                    'o' => ('0'..='7').contains(&c),
-                    _ => c == '0' || c == '1',
-                });
-        }
-    }
-    rest.iter().all(|c| c.is_ascii_digit())
+/// The connector-punctuation characters (Unicode category `Pc`) — the full set,
+/// including `_`. `Tcl_UniCharIsWordChar` and `string is wordchar` treat these
+/// as word characters.
+fn is_connector_punct(c: char) -> bool {
+    matches!(
+        c,
+        '\u{005F}'
+            | '\u{203F}'
+            | '\u{2040}'
+            | '\u{2054}'
+            | '\u{FE33}'
+            | '\u{FE34}'
+            | '\u{FE4D}'
+            | '\u{FE4E}'
+            | '\u{FE4F}'
+            | '\u{FF3F}'
+    )
 }
 
-/// Tcl double literal (accepts integers too).
-fn is_tcl_double(chars: &[char]) -> bool {
-    let s: String = chars.iter().collect();
-    let t = s.trim();
-    if t.is_empty() {
-        return false;
-    }
-    // Reject the leading/trailing whitespace `parse` would otherwise tolerate.
-    if t.len() != s.len() {
-        return false;
-    }
-    t.parse::<f64>().is_ok() || is_tcl_integer(chars)
-}
-
-/// Tcl boolean / true / false class.
-fn is_tcl_boolean(chars: &[char], class: &[u8]) -> bool {
-    let s: String = chars.iter().collect();
-    let l = s.to_ascii_lowercase();
-    let trues = ["1", "true", "yes", "on"];
-    let falses = ["0", "false", "no", "off"];
-    let is_t = trues.iter().any(|w| w.starts_with(&l) && !l.is_empty());
-    let is_f = falses.iter().any(|w| w.starts_with(&l) && !l.is_empty());
-    match class {
-        b"true" => is_t,
-        b"false" => is_f,
-        _ => is_t || is_f,
-    }
+/// `Tcl_UniCharIsWordChar`: letters and decimal digits (here approximated by
+/// `char::is_alphanumeric`) plus connector punctuation.
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || is_connector_punct(c)
 }
 
 // -- char helpers (ASCII fast path) ----------------------------------------
@@ -1107,6 +1567,28 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
     core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
 }
 
+/// Why reading a wide integer (`TclGetWideIntFromObj`) failed.
+enum WideErr {
+    /// A valid integer that overflows a wide (`integer value too large …`).
+    TooLarge,
+    /// Not an integer at all (`expected integer but got …`).
+    NotInteger,
+}
+
+/// Read a Tcl wide integer from `b` via the shared `tcl_syntax::number` grammar
+/// (accepts decimal / `0x` / `0o` / `0b` and surrounding whitespace), reporting
+/// a bignum overflow distinctly from a non-integer.
+fn get_wide(b: &[u8]) -> Result<i64, WideErr> {
+    match core::str::from_utf8(b)
+        .ok()
+        .and_then(tcl_syntax::number::parse_whole)
+    {
+        Some(tcl_syntax::number::Number::Int(v)) => Ok(v),
+        Some(tcl_syntax::number::Number::Big { .. }) => Err(WideErr::TooLarge),
+        _ => Err(WideErr::NotInteger),
+    }
+}
+
 /// `int` / `end` / `end-N` / `end+N` index spec against `len` chars.
 // Index specs (`end`, `int±int`, `end±int`, …) share the full
 // `TclGetIntForIndex` grammar with the list commands — reuse one parser.
@@ -1118,6 +1600,17 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     let mut m = b"wrong # args: should be \"".to_vec();
     m.extend_from_slice(usage);
     m.push(b'"');
+    interp.set_error(&m)
+}
+/// Whether `opt` abbreviates `-nocase` (`strncmp` with `length > 1`), the sole
+/// option of `string map`/`string match`.
+fn is_nocase_opt(opt: &[u8]) -> bool {
+    opt.len() > 1 && b"-nocase".starts_with(opt)
+}
+fn bad_nocase_option(interp: &mut Interp, opt: &[u8]) -> Code {
+    let mut m = b"bad option \"".to_vec();
+    m.extend_from_slice(opt);
+    m.extend_from_slice(b"\": must be -nocase");
     interp.set_error(&m)
 }
 fn no_such_var(interp: &mut Interp, name: &[u8]) -> Code {
@@ -1202,6 +1695,27 @@ mod tests {
         assert_eq!(ok(b"string is alpha -failindex pos ab2c; set pos"), b"2");
         assert_eq!(ok(b"string is dict {a 1 b 2}"), b"1");
         assert_eq!(ok(b"string is dict {a 1 b}"), b"0");
+        // Abbreviated class + option names resolve (Tcl_GetIndexFromObj).
+        assert_eq!(ok(b"string is int 42"), b"1");
+        assert_eq!(ok(b"string is bool yes"), b"1");
+        // Numeric classes tolerate surrounding whitespace; fail index is where
+        // parsing stops.
+        assert_eq!(ok(b"string is double \"  +1.0e-1 \""), b"1");
+        assert_eq!(ok(b"string is integer -fail v 123abc; set v"), b"3");
+        // wideinteger overflow reports -1; integer accepts the bignum.
+        assert_eq!(
+            ok(b"string is wideinteger -fail v 9223372036854775808; set v"),
+            b"-1"
+        );
+        assert_eq!(ok(b"string is integer 9223372036854775808"), b"1");
+        // Boolean classes are strict about the keyword set (25 is not a bool).
+        assert_eq!(ok(b"string is true 25"), b"0");
+        assert_eq!(ok(b"string is bool 1.0"), b"0");
+        // -failindex var is left untouched when the result is 1.
+        assert_eq!(
+            ok(b"catch {unset v}; string is alpha -failindex v abc; info exists v"),
+            b"0"
+        );
     }
 
     #[test]

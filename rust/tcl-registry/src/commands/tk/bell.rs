@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bell",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Ring the display's bell.",

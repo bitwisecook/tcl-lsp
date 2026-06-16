@@ -1,0 +1,212 @@
+[
+  {
+    "query": ".ltm.rule[].refs",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/route_by_host\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/allowed_hosts\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/ip_blocklist\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/blocked_ips\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/uri_rewrite\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/uri_redirect_map\"\n      ]\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/ssl_info\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": []\n    }\n  },\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/bad_references\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": []\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.rule[].refs.pools",
+    "mode": "raw",
+    "kind": "ok",
+    "output": ""
+  },
+  {
+    "query": ".ltm.rule[] | .refs.pools",
+    "mode": "raw",
+    "kind": "ok",
+    "output": ""
+  },
+  {
+    "query": ".ltm.rule[].refs.persists",
+    "mode": "raw",
+    "kind": "ok",
+    "output": ""
+  },
+  {
+    "query": ".ltm.rule[].refs.data-groups",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/allowed_hosts\n/Common/blocked_ips\n/Common/uri_redirect_map\n"
+  },
+  {
+    "query": ".ltm.rule[] | {name, refs}",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"route_by_host\",\n    \"refs\": \"/Common/route_by_host\"\n  },\n  {\n    \"name\": \"ip_blocklist\",\n    \"refs\": \"/Common/ip_blocklist\"\n  },\n  {\n    \"name\": \"uri_rewrite\",\n    \"refs\": \"/Common/uri_rewrite\"\n  },\n  {\n    \"name\": \"ssl_info\",\n    \"refs\": \"/Common/ssl_info\"\n  },\n  {\n    \"name\": \"bad_references\",\n    \"refs\": \"/Common/bad_references\"\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.rule[] | {name, pools: .refs.pools}",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"name\": \"route_by_host\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"ip_blocklist\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"uri_rewrite\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"ssl_info\",\n    \"pools\": []\n  },\n  {\n    \"name\": \"bad_references\",\n    \"pools\": []\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.rule[\"/Common/route_by_host\"].refs",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  {\n    \"kind\": \"ltm rule-refs\",\n    \"full-path\": \"/Common/route_by_host\",\n    \"fields\": {\n      \"pools\": [],\n      \"persists\": [],\n      \"data-groups\": [\n        \"/Common/allowed_hosts\"\n      ]\n    }\n  }\n]\n"
+  },
+  {
+    "query": ".ltm.rule[\"/Common/route_by_host\"].refs.data-groups",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/allowed_hosts\n"
+  },
+  {
+    "query": ".ltm.rule[] | select(contains(.refs.pools, \"/Common/old_pool\")) | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": ""
+  },
+  {
+    "query": ".ltm.rule[] | select(contains(.refs.data-groups, \"/Common/blocked_ips\")) | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "ip_blocklist\n"
+  },
+  {
+    "query": ".ltm.virtual[] | refs(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/my_cookie_persist\n/Common/web_pool\n/Common/my_clientssl\n/Common/my_http_profile\n/Common/my_oneconnect\n/Common/my_serverssl\n/Common/my_tcp_profile\n/Common/ip_blocklist\n/Common/route_by_host\n/Common/uri_rewrite\n/Common/my_snatpool\n/Common/api_pool\n/Common/my_clientssl\n/Common/my_http_profile\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/web_pool\n/Common/my_clientssl\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/ssl_info\n/Common/my_tcp_profile\n/Common/bad_references\n"
+  },
+  {
+    "query": ".ltm.virtual[\"/Common/www_vs\"] | refs(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/my_cookie_persist\n/Common/web_pool\n/Common/my_clientssl\n/Common/my_http_profile\n/Common/my_oneconnect\n/Common/my_serverssl\n/Common/my_tcp_profile\n/Common/ip_blocklist\n/Common/route_by_host\n/Common/uri_rewrite\n/Common/my_snatpool\n"
+  },
+  {
+    "query": ".ltm.rule[] | refs(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/allowed_hosts\n/Common/blocked_ips\n/Common/uri_redirect_map\n"
+  },
+  {
+    "query": ".ltm.pool[] | refs(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/my_http_monitor\n/Common/web1\n/Common/web2\n/Common/my_http_monitor\n/Common/web2\n/Common/web3\n/Common/my_http_monitor\n"
+  },
+  {
+    "query": "refs(.ltm.virtual[])",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/my_cookie_persist\n/Common/web_pool\n/Common/my_clientssl\n/Common/my_http_profile\n/Common/my_oneconnect\n/Common/my_serverssl\n/Common/my_tcp_profile\n/Common/ip_blocklist\n/Common/route_by_host\n/Common/uri_rewrite\n/Common/my_snatpool\n/Common/api_pool\n/Common/my_clientssl\n/Common/my_http_profile\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/web_pool\n/Common/my_clientssl\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/ssl_info\n/Common/my_tcp_profile\n/Common/bad_references\n"
+  },
+  {
+    "query": "[refs(.ltm.virtual[])] | length",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": ".ltm.virtual[] | refs(.) | sort",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/ip_blocklist\n/Common/my_clientssl\n/Common/my_cookie_persist\n/Common/my_http_profile\n/Common/my_oneconnect\n/Common/my_serverssl\n/Common/my_snatpool\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/uri_rewrite\n/Common/web_pool\n/Common/api_pool\n/Common/my_clientssl\n/Common/my_http_profile\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/my_clientssl\n/Common/my_tcp_profile\n/Common/route_by_host\n/Common/ssl_info\n/Common/web_pool\n/Common/bad_references\n/Common/my_tcp_profile\n"
+  },
+  {
+    "query": ".ltm.pool[] | referenced_by(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/ssl_only_vs\n/Common/www_vs\n/Common/api_vs\n"
+  },
+  {
+    "query": ".ltm.virtual[] | referenced_by(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": ""
+  },
+  {
+    "query": ".ltm.monitor[] | referenced_by(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/api_pool\n/Common/empty_pool\n/Common/web_pool\n"
+  },
+  {
+    "query": ".ltm.rule[] | referenced_by(.)",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/api_vs\n/Common/ssl_only_vs\n/Common/www_vs\n/Common/www_vs\n/Common/www_vs\n/Common/ssl_only_vs\n/Common/bad_vs\n"
+  },
+  {
+    "query": "referenced_by(.ltm.pool[])",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/ssl_only_vs\n/Common/www_vs\n/Common/api_vs\n"
+  },
+  {
+    "query": ".ltm.pool[] | select(referenced_by(.) | count == 0) | .name",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "empty_pool\n"
+  },
+  {
+    "query": "references_to(\"/Common/web_pool\")",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/ssl_only_vs\n/Common/www_vs\n"
+  },
+  {
+    "query": "references_to(\"/Common/api_pool\")",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/api_vs\n"
+  },
+  {
+    "query": "references_to(\"/Common/route_by_host\")",
+    "mode": "raw",
+    "kind": "ok",
+    "output": "/Common/api_vs\n/Common/ssl_only_vs\n/Common/www_vs\n"
+  },
+  {
+    "query": "references_to(\"\")",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "references_to(\"/Common/does_not_exist\")",
+    "mode": "raw",
+    "kind": "ok",
+    "output": ""
+  },
+  {
+    "query": "count(references_to(\"/Common/web_pool\"))",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "check_partition_visibility()",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  []\n]\n"
+  },
+  {
+    "query": "count(check_partition_visibility())",
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0\n]\n"
+  },
+  {
+    "query": "refs(.ltm.pool[].name)",
+    "mode": "raw",
+    "kind": "err",
+    "output": "refs: argument 1 must be an object, got string"
+  },
+  {
+    "query": "referenced_by(.ltm.virtual[].name)",
+    "mode": "raw",
+    "kind": "err",
+    "output": "referenced_by: argument 1 must be an object, got string"
+  },
+  {
+    "query": "references_to(.ltm.pool[].full-path)",
+    "mode": "raw",
+    "kind": "err",
+    "output": "references_to: argument 1 must be a string, got stream"
+  }
+]

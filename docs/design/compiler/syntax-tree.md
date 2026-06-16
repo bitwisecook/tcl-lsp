@@ -302,7 +302,12 @@ and the refactoring body splitters left to fold onto `descend_*`.
    TUI renders both as captured-ANSI text views; `tooling/cli/serialise.py` gains
    `_serialise_cst` / `_serialise_segments` (+ `_VIEW_META`) so the web GUI
    (`static/index.html`, `explorer-core.js`) and the in-browser pyodide worker
-   show structural, expandable, source-linked trees.
+   show structural, expandable, source-linked trees. **The Rust explorer
+   (`EXP*`) drops the `greentree` view entirely:** the Rust parser produces a
+   single red-green CST (`tcl-compiler::parsing::syntax`), with no separate
+   legacy green-token tree, so `cst` is the sole parse-tree tab. The shared
+   `static/` frontend (now driven by the Rust→WASM module) drops the tab to
+   match; Python keeps emitting `greentree` while it remains the legacy oracle.
 9. **Direct AOT lowering** (cycle 10) — *deferred (perf-only).* Lowering already
    rides the CST: it consumes `segment_commands` (CST-backed since cycle 1) and
    copies the fields into `_Command`. Making `_Command` a *view* over a

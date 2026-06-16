@@ -11,7 +11,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkIndex",
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Build a ``pkgIndex.tcl`` file for one or more packages.",

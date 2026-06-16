@@ -17,6 +17,7 @@ use crate::obj::{self, TclObj};
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"set", set);
     interp.register_builtin(b"incr", incr);
+    interp.register_builtin(b"const", const_cmd);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
     interp.register_builtin(b"subst", subst_cmd);
@@ -92,11 +93,75 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
+        VarError::IsConstant => &b"\": variable is a constant"[..],
         VarError::TraceError => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
     msg.extend_from_slice(verb);
+    interp.set_error(&msg)
+}
+
+/// `can't incr "name": variable is a constant` when `incr` targets a `const`
+/// scalar (C checks this before the read-modify-write, so no read trace fires).
+fn incr_constant_error(
+    interp: &mut Interp,
+    base: &[u8],
+    elem: &Option<Vec<u8>>,
+    name: &[u8],
+) -> Option<Code> {
+    if elem.is_none() && interp.is_constant(base) {
+        let mut msg = b"can't incr \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": variable is a constant");
+        return Some(interp.set_error(&msg));
+    }
+    None
+}
+
+/// `const varName value` (TIP 677) — set `varName` and flag it unmodifiable.
+/// Re-`const`'ing an existing constant is a silent no-op; any other existing
+/// variable, an array, or an array element is an error.
+fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"const varName value");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = split_array_ref(&name);
+    // `const X(a)` — a constant may not be an array element.
+    if elem.is_some() {
+        return make_constant_error(interp, &name, b"name refers to an element in an array");
+    }
+    // `const X` where X is already an array.
+    if interp.var_is_array(&base) {
+        return make_constant_error(interp, &name, b"variable is array");
+    }
+    // Already defined: a constant is a no-op; anything else already exists.
+    if interp.var_exists(&base) {
+        if interp.is_constant(&base) {
+            interp.set_result_bytes(b""); // C's `const` yields an empty result
+            return Code::Ok;
+        }
+        return make_constant_error(interp, &name, b"variable already exists");
+    }
+    // Set the value (firing write traces; a trace error aborts the const), then
+    // flag the cell constant.
+    match interp.var_set(&base, argv[2]) {
+        Ok(()) => {
+            interp.mark_constant(&base);
+            interp.set_result_bytes(b""); // C's `const` yields an empty result
+            Code::Ok
+        }
+        Err(e) => var_error(interp, &name, e),
+    }
+}
+
+/// `can't make constant "name": <reason>` (the `const` command's lookup errors).
+fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code {
+    let mut msg = b"can't make constant \"".to_vec();
+    msg.extend_from_slice(name);
+    msg.extend_from_slice(b"\": ");
+    msg.extend_from_slice(reason);
     interp.set_error(&msg)
 }
 
@@ -166,6 +231,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
 
     // Current cell value (borrowed) or a fresh 0 for an unset variable; the
     // fresh-0 is `rc 0` and freed below whether or not it's used.
@@ -229,6 +297,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
 
     let cur = match read_cell(interp, &base, &elem) {
         Some(bytes) => match parse_i64(&bytes) {
@@ -413,6 +484,17 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &a in &argv[i..] {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
+        // A constant cannot be unset; `-nocomplain` leaves it in place silently
+        // (var-26.11/26.12), otherwise it is an error.
+        if elem.is_none() && interp.is_constant(&base) {
+            if nocomplain {
+                continue;
+            }
+            let mut msg = b"can't unset \"".to_vec();
+            msg.extend_from_slice(&name);
+            msg.extend_from_slice(b"\": variable is a constant");
+            return interp.set_error(&msg);
+        }
         let existed = match &elem {
             Some(k) => interp.var_unset_elem(&base, k),
             None => interp.var_unset(&base),
@@ -433,28 +515,76 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// unset variable or a failing command substitution propagate.
 fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
-    let mut flags = crate::subst::SubstFlags::default();
-    let mut i = 1;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-nobackslashes" => flags.backslashes = false,
-            b"-nocommands" => flags.cmds = false,
-            b"-novariables" => flags.vars = false,
-            _ => break,
-        }
-        i += 1;
-    }
-    if i != argv.len() - 1 {
+    if argv.len() < 2 {
         return wrong_args(interp, USAGE);
     }
-    let src = obj_bytes(argv[i]);
-    match interp.do_subst(&src, flags) {
+    // Every argument before the last is an option (C's `TclSubstOptions` over
+    // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
+    let mut flags = crate::subst::SubstFlags::default();
+    for &opt in &argv[1..argv.len() - 1] {
+        let name = obj_bytes(opt);
+        match subst_option_index(&name) {
+            SubstOpt::Backslashes => flags.backslashes = false,
+            SubstOpt::Commands => flags.cmds = false,
+            SubstOpt::Variables => flags.vars = false,
+            SubstOpt::Bad => return subst_bad_option(interp, b"bad", &name),
+            SubstOpt::Ambiguous => return subst_bad_option(interp, b"ambiguous", &name),
+        }
+    }
+    let last = argv[argv.len() - 1];
+    let src = obj_bytes(last);
+    // TIP 280: a `[...]` inside the substituted string reports the line it sits
+    // on, derived from the argument word's recorded source location.
+    let loc = interp.arg_location(last);
+    match interp.do_subst_located(&src, flags, loc) {
         Ok(bytes) => {
             interp.set_result_bytes(&bytes);
             Code::Ok
         }
         Err(code) => code, // the failing sub already set the result
     }
+}
+
+/// The resolution of a `subst` option word against `{-nobackslashes,
+/// -nocommands, -novariables}` (Tcl's exact-or-unique-prefix matching).
+enum SubstOpt {
+    Backslashes,
+    Commands,
+    Variables,
+    Bad,
+    Ambiguous,
+}
+
+fn subst_option_index(name: &[u8]) -> SubstOpt {
+    const NAMES: [&[u8]; 3] = [b"-nobackslashes", b"-nocommands", b"-novariables"];
+    let mut found = None;
+    let mut count = 0;
+    for (k, n) in NAMES.iter().enumerate() {
+        if *n == name {
+            count = 1;
+            found = Some(k);
+            break;
+        }
+        if n.starts_with(name) {
+            found = Some(k);
+            count += 1;
+        }
+    }
+    match (count, found) {
+        (1, Some(0)) => SubstOpt::Backslashes,
+        (1, Some(1)) => SubstOpt::Commands,
+        (1, Some(2)) => SubstOpt::Variables,
+        (0, _) => SubstOpt::Bad,
+        _ => SubstOpt::Ambiguous,
+    }
+}
+
+fn subst_bad_option(interp: &mut Interp, kind: &[u8], name: &[u8]) -> Code {
+    let mut m = kind.to_vec();
+    m.extend_from_slice(b" option \"");
+    m.extend_from_slice(name);
+    m.extend_from_slice(b"\": must be -nobackslashes, -nocommands, or -novariables");
+    interp.set_error(&m)
 }
 
 // -- helpers ---------------------------------------------------------------
@@ -509,12 +639,19 @@ fn parse_i64(bytes: &[u8]) -> Option<i64> {
 #[cfg(have_tommath)]
 struct InterpExprCtx<'a> {
     interp: &'a mut Interp,
-    /// Set when an error propagated out of a sub-evaluation (`[cmd]`, a math
-    /// function, or a `$arr(idx)` index subst) rather than originating in `expr`
-    /// itself. In that case the inner command already built the `::errorInfo`
-    /// trace, so `expr` must preserve it (and add no frame of its own) — matching
-    /// C, where such an error is logged at the inner command, not at `expr`.
+    /// Set when a completion code propagated out of a sub-evaluation (`[cmd]`, a
+    /// math function, or a `$arr(idx)` index subst) rather than originating in
+    /// `expr` itself. For an *error* the inner command already built the
+    /// `::errorInfo` trace, so `expr` must preserve it (and add no frame of its
+    /// own) — matching C, where such an error is logged at the inner command, not
+    /// at `expr`. For a non-error code (`return`/`break`/`continue` from a `[cmd]`
+    /// substitution) the code propagates out of the whole `expr` (and thus out of
+    /// the enclosing `if`/`while`/`for` condition).
     propagated: bool,
+    /// The completion code carried by `propagated` (only meaningful when
+    /// `propagated` is set). Defaults to `Error`; a `[cmd]` substitution that
+    /// completes with `return`/`break`/`continue` records that code here.
+    propagated_code: Code,
 }
 
 #[cfg(have_tommath)]
@@ -530,9 +667,13 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
                     .do_subst(&k, crate::subst::SubstFlags::default())
                 {
                     Ok(v) => Some(v),
-                    Err(_) => {
+                    // The index's `[cmd]` completed with a non-OK code — carry it
+                    // (error, or `return`/`break`/`continue`) out of the whole
+                    // expression, exactly like a `[cmd]` operand.
+                    Err(code) => {
                         self.propagated = true;
-                        return Err(crate::expr::ExprError(obj_bytes(
+                        self.propagated_code = code;
+                        return Err(crate::expr::ExprError::from_bytes(obj_bytes(
                             self.interp.get_obj_result(),
                         )));
                     }
@@ -548,15 +689,23 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             Some(o) => Ok(crate::expr::Owned::retain(o)),
             None => {
                 let m = self.interp.read_miss_msg(&base, elem.as_deref());
-                Err(crate::expr::ExprError(m))
+                Err(crate::expr::ExprError::from_bytes(m))
             }
         }
     }
 
     fn eval_command(&mut self, script: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
-        if self.interp.eval_str(script.as_bytes()) == Code::Error {
+        // A `[cmd]` operand that completes with any non-OK code (`error`, or a
+        // `return`/`break`/`continue`) propagates that code out of the whole
+        // expression. C does this implicitly: the bytecode for the substitution
+        // returns the code, which unwinds the `expr`-bearing command. For an
+        // error the interp result already holds the message + `::errorInfo`; for
+        // the others it holds the substitution's result value.
+        let code = self.interp.eval_str(script.as_bytes());
+        if code != Code::Ok {
             self.propagated = true;
-            return Err(crate::expr::ExprError(obj_bytes(
+            self.propagated_code = code;
+            return Err(crate::expr::ExprError::from_bytes(obj_bytes(
                 self.interp.get_obj_result(),
             )));
         }
@@ -570,9 +719,12 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
             .do_subst(inner.as_bytes(), crate::subst::SubstFlags::default())
         {
             Ok(v) => Ok(crate::expr::Owned::fresh(crate::obj::new_string_bytes(&v))),
-            Err(_) => {
+            // A `"…"` operand whose `[cmd]` completed non-OK carries that code
+            // (error, or `return`/`break`/`continue`) out of the expression.
+            Err(code) => {
                 self.propagated = true;
-                Err(crate::expr::ExprError(obj_bytes(
+                self.propagated_code = code;
+                Err(crate::expr::ExprError::from_bytes(obj_bytes(
                     self.interp.get_obj_result(),
                 )))
             }
@@ -591,10 +743,12 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         if self.interp.eval_math_call(name.as_bytes(), &arg_ptrs) == Code::Error {
             // A math-function error (e.g. `sqrt(-1)` domain error) is logged at
             // the `expr` command, not as an inner frame — so it is *not*
-            // propagated; `expr` raises it as its own (`while executing`).
-            return Err(crate::expr::ExprError(obj_bytes(
-                self.interp.get_obj_result(),
-            )));
+            // propagated; `expr` raises it as its own (`while executing`). Carry
+            // the math function's `-errorcode` (TCL WRONGARGS / ARITH DOMAIN) so
+            // `expr`'s re-raise preserves it.
+            let msg = obj_bytes(self.interp.get_obj_result());
+            let code = self.interp.error_code();
+            return Err(crate::expr::ExprError::from_parts(msg, code));
         }
         Ok(crate::expr::Owned::retain(self.interp.get_obj_result()))
     }
@@ -622,19 +776,25 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
+        propagated_code: Code::Error,
     };
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
     match result {
         Ok(r) => {
             // `set_result` takes its own `+1`; `r` drops its reference after.
             interp.set_result(r.as_ptr());
             Code::Ok
         }
-        // A propagated sub-eval error already set the result + `::errorInfo`
-        // trace at the inner command — preserve it (no `expr` frame).
-        Err(_) if propagated => Code::Error,
-        Err(e) => interp.set_error(&e.0),
+        // A propagated sub-eval code already set the interp result at the inner
+        // command — preserve it (an error keeps its `::errorInfo`; a
+        // `return`/`break`/`continue` keeps the substitution's value).
+        Err(_) if propagated => propagated_code,
+        Err(e) => match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        },
     }
 }
 
@@ -651,36 +811,59 @@ pub(crate) fn eval_expr_obj(interp: &mut Interp, src: &[u8]) -> Result<*mut TclO
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
+        propagated_code: Code::Error,
     };
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
     match result {
         Ok(r) => Ok(r.into_raw()), // transfer the +1 to the caller
-        Err(_) if propagated => Err(Code::Error),
-        Err(e) => Err(interp.set_error(&e.0)),
+        Err(_) if propagated => Err(propagated_code),
+        Err(e) => Err(match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        }),
     }
 }
 
-/// Evaluate `src` as a Tcl expression and coerce the result to a boolean — the
-/// condition evaluator `if`/`while`/`for` share. `Err(code)` carries the
-/// completion code (with the interp result already set to the error message).
+/// Evaluate the condition object `cond` as a Tcl expression and coerce the result
+/// to a boolean — the condition evaluator `if`/`while`/`for` share. `Err(code)`
+/// carries the completion code (with the interp result already set to the error
+/// message). A located-literal condition shifts the shared frame's `line_base` to
+/// the condition word so a `[cmd]` substitution inside reports its file-absolute
+/// line (TIP 280); the base is restored afterward.
 #[cfg(have_tommath)]
-pub(crate) fn eval_bool_expr(interp: &mut Interp, src: &[u8]) -> Result<bool, Code> {
-    let Ok(s) = core::str::from_utf8(src) else {
+pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<bool, Code> {
+    let src = obj_bytes(cond);
+    let Ok(s) = core::str::from_utf8(&src) else {
         return Err(interp.set_error(b"expr operand is not valid UTF-8"));
+    };
+    let saved = match interp.arg_location(cond) {
+        Some((_, line)) => interp.push_cond_line_base(line),
+        None => None,
     };
     let node = tcl_syntax::expr::parse_expr(s, None);
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
+        propagated_code: Code::Error,
     };
     let result = crate::expr::eval_expr(&node, &mut ctx);
     let propagated = ctx.propagated;
+    let propagated_code = ctx.propagated_code;
+    if let Some(old) = saved {
+        interp.restore_line_base(old);
+    }
     match result {
-        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.0)),
-        // Preserve a propagated sub-eval error's trace (no condition `expr` frame).
-        Err(_) if propagated => Err(Code::Error),
-        Err(e) => Err(interp.set_error(&e.0)),
+        Ok(r) => crate::expr::to_bool(r.as_ptr()).map_err(|e| interp.set_error(&e.msg)),
+        // A propagated sub-eval code unwinds the condition: an error keeps its
+        // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
+        // `[cmd]` substitution carries that code out of the loop/`if`.
+        Err(_) if propagated => Err(propagated_code),
+        Err(e) => Err(match e.code {
+            Some(c) => interp.error_with_code(&e.msg, &c),
+            None => interp.set_error(&e.msg),
+        }),
     }
 }
 

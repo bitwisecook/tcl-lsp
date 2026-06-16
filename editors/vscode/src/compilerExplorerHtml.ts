@@ -2,9 +2,11 @@
  * Generates the HTML content for the Tcl Compiler Explorer webview panel.
  *
  * This is the standalone explorer index.html adapted for VS Code webview:
- * - Pyodide web worker replaced with VS Code postMessage API
+ * - Pyodide web worker replaced with an inlined Rust → WASM module that
+ *   compiles in the webview itself (no LSP `executeCommand` roundtrip)
  * - Textarea is read-only (source comes from the active editor)
- * - Compilation routed through the extension to the LSP server
+ * - When the WASM module is absent (dev builds without `make explorer-wasm`)
+ *   compilation degrades to the host-brokered `{type:"compile"}` path
  *
  * Shared rendering logic lives in explorer-core.js, which is read at runtime
  * and inlined into the HTML (VS Code CSP does not allow external scripts).
@@ -12,31 +14,119 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
+/** Candidate directories holding the explorer's static assets. */
+function explorerAssetDirs(): string[] {
+  return [
+    // When built via Makefile, assets are copied next to the bundle.
+    __dirname,
+    // Fallback: the source tree (dev / tsc-watch mode).
+    // __dirname is  editors/vscode/out  →  walk up to repo root.
+    join(__dirname, "..", "..", "..", "tooling", "explorer", "static"),
+  ];
+}
+
 function findCoreJs(): string {
-  // When built via Makefile, the file is copied next to the bundle.
-  const bundled = join(__dirname, "explorer-core.js");
-  if (existsSync(bundled)) {
-    return bundled;
-  }
-  // Fallback: resolve from the source tree (dev / tsc-watch mode).
-  // __dirname is  editors/vscode/out  →  walk up to repo root.
-  const source = join(__dirname, "..", "..", "..", "explorer", "static", "explorer-core.js");
-  if (existsSync(source)) {
-    return source;
+  for (const dir of explorerAssetDirs()) {
+    const candidate = join(dir, "explorer-core.js");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
   }
   throw new Error(
-    `explorer-core.js not found at ${bundled} or ${source}. ` +
+    "explorer-core.js not found next to the bundle or in tooling/explorer/static. " +
       "Run 'make compile' or copy tooling/explorer/static/explorer-core.js to editors/vscode/out/.",
   );
 }
 
-export function getWebviewHtml(): string {
-  const coreJs = readFileSync(findCoreJs(), "utf-8").replace(
+/**
+ * Locate the Rust → WASM explorer module (glue + bytes), if it was built.
+ *
+ * Returns `undefined` when the artifacts are missing so the webview can fall
+ * back to the host-brokered compile path instead of failing to load.
+ */
+function findWasmAssets(): { glue: string; wasm: Buffer } | undefined {
+  for (const dir of explorerAssetDirs()) {
+    const gluePath = join(dir, "tcl_explorer_wasm.js");
+    const wasmPath = join(dir, "tcl_explorer_wasm_bg.wasm");
+    if (existsSync(gluePath) && existsSync(wasmPath)) {
+      return { glue: readFileSync(gluePath, "utf-8"), wasm: readFileSync(wasmPath) };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Encode JS source as an ASCII-only `data:` URI script source. Non-ASCII
+ * characters are escaped to `\uXXXX` first so the data URI decodes correctly
+ * regardless of the document charset.
+ */
+function jsDataUri(js: string): string {
+  const ascii = js.replace(
     /[^\x00-\x7F]/g,
     (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
-  const coreJsDataUri = `data:text/javascript;base64,${Buffer.from(coreJs, "utf8").toString("base64")}`;
+  return `data:text/javascript;base64,${Buffer.from(ascii, "utf8").toString("base64")}`;
+}
+
+export function getWebviewHtml(): string {
+  const coreJsDataUri = jsDataUri(readFileSync(findCoreJs(), "utf-8"));
   const nonce = String(Math.random()).replace(".", "") + String(Date.now());
+
+  // Inline the Rust → WASM explorer module so the webview compiles in-process
+  // (no LSP roundtrip). Absent in dev builds without `make explorer-wasm`; we
+  // then leave `window.__wasmCompile` unset and fall back to the host.
+  const wasmAssets = findWasmAssets();
+  const wasmGlueDataUri = wasmAssets ? jsDataUri(wasmAssets.glue) : "";
+  const wasmBase64 = wasmAssets ? wasmAssets.wasm.toString("base64") : "";
+  // WASM instantiation needs `wasm-unsafe-eval`; only add it when we ship WASM.
+  const cspScriptExtra = wasmAssets ? " 'wasm-unsafe-eval'" : "";
+  const wasmInjection = wasmAssets
+    ? `<script nonce="${nonce}" src="${wasmGlueDataUri}"></script>
+<script nonce="${nonce}">
+(function() {
+  var b64 = "${wasmBase64}";
+  function toBytes(s) {
+    var bin = atob(s), n = bin.length, a = new Uint8Array(n);
+    for (var i = 0; i < n; i++) a[i] = bin.charCodeAt(i);
+    return a;
+  }
+  function emit(type, payload) {
+    window.dispatchEvent(new MessageEvent('message', { data: { type: type, data: payload } }));
+  }
+  try {
+    // \`--target no-modules\` glue defines the global \`wasm_bindgen\`.
+    window.__wasmReady = wasm_bindgen(toBytes(b64));
+    window.__wasmCompile = function(source, dialect) {
+      window.__wasmReady.then(function() {
+        var json;
+        try {
+          json = wasm_bindgen.compile(source, dialect);
+        } catch (e) {
+          emit('error', { error: 'WASM compile failed: ' + (e && e.message || e) });
+          return;
+        }
+        var parsed;
+        try {
+          parsed = JSON.parse(json);
+        } catch (e) {
+          emit('error', { error: 'WASM returned invalid JSON' });
+          return;
+        }
+        if (parsed && parsed.error) {
+          emit('error', { error: parsed.error });
+        } else {
+          emit('result', parsed);
+        }
+      }).catch(function(e) {
+        emit('error', { error: 'WASM init failed: ' + (e && e.message || e) });
+      });
+    };
+  } catch (e) {
+    // Glue eval failed — leave __wasmCompile unset so compile() falls back.
+  }
+})();
+</script>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -44,7 +134,7 @@ export function getWebviewHtml(): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy"
-  content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' data:;">
+  content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' data:${cspScriptExtra};">
 <title>Tcl Compiler Explorer</title>
 <style>
 :root {
@@ -975,6 +1065,7 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 </script>
 <script nonce="${nonce}" src="${coreJsDataUri}"></script>
+${wasmInjection}
 <script nonce="${nonce}">
 
 // VS Code API
@@ -1089,7 +1180,13 @@ function compile() {
 
   $('#spinner').style.display = 'block';
   setStatus('compiling');
-  vscode.postMessage({ type: 'compile', source, dialect });
+  if (typeof window.__wasmCompile === 'function') {
+    // Compile in-webview via the bundled Rust → WASM module (no host roundtrip).
+    window.__wasmCompile(source, dialect);
+  } else {
+    // No WASM bundled — fall back to host-brokered compilation.
+    vscode.postMessage({ type: 'compile', source, dialect });
+  }
 }
 
 function updateStatusLight() {

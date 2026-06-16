@@ -50,18 +50,24 @@ members = [
     "rust/tcl-vm",
     "rust/tcl-bigip",
     "rust/tcl-bigip-io",
+    "rust/tcl-bigip-query",
     "rust/tcl-irules",
     "rust/tcl-lsp-core",
     "rust/tcl-lsp-db",
     "rust/tcl-lsp-server",
     "rust/tcl-lsp-py",
     "rust/tcl-lsp-rust",
+    "rust/tcl-explorer",
     "rust/tcl-cli-support",
     "rust/tcl-cli",
     "rust/f5-cli",
 ]
 exclude = [
     "editors/zed",
+    # The compiler-explorer WASM facade is a cdylib for wasm32-unknown-unknown;
+    # wasm-bindgen's generated glue needs `unsafe`, which the workspace
+    # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.
+    "rust/tcl-explorer-wasm",
     # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it

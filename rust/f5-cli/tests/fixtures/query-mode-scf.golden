@@ -1,0 +1,27 @@
+ltm pool /Common/web_pool {
+    members {
+        /Common/web1:80 {
+            address 10.0.1.10
+        }
+        /Common/web2:80 {
+            address 10.0.1.11
+        }
+    }
+    monitor /Common/my_http_monitor
+    load-balancing-mode round-robin
+}
+ltm pool /Common/api_pool {
+    members {
+        /Common/web2:8080 {
+            address 10.0.1.11
+        }
+        /Common/web3:8080 {
+            address 10.0.1.12
+        }
+    }
+    monitor /Common/my_http_monitor
+    load-balancing-mode least-connections-member
+}
+ltm pool /Common/empty_pool {
+    monitor /Common/my_http_monitor
+}

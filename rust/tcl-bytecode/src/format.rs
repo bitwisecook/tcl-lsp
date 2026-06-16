@@ -149,6 +149,21 @@ fn format_operand(
 }
 
 /// Render a [`FunctionAsm`] to its disassembly string form.
+/// Decode an instruction's operands to their display text, the way the
+/// flat disassembler does — reused by the compiler explorer's structured
+/// `asm` view so it does not re-implement the per-`Op` operand decoding.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn instruction_operand_text(instr: &Instruction, labels: &HashMap<String, usize>) -> String {
+    instr
+        .operands
+        .iter()
+        .enumerate()
+        .map(|(j, operand)| format_operand(operand, instr, j, labels).0)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Mirrors C Tcl 9.0.2's `tcl::unsupported::disassemble proc` output.
 #[must_use]
 #[allow(

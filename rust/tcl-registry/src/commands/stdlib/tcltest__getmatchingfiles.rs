@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::getMatchingFiles",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return list of test files matching configured patterns.",

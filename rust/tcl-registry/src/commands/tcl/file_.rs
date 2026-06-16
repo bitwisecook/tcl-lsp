@@ -311,6 +311,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "rename",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::at_least(2),
         detail: "Rename or move files/directories.",
         synopsis: "file rename ?-force? ?--? source target",
@@ -493,6 +494,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::BYTE_COMPILED | Traits::HAS_DESTRUCTIVE_OPS | Traits::RETURNS_PATH,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

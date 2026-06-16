@@ -101,6 +101,9 @@ pub enum VarError {
     /// (kept unit so `VarError` stays `Copy`; the `var_error` callers propagate
     /// it unchanged).
     TraceError,
+    /// A write/unset of a `const` variable (`can't set "name": variable is a
+    /// constant`; the command supplies the `set`/`incr`/`unset` verb).
+    IsConstant,
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +117,13 @@ pub enum VarError {
 #[derive(Default)]
 pub struct VarTable {
     vars: BTreeMap<Vec<u8>, Var>,
+    /// Scalars flagged `const` (TIP 677): a write or unset of one errors with
+    /// `variable is a constant`. Names are simple (table-local); a name stays
+    /// here for the table's lifetime since a constant cannot be unset.
+    consts: std::collections::BTreeSet<Vec<u8>>,
+    /// Per-array default values (TIP 508 `array default set`): array name → the
+    /// value returned for a read of a missing element. Each owns a **+1**.
+    array_defaults: BTreeMap<Vec<u8>, *mut TclObj>,
 }
 
 impl VarTable {
@@ -122,8 +132,63 @@ impl VarTable {
         self.vars.get(name)
     }
 
+    /// Whether `name` is a `const` scalar here.
+    pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
+        self.consts.contains(name)
+    }
+
+    /// Names of the `const` scalars in this table (`info consts`).
+    pub(crate) fn const_names(&self) -> Vec<&[u8]> {
+        self.consts.iter().map(|k| k.as_slice()).collect()
+    }
+
+    /// Set array `name`'s default value (`array default set`), releasing any
+    /// prior default. The table pins the value with **+2**: one for ownership,
+    /// and one so a read of the default always sees it as *shared* — a
+    /// read-modify-write (`lappend`/`append`/`dict`) then copies rather than
+    /// mutating the stored default in place (TIP 508 copy-on-write).
+    pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+        // SAFETY: retain the new default twice, release any prior one twice.
+        unsafe {
+            obj::incr_ref_count(obj);
+            obj::incr_ref_count(obj);
+        }
+        if let Some(old) = self.array_defaults.insert(name.to_vec(), obj) {
+            unsafe {
+                obj::decr_ref_count(old);
+                obj::decr_ref_count(old);
+            }
+        }
+    }
+
+    /// Array `name`'s default value, if one is set (`array default get`, and the
+    /// fallback for a read of a missing element). Borrowed; the table keeps its +1.
+    pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+        self.array_defaults.get(name).copied()
+    }
+
+    /// Remove array `name`'s default value (`array default unset`).
+    pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+        if let Some(old) = self.array_defaults.remove(name) {
+            // SAFETY: balances the +2 taken in `set_array_default`.
+            unsafe {
+                obj::decr_ref_count(old);
+                obj::decr_ref_count(old);
+            }
+        }
+    }
+
+    /// Flag the scalar `name` `const` (the `const` command, after its value is
+    /// stored). A no-op if already flagged.
+    pub(crate) fn mark_constant(&mut self, name: &[u8]) {
+        self.consts.insert(name.to_vec());
+    }
+
     /// `set name value` into this table directly. The cell takes a **+1**.
     pub(crate) fn store_scalar(&mut self, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+        if self.consts.contains(name) {
+            return Err(VarError::IsConstant);
+        }
         match self.vars.get_mut(name) {
             Some(Var::Array(_)) => Err(VarError::IsArray),
             Some(Var::Scalar(slot)) => {
@@ -193,12 +258,30 @@ impl VarTable {
     /// Remove the whole variable `name` (scalar or array); returns whether it
     /// existed. Releases every object it owned.
     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+        // A removed array drops its TIP 508 default too.
+        self.unset_array_default(name);
         match self.vars.remove(name) {
             Some(v) => {
                 v.release();
                 true
             }
             None => false,
+        }
+    }
+
+    /// Ensure `name` is an (at least empty) array — `array default set` creates
+    /// the array even with no elements. Returns `Err(IsScalar)` if `name` is a
+    /// scalar. (`IsScalar` reuses the closest existing variant; the caller maps
+    /// it to the `array default set` message.)
+    pub(crate) fn ensure_array(&mut self, name: &[u8]) -> Result<(), VarError> {
+        match self.vars.get(name) {
+            Some(Var::Array(_)) => Ok(()),
+            Some(Var::Scalar(_)) => Err(VarError::IsScalar),
+            Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
+            None => {
+                self.vars.insert(name.to_vec(), Var::Array(BTreeMap::new()));
+                Ok(())
+            }
         }
     }
 
@@ -266,6 +349,13 @@ impl Drop for VarTable {
     fn drop(&mut self) {
         for (_, var) in std::mem::take(&mut self.vars) {
             var.release();
+        }
+        for (_, obj) in std::mem::take(&mut self.array_defaults) {
+            // SAFETY: balances the +2 taken in `set_array_default`.
+            unsafe {
+                obj::decr_ref_count(obj);
+                obj::decr_ref_count(obj);
+            }
         }
     }
 }
@@ -423,6 +513,37 @@ impl FrameStack {
     /// stack indices once `uplevel` is in play; the most recent wins).
     fn index_of_level(&self, level: usize) -> Option<usize> {
         self.frames.iter().rposition(|f| f.level == level)
+    }
+
+    /// The stack index of the current active (var) frame — the identity a new
+    /// `CmdFrame` records as its CallFrame (C's `framePtr->framePtr`).
+    pub(crate) fn current_frame_index(&self) -> usize {
+        self.index_of_level(self.active_level).unwrap_or(0)
+    }
+
+    /// The set of stack indices on the active frame's caller chain (C's
+    /// `callerVarPtr` walk from `varFramePtr`). Each frame's caller is the topmost
+    /// frame *below* it at the level that was active when it was pushed
+    /// (`saved_active`) — so an `uplevel`-redirected call's chain skips the frame
+    /// it bypassed, even when that frame shares a level. Used by `info frame` to
+    /// decide whether to report a frame's `level`.
+    pub(crate) fn caller_chain_indices(&self) -> std::collections::HashSet<usize> {
+        let mut set = std::collections::HashSet::new();
+        let mut idx = self.current_frame_index();
+        loop {
+            if !set.insert(idx) || idx == 0 {
+                break;
+            }
+            let caller_level = self.frames[idx].saved_active;
+            match self.frames[..idx]
+                .iter()
+                .rposition(|f| f.level == caller_level)
+            {
+                Some(c) => idx = c,
+                None => break,
+            }
+        }
+        set
     }
 
     /// Redirect the active variable frame to `level` (for `uplevel`), returning

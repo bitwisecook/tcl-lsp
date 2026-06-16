@@ -112,6 +112,25 @@ fn is_ws(c: u8) -> bool {
     matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
 }
 
+/// Whether an index spec is *encodable* the way `TclIndexEncode` requires for
+/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (non-negative
+/// integer, or `end`/`end-N`), `Some(false)` for one that can never be in range
+/// (a negative integer, or `end+N`), and `None` for a syntactically bad spec.
+/// The check is length-independent: it classifies end-relativity by resolving
+/// the spec against two different lengths.
+fn index_encodable(spec: &[u8]) -> Option<bool> {
+    const BIG: usize = 1 << 20;
+    let r_big = index_spec(spec, BIG + 1)?; // None ⇒ syntactically bad
+    let r_small = index_spec(spec, 1)?;
+    if r_big != r_small {
+        // End-relative: encodable iff it lands at or before `end` (offset ≤ 0).
+        Some(r_big - BIG as isize <= 0)
+    } else {
+        // Absolute: encodable iff non-negative.
+        Some(r_big >= 0)
+    }
+}
+
 // -- commands --------------------------------------------------------------
 
 /// `list ?arg ...?` — a list of its arguments.
@@ -195,6 +214,14 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
+    // A `lappend` with values writes; reject a constant before the in-place
+    // update would bypass the store-time check (`lappend X` with no values is a
+    // pure read, so it is allowed).
+    if !values.is_empty() {
+        if let Some(c) = interp.const_write_check(&name) {
+            return c;
+        }
+    }
     // `lappend a(k) ...` must address the array element, not a scalar literally
     // named `a(k)` — split the array ref like `set`/`incr` do.
     let (base, elem) = crate::frame::split_array_ref(&name);
@@ -808,6 +835,21 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     Ok(p) => p,
                     Err(e) => return interp.set_error(e.message()),
                 };
+                // C validates each `-index` value's *scale* at parse time
+                // (`TclIndexEncode`): a syntactically-bad spec is `bad index`,
+                // an unencodable one (negative, or `end+N`) is `out of range`.
+                for spec in &index_path {
+                    match index_encodable(spec) {
+                        Some(true) => {}
+                        Some(false) => {
+                            let mut m = b"index \"".to_vec();
+                            m.extend_from_slice(spec);
+                            m.extend_from_slice(b"\" out of range");
+                            return interp.error_with_code(&m, b"TCL VALUE INDEX OUTOFRANGE");
+                        }
+                        None => return bad_index(interp, spec),
+                    }
+                }
                 i += 1;
             }
             other => {
@@ -818,6 +860,13 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         i += 1;
+    }
+    // `-subindices` only makes sense alongside `-index` (C's BAD_OPTION_MIX).
+    if subindices && index_path.is_empty() {
+        return interp.error_with_code(
+            b"-subindices cannot be used without -index option",
+            b"TCL OPERATION LSEARCH BAD_OPTION_MIX",
+        );
     }
     let elems = match list::list_elements(argv[n - 2]) {
         Ok(v) => v,
@@ -885,7 +934,7 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match crate::regex::Regex::compile(&pattern, flags) {
             Ok(r) => Some(r),
             Err(detail) => {
-                let mut m = b"couldn't compile regular expression pattern: ".to_vec();
+                let mut m = b"cannot compile regular expression pattern: ".to_vec();
                 m.extend_from_slice(&detail);
                 return interp.set_error(&m);
             }
@@ -1001,7 +1050,7 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 subindices,
                 group,
                 group_offset,
-                &index_path,
+                key_path,
                 listc,
             );
         }
@@ -1016,7 +1065,7 @@ fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         subindices,
         group,
         group_offset,
-        &index_path,
+        key_path,
         listc,
     )
 }
@@ -1032,17 +1081,31 @@ fn lsearch_result_one(
     subindices: bool,
     group: usize,
     group_offset: usize,
-    index_path: &[Vec<u8>],
-    _listc: usize,
+    key_path: &[Vec<u8>],
+    listc: usize,
 ) -> Code {
     if inline {
         if index < 0 {
             interp.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        let base = index as usize;
+        if subindices {
+            // The matched leaf at the resolved sub-path (drilled), or — when the
+            // stride consumed the only `-index` value — the in-group key element.
+            let leaf = if key_path.is_empty() {
+                elems[base + group_offset]
+            } else {
+                match select_by_index(interp, elems[base + group_offset], key_path) {
+                    Ok(o) => o,
+                    Err(c) => return c,
+                }
+            };
+            interp.set_result(leaf);
         } else if group > 1 {
-            let base = index as usize;
             set_list(interp, &elems[base..base + group]);
         } else {
-            interp.set_result(elems[index as usize]);
+            interp.set_result(elems[base]);
         }
         return Code::Ok;
     }
@@ -1051,21 +1114,29 @@ fn lsearch_result_one(
         return Code::Ok;
     }
     if subindices {
-        let mut out = vec![obj::new_wide_int_obj(
-            (index as usize + group_offset) as i64,
-        )];
-        for spec in index_path {
-            out.push(crate::interp::new_string(spec));
-        }
-        let r = list::new_list_obj(&out);
-        for &o in &out {
-            drop_fresh(o);
-        }
+        let r = subindex_obj(index as usize + group_offset, key_path, listc);
         interp.set_result(r);
     } else {
         set_int(interp, index as i64);
     }
     Code::Ok
+}
+
+/// Build a `-subindices` result element: the group base followed by each
+/// remaining `-index` value, decoded the way C's `lsearch` does — end-relative
+/// specs resolve against the top-level list count `listc` (`TclIndexDecode(…,
+/// listc)`), integers pass through.
+fn subindex_obj(base: usize, key_path: &[Vec<u8>], listc: usize) -> *mut TclObj {
+    let mut out = vec![obj::new_wide_int_obj(base as i64)];
+    for spec in key_path {
+        let v = index_spec(spec, listc + 1).unwrap_or(0);
+        out.push(obj::new_wide_int_obj(v as i64));
+    }
+    let r = list::new_list_obj(&out);
+    for &o in &out {
+        drop_fresh(o);
+    }
+    r
 }
 
 /// Build the result of `lsearch -all` (every match).
@@ -1078,27 +1149,37 @@ fn lsearch_result_all(
     subindices: bool,
     group: usize,
     group_offset: usize,
-    index_path: &[Vec<u8>],
-    _listc: usize,
+    key_path: &[Vec<u8>],
+    listc: usize,
 ) -> Code {
     let mut out: Vec<*mut TclObj> = Vec::new();
     let mut fresh: Vec<*mut TclObj> = Vec::new();
     for &base in matches {
         if inline {
-            if group > 1 {
+            if subindices {
+                // Matched leaf (drilled), or the in-group key element when the
+                // stride consumed the only `-index` value.
+                let leaf = if key_path.is_empty() {
+                    elems[base + group_offset]
+                } else {
+                    match select_by_index(interp, elems[base + group_offset], key_path) {
+                        Ok(o) => o,
+                        Err(c) => {
+                            for o in fresh {
+                                drop_fresh(o);
+                            }
+                            return c;
+                        }
+                    }
+                };
+                out.push(leaf);
+            } else if group > 1 {
                 out.extend_from_slice(&elems[base..base + group]);
             } else {
                 out.push(elems[base]);
             }
         } else if subindices {
-            let mut sub = vec![obj::new_wide_int_obj((base + group_offset) as i64)];
-            for spec in index_path {
-                sub.push(crate::interp::new_string(spec));
-            }
-            let s = list::new_list_obj(&sub);
-            for &o in &sub {
-                drop_fresh(o);
-            }
+            let s = subindex_obj(base + group_offset, key_path, listc);
             fresh.push(s);
             out.push(s);
         } else {

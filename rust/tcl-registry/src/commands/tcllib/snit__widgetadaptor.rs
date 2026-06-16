@@ -11,7 +11,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::CREATES_BARRIER
             | Traits::NEVER_INLINE_BODY
             | Traits::CREATES_DYNAMIC_BARRIER,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Define a snit widget adaptor that wraps an existing widget.",

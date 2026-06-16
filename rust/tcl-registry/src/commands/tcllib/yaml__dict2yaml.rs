@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yaml::dict2yaml",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Convert a Tcl dict to a YAML string.",

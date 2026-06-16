@@ -59,6 +59,10 @@ struct Namespace {
     /// namespace's holds the global variables; the variable resolver
     /// ([`crate::vars`]) routes qualified / global / namespace-eval names here.
     vars: VarTable,
+    /// `namespace unknown` handler (a command prefix). `None` ⇒ the namespace
+    /// uses the interpreter default (the global `::unknown`); an empty handler
+    /// also resets to the default.
+    unknown: Option<Vec<u8>>,
 }
 
 impl Namespace {
@@ -71,6 +75,7 @@ impl Namespace {
             path: Vec::new(),
             exports: Vec::new(),
             vars: VarTable::default(),
+            unknown: None,
         }
     }
 }
@@ -117,6 +122,23 @@ impl Namespaces {
     pub fn resolve(&self, current: NsId, name: &[u8]) -> Option<Command> {
         self.home_of(current, name)
             .map(|(ns, simple)| self.arena[ns].commands[&simple].clone())
+    }
+
+    /// Rebind an existing command in place at the namespace where it actually
+    /// resolves (the full resolution order, incl. `namespace path`) — the
+    /// `namespace ensemble configure` set form. Unlike [`bind`](Self::bind),
+    /// which always targets `current`, this updates the command `resolve` would
+    /// hit, so reconfiguring an ensemble reached via `namespace path` mutates the
+    /// real binding rather than shadowing it. Returns `false` if `name` does not
+    /// resolve (the caller has already verified it does).
+    pub fn rebind_resolved(&mut self, current: NsId, name: &[u8], command: Command) -> bool {
+        match self.home_of(current, name) {
+            Some((ns, simple)) => {
+                self.arena[ns].commands.insert(simple, command);
+                true
+            }
+            None => false,
+        }
     }
 
     /// The canonical fully-qualified name a (relative/absolute) command `name`
@@ -281,6 +303,16 @@ impl Namespaces {
             .collect()
     }
 
+    /// `const` scalar names in `ns` (`info consts`).
+    pub(crate) fn const_names(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .vars
+            .const_names()
+            .into_iter()
+            .map(<[u8]>::to_vec)
+            .collect()
+    }
+
     /// Sorted names of the commands in `ns` that are procs (`info procs`).
     #[must_use]
     pub(crate) fn proc_names(&self, ns: NsId) -> Vec<Vec<u8>> {
@@ -440,6 +472,56 @@ impl Namespaces {
         self.arena[ns].children.values().copied().collect()
     }
 
+    /// `ns`'s `namespace unknown` handler, if one is set (an empty/`None` handler
+    /// means "use the interpreter default `::unknown`").
+    #[must_use]
+    pub(crate) fn unknown_handler(&self, ns: NsId) -> Option<&[u8]> {
+        self.arena[ns].unknown.as_deref()
+    }
+
+    /// Set `ns`'s `namespace unknown` handler (an empty handler resets to default).
+    pub(crate) fn set_unknown_handler(&mut self, ns: NsId, handler: &[u8]) {
+        self.arena[ns].unknown = if handler.is_empty() {
+            None
+        } else {
+            Some(handler.to_vec())
+        };
+    }
+
+    /// Remove every ensemble command whose configured namespace is in `victims`,
+    /// returning each removed command's fully-qualified name. An ensemble command
+    /// is tied to its namespace, so deleting the namespace deletes the command —
+    /// even when the command itself lives elsewhere (e.g. `::ns` in the global
+    /// table for an ensemble created inside `ns`). Mirrors C's ensemble
+    /// namespace-deletion hook.
+    pub(crate) fn remove_ensembles_for(
+        &mut self,
+        victims: &std::collections::HashSet<NsId>,
+    ) -> Vec<Vec<u8>> {
+        // Collect first (immutable borrow), then unbind (mutable).
+        let mut hits: Vec<(NsId, Vec<u8>)> = Vec::new();
+        for (id, node) in self.arena.iter().enumerate() {
+            for (name, cmd) in &node.commands {
+                if let Command::Ensemble(cfg) = cmd {
+                    if victims.contains(&cfg.ns) {
+                        hits.push((id, name.clone()));
+                    }
+                }
+            }
+        }
+        let mut fqns = Vec::with_capacity(hits.len());
+        for (id, name) in hits {
+            self.arena[id].commands.remove(&name);
+            let mut fqn = self.qualified_name(id);
+            if fqn != b"::" {
+                fqn.extend_from_slice(b"::");
+            }
+            fqn.extend_from_slice(&name);
+            fqns.push(fqn);
+        }
+        fqns
+    }
+
     /// `namespace delete name` — delete the namespace `qualified` resolves to
     /// (relative to `current`), with its child namespaces, commands, and
     /// variables. Returns `false` if it does not exist. The arena slot is
@@ -457,11 +539,20 @@ impl Namespaces {
     /// Deleting the global namespace clears its contents but keeps the node
     /// (it has no parent to unlink from) — matching `namespace delete ::`.
     pub fn delete_namespace_by_id(&mut self, ns: NsId) {
+        let victims = self.descendant_ids(ns);
         self.delete_subtree(ns);
         // Unlink from the parent so the name no longer resolves.
         if let Some(parent) = self.arena[ns].parent {
             let name = std::mem::take(&mut self.arena[ns].name);
             self.arena[parent].children.remove(&name);
+        }
+        // Drop the deleted namespaces from every other namespace's `namespace
+        // path` — a dangling id would otherwise resolve to the global `::`
+        // (`TclResetNamespaceParameters` / path fixup in `tclNamesp.c`).
+        for node in &mut self.arena {
+            if !node.path.is_empty() {
+                node.path.retain(|p| !victims.contains(p));
+            }
         }
     }
 

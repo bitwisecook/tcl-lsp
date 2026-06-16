@@ -18,12 +18,24 @@
 pub mod apl;
 pub mod canonical;
 pub mod cleanup;
+pub mod convert;
+pub mod f5_trailer;
 pub mod graph;
+pub mod grep;
+pub mod irule_context;
 pub mod jsonfmt;
+pub mod lint;
 pub mod model;
 pub mod parser;
+pub mod pcap_enrich;
+pub mod pcap_remap;
+pub mod pcapng;
 pub mod range;
+pub mod redact;
+pub mod secrets;
 pub mod stats;
+pub mod tmsh_emit;
 pub mod value;
+pub mod wireshark_profile;
 
 pub use range::{Position, Range};

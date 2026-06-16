@@ -1,0 +1,3 @@
+# === __FIXTURES__/merge-ltm.conf ===
+/Common/web_pool
+/Common/web_pool

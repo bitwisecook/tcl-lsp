@@ -19,10 +19,26 @@ anyhow = "1"
 tcl-cli-support = { path = "../tcl-cli-support" }
 tcl-bigip = { path = "../tcl-bigip" }
 tcl-bigip-io = { path = "../tcl-bigip-io" }
+tcl-bigip-query = { path = "../tcl-bigip-query" }
+tcl-irules = { path = "../tcl-irules" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-registry = { path = "../tcl-registry" }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 regex = "1"
+# Remote verbs (`fetch` / `push` / `pull`): iControl REST over `ureq` + `rustls`,
+# Basic-auth encoding, and UTC fetch timestamps. All pure-Rust / unsafe-free and
+# already present in the workspace lockfile.
+ureq = "3"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rpassword = "7"
+# `encrypt-secrets` / `decrypt-secrets`: F5 master-key (`f5mku`) AES-ECB crypto.
+# The block transform comes from the audited pure-Rust `aes` crate (already in
+# the workspace lockfile for the encrypted-UCS path); `getrandom` seeds the
+# two-character secret salt.
+aes = "0.8"
+getrandom = "0.3"
 
 [lints]
 workspace = true

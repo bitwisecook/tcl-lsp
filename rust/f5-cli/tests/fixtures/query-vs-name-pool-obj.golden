@@ -1,0 +1,18 @@
+[
+  {
+    "name": "www_vs",
+    "pool": "/Common/web_pool"
+  },
+  {
+    "name": "api_vs",
+    "pool": "/Common/api_pool"
+  },
+  {
+    "name": "ssl_only_vs",
+    "pool": "/Common/web_pool"
+  },
+  {
+    "name": "bad_vs",
+    "pool": "/Common/nonexistent_pool"
+  }
+]

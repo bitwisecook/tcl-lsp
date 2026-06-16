@@ -173,7 +173,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Compile + codegen + generated assets
 .PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings gen-registry-baselines check-registry-baselines copy-canonical npm-env logo
 # Compiler explorer (WASM GUI)
-.PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
+.PHONY: explorer-wasm explorer-build explorer-build-cdn compiler-explorer-gui
 # Zipapps + smoke tests
 .PHONY: zipapps zipapp-tcl zipapp-explorer-cli zipapp-f5 zipapp-explorer-gui zipapp-explorer-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
 .PHONY: smoke-zipapps smoke-vsix
@@ -672,6 +672,12 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
 		cd $(ZED_DIR) && cargo fmt --all --check && \
 			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(EXPLORER_WASM_DIR) && cargo fmt --all --check && \
+			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
@@ -844,6 +850,10 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_RGXG=1 \
 			SKIP_TCLLIB=1 \
 			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+		echo "==> Ensuring wasm32-unknown-unknown target (compiler-explorer WASM)"; \
+		rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true; \
+		command -v wasm-pack >/dev/null 2>&1 || \
+			echo "    note: wasm-pack not found — 'cargo install wasm-pack' for 'make explorer-wasm'"; \
 	fi
 
 ensure-emacs-deps: ## Install Emacs needed by test-emacs
@@ -1104,6 +1114,16 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	@mkdir -p $(OUT_DIR)/chat/canonical
 	@cp $(CANONICAL_DIR)/* $(OUT_DIR)/chat/canonical/
 	@cp $(EXPLORER_STATIC)/explorer-core.js $(OUT_DIR)/explorer-core.js
+	@# Bundle the Rust → WASM explorer module so the webview compiles in-process
+	@# (no LSP roundtrip). Best-effort: built by `make explorer-wasm`; when it is
+	@# absent the webview degrades to host-brokered compilation.
+	@if [ -f $(EXPLORER_STATIC)/tcl_explorer_wasm.js ] && [ -f $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm ]; then \
+		cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(OUT_DIR)/tcl_explorer_wasm.js; \
+		cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(OUT_DIR)/tcl_explorer_wasm_bg.wasm; \
+		echo "==> Bundled tcl-explorer-wasm into $(OUT_DIR)"; \
+	else \
+		echo "==> tcl-explorer-wasm not built — webview will use host-brokered compile (run 'make explorer-wasm')"; \
+	fi
 
 # Python environment
 
@@ -1231,35 +1251,49 @@ $(MERMAID_JS):
 	@echo "==> Downloading Mermaid.js $(MERMAID_VERSION)"
 	curl -fSL -o $@ $(MERMAID_CDN)
 
-explorer-build: $(UV_STAMP) $(PYODIDE_DIR)/pyodide.js $(MERMAID_JS) $(BUILD_INFO_JSON) ## Build the WASM compiler explorer (offline)
-	@echo "==> Building wheel for Pyodide"
-	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_STATIC)
-	@echo "Built wheel:"
-	@ls -lh $(EXPLORER_STATIC)/tcl_lsp-*.whl
-	@echo "Pyodide: $(PYODIDE_DIR)"
+EXPLORER_WASM_DIR := $(ROOT)rust/tcl-explorer-wasm
+
+explorer-wasm: ## Build the Rust → WASM compiler-explorer module into static/
+	@command -v wasm-pack >/dev/null 2>&1 || { \
+		echo "wasm-pack not found — run 'make ensure-rust-deps' or 'cargo install wasm-pack'"; \
+		exit 1; }
+	@echo "==> Building tcl-explorer-wasm (wasm-pack --target no-modules)"
+	cd $(EXPLORER_WASM_DIR) && wasm-pack build --target no-modules --release \
+		--out-dir $(BUILD_DIR)/explorer-wasm --out-name tcl_explorer_wasm
+	@echo "==> Optimising with wasm-opt"
+	wasm-opt -O3 $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm_bg.wasm \
+		-o $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+	cp $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm.js
+	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+
+explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler explorer (Rust → WASM, offline, no Python)
+	@echo "==> Compiler explorer ready in $(EXPLORER_STATIC) (Rust → WASM, no Pyodide)"
 
 compiler-explorer-gui: explorer-build ## Build and serve the static compiler explorer
 	@echo "==> Serving compiler explorer at http://localhost:8080"
 	cd $(EXPLORER_STATIC) && $(PYTHON) -m http.server 8080
 
-# CDN variant — lightweight build that loads Pyodide + Mermaid from CDN
+# CDN variant — lightweight build that loads Mermaid from CDN (the Rust → WASM
+# compiler module has no CDN, so it is bundled alongside the worker).
 EXPLORER_CDN_DIR := $(BUILD_DIR)/explorer-cdn
-PYODIDE_CDN_BASE := https://cdn.jsdelivr.net/pyodide/v$(PYODIDE_VERSION)/full/
 MERMAID_CDN_URL  := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 
-explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (no Pyodide download)
+explorer-build-cdn: explorer-wasm $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (Mermaid from CDN, WASM bundled)
 	@echo "==> Building CDN explorer"
 	@rm -rf $(EXPLORER_CDN_DIR)
 	@mkdir -p $(EXPLORER_CDN_DIR)
 	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_CDN_DIR)
 	cp $(BUILD_INFO_JSON) $(EXPLORER_CDN_DIR)/
 	cp $(EXPLORER_STATIC)/explorer-core.js $(EXPLORER_CDN_DIR)/
+	@# The Rust → WASM compiler module has no CDN, so it is bundled in both
+	@# the local and CDN explorers (built by the explorer-wasm prerequisite).
+	cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(EXPLORER_CDN_DIR)/
+	cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(EXPLORER_CDN_DIR)/
 	sed 's|<script src="mermaid.min.js"></script>|<script src="$(MERMAID_CDN_URL)"></script>|' \
 		$(EXPLORER_STATIC)/index.html > $(EXPLORER_CDN_DIR)/index.html
-	sed -e 's|// All assets are local.*|// Pyodide loaded from CDN.|' \
-	    -e 's|const baseUrl = new URL.*|const baseUrl = new URL(".", self.location.href).href;|' \
-	    -e 's|const pyodideUrl = baseUrl + "pyodide/";|const pyodideUrl = "$(PYODIDE_CDN_BASE)";|' \
-		$(EXPLORER_STATIC)/worker.js > $(EXPLORER_CDN_DIR)/worker.js
+	@# worker.js loads the bundled WASM relative to itself; the CDN variant
+	@# only swaps Mermaid (in index.html), so the worker is copied verbatim.
+	cp $(EXPLORER_STATIC)/worker.js $(EXPLORER_CDN_DIR)/worker.js
 	@echo "CDN explorer built in $(EXPLORER_CDN_DIR)"
 	@ls -lh $(EXPLORER_CDN_DIR)/
 

@@ -126,6 +126,11 @@ pub(crate) struct CallMeta<'a> {
     /// constructor (the `create`/`new` invocation, e.g. `oo::object create foo`)
     /// so `info level 0` reflects the instantiation, not `<constructor>`.
     pub level_words: Option<Vec<Vec<u8>>>,
+    /// List-quote the command name in a `wrong # args` message (Bug 942757) — a
+    /// genuine single-word proc name (`a b  c` → `{a b  c}`, `` → `{}`). Off for
+    /// `apply`/TclOO whose `usage_called`/`usage_prefix` is a pre-joined
+    /// multi-word string (`apply lambdaExpr`, `obj method`) that must stay raw.
+    pub quote_name: bool,
 }
 
 /// One entry of the source-location stack (`cmdFramePtr`; PC-5) — the runtime
@@ -153,6 +158,12 @@ struct CmdFrame {
     /// current var-scope chain, which is the `uplevel` case (its body runs in a
     /// redirected scope).
     omit_level: bool,
+    /// The **stack index** (identity, not logical level) of the CallFrame this
+    /// cmd-frame runs in — C's `framePtr->framePtr`. `level` alone can't identify
+    /// the frame (an `uplevel`-invoked proc shares its caller's level), so the
+    /// `info frame` `level` reachability test (TclInfoFrame) walks the caller
+    /// chain by this index. `0` is the global frame.
+    frame_index: usize,
     /// Added to a body-relative line to get the reported `line`. `0` for
     /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
     /// for a proc defined in a `source`d file it is the file line where the body
@@ -167,6 +178,23 @@ struct CmdFrame {
     /// body, where C reports `method`/`class`|`object` instead of `proc`.
     /// `method-name` is empty for a constructor/destructor.
     oo: Option<(Vec<u8>, Vec<u8>, Vec<u8>)>,
+    /// The lambda expression for an `apply` body's `info frame` (`lambda <expr>`
+    /// in place of `proc`, C's `TclInfoFrame`). `None` for a normal proc/method.
+    lambda: Option<Vec<u8>>,
+}
+
+/// A TIP 280 literal-argument location: `(objPtr, file, line)` (C's `lineLABCPtr`
+/// entry) — see [`Interp::arg_locs`].
+type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
+
+/// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
+enum EnsembleUnknown {
+    /// A non-empty result: the replacement command prefix to dispatch.
+    Prefix(Vec<Vec<u8>>),
+    /// An empty result: the handler defined the subcommand — reparse the call.
+    Reparse,
+    /// The handler errored (or returned a bad code); `Code` carries the failure.
+    Failed(Code),
 }
 
 /// A `CmdFrame`'s location type (`info frame`'s `type` key).
@@ -199,10 +227,12 @@ impl CmdFrame {
             proc: None,
             level: 0,
             omit_level: false,
+            frame_index: 0,
             line_base: 0,
             cmd: Vec::new(),
             line: 1,
             oo: None,
+            lambda: None,
         }
     }
 }
@@ -231,6 +261,27 @@ fn line_of(src: &[u8], offset: usize) -> u32 {
 /// Count the newlines in `s` (the line delta between two source offsets).
 fn count_newlines(s: &[u8]) -> u32 {
     s.iter().filter(|&&b| b == b'\n').count() as u32
+}
+
+/// For each element of the list literal `src`, its `(newlines-before-the-element,
+/// is-literal)` — the offset-aware complement to `split_list`, used to line-track
+/// `{*}`-expanded literal elements (C's `TclListLines`). Returns `None` for a
+/// non-UTF-8 / malformed list (the caller then falls back to body-relative).
+fn scan_list_offsets(src: &[u8]) -> Option<Vec<(u32, bool)>> {
+    let s = core::str::from_utf8(src).ok()?;
+    let mut out = Vec::new();
+    let mut pos = 0;
+    loop {
+        match tcl_syntax::list::find_element(s, pos) {
+            Ok(Some(e)) => {
+                out.push((count_newlines(&src[..e.value.start]), e.literal));
+                pos = e.next;
+            }
+            Ok(None) => break,
+            Err(_) => return None,
+        }
+    }
+    Some(out)
 }
 
 /// The error stack-trace accumulator — the runtime's analogue of `iPtr`'s
@@ -497,6 +548,15 @@ pub struct InterpState {
     /// reports file-relative `info frame` lines). Set per command just before
     /// dispatch; consumers must read it before re-entering the eval loop.
     arg_lines: RefCell<Vec<u32>>,
+    /// TIP 280 literal-argument locations (C's `lineLABCPtr`): a stack of
+    /// `(objPtr, file, line)` for each literal word of every command executing in
+    /// a *sourced* context. When such a literal is later evaluated as a script
+    /// (`eval`/`uplevel $bodyVar`), the eval reports `type source` at the
+    /// literal's original file+line instead of `type eval` — the test-body case
+    /// (tcltest's `uplevel 1 $script`). Entries are pushed before a command
+    /// dispatches and truncated after it returns (dynamic scope), so the obj
+    /// pointers stay valid for the lookup.
+    arg_locs: RefCell<Vec<ArgLoc>>,
     /// `eval_str` nesting depth. The outermost eval (depth returning to 0)
     /// publishes the accumulated error trace to the `::errorInfo`/`::errorCode`
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
@@ -523,6 +583,10 @@ pub struct InterpState {
     /// wrote it. `removed` is how many leading words of `source` map to the
     /// rewritten prefix. Set at the root dispatch, cleared when it returns.
     ensemble_rewrite: RefCell<Option<EnsembleRewrite>>,
+    /// The `expr rand()`/`srand()` PRNG seed (C's `iPtr->randSeed`); `None`
+    /// until first seeded (lazily from a nondeterministic source on first
+    /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
+    rand_seed: Cell<Option<i64>>,
     result: Cell<*mut TclObj>,
 }
 
@@ -567,6 +631,7 @@ impl Interp {
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
             arg_lines: RefCell::new(Vec::new()),
+            arg_locs: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
             cmd_count: Cell::new(0),
             bgerror: RefCell::new(Vec::new()),
@@ -574,6 +639,7 @@ impl Interp {
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
+            rand_seed: Cell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -735,7 +801,8 @@ impl Interp {
     /// namespace (where its body runs, and where it is bound) is the namespace
     /// `name` lands in — **relative to the current namespace** (so `proc next`
     /// inside `namespace eval counter` binds `::counter::next`, not a global).
-    pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body: Vec<u8>) {
+    pub(crate) fn define_proc(&mut self, name: &[u8], params: Vec<Param>, body_obj: *mut TclObj) {
+        let body = obj_bytes(body_obj);
         let ns = self
             .namespaces
             .borrow_mut()
@@ -753,20 +820,17 @@ impl Interp {
             fqn.extend_from_slice(b"::");
         }
         fqn.extend_from_slice(&tail);
-        // A proc defined while a file is being sourced records that file, so its
-        // body frame reports `type source`. Its body lines are then file-absolute
-        // (C's literal line table): the base is the file line of the `proc`
-        // command minus one (the body opens on that line). Eval-defined procs
-        // keep body-relative lines (base 0).
-        let source = self
-            .script_stack
-            .borrow()
-            .last()
-            .map(|f| Rc::from(f.as_slice()));
-        let body_line_base = if source.is_some() {
-            self.current_cmd_line().saturating_sub(1)
-        } else {
-            0
+        // The proc's body frame reports `type source` with file-absolute lines
+        // when its body argument is a located literal (TIP 280 LABC) — the body
+        // word, not the `proc` command, carries the location, so a `proc` whose
+        // body opens on a later line than the command is still file-accurate, and
+        // a *dynamic* body (`proc p {} $bodyVar`, or a body from a dynamically
+        // built list) has no location and stays body-relative (`type proc`),
+        // matching C's literal line table rather than a whole-file "am I
+        // sourcing" flag.
+        let (source, body_line_base) = match self.arg_loc(body_obj) {
+            Some((file @ Some(_), line)) => (file, line.saturating_sub(1)),
+            _ => (None, 0),
         };
         let def = Rc::new(ProcDef {
             params,
@@ -839,6 +903,41 @@ impl Interp {
                 .resolve(self.current_ns.get(), name),
             Some(Command::Ensemble(_))
         )
+    }
+
+    /// The configuration of the ensemble command `name` resolves to, or `None`
+    /// if `name` is not an ensemble (`namespace ensemble configure`/cget).
+    pub(crate) fn ensemble_config(&self, name: &[u8]) -> Option<crate::ensemble::EnsembleConfig> {
+        match self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)
+        {
+            Some(Command::Ensemble(cfg)) => Some(cfg),
+            _ => None,
+        }
+    }
+
+    /// Rebind the ensemble command `name` with an updated configuration
+    /// (`namespace ensemble configure` set form). `name` already resolves to an
+    /// ensemble (the caller read it via [`ensemble_config`](Self::ensemble_config)),
+    /// so the update lands at the namespace where it *resolves* — which may be
+    /// reached via `namespace path`, not the current namespace — rather than
+    /// creating a shadowing copy in the current namespace.
+    pub(crate) fn set_ensemble_config(
+        &mut self,
+        name: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) {
+        if !self.namespaces.borrow_mut().rebind_resolved(
+            self.current_ns.get(),
+            name,
+            Command::Ensemble(cfg.clone()),
+        ) {
+            // Should not happen (the caller verified it resolves); create at the
+            // current-namespace location as a fallback.
+            self.create_ensemble(name, cfg);
+        }
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
@@ -1008,6 +1107,17 @@ impl Interp {
             .unwrap_or_default()
     }
 
+    /// `info script filename` — set the current script name (C's
+    /// `iPtr->scriptFile`), replacing the innermost entry (or seeding one at the
+    /// top level).
+    pub(crate) fn set_current_script(&self, name: &[u8]) {
+        let mut s = self.script_stack.borrow_mut();
+        match s.last_mut() {
+            Some(last) => *last = name.to_vec(),
+            None => s.push(name.to_vec()),
+        }
+    }
+
     /// The file currently being sourced, as a shared handle (`None` at the top
     /// level) — for stamping a definition/method body's source provenance.
     pub(crate) fn current_source_file(&self) -> Option<Rc<[u8]>> {
@@ -1066,6 +1176,32 @@ impl Interp {
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
+        self.ns_eval_framed(name, body, None)
+    }
+
+    /// `namespace eval` of a single body **object** — like
+    /// [`ns_eval`](Self::ns_eval), but a literal obj with a recorded TIP 280
+    /// source location runs as `type source` at its file+line (so a `proc`/
+    /// command defined inside `namespace eval { … }` reports file-absolute
+    /// `info frame` lines), rather than the dynamic `type eval`.
+    pub(crate) fn ns_eval_obj(&mut self, name: &[u8], obj: *mut TclObj) -> Code {
+        let loc = self.arg_loc(obj);
+        let bytes = obj_bytes(obj);
+        self.ns_eval_framed(name, &bytes, loc)
+    }
+
+    /// Shared `namespace eval` core: enter `name`, push a namespace var-scope
+    /// frame *and* a `CmdFrame` for the body (C's `namespace eval` is its own
+    /// `info frame` level — depth and `info level` both advance — with `proc`
+    /// cleared and `level` reported relative to the new scope). `loc` is the
+    /// body's TIP 280 location when it is a located literal (`type source`),
+    /// else `None` (`type eval`).
+    fn ns_eval_framed(
+        &mut self,
+        name: &[u8],
+        body: &[u8],
+        loc: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Code {
         let target = self
             .namespaces
             .borrow_mut()
@@ -1077,7 +1213,28 @@ impl Interp {
         // including when nested in a proc — target the namespace, not the
         // enclosing proc's locals).
         self.frames.borrow_mut().push_namespace(target);
-        let code = self.eval_str(body);
+        let (kind, file, line_base) = match loc {
+            Some((file, line)) => (FrameKind::Source, file, line.saturating_sub(1)),
+            None => (FrameKind::Eval, None, 0),
+        };
+        let (ns_level, ns_index) = {
+            let f = self.frames.borrow();
+            (f.current_level(), f.current_frame_index())
+        };
+        let frame = CmdFrame {
+            kind,
+            file,
+            proc: None,
+            level: ns_level,
+            omit_level: false,
+            frame_index: ns_index,
+            line_base,
+            cmd: Vec::new(),
+            line: 1,
+            oo: None,
+            lambda: None,
+        };
+        let code = self.eval_framed(body, frame);
         self.frames.borrow_mut().pop();
         self.current_ns.set(saved);
         code
@@ -1158,6 +1315,80 @@ impl Interp {
             return Err(VarError::TraceError);
         }
         Ok(())
+    }
+
+    /// Flag the scalar `name` `const` (the `const` command, after its value is
+    /// stored and its write traces have fired).
+    pub(crate) fn mark_constant(&self, name: &[u8]) {
+        crate::vars::mark_constant(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        );
+    }
+
+    /// `Some(error)` — `can't set "name": variable is a constant` — when the
+    /// (possibly `arr(idx)`) `name` targets a `const` scalar; `None` otherwise.
+    /// The read-modify-write commands (`lappend`/`dict set`/`regsub`/`gets`)
+    /// call this before mutating, since their in-place value update would
+    /// otherwise bypass the store-time constant check.
+    pub(crate) fn const_write_check(&mut self, name: &[u8]) -> Option<Code> {
+        let (base, elem) = crate::frame::split_array_ref(name);
+        if elem.is_none() && self.is_constant(&base) {
+            let mut m = b"can't set \"".to_vec();
+            m.extend_from_slice(name);
+            m.extend_from_slice(b"\": variable is a constant");
+            return Some(self.set_error(&m));
+        }
+        None
+    }
+
+    /// Whether `name` resolves to a `const` scalar.
+    pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
+        crate::vars::is_constant(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
+    /// `array default set arrayName value` — set the array's TIP 508 default
+    /// (creating an empty array if needed). `Err` if the name is a scalar / its
+    /// namespace is missing.
+    pub(crate) fn set_array_default(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        crate::vars::set_array_default(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+            obj,
+        )
+    }
+
+    /// The array's TIP 508 default value (borrowed), or `None`.
+    pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::array_default(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
+    /// `array default unset arrayName` — drop the array's default value.
+    pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+        crate::vars::unset_array_default(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        );
     }
 
     /// The call-frame level a variable trace on `base` should be tied to, so it
@@ -1619,8 +1850,107 @@ impl Interp {
         // still exists, then the namespace is torn down, then the callbacks run
         // — so a callback sees the namespace already gone (C's order; oo-11.8).
         let victims = self.take_ns_unset_traces(ns);
+        // The commands in the namespace tree are deleted too: collect+remove
+        // their command traces (firing the `delete` ones afterwards). Without
+        // this, a delete-trace on `::ns::cmd` would *linger* after `ns` is gone
+        // and mis-fire when a same-named command is later created (the stale
+        // `::x → namespace delete ::` chain that wiped the global namespace).
+        let cmd_victims = self.take_ns_cmd_traces(ns);
+        // Ensemble commands are tied to their namespace: delete those whose
+        // configured namespace is in the subtree (even if the command itself
+        // lives elsewhere, e.g. a default `::ns` ensemble in the global table).
+        {
+            let ids: std::collections::HashSet<NsId> = self
+                .namespaces
+                .borrow()
+                .descendant_ids(ns)
+                .into_iter()
+                .collect();
+            let removed = self.namespaces.borrow_mut().remove_ensembles_for(&ids);
+            for fqn in removed {
+                self.on_command_replaced(&fqn);
+            }
+        }
         self.namespaces.borrow_mut().delete_namespace_by_id(ns);
         self.fire_unset_callbacks(victims);
+        self.fire_deleted_cmd_callbacks(cmd_victims);
+    }
+
+    /// Remove and return the `(fqn, command)` of every command trace on a command
+    /// in `ns` or a descendant (so the command's deletion via namespace teardown
+    /// drops its traces, as C does). Only `delete`-op traces are returned for
+    /// firing; `rename`-only traces are removed silently (a deletion isn't a
+    /// rename).
+    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+        if self.traces.borrow().cmd_traces.is_empty() {
+            return Vec::new();
+        }
+        // The fully-qualified prefixes (`::a::b::`) of the namespace and every
+        // descendant; a command trace's name is `<homeQual>::<simple>`, so it
+        // belongs to the tree iff its qualifier prefix is one of these.
+        let quals: std::collections::HashSet<Vec<u8>> = {
+            let ns_ref = self.namespaces.borrow();
+            ns_ref
+                .descendant_ids(ns)
+                .into_iter()
+                .map(|i| {
+                    let mut q = ns_ref.qualified_name(i);
+                    if q != b"::" {
+                        q.extend_from_slice(b"::");
+                    }
+                    q
+                })
+                .collect()
+        };
+        let mut victims = Vec::new();
+        let mut traces = self.traces.borrow_mut();
+        traces.cmd_traces.retain(|t| {
+            // The command's home-namespace prefix: everything up to and
+            // including the last `::` (global commands are `::cmd` → `::`).
+            let qual: &[u8] = match t.name.windows(2).rposition(|w| w == b"::") {
+                Some(0) => b"::",
+                Some(i) => &t.name[..i + 2],
+                None => b"",
+            };
+            if quals.contains(qual) {
+                if (t.ops & crate::cmd_trace::ops::DELETE) != 0 {
+                    victims.push((t.name.clone(), t.command.clone()));
+                }
+                false // drop every trace on a command that is going away
+            } else {
+                true
+            }
+        });
+        victims
+    }
+
+    /// Fire collected command `delete`-trace callbacks as `command oldName {}
+    /// delete` after the namespace has been torn down (errors ignored — a delete
+    /// trace's result is discarded, matching C).
+    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+        if victims.is_empty() || self.traces.borrow().exec_firing > 0 {
+            return;
+        }
+        let saved = self.result.get();
+        unsafe { obj::incr_ref_count(saved) };
+        self.traces.borrow_mut().exec_firing += 1;
+        for (name, cmd) in victims {
+            let args = crate::list::new_list_obj(&[
+                new_string(&name),
+                new_string(b""),
+                new_string(b"delete"),
+            ]);
+            let mut line = cmd;
+            line.push(b' ');
+            line.extend_from_slice(&obj_bytes(args));
+            drop_fresh(args);
+            let _ = self.eval_str(&line);
+        }
+        self.traces.borrow_mut().exec_firing -= 1;
+        unsafe {
+            obj::decr_ref_count(self.result.get());
+            self.result.set(saved);
+        }
     }
 
     /// Remove and return the `(fullName, command)` of every *unset* variable
@@ -1766,6 +2096,35 @@ impl Interp {
         self.frames.borrow().local_names_no_links()
     }
 
+    /// `info consts` — the `const` scalar names visible in the current scope.
+    /// Filters the visible variables by constness (following links), so an OO
+    /// instance variable linked to a `const` namespace variable is included.
+    pub(crate) fn visible_const_names(&self) -> Vec<Vec<u8>> {
+        self.visible_var_names()
+            .into_iter()
+            .filter(|n| self.is_constant(n))
+            .collect()
+    }
+
+    /// `info consts ns::pat` — the `const` scalar names in the namespace named
+    /// `qualifier` (absolute or relative to the current namespace).
+    pub(crate) fn consts_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.const_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// `info globals` — the global namespace's variable names.
     pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
         self.namespaces.borrow().var_names(GLOBAL)
@@ -1788,6 +2147,26 @@ impl Interp {
     /// Simple command names in the namespace named `qualifier` (absolute or
     /// relative to the current namespace), or empty if it does not exist — for
     /// a namespace-qualified `info commands ::ns::pattern`.
+    /// The canonical fully-qualified prefix (ending in `::`) of the namespace a
+    /// pattern qualifier addresses (`info commands ns::pat`): `::` for the global
+    /// namespace, `::a::b::` otherwise. Resolves a *relative* qualifier against
+    /// the current namespace, so `info commands` results are always absolute
+    /// (matching C, where names are re-qualified through the namespace's
+    /// `fullName`). `None` if the namespace doesn't exist.
+    pub(crate) fn canonical_ns_prefix(&self, qualifier: &[u8]) -> Option<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let id = if qualifier.is_empty() {
+            GLOBAL
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)?
+        };
+        let mut p = ns.qualified_name(id);
+        if id != GLOBAL {
+            p.extend_from_slice(b"::"); // global's qualified_name is already `::`
+        }
+        Some(p)
+    }
+
     pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
         // An empty qualifier (a leading `::pattern`) addresses the global ns.
@@ -1825,6 +2204,26 @@ impl Interp {
         }
     }
 
+    /// Variable names in the namespace named `qualifier` (`info vars
+    /// ::ns::pattern`), or empty if it does not exist. An empty qualifier (a
+    /// leading `::pattern`) addresses the global namespace.
+    pub(crate) fn vars_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.var_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// Proc names visible from the current namespace (`info procs`).
     pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
@@ -1840,14 +2239,18 @@ impl Interp {
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
     pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
-        match self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)
-        {
-            Some(Command::Proc(def)) => Some(def),
-            _ => None,
+        let ns = self.namespaces.borrow();
+        let mut cmd = ns.resolve(self.current_ns.get(), name)?;
+        // Follow `namespace import` redirects to the underlying proc, so
+        // `info args`/`body`/`default` work on an imported proc (info-1.7/2.4).
+        for _ in 0..64 {
+            match cmd {
+                Command::Proc(def) => return Some(def),
+                Command::Imported { source } => cmd = ns.resolve(GLOBAL, &source)?,
+                _ => return None,
+            }
         }
+        None
     }
 
     /// `upvar` — link `local` in the current frame to the resolved `target`.
@@ -1858,6 +2261,18 @@ impl Interp {
             self.current_ns.get(),
             target,
             local,
+        );
+    }
+
+    /// `upvar … target ns::tail` — install the link as namespace variable
+    /// `home_ns::tail` (a qualified local name).
+    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {
+        crate::vars::make_upvar_in(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            home_ns,
+            tail,
+            target,
         );
     }
 
@@ -2248,6 +2663,26 @@ impl Interp {
         self.exc.borrow_mut().already_logged = false;
     }
 
+    /// Append `"\n    (parsing lambda expression \"<name>\")"` to errorInfo — the
+    /// `apply` lambda-parse failure frame (C's `Tcl_AppendObjToErrorInfo` in
+    /// `Tcl_ApplyObjCmd`). Unlike [`append_frame_line`](Self::append_frame_line)
+    /// it carries no `line N` suffix. Clears `already_logged` so the enclosing
+    /// `apply` command still logs its own `invoked from within` frame.
+    pub(crate) fn append_lambda_parse_frame(&mut self, name: &[u8]) {
+        if self.exc.borrow().info.is_none() {
+            let msg = self.result_bytes();
+            self.exc.borrow_mut().info = Some(msg);
+        }
+        {
+            let mut exc = self.exc.borrow_mut();
+            let buf = exc.info.as_mut().expect("seeded above");
+            buf.extend_from_slice(b"\n    (parsing lambda expression \"");
+            buf.extend_from_slice(name);
+            buf.extend_from_slice(b"\")");
+        }
+        self.exc.borrow_mut().already_logged = false;
+    }
+
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
         let line = self.exc.borrow().line;
         if self.exc.borrow().info.is_none() {
@@ -2296,21 +2731,32 @@ impl Interp {
             pairs.push((b"file".to_vec(), file.to_vec()));
         }
         pairs.push((b"cmd".to_vec(), f.cmd.clone()));
-        // A TclOO method frame reports `method`/`class`|`object` (the declarer)
-        // in place of `proc` (C's `TclInfoFrame`).
+        // A TclOO method frame reports `method`/`class`|`object` (the declarer),
+        // and an `apply` lambda reports `lambda <expr>`, in place of `proc`
+        // (C's `TclInfoFrame`).
         if let Some((method, kind, owner)) = &f.oo {
             if !method.is_empty() {
                 pairs.push((b"method".to_vec(), method.clone()));
             }
             pairs.push((kind.clone(), owner.clone()));
+        } else if let Some(l) = &f.lambda {
+            pairs.push((b"lambda".to_vec(), l.clone()));
         } else if let Some(p) = &f.proc {
             pairs.push((b"proc".to_vec(), p.clone()));
         }
-        // `level` is the distance from the current call level (omitted for a
-        // redirected `uplevel` scope, matching C's reachability check).
+        // `level` is the distance from the current call level — but C only adds
+        // it when the frame's CallFrame is *reachable* from the current var frame
+        // by walking the caller chain (`TclInfoFrame`). A frame bypassed by an
+        // `uplevel` redirection (e.g. the proc that called `uplevel`, when viewed
+        // from the uplevel'd callee) is off the chain and omits `level`, even
+        // though it shares a level with a chain frame. `omit_level` short-circuits
+        // the explicit `uplevel`-body case (C's `framePtr->framePtr == NULL`).
         if !f.omit_level {
-            let level = self.frames.borrow().current_level().saturating_sub(f.level);
-            pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+            let frames = self.frames.borrow();
+            if frames.caller_chain_indices().contains(&f.frame_index) {
+                let level = frames.current_level().saturating_sub(f.level);
+                pairs.push((b"level".to_vec(), level.to_string().into_bytes()));
+            }
         }
         Some(pairs)
     }
@@ -2389,8 +2835,24 @@ impl Interp {
     /// it (so `info frame` sees the live command/line); an unframed call (`None`,
     /// i.e. command substitution) leaves the enclosing frame untouched.
     fn eval_script(&mut self, src: &[u8], owned: Option<CmdFrame>) -> Code {
+        self.eval_script_mode(src, owned, false)
+    }
+
+    /// [`eval_script`](Self::eval_script) with an explicit `advance_shared` mode:
+    /// when `owned` is `None` but `advance_shared` is set, the enclosing frame is
+    /// shared (not pushed — no new level) yet its `line`/`cmd` still advance with
+    /// each command. This is the command-substitution case (see
+    /// [`eval_command_subst`](Self::eval_command_subst)); the caller sets up and
+    /// restores the shared frame's `line_base`.
+    fn eval_script_mode(
+        &mut self,
+        src: &[u8],
+        owned: Option<CmdFrame>,
+        advance_shared: bool,
+    ) -> Code {
         self.eval_depth.set(self.eval_depth.get() + 1);
-        let owns_frame = owned.is_some();
+        let pushed = owned.is_some();
+        let owns_frame = pushed || advance_shared;
         if let Some(f) = owned {
             self.cmd_frames.borrow_mut().push(f);
         }
@@ -2410,7 +2872,7 @@ impl Interp {
                 break; // error/return/break/continue propagate up
             }
         }
-        if owns_frame {
+        if pushed {
             self.cmd_frames.borrow_mut().pop();
         }
         self.eval_depth.set(self.eval_depth.get() - 1);
@@ -2445,20 +2907,317 @@ impl Interp {
             file: top.and_then(|f| f.file.clone()),
             proc: top.and_then(|f| f.proc.clone()),
             level: top.map_or(0, |f| f.level),
-            omit_level: false,
+            // Inherit the enclosing frame's level-reachability (an inline body
+            // of an `uplevel`-redirected script also omits `level`).
+            omit_level: top.is_some_and(|f| f.omit_level),
+            // An `eval`/body frame runs in the enclosing call frame — inherit its
+            // identity so the `info frame` `level` reachability test sees it as
+            // the same CallFrame.
+            frame_index: top.map_or(0, |f| f.frame_index),
             line_base,
             cmd: Vec::new(),
             line: 1,
             oo: top.and_then(|f| f.oo.clone()),
+            lambda: top.and_then(|f| f.lambda.clone()),
         }
     }
 
-    /// Evaluate an `eval`/`uplevel` body as its own `info frame` level (it
-    /// inherits the enclosing proc/level). The errorInfo `("eval" body line N)`
+    /// Evaluate an inline **control-command body** (`if`/`while`/`for`/`foreach`/
+    /// …). A body that is a located literal (TIP 280) runs as its own
+    /// line-advancing source frame at the body's file line, so `info frame`
+    /// reports the executing command's true line; a pure list dispatches by
+    /// element identity; a dynamic body (a script in a variable) runs as its own
+    /// `type eval` level with body-relative lines (C's `TclEvalObjEx` always
+    /// pushes a cmdframe — `info frame` reports `line 3` for the body's 3rd line,
+    /// not the enclosing command's line).
+    pub(crate) fn eval_control_body(&mut self, body: *mut TclObj) -> Code {
+        if crate::list::is_pure_list(body) {
+            let frame = self.unlocated_frame();
+            return self.dispatch_list_obj(body, frame);
+        }
+        if let Some((file, line)) = self.arg_loc(body) {
+            // Inside a proc the enclosing command (`while`/`for`/`if`/`foreach`/
+            // `try`) is compiled inline, so its literal body runs in the **same**
+            // `info frame` level — no new frame, the shared frame's line just
+            // advances to each body command (C's bytecode inlining). At the top
+            // level (uncompiled command form) the body is evaluated as its own
+            // frame (`TclEvalObjEx`), matching tclsh's `info frame` depth.
+            if self.in_proc() {
+                return self.eval_shared_located_body(body, line);
+            }
+            let mut frame = self.inherited_cmd_frame();
+            frame.kind = FrameKind::Source;
+            frame.file = file;
+            frame.line_base = line.saturating_sub(1);
+            let bytes = obj_bytes(body);
+            return self.eval_framed(&bytes, frame);
+        }
+        self.eval_unlocated_body(&obj_bytes(body))
+    }
+
+    /// Evaluate a located-literal control body that is **inlined** into the
+    /// enclosing frame (the in-proc case of [`eval_control_body`]). The enclosing
+    /// frame is shared (no new `info frame` level); its `line_base` is shifted so
+    /// the body's commands report their own file-absolute lines, then restored.
+    /// The body literal lives in the same source as the enclosing frame, so the
+    /// frame's `kind`/`file` already match — only the line mapping changes.
+    fn eval_shared_located_body(&mut self, body: *mut TclObj, line: u32) -> Code {
+        let saved = {
+            let mut frames = self.cmd_frames.borrow_mut();
+            frames.last_mut().map(|top| {
+                let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                top.line_base = line.saturating_sub(1);
+                saved
+            })
+        };
+        let Some((line_base, line, cmd)) = saved else {
+            // No enclosing frame to share (shouldn't happen under `in_proc`) —
+            // fall back to a body-relative eval rather than panic.
+            return self.eval_unlocated_body(&obj_bytes(body));
+        };
+        let bytes = obj_bytes(body);
+        let code = self.eval_script_mode(&bytes, None, true);
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            top.line_base = line_base;
+            top.line = line;
+            top.cmd = cmd;
+        }
+        code
+    }
+
+    /// The TIP 280 source location recorded for `obj` (the literal-argument
+    /// location table), or `None` for a dynamic value. Lets a command that
+    /// re-splits a literal (e.g. `switch`'s single-list-arg form) recover the
+    /// enclosing file + the list word's line, to derive its sub-bodies' lines.
+    pub(crate) fn arg_location(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
+        self.arg_loc(obj)
+    }
+
+    /// Point the current shared frame's `line_base` at `line` (a condition word's
+    /// source line) so command substitutions inside an `if`/`while`/`for`
+    /// expression report their file-absolute line (TIP 280). Returns the previous
+    /// `line_base` to hand back to [`restore_line_base`](Self::restore_line_base).
+    pub(crate) fn push_cond_line_base(&self, line: u32) -> Option<u32> {
+        self.cmd_frames.borrow_mut().last_mut().map(|top| {
+            let old = top.line_base;
+            top.line_base = line.saturating_sub(1);
+            old
+        })
+    }
+
+    /// Restore a `line_base` saved by [`push_cond_line_base`](Self::push_cond_line_base).
+    pub(crate) fn restore_line_base(&self, old: u32) {
+        if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+            top.line_base = old;
+        }
+    }
+
+    /// The `(file, line)` of list element `index` within the literal `obj` — for
+    /// a body that is a sub-element of a located list literal (an `apply` lambda's
+    /// body, C's `TclListLines`). The element's line is the list word's line plus
+    /// the newlines preceding the element. `None` when `obj` is a dynamic value
+    /// or lacks a file (then the body is body-relative).
+    pub(crate) fn list_element_location(
+        &self,
+        obj: *mut TclObj,
+        index: usize,
+    ) -> Option<(Rc<[u8]>, u32)> {
+        let (Some(file), line) = self.arg_loc(obj)? else {
+            return None;
+        };
+        let nl = scan_list_offsets(&obj_bytes(obj))?.get(index)?.0;
+        Some((file, line + nl))
+    }
+
+    /// Evaluate a body whose file-absolute first `line` and `file` were computed
+    /// by the caller (C's `switch`/list-element TIP 280 path, where the body is a
+    /// sub-element of a list literal, so it has no `Tcl_Obj` of its own to carry
+    /// a location). Runs as a line-advancing `type source` frame.
+    pub(crate) fn eval_located_body(
+        &mut self,
+        file: Option<Rc<[u8]>>,
+        line: u32,
+        body: &[u8],
+    ) -> Code {
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Source;
+        frame.file = file;
+        frame.line_base = line.saturating_sub(1);
+        self.eval_framed(body, frame)
+    }
+
+    /// A `type eval`, no-file, body-relative `CmdFrame` (inheriting the enclosing
+    /// proc/level) — the frame for a body with no source location (a dynamic
+    /// script, or a canonical-list body).
+    fn unlocated_frame(&self) -> CmdFrame {
+        let mut frame = self.inherited_cmd_frame();
+        frame.kind = FrameKind::Eval;
+        frame.file = None;
+        frame.line_base = 0;
+        frame
+    }
+
+    /// Evaluate a body whose source location is unknown (C's switch `line = -1`
+    /// case: a dynamically-built list body). It runs as `type eval` with **no
+    /// file**, so a command defined inside (e.g. `proc`) is body-relative
+    /// (`type proc`, line 1) rather than inheriting the enclosing file's lines.
+    pub(crate) fn eval_unlocated_body(&mut self, body: &[u8]) -> Code {
+        let frame = self.unlocated_frame();
+        self.eval_framed(body, frame)
+    }
+
+    /// Evaluate a multi-arg `eval`/`uplevel` body (the args were space-joined
+    /// into a fresh dynamic script) as its own `info frame` level. Such a body has
+    /// no source location, so it is `type eval` with body-relative lines (C's
+    /// `TclEvalObjEx` of a non-literal). The errorInfo `("eval" body line N)`
     /// frame is appended separately by the caller.
     pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
-        let frame = self.inherited_cmd_frame();
-        self.eval_framed(script, frame)
+        self.eval_unlocated_body(script)
+    }
+
+    /// Evaluate a `[...]` command substitution's inner `script`. A `[cmd]` is
+    /// **not** a new `info frame` level (C compiles it into the enclosing
+    /// command's bytecode — `info frame` depth is unchanged), but it *does*
+    /// advance the reported `line`: a command inside the brackets reports the
+    /// line it actually appears on, even when the bracket spans lines or follows
+    /// a `\`-newline continuation. `script` is a sub-slice of `src` (it borrows
+    /// from the parsed buffer), so its start offset — and thus its file-absolute
+    /// line — comes straight from the original source: bs+nl continuations are
+    /// real newlines there, so plain newline counting matches C's TIP 280 result
+    /// without C's separate continuation-line `adjust` bookkeeping.
+    ///
+    /// The enclosing frame's location (`line_base`/`line`/`cmd`) is saved and
+    /// restored around the inner eval so the rest of the enclosing command keeps
+    /// reporting its own line once the substitution returns.
+    fn eval_command_subst(&mut self, src: &[u8], script: &[u8]) -> Code {
+        let offset = (script.as_ptr() as usize).wrapping_sub(src.as_ptr() as usize);
+        let saved = {
+            let mut frames = self.cmd_frames.borrow_mut();
+            match frames.last_mut() {
+                Some(top) if offset <= src.len() => {
+                    let saved = (top.line_base, top.line, std::mem::take(&mut top.cmd));
+                    // Shift the body-relative base so the inner script's line 1
+                    // maps to the bracket's file-absolute line.
+                    top.line_base = (top.line_base + line_of(src, offset)).saturating_sub(1);
+                    Some(saved)
+                }
+                _ => None,
+            }
+        };
+        // Share the enclosing frame but advance its line/cmd through the inner
+        // commands (the third eval mode: no new frame, but line tracking on).
+        let code = self.eval_script_mode(script, None, saved.is_some());
+        if let Some((line_base, line, cmd)) = saved {
+            if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+                top.line_base = line_base;
+                top.line = line;
+                top.cmd = cmd;
+            }
+        }
+        code
+    }
+
+    /// `eval` of a single body **object** — like [`eval_body`](Self::eval_body),
+    /// but a literal obj with a recorded source location (TIP 280 LABC) runs as
+    /// `type source` at its original file+line (the test-body case) rather than
+    /// `type eval`.
+    pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
+        // A pure list is one command, dispatched by element identity (so a
+        // contained literal keeps its source location — C's list-eval path),
+        // inside its own `type eval` frame.
+        if crate::list::is_pure_list(obj) {
+            let frame = self.unlocated_frame();
+            return self.dispatch_list_obj(obj, frame);
+        }
+        let mut frame = self.inherited_cmd_frame();
+        match self.arg_loc(obj) {
+            // A located literal body keeps its file+line (`type source`).
+            Some((file, line)) => {
+                frame.kind = FrameKind::Source;
+                frame.file = file;
+                frame.line_base = line.saturating_sub(1);
+            }
+            // A dynamic body (`eval $script`) is `type eval`, body-relative — it
+            // does not inherit the enclosing file's lines (C's `TclEvalObjEx`).
+            None => {
+                frame.kind = FrameKind::Eval;
+                frame.file = None;
+                frame.line_base = 0;
+            }
+        }
+        let bytes = obj_bytes(obj);
+        self.eval_framed(&bytes, frame)
+    }
+
+    /// Dispatch a pure-list script object as a single command, using its element
+    /// objects directly (no stringify/re-parse) — this preserves each element's
+    /// `Tcl_Obj` identity, so a nested `eval`/`uplevel $bodyVar` still finds the
+    /// body's TIP 280 source location.
+    fn dispatch_list_obj(&mut self, obj: *mut TclObj, frame: CmdFrame) -> Code {
+        let elems = match crate::list::list_elements(obj) {
+            Ok(e) => e,
+            Err(e) => return self.error(e.message()),
+        };
+        if elems.is_empty() {
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        // The pure list is exactly one command; push its `info frame` level (a
+        // canonical-list body has no source location, so the frame is the
+        // `type eval`, body-relative one the caller supplies) and report the list
+        // string as the executing command, before dispatching by element identity.
+        let mut owned = frame;
+        owned.cmd = obj_bytes(obj);
+        owned.line = owned.line_base + 1;
+        self.cmd_frames.borrow_mut().push(owned);
+        for &e in &elems {
+            // SAFETY: live element; take an owning +1 for the call.
+            unsafe { obj::incr_ref_count(e) };
+        }
+        let code = self.dispatch(&elems);
+        release_all(&elems);
+        self.cmd_frames.borrow_mut().pop();
+        code
+    }
+
+    /// `uplevel` of a single body **object** — the redirected-scope variant of
+    /// [`eval_body_obj`](Self::eval_body_obj). A located literal keeps its source
+    /// provenance; a dynamic body is `type eval`, no file.
+    pub(crate) fn eval_uplevel_obj(&mut self, target_level: usize, obj: *mut TclObj) -> Code {
+        let loc = self.arg_loc(obj);
+        let prev_level = self.frames.borrow_mut().set_active_level(target_level);
+        let prev_ns = self.current_ns.get();
+        self.current_ns
+            .set(self.frames.borrow().frame_ns(target_level));
+        let code = if crate::list::is_pure_list(obj) {
+            // Pure list → one command by element identity (see `dispatch_list_obj`),
+            // in a `type eval` frame redirected to the target level.
+            let mut frame = self.unlocated_frame();
+            frame.level = target_level;
+            frame.omit_level = true;
+            self.dispatch_list_obj(obj, frame)
+        } else {
+            let mut frame = self.inherited_cmd_frame();
+            frame.level = target_level;
+            frame.omit_level = true;
+            match loc {
+                Some((file, line)) => {
+                    frame.kind = FrameKind::Source;
+                    frame.file = file;
+                    frame.line_base = line.saturating_sub(1);
+                }
+                None => {
+                    frame.kind = FrameKind::Eval;
+                    frame.file = None;
+                    frame.line_base = 0;
+                }
+            }
+            let bytes = obj_bytes(obj);
+            self.eval_framed(&bytes, frame)
+        };
+        self.frames.borrow_mut().set_active_level(prev_level);
+        self.current_ns.set(prev_ns);
+        code
     }
 
     /// Evaluate one parsed command, then — if it errored — append its
@@ -2488,9 +3247,24 @@ impl Interp {
 
     /// Substitute each word of a command (with `{*}` expansion), then dispatch.
     fn eval_words(&mut self, src: &[u8], words: &[parse::Word]) -> Code {
+        // The command's reported line + source file (for TIP 280 argument-line
+        // tracking and the LABC literal-location table), and the first word's
+        // offset (to measure each word's line within the command).
+        let cmd_line = self.cmd_frames.borrow().last().map_or(0, |f| f.line);
+        let file = self.cmd_frames.borrow().last().and_then(|f| f.file.clone());
+        let w0 = words.first().map_or(0, |w| w.start);
+
         let mut argv: Vec<*mut TclObj> = Vec::new();
+        // Per-**argv-element** file-absolute line (aligned with `argv`, so `{*}`
+        // expansion stays correct), and the argv indices of literal arguments to
+        // record in the LABC table (`eval`/`uplevel`/proc body source locations).
+        let mut arg_lines: Vec<u32> = Vec::new();
+        let mut labc: Vec<usize> = Vec::new();
+
         for w in words {
-            let obj = match self.substitute_word(&w.body) {
+            let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
+            let is_literal = matches!(w.body, parse::WordBody::Literal(_));
+            let obj = match self.substitute_word(src, &w.body) {
                 Ok(o) => o, // owned (+1)
                 Err(code) => {
                     release_all(&argv);
@@ -2501,21 +3275,40 @@ impl Interp {
                 // Split the substituted value as a list; each element is an arg.
                 let bytes = obj_bytes(obj);
                 unsafe { obj::decr_ref_count(obj) }; // done with the word obj
-                match parse::split_list(&bytes) {
-                    Ok(elems) => {
-                        for e in elems {
-                            let eo = new_string(&e);
-                            unsafe { obj::incr_ref_count(eo) };
-                            argv.push(eo);
-                        }
-                    }
+                let elems = match parse::split_list(&bytes) {
+                    Ok(e) => e,
                     Err(e) => {
                         release_all(&argv);
                         return self.error(e.message());
                     }
+                };
+                // For a `{*}` of a *literal* word, each element keeps its source
+                // line (its offset within the literal — C's `TclListLines`), so a
+                // body-defining element (`namespace {*}{eval ns {proc …}}`) is
+                // `type source`. A dynamic `{*}$v` has no per-element location.
+                let offsets = is_literal.then(|| scan_list_offsets(&bytes)).flatten();
+                for (k, e) in elems.iter().enumerate() {
+                    let eo = new_string(e);
+                    unsafe { obj::incr_ref_count(eo) };
+                    let idx = argv.len();
+                    argv.push(eo);
+                    let (nl, lit) = offsets
+                        .as_ref()
+                        .and_then(|o| o.get(k))
+                        .copied()
+                        .unwrap_or((0, false));
+                    arg_lines.push(word_line + nl);
+                    if file.is_some() && lit {
+                        labc.push(idx);
+                    }
                 }
             } else {
+                let idx = argv.len();
                 argv.push(obj); // already owned (+1)
+                arg_lines.push(word_line);
+                if file.is_some() && is_literal {
+                    labc.push(idx);
+                }
             }
         }
 
@@ -2523,26 +3316,39 @@ impl Interp {
             return Code::Ok;
         }
 
-        // TIP 280 argument lines: each word's file-absolute source line, for a
-        // body-defining command (`proc`/`method`/`oo::define`/…) to stamp its
-        // body so `info frame` reports file-relative lines even when the body
-        // begins on a later line than the command. Computed relative to the
-        // command's already-set line (cheap), and aligned with `words` (the
-        // body-definers do not use `{*}`, so word index == argv index). Set
-        // *after* substitution so a nested `[cmd]` cannot clobber it.
-        let cmd_line = self.cmd_frames.borrow().last().map_or(0, |f| f.line);
-        let w0 = words.first().map_or(0, |w| w.start);
-        let arg_lines: Vec<u32> = words
-            .iter()
-            .map(|w| cmd_line + count_newlines(&src[w0..w.start.min(src.len())]))
-            .collect();
+        // TIP 280 LABC: record each literal argument's obj → (file, line) so a
+        // later `eval`/`uplevel`/`proc`-body of that obj reports `type source`.
+        // Popped after dispatch (dynamic scope; the objs live until then).
+        let pushed = labc.len();
+        if pushed > 0 {
+            let mut locs = self.arg_locs.borrow_mut();
+            for &idx in &labc {
+                locs.push((argv[idx], file.clone(), arg_lines[idx]));
+            }
+        }
         *self.arg_lines.borrow_mut() = arg_lines;
 
         let code = self.dispatch(&argv);
+        if pushed > 0 {
+            let mut locs = self.arg_locs.borrow_mut();
+            let keep = locs.len() - pushed;
+            locs.truncate(keep);
+        }
         // Safe to release argv now: a command that made an argv element its
         // result did so via set_obj_result, which holds an independent +1.
         release_all(&argv);
         code
+    }
+
+    /// The recorded TIP 280 source location of a script obj (C's `lineLABCPtr`
+    /// lookup), or `None` for a dynamic/computed script. Scans newest-first.
+    fn arg_loc(&self, obj: *mut TclObj) -> Option<(Option<Rc<[u8]>>, u32)> {
+        self.arg_locs
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(o, _, _)| *o == obj)
+            .map(|(_, f, l)| (f.clone(), *l))
     }
 
     /// Look up `argv[0]` and invoke it; on a miss, fall to the `unknown` handler
@@ -2756,9 +3562,41 @@ impl Interp {
                 return code;
             }
         }
-        // Command miss: dispatch through `unknown <name> <args…>` if it exists
-        // (and we're not already resolving `unknown` itself).
+        // Command miss: dispatch through the current namespace's `namespace
+        // unknown` handler if it has a custom one, else the global `unknown`
+        // command (and only if we're not already resolving `unknown` itself).
         if name != b"unknown" {
+            // A custom unknown handler is a command *prefix* (a list), invoked as
+            // `handler… name args…`. The current namespace's handler wins; a
+            // namespace with none falls back to the global namespace's (which a
+            // script can set to override `::unknown`), else the `unknown` command.
+            let ns_handler = {
+                let ns = self.namespaces.borrow();
+                let cur = self.current_ns.get();
+                ns.unknown_handler(cur).map(<[u8]>::to_vec).or_else(|| {
+                    (cur != GLOBAL)
+                        .then(|| ns.unknown_handler(GLOBAL).map(<[u8]>::to_vec))
+                        .flatten()
+                })
+            };
+            if let Some(handler) = ns_handler {
+                if let Ok(prefix) = crate::parse::split_list(&handler) {
+                    let mut new_argv: Vec<*mut TclObj> =
+                        Vec::with_capacity(prefix.len() + argv.len());
+                    for w in &prefix {
+                        let o = new_string(w);
+                        unsafe { obj::incr_ref_count(o) };
+                        new_argv.push(o);
+                    }
+                    for &a in argv {
+                        unsafe { obj::incr_ref_count(a) };
+                        new_argv.push(a);
+                    }
+                    let code = self.dispatch(&new_argv);
+                    release_all(&new_argv);
+                    return code;
+                }
+            }
             let unk = self.namespaces.borrow().resolve(GLOBAL, b"unknown");
             if let Some(unk) = unk {
                 let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
@@ -2831,6 +3669,48 @@ impl Interp {
         self.cmd_count.get()
     }
 
+    /// `expr srand(n)`: reset the PRNG seed to `n` (C's `ExprSrandFunc` — mask
+    /// to 31 bits, avoid the LCG's two fixed points), then return the first
+    /// `rand()` of the new sequence.
+    pub(crate) fn srand(&self, n: i64) -> f64 {
+        let mut seed = n & 0x7FFF_FFFF;
+        if seed == 0 || seed == 0x7FFF_FFFF {
+            seed ^= 123_459_876;
+        }
+        self.rand_seed.set(Some(seed));
+        self.rand_next()
+    }
+
+    /// `expr rand()`: advance the Park–Miller minimal-standard LCG and return a
+    /// double in `(0, 1)` (C's `ExprRandFunc`). Seeds nondeterministically on
+    /// first use if `srand` hasn't run.
+    pub(crate) fn rand_next(&self) -> f64 {
+        // Constants from `ExprRandFunc`: IA=16807, IM=2^31-1, IQ=127773, IR=2836.
+        const RAND_IA: i64 = 16807;
+        const RAND_IM: i64 = 2_147_483_647;
+        const RAND_IQ: i64 = 127_773;
+        const RAND_IR: i64 = 2836;
+        let mut seed = self.rand_seed.get().unwrap_or_else(|| {
+            // Nondeterministic first seed, kept in [1, 2^31-2].
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as i64)
+                .unwrap_or(1);
+            let mut s = t & 0x7FFF_FFFF;
+            if s == 0 || s == 0x7FFF_FFFF {
+                s ^= 123_459_876;
+            }
+            s
+        });
+        let tmp = seed / RAND_IQ;
+        seed = RAND_IA * (seed - tmp * RAND_IQ) - RAND_IR * tmp;
+        if seed < 0 {
+            seed += RAND_IM;
+        }
+        self.rand_seed.set(Some(seed));
+        seed as f64 * (1.0 / RAND_IM as f64)
+    }
+
     /// The `info cmdtype` classification of `name`, or `None` if no such command.
     pub(crate) fn cmdtype(&self, name: &[u8]) -> Option<&'static [u8]> {
         let cmd = self
@@ -2838,13 +3718,26 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)?;
         Some(match cmd {
-            Command::Builtin(_) => b"native",
+            // A coroutine resume command and the per-object `my`/`myclass`
+            // commands all register as builtins but report their own cmdType
+            // (C's per-command registrations).
+            Command::Builtin(_) => {
+                let fqn = self
+                    .namespaces
+                    .borrow()
+                    .resolve_fqn(self.current_ns.get(), name);
+                match fqn {
+                    Some(fqn) if self.coros.borrow().contains_key(&fqn) => b"coroutine",
+                    Some(fqn) => self.oo_private_cmd_kind(&fqn).unwrap_or(b"native"),
+                    None => b"native",
+                }
+            }
             Command::Proc(_) => b"proc",
             Command::Alias { .. } | Command::ParentAlias { .. } => b"alias",
             Command::Imported { .. } => b"import",
             Command::Ensemble(_) => b"ensemble",
             Command::OoObject(_) => b"object",
-            Command::ChildInterp(_) => b"native",
+            Command::ChildInterp(_) => b"interp",
         })
     }
 
@@ -3223,6 +4116,7 @@ impl Interp {
                 same_level: false,
                 usage_prefix: None,
                 level_words: None,
+                quote_name: true,
             },
         )
     }
@@ -3260,7 +4154,7 @@ impl Interp {
         let supplied = call_args.len();
         let required = positional.iter().filter(|p| p.default.is_none()).count();
         if supplied < required || (!has_args && supplied > positional.len()) {
-            return self.error(&self.proc_wrong_args(usage, params, supplied));
+            return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
         }
         // Recursion bound (catchable, not a stack overflow).
         if self.recursion_depth.get() >= RECURSION_LIMIT {
@@ -3316,7 +4210,7 @@ impl Interp {
                 self.frames.borrow_mut().pop();
                 self.current_ns.set(saved_ns);
                 self.recursion_depth.set(self.recursion_depth.get() - 1);
-                return self.error(&self.proc_wrong_args(usage, params, supplied));
+                return self.error(&self.proc_wrong_args(usage, params, supplied, meta.quote_name));
             };
             if stored.is_err() {
                 self.frames.borrow_mut().pop();
@@ -3351,6 +4245,15 @@ impl Interp {
             }
             _ => None,
         };
+        // An `apply` lambda reports `lambda <expr>` (not `proc`) in `info frame`.
+        let lambda = match &meta.err {
+            ProcFrame::Lambda(expr) => Some(expr.to_vec()),
+            _ => None,
+        };
+        let (proc_lvl, proc_idx) = {
+            let f = self.frames.borrow();
+            (f.current_level(), f.current_frame_index())
+        };
         let proc_frame = CmdFrame {
             kind: if meta.source.is_some() {
                 FrameKind::Source
@@ -3359,12 +4262,14 @@ impl Interp {
             },
             file: meta.source,
             proc: meta.fqn.map(<[u8]>::to_vec),
-            level: self.frames.borrow().current_level(),
+            level: proc_lvl,
             omit_level: false,
+            frame_index: proc_idx,
             line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
             oo,
+            lambda,
         };
         let code = self.eval_framed(body, proc_frame);
         // The frame's local variables (and any traces on them) die with it.
@@ -3404,24 +4309,58 @@ impl Interp {
         cfg: &crate::ensemble::EnsembleConfig,
         argv: &[*mut TclObj],
     ) -> Code {
-        if argv.len() < 2 {
+        // `-parameters` formal args sit between the ensemble command and the
+        // subcommand (`ens p1 p2 sub …`), so the subcommand is at `1 + nparams`.
+        let nparams = cfg.parameters.len();
+        if argv.len() < 2 + nparams {
             let mut m = b"wrong # args: should be \"".to_vec();
             m.extend_from_slice(&obj_bytes(argv[0]));
+            for p in &cfg.parameters {
+                m.push(b' ');
+                m.extend_from_slice(p);
+            }
             m.extend_from_slice(b" subcommand ?arg ...?\"");
             return self.error(&m);
         }
-        // The valid subcommand set (sorted): explicit `-subcommands`, else the
-        // `-map` keys, else the namespace's exported commands.
-        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
-            (Some(list), _) => list.clone(),
-            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
-            (None, None) => self.namespaces.borrow().exported_commands(cfg.ns),
-        };
-        subs.sort();
-        subs.dedup();
-
-        let sub = obj_bytes(argv[1]);
-        let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) else {
+        // Resolve the subcommand. On a miss, the `-unknown` handler gets one
+        // chance (`reparseCount < 1`) to define it (empty result ⇒ reparse) or
+        // supply a replacement command prefix (non-empty result).
+        let sub = obj_bytes(argv[1 + nparams]);
+        let mut reparsed = false;
+        loop {
+            let subs = self.ensemble_subcommands(cfg);
+            if let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) {
+                let resolved = &subs[idx];
+                // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
+                let prefix: Vec<Vec<u8>> = cfg
+                    .map
+                    .as_ref()
+                    .and_then(|m| {
+                        m.iter()
+                            .find(|(k, _)| k == resolved)
+                            .map(|(_, p)| p.clone())
+                    })
+                    .unwrap_or_else(|| {
+                        let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
+                        if cfg.ns != GLOBAL {
+                            t.extend_from_slice(b"::");
+                        }
+                        t.extend_from_slice(resolved);
+                        vec![t]
+                    });
+                return self.dispatch_ensemble_target(&prefix, argv, nparams);
+            }
+            // Miss: try the `-unknown` handler once.
+            if !cfg.unknown.is_empty() && !reparsed {
+                reparsed = true;
+                match self.ensemble_unknown(cfg, argv) {
+                    EnsembleUnknown::Prefix(prefix) => {
+                        return self.dispatch_ensemble_target(&prefix, argv, nparams);
+                    }
+                    EnsembleUnknown::Reparse => continue,
+                    EnsembleUnknown::Failed(code) => return code,
+                }
+            }
             // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
             let mut m = if cfg.prefixes {
                 b"unknown or ambiguous subcommand \"".to_vec()
@@ -3432,36 +4371,44 @@ impl Interp {
             m.extend_from_slice(b"\": must be ");
             m.extend_from_slice(&crate::ensemble::must_be(&subs));
             return self.error(&m);
+        }
+    }
+
+    /// The ensemble's valid subcommand set (sorted, deduped): explicit
+    /// `-subcommands`, else the `-map` keys, else the namespace's exports.
+    fn ensemble_subcommands(&self, cfg: &crate::ensemble::EnsembleConfig) -> Vec<Vec<u8>> {
+        let mut subs: Vec<Vec<u8>> = match (&cfg.subcommands, &cfg.map) {
+            (Some(list), _) => list.clone(),
+            (None, Some(map)) => map.iter().map(|(k, _)| k.clone()).collect(),
+            (None, None) => self.namespaces.borrow().exported_commands(cfg.ns),
         };
-        let resolved = &subs[idx];
+        subs.sort();
+        subs.dedup();
+        subs
+    }
 
-        // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
-        let prefix: Vec<Vec<u8>> = cfg
-            .map
-            .as_ref()
-            .and_then(|m| {
-                m.iter()
-                    .find(|(k, _)| k == resolved)
-                    .map(|(_, p)| p.clone())
-            })
-            .unwrap_or_else(|| {
-                let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
-                if cfg.ns != GLOBAL {
-                    t.extend_from_slice(b"::");
-                }
-                t.extend_from_slice(resolved);
-                vec![t]
-            });
-
-        // Build [target…, argv[2..]…], each owned (+1), and re-dispatch.
-        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 2);
-        for w in &prefix {
+    /// Dispatch a resolved ensemble subcommand: `[prefix…, params…, rest…]` (the
+    /// `-parameters` values thread in right after the target prefix; the
+    /// subcommand's own args follow). `nparams` = `cfg.parameters.len()`.
+    fn dispatch_ensemble_target(
+        &mut self,
+        prefix: &[Vec<u8>],
+        argv: &[*mut TclObj],
+        nparams: usize,
+    ) -> Code {
+        let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
+        for w in prefix {
             let o = new_string(w);
             // SAFETY: fresh obj; take the owning +1 the new argv holds.
             unsafe { obj::incr_ref_count(o) };
             new_argv.push(o);
         }
-        for &a in &argv[2..] {
+        for &a in &argv[1..1 + nparams] {
+            // SAFETY: live arg; take an owning +1.
+            unsafe { obj::incr_ref_count(a) };
+            new_argv.push(a);
+        }
+        for &a in &argv[2 + nparams..] {
             // SAFETY: live arg; take an owning +1.
             unsafe { obj::incr_ref_count(a) };
             new_argv.push(a);
@@ -3469,6 +4416,56 @@ impl Interp {
         let code = self.dispatch(&new_argv);
         release_all(&new_argv);
         code
+    }
+
+    /// Invoke an ensemble's `-unknown` handler on a subcommand miss
+    /// (`EnsembleUnknownCallback`): `handler… ensembleFQN argv[1..]…`. An empty
+    /// `TCL_OK` result asks for a reparse (the handler defined the subcommand); a
+    /// non-empty one is the replacement command prefix; anything else fails.
+    fn ensemble_unknown(
+        &mut self,
+        cfg: &crate::ensemble::EnsembleConfig,
+        argv: &[*mut TclObj],
+    ) -> EnsembleUnknown {
+        let ens_fqn = self
+            .resolve_cmd_fqn(&obj_bytes(argv[0]))
+            .unwrap_or_else(|| obj_bytes(argv[0]));
+        let mut hv: Vec<*mut TclObj> = Vec::with_capacity(cfg.unknown.len() + argv.len());
+        for w in &cfg.unknown {
+            let o = new_string(w);
+            unsafe { obj::incr_ref_count(o) };
+            hv.push(o);
+        }
+        let fqo = new_string(&ens_fqn);
+        unsafe { obj::incr_ref_count(fqo) };
+        hv.push(fqo);
+        for &a in &argv[1..] {
+            unsafe { obj::incr_ref_count(a) };
+            hv.push(a);
+        }
+        let code = self.dispatch(&hv);
+        release_all(&hv);
+        match code {
+            Code::Ok => {
+                let res = obj_bytes(self.get_obj_result());
+                match crate::parse::split_list(&res) {
+                    Ok(prefix) if !prefix.is_empty() => EnsembleUnknown::Prefix(prefix),
+                    Ok(_) => EnsembleUnknown::Reparse,
+                    Err(e) => EnsembleUnknown::Failed(self.error(e.message())),
+                }
+            }
+            Code::Error => EnsembleUnknown::Failed(Code::Error),
+            other => {
+                let mut m = b"unknown subcommand handler returned bad code: ".to_vec();
+                m.extend_from_slice(match other {
+                    Code::Return => b"return".as_slice(),
+                    Code::Break => b"break",
+                    Code::Continue => b"continue",
+                    _ => b"?",
+                });
+                EnsembleUnknown::Failed(self.error(&m))
+            }
+        }
     }
 
     /// Invoke `::tcl::mathfunc::<fname>` (resolved **absolutely**, so it works
@@ -3556,7 +4553,7 @@ impl Interp {
     /// Substitute one word's body into an **owned** (`+1`) object.
     /// A `Variable` reference to an unset variable, or a `[cmd]` that errors,
     /// returns `Err(code)` with the interp result already set.
-    fn substitute_word(&mut self, body: &WordBody) -> Result<*mut TclObj, Code> {
+    fn substitute_word(&mut self, src: &[u8], body: &WordBody) -> Result<*mut TclObj, Code> {
         match body {
             WordBody::Literal(bytes) => {
                 let obj = new_string(bytes);
@@ -3573,7 +4570,7 @@ impl Interp {
                     match &parts[0] {
                         WordPart::Variable(v) => {
                             let index = match &v.index {
-                                Some(p) => Some(self.subst_index(p)?),
+                                Some(p) => Some(self.subst_index_value(p)?),
                                 None => None,
                             };
                             if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
@@ -3597,7 +4594,7 @@ impl Interp {
                             // Command substitution propagates *any* non-OK
                             // completion code (`return`/`break`/`continue`, not
                             // just error) out of `[...]`, matching C Tcl.
-                            let code = self.eval_str(script);
+                            let code = self.eval_command_subst(src, script);
                             if code != Code::Ok {
                                 return Err(code);
                             }
@@ -3616,7 +4613,7 @@ impl Interp {
                         WordPart::Text(b) => buf.extend_from_slice(b),
                         WordPart::Variable(v) => {
                             let index = match &v.index {
-                                Some(parts) => Some(self.subst_index(parts)?),
+                                Some(parts) => Some(self.subst_index_value(parts)?),
                                 None => None,
                             };
                             if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
@@ -3628,7 +4625,7 @@ impl Interp {
                             }
                         }
                         WordPart::Command(script) => {
-                            let code = self.eval_str(script);
+                            let code = self.eval_command_subst(src, script);
                             if code != Code::Ok {
                                 return Err(code);
                             }
@@ -3650,71 +4647,155 @@ impl Interp {
         src: &[u8],
         flags: crate::subst::SubstFlags,
     ) -> Result<Vec<u8>, Code> {
+        self.do_subst_located(src, flags, None)
+    }
+
+    /// [`do_subst`](Self::do_subst) with the input string's TIP 280 location
+    /// (the `subst` command's argument word): a `[...]` inside the substituted
+    /// string then reports the line it appears on (C compiles `subst` with the
+    /// argument's line table). `loc` is `None` for internal callers that do not
+    /// track lines (`dict map` key substitution), where the `[...]` is line-
+    /// tracked relative to the enclosing frame as usual.
+    pub(crate) fn do_subst_located(
+        &mut self,
+        src: &[u8],
+        flags: crate::subst::SubstFlags,
+        loc: Option<(Option<Rc<[u8]>>, u32)>,
+    ) -> Result<Vec<u8>, Code> {
         let body = crate::subst::scan(src, flags);
         match &body {
             WordBody::Literal(b) => Ok(b.to_vec()),
-            WordBody::Parts(parts) => self.resolve_subst_parts(parts),
+            WordBody::Parts(parts) => {
+                // Align the enclosing frame to the argument word's file+line, so
+                // each `[...]`'s line (computed by `eval_command_subst` against
+                // `src`) is file-absolute. Saved/restored around the resolution.
+                let saved = loc.and_then(|(file, line)| {
+                    let mut frames = self.cmd_frames.borrow_mut();
+                    frames.last_mut().map(|top| {
+                        let prev = (top.line_base, top.file.clone());
+                        top.line_base = line.saturating_sub(1);
+                        if file.is_some() {
+                            top.file = file;
+                        }
+                        prev
+                    })
+                });
+                let result = self.resolve_subst_parts(src, parts);
+                if let Some((line_base, file)) = saved {
+                    if let Some(top) = self.cmd_frames.borrow_mut().last_mut() {
+                        top.line_base = line_base;
+                        top.file = file;
+                    }
+                }
+                result
+            }
         }
     }
 
-    /// Resolve substitution `parts` to bytes, propagating any non-OK code (the
-    /// `subst`-command path; cf. `substitute_word`, which builds an object).
-    fn resolve_subst_parts(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+    /// Resolve substitution `parts` (scanned from `src`) to bytes, propagating
+    /// any non-OK code (the `subst`-command path; cf. `substitute_word`, which
+    /// builds an object). `src` lets a `[...]` part advance the `info frame`
+    /// line to its own position via [`eval_command_subst`](Self::eval_command_subst).
+    fn resolve_subst_parts(&mut self, src: &[u8], parts: &[WordPart]) -> Result<Vec<u8>, Code> {
         let mut out = Vec::new();
         for part in parts {
             match part {
                 WordPart::Text(b) => out.extend_from_slice(b),
                 WordPart::Variable(v) => {
-                    let index = match &v.index {
-                        Some(p) => Some(self.subst_index(p)?),
-                        None => None,
+                    // A `break`/`continue`/`return` from a `[...]` in the array
+                    // index diverts the whole variable substitution (C's
+                    // `TCL_TOKEN_VARIABLE` arm of `TclSubstTokens`): on `break`
+                    // the subst ends, on `continue` this variable contributes
+                    // nothing, on `return` the result is substituted in place of
+                    // the variable's value (which is not looked up).
+                    let (index, idx_code) = match &v.index {
+                        Some(p) => {
+                            let (val, code) = self.subst_index(p)?;
+                            (Some(val), code)
+                        }
+                        None => (None, Code::Ok),
                     };
-                    if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
-                        return Err(c);
-                    }
-                    match self.read_var(v.name, index.as_deref()) {
-                        Some(bytes) => out.extend_from_slice(&bytes),
-                        None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                    match idx_code {
+                        Code::Ok => {
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
+                            match self.read_var(v.name, index.as_deref()) {
+                                Some(bytes) => out.extend_from_slice(&bytes),
+                                None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                            }
+                        }
+                        Code::Break => break,
+                        Code::Continue => {}
+                        _ => out.extend_from_slice(&self.result_bytes()),
                     }
                 }
                 WordPart::Command(script) => {
-                    let code = self.eval_str(script);
-                    if code != Code::Ok {
-                        return Err(code);
+                    // `subst`'s per-`[...]` completion-code rule (C's compiled
+                    // subst / `TclSubstTokens`): `break` ends the whole
+                    // substitution (returning what's accumulated), `continue`
+                    // contributes nothing for this bracket, and any other
+                    // non-error code (`return`, custom) substitutes its result.
+                    // Only a genuine error propagates.
+                    match self.eval_command_subst(src, script) {
+                        Code::Ok | Code::Return => out.extend_from_slice(&self.result_bytes()),
+                        Code::Break => break,
+                        Code::Continue => {}
+                        Code::Error => return Err(Code::Error),
                     }
-                    out.extend_from_slice(&self.result_bytes());
                 }
             }
         }
         Ok(out)
     }
 
-    /// Resolve a `$arr(index)` index (itself substituted) to its bytes.
-    fn subst_index(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+    /// [`subst_index`](Self::subst_index) for the word-substitution path, where a
+    /// non-OK completion code in the index propagates as an error/code (rather
+    /// than diverting an enclosing `subst`).
+    fn subst_index_value(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+        match self.subst_index(parts)? {
+            (val, Code::Ok) => Ok(val),
+            (_, code) => Err(code),
+        }
+    }
+
+    /// Resolve a `$arr(index)` index (itself substituted) to its bytes plus the
+    /// completion code of the last `[...]` in it (`Ok` normally; `Break`/
+    /// `Continue`/`Return` divert the enclosing variable substitution per C's
+    /// `TclSubstTokens`). An error propagates as `Err`.
+    fn subst_index(&mut self, parts: &[WordPart]) -> Result<(Vec<u8>, Code), Code> {
         let mut buf = Vec::new();
         for part in parts {
             match part {
                 WordPart::Text(b) => buf.extend_from_slice(b),
                 WordPart::Variable(v) => {
-                    let idx = match &v.index {
-                        Some(p) => Some(self.subst_index(p)?),
-                        None => None,
+                    let (idx, idx_code) = match &v.index {
+                        Some(p) => {
+                            let (val, code) = self.subst_index(p)?;
+                            (Some(val), code)
+                        }
+                        None => (None, Code::Ok),
                     };
-                    match self.read_var(v.name, idx.as_deref()) {
-                        Some(bytes) => buf.extend_from_slice(&bytes),
-                        None => return Err(self.no_such_variable(v.name, idx.as_deref())),
+                    match idx_code {
+                        Code::Ok => match self.read_var(v.name, idx.as_deref()) {
+                            Some(bytes) => buf.extend_from_slice(&bytes),
+                            None => return Err(self.no_such_variable(v.name, idx.as_deref())),
+                        },
+                        other => return Ok((buf, other)),
                     }
                 }
-                WordPart::Command(script) => {
-                    let code = self.eval_str(script);
-                    if code != Code::Ok {
-                        return Err(code);
+                WordPart::Command(script) => match self.eval_str(script) {
+                    Code::Ok => buf.extend_from_slice(&self.result_bytes()),
+                    Code::Error => return Err(Code::Error),
+                    Code::Return => {
+                        buf.extend_from_slice(&self.result_bytes());
+                        return Ok((buf, Code::Return));
                     }
-                    buf.extend_from_slice(&self.result_bytes());
-                }
+                    other => return Ok((buf, other)),
+                },
             }
         }
-        Ok(buf)
+        Ok((buf, Code::Ok))
     }
 
     /// Read a variable's value bytes via the variable resolver.
@@ -3780,6 +4861,7 @@ impl Interp {
         called: &[u8],
         params: &[Param],
         supplied: usize,
+        quote_name: bool,
     ) -> Vec<u8> {
         if let Some(rw) = self.ensemble_rewrite() {
             // How many trailing words of `source` were the user's own arguments,
@@ -3798,7 +4880,7 @@ impl Interp {
                 return proc_usage_words(&prefix, &params[drop..], params);
             }
         }
-        proc_usage(called, params)
+        proc_usage(called, params, quote_name)
     }
 }
 
@@ -3830,9 +4912,16 @@ fn proc_usage_words(words: &[&[u8]], shown: &[Param], all: &[Param]) -> Vec<u8> 
     m
 }
 
-fn proc_usage(called: &[u8], params: &[Param]) -> Vec<u8> {
+fn proc_usage(called: &[u8], params: &[Param], quote_name: bool) -> Vec<u8> {
     let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(called);
+    // A single-word proc name is list-quoted if it needs it — `a b  c` → `{a b  c}`,
+    // `` → `{}` (C's `Tcl_WrongNumArgs` via `TclScanElement`, Bug 942757). `apply`
+    // and TclOO pass a pre-joined multi-word usage prefix that must stay raw.
+    if quote_name {
+        crate::list::append_list_element(&mut m, called, false);
+    } else {
+        m.extend_from_slice(called);
+    }
     let n = params.len();
     for (i, p) in params.iter().enumerate() {
         m.push(b' ');

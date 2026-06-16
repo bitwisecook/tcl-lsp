@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::updateInPlace",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(2),
         // SYNC3: the trailing `cmdOrBody` argument is invoked as a
         // command prefix with the file contents appended at runtime.
