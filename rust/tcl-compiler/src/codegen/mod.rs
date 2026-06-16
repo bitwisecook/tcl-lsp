@@ -21,6 +21,7 @@ pub mod layout;
 pub mod peephole;
 pub mod statements;
 pub mod values;
+pub mod wasm;
 
 pub use emitter::{codegen_function, codegen_module};
 
