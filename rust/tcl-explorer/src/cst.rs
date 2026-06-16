@@ -36,7 +36,13 @@ fn is_opaque(kind: TokenType) -> bool {
     matches!(kind, TokenType::Str | TokenType::Cmd)
 }
 
-fn leaf_dict(tok: &SyntaxToken<'_>, is_marker: bool, sm: &SourceMap<'_>, depth: u32) -> Value {
+fn leaf_dict(
+    tok: &SyntaxToken<'_>,
+    is_marker: bool,
+    sm: &SourceMap<'_>,
+    depth: u32,
+    config: LexerConfig,
+) -> Value {
     let mut entry = json!({
         "kind": token_type_name(tok.token_type()),
         "isMarker": is_marker,
@@ -49,15 +55,23 @@ fn leaf_dict(tok: &SyntaxToken<'_>, is_marker: bool, sm: &SourceMap<'_>, depth: 
         "endOffset": tok.end_position().offset + 1,
     });
     if depth < MAX_DEPTH && is_opaque(tok.token_type()) && !tok.text().is_empty() {
-        let descended = descend_token(sm, tok.to_token(), LexerConfig::default());
+        // Descend with the document's dialect config so nested `{…}` / `[…]`
+        // bodies tokenise the same way the top level does.
+        let descended = descend_token(sm, tok.to_token(), config);
         let root = descended.root();
         entry["terminated"] = json!(descended.is_terminated());
-        entry["child"] = node_dict(&root, descended.tree(), sm, depth + 1);
+        entry["child"] = node_dict(&root, descended.tree(), sm, depth + 1, config);
     }
     entry
 }
 
-fn node_dict(node: &SyntaxNode<'_>, tree: &SyntaxTree, sm: &SourceMap<'_>, depth: u32) -> Value {
+fn node_dict(
+    node: &SyntaxNode<'_>,
+    tree: &SyntaxTree,
+    sm: &SourceMap<'_>,
+    depth: u32,
+    config: LexerConfig,
+) -> Value {
     let kind = node.kind();
     let markers = node.expand_markers();
     let children: Vec<SyntaxElement<'_>> = node.children().collect();
@@ -115,12 +129,12 @@ fn node_dict(node: &SyntaxNode<'_>, tree: &SyntaxTree, sm: &SourceMap<'_>, depth
 
     let mut kids: Vec<Value> = markers
         .iter()
-        .map(|m| leaf_dict(m, true, sm, depth))
+        .map(|m| leaf_dict(m, true, sm, depth, config))
         .collect();
     for child in &children {
         match child {
-            SyntaxElement::Token(t) => kids.push(leaf_dict(t, false, sm, depth)),
-            SyntaxElement::Node(n) => kids.push(node_dict(n, tree, sm, depth)),
+            SyntaxElement::Token(t) => kids.push(leaf_dict(t, false, sm, depth, config)),
+            SyntaxElement::Node(n) => kids.push(node_dict(n, tree, sm, depth, config)),
         }
     }
 
@@ -134,13 +148,15 @@ fn node_dict(node: &SyntaxNode<'_>, tree: &SyntaxTree, sm: &SourceMap<'_>, depth
     })
 }
 
-/// Serialise the `cst` view for `source`.
+/// Serialise the `cst` view for `source`, tokenising with `config` so the
+/// tree reflects the document's dialect (`{*}` expansion, iRules brace
+/// separator).
 #[must_use]
-pub fn serialise_cst(source: &str) -> Value {
-    let (green, _warnings) = build_document(source, LexerConfig::default());
+pub fn serialise_cst(source: &str, config: LexerConfig) -> Value {
+    let (green, _warnings) = build_document(source, config);
     let tree = SyntaxTree::new(green);
     let sm = SourceMap::new(source);
-    node_dict(&tree.root(), &tree, &sm, 0)
+    node_dict(&tree.root(), &tree, &sm, 0, config)
 }
 
 #[cfg(test)]
@@ -149,7 +165,7 @@ mod tests {
 
     #[test]
     fn document_root_holds_commands() {
-        let cst = serialise_cst("set x 1");
+        let cst = serialise_cst("set x 1", LexerConfig::default());
         assert_eq!(cst["kind"], "DOCUMENT");
         let cmd = &cst["children"][0];
         assert_eq!(cmd["kind"], "COMMAND");
@@ -172,7 +188,7 @@ mod tests {
 
     #[test]
     fn opaque_braced_word_descends_into_child_document() {
-        let cst = serialise_cst("if {$x} { puts hi }");
+        let cst = serialise_cst("if {$x} { puts hi }", LexerConfig::default());
         assert!(
             has_descended_brace(&cst),
             "expected a descended braced body"
@@ -181,7 +197,7 @@ mod tests {
 
     #[test]
     fn word_tags_mark_braced_and_quoted() {
-        let cst = serialise_cst("set x \"hi\"");
+        let cst = serialise_cst("set x \"hi\"", LexerConfig::default());
         // The command's words carry shape tags.
         let cmd = &cst["children"][0];
         let words: Vec<&Value> = cmd["children"]

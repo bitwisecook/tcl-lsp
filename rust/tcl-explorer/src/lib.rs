@@ -107,7 +107,12 @@ impl ExplorerResult {
 #[must_use]
 pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     let registry = registry_for_dialect(dialect);
-    let unit = CompilationUnit::build_for(source, registry, false)
+    // Tokenise with the requested dialect's lexer config so dialect-sensitive
+    // parsing is honoured: Tcl 8.4 / iRules disable `{*}` expansion, and
+    // iRules enable the `}{` brace-separator. `build_for` would otherwise use
+    // the default Tcl-8.5+ config and mis-tokenise those dialects.
+    let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let unit = CompilationUnit::build_for_with_config(source, registry, false, config)
         .with_interprocedural(registry, Some(dialect));
 
     ExplorerResult {

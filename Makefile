@@ -1273,24 +1273,27 @@ compiler-explorer-gui: explorer-build ## Build and serve the static compiler exp
 	@echo "==> Serving compiler explorer at http://localhost:8080"
 	cd $(EXPLORER_STATIC) && $(PYTHON) -m http.server 8080
 
-# CDN variant — lightweight build that loads Pyodide + Mermaid from CDN
+# CDN variant — lightweight build that loads Mermaid from CDN (the Rust → WASM
+# compiler module has no CDN, so it is bundled alongside the worker).
 EXPLORER_CDN_DIR := $(BUILD_DIR)/explorer-cdn
-PYODIDE_CDN_BASE := https://cdn.jsdelivr.net/pyodide/v$(PYODIDE_VERSION)/full/
 MERMAID_CDN_URL  := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 
-explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (no Pyodide download)
+explorer-build-cdn: explorer-wasm $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (Mermaid from CDN, WASM bundled)
 	@echo "==> Building CDN explorer"
 	@rm -rf $(EXPLORER_CDN_DIR)
 	@mkdir -p $(EXPLORER_CDN_DIR)
 	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_CDN_DIR)
 	cp $(BUILD_INFO_JSON) $(EXPLORER_CDN_DIR)/
 	cp $(EXPLORER_STATIC)/explorer-core.js $(EXPLORER_CDN_DIR)/
+	@# The Rust → WASM compiler module has no CDN, so it is bundled in both
+	@# the local and CDN explorers (built by the explorer-wasm prerequisite).
+	cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(EXPLORER_CDN_DIR)/
+	cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(EXPLORER_CDN_DIR)/
 	sed 's|<script src="mermaid.min.js"></script>|<script src="$(MERMAID_CDN_URL)"></script>|' \
 		$(EXPLORER_STATIC)/index.html > $(EXPLORER_CDN_DIR)/index.html
-	sed -e 's|// All assets are local.*|// Pyodide loaded from CDN.|' \
-	    -e 's|const baseUrl = new URL.*|const baseUrl = new URL(".", self.location.href).href;|' \
-	    -e 's|const pyodideUrl = baseUrl + "pyodide/";|const pyodideUrl = "$(PYODIDE_CDN_BASE)";|' \
-		$(EXPLORER_STATIC)/worker.js > $(EXPLORER_CDN_DIR)/worker.js
+	@# worker.js loads the bundled WASM relative to itself; the CDN variant
+	@# only swaps Mermaid (in index.html), so the worker is copied verbatim.
+	cp $(EXPLORER_STATIC)/worker.js $(EXPLORER_CDN_DIR)/worker.js
 	@echo "CDN explorer built in $(EXPLORER_CDN_DIR)"
 	@ls -lh $(EXPLORER_CDN_DIR)/
 

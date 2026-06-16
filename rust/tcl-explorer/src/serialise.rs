@@ -27,12 +27,12 @@ use tcl_compiler::irules_checks::{
 };
 use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
-use tcl_compiler::segmenter::segment_commands;
+use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
 use tcl_compiler::shimmer::{
     find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
 };
 use tcl_compiler::taint::find_taint_warnings_for_cu;
-use tcl_lexer::{LineIndex, Span, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::{available_dialects, registry_for_dialect};
 use tcl_syntax::expr::ast::render_expr;
 
@@ -1096,9 +1096,9 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
 /// its raw begins with `"` — both derived from the representative token, as
 /// the Python CST derives them from the first fragment.
 #[must_use]
-pub fn serialise_segments(source: &str) -> Value {
+pub fn serialise_segments(source: &str, config: LexerConfig) -> Value {
     let bytes = source.as_bytes();
-    let segments: Vec<Value> = segment_commands(source)
+    let segments: Vec<Value> = segment_commands_with_offset_and_config(source, 0, config)
         .iter()
         .map(|seg| {
             let words: Vec<Value> = seg
@@ -1647,8 +1647,17 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
         out.insert("interprocedural".to_owned(), serialise_interproc(interproc));
     }
     out.insert("types".to_owned(), serialise_types(result));
-    out.insert("cst".to_owned(), crate::cst::serialise_cst(&result.source));
-    out.insert("segments".to_owned(), serialise_segments(&result.source));
+    // Honour the document's dialect so the CST and segment views tokenise
+    // `{*}` / iRules braces the same way the rest of the pipeline does.
+    let lexer_config = LexerConfig::for_dialect(&result.dialect);
+    out.insert(
+        "cst".to_owned(),
+        crate::cst::serialise_cst(&result.source, lexer_config),
+    );
+    out.insert(
+        "segments".to_owned(),
+        serialise_segments(&result.source, lexer_config),
+    );
     // Rust-native: the lexer structural pre-scan (no Python counterpart).
     out.insert(
         "structuralIndex".to_owned(),
@@ -2261,7 +2270,7 @@ mod tests {
 
     #[test]
     fn segments_reports_words_with_shape_flags() {
-        let segs = serialise_segments("string length \"hi\"");
+        let segs = serialise_segments("string length \"hi\"", LexerConfig::default());
         let arr = segs.as_array().unwrap();
         assert_eq!(arr.len(), 1);
         let cmd = &arr[0];
@@ -2276,7 +2285,7 @@ mod tests {
 
     #[test]
     fn segments_marks_braced_words() {
-        let segs = serialise_segments("if {$x} { puts hi }");
+        let segs = serialise_segments("if {$x} { puts hi }", LexerConfig::default());
         let words = segs[0]["words"].as_array().unwrap();
         // `{$x}` is a braced word.
         assert_eq!(words[1]["braced"], true);
