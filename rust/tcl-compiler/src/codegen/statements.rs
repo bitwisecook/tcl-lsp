@@ -309,7 +309,7 @@ impl CodegenCtx<'_> {
         }
         // Constant-fold [list arg1 arg2 ...]
         if let Some(folded) = super::helpers::fold_list_cmd(value) {
-            self.push_lit_no_dedup(&folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
         // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
@@ -322,7 +322,7 @@ impl CodegenCtx<'_> {
         }
         // Constant-fold [format "..." arg ...] (C19).
         if let Some(folded) = super::helpers::try_format_fold(value) {
-            self.push_lit_no_dedup(&folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
         // Constant-fold [dict create k v ...]
@@ -350,12 +350,21 @@ impl CodegenCtx<'_> {
         // normalised `${name}` but not an array element with a substituted
         // index, so decompose the word at compile time. Plain `$scalar`
         // interpolation keeps its existing (deferred-literal) lowering.
+        // Also decompose a `{…}`-wrapped value that contains a command
+        // substitution (e.g. `"{[list …]}"`): the braces are literal word
+        // content and the `[…]` must run, but pushing the value raw would let
+        // the runtime `subst_word` mistake it for a braced literal and strip the
+        // braces. A genuine braced argument never reaches here (it is emitted by
+        // the braced-word path), so decomposing is safe.
         if (value.contains('$') || value.contains('['))
             && let Some(parts) = parse_subst_template(value)
             && parts.len() > 1
-            && parts.iter().any(
-                |p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()),
-            )
+            && (parts
+                .iter()
+                .any(|p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()))
+                || (value.starts_with('{')
+                    && value.ends_with('}')
+                    && parts.iter().any(|p| matches!(p, SubstPart::Cmd(_)))))
         {
             for part in &parts {
                 match part {
@@ -374,6 +383,23 @@ impl CodegenCtx<'_> {
                     i32::try_from(parts.len()).expect("part count fits in i32"),
                 )],
             );
+            return;
+        }
+        // A value with backslash escapes and a *bare* `$` (e.g. `f\$}` / the
+        // `$}` in `list e\n} f\$}`) but no real `${…}` reference or `[…]`
+        // command substitution is a pure literal — the bare `$` stays literal
+        // because the codegen normalises genuine variables to `${name}`. Decode
+        // its escapes once at compile time. Without this the value is pushed raw
+        // and the runtime `subst_word` (which only decodes words carrying a real
+        // `${`/`[`) leaves the `\\` escapes intact. Values the assign path
+        // already backslash-decoded never reach here with a `$`, so there is no
+        // double decode.
+        if value.contains('\\')
+            && value.contains('$')
+            && !value.contains("${")
+            && !value.contains('[')
+        {
+            self.push_lit(&tcl_lexer::backslash_subst(value));
             return;
         }
         // Default: push as literal

@@ -731,3 +731,40 @@ fn escaped_brackets_not_double_substituted() {
         "{a[} b\\]\n",
     );
 }
+
+#[test]
+fn list_constant_fold_decodes_and_quotes() {
+    // Constant-folding `[list …]` must decode quoted/bare argument values
+    // (`\x00` → NUL, `\t` → tab) and treat braced ones verbatim, then requote.
+    out_eq(
+        "puts [string equal [list \"\" \"\\x00\" \"\\x00\\x00\"] \"{} \\x00 \\x00\\x00\"]\n",
+        "1\n",
+    );
+    out_eq("puts [string equal [list \"\\x00abc\" xyz] \"\\x00abc xyz\"]\n", "1\n");
+    // A single-element fold whose result is brace-quoted must not be mistaken
+    // for a braced literal and stripped at runtime.
+    out_eq("puts [string length [list \"a b\"]]\n", "5\n");
+    out_eq("puts [string length [list \"a\\tb\"]]\n", "5\n");
+}
+
+#[test]
+fn bare_dollar_literal_decodes() {
+    // A deferred literal carrying a *bare* `$` (`f\$}` — `$}` is not a variable)
+    // must still have its backslash escapes decoded once, not left raw.
+    out_eq("set body \"list e\\\\n} f\\\\$} \"\nputs [string length $body]\n", "15\n");
+    out_eq("set x \"a\\\\nq$\"\nputs $x\n", "a\\nq$\n");
+    // Real variables still interpolate.
+    out_eq("set z hi\nputs \"a $z b\"\n", "a hi b\n");
+}
+
+#[test]
+fn brace_wrapped_command_substitution_runs() {
+    // A quoted `{…}`-wrapped value with a command substitution runs the command
+    // and keeps the literal braces (rather than being stripped as a braced
+    // literal). `string is list` / `string is dict` validate list-ness.
+    out_eq("set s \"{[list a b]}\"\nputs $s\n", "{a b}\n");
+    out_eq("puts [string is list {a b c}]\n", "1\n");
+    out_eq("puts [string is list \"a \\{b\"]\n", "0\n");
+    out_eq("puts [string is dict {a 1 b 2}]\n", "1\n");
+    out_eq("puts [string is dict {a 1 b}]\n", "0\n");
+}

@@ -255,6 +255,11 @@ fn string_is(class: &str, s: &str) -> bool {
         "graph" => s.chars().all(|c| !c.is_control() && !c.is_whitespace()),
         "control" => s.chars().all(char::is_control),
         "wordchar" => s.chars().all(|c| c.is_alphanumeric() || c == '_'),
+        // `list` is valid when the string parses as a proper Tcl list (balanced
+        // braces / quotes, no trailing backslash); `dict` additionally requires
+        // an even element count.
+        "list" => tcl_syntax::list::split_list(s).is_ok(),
+        "dict" => tcl_syntax::list::split_list(s).is_ok_and(|elems| elems.len() % 2 == 0),
         _ => false,
     }
 }
