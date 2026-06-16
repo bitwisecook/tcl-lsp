@@ -290,19 +290,28 @@ def redact_secrets(
 
 # BIG-IP fields whose values it stores encrypted under the unit master
 # key (the ``$M$...`` envelope produced by ``f5mku``).  This is a
-# deliberately tighter set than ``_SECRET_KEYS`` above: redaction also
-# blanks SNMP community strings and monitor receive strings, but those
-# are kept in clear text on the device and are never master-key
-# encrypted, so feeding them through the cipher would corrupt the
-# config.
+# deliberately tighter set than ``_SECRET_KEYS`` above:
+#
+#   - Redaction also blanks SNMP community strings and monitor receive
+#     strings, but those are kept in clear text on the device and are
+#     never master-key encrypted, so feeding them through the cipher
+#     would corrupt the config.
+#   - ``encrypted-password`` is intentionally absent: in ``auth user``
+#     stanzas it holds the operating-system crypt(3) hash (``$6$...``),
+#     not a master-key ``$M$`` secret, so encrypting it would wreck the
+#     local-user credential.  (The APM ``*-encrypted-password`` variants
+#     are prefixed and so never match the word-boundary key pattern.)
+#
+# SNMPv3 secrets are ``auth-password`` / ``privacy-password`` — the names
+# the F5 SNMP registry (``dialects/f5/bigip/registry/specs/sys_snmp.py``)
+# uses for trap and user stanzas.
 _ENCRYPTED_SECRET_KEYS = (
     "passphrase",
     "password",
-    "encrypted-password",
     "secret",
     "shared-secret",
     "auth-password",
-    "priv-password",
+    "privacy-password",
 )
 
 # A secret value token is either a double-quoted string or a run of

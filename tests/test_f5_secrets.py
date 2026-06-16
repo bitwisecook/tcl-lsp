@@ -142,6 +142,28 @@ def test_rewrite_transform_none_is_left_untouched():
     assert report.new_source == _CONF
 
 
+def test_rewrite_ignores_auth_user_crypt_hash():
+    # `auth user ... encrypted-password $6$...` is an OS crypt hash, not an
+    # f5mku $M$ secret — it must not be in the encrypted-secret key set.
+    conf = "auth user /Common/admin {\n    encrypted-password $6$abc123$def456\n}\n"
+    report = rewrite_secrets(conf, lambda v: f"<{v}>")
+    assert report.transformed == 0
+    assert report.new_source == conf
+
+
+def test_rewrite_handles_snmpv3_privacy_password():
+    conf = (
+        "sys snmp {\n    users {\n        u1 {\n"
+        "            auth-password authpw\n"
+        "            privacy-password privpw\n"
+        "        }\n    }\n}\n"
+    )
+    report = rewrite_secrets(conf, lambda v: f"<{v}>")
+    assert report.transformed == 2
+    assert "auth-password <authpw>" in report.new_source
+    assert "privacy-password <privpw>" in report.new_source
+
+
 # --- CLI verbs --------------------------------------------------------------
 
 
@@ -176,6 +198,31 @@ def test_cli_encrypt_is_idempotent(tmp_path, capsys):
     code, _, err = _run(["encrypt-secrets", str(sealed), "-k", _KEY], capsys)
     assert code == 0
     assert "encrypted: 0 secret(s); 2 left untouched" in err
+
+
+def test_cli_encrypt_skips_existing_crypt_hash(tmp_path, capsys):
+    # A crypt(3) hash sitting under a secret key must not be re-wrapped.
+    conf = tmp_path / "bigip.conf"
+    conf.write_text(
+        "ltm monitor http /Common/m {\n    password $6$salt$hash\n}\n", encoding="utf-8"
+    )
+    code, out, err = _run(["encrypt-secrets", str(conf), "-k", _KEY], capsys)
+    assert code == 0
+    assert "encrypted: 0 secret(s); 1 left untouched" in err
+    assert "password $6$salt$hash" in out
+
+
+def test_cli_tmsh_delta_does_not_recreate_existing_objects(tmp_path, capsys):
+    # With --format tmsh-delta the pre-rewrite source is passed as the
+    # delta baseline, so existing objects are not spuriously re-created
+    # (which would collide on a device that already has them).
+    conf = tmp_path / "bigip.conf"
+    conf.write_text("ltm monitor https /Common/mon {\n    password clearpw\n}\n", encoding="utf-8")
+    code, out, _ = _run(
+        ["encrypt-secrets", str(conf), "-k", _KEY, "--salt", "ab", "--format", "tmsh-delta"], capsys
+    )
+    assert code == 0
+    assert "tmsh create" not in out
 
 
 def test_cli_key_from_env(tmp_path, capsys, monkeypatch):

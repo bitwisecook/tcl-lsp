@@ -53,12 +53,15 @@ same way the other rewriting verbs do.
 ### Which values are affected
 
 Only the fields BIG-IP actually master-key encrypts are touched:
-`passphrase`, `password`, `encrypted-password`, `secret`,
-`shared-secret`, `auth-password`, and `priv-password`.  SNMP community
-strings and monitor receive strings — which the device keeps in clear
-text and never wraps in `$M$` — are left alone, unlike the broader
-[`f5 redact`](kcs-feature-f5-cli.md) set.  The literals `none` and
-`<REDACTED>` are treated as sentinels and skipped.
+`passphrase`, `password`, `secret`, `shared-secret`, `auth-password`,
+and `privacy-password`.  SNMP community strings and monitor receive
+strings — which the device keeps in clear text and never wraps in
+`$M$` — are left alone, unlike the broader
+[`f5 redact`](kcs-feature-f5-cli.md) set.  The `auth user`
+`encrypted-password` field is deliberately excluded: it holds an
+operating-system crypt hash (`$6$…`), not an `$M$` master-key secret.
+The literals `none` and `<REDACTED>`, and any value already in a
+`$scheme$…` encoded form, are skipped.
 
 ### Example
 

@@ -14,6 +14,7 @@ idempotent and safe to re-run.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,11 @@ from ._registry import verb
 
 _F5MKU_ENV = "F5MKU"
 _KEY_PROMPT = "F5 MKU Key: "
+
+# A value already in a ``$scheme$...`` encoded form — an F5 ``$M$``
+# master-key secret or an OS crypt(3) hash (``$1$`` / ``$5$`` / ``$6$`` /
+# ``$2y$`` …).  ``encrypt-secrets`` never re-wraps these.
+_ALREADY_ENCODED = re.compile(r"\$[A-Za-z0-9]+\$")
 
 
 def _add_key_args(p: argparse.ArgumentParser) -> None:
@@ -180,8 +186,12 @@ def _run(args: argparse.Namespace, *, mode: str) -> int:
         salt = getattr(args, "salt", None)
 
         def transform(value: str) -> str | None:
-            if f5mku.is_ciphertext(value):
-                return None  # already encrypted
+            # Skip anything already in a `$scheme$...` encoded form: an
+            # existing `$M$` ciphertext (idempotent re-run) or a stored
+            # crypt(3) hash like `$6$...` that slipped past the key set —
+            # double-encrypting either would corrupt the credential.
+            if _ALREADY_ENCODED.match(value):
+                return None
             return f5mku.encrypt(value, key, salt=salt)
     else:
 
@@ -201,6 +211,7 @@ def _run(args: argparse.Namespace, *, mode: str) -> int:
         fmt=args.output_format,
         tmsh_verb="modify",
         transaction=getattr(args, "output_transaction", False),
+        original=source,
     )
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")

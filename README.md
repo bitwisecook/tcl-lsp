@@ -834,7 +834,7 @@ Highlights of the newer verbs:
   including support emails and log snippets.
 - **`f5 encrypt-secrets` + `f5 decrypt-secrets`** — encrypt or decrypt the
   credential-bearing values in a `bigip.conf` / SCF (passphrase, password,
-  secret, shared-secret, auth-password, priv-password, encrypted-password)
+  secret, shared-secret, auth-password, privacy-password)
   using the unit master key — the base64 key `f5mku -K` prints on the
   device.  `encrypt-secrets` wraps clear-text values in the
   `$M$<salt>$<base64>` envelope BIG-IP stores; `decrypt-secrets` recovers the
