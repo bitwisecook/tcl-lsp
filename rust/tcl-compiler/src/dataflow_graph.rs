@@ -22,6 +22,7 @@ use crate::def_use::{DefKind, DefUseResult, UseKind};
 use crate::memory_ssa::{MemoryLocation, MemorySSAFunction};
 use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
+use crate::types::{TypeKind, TypeLattice};
 
 // ---------------------------------------------------------------------------
 // Edge classification (C25c)
@@ -256,6 +257,22 @@ fn format_lattice(values: &HashMap<ValueKey, LatticeValue>, key: &ValueKey) -> S
     }
 }
 
+/// Render the type-lattice kind for a node's `typeInfo`. Mirrors Python's
+/// `_format_type` (`dataflow_graph.py`): the lattice *kind* name, or the
+/// empty string when no type was inferred for this SSA value.
+fn format_type(types: Option<&HashMap<ValueKey, TypeLattice>>, key: &ValueKey) -> String {
+    match types.and_then(|t| t.get(key)) {
+        None => String::new(),
+        Some(tl) => match tl.kind {
+            TypeKind::Unknown => "UNKNOWN",
+            TypeKind::Known => "KNOWN",
+            TypeKind::Shimmered => "SHIMMERED",
+            TypeKind::Overdefined => "OVERDEFINED",
+        }
+        .to_owned(),
+    }
+}
+
 fn format_const(c: &ConstValue) -> String {
     match c {
         ConstValue::Int(i) => i.to_string(),
@@ -283,14 +300,16 @@ fn def_kind_name(k: DefKind) -> &'static str {
 /// been run; the extractor then leaves the corresponding display
 /// fields empty / skips alias entries.
 #[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn extract_function_dataflow(
     name: &str,
     ssa: &SsaFunction,
     du: &DefUseResult,
     sccp: Option<&SccpResult>,
     mem: Option<&MemorySSAFunction>,
+    types: Option<&HashMap<ValueKey, TypeLattice>>,
 ) -> FunctionDataFlowGraph {
-    let _ = ssa; // reserved for future type-lattice wiring.
+    let _ = ssa; // SSA is consumed indirectly via def-use + type maps.
     let empty_values: HashMap<ValueKey, LatticeValue> = HashMap::new();
     let values = sccp.map_or(&empty_values, |r| &r.values);
 
@@ -311,7 +330,7 @@ pub fn extract_function_dataflow(
             def_kind: def_kind_name(chain.definition.kind).to_owned(),
             statement_index: chain.definition.statement_index,
             lattice: format_lattice(values, key),
-            type_info: String::new(),
+            type_info: format_type(types, key),
             is_dead: chain.is_dead(),
             use_count: u32::try_from(chain.use_count()).unwrap_or(u32::MAX),
         });
@@ -405,20 +424,33 @@ pub struct FunctionInputs<'a> {
     pub sccp: Option<&'a SccpResult>,
     /// Optional memory-SSA for alias-info extraction.
     pub mem: Option<&'a MemorySSAFunction>,
+    /// Optional type-lattice map for the per-node `typeInfo` projection.
+    pub types: Option<&'a HashMap<ValueKey, TypeLattice>>,
 }
 
 /// Build a [`DataFlowGraph`] for an entire module from per-function
 /// analysis outputs.
 ///
-/// Function graphs are appended in the order of `inputs` and then
-/// sorted by `function_name` so the output is stable across runs.
+/// Function graphs are appended in the order of `inputs` and then sorted
+/// `::top` first, then the remaining functions alphabetically — matching
+/// the Python serialiser (`compiler/dataflow_graph.py`, which emits the
+/// top-level unit before `sorted(cu.procedures)`) so the output is stable
+/// across runs and byte-comparable.
 #[must_use]
 pub fn extract_dataflow_graph(inputs: &[FunctionInputs<'_>]) -> DataFlowGraph {
     let mut functions: Vec<FunctionDataFlowGraph> = inputs
         .iter()
-        .map(|i| extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem))
+        .map(|i| extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem, i.types))
         .collect();
-    functions.sort_by(|a, b| a.function_name.cmp(&b.function_name));
+    functions.sort_by(|a, b| {
+        // Top-level (`::top`) sorts before every procedure; the rest go
+        // alphabetically by qualified name.
+        let a_top = a.function_name == "::top";
+        let b_top = b.function_name == "::top";
+        b_top
+            .cmp(&a_top)
+            .then_with(|| a.function_name.cmp(&b.function_name))
+    });
     DataFlowGraph { functions }
 }
 
@@ -519,7 +551,7 @@ mod tests {
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
         let sccp_result = sccp(&cfg, &ssa, None);
-        let g = extract_function_dataflow("::top", &ssa, &du, Some(&sccp_result), None);
+        let g = extract_function_dataflow("::top", &ssa, &du, Some(&sccp_result), None, None);
 
         assert_eq!(g.function_name, "::top");
         assert_eq!(g.total_defs, 1);
@@ -532,6 +564,36 @@ mod tests {
         assert_eq!(node.def_kind, "statement");
         assert_eq!(node.lattice, "CONST(42)");
         assert!(node.is_dead);
+    }
+
+    #[test]
+    fn type_info_projects_lattice_kind_name() {
+        let mut ssa = SsaFunction {
+            name: "::top".into(),
+            entry: "entry".into(),
+            blocks: Map::new(),
+            idom: Map::new(),
+            dominance_frontier: Map::new(),
+            dominator_tree: Map::new(),
+        };
+        let mut entry = empty_ssa_block("entry");
+        entry.statements.push(assign_const_ssa("x", "42", 1));
+        ssa.blocks.insert("entry".into(), entry);
+        let du = build_def_use_chains(&ssa, None);
+
+        // A `Known` type lattice for x@1 must render as the uppercase
+        // kind name "KNOWN" (matching Python's `tl.kind.name`); a value
+        // absent from the map renders as the empty string.
+        let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
+        types.insert(("x".into(), 1), TypeLattice::of(crate::types::TclType::Int));
+
+        let g = extract_function_dataflow("::top", &ssa, &du, None, None, Some(&types));
+        let node = g.nodes.iter().find(|n| n.name == "x").expect("x node");
+        assert_eq!(node.type_info, "KNOWN");
+
+        // Without a type map every node's typeInfo is empty.
+        let g0 = extract_function_dataflow("::top", &ssa, &du, None, None, None);
+        assert_eq!(g0.nodes[0].type_info, "");
     }
 
     #[test]
@@ -573,7 +635,7 @@ mod tests {
         ssa.blocks.insert("entry".into(), entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
-        let g = extract_function_dataflow("::top", &ssa, &du, None, None);
+        let g = extract_function_dataflow("::top", &ssa, &du, None, None, None);
 
         let direct_edges: Vec<&DataFlowEdge> = g
             .edges
@@ -606,7 +668,7 @@ mod tests {
             dominance_frontier: Map::new(),
             dominator_tree: Map::new(),
         };
-        let g = extract_function_dataflow("::top", &ssa, &du, None, Some(&mem));
+        let g = extract_function_dataflow("::top", &ssa, &du, None, Some(&mem), None);
         assert_eq!(g.aliases.len(), 1);
         let a = &g.aliases[0];
         assert_eq!(a.reason, "global");
@@ -654,6 +716,7 @@ mod tests {
                 du: &du_b,
                 sccp: None,
                 mem: None,
+                types: None,
             },
             FunctionInputs {
                 name: "::a",
@@ -661,6 +724,7 @@ mod tests {
                 du: &du_a,
                 sccp: None,
                 mem: None,
+                types: None,
             },
         ];
         let g = extract_dataflow_graph(&inputs);
@@ -690,7 +754,7 @@ mod tests {
             dominance_frontier: Map::new(),
             dominator_tree: Map::new(),
         };
-        let g = extract_function_dataflow("::top", &ssa, &du, None, None);
+        let g = extract_function_dataflow("::top", &ssa, &du, None, None, None);
         assert!(g.nodes.is_empty());
         assert!(g.edges.is_empty());
         assert_eq!(g.total_defs, 0);

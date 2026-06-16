@@ -517,10 +517,17 @@ impl CompilationUnit {
         self.procedures.get(name)
     }
 
-    /// Iterate over every function unit in the module (top-level
-    /// first, then procedures in insertion order).
+    /// Iterate over every function unit in the module: the top-level unit
+    /// first, then procedures **in qualified-name order**.
+    ///
+    /// The procedure store is a `HashMap`, whose iteration order is not
+    /// stable across runs; sorting here gives every consumer
+    /// (taint/gvn/shimmer/callouts/stats…) a deterministic function order,
+    /// so the per-function diagnostics they emit are reproducible.
     pub fn functions(&self) -> impl Iterator<Item = &FunctionUnit> {
-        std::iter::once(&self.top_level).chain(self.procedures.values())
+        let mut procs: Vec<&FunctionUnit> = self.procedures.values().collect();
+        procs.sort_by(|a, b| a.name.cmp(&b.name));
+        std::iter::once(&self.top_level).chain(procs)
     }
 }
 

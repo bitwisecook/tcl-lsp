@@ -663,6 +663,26 @@ pub fn classify_side_effects(
         };
     }
 
+    // Subcommand-level purity: ensemble commands (`string`, `dict`, `array`,
+    // …) are not pure at the command level but most of their subcommands are
+    // (`string length`, `dict get`, `array names`). Mirror Python's
+    // `is_pure = is_pure(command); if not is_pure and sub_spec: is_pure =
+    // sub_spec.pure`, with a `mutator` subcommand overriding back to impure.
+    // Without this the side-effect classifier treats every ensemble call as a
+    // conservative unknown-write, which (e.g.) hides redundant `string length`
+    // computations from GVN.
+    if let Some(sub) = args.first().and_then(|a| spec.subcommand(a))
+        && sub.pure
+        && !sub.mutator
+    {
+        return CommandSideEffects {
+            pure: true,
+            deterministic: true,
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
     // Variable-assigning commands (`set`, `incr`, `append`, `lappend`, …).
     if let Some(idx) = spec.assigns_variable_at {
         let idx = usize::from(idx);
