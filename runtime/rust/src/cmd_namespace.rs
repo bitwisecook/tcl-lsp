@@ -342,6 +342,16 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         set_list_bytes(interp, &pats);
         return Code::Ok;
     }
+    // An export pattern names commands in the *current* namespace only, so it
+    // may not be namespace-qualified (C's `NamespaceExportCmd`).
+    for p in &patterns {
+        if tcl_syntax::naming::is_qualified(p) {
+            let mut m = b"invalid export pattern \"".to_vec();
+            m.extend_from_slice(p);
+            m.extend_from_slice(b"\": pattern can't specify a namespace");
+            return interp.set_error(&m);
+        }
+    }
     if clear {
         interp.namespaces_mut().clear_exports(cur);
     }
@@ -371,6 +381,10 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Ok;
     }
     for pat in &patterns {
+        // An empty pattern is rejected outright (C's `Tcl_Import`).
+        if pat.is_empty() {
+            return interp.set_error(b"empty import pattern");
+        }
         // Split into the source-namespace qualifier and the simple glob tail.
         let q = qualifiers(pat);
         let tail_pat = tail(pat);
@@ -380,6 +394,16 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.push(b'"');
             return interp.set_error(&m);
         };
+        // Importing from one's own namespace is meaningless (C's `Tcl_Import`):
+        // the message names the source namespace by its simple name.
+        if src_ns == dest {
+            let mut m = b"import pattern \"".to_vec();
+            m.extend_from_slice(pat);
+            m.extend_from_slice(b"\" tries to import from namespace \"");
+            m.extend_from_slice(&interp.namespaces().simple_name(src_ns));
+            m.extend_from_slice(b"\" into itself");
+            return interp.set_error(&m);
+        }
         // Collect the matching, exported source commands first (borrow ends).
         let src_fqn = interp.namespaces().qualified_name(src_ns);
         let mut to_import: Vec<Vec<u8>> = Vec::new();
@@ -432,7 +456,13 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let q = qualifiers(&pat);
         let tail_pat = tail(&pat);
         let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
-            continue; // unknown source ns ⇒ nothing to forget
+            // C's `Tcl_ForgetImport` errors if the pattern's namespace qualifier
+            // names a namespace that does not exist (an unqualified pattern
+            // resolves to the current namespace, which always exists).
+            let mut m = b"unknown namespace in namespace forget pattern \"".to_vec();
+            m.extend_from_slice(&pat);
+            m.push(b'"');
+            return interp.set_error(&m);
         };
         let mut src_fqn = interp.namespaces().qualified_name(src_ns);
         src_fqn.extend_from_slice(b"::");
@@ -535,32 +565,43 @@ fn dest_has_own(interp: &Interp, dest: NsId, simple: &[u8]) -> bool {
     interp.namespaces().command_names(dest).contains(&simple)
 }
 
-/// `namespace qualifiers` text op: everything before the last `::` (trailing
-/// `::`-runs trimmed); empty if unqualified.
+/// `namespace qualifiers` text op: everything before the last `::` separator,
+/// with the whole trailing colon-run trimmed (`foo:::` → `foo`, `:::::` → ``);
+/// empty if unqualified.
 fn qualifiers(s: &[u8]) -> &[u8] {
-    match find_last_sep(s) {
-        Some(i) => &s[..i],
+    match last_sep_run(s) {
+        Some((start, _)) => &s[..start],
         None => b"",
     }
 }
 
-/// `namespace tail` text op: the simple name after the last `::`.
+/// `namespace tail` text op: the simple name after the last `::` separator (the
+/// whole colon-run is skipped, so `foo:::` → ``).
 fn tail(s: &[u8]) -> &[u8] {
-    match find_last_sep(s) {
-        Some(i) => &s[i + 2..],
+    match last_sep_run(s) {
+        Some((_, end)) => &s[end..],
         None => s,
     }
 }
 
-/// Index of the last `::` separator in `s`, or `None`.
-fn find_last_sep(s: &[u8]) -> Option<usize> {
-    if s.len() < 2 {
-        return None;
-    }
-    let mut i = s.len() - 1;
-    while i >= 1 {
-        if s[i] == b':' && s[i - 1] == b':' {
-            return Some(i - 1);
+/// The byte range `(start, end)` of the last `::` separator run in `s` (a run is
+/// two or more consecutive colons), or `None` if there is none. `s[..start]` is
+/// the qualifier and `s[end..]` the tail (C's `NamespaceQualifiersCmd` /
+/// `NamespaceTailCmd` colon-run handling).
+fn last_sep_run(s: &[u8]) -> Option<(usize, usize)> {
+    // Scan back for the last "::" pair, then extend over every adjacent colon.
+    let mut i = s.len();
+    while i >= 2 {
+        if s[i - 1] == b':' && s[i - 2] == b':' {
+            let mut start = i - 2;
+            while start > 0 && s[start - 1] == b':' {
+                start -= 1;
+            }
+            let mut end = i;
+            while end < s.len() && s[end] == b':' {
+                end += 1;
+            }
+            return Some((start, end));
         }
         i -= 1;
     }
