@@ -64,6 +64,8 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("tcl::build-info", cmd_build_info);
     vm.register("interp", cmd_interp);
     vm.register("rename", cmd_rename);
+    vm.register("eval", cmd_eval);
+    vm.register("apply", cmd_apply);
     vm.register("incr", cmd_incr);
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
@@ -89,6 +91,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm);
+    crate::cmd_prefix::register(vm);
     crate::cmd_namespace::register(vm);
     crate::cmd_package::register(vm);
     crate::cmd_regexp::register(vm);
@@ -146,6 +149,87 @@ fn cmd_build_info(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [] => ok(Value::string("9.0.0")),
         [_option] => ok(Value::int(0)),
         _ => err("wrong # args: should be \"tcl::build-info ?option?\""),
+    }
+}
+
+/// `eval arg ?arg ...?` — concatenate the arguments with spaces and evaluate the
+/// result as a script in the current frame.
+fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() {
+        return err("wrong # args: should be \"eval arg ?arg ...?\"");
+    }
+    let script = if let [single] = args {
+        single.to_str().to_string()
+    } else {
+        args.iter()
+            .map(|v| v.to_str().to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    match vm.eval_source(&script) {
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
+/// Monotonic counter minting unique temporary command names for `apply`.
+fn fresh_apply_name() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("::tcl::apply::lambda{n}")
+}
+
+/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
+/// Implemented by binding the lambda to a temporary command and evaluating a
+/// call, so parameter binding and `return` semantics match a normal proc.
+fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((lambda, call_args)) = args.split_first() else {
+        return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
+    };
+    let parts = match lambda.as_list() {
+        Ok(p) => p,
+        Err(c) => return err(c.message),
+    };
+    if parts.len() < 2 || parts.len() > 3 {
+        return err(format!(
+            "can't interpret \"{}\" as a lambda expression",
+            lambda.to_str()
+        ));
+    }
+    let (params_vec, has_args) = match parse_params(&parts[0].to_str()) {
+        Ok(p) => p,
+        Err(e) => return err(e),
+    };
+    let body = parts[1].clone();
+    let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {
+        return err("apply: could not compile lambda body");
+    };
+    // The optional third element is the namespace the body runs in (default
+    // global). Strip a leading `::` to the canonical form.
+    let namespace = parts
+        .get(2)
+        .map(|v| v.to_str().trim_start_matches("::").to_string())
+        .unwrap_or_default();
+
+    let name = fresh_apply_name();
+    vm.define_proc(ProcDef {
+        name: name.clone(),
+        namespace,
+        params: params_vec,
+        has_args,
+        body: body_asm,
+        body_src: body,
+    });
+    let mut words = Vec::with_capacity(call_args.len() + 1);
+    words.push(Value::string(name.as_str()));
+    words.extend_from_slice(call_args);
+    let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
+    let result = vm.eval_source(&script);
+    vm.take_command(&name);
+    match result {
+        Ok(c) => c,
+        Err(e) => err(e.message),
     }
 }
 
