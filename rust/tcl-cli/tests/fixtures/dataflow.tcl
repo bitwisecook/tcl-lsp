@@ -18,6 +18,7 @@ proc report {x} {
 
 set userinput [gets stdin]
 eval $userinput
-file delete -- $userinput
+file delete $userinput
+regexp $userinput "needle"
 set total [scale 21]
 report 21

@@ -8,6 +8,27 @@
       "sink_command": "eval"
     },
     {
+      "code": "T102",
+      "line": 20,
+      "message": "Tainted variable $userinput in option position of 'file delete' without '--' terminator; risk of option injection",
+      "variable": "userinput",
+      "sink_command": "file delete"
+    },
+    {
+      "code": "T103",
+      "line": 21,
+      "message": "Tainted variable $userinput in regexp pattern position (regexp); risk of regex injection or ReDoS",
+      "variable": "userinput",
+      "sink_command": "regexp"
+    },
+    {
+      "code": "T102",
+      "line": 21,
+      "message": "Tainted variable $userinput in option position of 'regexp' without '--' terminator; risk of option injection",
+      "variable": "userinput",
+      "sink_command": "regexp"
+    },
+    {
       "code": "W313",
       "line": 20,
       "message": "file delete with a variable path ($userinput) risks path-traversal. Normalise with [file normalize] and verify it stays within the intended directory.",
@@ -52,7 +73,7 @@
     }
   ],
   "summary": {
-    "total_taint_warnings": 2,
+    "total_taint_warnings": 5,
     "tainted_variable_count": 1,
     "pure_proc_count": 3,
     "impure_proc_count": 1

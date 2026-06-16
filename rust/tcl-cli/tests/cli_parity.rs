@@ -179,17 +179,23 @@ fn callgraph_json_matches_python() {
 // `_effect_region_str`) and the taint engine. The `taint_warnings` half now
 // aggregates all five Python warning families per scope, in Python's order
 // (sink-injection / setter-constraint / uri-split / path-concat /
-// destructive-file), mirroring `compiler_checks::run_all_checks`; the fixture
-// exercises a top-level `eval $tainted` (`T100`) and a `file delete -- $tainted`
-// (`W313`). `tainted_variables` walks the per-unit lattices. The `proc_effects`
+// destructive-file), mirroring `compiler_checks::run_all_checks`. The
+// sink-injection family is reconciled with Python's per-statement order and
+// labels: `T102` option-injection now resolves the option-terminator profile
+// (`resolve_option_terminator`) so ensemble subcommands report a compound
+// label (`file delete`) and the option-scan region filters positions, and
+// `T103` (regex injection) fires for tainted `regexp`/`regsub` patterns. The
+// fixture exercises `eval $tainted` (`T100`), `file delete $tainted`
+// (`T102` + `W313`), and `regexp $tainted …` (`T103` + `T102`), in Python's
+// order. `tainted_variables` walks the per-unit lattices. The `proc_effects`
 // half is at parity (closed interproc engine), incl. an impure `puts`-calling
-// proc (region-free — `reads`/`writes` = `NONE`). **Remaining taint gaps**
+// proc (region-free — `reads`/`writes` = `NONE`). **Remaining taint gap**
 // (documented in docs/rust-cli-port.md): no inter-procedural taint solve
 // (`_solve_interprocedural_taints`), so a global written inside a proc is
-// over-tainted (the version-0 global seeding) where Python is precise; and the
-// `T102` option-injection check doesn't yet model ensemble subcommands /
-// Python's option-scan region + message label (e.g. `file delete $tainted`
-// without `--`). The fixture stays clear of both so it locks byte-for-byte.
+// over-tainted (the version-0 global seeding) where Python is precise, and the
+// per-unit `tainted_variables` ordering is alphabetical rather than
+// definition-order. The fixture keeps a single tainted variable so it locks
+// byte-for-byte.
 #[test]
 fn dataflow_text_matches_python() {
     let input = fixtures_dir().join("dataflow.tcl");
