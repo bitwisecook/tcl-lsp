@@ -378,6 +378,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut level: usize = 1;
     let mut errorcode: Option<Vec<u8>> = None;
     let mut errorinfo: Option<Vec<u8>> = None;
+    let mut errorstack: Option<Vec<u8>> = None;
 
     let mut i = 1;
     while i + 1 < argv.len() {
@@ -403,6 +404,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             },
             b"-errorcode" => errorcode = Some(obj_bytes(argv[i + 1])),
             b"-errorinfo" => errorinfo = Some(obj_bytes(argv[i + 1])),
+            b"-errorstack" => errorstack = Some(obj_bytes(argv[i + 1])),
             b"-options" => {
                 // Seed code/level/errorcode/errorinfo from the options dict.
                 let opts = obj_bytes(argv[i + 1]);
@@ -419,6 +421,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                             }
                             b"-errorcode" => errorcode = Some(d[j + 1].clone()),
                             b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
+                            b"-errorstack" => errorstack = Some(d[j + 1].clone()),
                             _ => {}
                         }
                         j += 2;
@@ -428,6 +431,33 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             _ => break, // not an option → the result word
         }
         i += 2;
+    }
+    // Validate -errorcode / -errorstack (`TclMergeReturnOptions`). A malformed
+    // value errors before the return takes effect, with a specific `-errorcode`.
+    if let Some(ec) = &errorcode {
+        if crate::parse::split_list(ec).is_err() {
+            let mut m = b"bad -errorcode value: expected a list but got \"".to_vec();
+            m.extend_from_slice(ec);
+            m.push(b'"');
+            return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_ERRORCODE");
+        }
+    }
+    if let Some(es) = &errorstack {
+        match crate::parse::split_list(es) {
+            Err(_) => {
+                let mut m = b"bad -errorstack value: expected a list but got \"".to_vec();
+                m.extend_from_slice(es);
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL RESULT NONLIST_ERRORSTACK");
+            }
+            Ok(parts) if parts.len() % 2 != 0 => {
+                let mut m = b"forbidden odd-sized list for -errorstack: \"".to_vec();
+                m.extend_from_slice(es);
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL RESULT ODDSIZEDLIST_ERRORSTACK");
+            }
+            Ok(_) => {}
+        }
     }
     // The optional trailing result word.
     if i < argv.len() {
