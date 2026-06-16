@@ -302,14 +302,18 @@ struct ExplainJson {
     sections: Vec<SectionJson>,
 }
 
-struct ExplainReport {
+pub(crate) struct ExplainReport {
     target: String,
     kind: String,
     found: bool,
     sections: Vec<Section>,
 }
 
-fn compute_explain(cfg: &BigipConfig, target: &str, kind_hint: Option<&str>) -> ExplainReport {
+pub(crate) fn compute_explain(
+    cfg: &BigipConfig,
+    target: &str,
+    kind_hint: Option<&str>,
+) -> ExplainReport {
     let model = Model::build(cfg);
 
     let resolved = if kind_hint.is_none() || kind_hint == Some("virtual") {
@@ -354,7 +358,11 @@ fn compute_explain(cfg: &BigipConfig, target: &str, kind_hint: Option<&str>) -> 
     }
 }
 
-fn full_path_of(report: &ExplainReport, cfg: &BigipConfig, kind_hint: Option<&str>) -> String {
+pub(crate) fn full_path_of(
+    report: &ExplainReport,
+    cfg: &BigipConfig,
+    kind_hint: Option<&str>,
+) -> String {
     // Re-resolve to recover the matched object's full_path for the header.
     let model = Model::build(cfg);
     let target = &report.target;
@@ -372,7 +380,7 @@ fn full_path_of(report: &ExplainReport, cfg: &BigipConfig, kind_hint: Option<&st
     target.clone()
 }
 
-fn format_text(report: &ExplainReport, full_path: &str) -> String {
+pub(crate) fn format_text(report: &ExplainReport, full_path: &str) -> String {
     if !report.found {
         return format!("no virtual or pool found for {}", py_repr(&report.target));
     }

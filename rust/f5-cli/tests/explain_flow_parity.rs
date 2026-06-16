@@ -39,7 +39,7 @@ fn run_explain_flow(pcap: &str, conf: &str) -> (Vec<u8>, i32) {
     (out.stdout, out.status.code().unwrap_or(-1))
 }
 
-fn assert_parity(pcap: &str) {
+fn assert_unmatched_parity(pcap: &str) {
     let (stdout, code) = run_explain_flow(pcap, "explain-flow-sample.conf");
     assert_eq!(
         stdout,
@@ -53,15 +53,31 @@ fn assert_parity(pcap: &str) {
 #[test]
 fn libpcap_mixed_flows_match_golden() {
     // 7 flows: HTTP GET, UDP, ICMP, TCP, IPv6, same-host, plain TCP.
-    assert_parity("pcap-remap-sample.pcap");
+    assert_unmatched_parity("pcap-remap-sample.pcap");
 }
 
 #[test]
 fn pcapng_flows_match_golden() {
-    assert_parity("pcap-remap-sample.pcapng");
+    assert_unmatched_parity("pcap-remap-sample.pcapng");
 }
 
 #[test]
 fn libpcap_unknown_trailer_match_golden() {
-    assert_parity("pcap-remap-unknown.pcap");
+    assert_unmatched_parity("pcap-remap-unknown.pcap");
+}
+
+#[test]
+fn matched_virtual_with_back_side_matches_golden() {
+    // A `:np`-style capture whose front flow targets the sample VS: exercises
+    // profile-chain resolution (with types), observed pool member + SNAT from
+    // the back side, the TLS/HTTP captured request, and the reused `f5 explain`
+    // resolved-plan block. The matched VS carries no iRules, so the event /
+    // policy sections (later increments) stay absent.
+    let (stdout, code) = run_explain_flow("explain-flow-matched.pcap", "explain-flow-matched.conf");
+    assert_eq!(
+        stdout,
+        golden("explain-flow-matched.golden"),
+        "matched explain-flow stdout must match the Python golden"
+    );
+    assert_eq!(code, 0, "exit code for a matched capture");
 }

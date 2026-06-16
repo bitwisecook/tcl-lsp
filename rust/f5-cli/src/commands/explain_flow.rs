@@ -14,9 +14,11 @@ use std::path::Path;
 
 use regex::Regex;
 use tcl_bigip::flow::{Session, extract_flows, pair_sessions};
-use tcl_bigip::model::ModelObject;
+use tcl_bigip::model::{BigipProfile, BigipVirtualServer, ModelObject};
 use tcl_bigip::parser::BigipConfig;
 use tcl_cli_support::{OutputTarget, write_text_output};
+
+use crate::commands::explain;
 
 /// One HUD annotation: `(source-line excerpt, command, captured value)`.
 type Annotation = (String, String, String);
@@ -114,6 +116,172 @@ fn match_virtual(cfg: &BigipConfig, dst_ip: &str, dst_port: u16, re: &Regex) -> 
     None
 }
 
+/// Fetch the parsed virtual server with the given full path.
+fn find_virtual<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipVirtualServer> {
+    cfg.objects.iter().find_map(|p| match &p.object {
+        ModelObject::VirtualServer(vs) if vs.full_path == full_path => Some(vs),
+        _ => None,
+    })
+}
+
+/// All object full-paths in a given `Placed` table, in source order.
+fn table_keys<'a>(cfg: &'a BigipConfig, table: &str) -> impl Iterator<Item = &'a str> {
+    cfg.objects.iter().filter_map(move |p| {
+        if p.table_name == table {
+            Some(p.full_path.as_str())
+        } else {
+            None
+        }
+    })
+}
+
+/// Resolve a possibly-short name to a full path in `table`. Faithful port of
+/// `BigipConfig.resolve_name` (exact, partition-qualified, `/Common/`, suffix).
+fn resolve_name(cfg: &BigipConfig, name: &str, table: &str) -> Option<String> {
+    if table_keys(cfg, table).any(|k| k == name) {
+        return Some(name.to_owned());
+    }
+    if !name.starts_with('/') {
+        let partition = {
+            let p = if cfg.default_partition.is_empty() {
+                "Common"
+            } else {
+                cfg.default_partition.as_str()
+            };
+            p.trim_matches('/').to_owned()
+        };
+        if !partition.is_empty() {
+            let candidate = format!("/{partition}/{name}");
+            if table_keys(cfg, table).any(|k| k == candidate) {
+                return Some(candidate);
+            }
+        }
+        if partition != "Common" {
+            let candidate = format!("/Common/{name}");
+            if table_keys(cfg, table).any(|k| k == candidate) {
+                return Some(candidate);
+            }
+        }
+    }
+    let suffix = format!("/{name}");
+    table_keys(cfg, table)
+        .find(|k| k.ends_with(&suffix))
+        .map(ToOwned::to_owned)
+}
+
+fn resolve_profile(cfg: &BigipConfig, name: &str) -> Option<String> {
+    resolve_name(cfg, name, "profiles")
+}
+
+fn find_profile<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipProfile> {
+    cfg.objects.iter().find_map(|p| match &p.object {
+        ModelObject::Profile(prof) if prof.full_path == full_path => Some(prof),
+        _ => None,
+    })
+}
+
+/// Resolve a generic BIG-IP object key by identifier/name. Faithful port of
+/// `BigipConfig.resolve_generic_object`. Returns the `generic_objects` key.
+fn resolve_generic_object(
+    cfg: &BigipConfig,
+    name: &str,
+    module: Option<&str>,
+    object_types: Option<&[&str]>,
+) -> Option<String> {
+    let clean = name.trim();
+    if clean.is_empty() {
+        return None;
+    }
+    for (key, obj) in &cfg.generic_objects {
+        if module.is_some_and(|m| obj.module != m) {
+            continue;
+        }
+        if object_types.is_some_and(|types| !types.contains(&obj.object_type.as_str())) {
+            continue;
+        }
+        // Mirrors `resolve_generic_object._matches`. The reference repeats the
+        // `ident == clean` exact-match inside the unqualified branch; it is
+        // already covered by the leading term, so it is dropped here.
+        let ident = obj.identifier.as_str();
+        let matches = ident == clean
+            || (clean.starts_with('/') && ident.ends_with(clean))
+            || (!clean.starts_with('/') && ident.ends_with(&format!("/{clean}")));
+        if matches {
+            return Some(key.clone());
+        }
+    }
+    None
+}
+
+/// Return the LTM policy paths attached to *vs*, in attach order. Faithful port
+/// of `_ltm_policies_for`.
+fn ltm_policies_for(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<String> {
+    let policies = vs.policies.paths();
+    if policies.is_empty() {
+        return Vec::new();
+    }
+    let mut out: Vec<String> = Vec::new();
+    for reference in policies {
+        if let Some(resolved) =
+            resolve_generic_object(cfg, &reference, Some("ltm"), Some(&["policy"]))
+        {
+            let obj = cfg
+                .generic_objects
+                .iter()
+                .find(|(k, _)| *k == resolved)
+                .map(|(_, o)| o);
+            let label = obj
+                .filter(|o| !o.identifier.is_empty())
+                .map_or(resolved, |o| o.identifier.clone());
+            out.push(label);
+        } else {
+            out.push(format!("{reference} (unresolved)"));
+        }
+    }
+    out
+}
+
+/// Locate the APM access profile attached to *vs*. Faithful port of
+/// `_apm_profile_for`.
+fn apm_profile_for(cfg: &BigipConfig, vs: &BigipVirtualServer) -> String {
+    for pref in vs.profiles.paths() {
+        let resolved = resolve_profile(cfg, &pref).unwrap_or_else(|| pref.clone());
+        if resolved.contains("/access") || resolved.ends_with("access") {
+            return resolved;
+        }
+        for (_key, obj) in &cfg.generic_objects {
+            if obj.module == "apm"
+                && (resolved == obj.identifier || resolved.ends_with(&obj.identifier))
+            {
+                return resolved;
+            }
+        }
+    }
+    String::new()
+}
+
+/// Return every GTM wide-IP identifier in *cfg* (a global inventory). Faithful
+/// port of `_gtm_wide_ips_in_config`.
+fn gtm_wide_ips_in_config(cfg: &BigipConfig) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (key, obj) in &cfg.generic_objects {
+        if obj.module != "gtm" {
+            continue;
+        }
+        if obj.object_type.starts_with("wideip")
+            || obj.object_type == "wideip-a"
+            || obj.object_type.contains("wideip")
+        {
+            out.push(if obj.identifier.is_empty() {
+                key.clone()
+            } else {
+                obj.identifier.clone()
+            });
+        }
+    }
+    out
+}
+
 /// Produce a human-readable narrative of why the session ended.
 /// Faithful port of `_analyse_reset`.
 fn analyse_reset(session: &Session) -> String {
@@ -180,6 +348,7 @@ fn analyse_reset(session: &Session) -> String {
 }
 
 /// Build the per-session explanation for the capture against parsed configs.
+#[allow(clippy::too_many_lines)]
 fn compute_explain_flow(
     pcap_display: &str,
     pcap_bytes: &[u8],
@@ -226,7 +395,7 @@ fn compute_explain_flow(
             }
         }
 
-        let (Some(vs_path), Some(_cfg_hit)) = (vs_path, cfg_hit) else {
+        let (Some(vs_path), Some(cfg_hit)) = (vs_path, cfg_hit) else {
             let reset = analyse_reset(&session);
             session_explains.push(SessionExplain {
                 session: Some(SessionHolder(session)),
@@ -237,19 +406,69 @@ fn compute_explain_flow(
         };
 
         matched += 1;
+        let Some(vs) = find_virtual(cfg_hit, &vs_path) else {
+            // The matcher returned a path it can no longer fetch (shouldn't
+            // happen); fall back to the bare match line.
+            let reset = analyse_reset(&session);
+            session_explains.push(SessionExplain {
+                session: Some(SessionHolder(session)),
+                matched_vs: vs_path,
+                reset_analysis: reset,
+                ..Default::default()
+            });
+            continue;
+        };
         let partition = if vs_path.starts_with('/') {
             vs_path.split('/').nth(1).unwrap_or("").to_owned()
         } else {
             String::new()
         };
+
+        let mut profile_chain: Vec<String> = Vec::new();
+        for pref in vs.profiles.paths() {
+            let resolved = resolve_profile(cfg_hit, &pref).unwrap_or_else(|| pref.clone());
+            if let Some(prof) = find_profile(cfg_hit, &resolved) {
+                profile_chain.push(format!(
+                    "{resolved} ({})",
+                    prof.profile_type.py_name().to_lowercase()
+                ));
+            } else {
+                profile_chain.push(format!("{pref} (unresolved)"));
+            }
+        }
+
+        let ltm_policies = ltm_policies_for(cfg_hit, vs);
+        let apm = apm_profile_for(cfg_hit, vs);
+        let gtm = gtm_wide_ips_in_config(cfg_hit);
+
+        // Pool selection + SNAT inferred from the back-side flow if present.
+        let mut pool_selected = String::new();
+        let mut snat_observed = String::new();
+        if let Some(back) = &session.back {
+            let bc = &back.client;
+            pool_selected = format!("{}:{}", bc.dst_ip, bc.dst_port);
+            if bc.src_ip != session.front.client.src_ip {
+                snat_observed = format!("{}:{}", bc.src_ip, bc.src_port);
+            }
+        }
+
+        let explain_report = explain::compute_explain(cfg_hit, &vs.full_path, Some("virtual"));
+        let explain_full_path = explain::full_path_of(&explain_report, cfg_hit, Some("virtual"));
+        let explain_text = explain::format_text(&explain_report, &explain_full_path);
+
         let reset = analyse_reset(&session);
 
-        // Matched-session detail (profiles, events, policies, resolved plan)
-        // lands in the next increment; for now record the match + termination.
         session_explains.push(SessionExplain {
             session: Some(SessionHolder(session)),
-            matched_vs: vs_path,
+            matched_vs: vs.full_path.clone(),
             matched_partition: partition,
+            profile_chain,
+            pool_selected,
+            snat_observed,
+            ltm_policies,
+            apm_profile: apm,
+            gtm_wide_ips: gtm,
+            explain_text,
             reset_analysis: reset,
             ..Default::default()
         });
@@ -336,7 +555,7 @@ fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
             lines.push("  iRule event bodies (path through):".to_owned());
             for (rule, ev, body) in &se.event_blocks {
                 lines.push(format!("    --- {rule} :: when {ev} ---"));
-                for body_line in body.split('\n') {
+                for body_line in py_splitlines(body) {
                     lines.push(format!("      {body_line}"));
                 }
             }
@@ -424,10 +643,7 @@ fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
         // iRule simulation outcome: deferred to the simulate increment.
         lines.push(format!("  termination: {}", se.reset_analysis));
         lines.push("  resolved plan:".to_owned());
-        for explain_line in se.explain_text.split('\n') {
-            if se.explain_text.is_empty() {
-                break;
-            }
+        for explain_line in py_splitlines(&se.explain_text) {
             lines.push(format!("    {explain_line}"));
         }
         lines.push(String::new());
@@ -435,6 +651,47 @@ fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
 
     let joined = lines.join("\n");
     format!("{}\n", joined.trim_end())
+}
+
+/// Split a string the way Python's `str.splitlines()` does: break on the
+/// Unicode line boundaries Python recognises, treat `\r\n` as one break, and
+/// emit no trailing empty segment when the string ends on a boundary.
+fn py_splitlines(s: &str) -> Vec<&str> {
+    fn is_boundary(c: char) -> bool {
+        matches!(
+            c,
+            '\n' | '\r'
+                | '\u{0B}'
+                | '\u{0C}'
+                | '\u{1C}'
+                | '\u{1D}'
+                | '\u{1E}'
+                | '\u{85}'
+                | '\u{2028}'
+                | '\u{2029}'
+        )
+    }
+    let mut out: Vec<&str> = Vec::new();
+    let mut start = 0usize;
+    let mut chars = s.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if !is_boundary(c) {
+            continue;
+        }
+        out.push(&s[start..i]);
+        let mut end = i + c.len_utf8();
+        if c == '\r'
+            && let Some(&(j, '\n')) = chars.peek()
+        {
+            end = j + '\n'.len_utf8();
+            chars.next();
+        }
+        start = end;
+    }
+    if start < s.len() {
+        out.push(&s[start..]);
+    }
+    out
 }
 
 /// Render a string the way Python's `repr()` does for the HUD annotations
