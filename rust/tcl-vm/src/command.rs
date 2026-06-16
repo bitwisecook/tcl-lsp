@@ -67,12 +67,14 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("catch", cmd_catch);
     vm.register("global", cmd_global);
     vm.register("upvar", cmd_upvar);
+    vm.register("uplevel", cmd_uplevel);
     vm.register("variable", cmd_variable);
     vm.register("unset", cmd_unset);
     vm.register("subst", cmd_subst);
     vm.register("auto_load", cmd_auto_load);
     vm.register("auto_import", |_, _| ok(Value::empty()));
     crate::cmd_array::register(vm);
+    crate::cmd_chan::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);
@@ -198,16 +200,18 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         newline = false;
         rest = &rest[1..];
     }
-    let text = match rest {
-        [string] => string.to_str(),
-        // `puts channelId string` — M1/M2 ignore the channel and write stdout.
-        [_channel, string] => string.to_str(),
+    let (channel, text) = match rest {
+        [string] => ("stdout".to_string(), string.to_str().to_string()),
+        // `puts ?-nonewline? channelId string`
+        [channel, string] => (channel.to_str().to_string(), string.to_str().to_string()),
         _ => {
             return err("wrong # args: should be \"puts ?-nonewline? ?channelId? string\"");
         }
     };
-    vm.write_output(&text, newline);
-    ok(Value::empty())
+    match crate::cmd_chan::chan_puts(vm, &channel, &text, newline) {
+        Ok(()) => ok(Value::empty()),
+        Err(e) => err(e),
+    }
 }
 
 /// `incr varName ?increment?` — add to an integer variable (default 1; missing
@@ -570,6 +574,38 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         i += 2;
     }
     ok(Value::empty())
+}
+
+/// `uplevel ?level? arg ?arg ...?` — evaluate the concatenated args as a script
+/// in the call frame `level` up (default 1, the caller). `#N` selects an
+/// absolute level.
+fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let mut rest = args;
+    let mut target = vm.current_level().saturating_sub(1);
+    if let Some(first) = rest.first() {
+        let s = first.to_str();
+        if let Some(abs) = s.strip_prefix('#')
+            && let Ok(n) = abs.parse::<usize>()
+        {
+            target = n;
+            rest = &rest[1..];
+        } else if !s.is_empty()
+            && s.bytes().all(|b| b.is_ascii_digit())
+            && let Ok(n) = s.parse::<usize>()
+        {
+            target = vm.current_level().saturating_sub(n);
+            rest = &rest[1..];
+        }
+    }
+    if rest.is_empty() {
+        return err("wrong # args: should be \"uplevel ?level? command ?arg ...?\"");
+    }
+    let script = rest
+        .iter()
+        .map(|v| v.to_str().to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
+    vm.eval_at_level(target, &script)
 }
 
 /// `variable ?name value ...? name ?value?` — namespace variables (global for M2).

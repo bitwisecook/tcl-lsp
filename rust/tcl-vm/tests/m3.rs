@@ -610,3 +610,44 @@ fn info_exists_local_array_elem() {
         "0\n",
     );
 }
+
+#[test]
+fn scan_command() {
+    out_eq("puts [scan 4 %c]\n", "52\n");
+    out_eq("puts [scan \"42 7\" \"%d %d\"]\n", "42 7\n");
+    out_eq("scan \"0xff\" 0x%x n\nputs $n\n", "255\n");
+    out_eq("scan \"hello 99\" {%s %d} word num\nputs \"$word $num\"\n", "hello 99\n");
+    out_eq("puts [scan abc %d]\n", "{}\n");
+}
+
+#[test]
+fn string_map_nocase() {
+    out_eq("puts [string map -nocase {ok 0 error 1} {OK ERROR ok}]\n", "0 1 0\n");
+    out_eq("puts [string map {a A b B} abcab]\n", "ABcAB\n");
+}
+
+#[test]
+fn uplevel_command() {
+    out_eq(
+        "proc setit {} { uplevel 1 { set x 42 } }\nproc caller {} { setit; return $x }\nputs [caller]\n",
+        "42\n",
+    );
+    out_eq(
+        "proc run {script} { uplevel 1 $script }\nset y 0\nrun {set y 9}\nputs $y\n",
+        "9\n",
+    );
+    out_eq(
+        "set g 0\nproc p {} { uplevel #0 { set g 7 } }\np\nputs $g\n",
+        "7\n",
+    );
+}
+
+#[test]
+fn channel_io() {
+    out_eq(
+        "set f [open /tmp/zz_tcltest_chan_test.txt w]\nputs $f \"line one\"\nputs $f \"line two\"\nclose $f\n\
+         set r [open /tmp/zz_tcltest_chan_test.txt r]\nset a [gets $r]\nset b [gets $r]\nclose $r\n\
+         file delete /tmp/zz_tcltest_chan_test.txt\nputs \"$a|$b\"\n",
+        "line one|line two\n",
+    );
+}

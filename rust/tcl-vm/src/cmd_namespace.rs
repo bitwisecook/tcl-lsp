@@ -114,6 +114,17 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             };
             ok(Value::string(resolved))
         }
+        "origin" => {
+            // `namespace origin command` → the original command's fully-qualified
+            // name (following imports). We do not track import provenance, so the
+            // resolved qualified name is returned; an unknown command errors.
+            let name = first(rest);
+            if vm.lookup_command(&name).is_some() {
+                ok(Value::string(display_ns(&vm.qualify_name(&name))))
+            } else {
+                err(format!("invalid command name \"{name}\""))
+            }
+        }
         "export" => {
             // `namespace export ?-clear? pattern ...` — record export patterns.
             let pats: Vec<String> = rest

@@ -44,6 +44,10 @@ struct Frame {
     stack: Vec<Value>,
     /// Active `foreach` loops in this activation (innermost last).
     foreach_stack: Vec<ForeachState>,
+    /// Stack-depth markers for in-progress `{*}` argument expansions (innermost
+    /// last). `EXPAND_START` records the word-list start; `INVOKE_EXPANDED`
+    /// pops it to recover the (post-expansion) argument count.
+    expand_markers: Vec<usize>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
@@ -62,6 +66,7 @@ impl Frame {
             pc: 0,
             stack: Vec::new(),
             foreach_stack: Vec::new(),
+            expand_markers: Vec::new(),
             last_result: Value::empty(),
             is_proc,
         }
@@ -1031,25 +1036,43 @@ impl Vm {
                     return Tick::Return(err("invoke: stack underflow"));
                 }
                 let words = f.stack.split_off(f.stack.len() - argc);
-                let name = words[0].to_str();
-                match self.lookup_command(&name) {
-                    Some(Command::Proc(p)) => {
-                        return Tick::Call {
-                            proc: p,
-                            argv: words[1..].to_vec(),
-                        };
-                    }
-                    Some(Command::Builtin(bf)) => {
-                        let res = bf(self, &words[1..]);
-                        if res.code.is_ok() {
-                            f.stack.push(res.result);
-                        } else {
-                            return Tick::Return(res);
-                        }
-                    }
-                    None => {
-                        return Tick::Return(err(format!("invalid command name \"{name}\"")));
-                    }
+                match self.dispatch_words(f, &words) {
+                    Ok(Some(call)) => return call,
+                    Ok(None) => {}
+                    Err(c) => return Tick::Return(c),
+                }
+            }
+
+            // -- {*} argument expansion --
+            // `EXPAND_START` records the current stack depth: every word pushed
+            // after it belongs to the command being built. `EXPAND_STKTOP`
+            // expands the top word (a list) in place. `INVOKE_EXPANDED` recovers
+            // the post-expansion argument count from the marker and invokes.
+            Op::EXPAND_START => {
+                f.expand_markers.push(f.stack.len());
+            }
+            Op::EXPAND_STKTOP => {
+                let Some(list_v) = f.stack.pop() else {
+                    return Tick::Return(err("expand: stack underflow"));
+                };
+                match list_v.as_list() {
+                    Ok(items) => f.stack.extend(items.iter().cloned()),
+                    Err(e) => return Tick::Return(err(e.message)),
+                }
+            }
+            Op::INVOKE_EXPANDED => {
+                let marker = f.expand_markers.pop().unwrap_or(f.stack.len());
+                if f.stack.len() < marker {
+                    return Tick::Return(err("invoke: stack underflow"));
+                }
+                let words = f.stack.split_off(marker);
+                if words.is_empty() {
+                    return Tick::Return(err("invalid command name \"\""));
+                }
+                match self.dispatch_words(f, &words) {
+                    Ok(Some(call)) => return call,
+                    Ok(None) => {}
+                    Err(c) => return Tick::Return(c),
                 }
             }
             Op::EXPR_STK => {
@@ -1078,6 +1101,34 @@ impl Vm {
         }
 
         Tick::Continue
+    }
+
+    /// Dispatch a fully-assembled command word list. Returns `Some(Tick::Call)`
+    /// for a proc (the trampoline performs the activation), `None` when a builtin
+    /// ran and pushed its result, or `Err` to unwind on a non-`OK` completion or
+    /// an unknown command.
+    fn dispatch_words(
+        &mut self,
+        f: &mut Frame,
+        words: &[Value],
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let name = words[0].to_str();
+        match self.lookup_command(&name) {
+            Some(Command::Proc(p)) => Ok(Some(Tick::Call {
+                proc: p,
+                argv: words[1..].to_vec(),
+            })),
+            Some(Command::Builtin(bf)) => {
+                let res = bf(self, &words[1..]);
+                if res.code.is_ok() {
+                    f.stack.push(res.result);
+                    Ok(None)
+                } else {
+                    Err(res)
+                }
+            }
+            None => Err(err(format!("invalid command name \"{name}\""))),
+        }
     }
 
     /// `incr` helper shared by the scalar/stk increment opcodes.

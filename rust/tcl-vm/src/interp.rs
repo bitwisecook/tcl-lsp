@@ -74,12 +74,21 @@ pub struct Vm {
     var_traces: HashMap<String, Vec<VarTrace>>,
     /// Re-entrancy guard: `"<key>\0<op>"` entries for traces currently firing.
     active_traces: std::collections::HashSet<String>,
-    /// Nesting depth of `namespace eval`/`inscope` bodies currently executing.
-    /// While `> 0`, `upvar`/aliasing treats unqualified names as the current
-    /// namespace's variables (stored in the global frame) rather than locals.
-    ns_script_depth: u32,
+    /// Frame depths at which the currently-executing `namespace eval`/`inscope`
+    /// bodies started (innermost last). A namespace body runs in the frame that
+    /// invoked it, so when the current frame depth matches the innermost entry
+    /// we are directly in a namespace script (unqualified names alias namespace
+    /// variables); inside a proc called from one, the depths differ and
+    /// unqualified names are proc locals.
+    ns_script_frames: Vec<usize>,
     out: Box<dyn Write>,
     compiler: Option<Box<dyn CompileService>>,
+    /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
+    /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
+    /// special-case those names.
+    channels: HashMap<String, crate::cmd_chan::Channel>,
+    /// Monotonic counter for minting fresh channel ids.
+    chan_counter: u32,
 }
 
 /// A single registered variable trace.
@@ -111,9 +120,11 @@ impl Vm {
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
-            ns_script_depth: 0,
+            ns_script_frames: Vec::new(),
             out,
             compiler: None,
+            channels: HashMap::new(),
+            chan_counter: 2,
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -380,18 +391,42 @@ impl Vm {
             || (name.to_string(), String::new()),
             |(b, k)| (b.to_string(), k.to_string()),
         );
+        // Tcl suppresses *all* of a variable's traces while any one of them is
+        // being handled (the documented "traces are disabled during the
+        // handling of other traces" behaviour — see tcltest's outputChannel
+        // notes). The unit of suppression is the whole variable (every array
+        // element, every operation), so a read trace that writes the same
+        // variable won't re-enter its write trace, and a whole-array read trace
+        // fires only once per top-level access rather than per element.
+        let (base_lvl, base_nm) = self.locate(&base);
+        let active_key = format!("{base_lvl}\u{0}{base_nm}");
+        if self.active_traces.contains(&active_key) {
+            return Ok(());
+        }
+        self.active_traces.insert(active_key.clone());
+        let r = self.fire_var_traces_inner(name, op, &base, &elem);
+        self.active_traces.remove(&active_key);
+        r
+    }
+
+    /// Inner firing loop for [`Self::fire_var_traces`]: run the element-specific
+    /// traces, then the whole-array traces, with the variable already marked
+    /// active by the caller.
+    fn fire_var_traces_inner(
+        &mut self,
+        name: &str,
+        op: &str,
+        base: &str,
+        elem: &str,
+    ) -> Result<(), Completion<Value>> {
         // Fire the element-specific traces, then the whole-array traces (for an
         // element write a trace on the base array also fires).
         let mut keys = vec![self.trace_key(name)];
         if elem_ref(name).is_some() {
-            let (lvl, nm) = self.locate(&base);
+            let (lvl, nm) = self.locate(base);
             keys.push(format!("{lvl}\u{0}{nm}"));
         }
         for key in keys {
-            let guard = format!("{key}\u{0}{op}");
-            if self.active_traces.contains(&guard) {
-                continue;
-            }
             let Some(traces) = self.var_traces.get(&key).cloned() else {
                 continue;
             };
@@ -402,13 +437,11 @@ impl Vm {
                 let script = format!(
                     "{} {} {} {}",
                     tr.command,
-                    tcl_brace(&base),
-                    tcl_brace(&elem),
+                    tcl_brace(base),
+                    tcl_brace(elem),
                     op
                 );
-                self.active_traces.insert(guard.clone());
                 let r = self.eval_source(&script);
-                self.active_traces.remove(&guard);
                 let failed = match r {
                     Ok(c) if c.code.is_ok() => None,
                     Ok(c) => Some(c.result.to_str().to_string()),
@@ -470,6 +503,27 @@ impl Vm {
     pub(crate) fn pop_call_frame(&mut self) {
         if self.frames.len() > 1 {
             self.frames.pop();
+        }
+    }
+
+    /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
+    /// The frames above `target` are set aside for the duration and restored
+    /// afterwards, so the script's variable references and `info level` resolve
+    /// against the target activation. A `Return` completion is passed through to
+    /// the calling frame (as the reference `uplevel` does).
+    pub(crate) fn eval_at_level(&mut self, target: usize, src: &str) -> Completion<Value> {
+        if target >= self.frames.len() {
+            return err(format!("bad level \"{target}\""));
+        }
+        let saved = self.frames.split_off(target + 1);
+        let result = self.eval_source(src);
+        // Restore any frames the script left in place, then re-attach the ones
+        // we set aside (the script's own proc activations are already balanced).
+        self.frames.truncate(target + 1);
+        self.frames.extend(saved);
+        match result {
+            Ok(c) => c,
+            Err(e) => err(e.message),
         }
     }
 
@@ -553,17 +607,23 @@ impl Vm {
         }
     }
 
-    /// Whether a `namespace eval`/`inscope` body is currently executing.
+    /// Whether a `namespace eval`/`inscope` body is *directly* executing in the
+    /// current frame. Returns `false` inside a proc called from such a body —
+    /// a proc activation has its own scope where unqualified names are locals,
+    /// not namespace variables. We test this by recording the frame depth at
+    /// which each namespace script started and checking the innermost against
+    /// the current depth.
     pub(crate) fn in_ns_script(&self) -> bool {
-        self.ns_script_depth > 0
+        self.ns_script_frames.last() == Some(&self.frames.len())
     }
 
     /// Enter/leave a `namespace eval`/`inscope` body (around its evaluation).
+    /// The body runs in the current frame, so we remember that frame depth.
     pub(crate) fn enter_ns_script(&mut self) {
-        self.ns_script_depth += 1;
+        self.ns_script_frames.push(self.frames.len());
     }
     pub(crate) fn leave_ns_script(&mut self) {
-        self.ns_script_depth = self.ns_script_depth.saturating_sub(1);
+        self.ns_script_frames.pop();
     }
 
     /// Resolve `name` to the (frame level, owning name) that actually owns it,
@@ -756,6 +816,12 @@ impl Vm {
         if name.contains("::") {
             return None;
         }
+        // Only a namespace-eval body resolves a bare name to a namespace
+        // variable. Inside a proc (even one defined in the namespace), an
+        // unqualified name is a local unless declared via `variable`/`global`.
+        if !self.in_ns_script() {
+            return None;
+        }
         let cur = self.current_ns();
         if cur.is_empty() {
             return None;
@@ -875,6 +941,25 @@ impl Vm {
             let _ = self.out.write_all(b"\n");
         }
         let _ = self.out.flush();
+    }
+
+    /// Register a freshly opened channel, returning its minted id (`file3`, …).
+    pub(crate) fn add_channel(&mut self, chan: crate::cmd_chan::Channel) -> String {
+        let id = format!("file{}", self.chan_counter);
+        self.chan_counter += 1;
+        self.channels.insert(id.clone(), chan);
+        id
+    }
+
+    /// Borrow an open channel by id (`None` for unknown ids and the predefined
+    /// std channels, which callers handle by name).
+    pub(crate) fn channel_mut(&mut self, id: &str) -> Option<&mut crate::cmd_chan::Channel> {
+        self.channels.get_mut(id)
+    }
+
+    /// Close and drop a channel by id, returning `true` if it existed.
+    pub(crate) fn remove_channel(&mut self, id: &str) -> bool {
+        self.channels.remove(id).is_some()
     }
 
     /// Register a user procedure under its canonical (namespace-qualified)

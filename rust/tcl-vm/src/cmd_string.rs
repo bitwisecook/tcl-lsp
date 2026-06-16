@@ -106,7 +106,10 @@ fn cmd_string(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"string repeat string count\""),
         },
         "map" => match rest {
-            [pairs, s] => string_map(pairs, &s.to_str()),
+            [pairs, s] => string_map(pairs, &s.to_str(), false),
+            [opt, pairs, s] if matches!(&*opt.to_str(), "-nocase" | "-no") => {
+                string_map(pairs, &s.to_str(), true)
+            }
             _ => err("wrong # args: should be \"string map ?-nocase? mapping string\""),
         },
         "cat" => ok(Value::string(
@@ -181,7 +184,7 @@ fn trim_str(rest: &[Value], left: bool, right: bool) -> Completion<Value> {
     ok(Value::string(trimmed))
 }
 
-fn string_map(pairs: &Value, s: &str) -> Completion<Value> {
+fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
     let items = match pairs.as_list() {
         Ok(i) => i,
         Err(e) => return err(e.message),
@@ -193,11 +196,23 @@ fn string_map(pairs: &Value, s: &str) -> Completion<Value> {
         .chunks_exact(2)
         .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
         .collect();
+    // Case-insensitive matching compares lower-cased keys against a lower-cased
+    // view of the remaining input, advancing by the (original) key length.
+    let starts = |rest: &str, from: &str| -> bool {
+        if nocase {
+            rest.chars()
+                .zip(from.chars())
+                .all(|(a, b)| a.eq_ignore_ascii_case(&b))
+                && rest.chars().count() >= from.chars().count()
+        } else {
+            rest.starts_with(from)
+        }
+    };
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
     'outer: while !rest.is_empty() {
         for (from, to) in &map {
-            if !from.is_empty() && rest.starts_with(from.as_str()) {
+            if !from.is_empty() && rest.len() >= from.len() && starts(rest, from) {
                 out.push_str(to);
                 rest = &rest[from.len()..];
                 continue 'outer;

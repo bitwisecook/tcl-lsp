@@ -331,43 +331,12 @@ impl CodegenCtx<'_> {
 
     /// Emit a generic command substitution as `push cmd; <args>; invokeStk`.
     pub fn emit_generic_cmd_subst(&mut self, cmd: &str, args: &[(String, bool)]) {
-        self.push_lit(cmd);
+        // The command name itself may be a substitution (`$Verify($opt) ...`,
+        // `[lookup] ...`), so it is emitted through the same per-word path as
+        // the arguments rather than as a bare literal.
+        self.emit_cmd_word(cmd, false);
         for (arg, braced) in args {
-            if !braced && arg.starts_with('[') && arg.ends_with(']') {
-                let end_label = self.fresh_label("cmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.emit_inline_cmd_subst(arg);
-                self.place_label(&end_label);
-            } else if !braced && arg.starts_with('$') {
-                if let Some(name) = parse_braced_scalar_ref(arg) {
-                    self.push_lit(name);
-                    self.emit(Op::LOAD_STK, vec![]);
-                } else if let Some(var_name) = parse_simple_var_ref(arg) {
-                    self.load_var(var_name);
-                } else {
-                    // Bare `$name` / `$name(idx)` — load the variable rather
-                    // than pushing the unsubstituted literal.
-                    let rest = &arg[1..];
-                    let is_bare =
-                        !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
-                    if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
-                        self.load_var(rest);
-                    } else {
-                        self.push_lit(arg);
-                    }
-                }
-            } else if *braced && (arg.contains('$') || arg.contains('[')) {
-                self.push_lit(&format!("{{{arg}}}"));
-            } else if !braced && arg.contains('\\') {
-                let processed = tcl_lexer::backslash_subst(arg);
-                self.push_lit(&processed);
-            } else {
-                self.push_lit(arg);
-            }
+            self.emit_cmd_word(arg, *braced);
         }
         let argc = bytecode_imm(1 + args.len());
         let op = if argc < 256 {
@@ -376,6 +345,49 @@ impl CodegenCtx<'_> {
             Op::INVOKE_STK4
         };
         self.emit(op, vec![Operand::Imm(argc)]);
+    }
+
+    /// Emit one word of a generic command invocation (the command name or an
+    /// argument): inline command substitutions, load `$`-variables (scalar,
+    /// `${name}`, `$=`-braced scalar, or `$arr(idx)` array element), keep braced
+    /// words that still hold substitutions wrapped for runtime handling, and
+    /// otherwise push the literal (backslash-decoded).
+    pub(crate) fn emit_cmd_word(&mut self, word: &str, braced: bool) {
+        if !braced && word.starts_with('[') && word.ends_with(']') {
+            let end_label = self.fresh_label("cmd_end");
+            self.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+                "",
+            );
+            self.emit_inline_cmd_subst(word);
+            self.place_label(&end_label);
+        } else if !braced && word.starts_with('$') {
+            if let Some(name) = parse_braced_scalar_ref(word) {
+                self.push_lit(name);
+                self.emit(Op::LOAD_STK, vec![]);
+            } else if let Some(var_name) = parse_simple_var_ref(word) {
+                self.load_var(var_name);
+            } else {
+                // Bare `$name` / `$name(idx)` — load the variable rather than
+                // pushing the unsubstituted literal.
+                let rest = &word[1..];
+                let is_bare =
+                    !rest.is_empty() && rest.chars().all(|c| c.is_alphanumeric() || c == '_');
+                if is_bare || (!rest.is_empty() && split_array_ref(rest).is_some()) {
+                    self.load_var(rest);
+                } else {
+                    self.push_lit(word);
+                }
+            }
+        } else if braced && (word.contains('$') || word.contains('[')) {
+            self.push_lit(&format!("{{{word}}}"));
+        } else if !braced && word.contains('\\') {
+            let processed = tcl_lexer::backslash_subst(word);
+            self.push_lit(&processed);
+        } else {
+            self.push_lit(word);
+        }
     }
 
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
@@ -528,6 +540,21 @@ impl CodegenCtx<'_> {
             self.push_lit(&folded);
             self.emit(Op::DUP, vec![]);
             self.emit(Op::VERIFY_DICT, vec![]);
+            return;
+        }
+        // Whole-word variable-index array element `$arr($idx)`: route through
+        // `load_var` (base + substituted key). The runtime literal/`subst_word`
+        // path cannot resolve a bare `$idx` inside the index, so this must be
+        // decomposed at compile time into a `loadArray` (or `loadArrayStk`).
+        if interpolate
+            && value.starts_with('$')
+            && value.ends_with(')')
+            && let Some(parts) = parse_subst_template(value)
+            && parts.len() == 1
+            && let SubstPart::Var(name) = &parts[0]
+            && split_array_ref(name).is_some()
+        {
+            self.load_var(name);
             return;
         }
         // Interpolated string: decompose $var and [cmd] parts

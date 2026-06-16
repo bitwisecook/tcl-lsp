@@ -16,6 +16,7 @@ pub mod error;
 pub mod value;
 
 mod cmd_array;
+mod cmd_chan;
 mod cmd_dict;
 mod cmd_file;
 mod cmd_format;
