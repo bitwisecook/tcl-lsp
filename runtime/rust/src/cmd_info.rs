@@ -234,12 +234,13 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"errorstack" => {
-            // TIP 348: the error stack (`-errorstack` of the last error). Not yet
-            // tracked — report empty (`?interp?` accepted).
+            // TIP 348: the error stack of the last error (`?interp?` accepted but
+            // only the current interp is supported).
             if argv.len() > 3 {
                 return wrong_args(interp, b"info errorstack ?interp?");
             }
-            interp.set_result_bytes(b"");
+            let es = interp.error_stack_value();
+            interp.set_result_bytes(&es);
             Code::Ok
         }
         b"constant" => {

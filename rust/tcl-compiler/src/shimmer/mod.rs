@@ -128,6 +128,50 @@ pub(crate) fn find_shimmer_warnings(
     out
 }
 
+/// Find every shimmer warning across a whole compilation unit.
+///
+/// Public `*_for_cu` entry point (mirroring
+/// [`crate::gvn::find_redundancies_for_cu`]) so downstream tooling — the
+/// compiler explorer, the MCP server — can run the analysis without
+/// re-deriving per-function inputs. Walks each function's SSA / type /
+/// SCCP results in `cu.functions()` order.
+#[must_use]
+pub fn find_shimmer_warnings_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Vec<ShimmerWarning> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        out.extend(find_shimmer_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            registry,
+            &fu.sccp.values,
+        ));
+    }
+    out
+}
+
+/// Find every thunking warning across a whole compilation unit. See
+/// [`find_shimmer_warnings_for_cu`].
+#[must_use]
+pub fn find_thunking_warnings_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> Vec<ThunkingWarning> {
+    let mut out = Vec::new();
+    for fu in cu.functions() {
+        out.extend(find_thunking_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+        ));
+    }
+    out
+}
+
 /// Find thunking warnings for a single function.
 ///
 /// Identifies variables that oscillate between two intrep types across

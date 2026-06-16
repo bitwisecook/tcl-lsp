@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::saveState",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Save current interpreter state (procs and vars) for later restoration.",

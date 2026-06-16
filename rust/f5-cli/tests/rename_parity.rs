@@ -130,6 +130,62 @@ fn common_partition_token_is_noop() {
 }
 
 #[test]
+fn real_object_rename_write_tmsh() {
+    // `--write --format tmsh`: the rewritten config is re-rendered as a `tmsh
+    // modify` script (in-place rewriters use the `modify` verb), same `renamed
+    // …` report on stderr.
+    assert_rename(
+        "rename-verb-tmsh-write",
+        "/Common/web_pool",
+        "/Common/web_pool_v2",
+        &["--write", "--format", "tmsh"],
+        &[0],
+    );
+}
+
+#[test]
+fn real_object_rename_write_tmsh_transaction() {
+    // `--transaction` wraps the `tmsh modify` script in a `cli transaction`
+    // envelope.
+    assert_rename(
+        "rename-verb-tmsh-txn-write",
+        "/Common/web_pool",
+        "/Common/web_pool_v2",
+        &["--write", "--format", "tmsh", "--transaction"],
+        &[0],
+    );
+}
+
+#[test]
+fn real_object_rename_write_tmsh_delta() {
+    // `--format tmsh-delta` with no pre-edit original (the rename verb passes
+    // none) treats every object as freshly created — `tmsh create` for all.
+    assert_rename(
+        "rename-verb-tmshdelta-write",
+        "/Common/web_pool",
+        "/Common/web_pool_v2",
+        &["--write", "--format", "tmsh-delta"],
+        &[0],
+    );
+}
+
+#[test]
+fn in_place_tmsh_is_rejected() {
+    // `--in-place --format tmsh` is refused before any read/write — an in-place
+    // rewrite must preserve the SCF source format. The committed fixture is
+    // never touched (the guard fires first). `--in-place` requires a real path,
+    // so this points at the canonical `bigip.conf` but exits 2 before opening
+    // it.
+    assert_rename(
+        "rename-verb-inplace-tmsh-reject",
+        "/Common/web_pool",
+        "/Common/web_pool_v2",
+        &["--in-place", "--format", "tmsh"],
+        &[2],
+    );
+}
+
+#[test]
 fn cross_partition_visibility_refused() {
     // Moving `/Common/web_pool` to `/Tenant_A` breaks visibility for its
     // `/Common` referrers — the engine refuses with the same `error:` line and

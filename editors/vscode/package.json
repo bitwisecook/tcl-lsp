@@ -2956,7 +2956,8 @@
             "scope": "machine-overridable",
             "type": "string",
             "default": "auto",
-            "description": "Python 3.10+ interpreter for the language server (latest stable recommended). The VSIX bundles all Python dependencies — only the interpreter is needed. Set to 'auto' (default) to search PATH and well-known locations, or provide a full path (e.g. /opt/homebrew/bin/python3.14). Install Python from python.org or via Homebrew (brew install python@3.14).",
+            "description": "Deprecated and ignored. The extension now bundles a self-contained native language server (tcl-lsp-server) per platform and no longer requires Python. This setting has no effect.",
+            "deprecationMessage": "tclLsp.pythonPath is no longer used — the extension bundles a native server and does not require Python.",
             "order": 0
           },
           "tclLsp.serverPath": {
@@ -4948,9 +4949,10 @@
   ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run bundle",
+    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run bundle",
     "copy-canonical": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}\"",
-    "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','explorer','static','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
+    "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','tooling','explorer','static','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
+    "copy-wasm": "node -e \"const fs=require('fs'),p=require('path');const dir=p.join('..','..','tooling','explorer','static');['tcl_explorer_wasm.js','tcl_explorer_wasm_bg.wasm'].forEach(f=>{const s=p.join(dir,f);if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,p.join('out',f))}})\"",
     "bundle": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text",
     "bundle:screenshots": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=true --loader:.md=text",
     "watch": "tsc -watch -p ./",

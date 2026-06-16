@@ -28,7 +28,8 @@ use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
-/// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`).
+/// Tcl completion codes (`tcl.h` `TCL_OK`..`TCL_CONTINUE`, plus arbitrary
+/// user codes from `return -code N` / `try on N`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Code {
     Ok,
@@ -36,11 +37,17 @@ pub enum Code {
     Return,
     Break,
     Continue,
+    /// A non-standard completion code (any `int` other than 0..4), produced by
+    /// `return -code N`. It propagates like an exception until a `catch`/`try`
+    /// reports it; it is never `0..=4` (those canonicalise to the named variants
+    /// via [`Code::from_int`]).
+    Other(i32),
 }
 
 impl Code {
-    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4) — what
-    /// `catch` returns and `return -code` / the `-code` options-dict entry use.
+    /// The Tcl integer completion code (`TCL_OK`=0 … `TCL_CONTINUE`=4, or the
+    /// raw value for [`Code::Other`]) — what `catch` returns and `return -code` /
+    /// the `-code` options-dict entry use.
     #[must_use]
     pub(crate) fn as_int(self) -> i64 {
         match self {
@@ -49,8 +56,56 @@ impl Code {
             Code::Return => 2,
             Code::Break => 3,
             Code::Continue => 4,
+            Code::Other(n) => i64::from(n),
         }
     }
+
+    /// Map an integer completion code to a [`Code`]: `0..=4` to the named
+    /// variants, anything else to [`Code::Other`] (`TclProcessReturn` /
+    /// `TclGetCompletionCodeFromObj`).
+    #[must_use]
+    pub(crate) fn from_int(n: i32) -> Code {
+        match n {
+            0 => Code::Ok,
+            1 => Code::Error,
+            2 => Code::Return,
+            3 => Code::Break,
+            4 => Code::Continue,
+            other => Code::Other(other),
+        }
+    }
+}
+
+/// Parse a completion-code integer the way `TclGetIntFromObj` does: an optional
+/// sign and a `0x`/`0o`/`0b`/`0d` radix prefix (else decimal), accepting the full
+/// signed **and** unsigned 32-bit range (`-2147483648 ..= 4294967295`) and
+/// reducing it to an `int` (so `0xFFFFFFFF` → `-1`, `2147483648` → `-2147483648`),
+/// matching C. Shared by `return -code` and `try on`.
+#[must_use]
+pub(crate) fn parse_completion_int(b: &[u8]) -> Option<i32> {
+    let s = core::str::from_utf8(b).ok()?.trim();
+    let (neg, rest) = match s.as_bytes().first() {
+        Some(b'-') => (true, &s[1..]),
+        Some(b'+') => (false, &s[1..]),
+        _ => (false, s),
+    };
+    let (radix, digits) = match rest.as_bytes() {
+        [b'0', b'x' | b'X', ..] => (16, &rest[2..]),
+        [b'0', b'o' | b'O', ..] => (8, &rest[2..]),
+        [b'0', b'b' | b'B', ..] => (2, &rest[2..]),
+        [b'0', b'd' | b'D', ..] => (10, &rest[2..]),
+        _ => (10, rest),
+    };
+    if digits.is_empty() {
+        return None;
+    }
+    // Parse the magnitude wide so `i32::MIN` and the unsigned half are reachable.
+    let mag = i64::from_str_radix(digits, radix).ok()?;
+    let value = if neg { -mag } else { mag };
+    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
+        return None;
+    }
+    Some(value as i32)
 }
 
 /// A built-in command handler. Receives the full argv (`argv[0]` is the command
@@ -167,8 +222,17 @@ struct CmdFrame {
     /// Added to a body-relative line to get the reported `line`. `0` for
     /// top-level / `eval` / eval-defined procs (body-relative, matching tclsh);
     /// for a proc defined in a `source`d file it is the file line where the body
-    /// began minus one, so its commands report file-absolute lines.
+    /// began minus one, so its commands report file-absolute lines. An inline
+    /// body (`if`/`while`/`catch`) temporarily re-points this at the sub-body's
+    /// own base while it runs (`eval_shared_located_body`).
     line_base: u32,
+    /// The `line_base` of the **enclosing `codePtr->source`** — the proc/lambda/
+    /// eval body this frame's commands ultimately belong to — captured at frame
+    /// creation and *not* moved by the inline-body `line_base` shifts above. The
+    /// body-relative `errorLine` for `MakeProcError` is `line_base + <raw line> -
+    /// proc_line_base` (C computes `errorLine` against `codePtr->source`, which an
+    /// inline `catch`/`if` body shares with its proc).
+    proc_line_base: u32,
     /// The currently-executing command at this level (the `cmd` key) and its
     /// reported source line (the `line` key).
     cmd: Vec<u8>,
@@ -229,6 +293,7 @@ impl CmdFrame {
             omit_level: false,
             frame_index: 0,
             line_base: 0,
+            proc_line_base: 0,
             cmd: Vec::new(),
             line: 1,
             oo: None,
@@ -296,11 +361,13 @@ pub(crate) struct ExceptionState {
     /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
     /// from within` and seeds the buffer from the result message.
     info: Option<Vec<u8>>,
-    /// `::errorCode` (empty ⇒ the `NONE` default is applied when published).
+    /// `::errorCode` (empty ⇒ the `NONE` default is applied when published,
+    /// unless [`code_explicit`](Self::code_explicit) is set).
     code: Vec<u8>,
-    /// 1-based source line of the innermost logged command, within its own
-    /// script (`errorLine`); read by `MakeProcError`'s `line N`.
-    line: u32,
+    /// Whether `code` was set by an explicit `-errorcode` (e.g. `error m i {}`):
+    /// an explicit empty code reads back empty, not the `NONE` default
+    /// (error-4.5). Absent on every implicit error, so the default applies.
+    code_explicit: bool,
     /// `ERR_ALREADY_LOGGED`: the current command has already been logged deeper
     /// in the same script, so its enclosing command must not re-log it.
     already_logged: bool,
@@ -319,6 +386,7 @@ pub(crate) struct CoroContext {
     return_code: Code,
     return_level: usize,
     exc: ExceptionState,
+    error_line: u32,
     arg_lines: Vec<u32>,
     eval_depth: usize,
     oo: crate::cmd_oo::OoExec,
@@ -338,6 +406,7 @@ impl CoroContext {
             return_code: Code::Ok,
             return_level: 1,
             exc: ExceptionState::default(),
+            error_line: 1,
             arg_lines: Vec::new(),
             eval_depth: 0,
             oo: crate::cmd_oo::OoExec::default(),
@@ -503,6 +572,14 @@ pub struct InterpState {
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
     /// The error stack-trace accumulator (PC-4).
     exc: RefCell<ExceptionState>,
+    /// `iPtr->errorLine`: the 1-based source line of the innermost command
+    /// logged into the error trace, within its own script. Unlike the
+    /// accumulating [`ExceptionState`], this is **persistent** interp state — it
+    /// is written only by [`log_command_info`](Self::log_command_info) (C's
+    /// `TclLogCommandInfo`), survives `catch` and the start of a fresh error
+    /// (`error msg info` / `throw` do not touch it, matching `ERR_ALREADY_LOGGED`
+    /// suppressing the log), and is read by `MakeProcError`'s `line N`.
+    error_line: Cell<u32>,
     /// Child interpreters (`interp create`), each a shared [`Interp`] handle keyed
     /// by name. The name is also a command in this interp
     /// (`Command::ChildInterp`).
@@ -587,16 +664,42 @@ pub struct InterpState {
     /// until first seeded (lazily from a nondeterministic source on first
     /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
     rand_seed: Cell<Option<i64>>,
+    /// The TIP 348 error stack (`info errorstack` / the options-dict
+    /// `-errorstack`): a flat list of element *values* built bottom-up as an
+    /// error unwinds — `INNER <ctx>` for the innermost command, `CALL <info
+    /// level 0>` per proc frame, `UP <delta>` per `uplevel` boundary. Rendered to
+    /// a Tcl list on demand.
+    error_stack: RefCell<Vec<Vec<u8>>>,
+    /// C's `iPtr->resetErrorStack`: set when the result is reset (a new error
+    /// episode is starting), so the next command logged clears the stack and
+    /// records its inner context. Starts `true`.
+    reset_error_stack: Cell<bool>,
+    /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
+    /// handler or `finally` script throws, the options dict of the *prior*
+    /// exception it superseded is stashed here so the next error-options build
+    /// ([`build_options`](crate::cmd_error)) splices it in as `-during`. Holds an
+    /// owning reference (released when overwritten, cleared, or the interp drops).
+    /// Cleared when an error is published/caught ([`publish_error`](Self::publish_error)),
+    /// since the chain is then consumed.
+    during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
 }
 
-/// An ensemble-rewrite record (see `InterpState::ensemble_rewrite`).
+/// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
+/// `InterpState::ensemble_rewrite`). `Tcl_WrongNumArgs` prints the first
+/// `removed` words of `source` in place of the `inserted` leading words of the
+/// actual (rewritten) call.
 #[derive(Clone)]
 pub(crate) struct EnsembleRewrite {
-    /// The original command words (e.g. `foo test 1 2 3`).
+    /// The original command words as the user wrote them (e.g. `foo test 1 2 3`),
+    /// with the subcommand spell-fixed to its resolved name.
     pub source: Vec<Vec<u8>>,
-    /// How many leading `source` words the rewritten prefix stands in for.
+    /// How many leading `source` words to print (C's `numRemovedObjs`).
     pub removed: usize,
+    /// How many leading words of the rewritten call the inserted prefix occupies
+    /// (C's `numInsertedObjs`); `inserted - 1` formal parameters are already
+    /// filled and so dropped from the usage message.
+    pub inserted: usize,
 }
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -621,6 +724,7 @@ impl Interp {
             return_level: Cell::new(1),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
             exc: RefCell::new(ExceptionState::default()),
+            error_line: Cell::new(1),
             children: RefCell::new(std::collections::BTreeMap::new()),
             interp_counter: Cell::new(0),
             hidden: RefCell::new(std::collections::BTreeMap::new()),
@@ -640,6 +744,9 @@ impl Interp {
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
             rand_seed: Cell::new(None),
+            error_stack: RefCell::new(Vec::new()),
+            reset_error_stack: Cell::new(true),
+            during: Cell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -956,13 +1063,36 @@ impl Interp {
     /// its dispatch returns. A nested rewrite is ignored (the root's `source` is
     /// what `wrong # args` reports), matching the common case of C's
     /// `TclInitRewriteEnsemble` chaining.
-    pub(crate) fn begin_ensemble_rewrite(&self, source: Vec<Vec<u8>>, removed: usize) -> bool {
+    pub(crate) fn begin_ensemble_rewrite(
+        &self,
+        source: Vec<Vec<u8>>,
+        removed: usize,
+        inserted: usize,
+    ) -> bool {
         let mut rw = self.ensemble_rewrite.borrow_mut();
-        if rw.is_some() {
-            return false;
+        match rw.as_mut() {
+            None => {
+                *rw = Some(EnsembleRewrite {
+                    source,
+                    removed,
+                    inserted,
+                });
+                true
+            }
+            // A nested rewrite chains onto the root (C's `TclInitRewriteEnsemble`):
+            // the root `source` is kept, but its removed/inserted counts absorb the
+            // inner step so a deeply forwarded `wrong # args` still prints the full
+            // original prefix.
+            Some(r) => {
+                if r.inserted < removed {
+                    r.removed += removed - r.inserted;
+                    r.inserted = inserted;
+                } else {
+                    r.inserted = (r.inserted + inserted).saturating_sub(removed);
+                }
+                false
+            }
         }
-        *rw = Some(EnsembleRewrite { source, removed });
-        true
     }
 
     /// Clear the active ensemble-rewrite (paired with a root `begin_…`).
@@ -1059,6 +1189,17 @@ impl Interp {
     pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
         self.return_level.set(level);
         self.return_code.set(code);
+    }
+
+    /// The pending `return` `-code`/`-level` (the options a body that completed
+    /// via `return` would propagate) — for `catch`/`try`'s options dict and TIP
+    /// 329 `-during` chaining.
+    pub(crate) fn pending_return_code(&self) -> Code {
+        self.return_code.get()
+    }
+
+    pub(crate) fn pending_return_level(&self) -> usize {
+        self.return_level.get()
     }
 
     /// Apply a procedure/source **return boundary** to a body completion code
@@ -1176,7 +1317,14 @@ impl Interp {
     /// `body` there, then restore. The current-ns switch is what makes commands
     /// defined in `body` land in the right table.
     pub(crate) fn ns_eval(&mut self, name: &[u8], body: &[u8]) -> Code {
-        self.ns_eval_framed(name, body, None)
+        self.ns_eval_framed(name, body, None, true)
+    }
+
+    /// `namespace eval`-style body evaluation in `name` for callers that supply
+    /// their *own* errorInfo frame (the TclOO `eval`/`my eval` method, which logs
+    /// `(in "my eval" script line N)` instead of the `namespace eval` frame).
+    pub(crate) fn ns_eval_no_frame(&mut self, name: &[u8], body: &[u8]) -> Code {
+        self.ns_eval_framed(name, body, None, false)
     }
 
     /// `namespace eval` of a single body **object** — like
@@ -1187,7 +1335,7 @@ impl Interp {
     pub(crate) fn ns_eval_obj(&mut self, name: &[u8], obj: *mut TclObj) -> Code {
         let loc = self.arg_loc(obj);
         let bytes = obj_bytes(obj);
-        self.ns_eval_framed(name, &bytes, loc)
+        self.ns_eval_framed(name, &bytes, loc, true)
     }
 
     /// Shared `namespace eval` core: enter `name`, push a namespace var-scope
@@ -1201,6 +1349,7 @@ impl Interp {
         name: &[u8],
         body: &[u8],
         loc: Option<(Option<Rc<[u8]>>, u32)>,
+        add_eval_frame: bool,
     ) -> Code {
         let target = self
             .namespaces
@@ -1229,12 +1378,18 @@ impl Interp {
             omit_level: false,
             frame_index: ns_index,
             line_base,
+            proc_line_base: line_base,
             cmd: Vec::new(),
             line: 1,
             oo: None,
             lambda: None,
         };
         let code = self.eval_framed(body, frame);
+        if code == Code::Error && add_eval_frame {
+            // `(in namespace eval "::ns" script line N)` — the body's own frame.
+            let fqn = self.namespaces.borrow().qualified_name(target);
+            self.append_namespace_eval_frame(&fqn);
+        }
         self.frames.borrow_mut().pop();
         self.current_ns.set(saved);
         code
@@ -2344,7 +2499,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
-            line: 1,
+            code_explicit: false,
             already_logged: false,
         };
         Code::Error
@@ -2358,7 +2513,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
-            line: 1,
+            code_explicit: false,
             already_logged: false,
         };
         Code::Error
@@ -2427,6 +2582,8 @@ impl Interp {
         ctx.return_level = rl;
         let ed = self.eval_depth.replace(ctx.eval_depth);
         ctx.eval_depth = ed;
+        let el = self.error_line.replace(ctx.error_line);
+        ctx.error_line = el;
     }
 
     /// Swap the execution context of the coroutine named `name` with the live
@@ -2515,7 +2672,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: Some(info.to_vec()),
             code: code.to_vec(),
-            line: 1,
+            code_explicit: false,
             already_logged: true,
         };
         Code::Error
@@ -2528,10 +2685,43 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
-            line: 1,
+            code_explicit: false,
             already_logged: false,
         };
         Code::Error
+    }
+
+    /// Apply the error-related options of a `return -code error` to the live
+    /// exception state (`TclProcessReturn`'s `TCL_ERROR` arm). This populates the
+    /// interp's errorInfo/errorCode/errorStack — *not* the `::errorInfo`/
+    /// `::errorCode` globals, which are written only when the error is actually
+    /// reported (caught as code 1 / reaching the top level). An explicit non-empty
+    /// `-errorinfo` is taken verbatim and marks the error already-logged (so the
+    /// unwind does not append a `while executing` frame); otherwise the trace
+    /// accumulates normally. `-errorcode` defaults to `NONE`; a valid `-errorstack`
+    /// replaces the built stack.
+    pub(crate) fn process_return_error(
+        &mut self,
+        errorinfo: Option<&[u8]>,
+        errorcode: Option<&[u8]>,
+        errorstack: Option<&[u8]>,
+    ) {
+        let (info, already_logged) = match errorinfo {
+            Some(i) if !i.is_empty() => (Some(i.to_vec()), true),
+            _ => (None, false),
+        };
+        *self.exc.borrow_mut() = ExceptionState {
+            info,
+            code: errorcode.unwrap_or(b"NONE").to_vec(),
+            code_explicit: errorcode.is_some(),
+            already_logged,
+        };
+        if let Some(es) = errorstack {
+            if let Ok(parts) = crate::parse::split_list(es) {
+                *self.error_stack.borrow_mut() = parts;
+                self.reset_error_stack.set(false);
+            }
+        }
     }
 
     /// Append one `while executing` / `invoked from within` frame for the command
@@ -2550,8 +2740,20 @@ impl Interp {
         if self.exc.borrow().already_logged {
             return;
         }
-        // errorLine = 1 + count('\n' in src[0..commandStart]) — C's exact loop.
-        let line = line_of(src, cmd.start);
+        // TIP 348: record this frame's inner context / uplevel boundary into the
+        // error stack (the errorStack half of C's `Tcl_LogCommandInfo`).
+        self.error_stack_log(&src[cmd.start..cmd.end]);
+        // errorLine, measured against the enclosing `codePtr->source` (C's
+        // `TclLogCommandInfo`): the command's file-absolute line
+        // (`line_base + 1 + count('\n')`) minus the proc/eval body's base, so an
+        // inline `catch`/`if` body's commands still report their proc-body line.
+        // This is the *only* writer of `error_line`; it persists across `catch`
+        // and a subsequent `error msg info`.
+        let raw = line_of(src, cmd.start);
+        let line = self.cmd_frames.borrow().last().map_or(raw, |f| {
+            (f.line_base + raw).saturating_sub(f.proc_line_base).max(1)
+        });
+        self.error_line.set(line);
         let started = self.exc.borrow().info.is_some();
         if !started {
             // First frame: errorInfo is seeded from the error message (the result).
@@ -2571,7 +2773,6 @@ impl Interp {
             cmd_bytes
         };
         let mut exc = self.exc.borrow_mut();
-        exc.line = line;
         let buf = exc.info.as_mut().expect("seeded above");
         buf.extend_from_slice(b"\n    ");
         buf.extend_from_slice(verb);
@@ -2582,6 +2783,35 @@ impl Interp {
         }
         buf.push(b'"');
         exc.already_logged = true;
+        drop(exc);
+        // Pre-8.5 compatibility (C's `TclLogCommandInfo`, tclNamesp.c): if user
+        // code traces `::errorInfo` for writes, push the value out to the variable
+        // *now*, mid-unwind — firing the write trace while the failing command's
+        // call frame is still live (so the handler's `info level` sees it). Skipped
+        // (no var write) when nothing traces `::errorInfo`, so the normal path
+        // still publishes once, at the `catch`/top level.
+        if self.errorinfo_has_write_trace() {
+            let info = self.error_info();
+            let ei = new_string(&info);
+            if self.var_set(b"::errorInfo", ei).is_err() {
+                drop_fresh(ei);
+            }
+        }
+    }
+
+    /// Whether `::errorInfo` carries a user write-trace — C's `TclIsVarTraced`
+    /// gate in `TclLogCommandInfo` (we install no core `EstablishErrorInfoTraces`,
+    /// so any matching write trace qualifies).
+    fn errorinfo_has_write_trace(&self) -> bool {
+        if self.traces.borrow().traces.is_empty() {
+            return false;
+        }
+        let access_ns = self.trace_var_ns(b"::errorInfo");
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .any(|t| crate::cmd_trace::matches(t, b"::errorInfo", None, b"write", access_ns))
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`
@@ -2652,6 +2882,17 @@ impl Interp {
         self.exc.borrow_mut().already_logged = false;
     }
 
+    /// Append the `(in namespace eval "<fqn>" script line N)` errorInfo frame
+    /// when a `namespace eval` body unwinds with an error (C's `NamespaceEvalCmd`),
+    /// then clear `already_logged` so the `namespace eval` command itself logs.
+    pub(crate) fn append_namespace_eval_frame(&mut self, fqn: &[u8]) {
+        let mut inner = b"in namespace eval \"".to_vec();
+        inner.extend_from_slice(fqn);
+        inner.extend_from_slice(b"\" script");
+        self.append_frame_line(&inner);
+        self.exc.borrow_mut().already_logged = false;
+    }
+
     /// Shared tail of the `(... line N)` frames: append `"\n    (<inner> line
     /// <N>)"` to `errorInfo` (seeding it from the result message if no frame has
     /// been logged yet), where `inner` is the caller-built body — e.g.
@@ -2684,7 +2925,7 @@ impl Interp {
     }
 
     pub(crate) fn append_frame_line(&mut self, inner: &[u8]) {
-        let line = self.exc.borrow().line;
+        let line = self.error_line.get();
         if self.exc.borrow().info.is_none() {
             let msg = self.result_bytes();
             self.exc.borrow_mut().info = Some(msg);
@@ -2779,11 +3020,86 @@ impl Interp {
     /// or `NONE`.
     pub(crate) fn error_code(&self) -> Vec<u8> {
         let exc = self.exc.borrow();
-        if exc.code.is_empty() {
+        if exc.code.is_empty() && !exc.code_explicit {
             b"NONE".to_vec()
         } else {
             exc.code.clone()
         }
+    }
+
+    /// Mark the live error's `-errorcode` as explicitly supplied (so an explicit
+    /// empty code is preserved instead of defaulting to `NONE`; error-4.5).
+    pub(crate) fn mark_error_code_explicit(&mut self) {
+        self.exc.borrow_mut().code_explicit = true;
+    }
+
+    /// Record one command frame into the TIP 348 error stack as an error unwinds
+    /// (`Tcl_LogCommandInfo`'s errorStack half). On the first log of a new error
+    /// episode (`reset_error_stack`), the stack is cleared and seeded with `INNER
+    /// <command>`. Then, if the active frame is an `uplevel`-redirected one
+    /// (`framePtr != varFramePtr`), an `UP <delta>` entry is appended. `CALL`
+    /// entries are added separately at proc-frame boundaries
+    /// ([`error_stack_push_call`](Self::error_stack_push_call)).
+    pub(crate) fn error_stack_log(&self, command: &[u8]) {
+        if self.reset_error_stack.get() {
+            self.reset_error_stack.set(false);
+            let mut es = self.error_stack.borrow_mut();
+            es.clear();
+            es.push(b"INNER".to_vec());
+            es.push(command.to_vec());
+        }
+        let (top, active) = {
+            let f = self.frames.borrow();
+            (f.top_level(), f.current_level())
+        };
+        if top > active {
+            let mut es = self.error_stack.borrow_mut();
+            es.push(b"UP".to_vec());
+            es.push((top - active).to_string().into_bytes());
+        }
+    }
+
+    /// Append a TIP 348 `CALL <info level 0>` entry — the invocation words of a
+    /// proc/lambda/method frame that an error is unwinding out of. The words are
+    /// joined into a single Tcl-list element (so `g 1212` renders as `{g 1212}`).
+    pub(crate) fn error_stack_push_call(&self, words: &[Vec<u8>]) {
+        if self.reset_error_stack.get() {
+            // No inner context recorded yet (the error started at this boundary);
+            // nothing to chain a CALL onto until a command is logged.
+            return;
+        }
+        let mut value = Vec::new();
+        for (i, w) in words.iter().enumerate() {
+            if i > 0 {
+                value.push(b' ');
+            }
+            crate::list::append_list_element(&mut value, w, i == 0);
+        }
+        let mut es = self.error_stack.borrow_mut();
+        es.push(b"CALL".to_vec());
+        es.push(value);
+    }
+
+    /// Render the TIP 348 error stack as a Tcl list (`info errorstack` / the
+    /// options-dict `-errorstack` value).
+    pub(crate) fn error_stack_value(&self) -> Vec<u8> {
+        let es = self.error_stack.borrow();
+        let mut buf = Vec::new();
+        for (i, e) in es.iter().enumerate() {
+            if i > 0 {
+                buf.push(b' ');
+            }
+            crate::list::append_list_element(&mut buf, e, false);
+        }
+        buf
+    }
+
+    /// Mark the start of a new error episode (C's `iPtr->resetErrorStack = 1`,
+    /// set by `Tcl_ResetResult`): the *next* logged command rebuilds the stack.
+    /// The current contents are kept until then (so `info errorstack` after a
+    /// `catch` still reports the last error).
+    pub(crate) fn mark_error_stack_reset(&self) {
+        self.reset_error_stack.set(true);
     }
 
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
@@ -2801,11 +3117,45 @@ impl Interp {
             drop_fresh(ec);
         }
         *self.exc.borrow_mut() = ExceptionState::default();
+        // The exception is consumed: drop any `-during` chain link with it.
+        self.clear_during();
+        // A new error episode starts fresh: the next logged command rebuilds the
+        // TIP 348 error stack (C's `Tcl_ResetResult` sets `resetErrorStack`).
+        self.mark_error_stack_reset();
     }
 
     /// Publish + reset, for `catch`/`try` once they have captured the options.
     pub(crate) fn publish_and_reset_error(&mut self) {
         self.publish_error();
+    }
+
+    /// Stash the `-during` chain link for the next error-options build (TIP 329
+    /// exception chaining): `opts` is the options dict of the exception the
+    /// just-thrown handler/`finally` exception supersedes. Takes its own owning
+    /// reference (releasing any prior link); the caller keeps its own.
+    pub(crate) fn set_during(&self, opts: *mut TclObj) {
+        // SAFETY: `opts` is a live object; retain it for the field's own ref.
+        unsafe { obj::incr_ref_count(opts) };
+        if let Some(old) = self.during.replace(Some(opts)) {
+            // SAFETY: drop the previously-held link's owning reference.
+            unsafe { obj::decr_ref_count(old) };
+        }
+    }
+
+    /// Drop the pending `-during` chain link, if any (no error to chain).
+    pub(crate) fn clear_during(&self) {
+        if let Some(old) = self.during.take() {
+            // SAFETY: release the field's owning reference.
+            unsafe { obj::decr_ref_count(old) };
+        }
+    }
+
+    /// The pending `-during` chain link (borrowed), for `build_options` to splice
+    /// into an error's options dict. `None` when no chaining is active.
+    pub(crate) fn during_opts(&self) -> Option<*mut TclObj> {
+        let d = self.during.take();
+        self.during.set(d);
+        d
     }
 
     // -- eval -----------------------------------------------------------------
@@ -2826,7 +3176,12 @@ impl Interp {
     /// Evaluate `src` as the body of its own `info frame` level (`frame` is
     /// pushed for the duration). Used by proc calls, `eval`/`uplevel`, and
     /// `source`.
-    fn eval_framed(&mut self, src: &[u8], frame: CmdFrame) -> Code {
+    fn eval_framed(&mut self, src: &[u8], mut frame: CmdFrame) -> Code {
+        // A freshly pushed frame is its own `codePtr->source`, so `errorLine` is
+        // measured from this body's base (an inline `catch`/`if` body, by
+        // contrast, shares the enclosing frame via `eval_shared_located_body` and
+        // keeps the proc's `proc_line_base`).
+        frame.proc_line_base = frame.line_base;
         self.eval_script(src, Some(frame))
     }
 
@@ -2915,6 +3270,7 @@ impl Interp {
             // the same CallFrame.
             frame_index: top.map_or(0, |f| f.frame_index),
             line_base,
+            proc_line_base: line_base,
             cmd: Vec::new(),
             line: 1,
             oo: top.and_then(|f| f.oo.clone()),
@@ -4266,6 +4622,7 @@ impl Interp {
             omit_level: false,
             frame_index: proc_idx,
             line_base: meta.body_line_base,
+            proc_line_base: meta.body_line_base,
             cmd: Vec::new(),
             line: 1,
             oo,
@@ -4274,6 +4631,9 @@ impl Interp {
         let code = self.eval_framed(body, proc_frame);
         // The frame's local variables (and any traces on them) die with it.
         let proc_level = self.frames.borrow().current_level();
+        // Capture `[info level 0]` (the invocation words) before the frame is
+        // popped — the TIP 348 `CALL` entry if this body unwinds with an error.
+        let call_words = self.level_words(proc_level);
         self.frames.borrow_mut().pop();
         if !self.traces.borrow().traces.is_empty() {
             self.clear_frame_var_traces(proc_level);
@@ -4283,19 +4643,42 @@ impl Interp {
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an
         // error (C Tcl: `invoked "break" outside of a loop`).
+        // A *bare* `break`/`continue` command escaping the body (no enclosing
+        // loop) is the `invoked "break" outside of a loop` error; but `return
+        // -code break` (the body completed with `Code::Return`) propagates the
+        // raw completion code unchanged — C distinguishes these, e.g. an
+        // ensemble `-unknown` handler that does `return -code break` yields code
+        // 3, not the loop error (namespace-47.4).
+        let from_return = code == Code::Return;
         let settled = match self.settle_return(code) {
-            Code::Break if !meta.keep_loop_codes => {
+            Code::Break if !meta.keep_loop_codes && !from_return => {
                 self.error(b"invoked \"break\" outside of a loop")
             }
-            Code::Continue if !meta.keep_loop_codes => {
+            Code::Continue if !meta.keep_loop_codes && !from_return => {
                 self.error(b"invoked \"continue\" outside of a loop")
             }
             other => other,
         };
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
         // frame and clear `already_logged` so the proc-call command logs next.
+        // Skipped when the error was produced by the return boundary itself
+        // (`return -code error`, i.e. the body completed with `Code::Return`):
+        // C only adds the procedure frame when the error unwinds *through* the
+        // body, not when `return` synthesises it (error-6.7, result-6.2).
         if settled == Code::Error {
-            self.make_proc_error(meta.err);
+            if code != Code::Return {
+                self.make_proc_error(meta.err);
+                // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
+                if let Some(words) = call_words {
+                    self.error_stack_push_call(&words);
+                }
+            } else {
+                // `return -code error`: no procedure frame, but the *caller* still
+                // logs its own `invoked from within "<call>"` frame, so release
+                // the already-logged flag that `process_return_error` may have set
+                // for an explicit `-errorinfo` (error-6.7).
+                self.clear_error_logged();
+            }
         }
         settled
     }
@@ -4315,9 +4698,11 @@ impl Interp {
         if argv.len() < 2 + nparams {
             let mut m = b"wrong # args: should be \"".to_vec();
             m.extend_from_slice(&obj_bytes(argv[0]));
+            // Each `-parameters` formal is rendered as a list element, so a
+            // multi-word default like `{a b}` keeps its braces.
             for p in &cfg.parameters {
                 m.push(b' ');
-                m.extend_from_slice(p);
+                crate::list::append_list_element(&mut m, p, false);
             }
             m.extend_from_slice(b" subcommand ?arg ...?\"");
             return self.error(&m);
@@ -4348,20 +4733,42 @@ impl Interp {
                         t.extend_from_slice(resolved);
                         vec![t]
                     });
-                return self.dispatch_ensemble_target(&prefix, argv, nparams);
+                // Spell-fix the subcommand to its resolved name in the recorded
+                // source, so an abbreviated `ev` is reported as `event` (C's
+                // `TclSpellFix`).
+                let mut source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+                source[1 + nparams] = resolved.clone();
+                return self.dispatch_ensemble_target(&prefix, argv, nparams, source);
             }
             // Miss: try the `-unknown` handler once.
             if !cfg.unknown.is_empty() && !reparsed {
                 reparsed = true;
                 match self.ensemble_unknown(cfg, argv) {
                     EnsembleUnknown::Prefix(prefix) => {
-                        return self.dispatch_ensemble_target(&prefix, argv, nparams);
+                        let source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+                        return self.dispatch_ensemble_target(&prefix, argv, nparams, source);
                     }
                     EnsembleUnknown::Reparse => continue,
                     EnsembleUnknown::Failed(code) => return code,
                 }
             }
-            // "unknown or ambiguous" with prefixes on; plain "unknown" otherwise.
+            // A namespace ensemble with no subcommands at all gets a distinct
+            // message; otherwise "unknown or ambiguous" (prefixes on) / "unknown"
+            // (prefixes off) followed by the candidate list (C's
+            // `NsEnsembleImplementationCmdNR`).
+            let ecode = {
+                let mut c = b"TCL LOOKUP SUBCOMMAND ".to_vec();
+                c.extend_from_slice(&sub);
+                c
+            };
+            if subs.is_empty() {
+                let mut m = b"unknown subcommand \"".to_vec();
+                m.extend_from_slice(&sub);
+                m.extend_from_slice(b"\": namespace ");
+                m.extend_from_slice(&self.namespaces.borrow().qualified_name(cfg.ns));
+                m.extend_from_slice(b" does not export any commands");
+                return self.error_with_code(&m, &ecode);
+            }
             let mut m = if cfg.prefixes {
                 b"unknown or ambiguous subcommand \"".to_vec()
             } else {
@@ -4370,7 +4777,7 @@ impl Interp {
             m.extend_from_slice(&sub);
             m.extend_from_slice(b"\": must be ");
             m.extend_from_slice(&crate::ensemble::must_be(&subs));
-            return self.error(&m);
+            return self.error_with_code(&m, &ecode);
         }
     }
 
@@ -4395,6 +4802,7 @@ impl Interp {
         prefix: &[Vec<u8>],
         argv: &[*mut TclObj],
         nparams: usize,
+        source: Vec<Vec<u8>>,
     ) -> Code {
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
         for w in prefix {
@@ -4413,7 +4821,15 @@ impl Interp {
             unsafe { obj::incr_ref_count(a) };
             new_argv.push(a);
         }
+        // Record the call as the user wrote it so a `wrong # args` from the target
+        // is reported in ensemble terms (C's `TclInitRewriteEnsemble`): the
+        // ensemble command, its `-parameters`, and the subcommand word (`2 +
+        // nparams`) are removed; the target prefix + `-parameters` are inserted.
+        let is_root = self.begin_ensemble_rewrite(source, 2 + nparams, prefix.len() + nparams);
         let code = self.dispatch(&new_argv);
+        if is_root {
+            self.clear_ensemble_rewrite();
+        }
         release_all(&new_argv);
         code
     }
@@ -4738,7 +5154,9 @@ impl Interp {
                     // non-error code (`return`, custom) substitutes its result.
                     // Only a genuine error propagates.
                     match self.eval_command_subst(src, script) {
-                        Code::Ok | Code::Return => out.extend_from_slice(&self.result_bytes()),
+                        Code::Ok | Code::Return | Code::Other(_) => {
+                            out.extend_from_slice(&self.result_bytes())
+                        }
                         Code::Break => break,
                         Code::Continue => {}
                         Code::Error => return Err(Code::Error),
@@ -4864,8 +5282,13 @@ impl Interp {
         quote_name: bool,
     ) -> Vec<u8> {
         if let Some(rw) = self.ensemble_rewrite() {
-            // How many trailing words of `source` were the user's own arguments,
-            // and how many formal parameters the inserted prefix already filled.
+            // Print the first `removed` words of `source` (the chained
+            // `numRemovedObjs`) in place of the target prefix, then the formal
+            // parameters not already satisfied by the supplied arguments. Using
+            // the runtime `supplied` count (rather than the static `inserted`)
+            // keeps the dropped-parameter count right across an OO forward, where
+            // the inserted prefix words (`my method …`) are dispatch verbs that do
+            // not themselves fill the target's parameters.
             let user_args = rw.source.len().saturating_sub(rw.removed);
             let drop = supplied.saturating_sub(user_args);
             // Only rewrite when the dropped parameters are actually present (C's
@@ -4966,6 +5389,11 @@ impl Drop for InterpState {
         // SAFETY: `result` is the interp's owned reference, dropped once.
         unsafe { obj::decr_ref_count(self.result.get()) };
         self.result.set(core::ptr::null_mut());
+        // Release any pending `-during` chain link the interp still owns.
+        if let Some(d) = self.during.take() {
+            // SAFETY: `during` held an owning reference; drop it once.
+            unsafe { obj::decr_ref_count(d) };
+        }
     }
 }
 

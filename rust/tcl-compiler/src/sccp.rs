@@ -882,6 +882,49 @@ fn fold_assign_value(
 ///
 /// Returns `None` for anything else so callers widen to
 /// Overdefined.
+/// Resolve a single command operand to its constant string value: a literal
+/// word (optionally brace/quote wrapped), or a pure `$var` / `${var}` whose
+/// SCCP lattice value is a constant. Returns `None` for anything that isn't a
+/// compile-time constant (array refs, command substitutions, unknown vars),
+/// so the caller skips folding — matching Python's lattice-resolved fold.
+fn resolve_const_string(
+    arg: &str,
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<String> {
+    let arg = arg.trim();
+    if let Some(rest) = arg.strip_prefix('$') {
+        // `$name` or `${name}` — reject compound refs (array element,
+        // nested substitution, multiple words).
+        let name = rest
+            .strip_prefix('{')
+            .and_then(|r| r.strip_suffix('}'))
+            .unwrap_or(rest);
+        if name.is_empty()
+            || name.contains(|c: char| {
+                c.is_whitespace() || c == '(' || c == '[' || c == '$' || c == '"'
+            })
+        {
+            return None;
+        }
+        let ver = uses.get(name)?;
+        return match values.get(&(name.to_owned(), *ver))? {
+            LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
+            LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
+            LatticeValue::Const(ConstValue::Bool(b)) => {
+                Some(if *b { "1" } else { "0" }.to_owned())
+            }
+            LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
+            _ => None,
+        };
+    }
+    // A literal word with no interpolation or command substitution.
+    if !arg.contains('$') && !arg.contains('[') {
+        return Some(strip_one_level(arg).to_owned());
+    }
+    None
+}
+
 fn try_fold_cmd_subst(
     value: &str,
     uses: &HashMap<String, crate::ssa::Version>,
@@ -913,14 +956,18 @@ fn try_fold_cmd_subst(
         return None;
     }
 
-    // `[string length "text"]` with a literal string operand.
+    // `[string length OPERAND]` where OPERAND resolves to a constant
+    // string — a literal word, or a `$var` whose lattice value is known.
+    // (Counting the chars of the *unresolved* operand text would mis-fold
+    // `string length $s` to the length of "$s".)
     if cmd == "string" {
         if let Some(after_cmd) = rest {
             let (sub, sub_rest) = split_head(after_cmd.trim());
             if sub == "length"
-                && let Some(arg) = sub_rest.map(|s| strip_one_level(s.trim()))
+                && let Some(raw) = sub_rest
+                && let Some(s) = resolve_const_string(raw.trim(), uses, values)
             {
-                let len = i64::try_from(arg.chars().count()).unwrap_or(i64::MAX);
+                let len = i64::try_from(s.chars().count()).unwrap_or(i64::MAX);
                 return Some(LatticeValue::Const(ConstValue::Int(len)));
             }
         }

@@ -11,6 +11,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fcopy",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],

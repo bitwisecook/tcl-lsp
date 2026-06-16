@@ -10,13 +10,17 @@
 //!   protocol-namespace map (`profile_graph_snapshot` in Python).
 //! - [`object_graph_snapshot`] — the BIG-IP object graph: object kinds,
 //!   the header→kind map, and property reference edges (`object_graph_snapshot`).
+//! - [`event_graph_snapshot`] — the iRules event graph: per-event protocol
+//!   props (with the `transport` string/list/null remapping), firing order,
+//!   flow chains, and the content-addressed valid-command digests
+//!   (`event_graph_snapshot`).
 //!
-//! The `commands` and `events` snapshots are **not** ported here: they embed
-//! the full event-validity cross-product (`validCommandsDigest` /
-//! `validEventsDigest`) and the hover prose catalogue (`summary`), which
+//! The `commands` snapshot is **not** ported here: it embeds the full
+//! per-command traits/scalars dicts (mirroring the Python `CommandSpec`
+//! dataclass field layout) and the hover prose catalogue (`summary`), which
 //! reflect Python-internal derivation machinery without a clean, byte-identical
-//! Rust equivalent. The `f5 registry-dump` verb reports those sections as
-//! deferred.
+//! Rust equivalent. The `f5 registry-dump` verb reports that section (and the
+//! `all` aggregate containing it) as deferred.
 
 use std::collections::BTreeMap;
 
@@ -376,6 +380,165 @@ fn sorted(items: &[&str]) -> Vec<String> {
     let mut v: Vec<String> = items.iter().map(|s| (*s).to_owned()).collect();
     v.sort_unstable();
     v
+}
+
+/// Stable content digest of a string list (port of `digest_list`): sort the
+/// items, join with newlines, and SHA-256 — `"sha256:" + hexdigest`. The two
+/// heaviest registry facts (the per-event valid-command cross-product) are
+/// content-addressed this way so the snapshot stays small.
+fn digest_list(items: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut sorted_items: Vec<&str> = items.iter().map(String::as_str).collect();
+    sorted_items.sort_unstable();
+    let joined = sorted_items.join("\n");
+    let digest = Sha256::digest(joined.as_bytes());
+    format!("sha256:{digest:x}")
+}
+
+/// Serialise an [`EventProps`](crate::events::EventProps) as the Python
+/// `_jsonable(props)` dict (the 9 dataclass fields; `sort_keys` reorders them
+/// at emit time). `transport` is remapped: empty → `null`, one → a string,
+/// many → a list (Python stores `str | tuple | None`).
+fn event_props_json(props: &crate::events::EventProps) -> Json {
+    let transport = match props.transport {
+        [] => Json::Null,
+        [one] => Json::s(*one),
+        many => Json::str_array(sorted(many)),
+    };
+    let mut obj = BTreeMap::new();
+    obj.insert("client_side".to_owned(), Json::Bool(props.client_side));
+    obj.insert("server_side".to_owned(), Json::Bool(props.server_side));
+    obj.insert("transport".to_owned(), transport);
+    obj.insert(
+        "implied_profiles".to_owned(),
+        Json::str_array(sorted(props.implied_profiles)),
+    );
+    obj.insert("flow".to_owned(), Json::Bool(props.flow));
+    obj.insert("deprecated".to_owned(), Json::Bool(props.deprecated));
+    obj.insert("hot".to_owned(), Json::Bool(props.hot));
+    obj.insert("common".to_owned(), Json::Bool(props.common));
+    obj.insert(
+        "setup_event".to_owned(),
+        props.setup_event.map_or(Json::Null, Json::s),
+    );
+    Json::Object(obj)
+}
+
+/// Snapshot of the iRules event graph: per-event protocol properties, firing
+/// order, flow chains, and the commands valid in each event. Port of
+/// `event_graph_snapshot` (`tooling/registry_snapshot.py`).
+///
+/// The per-event valid-command list is content-addressed (`validCommandsDigest`)
+/// rather than emitted verbatim, exactly as Python does.
+#[must_use]
+pub fn event_graph_snapshot() -> Json {
+    use crate::events::EventRegistry;
+    use crate::registry::CommandRegistry;
+
+    let dialect = "f5-irules";
+    let events = EventRegistry::build();
+    let profiles = ProfileRegistry::build();
+    let mut cmds = CommandRegistry::build_default();
+    cmds.load_irules();
+
+    // `sorted(NAMESPACE_REGISTRY.all_event_names())`.
+    let mut names = events.all_event_names();
+    names.sort_unstable();
+
+    let mut event_items: Vec<Json> = Vec::with_capacity(names.len());
+    for name in &names {
+        let info = cmds.event_info(name, &events, &profiles);
+        let mut entry = BTreeMap::new();
+        entry.insert("event".to_owned(), Json::s(*name));
+        entry.insert(
+            "props".to_owned(),
+            events
+                .get_props(name)
+                .map_or(Json::Null, event_props_json),
+        );
+        entry.insert(
+            "orderIndex".to_owned(),
+            events.event_index(name).map_or(Json::Null, |i| {
+                Json::Int(i64::try_from(i).unwrap_or(i64::MAX))
+            }),
+        );
+        entry.insert("known".to_owned(), Json::Bool(info.known));
+        entry.insert("deprecated".to_owned(), Json::Bool(info.deprecated));
+        entry.insert("multiplicity".to_owned(), Json::s(info.multiplicity));
+        entry.insert("side".to_owned(), Json::s(info.side));
+        entry.insert(
+            "transport".to_owned(),
+            info.transport.as_deref().map_or(Json::Null, Json::s),
+        );
+        entry.insert(
+            "impliedProfiles".to_owned(),
+            Json::str_array(info.implied_profiles.iter().map(|s| (*s).to_owned())),
+        );
+        entry.insert(
+            "validCommandCount".to_owned(),
+            Json::Int(i64::try_from(info.valid_command_count()).unwrap_or(i64::MAX)),
+        );
+        entry.insert(
+            "validCommandsDigest".to_owned(),
+            Json::s(digest_list(&info.valid_commands)),
+        );
+        event_items.push(Json::Object(entry));
+    }
+
+    // `[{"event": event, "profiles": sorted(profiles)} for event, profiles in MASTER_ORDER]`.
+    let master_order: Vec<Json> = events
+        .master_order()
+        .iter()
+        .map(|entry| {
+            let mut obj = BTreeMap::new();
+            obj.insert("event".to_owned(), Json::s(entry.event));
+            obj.insert(
+                "profiles".to_owned(),
+                Json::str_array(sorted(entry.profile_gates)),
+            );
+            Json::Object(obj)
+        })
+        .collect();
+
+    // `_jsonable(FLOW_CHAINS)` — a `dict[chain_id, FlowChain]`.
+    let mut flow_chains = BTreeMap::new();
+    for chain in events.flow_chains() {
+        let steps: Vec<Json> = chain
+            .steps
+            .iter()
+            .map(|step| {
+                let mut s = BTreeMap::new();
+                s.insert("event".to_owned(), Json::s(step.event));
+                s.insert("phase".to_owned(), Json::s(step.phase));
+                s.insert("conditional".to_owned(), Json::Bool(step.conditional));
+                s.insert("condition_note".to_owned(), Json::s(step.condition_note));
+                Json::Object(s)
+            })
+            .collect();
+        let mut c = BTreeMap::new();
+        c.insert("chain_id".to_owned(), Json::s(chain.chain_id));
+        c.insert("description".to_owned(), Json::s(chain.description));
+        c.insert("profiles".to_owned(), Json::str_array(sorted(chain.profiles)));
+        c.insert("steps".to_owned(), Json::Array(steps));
+        c.insert("notes".to_owned(), Json::s(chain.notes));
+        flow_chains.insert(chain.chain_id.to_owned(), Json::Object(c));
+    }
+
+    let mut root = BTreeMap::new();
+    root.insert(
+        "schema".to_owned(),
+        Json::s("tcl-lsp/registry/events/v1"),
+    );
+    root.insert("dialect".to_owned(), Json::s(dialect));
+    root.insert(
+        "eventCount".to_owned(),
+        Json::Int(i64::try_from(event_items.len()).unwrap_or(i64::MAX)),
+    );
+    root.insert("events".to_owned(), Json::Array(event_items));
+    root.insert("masterOrder".to_owned(), Json::Array(master_order));
+    root.insert("flowChains".to_owned(), Json::Object(flow_chains));
+    Json::Object(root)
 }
 
 #[cfg(test)]

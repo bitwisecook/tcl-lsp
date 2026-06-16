@@ -15,6 +15,11 @@ rules for the KCS/documentation split live in
 
 - [compiler-architecture.md](compiler-architecture.md) — high-level map of
   the multi-pass compiler pipeline with diagrams and cross-links.
+- [common-runtime-emitter-architecture.md](common-runtime-emitter-architecture.md)
+  — steering doc reasoning across the whole space (TCLVM bytecode emitter, WASM
+  emitter, and the runtimes/VM) to fix the right split and interface shapes: the
+  two interface families (emitter vs runtime-state), why the bytecode VM is a
+  reified-state runtime, and the WASM migration path (WASM engine untouched).
 - [example-script-walkthroughs.md](example-script-walkthroughs.md) — full
   pipeline traces for progressively complex Tcl scripts.
 - [code-importing-examples.md](code-importing-examples.md) — reference
@@ -74,6 +79,9 @@ rules for the KCS/documentation split live in
   environment layout, activation scripts, tclsh wrapper.
 - [contracts/tclpkg-lsp.md](contracts/tclpkg-lsp.md) — project root
   detection, W130–W134 diagnostics, code actions.
+- [contracts/explorer-view-audit.md](contracts/explorer-view-audit.md) —
+  audit of the compiler-explorer views to represent the Rust compiler,
+  not the Python one.
 
 ## Compiler internals
 
@@ -141,6 +149,8 @@ ownership matrices.
 - [runtime/zig-runtime-roadmap.md](runtime/zig-runtime-roadmap.md) —
   phases 4 (residual), 5, and 6 of the Zig WASM runtime, companion to
   the master plan: remaining P4 work and P5/P6 sequencing.
+- [runtime/tclvm-opcode-status.md](runtime/tclvm-opcode-status.md) —
+  C Tcl 9.0 bytecode instruction coverage for the TCLVM.
 
 ## Rust runtime port
 
@@ -164,6 +174,12 @@ chunk-by-chunk dispatch story lives in
 - [runtime/rust-runtime-port.md](runtime/rust-runtime-port.md) —
   productionising the C-Tcl-extension-to-WASM port on the Rust runtime:
   status, bootstrapping plan, and the end-to-end build mechanism.
+- [rust/incremental-analysis.md](rust/incremental-analysis.md) —
+  per-item walk with cascade invalidation: the incremental analysis design.
+- [rust/incremental-analysis-experiments.md](rust/incremental-analysis-experiments.md)
+  — experiments, discoveries, and the reasoning behind the incremental plan.
+- [rust/lsp-performance.md](rust/lsp-performance.md) — native LSP
+  performance: results, optimisations, and how to measure.
 
 ## Optional WASM extensions
 

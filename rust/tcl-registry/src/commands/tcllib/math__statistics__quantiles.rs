@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::quantiles",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Compute quantiles of a list of values.",

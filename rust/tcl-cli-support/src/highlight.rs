@@ -10,8 +10,7 @@ use std::collections::HashSet;
 
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{Lexer, TokenType};
-
-use crate::registry::registry_for_dialect;
+use tcl_registry::registry_for_dialect;
 
 const ANSI_RESET: &str = "\x1b[0m";
 

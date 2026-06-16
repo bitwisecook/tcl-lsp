@@ -264,6 +264,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "toplevel",
+        dialects: None,
         arity: Arity::exact(1),
         detail: "Return the path name of the top-level window containing the window.",
         synopsis: "winfo toplevel window",
@@ -363,7 +364,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "winfo",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Return window-related information.",

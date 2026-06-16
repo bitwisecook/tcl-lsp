@@ -157,6 +157,28 @@ pub enum SubstPart {
     Cmd(String),
 }
 
+/// If `bytes[i]` opens an array index (`(`), advance past the matching `)` —
+/// honouring nested `[...]` command substitutions inside the index — and return
+/// the new position. Otherwise return `i` unchanged.
+fn consume_array_index(bytes: &[u8], mut i: usize) -> usize {
+    let n = bytes.len();
+    if i >= n || bytes[i] != b'(' {
+        return i;
+    }
+    let mut depth: u32 = 0;
+    i += 1;
+    while i < n {
+        match bytes[i] {
+            b'[' => depth += 1,
+            b']' if depth > 0 => depth -= 1,
+            b')' if depth == 0 => return i + 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    i
+}
+
 /// Parse a substitution template into parts.
 ///
 /// Returns `None` if the template contains constructs we cannot
@@ -240,14 +262,18 @@ pub fn parse_subst_template(template: &str) -> Option<Vec<SubstPart>> {
                 parts.push(SubstPart::Var(template[i + 1..end].to_owned()));
                 i = end + 1;
             } else {
-                // Bare variable: $varname
+                // Bare variable: $varname, optionally with an array index
+                // `$arr(index)` whose index may itself contain substitutions.
                 let start = i;
-                while i < n && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                while i < n
+                    && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b':')
+                {
                     i += 1;
                 }
                 if i == start {
                     return None;
                 }
+                i = consume_array_index(bytes, i);
                 parts.push(SubstPart::Var(template[start..i].to_owned()));
             }
             continue;

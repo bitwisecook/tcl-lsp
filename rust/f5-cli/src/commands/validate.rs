@@ -74,7 +74,10 @@ pub fn run_validate(
 }
 
 /// Render the text report (port of `_to_text`), with a trailing newline.
-fn to_text(findings: &[Finding]) -> String {
+///
+/// `pub(crate)` so the `irule lint` verb can reuse the exact same formatter
+/// (it shares Python's `_to_text`).
+pub(crate) fn to_text(findings: &[Finding]) -> String {
     if findings.is_empty() {
         return "validate: no findings\n".to_owned();
     }
@@ -106,7 +109,9 @@ fn to_text(findings: &[Finding]) -> String {
 
 /// Render the JSON report (port of `_to_json` + `json.dumps(indent=2)`),
 /// preserving Python key order and emitting findings in run order.
-fn to_json(findings: &[Finding]) -> String {
+///
+/// `pub(crate)` so the `irule lint` verb can reuse the exact same formatter.
+pub(crate) fn to_json(findings: &[Finding]) -> String {
     use std::fmt::Write as _;
 
     use tcl_bigip::jsonfmt::json_string as q;

@@ -206,7 +206,12 @@ impl FunctionUnit {
 /// Complete compilation artefacts for a source document.
 ///
 /// Built once, consumed many times across the diagnostics cycle.
-#[derive(Debug, Clone)]
+///
+/// `PartialEq` enables the salsa-native [`compilation_unit`] query (in
+/// `tcl-lsp-db`) to return `Arc<CompilationUnit>` — both diagnostics consumers
+/// share one build per edit — using salsa's equality-backed memoisation, exactly
+/// as `FunctionUnit` does for [`function_lattice`].
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompilationUnit {
     /// Source text (kept so downstream passes that need raw
     /// lexing can re-scan ranges without reparsing).
@@ -517,10 +522,17 @@ impl CompilationUnit {
         self.procedures.get(name)
     }
 
-    /// Iterate over every function unit in the module (top-level
-    /// first, then procedures in insertion order).
+    /// Iterate over every function unit in the module: the top-level unit
+    /// first, then procedures **in qualified-name order**.
+    ///
+    /// The procedure store is a `HashMap`, whose iteration order is not
+    /// stable across runs; sorting here gives every consumer
+    /// (taint/gvn/shimmer/callouts/stats…) a deterministic function order,
+    /// so the per-function diagnostics they emit are reproducible.
     pub fn functions(&self) -> impl Iterator<Item = &FunctionUnit> {
-        std::iter::once(&self.top_level).chain(self.procedures.values())
+        let mut procs: Vec<&FunctionUnit> = self.procedures.values().collect();
+        procs.sort_by(|a, b| a.name.cmp(&b.name));
+        std::iter::once(&self.top_level).chain(procs)
     }
 }
 

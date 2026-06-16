@@ -43,8 +43,11 @@ resolver = "2"
 members = [
     "rust/tcl-lexer",
     "rust/tcl-syntax",
+    "rust/tcl-bytecode",
+    "rust/tcl-runtime-api",
     "rust/tcl-registry",
     "rust/tcl-compiler",
+    "rust/tcl-vm",
     "rust/tcl-bigip",
     "rust/tcl-bigip-io",
     "rust/tcl-bigip-query",
@@ -54,12 +57,17 @@ members = [
     "rust/tcl-lsp-server",
     "rust/tcl-lsp-py",
     "rust/tcl-lsp-rust",
+    "rust/tcl-explorer",
     "rust/tcl-cli-support",
     "rust/tcl-cli",
     "rust/f5-cli",
 ]
 exclude = [
     "editors/zed",
+    # The compiler-explorer WASM facade is a cdylib for wasm32-unknown-unknown;
+    # wasm-bindgen's generated glue needs `unsafe`, which the workspace
+    # `unsafe_code = "forbid"` lint bans. Built via `make explorer-wasm`.
+    "rust/tcl-explorer-wasm",
     # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it
@@ -74,10 +82,10 @@ exclude = [
 version = "0.1.0"
 edition = "2024"
 # 2024 is the current Rust edition (editions ship ~every 3 years: 2015 / 2018 /
-# 2021 / 2024). MSRV moved forward to a recent stable now that the workspace is
-# on the 2024 edition and built/tested against rustc 1.96 (≥ 1.85 was already
-# required for salsa 0.26 / tcl-lsp-db and the runtime/rust port's is_none_or).
-rust-version = "1.94"
+# 2021 / 2024). MSRV tracks the toolchain the workspace is built/tested against
+# (rustc 1.96); ≥ 1.85 was already required for salsa 0.26 / tcl-lsp-db and the
+# runtime/rust port's is_none_or.
+rust-version = "1.96"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 authors = ["tcl-lsp contributors"]

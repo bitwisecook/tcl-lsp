@@ -4,7 +4,7 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "event",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Enables or disables evaluation of the specified iRule event or all iRule events on this connection.",

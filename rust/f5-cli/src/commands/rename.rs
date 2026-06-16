@@ -14,8 +14,10 @@
 //! overwrites the input. Every rename emits a `renamed 'old' -> 'new' (N
 //! occurrence(s))` report on stderr.
 //!
-//! Deferred (cleanly rejected, like the other config verbs): `--format tmsh`
-//! / `tmsh-delta`, which need the unported tmsh emitter.
+//! `--format tmsh` / `tmsh-delta` re-render the rewritten config via the BIG-IP
+//! tmsh emit engine (`tcl_bigip::tmsh_emit`); the default unified-diff preview
+//! is always SCF↔SCF. `--in-place` + `--format tmsh` is rejected (an in-place
+//! write must preserve the SCF source format).
 
 use std::io::Write as _;
 use std::path::Path;
@@ -74,16 +76,6 @@ pub fn run_rename(
         return Ok(2);
     }
 
-    // Deferred: the `tmsh` / `tmsh-delta` formats need the unported tmsh
-    // emitter (`render_config`). The `--in-place` + `tmsh` combination is
-    // already rejected above (matching Python); reject the rest here.
-    if format.format != "scf" {
-        anyhow::bail!(
-            "`f5 rename --format {}` is not yet implemented in the Rust port (needs the tmsh emitter)",
-            format.format
-        );
-    }
-
     // Strict UTF-8 for in-place writes — a silent U+FFFD replacement followed
     // by an in-place rewrite would permanently overwrite the unreadable bytes.
     let opts = crate::cli::PassphraseArgs::default().to_options();
@@ -123,15 +115,22 @@ pub fn run_rename(
         );
     }
 
-    // `--format scf` returns the rewritten text verbatim (`render_config`).
-    let rewritten = &applied.new_source;
+    // `--format scf` returns the rewritten text verbatim; `tmsh` / `tmsh-delta`
+    // re-render. Like the Python verb, no pre-edit original is threaded.
+    let rewritten = crate::commands::emit::render_config(
+        &applied.new_source,
+        &format.format,
+        "modify",
+        format.transaction,
+        "",
+    );
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     if in_place {
-        std::fs::write(Path::new(path), rewritten)?;
+        std::fs::write(Path::new(path), &rewritten)?;
     } else if let Some(output) = output {
-        std::fs::write(output, rewritten)?;
+        std::fs::write(output, &rewritten)?;
     } else if write {
         write!(out, "{rewritten}")?;
     } else {

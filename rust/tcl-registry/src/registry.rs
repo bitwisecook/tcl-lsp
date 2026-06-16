@@ -14,6 +14,42 @@ use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
+/// Resolved metadata for an iRules event — the result of
+/// [`CommandRegistry::event_info`]. Field-for-field port of the Python
+/// `compiler.registry.info.EventInfo` dataclass.
+#[derive(Debug, Clone)]
+pub struct EventInfo {
+    /// The upper-cased event name as queried.
+    pub event: String,
+    /// Whether the event is a recognised iRules event.
+    pub known: bool,
+    /// Whether the event is deprecated (always `false`; see
+    /// [`CommandRegistry::event_info`]).
+    pub deprecated: bool,
+    /// `"init"` / `"once_per_connection"` / `"per_request"` / `"unknown"`.
+    pub multiplicity: &'static str,
+    /// Description prose, or `""` when none is recorded.
+    pub description: String,
+    /// Connection-side label, or `"unknown"` for an unrecognised event.
+    pub side: &'static str,
+    /// Transport string (`"tcp"`, `"tcp/udp"`, `""`), or `None` for an
+    /// unrecognised event.
+    pub transport: Option<String>,
+    /// Profile types implied by the event, sorted.
+    pub implied_profiles: Vec<&'static str>,
+    /// Sorted names of every command valid in this event (empty when the
+    /// event is unknown).
+    pub valid_commands: Vec<String>,
+}
+
+impl EventInfo {
+    /// Number of commands valid in this event.
+    #[must_use]
+    pub fn valid_command_count(&self) -> usize {
+        self.valid_commands.len()
+    }
+}
+
 /// Number of commands declaring a taint source — computed at compile
 /// time so [`TAINT_SOURCE_INDEX`] can be a fixed-size `const` array.
 const fn count_taint_sources(specs: &[CommandSpec]) -> usize {
@@ -277,6 +313,56 @@ impl CommandRegistry {
             .collect();
         names.sort_unstable();
         names
+    }
+
+    /// Resolve full metadata for an iRules `event` — a faithful port of
+    /// `compiler.registry.info.lookup_event_info` (the engine behind
+    /// `f5 irule event-info`).
+    ///
+    /// The event name is upper-cased and trimmed. `known` /
+    /// `valid_commands` come from this registry (the cross-product is the
+    /// same as [`Self::valid_irules_commands_for_event`]); the side /
+    /// transport / implied-profiles / description / multiplicity come from
+    /// `events`. `deprecated` mirrors Python's `when`-argument-value detail
+    /// path, which carries no "deprecated" markers, so it is always
+    /// `false` (independent of [`crate::events::EventProps::deprecated`]).
+    #[must_use]
+    pub fn event_info(
+        &self,
+        event: &str,
+        events: &crate::events::EventRegistry,
+        profiles: &crate::profiles::ProfileRegistry,
+    ) -> EventInfo {
+        let name = event.trim().to_uppercase();
+        let known = !name.is_empty() && events.is_known(&name);
+        let valid_commands: Vec<String> = if known {
+            self.valid_irules_commands_for_event(&name, events, profiles)
+                .into_iter()
+                .map(ToOwned::to_owned)
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let props = events.get_props(&name);
+        EventInfo {
+            known,
+            deprecated: false,
+            multiplicity: events.multiplicity(&name),
+            description: events.description(&name).unwrap_or("").to_owned(),
+            side: props.map_or("unknown", crate::events::EventProps::side_label),
+            // Python models "no transport" as `None`, not an empty string.
+            transport: props.and_then(|p| {
+                (!p.transport.is_empty()).then(|| p.transport.join("/"))
+            }),
+            implied_profiles: {
+                let mut v: Vec<&'static str> =
+                    props.map(|p| p.implied_profiles.to_vec()).unwrap_or_default();
+                v.sort_unstable();
+                v
+            },
+            event: name,
+            valid_commands,
+        }
     }
 
     /// Return all command specs whose traits include `t`.
@@ -764,7 +850,7 @@ mod tests {
     fn tcl9_commands_gated_to_tcl90() {
         use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
-        for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
+        for name in ["foreachLine", "readFile", "writeFile", "lpop"] {
             let spec = reg.get(name).expect("registered");
             assert_eq!(
                 spec.dialects,
@@ -772,6 +858,16 @@ mod tests {
                 "{name} should be Tcl 9.0-only",
             );
         }
+        // Unlike the four above, the Python registry marks `const`
+        // `dialects = None` (universal) rather than Tcl-9.0-gated, so it
+        // is valid inside iRules events. The dialect-reconcile
+        // (`scripts/registry-audit/reconcile_irules_dialects.py`) mirrors
+        // that so `commands_for_event` matches Python.
+        assert_eq!(
+            reg.get("const").expect("registered").dialects,
+            None,
+            "const should be universal (Python marks it dialects=None)",
+        );
     }
 
     #[test]

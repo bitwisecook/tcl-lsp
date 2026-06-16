@@ -39,7 +39,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_chooseColor",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Pop up a dialogue for the user to select a colour.",

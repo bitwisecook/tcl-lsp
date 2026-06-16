@@ -211,6 +211,7 @@ practcl.tcl from ~1 s to low-ms).
 | Slice 5 — diagnostics on the cancellable salsa graph (`file_analysis_incremental`), coalescing per-URI worker (CPU-stress-robust), `document_analysis_gate` retired | **shipped** (e2e parity; edit-storm stress green) |
 | Salsa-native per-procedure lattice graph (`function_lattice` query interning each proc's offset-0 body + `CfgContext`); both consumers (analyser tail + optimiser via `compiler_check_diagnostics`) on salsa; process-wide content cache retired | **shipped** (byte-identical; offset-invariant firewall + e2e parity) |
 | Per-item walk Phase B — widen the fast path: qualified `$::g` reads captured + replayed on the shell's globals at graft; the enclosing-context fallback narrowed from "any namespace/global/`variable`/qualified-read body" to **duplicate definitions** (top-level + nested self-redefinition) and **class-defining / qualified-writer bodies** | **shipped** (≈42% of corpus files now take the incremental fast path, up from the qualified-read-trigger floor; byte-identical — corpus + fuzzer gated) |
+| Per-item walk Phase C — widen the fast path to the enclosing-variable class: the three residual divergences made byte-identical (W120 anchored at the source-earliest invocation; W002 disabled-command shadow check deferred to the tail over the merged `all_procs`; W304 `$var` resolution deferred to the tail over the full source); qualified-read replay gated on source-order visibility; `body_needs_enclosing_context` narrowed to just `variable ns::x`; post-walk `E…` syntax-error backstop added (mirrors `analyse_incremental`) | **shipped** (≈42%→**86.6%** of corpus files take the fast path; byte-identical — `per_item_corpus` *and* the new `per_item_matches_analyse_under_edits` edit fuzzer + `differential_incremental` + e2e gated) |
 
 > **Phase B — what the fast path now covers, and what still falls back.**
 > The per-item walk's enclosing-context fallback (`body_needs_enclosing_context`)
@@ -233,13 +234,207 @@ practcl.tcl from ~1 s to low-ms).
 > Result: ~42% of corpus files take the incremental fast path (a body edit
 > recomputes one body + shell + tail).  The remaining ~58% — those that
 > **declare/write** enclosing variables (`variable` / `global` / `set ::x`) or
-> define classes in a body, including marquee files like `practcl.tcl` and
-> `init.tcl` — still fall back, because making them byte-identical needs the
-> isolated body to *pre-seed* its enclosing const-strings + variable defs (so
-> `warn_if_unused`, definition spans, and const-string-dependent diagnostics like
-> W304 resolve identically).  That pre-seeding — keyed so a body invalidates only
-> when its enclosing context changes — is the next step toward a fully
-> incremental analyser walk.
+> define classes in a body — still fell back (addressed in **Phase C** below).
+
+> **Phase C — the enclosing-variable / class class joins the fast path
+> (shipped).**  A probe (`tcl-compiler/examples/per_item_divergence`,
+> analyse-vs-per-item over the `tmp/` corpus with the enclosing-context fallback
+> bypassed) showed the broad Phase-B fallback was ~98.6% unnecessary: bypassing
+> it left only **three** diagnostic-divergence classes and two book-keeping nits,
+> all narrow and reproducible.  Each was made byte-identical at the
+> isolated-body / graft / tail seam — the rust-analyzer "cross-item facts live in
+> the aggregate, not the body" split — so the fallback could be narrowed to
+> almost nothing:
+>
+> - **W120** (missing `package require`) now anchors at each command's
+>   *source-earliest* invocation instead of the first in walk order, making it
+>   independent of whole-file-DFS vs per-item shell-order (it is emitted before
+>   `canonicalize_result_order`).  Applies to both paths — no behaviour change for
+>   `analyse` beyond determinism.
+> - **W002** (disabled-in-dialect command) — its user-proc-shadowing suppression
+>   reads the file's whole `all_procs`, which an isolated body lacks.  The body now
+>   *captures* would-be-W002 sites (`pending_disabled_commands`) and the tail
+>   re-applies the shadow check against the merged `all_procs`
+>   (`flush_disabled_command_diagnostics`) — mirroring `pending_arity` /
+>   `capture_global_reads`.
+> - **W304** (missing `--`) — only its `$var` branch is source-dependent
+>   (`last_literal_set_value_for_var` scans the *whole* source for the most-recent
+>   literal `set`).  That branch is deferred (`pending_w304`) and classified in the
+>   tail where `self.source` is the full file; every other W304 branch stays
+>   inline.
+> - **Qualified-read replay** is now gated on source-order visibility: a captured
+>   `$::ns::v` is replayed only when its enclosing definition *precedes the body*
+>   (a whole-file DFS walks a proc body before a later top-level `set ::ns::v`, so
+>   it records no reference there).
+> - **`body_needs_enclosing_context`** is narrowed from "any
+>   `variable`/`global`/`set ::x`/class body" to just **`variable ns::x`** (a
+>   `variable` linking to a *sub-namespace* variable — the lone residual whose
+>   merged `warn_if_unused` / `definition_span` is walk-order-sensitive).  Plain
+>   `variable x`, `global`, `upvar`, qualified writes, and class definitions all
+>   take the fast path.
+> - A post-walk **`E…` syntax-error backstop** (mirroring `analyse_incremental`)
+>   re-analyses fully whenever the per-item result carries any error diagnostic —
+>   locally-unbalanced braces that pass `script_is_complete` engage `analyse`'s
+>   error-recovery machinery, which the per-item walk does not reproduce.
+>
+> Result: **86.6%** of corpus files take the fast path (up from ~42%), 100%
+> byte-identical; large *non-duplicate* files (e.g. `pki.tcl`, 3.3 kLOC) drop from
+> ~360 ms full-analyse to ~115 ms per warm edit.  Gated by the unedited
+> `per_item_corpus` test **and** a new edit fuzzer
+> (`per_item_matches_analyse_under_edits`, the `incremental == fresh` contract for
+> the per-item walk under random edits — which the older `differential_incremental`
+> does not cover, as it exercises `analyse_commands`-based `analyse_incremental`).
+>
+> **Where the remaining per-edit time actually goes (post-Phase-C profiling).**
+> Phase-timed on the salsa graph (warm DB, single-char body edit), the picture
+> that the original "memoise the tail" sub-tasks assumed turns out **not** to
+> hold — the tail's *emission* is already cheap; the cost is the unit **build**:
+>
+> - **The analyser tail's `emit_cfg_ssa_diagnostics` emission is ~6 ms** once it
+>   consumes the memoised `cu_override`; the 130 ms it costs on the *no-override*
+>   path (`analyse_per_item`) is entirely the **`CompilationUnit` build** it does
+>   for itself.  Every other tail emitter (W123 / arity / W120 / var-usage / W002
+>   / W304) is ~0 ms.  So *making the emission incremental buys almost nothing.*
+> - The dominant per-edit cost on a fast-path file is the **`CompilationUnit`
+>   build** — `memoised_compilation_unit`, run once in *each* of the two tracked
+>   queries (`file_analysis_incremental` + `compiler_check_diagnostics`).  On
+>   `parse_lemon.tcl` (7.4 kLOC, 177 fns): `build_for_memoized` ≈ 80 ms +
+>   `with_interprocedural` ≈ 19 ms, ×2 queries.  The per-function *lattices* are
+>   memoised (cache hits across edits), so this 80 ms is the **non-memoised
+>   whole-module work**: `lower_to_ir` + module `build_cfg` +
+>   `collect_call_site_constants` + the 177 lattice clone/rebases — i.e. O(file)
+>   lowering, the genuine floor.  `run_all_checks` (≈ 23 ms) + `optimise_unit`
+>   (≈ 13 ms) are minor by comparison.
+> - **Net:** fast-path large files already sit at the *target* — `parse_lemon`
+>   ≈ 150 ms (`file_analysis_incremental`) + 141 ms (`compiler_check`); `pki.tcl`
+>   (3.3 kLOC) ≈ 115 + 119 ms.  Driving them lower means attacking the
+>   lowering/CFG floor (incremental lexing/lowering, or sharing one built unit
+>   between the two queries when their `LexerConfig`s coincide — they differ only
+>   for tcl8.4 / iRules) — a larger architecture step, *not* the diagnostic-tail
+>   memoisation the original plan named.
+>
+> **Shared `CompilationUnit` build (shipped).** The unit was built twice per
+> edit (once per diagnostics query).  A tracked `compilation_unit(file, cfg)`
+> query keyed on an interned `LexerCfgKey` lets the analyser tail
+> (`file_analysis_incremental`) and the optimiser/compiler-checks
+> (`compiler_check_diagnostics`) **share one build per edit** whenever their
+> lexer configs coincide — every dialect but `tcl8.4` / `f5-irules`.  Combined
+> per-edit latency on `parse_lemon.tcl` (7.4 kLOC) drops ~287 ms → ~202 ms (one
+> build eliminated).  `CompilationUnit` gained `PartialEq` so salsa returns
+> `Arc<CompilationUnit>`; gated by `compilation_unit_shared_across_consumers`.
+
+> **Duplicate procs + multi-method classes on the fast path (shipped).** The
+> remaining fallback census (`duplicate` 86, `variable_ns` 44, `proc_collision`
+> 12, `syntax_error` 11) was dominated by two avoidable causes:
+>
+> - **Multi-method classes were a false duplicate** — method deferred-bodies had
+>   an empty `scope_name`, so the duplicate detector treated every method after
+>   the first as a duplicate of `(is_method, "", "")`; *any* class with 2+
+>   methods fell back.  Methods now carry their qualified name, so distinct
+>   methods are distinct (only a genuinely twice-defined method falls back).
+> - **Genuine proc duplicates** now graft byte-identically: a whole-file
+>   `define_var` unions each definition's locals with last-definition-wins on
+>   shared keys, reproduced by overwrite-on-collision for body-owned
+>   `all_variables` keys while param keys keep the shell's real definition span
+>   (taking only the last body's references).
+>
+> The cross-item facts an isolated/in-place body can't reproduce are handled
+> precisely (not by a blanket fallback): **object instances** (`[Cls new]` /
+> `Cls create v`) are captured in the isolated proc body and replayed against the
+> shell's full `all_classes` at graft (no memo-key change), with a per-method
+> snapshot fallback for in-place method bodies; **class extension** (`oo::define`)
+> falls back only on an `all_classes` key collision.  Result: fast-path coverage
+> **86.6% → 92.2%**, 100% byte-identical, 0 diagnostic divergence.
+>
+> **Still not won.**
+> - **The `variable ns::x` (`variable_ns`) + `syntax_error` fallbacks** remain
+>   (correct, narrow).
+> - **The `CompilationUnit` per-edit floor is architecture-level.** Phase-timed
+>   on `parse_lemon.tcl` (7.4 kLOC, 177 procs), the per-edit CU rebuild splits
+>   into: `lower_to_ir` ~26 ms + module `build_cfg` ~10 ms (both O(file)) + the
+>   **per-procedure loop ~52 ms** + `with_interprocedural` ~19 ms.  The
+>   per-procedure 52 ms is *not* lattice compute — the lattices are memoised
+>   (`function_lattice`) — it is the **offset-invariant plumbing run for every
+>   procedure on every edit**: clone the proc's offset-0 IR body + `rebase_script`
+>   it, then deep-clone the memoised `FunctionUnit` + `rebase_function_unit` it to
+>   the proc's real offset.  Because the rebase target (the offset) changes
+>   whenever an edit shifts a procedure, the rebased unit can't be cached across
+>   edits, so this plumbing is irreducible without either **incremental
+>   lowering/CFG** or making the diagnostic consumers **offset-aware** (consume
+>   offset-0 units + a per-proc offset, no rebase) — both large refactors.
+>   - **`function_lattice` barely engages for real files.** Instrumenting the
+>     proc loop shows *every* procedure in init/pki/parse_lemon/textutil takes the
+>     **fresh-build** branch — `params_constants_from_call_sites` returns `Some` for
+>     nearly all of them, and the memo was keyed *without* `param_constants` so
+>     those bypass it.  So the 52 ms is fresh SSA/SCCP/type/taint builds, and the
+>     headline lattice memo only helps callee-free procs.
+>   - *Tried (param_constants in the key) then reverted — blocked by the bug
+>     below, not by perf.* Folding `param_constants` into `FnLatticeKey` makes the
+>     memo engage for all procs; with the cache verified hitting (a warm edit
+>     re-executes 0–2 lattices, not 176), clone+rebase is **~9× cheaper than
+>     fresh-build** (pki 4 ms vs 38 ms; parse_lemon 6 ms vs 52 ms) and per-edit
+>     latency improves (pki BOTH-queries ~235 ms → ~150 ms; parse_lemon ~202 →
+>     ~191 ms, the smaller win eaten by the IR body-normalise needed to form the
+>     offset-0 key).  It is **correct in isolation** and was reverted only because
+>     it *extended* the memo byte-identity bug below to more procedures; with that
+>     bug now fixed (see "Memo byte-identity (fixed)"), it can land on top.
+> - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
+>   definer and is OO-heavy, so it needs that architectural step before it leaves
+>   the full-rebuild path.
+
+> **Memo byte-identity (fixed).**  The salsa-native lattice graph (#604) promises
+> that the memoised `build_for_memoized` (offset-0 per-procedure `function_lattice`
+> + rebase) is byte-identical to a fresh whole-module `build_for_with_config`.  A
+> corpus differential (`tcl-lsp-db/tests/compiler_check_corpus.rs`, comparing
+> `compiler_check_diagnostics` vs `compiler_check_diagnostics_uncached`) found
+> ~30% of files diverging.  The root cause was **nondeterminism, not an
+> offset-0-vs-whole-module analysis difference** — both builds disagreed run-to-run
+> with themselves.  Five `HashMap`-iteration-order dependencies, each fixed to a
+> stable order:
+>
+> 1. **`shimmer::span::phi_span`** picked the *first* incoming def span in
+>    `phi.incoming` (a `HashMap`) → nondeterministic `S101` span; now the earliest
+>    (min) span.
+> 2. **`compiler_checks::run_all_checks`** emitted diagnostics in producer order
+>    (per-function `HashMap` walks); now sorted on a total
+>    `(span, code, category, severity, message, replacement)` key
+>    (`sort_diagnostics`).
+> 3. **`optimiser::optimise_unit`** allocated monotonic group ids and emitted in
+>    `cu.procedures` / def-use-chain `HashMap` order; now canonicalised before
+>    overlap arbitration (stable sort) with group ids renumbered by first
+>    appearance (`renumber_groups`).
+> 4. **`taint::find_destructive_file_warnings`** (W313) named the *first offending
+>    path variable* from `ssa_stmt.uses` (a `HashMap`), so `file rename $a $b`
+>    reported `$a` or `$b` at random; now iterates path variables in argument
+>    (source) order (`arg_var_names_ordered`).
+> 5. **`type_infer`** folded the order-sensitive `type_join` over a phi's
+>    predecessors in `HashSet` order — and `type_join` records only a `(from, to)`
+>    pair for a 3+-way shimmer, so the `S101` message named different types
+>    run-to-run; the predecessor list is now sorted before the fold.
+>
+> With these, the memo and whole-module builds agree byte-for-byte across the full
+> `tmp/` corpus (893 files), stable across process-level `HashMap` seeds.  The
+> corpus differential is the (now-passing) regression guard, `#[ignore]`d only for
+> being slow (`--ignored`, ~100 s).  This **unblocks extending the lattice memo**
+> (the `param_constants` win above can now land on top).
+
+> **OO method-body memoisation (shipped).** Method bodies were walked *in place*
+> in pass 2 (not memoised), so a body edit re-walked every method.  They are now
+> analysed as offset-0 isolated units and grafted like procs: `DeferredBody`
+> carries the method's defining namespace + params + class instance variables,
+> `analyse_proc_body_isolated` reconstructs a `ScopeKind::Method` scope (so
+> `in_method` dispatch recording fires) with the instance variables pre-bound,
+> and the proc/method pass-2 branches are unified through `body_fn` +
+> `graft_proc_body`.  `ItemBodyKey` gains `is_method` + `class_variables`.  W308
+> object tracking is the one method-specific subtlety — a method resolves the
+> class against the whole file's classes, not analyse's DFS prefix, so a method
+> that *actually* records an instance falls back (detected precisely: captured
+> candidates are replayed at graft and the fallback fires only when
+> `instance_classes` truly changed, so benign `dict create` stays fast).  Result:
+> pt_rdengine_oo.tcl (2.2 kLOC, 113 methods) per-edit **165 ms → 44 ms**;
+> cookiejar / disjointset / metaclass 8–16 ms.  Coverage holds at 92.2%,
+> byte-identical; gated by `method_body_edit_recomputes_one_item` + the corpus +
+> edit fuzzer.
 
 > **Salsa-native lattice graph (shipped).** The per-procedure baseline lattices
 > (CFG → SSA → def-use → SCCP → type → rendered → intra-procedural taint) are now

@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::register",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(3, 6),
         hover: Some(HoverSnippet {
             summary: "Register a protocol handler (e.g. https) with the http package.",

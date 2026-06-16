@@ -311,6 +311,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "update",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::at_least(4),
         detail: "Map dictionary keys to variables, execute body, write back.",
         synopsis: "dict update dictionaryVariable key varName ?...? body",

@@ -966,6 +966,19 @@ impl Analyser {
     /// Best-effort and not flow-sensitive: the last assignment
     /// to a given name wins.
     pub(crate) fn record_instance_creation(&mut self, cmd_name: &str, args: &[String]) {
+        // Per-item isolated proc body: `all_classes` is empty here, so the class
+        // can't be resolved.  Capture the raw `(command, args)` for the two
+        // instance-creation shapes and let the graft replay them against the
+        // shell's full `all_classes` instead (see `pending_instances`).
+        if let Some(pending) = self.pending_instances.as_mut() {
+            let shape_a =
+                cmd_name == "set" && args.len() >= 2 && args[1].trim_start().starts_with('[');
+            let shape_b = args.len() >= 2 && args[0] == "create";
+            if shape_a || shape_b {
+                pending.push((cmd_name.to_owned(), args.to_vec()));
+            }
+            return;
+        }
         // Pattern A: `set VAR [CLASS new|create ...]`.
         if cmd_name == "set"
             && args.len() >= 2

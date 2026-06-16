@@ -16,7 +16,7 @@
 
 use crate::dict;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
-use crate::obj::TclObj;
+use crate::obj::{self, TclObj};
 
 /// Register `catch`, `error`, `try`, and `throw`.
 pub fn install(interp: &mut Interp) {
@@ -39,13 +39,15 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
-        return wrong_args(interp, b"catch script ?resultVarName? ?optionsVarName?");
+        return wrong_args(interp, b"catch script ?resultVarName? ?optionVarName?");
     }
-    // `catch` evaluates its script as its own `info frame` level (C bumps
-    // `cmdFramePtr` like `eval`), so a located literal body reports `type source`
-    // at its own line — `eval_body_obj` pushes that frame and picks up the body
-    // object's TIP 280 location.
-    let code = interp.eval_body_obj(argv[1]);
+    // `catch` is bytecode-compiled inline (C's `TclCompileCatchCmd`): a literal
+    // body runs in the **same** `info frame` level and the same `codePtr->source`
+    // as the enclosing proc/script. `eval_control_body` reproduces that — sharing
+    // the enclosing frame in a proc (so `info frame` depth and the body-relative
+    // `errorLine` for `MakeProcError` stay correct), while a top-level or dynamic
+    // body still evaluates as its own frame.
+    let code = interp.eval_control_body(argv[1]);
     // Snapshot the body's result BEFORE we overwrite the interp result with the
     // catch return value (the Zig "read before clear" discovery). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
@@ -86,15 +88,40 @@ fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
 /// `-errorinfo` from the live error accumulator on an error). Returns a fresh
 /// (`rc 0`) dict.
 fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
-    let code_str = code.as_int().to_string();
+    // A body that completed via `return` propagates the return's *own* requested
+    // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
+    // `catch`'s options dict and TIP 329 `-during` chaining record
+    // (`Tcl_GetReturnOptions`, `tclResult.c`). Every other code is at level 0.
+    let (eff_code, level) = if code == Code::Return {
+        (interp.pending_return_code(), interp.pending_return_level())
+    } else {
+        (code, 0)
+    };
+    let code_str = eff_code.as_int().to_string();
+    let level_str = level.to_string();
     let mut pairs: Vec<(*mut TclObj, *mut TclObj)> = vec![
         (new_string(b"-code"), new_string(code_str.as_bytes())),
-        (new_string(b"-level"), new_string(b"0")),
+        (new_string(b"-level"), new_string(level_str.as_bytes())),
     ];
-    if code == Code::Error {
-        // The full accumulated trace + code, not the (deferred) globals.
+    if eff_code == Code::Error {
+        // `-errorcode` rides along with any error completion (incl. a pending
+        // `return -code error`). The accumulated trace + stack and the `-during`
+        // chain only exist once the error has actually been raised (level 0).
         pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
-        pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
+        if level == 0 {
+            pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
+            // TIP 348: the error stack built as the error unwound.
+            pairs.push((
+                new_string(b"-errorstack"),
+                new_string(&interp.error_stack_value()),
+            ));
+            // TIP 329 exception chaining: when a `try` handler/`finally` threw
+            // over a prior exception, that prior exception's options ride along as
+            // `-during` (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
+            if let Some(during) = interp.during_opts() {
+                pairs.push((new_string(b"-during"), during));
+            }
+        }
     }
     dict::new_dict_obj(&pairs)
 }
@@ -110,7 +137,10 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
         return wrong_args(interp, b"error message ?errorInfo? ?errorCode?");
     }
-    let ecode = if argv.len() == 4 {
+    // An explicit `errorCode` arg is honoured verbatim — even when empty, it
+    // reads back empty rather than the `NONE` default (error-4.5).
+    let explicit_code = argv.len() == 4;
+    let ecode = if explicit_code {
         obj_bytes(argv[3])
     } else {
         b"NONE".to_vec()
@@ -122,12 +152,16 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Vec::new()
     };
     let msg = obj_bytes(argv[1]);
-    if info.is_empty() {
+    let rc = if info.is_empty() {
         interp.set_result(argv[1]);
         interp.set_error_state(&ecode)
     } else {
         interp.raise_with_info(&msg, &info, &ecode)
+    };
+    if explicit_code {
+        interp.mark_error_code_explicit();
     }
+    rc
 }
 
 // -- try / throw -----------------------------------------------------------
@@ -162,13 +196,9 @@ fn code_word_to_int(spec: &[u8]) -> Option<i64> {
         b"return" => Some(2),
         b"break" => Some(3),
         b"continue" => Some(4),
-        // A completion code must fit a 32-bit int (C's `Tcl_GetIntFromObj`).
-        _ => core::str::from_utf8(spec)
-            .ok()?
-            .trim()
-            .parse::<i32>()
-            .ok()
-            .map(i64::from),
+        // A completion code accepts the full signed/unsigned 32-bit range (C's
+        // `Tcl_GetIntFromObj`), with `0x`/`0o`/`0b`/`0d` prefixes and a sign.
+        _ => crate::interp::parse_completion_int(spec).map(i64::from),
     }
 }
 
@@ -297,11 +327,18 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         while handlers[b].is_dash {
             b += 1; // guaranteed to terminate (the last body is not `-`)
         }
-        // Bind the running clause's variables: [resultVar ?optionsVar?]. The
-        // options dict must be built from the *live* body error/return state, so
-        // this runs before the error is published+reset. A failed bind becomes
-        // the outcome (and skips the handler body), but `finally` still runs.
-        match bind_handler_vars(interp, &handlers[b].vars, &body_result, body_code) {
+        // Build the body's options dict from the *live* body error/return state
+        // (before it is published+reset). It is bound to the handler's optionsVar
+        // and reused as the `-during` chain link if the handler itself throws
+        // (TIP 329 exception chaining). Retained for the duration of the handler.
+        let body_opts = build_options(interp, body_code);
+        // SAFETY: keep `body_opts` alive across the handler eval / var binding.
+        unsafe { obj::incr_ref_count(body_opts) };
+        // Bind the running clause's variables: [resultVar ?optionsVar?]. A failed
+        // bind becomes the outcome (and skips the handler body), but `finally`
+        // still runs; the bind error chains to the body via `-during` (C's
+        // `handlerFailed`).
+        match bind_handler_vars(interp, &handlers[b].vars, &body_result, body_opts) {
             Ok(()) => {
                 // The body's exception is now handled: publish + reset so the
                 // handler starts with clean error state.
@@ -310,20 +347,42 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
                 outcome_code = interp.eval_control_body(handlers[b].script);
                 outcome_result = interp.result_bytes();
+                if outcome_code == Code::Error {
+                    // The handler threw over the body's exception: chain it.
+                    interp.set_during(body_opts);
+                }
             }
             Err(()) => {
                 outcome_code = Code::Error;
                 outcome_result = interp.result_bytes();
+                interp.set_during(body_opts);
             }
         }
+        // SAFETY: release our hold; `set_during`/the optionsVar keep their own.
+        unsafe { obj::decr_ref_count(body_opts) };
     }
 
-    // `finally` always runs; only its error overrides the result.
+    // `finally` always runs; only an exception from it overrides the result.
     if let Some(fin) = finally {
+        // Capture the options that would propagate from the body/handler stage
+        // (carrying any `-during` already chained) in case `finally` throws and
+        // must chain them in turn.
+        let prior_opts = build_options(interp, outcome_code);
+        // SAFETY: keep `prior_opts` alive across the finally eval.
+        unsafe { obj::incr_ref_count(prior_opts) };
         let fc = interp.eval_control_body(fin);
         if fc != Code::Ok {
+            if fc == Code::Error {
+                interp.set_during(prior_opts); // chain the superseded exception
+            } else {
+                interp.clear_during(); // a non-error finally exception does not chain
+            }
+            // SAFETY: release our hold (`set_during` kept its own if it ran).
+            unsafe { obj::decr_ref_count(prior_opts) };
             return fc; // finally's result is already the interp result
         }
+        // SAFETY: finally completed OK — discard the speculative capture.
+        unsafe { obj::decr_ref_count(prior_opts) };
     }
 
     interp.set_result_bytes(&outcome_result);
@@ -340,14 +399,15 @@ fn bad_completion_code(interp: &mut Interp, word: &[u8]) -> Code {
 }
 
 /// Bind a `try` handler clause's `[resultVar ?optionsVar?]` to the body's result
-/// and option dict. `Err(())` if a variable can't be set (the interp error is
-/// left in place); the result variable is set before the options variable, so a
-/// later failure still leaves the result variable assigned (error-19.11).
+/// and the prebuilt option dict (`body_opts`, retained into the variable).
+/// `Err(())` if a variable can't be set (the interp error is left in place); the
+/// result variable is set before the options variable, so a later failure still
+/// leaves the result variable assigned (error-19.11).
 fn bind_handler_vars(
     interp: &mut Interp,
     vars: &[u8],
     body_result: &[u8],
-    body_code: Code,
+    body_opts: *mut TclObj,
 ) -> Result<(), ()> {
     let names = crate::parse::split_list(vars).unwrap_or_default();
     if let Some(rv) = names.first() {
@@ -361,9 +421,7 @@ fn bind_handler_vars(
         }
     }
     if let Some(ov) = names.get(1) {
-        let opts = build_options(interp, body_code);
-        if interp.var_set(ov, opts).is_err() {
-            drop_fresh(opts);
+        if interp.var_set(ov, body_opts).is_err() {
             cant_set(interp, ov);
             return Err(());
         }
@@ -383,7 +441,7 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // A malformed type list reports the list parse error verbatim
         // (error-8.8/8.11); a well-formed but empty list is the type error.
         Ok(_) => return interp.set_error(b"type must be non-empty list"),
-        Err(e) => return interp.set_error(e.message()),
+        Err(e) => return interp.set_error(&crate::parse::list_error_message(&ecode, e)),
     }
     interp.set_result(argv[2]);
     // Like `return -code error -errorcode $type $msg`: set the code, let the

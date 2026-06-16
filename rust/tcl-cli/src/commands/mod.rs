@@ -6,6 +6,7 @@
 
 pub mod diag;
 pub mod diff;
+pub mod explore;
 pub mod graphs;
 pub mod highlight;
 pub mod lookup;
