@@ -754,7 +754,7 @@ mod tests {
     fn tcl9_commands_gated_to_tcl90() {
         use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
-        for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
+        for name in ["foreachLine", "readFile", "writeFile", "lpop"] {
             let spec = reg.get(name).expect("registered");
             assert_eq!(
                 spec.dialects,
@@ -762,6 +762,16 @@ mod tests {
                 "{name} should be Tcl 9.0-only",
             );
         }
+        // Unlike the four above, the Python registry marks `const`
+        // `dialects = None` (universal) rather than Tcl-9.0-gated, so it
+        // is valid inside iRules events. The dialect-reconcile
+        // (`scripts/registry-audit/reconcile_irules_dialects.py`) mirrors
+        // that so `commands_for_event` matches Python.
+        assert_eq!(
+            reg.get("const").expect("registered").dialects,
+            None,
+            "const should be universal (Python marks it dialects=None)",
+        );
     }
 
     #[test]

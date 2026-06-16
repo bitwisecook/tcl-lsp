@@ -10,7 +10,7 @@ pub fn spec() -> CommandSpec {
         name: "lreverse",
         const_fold: Some(crate::const_fold::fold_lreverse),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE,
-        dialects: Some(DialectSet::TCL85_PLUS),
+        dialects: None,
         arity: Arity::exact(1),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

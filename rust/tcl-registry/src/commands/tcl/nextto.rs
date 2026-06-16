@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "nextto",
+        dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "invoke a specific superclass implementation of a method",

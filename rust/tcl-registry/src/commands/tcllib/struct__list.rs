@@ -210,7 +210,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "struct::list",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Advanced list manipulation commands.",

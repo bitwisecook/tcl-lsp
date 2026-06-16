@@ -11,6 +11,7 @@ pub fn spec() -> CommandSpec {
         // the Rust port mis-spelled it `regexp_quote`. Mirrors
         // `tcl/regexp__quote.py`.
         name: "regexp::quote",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

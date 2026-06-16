@@ -26,6 +26,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "event",
+        dialects: None,
         arity: Arity::new(0, 1),
         detail: "Return a history event by number or pattern.",
         synopsis: "history event ?event?",
@@ -77,7 +78,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "history",
         traits: Traits::UNSAFE | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Manipulate the history list of previously executed commands.",

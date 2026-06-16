@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_popup",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::new(3, 4),
         hover: Some(HoverSnippet {
             summary: "Post a pop-up menu at the given screen coordinates.",

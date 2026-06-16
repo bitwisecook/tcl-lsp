@@ -10,7 +10,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptProc",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Define a proc with automatic option parsing.",

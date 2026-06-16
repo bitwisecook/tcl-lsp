@@ -4,7 +4,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::idna::decode",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Decode a hostname from IDNA format to Unicode.",

@@ -88,7 +88,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::test",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Define and run a single test case.",

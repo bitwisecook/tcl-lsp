@@ -25,7 +25,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
-        dialects: Some(DialectSet::EXPECT),
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Exit Expect, optionally running an onexit handler.",
