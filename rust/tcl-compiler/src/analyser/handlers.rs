@@ -21,7 +21,7 @@
 //! - **C41b6** — `_handle_interp_alias`,
 //!   `_handle_oo_objdefine`, `_resolve_alias`.
 
-use tcl_lexer::{Token, TokenType};
+use tcl_lexer::{Span, Token, TokenType};
 
 use crate::alias::{detect_interp_alias, resolve_alias};
 use crate::signature_scan::types::SignatureCommandAlias;
@@ -607,18 +607,30 @@ impl Analyser {
     /// Define a list of variables from a varList token (e.g. the
     /// loop-variable list of `foreach`). Mirrors
     /// `_define_vars_from_list` in
-    /// `core/analysis/_analyser/_scope.py:81-124`.
+    /// `core/analysis/_analyser/_scope.py:90-124`.
     ///
-    /// **Simplified port.** Python uses
-    /// `position_from_relative` to compute a per-name range
-    /// inside the varList token's text. Rust uses the parent
-    /// token's span for every defined var — a coarser
-    /// approximation that's acceptable at this strip; per-name
-    /// span resolution lands when ``position_from_relative``
-    /// gets a Rust port (deferred to a follow-up).
+    /// Each name gets its **own** definition span, located inside the
+    /// varList token's content (the token's `content_offset` skips a
+    /// leading `{`/`"`). This matches Python's `position_from_relative`
+    /// walk and — crucially — gives same-token bindings like
+    /// `foreach {b a}` / `dict for {k v}` distinct, declaration-ordered
+    /// spans, so downstream offset-sorted consumers (the `symbols` /
+    /// `symbolgraph` CLI verbs) stay deterministic and source-ordered.
+    /// A name not found in the content text (escapes, line
+    /// continuations) falls back to the whole-token span, as in Python.
     fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
+        let content_start = tok.span.start() + u32::from(tok.content_offset);
+        let mut search_start = 0usize;
         for name in var_list_text.split_whitespace() {
-            self.define_var(name, tok, scope_path, true, None);
+            if let Some(rel) = var_list_text[search_start..].find(name) {
+                let idx = search_start + rel;
+                let start = content_start + u32::try_from(idx).unwrap_or(0);
+                let end = start + u32::try_from(name.len()).unwrap_or(0);
+                self.define_var(name, tok, scope_path, true, Some(Span::new(start, end)));
+                search_start = idx + name.len();
+            } else {
+                self.define_var(name, tok, scope_path, true, None);
+            }
         }
     }
 
@@ -2674,6 +2686,14 @@ mod tests {
         );
         assert!(a.result.global_scope.variables.contains_key("k"));
         assert!(a.result.global_scope.variables.contains_key("v"));
+        // Each name gets its own span inside the var-list content ("k v" at
+        // bytes 8..11), not the shared whole-token span — so offset-sorted
+        // consumers see them in declaration order (`k` before `v`).
+        let k = &a.result.global_scope.variables["k"];
+        let v = &a.result.global_scope.variables["v"];
+        assert_eq!(k.definition_span, span(8, 9));
+        assert_eq!(v.definition_span, span(10, 11));
+        assert!(k.definition_span.start() < v.definition_span.start());
     }
 
     #[test]

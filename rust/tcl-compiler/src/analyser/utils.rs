@@ -193,7 +193,13 @@ fn matches_marker(body: &str, marker: &str) -> bool {
     let s = body.trim_start();
     let lower_prefix = "tcl-lsp";
     let kw_end = lower_prefix.len();
-    if s.len() < kw_end || !s[..kw_end].eq_ignore_ascii_case(lower_prefix) {
+    // `str::get` returns `None` when `kw_end` is past the end *or* falls inside
+    // a multi-byte char, so it subsumes the length check and never panics on
+    // non-ASCII source (the marker run itself is pure ASCII).
+    let Some(prefix) = s.get(..kw_end) else {
+        return false;
+    };
+    if !prefix.eq_ignore_ascii_case(lower_prefix) {
         return false;
     }
     let rest = s[kw_end..].trim_start();
@@ -202,10 +208,10 @@ fn matches_marker(body: &str, marker: &str) -> bool {
     };
     let rest = rest.trim_start();
     let m_end = marker.len();
-    if rest.len() < m_end {
+    let Some(head) = rest.get(..m_end) else {
         return false;
-    }
-    rest[..m_end].eq_ignore_ascii_case(marker)
+    };
+    head.eq_ignore_ascii_case(marker)
 }
 
 /// Extract the command name from a ``# tcl-lsp: stub NAME …``
@@ -1237,6 +1243,22 @@ proc foo {} {}
 # tcl-lsp: stubs-begin
 # tcl-lsp: stub good {arg:var}
 # tcl-lsp: stub bad {arg:bogus}
+# tcl-lsp: stubs-end
+";
+        let (cmds, _) = scan_source_for_stubs(src);
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].name, "good");
+    }
+
+    #[test]
+    fn scan_source_for_stubs_handles_non_ascii_comments() {
+        // Regression: a `#` comment opening with a multi-byte char used to
+        // panic `matches_marker`'s byte slicing (`s[..7]` splitting inside the
+        // char). Boundary-safe `str::get` must simply not match.
+        let src = "\
+# ═══ banner ═══
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub good {arg:var}
 # tcl-lsp: stubs-end
 ";
         let (cmds, _) = scan_source_for_stubs(src);

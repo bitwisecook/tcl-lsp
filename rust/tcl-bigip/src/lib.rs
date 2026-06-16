@@ -31,6 +31,7 @@ pub mod pcap_remap;
 pub mod pcapng;
 pub mod range;
 pub mod redact;
+pub mod secrets;
 pub mod stats;
 pub mod tmsh_emit;
 pub mod value;
