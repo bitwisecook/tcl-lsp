@@ -653,13 +653,21 @@ pub struct InterpState {
     result: Cell<*mut TclObj>,
 }
 
-/// An ensemble-rewrite record (see `InterpState::ensemble_rewrite`).
+/// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
+/// `InterpState::ensemble_rewrite`). `Tcl_WrongNumArgs` prints the first
+/// `removed` words of `source` in place of the `inserted` leading words of the
+/// actual (rewritten) call.
 #[derive(Clone)]
 pub(crate) struct EnsembleRewrite {
-    /// The original command words (e.g. `foo test 1 2 3`).
+    /// The original command words as the user wrote them (e.g. `foo test 1 2 3`),
+    /// with the subcommand spell-fixed to its resolved name.
     pub source: Vec<Vec<u8>>,
-    /// How many leading `source` words the rewritten prefix stands in for.
+    /// How many leading `source` words to print (C's `numRemovedObjs`).
     pub removed: usize,
+    /// How many leading words of the rewritten call the inserted prefix occupies
+    /// (C's `numInsertedObjs`); `inserted - 1` formal parameters are already
+    /// filled and so dropped from the usage message.
+    pub inserted: usize,
 }
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -1023,13 +1031,36 @@ impl Interp {
     /// its dispatch returns. A nested rewrite is ignored (the root's `source` is
     /// what `wrong # args` reports), matching the common case of C's
     /// `TclInitRewriteEnsemble` chaining.
-    pub(crate) fn begin_ensemble_rewrite(&self, source: Vec<Vec<u8>>, removed: usize) -> bool {
+    pub(crate) fn begin_ensemble_rewrite(
+        &self,
+        source: Vec<Vec<u8>>,
+        removed: usize,
+        inserted: usize,
+    ) -> bool {
         let mut rw = self.ensemble_rewrite.borrow_mut();
-        if rw.is_some() {
-            return false;
+        match rw.as_mut() {
+            None => {
+                *rw = Some(EnsembleRewrite {
+                    source,
+                    removed,
+                    inserted,
+                });
+                true
+            }
+            // A nested rewrite chains onto the root (C's `TclInitRewriteEnsemble`):
+            // the root `source` is kept, but its removed/inserted counts absorb the
+            // inner step so a deeply forwarded `wrong # args` still prints the full
+            // original prefix.
+            Some(r) => {
+                if r.inserted < removed {
+                    r.removed += removed - r.inserted;
+                    r.inserted = inserted;
+                } else {
+                    r.inserted = (r.inserted + inserted).saturating_sub(removed);
+                }
+                false
+            }
         }
-        *rw = Some(EnsembleRewrite { source, removed });
-        true
     }
 
     /// Clear the active ensemble-rewrite (paired with a root `begin_…`).
@@ -4593,9 +4624,11 @@ impl Interp {
         if argv.len() < 2 + nparams {
             let mut m = b"wrong # args: should be \"".to_vec();
             m.extend_from_slice(&obj_bytes(argv[0]));
+            // Each `-parameters` formal is rendered as a list element, so a
+            // multi-word default like `{a b}` keeps its braces.
             for p in &cfg.parameters {
                 m.push(b' ');
-                m.extend_from_slice(p);
+                crate::list::append_list_element(&mut m, p, false);
             }
             m.extend_from_slice(b" subcommand ?arg ...?\"");
             return self.error(&m);
@@ -4626,14 +4659,20 @@ impl Interp {
                         t.extend_from_slice(resolved);
                         vec![t]
                     });
-                return self.dispatch_ensemble_target(&prefix, argv, nparams);
+                // Spell-fix the subcommand to its resolved name in the recorded
+                // source, so an abbreviated `ev` is reported as `event` (C's
+                // `TclSpellFix`).
+                let mut source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+                source[1 + nparams] = resolved.clone();
+                return self.dispatch_ensemble_target(&prefix, argv, nparams, source);
             }
             // Miss: try the `-unknown` handler once.
             if !cfg.unknown.is_empty() && !reparsed {
                 reparsed = true;
                 match self.ensemble_unknown(cfg, argv) {
                     EnsembleUnknown::Prefix(prefix) => {
-                        return self.dispatch_ensemble_target(&prefix, argv, nparams);
+                        let source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
+                        return self.dispatch_ensemble_target(&prefix, argv, nparams, source);
                     }
                     EnsembleUnknown::Reparse => continue,
                     EnsembleUnknown::Failed(code) => return code,
@@ -4673,6 +4712,7 @@ impl Interp {
         prefix: &[Vec<u8>],
         argv: &[*mut TclObj],
         nparams: usize,
+        source: Vec<Vec<u8>>,
     ) -> Code {
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
         for w in prefix {
@@ -4691,7 +4731,15 @@ impl Interp {
             unsafe { obj::incr_ref_count(a) };
             new_argv.push(a);
         }
+        // Record the call as the user wrote it so a `wrong # args` from the target
+        // is reported in ensemble terms (C's `TclInitRewriteEnsemble`): the
+        // ensemble command, its `-parameters`, and the subcommand word (`2 +
+        // nparams`) are removed; the target prefix + `-parameters` are inserted.
+        let is_root = self.begin_ensemble_rewrite(source, 2 + nparams, prefix.len() + nparams);
         let code = self.dispatch(&new_argv);
+        if is_root {
+            self.clear_ensemble_rewrite();
+        }
         release_all(&new_argv);
         code
     }
@@ -5144,8 +5192,13 @@ impl Interp {
         quote_name: bool,
     ) -> Vec<u8> {
         if let Some(rw) = self.ensemble_rewrite() {
-            // How many trailing words of `source` were the user's own arguments,
-            // and how many formal parameters the inserted prefix already filled.
+            // Print the first `removed` words of `source` (the chained
+            // `numRemovedObjs`) in place of the target prefix, then the formal
+            // parameters not already satisfied by the supplied arguments. Using
+            // the runtime `supplied` count (rather than the static `inserted`)
+            // keeps the dropped-parameter count right across an OO forward, where
+            // the inserted prefix words (`my method …`) are dispatch verbs that do
+            // not themselves fill the target's parameters.
             let user_args = rw.source.len().saturating_sub(rw.removed);
             let drop = supplied.saturating_sub(user_args);
             // Only rewrite when the dropped parameters are actually present (C's
