@@ -39,7 +39,7 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 /// completion code, and return it as an integer (0=ok … 4=continue).
 fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
-        return wrong_args(interp, b"catch script ?resultVarName? ?optionsVarName?");
+        return wrong_args(interp, b"catch script ?resultVarName? ?optionVarName?");
     }
     // `catch` evaluates its script as its own `info frame` level (C bumps
     // `cmdFramePtr` like `eval`), so a located literal body reports `type source`
@@ -116,7 +116,10 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
         return wrong_args(interp, b"error message ?errorInfo? ?errorCode?");
     }
-    let ecode = if argv.len() == 4 {
+    // An explicit `errorCode` arg is honoured verbatim — even when empty, it
+    // reads back empty rather than the `NONE` default (error-4.5).
+    let explicit_code = argv.len() == 4;
+    let ecode = if explicit_code {
         obj_bytes(argv[3])
     } else {
         b"NONE".to_vec()
@@ -128,12 +131,16 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Vec::new()
     };
     let msg = obj_bytes(argv[1]);
-    if info.is_empty() {
+    let rc = if info.is_empty() {
         interp.set_result(argv[1]);
         interp.set_error_state(&ecode)
     } else {
         interp.raise_with_info(&msg, &info, &ecode)
+    };
+    if explicit_code {
+        interp.mark_error_code_explicit();
     }
+    rc
 }
 
 // -- try / throw -----------------------------------------------------------

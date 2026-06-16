@@ -296,8 +296,13 @@ pub(crate) struct ExceptionState {
     /// (C's `errorInfo == NULL`) — which selects `while executing` over `invoked
     /// from within` and seeds the buffer from the result message.
     info: Option<Vec<u8>>,
-    /// `::errorCode` (empty ⇒ the `NONE` default is applied when published).
+    /// `::errorCode` (empty ⇒ the `NONE` default is applied when published,
+    /// unless [`code_explicit`](Self::code_explicit) is set).
     code: Vec<u8>,
+    /// Whether `code` was set by an explicit `-errorcode` (e.g. `error m i {}`):
+    /// an explicit empty code reads back empty, not the `NONE` default
+    /// (error-4.5). Absent on every implicit error, so the default applies.
+    code_explicit: bool,
     /// 1-based source line of the innermost logged command, within its own
     /// script (`errorLine`); read by `MakeProcError`'s `line N`.
     line: u32,
@@ -2353,6 +2358,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
+            code_explicit: false,
             line: 1,
             already_logged: false,
         };
@@ -2367,6 +2373,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
+            code_explicit: false,
             line: 1,
             already_logged: false,
         };
@@ -2524,6 +2531,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: Some(info.to_vec()),
             code: code.to_vec(),
+            code_explicit: false,
             line: 1,
             already_logged: true,
         };
@@ -2537,6 +2545,7 @@ impl Interp {
         *self.exc.borrow_mut() = ExceptionState {
             info: None,
             code: code.to_vec(),
+            code_explicit: false,
             line: 1,
             already_logged: false,
         };
@@ -2788,11 +2797,17 @@ impl Interp {
     /// or `NONE`.
     pub(crate) fn error_code(&self) -> Vec<u8> {
         let exc = self.exc.borrow();
-        if exc.code.is_empty() {
+        if exc.code.is_empty() && !exc.code_explicit {
             b"NONE".to_vec()
         } else {
             exc.code.clone()
         }
+    }
+
+    /// Mark the live error's `-errorcode` as explicitly supplied (so an explicit
+    /// empty code is preserved instead of defaulting to `NONE`; error-4.5).
+    pub(crate) fn mark_error_code_explicit(&mut self) {
+        self.exc.borrow_mut().code_explicit = true;
     }
 
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
