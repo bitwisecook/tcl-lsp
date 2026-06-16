@@ -12,6 +12,43 @@
           "ref_count": 0
         }
       ],
+      "variables": [
+        {
+          "name": "first",
+          "line": 24,
+          "references": [
+            {
+              "line": 25,
+              "character": 9
+            }
+          ]
+        },
+        {
+          "name": "second",
+          "line": 24,
+          "references": []
+        },
+        {
+          "name": "third",
+          "line": 24,
+          "references": []
+        },
+        {
+          "name": "dkey",
+          "line": 27,
+          "references": [
+            {
+              "line": 28,
+              "character": 9
+            }
+          ]
+        },
+        {
+          "name": "dval",
+          "line": 27,
+          "references": []
+        }
+      ],
       "children": [
         {
           "kind": "namespace",
@@ -140,7 +177,7 @@
   "package_requires": [],
   "summary": {
     "total_procs": 4,
-    "total_variables": 9,
+    "total_variables": 14,
     "total_namespaces": 2
   }
 }

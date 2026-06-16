@@ -1,5 +1,5 @@
 {
-  "count": 10,
+  "count": 15,
   "dialect": "tcl8.6",
   "inputs": [
     "/home/user/tcl-lsp/rust/tcl-cli/tests/fixtures/symbols.tcl"
@@ -8,13 +8,13 @@
     {
       "kind": "event",
       "name": "HTTP_REQUEST",
-      "line": 23,
+      "line": 32,
       "depth": 0
     },
     {
       "kind": "event",
       "name": "HTTP_RESPONSE",
-      "line": 26,
+      "line": 35,
       "depth": 0
     },
     {
@@ -23,6 +23,36 @@
       "line": 18,
       "depth": 0,
       "params": []
+    },
+    {
+      "kind": "variable",
+      "name": "first",
+      "line": 25,
+      "depth": 0
+    },
+    {
+      "kind": "variable",
+      "name": "second",
+      "line": 25,
+      "depth": 0
+    },
+    {
+      "kind": "variable",
+      "name": "third",
+      "line": 25,
+      "depth": 0
+    },
+    {
+      "kind": "variable",
+      "name": "dkey",
+      "line": 28,
+      "depth": 0
+    },
+    {
+      "kind": "variable",
+      "name": "dval",
+      "line": 28,
+      "depth": 0
     },
     {
       "kind": "namespace",

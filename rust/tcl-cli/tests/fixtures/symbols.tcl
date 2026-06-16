@@ -20,6 +20,15 @@ proc main {} {
     ::app::greet world
 }
 
+# Multi-variable loop bindings share one source token in the analyser;
+# per-name spans keep them in declaration order (regression guard).
+foreach {first second third} {1 2 3} {
+    incr first
+}
+dict for {dkey dval} {x 1 y 2} {
+    incr dkey
+}
+
 when HTTP_REQUEST {
     log local0. "request"
 }
