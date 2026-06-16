@@ -40,29 +40,6 @@ pub struct FormatArgs {
     pub transaction: bool,
 }
 
-/// Remote BIG-IP credential flags shared by `fetch` / `push` / `pull`.
-#[derive(Debug, Args)]
-pub struct RemoteArgs {
-    /// BIG-IP management host or IP.
-    #[arg(long, value_name = "HOST")]
-    pub host: Option<String>,
-    /// Username (falls back to env / config / prompt).
-    #[arg(long, value_name = "USER")]
-    pub user: Option<String>,
-    /// Password (falls back to env / config / prompt).
-    #[arg(long, value_name = "PASSWORD")]
-    pub password: Option<String>,
-    /// Management TCP port.
-    #[arg(long, value_name = "PORT")]
-    pub port: Option<u16>,
-    /// Skip TLS certificate verification.
-    #[arg(long)]
-    pub insecure: bool,
-    /// Per-request timeout in seconds.
-    #[arg(long, value_name = "SECS")]
-    pub timeout: Option<u64>,
-}
-
 /// UCS passphrase flags shared by verbs that read encrypted archives.
 #[derive(Debug, Default, Args)]
 pub struct PassphraseArgs {
@@ -136,27 +113,43 @@ pub enum Command {
     Grep {
         /// Object path or pattern to seed from.
         pattern: String,
+        /// bigip.conf / SCF files (one or more). Pass `-` to read stdin.
+        #[arg(required = true)]
         inputs: Vec<PathBuf>,
         /// Treat the pattern as a regular expression.
-        #[arg(long = "regex", short = 'e')]
+        #[arg(long = "regex", short = 'e', group = "grep_mode")]
         regex: bool,
         /// Treat the pattern as a CIDR / IP match.
-        #[arg(long = "cidr", short = 'c')]
+        #[arg(long = "cidr", short = 'c', group = "grep_mode")]
         cidr: bool,
         /// Traversal direction.
         #[arg(long, default_value = "both", value_parser = ["forward", "reverse", "both"])]
         direction: String,
-        /// Maximum traversal depth.
+        /// Stop the BFS after N hops from each search match.
         #[arg(long = "max-depth", value_name = "N")]
         max_depth: Option<usize>,
-        /// Maximum number of nodes to visit.
-        #[arg(long = "max-nodes", value_name = "N")]
-        max_nodes: Option<usize>,
-        /// Emit the full object stanzas, not just paths.
+        /// Walk the related-object BFS from each search match (default).
+        #[arg(long, short = 'r', overrides_with = "no_recurse")]
+        recurse: bool,
+        /// Skip the related-object BFS; report only the matched objects.
+        #[arg(long = "no-recurse", overrides_with = "recurse")]
+        no_recurse: bool,
+        /// Cap the result at N objects (default: 1000).
+        #[arg(long = "max-nodes", value_name = "N", default_value_t = 1000)]
+        max_nodes: usize,
+        /// Include each object's full body in the output.
         #[arg(long)]
         full: bool,
+        /// Emit the grep report as JSON instead of the text report.
         #[arg(long)]
         json: bool,
+        /// Write the report here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        #[command(flatten)]
+        format: FormatArgs,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// Convert a local UCS archive to an SCF text file.
@@ -209,25 +202,28 @@ pub enum Command {
     },
 
     /// Rename a BIG-IP object full-path and update every reference.
+    // The `old` / `new` help strings are clap-visible (they must read exactly
+    // as the Python verb's argparse help, so no Markdown backticks).
+    #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "mv")]
     Rename {
-        inputs: Vec<PathBuf>,
-        /// Existing object full-path.
-        #[arg(long, value_name = "PATH")]
+        /// Old full-path (e.g. /Common/old_pool).
         old: String,
-        /// New object full-path.
-        #[arg(long, value_name = "PATH")]
+        /// New full-path (e.g. /Common/new_pool).
         new: String,
-        /// Rewrite the input file in place.
-        #[arg(long = "in-place")]
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: String,
+        /// Write rewritten config here (default: stdout, dry-run).
+        #[arg(long, short, value_name = "FILE", group = "rename_output")]
+        output: Option<PathBuf>,
+        /// Overwrite the input file with the rewritten config.
+        #[arg(long = "in-place", group = "rename_output")]
         in_place: bool,
-        /// Emit the rewritten config (not a dry-run diff).
+        /// Print rewritten config to stdout instead of a unified-diff preview.
         #[arg(long)]
         write: bool,
         #[command(flatten)]
         format: FormatArgs,
-        #[arg(long, short, value_name = "FILE")]
-        output: Option<PathBuf>,
     },
 
     /// Run BIG-IP best-practice / structural checks.
@@ -288,7 +284,11 @@ pub enum Command {
     /// Emit a tmsh script that creates every object in the input config.
     #[command(visible_alias = "scf2tmsh")]
     Tmsh {
-        inputs: Vec<PathBuf>,
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: PathBuf,
+        /// Write the tmsh script here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
         /// Emit `modify` commands instead of `create`.
         #[arg(long)]
         modify: bool,
@@ -299,30 +299,60 @@ pub enum Command {
 
     /// Convert between UCS / SCF / AS3 declaration formats.
     Convert {
-        /// Conversion direction.
+        /// Conversion to perform.
         #[arg(value_parser = ["ucs2scf", "scf2as3"])]
         format: String,
-        inputs: Vec<PathBuf>,
-        /// AS3 tenant name (scf2as3).
-        #[arg(long, value_name = "NAME")]
-        tenant: Option<String>,
-        /// AS3 application name (scf2as3).
-        #[arg(long, value_name = "NAME")]
-        application: Option<String>,
-        /// Emit a coverage report instead of the conversion.
+        /// Input file (`-` for stdin; UCS must be a real file).
+        path: String,
+        /// Write here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        /// (scf2as3) Tenant name in the AS3 declaration (default: Common).
+        #[arg(long, default_value = "Common", value_name = "NAME")]
+        tenant: String,
+        /// (scf2as3) Application name in the AS3 declaration (default: app).
+        #[arg(long, default_value = "app", value_name = "NAME")]
+        application: String,
+        /// (scf2as3) Print a coverage report on stderr listing unmapped objects.
         #[arg(long)]
         report: bool,
+        #[command(flatten)]
+        passphrase: PassphraseArgs,
     },
 
     /// jq-flavoured DSL for inspecting and rewriting BIG-IP configs.
     #[command(visible_alias = "q")]
     Query {
-        /// The query expression.
+        /// The query expression. Use -f/--from-file to read it from a file.
         expression: Option<String>,
         inputs: Vec<PathBuf>,
+        /// Read the query expression from FILE (mutually exclusive with passing
+        /// the expression as the first positional argument).
+        #[arg(short = 'f', long = "from-file", value_name = "FILE")]
+        from_file: Option<String>,
         /// Bind a named config (NAME=PATH, repeatable).
         #[arg(long = "name", value_name = "NAME=PATH")]
         name: Vec<String>,
+        /// Tell the loader which BIG-IP partition a source belongs to
+        /// (PATH=PARTITION, or a bare PARTITION applied to every source).
+        /// Repeatable; defaults to `Common`.
+        #[arg(long = "partition", value_name = "PATH=PARTITION")]
+        partition: Vec<String>,
+        /// Bind an external JSON file to $NAME as a side input (repeatable).
+        #[arg(long = "input-json", value_name = "NAME=PATH")]
+        input_json: Vec<String>,
+        /// Bind a JSON Lines (NDJSON) file to $NAME as a side input.
+        #[arg(long = "input-jsonl", value_name = "NAME=PATH")]
+        input_jsonl: Vec<String>,
+        /// Bind a CSV file to $NAME as a side input (optional :hdr1,hdr2,… ).
+        #[arg(long = "input-csv", value_name = "NAME=PATH[:hdr1,hdr2,…]")]
+        input_csv: Vec<String>,
+        /// Bind a BIG-IP log file to $NAME as a side input (structured events).
+        #[arg(long = "input-f5log", value_name = "NAME=PATH")]
+        input_f5log: Vec<String>,
+        /// Bind a file via a registered input format (KIND NAME=PATH, repeatable).
+        #[arg(long = "input", value_names = ["KIND", "NAME=PATH"], num_args = 2)]
+        input: Vec<String>,
         /// Merge all configs into one namespace.
         #[arg(long)]
         merge: bool,
@@ -332,6 +362,48 @@ pub enum Command {
         /// Apply edits in place.
         #[arg(long = "in-place")]
         in_place: bool,
+        // Output-mode flags (mutually exclusive). Each sets `output_mode`
+        // to the matching `output::render` mode; the default is `auto`.
+        /// Render every selected value as an SCF stanza when possible.
+        #[arg(long = "scf", group = "query_output_mode")]
+        scf: bool,
+        /// Render scalar values one per line, no quoting.
+        #[arg(long = "raw", group = "query_output_mode")]
+        raw: bool,
+        /// Print only the full-path of each object / reference produced.
+        #[arg(long = "paths-only", group = "query_output_mode")]
+        paths_only: bool,
+        /// Render the result as a JSON array.
+        #[arg(long = "json", group = "query_output_mode")]
+        json: bool,
+        /// Render the result as an ASCII grid.
+        #[arg(long = "table", group = "query_output_mode")]
+        table: bool,
+        /// Like --table but with Unicode box-drawing borders.
+        #[arg(long = "table-lineart", group = "query_output_mode")]
+        table_lineart: bool,
+        /// Exit non-zero when a read-only query matched nothing.
+        #[arg(long)]
+        strict: bool,
+        /// Opt the query in to live network probes (the ping / portping /
+        /// traceroute / HTTP / socket / TLS-handshake builtins). Without this
+        /// flag those builtins raise rather than touching the network — keeps
+        /// the default invocation offline-safe.
+        #[arg(long = "enable-probes")]
+        enable_probes: bool,
+        /// CA bundle to trust for TLS-aware probes (the HTTP and TLS-handshake
+        /// builtins). Defaults to the platform trust store. Only used when a
+        /// query runs a TLS probe.
+        #[arg(long = "ca-bundle", value_name = "PATH")]
+        ca_bundle: Option<String>,
+        /// Dispatch output through a renderer plugin (mermaid / gantt /
+        /// ascii-blocks). Overrides the output-mode flags.
+        #[arg(long = "render", short = 'R', value_name = "NAME")]
+        render_name: Option<String>,
+        /// Pass an option to --render NAME (repeatable), e.g.
+        /// `--render-opt direction=TB`.
+        #[arg(long = "render-opt", value_name = "KEY=VALUE")]
+        render_opt: Vec<String>,
         #[command(flatten)]
         format: FormatArgs,
         /// Show the DSL grammar reference and exit.
@@ -347,30 +419,44 @@ pub enum Command {
         /// Show the worked-example cookbook and exit.
         #[arg(long = "help-examples")]
         help_examples: bool,
+        /// Show the comprehensive manual (grammar + builtins + examples) and
+        /// exit. Deferred: the builtins prose catalogue is not yet ported.
+        #[arg(long = "help-manual")]
+        help_manual: bool,
+        /// List the registered renderer plugins and exit.
+        #[arg(long = "help-renderers")]
+        help_renderers: bool,
+        /// List the registered input formats and exit.
+        #[arg(long = "help-inputs")]
+        help_inputs: bool,
     },
 
     /// Strip secrets and remap public IPs into a configurable CIDR pool.
     #[command(visible_alias = "sanitize")]
     Redact {
-        inputs: Vec<PathBuf>,
-        /// Do not remap IP addresses.
+        /// bigip.conf / SCF file (`-` for stdin).
+        path: String,
+        /// Preserve original IP addresses (only redact secrets and PEM blocks).
         #[arg(long = "keep-ips")]
         keep_ips: bool,
-        /// CIDR pool to remap public IPs into.
+        /// Target CIDR for remapped addresses (repeatable; mix v4 and v6).
         #[arg(long = "target-cidr", value_name = "CIDR")]
-        target_cidr: Option<String>,
-        /// Shuffle the IP assignment.
+        target_cidr: Vec<String>,
+        /// Permute host bits within each source CIDR via a deterministic key.
         #[arg(long)]
         shuffle: bool,
-        /// Deterministic shuffle seed.
-        #[arg(long, value_name = "SEED")]
-        seed: Option<u64>,
-        /// Also remap RFC1918 private ranges.
+        /// Seed for --shuffle (deterministic; recorded in the map file).
+        #[arg(long, value_name = "SEED", default_value = "")]
+        seed: String,
+        /// Also remap RFC1918 / `fc00::/7` (private) addresses.
         #[arg(long = "remap-private")]
         remap_private: bool,
-        /// Write the sidecar map to this path.
+        /// Write the redaction map TOML here.
         #[arg(long = "map-file", value_name = "FILE")]
         map_file: Option<PathBuf>,
+        /// Pre-declare a source CIDR (repeatable).
+        #[arg(long = "source-cidr", value_name = "CIDR")]
+        source_cidr: Vec<String>,
         #[command(flatten)]
         format: FormatArgs,
         #[arg(long, short, value_name = "FILE")]
@@ -380,10 +466,10 @@ pub enum Command {
     /// Reverse a previous redact using its sidecar map file.
     #[command(visible_alias = "unmap")]
     Unredact {
-        /// Sidecar map file from `f5 redact`.
-        map_file: PathBuf,
-        /// Redacted config to restore.
-        path: PathBuf,
+        /// The TOML map file produced by `f5 redact` (`-` for stdin).
+        map_file: String,
+        /// Text containing redacted IPs (`-` for stdin).
+        path: String,
         #[command(flatten)]
         format: FormatArgs,
         #[arg(long, short, value_name = "FILE")]
@@ -391,46 +477,122 @@ pub enum Command {
     },
 
     /// Pull SCF or UCS from a live BIG-IP device (REST or SSH).
+    // Help strings are clap-visible and must read exactly as the Python verb's
+    // argparse help (the env-var names carry underscores), so no Markdown
+    // backticks.
+    #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "get")]
     Fetch {
-        #[command(flatten)]
-        remote: RemoteArgs,
-        /// Transport to use.
+        /// Device hostname / IP / alias (or set F5_HOST).
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// Username (or set F5_USER).
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Password (or set F5_PASSWORD).  Prompted interactively if absent.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// iControl REST HTTPS port (default 443).
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// SSH port for SSH transport (default 22).
+        #[arg(long = "ssh-port", value_name = "SSH_PORT")]
+        ssh_port: Option<u16>,
+        /// Transport: REST, SSH, or auto-fallback (default).
         #[arg(long, default_value = "auto", value_parser = ["auto", "rest", "ssh"])]
         transport: String,
-        /// Artifact(s) to retrieve.
-        #[arg(long, default_value = "scf", value_parser = ["scf", "ucs", "both"])]
-        format: String,
+        /// What to download (default: scf).
+        #[arg(long = "format", default_value = "scf", value_parser = ["scf", "ucs", "both"], value_name = "FORMAT")]
+        fmt: String,
+        /// Skip TLS certificate verification (default: yes — BIG-IP self-signs).
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        insecure: bool,
+        /// Per-request timeout in seconds (default: 120).
+        #[arg(long, default_value_t = 120.0, value_name = "SECS")]
+        timeout: f64,
+        /// Write artefacts to DIR.  Pass `-` to stream the SCF to stdout.
+        #[arg(long, short = 'o', value_name = "DIR")]
+        output: Option<String>,
+        /// Fail rather than prompt for missing credentials.
+        #[arg(long = "no-prompt")]
+        no_prompt: bool,
+        /// Print the cache directory path on stdout after a successful fetch.
+        #[arg(long = "print-path")]
+        print_path: bool,
     },
 
     /// Replace or create a single object on a live BIG-IP via iControl REST.
     Push {
-        /// Object kind (virtual/pool/node/rule).
+        /// Object kind to push.
+        #[arg(value_parser = ["virtual", "pool", "node", "rule"])]
         kind: String,
-        /// JSON payload file.
-        payload: PathBuf,
-        #[command(flatten)]
-        remote: RemoteArgs,
-        /// Create instead of replace.
+        /// Path to a JSON file (`-` for stdin) holding the iControl REST payload.
+        payload: String,
+        /// Device hostname / IP / alias.
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// Username.
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Password.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// HTTPS port (default 443).
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// Fail rather than prompt.
+        #[arg(long = "no-prompt")]
+        no_prompt: bool,
+        /// Skip TLS certificate verification (default: yes).
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        insecure: bool,
+        /// POST as a new object rather than PUT-replacing an existing one.
         #[arg(long)]
         create: bool,
-        /// Show the request without sending it.
+        /// Show the payload and target endpoint without sending.
         #[arg(long = "dry-run")]
         dry_run: bool,
+        /// Per-request timeout (default: 60s).
+        #[arg(long, default_value_t = 60.0, value_name = "SECS")]
+        timeout: f64,
     },
 
     /// Fetch a single object from a live BIG-IP.
+    // The `full_path` example carries a slash path; keep it backtick-free so the
+    // clap help reads as the Python argparse help does.
+    #[allow(clippy::doc_markdown)]
     Pull {
-        /// Object kind (virtual/pool/node/rule).
+        /// Object kind to fetch.
+        #[arg(value_parser = ["virtual", "pool", "node", "rule"])]
         kind: String,
-        /// Object full-path.
+        /// Full path of the object (e.g. /Common/vs_app).
         full_path: String,
-        #[command(flatten)]
-        remote: RemoteArgs,
+        /// Device hostname / IP / alias.
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// Username.
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Password.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// HTTPS port (default 443).
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// Fail rather than prompt.
+        #[arg(long = "no-prompt")]
+        no_prompt: bool,
+        /// Skip TLS certificate verification (default: yes).
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        insecure: bool,
+        /// Emit raw iControl REST JSON.
         #[arg(long)]
         json: bool,
-        #[arg(long, default_value = "scf", value_parser = ["scf", "json"])]
-        format: String,
+        /// Per-request timeout (default: 60s).
+        #[arg(long, default_value_t = 60.0, value_name = "SECS")]
+        timeout: f64,
+        #[command(flatten)]
+        format: FormatArgs,
     },
 
     /// Trace each flow in a PCAP through the BIG-IP config.
@@ -493,25 +655,25 @@ pub enum Command {
         force: bool,
     },
 
-    /// Apply an `f5 redact` map to a PCAP capture.
+    /// Apply a `f5 redact` map to a PCAP capture (rewrites IP layer + parsed F5 trailer).
     #[command(visible_alias = "pcapmap")]
     PcapRemap {
-        /// Sidecar map file.
+        /// The TOML map file produced by `f5 redact`.
         map_file: PathBuf,
-        /// Input capture.
+        /// Input PCAP file.
         input: PathBuf,
-        /// Output capture.
+        /// Output PCAP file.
         output: PathBuf,
-        /// Reverse the mapping.
+        /// Apply the map in reverse (recover originals from a redacted capture).
         #[arg(long)]
         reverse: bool,
-        /// Behaviour for IPs not in the map.
-        #[arg(long = "on-unknown", value_name = "MODE")]
-        on_unknown: Option<String>,
-        /// F5 trailer schema name.
-        #[arg(long, value_name = "NAME")]
-        schema: Option<String>,
-        /// List known F5 trailer schemas and exit.
+        /// What to do when an F5 trailer TLV's (type, version) has no registered IP-field schema.
+        #[arg(long = "on-unknown", value_parser = ["error", "preserve", "sweep"], default_value = "error")]
+        on_unknown: String,
+        /// Additional F5 trailer schema TOML to overlay on top of the built-ins (repeatable).
+        #[arg(long, value_name = "FILE")]
+        schema: Vec<PathBuf>,
+        /// Print every registered trailer schema and exit.
         #[arg(long = "list-schemas")]
         list_schemas: bool,
     },
@@ -522,6 +684,12 @@ pub enum Command {
         /// Registry section to dump.
         #[arg(long, default_value = "all", value_parser = ["commands", "events", "profiles", "objects", "all"])]
         section: String,
+        /// Emit JSON (default and only format).
+        #[arg(long)]
+        json: bool,
+        /// Output path ('-' for stdout).
+        #[arg(long, short, value_name = "FILE", default_value = "-")]
+        output: String,
     },
 
     /// Print a bash / fish / zsh completion script for the f5 CLI.
@@ -571,68 +739,187 @@ impl Command {
     }
 }
 
+/// Shared iRule input flags (`_add_irule_input_arguments`): a flexible mix of
+/// `.tcl`/`.irul`/`.irule` files, bigip.conf/SCF, UCS, `--source` snippets, or
+/// `-` for stdin, plus `--dialect` (default `f5-irules`) and `-o/--output`.
+#[derive(Debug, Args)]
+pub struct IruleInputArgs {
+    /// Input files: .tcl/.irul/.irule, bigip.conf/SCF, or .ucs.  Pass `-` to read stdin.
+    #[arg(value_name = "PATHS")]
+    pub paths: Vec<String>,
+
+    /// Inline iRule source text (can be repeated).
+    #[arg(long = "source", value_name = "SOURCE")]
+    pub source: Vec<String>,
+
+    /// Dialect profile (default: f5-irules).
+    #[arg(long, default_value = "f5-irules", value_name = "DIALECT")]
+    pub dialect: String,
+
+    /// Output path: '-' for stdout, a directory for one file per iRule, or any
+    /// other path for a single concatenated file.
+    #[arg(long, short, default_value = "-", value_name = "OUTPUT")]
+    pub output: String,
+}
+
+/// Paired `--colour` / `--no-colour` toggle plus `--tabs`
+/// (`_add_colour_arguments`).
+#[derive(Debug, Args)]
+pub struct IruleColourArgs {
+    /// Disable syntax highlighting on stdout.
+    #[arg(long = "no-colour", visible_alias = "no-color")]
+    pub no_colour: bool,
+    /// Force syntax highlighting even when stdout is not a TTY.
+    #[arg(long = "colour", visible_alias = "color", overrides_with = "no_colour")]
+    pub colour: bool,
+    /// Expand tabs to N spaces on stdout (default: 4, 0 to keep tabs).
+    #[arg(long, value_name = "N")]
+    pub tabs: Option<usize>,
+}
+
+/// Formatter knobs (`_add_formatter_arguments`).
+#[derive(Debug, Args)]
+pub struct IruleFormatterArgs {
+    /// Spaces per indent level (default: 4).
+    #[arg(long = "indent-size", value_name = "N")]
+    pub indent_size: Option<usize>,
+    /// Indent using spaces or tabs (default: spaces).
+    #[arg(long = "indent-style", value_parser = ["spaces", "tabs"])]
+    pub indent_style: Option<String>,
+    /// Hard line-length limit (default: 120).
+    #[arg(long = "max-line-length", value_name = "N")]
+    pub max_line_length: Option<usize>,
+    /// Soft target line length (default: 100).
+    #[arg(long = "goal-line-length", value_name = "N")]
+    pub goal_line_length: Option<usize>,
+    /// Expand compact single-line bodies.
+    #[arg(long = "expand-bodies")]
+    pub expand_bodies: bool,
+    /// Replace semicolons with newlines (enabled by default).
+    #[arg(long = "no-semicolons")]
+    pub no_semicolons: bool,
+    /// Keep semicolons as-is (do not replace with newlines).
+    #[arg(long = "keep-semicolons")]
+    pub keep_semicolons: bool,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum IruleCommand {
-    /// Show iRule events in canonical firing order.
+    /// Show iRules events in canonical firing order.
     #[command(visible_alias = "eventorder")]
     EventOrder {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Emit event ordering as JSON.
         #[arg(long)]
         json: bool,
     },
-    /// Look up event metadata and valid commands.
+    /// Look up iRules event metadata and valid commands.
+    // Help strings are clap-visible and must read exactly as the Python verb's
+    // argparse help (event names carry underscores), so no Markdown backticks.
+    #[allow(clippy::doc_markdown)]
     #[command(visible_alias = "eventinfo")]
     EventInfo {
-        /// Event name to query.
+        /// iRules event name (for example: HTTP_REQUEST).
         event: String,
+        /// Emit event metadata as JSON.
         #[arg(long)]
         json: bool,
+        /// Output path ('-' for stdout).
+        #[arg(long, short, default_value = "-", value_name = "OUTPUT")]
+        output: String,
     },
-    /// Apply iRule-only lint rules.
+    /// Run iRule-only lint rules over iRule sources.
     Lint {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Emit JSON instead of text.
         #[arg(long)]
         json: bool,
+        /// Filter to one severity level.
+        #[arg(long, value_parser = ["error", "warning", "info"])]
+        severity: Option<String>,
     },
     /// Static event-flow trace from a starting event.
+    #[allow(clippy::doc_markdown)]
     Trace {
-        inputs: Vec<PathBuf>,
-        /// Starting event.
-        #[arg(long, value_name = "EVENT")]
-        start: Option<String>,
+        /// Starting event name (e.g. HTTP_REQUEST).
+        event: String,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Emit JSON instead of text.
         #[arg(long)]
         json: bool,
     },
-    /// Profile-guided event-order report.
+    /// Profile-guided suggestions: reorder branches by execution frequency.
     Pgo {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// F5 rule-profiler occurrence log ('-' for stdin).
+        #[arg(long, value_name = "FILE", group = "pgo_source")]
+        profile: Option<String>,
+        /// Capture a profile by running each input under a local tclsh.
+        #[arg(long, group = "pgo_source")]
+        capture: bool,
+        /// Generate a profile by running each input through the iRule test framework.
+        #[arg(long = "from-test", value_name = "STIMULI", group = "pgo_source")]
+        from_test: Option<String>,
+        /// Rewrite the reordered chains instead of only reporting suggestions.
+        #[arg(long)]
+        apply: bool,
+        /// Emit suggestions as JSON.
         #[arg(long)]
         json: bool,
     },
-    /// Split a config / UCS into one file per iRule.
+    /// Write each iRule body in a config to a standalone .tcl file.
     Extract {
-        inputs: Vec<PathBuf>,
-        /// Output directory.
-        #[arg(long, short, value_name = "DIR")]
-        output: Option<PathBuf>,
+        /// bigip.conf / SCF / UCS files (`-` for stdin).
+        #[arg(required = true, value_name = "PATHS")]
+        paths: Vec<String>,
+        /// Output directory (created if needed).
+        output: PathBuf,
     },
-    /// Pretty-print iRule source.
+    /// Format iRule source and emit rewritten Tcl.
     #[command(visible_alias = "fmt")]
     Format {
-        inputs: Vec<PathBuf>,
-        #[arg(long, short, value_name = "FILE")]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        #[command(flatten)]
+        colour: IruleColourArgs,
+        #[command(flatten)]
+        formatter: IruleFormatterArgs,
     },
-    /// Strip whitespace and comments from iRule source.
+    /// Minify iRule source: strip comments, collapse whitespace.
     #[command(visible_alias = "min")]
     Minify {
-        inputs: Vec<PathBuf>,
-        #[arg(long, short, value_name = "FILE")]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Compact variable and proc names to short identifiers.
+        #[arg(long)]
+        compact: bool,
+        /// Write symbol map (original -> compacted names) to FILE.
+        #[arg(long = "symbol-map", value_name = "FILE")]
+        symbol_map: Option<PathBuf>,
+        /// Maximum compression: run all optimiser passes, then compact names and minify.
+        #[arg(long)]
+        aggressive: bool,
+        /// Treat script as self-contained — also compact global-scope variable names.
+        #[arg(long)]
+        isolated: bool,
+        #[command(flatten)]
+        colour: IruleColourArgs,
     },
-    /// Show the resolved command context for an iRule.
+    /// Bundle each iRule with the BIG-IP objects it references.
     Context {
-        inputs: Vec<PathBuf>,
+        #[command(flatten)]
+        input: IruleInputArgs,
+        /// Limit output to rules with these full paths (repeatable).
+        #[arg(long, value_name = "FULL_PATH")]
+        rule: Vec<String>,
+        /// Skip the one-hop transitive expansion (pool->node, pool->monitor).
+        #[arg(long = "no-transitive")]
+        no_transitive: bool,
+        /// Emit each bundle as a JSON object (default: Tcl-flavoured text).
         #[arg(long)]
         json: bool,
     },

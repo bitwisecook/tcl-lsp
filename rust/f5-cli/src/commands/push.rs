@@ -1,0 +1,105 @@
+//! `f5 push` — send one object to a live device via iControl REST.
+//!
+//! Rust port of `tooling/f5/verbs/push.py`. The `--dry-run` surface (request
+//! summary on stderr + the `json.dumps(payload, indent=2)` body on stdout,
+//! emitted *before* any credential resolution) is byte-for-byte parity-tested
+//! offline; the live PUT/POST is implemented faithfully but untested here.
+
+use serde_json::Value;
+
+use super::remote::auth::{ResolveOptions, resolve_credentials};
+use super::remote::json_compat::dumps_indent2;
+use super::remote::object_io::{self, dry_run_plan, parse_payload};
+use super::remote::os_error_string;
+
+/// Parameters for [`run_push`], mirroring the Python verb's argument namespace.
+#[allow(clippy::struct_excessive_bools)]
+pub struct PushArgs<'a> {
+    pub kind: &'a str,
+    pub payload: &'a str,
+    pub host: Option<&'a str>,
+    pub user: Option<&'a str>,
+    pub password: Option<&'a str>,
+    pub port: Option<u16>,
+    pub no_prompt: bool,
+    pub insecure: bool,
+    pub create: bool,
+    pub dry_run: bool,
+    pub timeout: f64,
+}
+
+/// Run `f5 push`, returning the process exit code (0 success / 2 error). All
+/// errors are printed to stderr as `error: …`, matching the Python verb.
+#[must_use]
+pub fn run_push(args: &PushArgs) -> u8 {
+    let raw = if args.payload == "-" {
+        let mut buf = String::new();
+        if let Err(e) = std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf) {
+            eprintln!("error: {e}");
+            return 2;
+        }
+        buf
+    } else {
+        match std::fs::read(args.payload) {
+            Ok(bytes) => match String::from_utf8(bytes) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return 2;
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {}", os_error_string(&e, args.payload));
+                return 2;
+            }
+        }
+    };
+
+    let payload: Value = match parse_payload(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 2;
+        }
+    };
+
+    if args.dry_run {
+        let plan = dry_run_plan(&payload, args.create);
+        eprintln!("would {} {} {}", plan.verb_label, args.kind, plan.target);
+        println!("{}", dumps_indent2(&payload));
+        return 0;
+    }
+
+    let creds = match resolve_credentials(&ResolveOptions {
+        host: args.host,
+        user: args.user,
+        password: args.password,
+        port: args.port,
+        ssh_port: None,
+        interactive: !args.no_prompt,
+    }) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 2;
+        }
+    };
+
+    match object_io::push_object(
+        &creds,
+        args.kind,
+        &payload,
+        args.create,
+        args.insecure,
+        args.timeout,
+    ) {
+        Ok(result) => {
+            println!("{}", dumps_indent2(&result));
+            0
+        }
+        Err(e) => {
+            eprintln!("error: push failed: {e}");
+            2
+        }
+    }
+}

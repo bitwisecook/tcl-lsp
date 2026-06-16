@@ -1,0 +1,941 @@
+{
+  "pattern": "web_pool",
+  "useRegex": false,
+  "useCidr": false,
+  "recurse": true,
+  "direction": "both",
+  "searches": [
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "pool",
+      "fullPath": "/Common/web_pool",
+      "kind": "ltm_pool",
+      "header": "ltm pool /Common/web_pool",
+      "depth": 0,
+      "isSearch": true,
+      "range": {
+        "start": {
+          "line": 66,
+          "character": 26
+        },
+        "end": {
+          "line": 77,
+          "character": 1
+        }
+      }
+    }
+  ],
+  "related": [
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "monitor http",
+      "fullPath": "/Common/my_http_monitor",
+      "kind": "ltm_monitor_http",
+      "header": "ltm monitor http /Common/my_http_monitor",
+      "depth": 1,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 58,
+          "character": 41
+        },
+        "end": {
+          "line": 64,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:46:22:ltm:node:/Common/web1",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "node",
+      "fullPath": "/Common/web1",
+      "kind": "ltm_node",
+      "header": "ltm node /Common/web1",
+      "depth": 1,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 46,
+          "character": 22
+        },
+        "end": {
+          "line": 48,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:50:22:ltm:node:/Common/web2",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "node",
+      "fullPath": "/Common/web2",
+      "kind": "ltm_node",
+      "header": "ltm node /Common/web2",
+      "depth": 1,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 50,
+          "character": 22
+        },
+        "end": {
+          "line": 52,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "virtual",
+      "fullPath": "/Common/ssl_only_vs",
+      "kind": "ltm_virtual",
+      "header": "ltm virtual /Common/ssl_only_vs",
+      "depth": 1,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 237,
+          "character": 32
+        },
+        "end": {
+          "line": 248,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "virtual",
+      "fullPath": "/Common/www_vs",
+      "kind": "ltm_virtual",
+      "header": "ltm virtual /Common/www_vs",
+      "depth": 1,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 190,
+          "character": 27
+        },
+        "end": {
+          "line": 222,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:103:49:ltm:persistence cookie:/Common/my_cookie_persist",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "persistence cookie",
+      "fullPath": "/Common/my_cookie_persist",
+      "kind": "ltm_persistence_cookie",
+      "header": "ltm persistence cookie /Common/my_cookie_persist",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 103,
+          "character": 49
+        },
+        "end": {
+          "line": 106,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "pool",
+      "fullPath": "/Common/api_pool",
+      "kind": "ltm_pool",
+      "header": "ltm pool /Common/api_pool",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 79,
+          "character": 26
+        },
+        "end": {
+          "line": 90,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:92:28:ltm:pool:/Common/empty_pool",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "pool",
+      "fullPath": "/Common/empty_pool",
+      "kind": "ltm_pool",
+      "header": "ltm pool /Common/empty_pool",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 92,
+          "character": 28
+        },
+        "end": {
+          "line": 94,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "profile client-ssl",
+      "fullPath": "/Common/my_clientssl",
+      "kind": "ltm_profile_client_ssl",
+      "header": "ltm profile client-ssl /Common/my_clientssl",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 123,
+          "character": 44
+        },
+        "end": {
+          "line": 127,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:113:41:ltm:profile http:/Common/my_http_profile",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "profile http",
+      "fullPath": "/Common/my_http_profile",
+      "kind": "ltm_profile_http",
+      "header": "ltm profile http /Common/my_http_profile",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 113,
+          "character": 41
+        },
+        "end": {
+          "line": 116,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:133:46:ltm:profile one-connect:/Common/my_oneconnect",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "profile one-connect",
+      "fullPath": "/Common/my_oneconnect",
+      "kind": "ltm_profile_one_connect",
+      "header": "ltm profile one-connect /Common/my_oneconnect",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 133,
+          "character": 46
+        },
+        "end": {
+          "line": 135,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:129:44:ltm:profile server-ssl:/Common/my_serverssl",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "profile server-ssl",
+      "fullPath": "/Common/my_serverssl",
+      "kind": "ltm_profile_server_ssl",
+      "header": "ltm profile server-ssl /Common/my_serverssl",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 129,
+          "character": 44
+        },
+        "end": {
+          "line": 131,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "profile tcp",
+      "fullPath": "/Common/my_tcp_profile",
+      "kind": "ltm_profile_tcp",
+      "header": "ltm profile tcp /Common/my_tcp_profile",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 118,
+          "character": 39
+        },
+        "end": {
+          "line": 121,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:154:30:ltm:rule:/Common/ip_blocklist",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "rule",
+      "fullPath": "/Common/ip_blocklist",
+      "kind": "ltm_rule",
+      "header": "ltm rule /Common/ip_blocklist",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 154,
+          "character": 30
+        },
+        "end": {
+          "line": 160,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "rule",
+      "fullPath": "/Common/route_by_host",
+      "kind": "ltm_rule",
+      "header": "ltm rule /Common/route_by_host",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 137,
+          "character": 31
+        },
+        "end": {
+          "line": 152,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:171:26:ltm:rule:/Common/ssl_info",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "rule",
+      "fullPath": "/Common/ssl_info",
+      "kind": "ltm_rule",
+      "header": "ltm rule /Common/ssl_info",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 171,
+          "character": 26
+        },
+        "end": {
+          "line": 175,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:162:29:ltm:rule:/Common/uri_rewrite",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "rule",
+      "fullPath": "/Common/uri_rewrite",
+      "kind": "ltm_rule",
+      "header": "ltm rule /Common/uri_rewrite",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 162,
+          "character": 29
+        },
+        "end": {
+          "line": 169,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:96:33:ltm:snatpool:/Common/my_snatpool",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "snatpool",
+      "fullPath": "/Common/my_snatpool",
+      "kind": "ltm_snatpool",
+      "header": "ltm snatpool /Common/my_snatpool",
+      "depth": 2,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 96,
+          "character": 33
+        },
+        "end": {
+          "line": 101,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:3:46:ltm:data-group internal:/Common/allowed_hosts",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "data-group internal",
+      "fullPath": "/Common/allowed_hosts",
+      "kind": "ltm_data_group_internal",
+      "header": "ltm data-group internal /Common/allowed_hosts",
+      "depth": 3,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 3,
+          "character": 46
+        },
+        "end": {
+          "line": 10,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:12:44:ltm:data-group internal:/Common/blocked_ips",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "data-group internal",
+      "fullPath": "/Common/blocked_ips",
+      "kind": "ltm_data_group_internal",
+      "header": "ltm data-group internal /Common/blocked_ips",
+      "depth": 3,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 12,
+          "character": 44
+        },
+        "end": {
+          "line": 25,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:27:49:ltm:data-group internal:/Common/uri_redirect_map",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "data-group internal",
+      "fullPath": "/Common/uri_redirect_map",
+      "kind": "ltm_data_group_internal",
+      "header": "ltm data-group internal /Common/uri_redirect_map",
+      "depth": 3,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 27,
+          "character": 49
+        },
+        "end": {
+          "line": 37,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:54:22:ltm:node:/Common/web3",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "node",
+      "fullPath": "/Common/web3",
+      "kind": "ltm_node",
+      "header": "ltm node /Common/web3",
+      "depth": 3,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 54,
+          "character": 22
+        },
+        "end": {
+          "line": 56,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "virtual",
+      "fullPath": "/Common/api_vs",
+      "kind": "ltm_virtual",
+      "header": "ltm virtual /Common/api_vs",
+      "depth": 3,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 224,
+          "character": 27
+        },
+        "end": {
+          "line": 235,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:250:27:ltm:virtual:/Common/bad_vs",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "virtual",
+      "fullPath": "/Common/bad_vs",
+      "kind": "ltm_virtual",
+      "header": "ltm virtual /Common/bad_vs",
+      "depth": 3,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 250,
+          "character": 27
+        },
+        "end": {
+          "line": 261,
+          "character": 1
+        }
+      }
+    },
+    {
+      "nodeId": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:177:32:ltm:rule:/Common/bad_references",
+      "uri": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf",
+      "module": "ltm",
+      "objectType": "rule",
+      "fullPath": "/Common/bad_references",
+      "kind": "ltm_rule",
+      "header": "ltm rule /Common/bad_references",
+      "depth": 4,
+      "isSearch": false,
+      "range": {
+        "start": {
+          "line": 177,
+          "character": 32
+        },
+        "end": {
+          "line": 188,
+          "character": 1
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:46:22:ltm:node:/Common/web1",
+      "viaProperty": "members",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:50:22:ltm:node:/Common/web2",
+      "viaProperty": "members",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:46:22:ltm:node:/Common/web1",
+      "viaProperty": "members[]",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:50:22:ltm:node:/Common/web2",
+      "viaProperty": "members[]",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "viaProperty": "monitor",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "viaProperty": "monitor[]",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:50:22:ltm:node:/Common/web2",
+      "viaProperty": "members",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:54:22:ltm:node:/Common/web3",
+      "viaProperty": "members",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:50:22:ltm:node:/Common/web2",
+      "viaProperty": "members[]",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:54:22:ltm:node:/Common/web3",
+      "viaProperty": "members[]",
+      "viaKind": "ltm_node"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "viaProperty": "monitor",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "viaProperty": "monitor[]",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:92:28:ltm:pool:/Common/empty_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "viaProperty": "monitor",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:92:28:ltm:pool:/Common/empty_pool",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:58:41:ltm:monitor http:/Common/my_http_monitor",
+      "viaProperty": "monitor[]",
+      "viaKind": "ltm_monitor_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:3:46:ltm:data-group internal:/Common/allowed_hosts",
+      "viaProperty": "irule:class",
+      "viaKind": "ltm_data_group_internal"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:154:30:ltm:rule:/Common/ip_blocklist",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:12:44:ltm:data-group internal:/Common/blocked_ips",
+      "viaProperty": "irule:class",
+      "viaKind": "ltm_data_group_internal"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:162:29:ltm:rule:/Common/uri_rewrite",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:27:49:ltm:data-group internal:/Common/uri_redirect_map",
+      "viaProperty": "irule:class",
+      "viaKind": "ltm_data_group_internal"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool[]",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:113:41:ltm:profile http:/Common/my_http_profile",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_client_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:129:44:ltm:profile server-ssl:/Common/my_serverssl",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_server_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:133:46:ltm:profile one-connect:/Common/my_oneconnect",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_one_connect"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:113:41:ltm:profile http:/Common/my_http_profile",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_client_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:129:44:ltm:profile server-ssl:/Common/my_serverssl",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_server_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:133:46:ltm:profile one-connect:/Common/my_oneconnect",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_one_connect"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:154:30:ltm:rule:/Common/ip_blocklist",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:162:29:ltm:rule:/Common/uri_rewrite",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:154:30:ltm:rule:/Common/ip_blocklist",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:162:29:ltm:rule:/Common/uri_rewrite",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:103:49:ltm:persistence cookie:/Common/my_cookie_persist",
+      "viaProperty": "persist",
+      "viaKind": "ltm_persistence_cookie"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:190:27:ltm:virtual:/Common/www_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:96:33:ltm:snatpool:/Common/my_snatpool",
+      "viaProperty": "source-address-translation",
+      "viaKind": "ltm_snatpool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "viaProperty": "pool",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:79:26:ltm:pool:/Common/api_pool",
+      "viaProperty": "pool[]",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:113:41:ltm:profile http:/Common/my_http_profile",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_client_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:113:41:ltm:profile http:/Common/my_http_profile",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_http"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_client_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:224:27:ltm:virtual:/Common/api_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:66:26:ltm:pool:/Common/web_pool",
+      "viaProperty": "pool[]",
+      "viaKind": "ltm_pool"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_client_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:123:44:ltm:profile client-ssl:/Common/my_clientssl",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_client_ssl"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:171:26:ltm:rule:/Common/ssl_info",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:171:26:ltm:rule:/Common/ssl_info",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:237:32:ltm:virtual:/Common/ssl_only_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:137:31:ltm:rule:/Common/route_by_host",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:250:27:ltm:virtual:/Common/bad_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:250:27:ltm:virtual:/Common/bad_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:118:39:ltm:profile tcp:/Common/my_tcp_profile",
+      "viaProperty": "profiles[]",
+      "viaKind": "ltm_profile_tcp"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:250:27:ltm:virtual:/Common/bad_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:177:32:ltm:rule:/Common/bad_references",
+      "viaProperty": "rules",
+      "viaKind": "ltm_rule"
+    },
+    {
+      "source": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:250:27:ltm:virtual:/Common/bad_vs",
+      "target": "file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf:177:32:ltm:rule:/Common/bad_references",
+      "viaProperty": "rules[]",
+      "viaKind": "ltm_rule"
+    }
+  ],
+  "summary": {
+    "ltm_pool": 3,
+    "ltm_monitor_http": 1,
+    "ltm_node": 3,
+    "ltm_virtual": 4,
+    "ltm_persistence_cookie": 1,
+    "ltm_profile_client_ssl": 1,
+    "ltm_profile_http": 1,
+    "ltm_profile_one_connect": 1,
+    "ltm_profile_server_ssl": 1,
+    "ltm_profile_tcp": 1,
+    "ltm_rule": 5,
+    "ltm_snatpool": 1,
+    "ltm_data_group_internal": 3
+  },
+  "textReport": "# tcl-lsp BIG-IP grep\n# Pattern: web_pool\n# Direction: both\n# Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf\n# Searches: 1 matched object(s)\n# Related: 25 object(s)\n#   ltm_data_group_internal: 3\n#   ltm_monitor_http: 1\n#   ltm_node: 3\n#   ltm_persistence_cookie: 1\n#   ltm_pool: 3\n#   ltm_profile_client_ssl: 1\n#   ltm_profile_http: 1\n#   ltm_profile_one_connect: 1\n#   ltm_profile_server_ssl: 1\n#   ltm_profile_tcp: 1\n#   ltm_rule: 5\n#   ltm_snatpool: 1\n#   ltm_virtual: 4\n\n# Searches (matched by pattern):\n* [ltm_pool] /Common/web_pool  (depth 0)\n\n# Related objects (reachable through reference edges):\n  [ltm_monitor_http] /Common/my_http_monitor  (depth 1)\n  [ltm_node] /Common/web1  (depth 1)\n  [ltm_node] /Common/web2  (depth 1)\n  [ltm_virtual] /Common/ssl_only_vs  (depth 1)\n  [ltm_virtual] /Common/www_vs  (depth 1)\n  [ltm_persistence_cookie] /Common/my_cookie_persist  (depth 2)\n  [ltm_pool] /Common/api_pool  (depth 2)\n  [ltm_pool] /Common/empty_pool  (depth 2)\n  [ltm_profile_client_ssl] /Common/my_clientssl  (depth 2)\n  [ltm_profile_http] /Common/my_http_profile  (depth 2)\n  [ltm_profile_one_connect] /Common/my_oneconnect  (depth 2)\n  [ltm_profile_server_ssl] /Common/my_serverssl  (depth 2)\n  [ltm_profile_tcp] /Common/my_tcp_profile  (depth 2)\n  [ltm_rule] /Common/ip_blocklist  (depth 2)\n  [ltm_rule] /Common/route_by_host  (depth 2)\n  [ltm_rule] /Common/ssl_info  (depth 2)\n  [ltm_rule] /Common/uri_rewrite  (depth 2)\n  [ltm_snatpool] /Common/my_snatpool  (depth 2)\n  [ltm_data_group_internal] /Common/allowed_hosts  (depth 3)\n  [ltm_data_group_internal] /Common/blocked_ips  (depth 3)\n  [ltm_data_group_internal] /Common/uri_redirect_map  (depth 3)\n  [ltm_node] /Common/web3  (depth 3)\n  [ltm_virtual] /Common/api_vs  (depth 3)\n  [ltm_virtual] /Common/bad_vs  (depth 3)\n  [ltm_rule] /Common/bad_references  (depth 4)\n"
+}

@@ -45,6 +45,7 @@ pub mod patterns;
 pub mod profiles;
 pub mod registry;
 pub mod side_effects;
+pub mod snapshot;
 pub mod spec;
 pub mod stub_overlay;
 pub mod taint;

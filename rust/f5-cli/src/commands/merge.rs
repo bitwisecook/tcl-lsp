@@ -3,8 +3,8 @@
 //! `emit_merged` (`dialects/f5/bigip/emit.py`).
 //!
 //! For the default `--format scf` this is pure file I/O (the SCF passes through
-//! `render_config` verbatim), so it reaches byte-for-byte parity. `tmsh` /
-//! `tmsh-delta` rendering needs the BIG-IP tmsh emitter (a later engine port).
+//! `render_config` verbatim). `--format tmsh` / `tmsh-delta` re-render the
+//! merged config via the BIG-IP tmsh emit engine (`tcl_bigip::tmsh_emit`).
 
 use std::path::{Path, PathBuf};
 
@@ -51,15 +51,16 @@ pub fn run_merge(
         merged.push('\n');
     }
 
-    if format.format != "scf" {
-        anyhow::bail!(
-            "`f5 merge --format {}` is not yet implemented in the Rust port (needs the tmsh emitter)",
-            format.format
-        );
-    }
+    let rendered = crate::commands::emit::render_config(
+        &merged,
+        &format.format,
+        "create",
+        format.transaction,
+        "",
+    );
 
     let target = OutputTarget::from_arg(output);
-    write_text_output(&target, &merged)?;
+    write_text_output(&target, &rendered)?;
     Ok(0)
 }
 

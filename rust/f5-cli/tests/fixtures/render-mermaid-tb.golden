@@ -1,0 +1,8 @@
+graph TB
+  n0["/Common/www_vs"]
+  n1["/Common/api_vs"]
+  n2["/Common/ssl_only_vs"]
+  n3["/Common/bad_vs"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3

@@ -1,0 +1,323 @@
+# tcl-lsp BIG-IP grep
+# Pattern: web_pool
+# Direction: both
+# Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf
+# Searches: 1 matched object(s)
+# Related: 25 object(s)
+#   ltm_data_group_internal: 3
+#   ltm_monitor_http: 1
+#   ltm_node: 3
+#   ltm_persistence_cookie: 1
+#   ltm_pool: 3
+#   ltm_profile_client_ssl: 1
+#   ltm_profile_http: 1
+#   ltm_profile_one_connect: 1
+#   ltm_profile_server_ssl: 1
+#   ltm_profile_tcp: 1
+#   ltm_rule: 5
+#   ltm_snatpool: 1
+#   ltm_virtual: 4
+
+# Searches (matched by pattern):
+* [ltm_pool] /Common/web_pool  (depth 0)
+    ltm pool /Common/web_pool {
+
+        members {
+            /Common/web1:80 {
+                address 10.0.1.10
+            }
+            /Common/web2:80 {
+                address 10.0.1.11
+            }
+        }
+        monitor /Common/my_http_monitor
+        load-balancing-mode round-robin
+    }
+
+
+# Related objects (reachable through reference edges):
+  [ltm_monitor_http] /Common/my_http_monitor  (depth 1)
+    ltm monitor http /Common/my_http_monitor {
+
+        defaults-from /Common/http
+        interval 10
+        timeout 31
+        send "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"
+        recv "200 OK"
+    }
+
+  [ltm_node] /Common/web1  (depth 1)
+    ltm node /Common/web1 {
+
+        address 10.0.1.10
+    }
+
+  [ltm_node] /Common/web2  (depth 1)
+    ltm node /Common/web2 {
+
+        address 10.0.1.11
+    }
+
+  [ltm_virtual] /Common/ssl_only_vs  (depth 1)
+    ltm virtual /Common/ssl_only_vs {
+
+        destination /Common/10.0.0.3:443
+        pool /Common/web_pool
+        profiles {
+            /Common/my_tcp_profile { }
+            /Common/my_clientssl { }
+        }
+        rules {
+            /Common/ssl_info
+            /Common/route_by_host
+        }
+    }
+
+  [ltm_virtual] /Common/www_vs  (depth 1)
+    ltm virtual /Common/www_vs {
+
+        destination /Common/10.0.0.1:443
+        pool /Common/web_pool
+        profiles {
+            /Common/my_http_profile {
+                context all
+            }
+            /Common/my_tcp_profile {
+                context all
+            }
+            /Common/my_clientssl {
+                context clientside
+            }
+            /Common/my_serverssl {
+                context serverside
+            }
+            /Common/my_oneconnect { }
+        }
+        rules {
+            /Common/route_by_host
+            /Common/ip_blocklist
+            /Common/uri_rewrite
+        }
+        persist {
+            /Common/my_cookie_persist {
+                default yes
+            }
+        }
+        source-address-translation {
+            type snat
+            pool /Common/my_snatpool
+        }
+    }
+
+  [ltm_persistence_cookie] /Common/my_cookie_persist  (depth 2)
+    ltm persistence cookie /Common/my_cookie_persist {
+
+        defaults-from /Common/cookie
+        cookie-name "SERVERID"
+    }
+
+  [ltm_pool] /Common/api_pool  (depth 2)
+    ltm pool /Common/api_pool {
+
+        members {
+            /Common/web2:8080 {
+                address 10.0.1.11
+            }
+            /Common/web3:8080 {
+                address 10.0.1.12
+            }
+        }
+        monitor /Common/my_http_monitor
+        load-balancing-mode least-connections-member
+    }
+
+  [ltm_pool] /Common/empty_pool  (depth 2)
+    ltm pool /Common/empty_pool {
+
+        monitor /Common/my_http_monitor
+    }
+
+  [ltm_profile_client_ssl] /Common/my_clientssl  (depth 2)
+    ltm profile client-ssl /Common/my_clientssl {
+
+        defaults-from /Common/clientssl
+        cert /Common/default.crt
+        key /Common/default.key
+    }
+
+  [ltm_profile_http] /Common/my_http_profile  (depth 2)
+    ltm profile http /Common/my_http_profile {
+
+        defaults-from /Common/http
+        insert-xforwarded-for enabled
+    }
+
+  [ltm_profile_one_connect] /Common/my_oneconnect  (depth 2)
+    ltm profile one-connect /Common/my_oneconnect {
+
+        defaults-from /Common/oneconnect
+    }
+
+  [ltm_profile_server_ssl] /Common/my_serverssl  (depth 2)
+    ltm profile server-ssl /Common/my_serverssl {
+
+        defaults-from /Common/serverssl
+    }
+
+  [ltm_profile_tcp] /Common/my_tcp_profile  (depth 2)
+    ltm profile tcp /Common/my_tcp_profile {
+
+        defaults-from /Common/tcp
+        idle-timeout 300
+    }
+
+  [ltm_rule] /Common/ip_blocklist  (depth 2)
+    ltm rule /Common/ip_blocklist {
+
+        when CLIENT_ACCEPTED {
+            if { [class match [IP::remote_addr] equals blocked_ips] } {
+                drop
+            }
+        }
+    }
+
+  [ltm_rule] /Common/route_by_host  (depth 2)
+    ltm rule /Common/route_by_host {
+
+        when HTTP_REQUEST {
+            if { [class match [HTTP::host] equals allowed_hosts] } {
+                switch -glob [HTTP::uri] {
+                    "/api/*" {
+                        pool /Common/api_pool
+                    }
+                    default {
+                        pool /Common/web_pool
+                    }
+                }
+            } else {
+                reject
+            }
+        }
+    }
+
+  [ltm_rule] /Common/ssl_info  (depth 2)
+    ltm rule /Common/ssl_info {
+
+        when CLIENTSSL_HANDSHAKE {
+            log local0. "Client SSL: [SSL::cipher name] [SSL::cipher version]"
+        }
+    }
+
+  [ltm_rule] /Common/uri_rewrite  (depth 2)
+    ltm rule /Common/uri_rewrite {
+
+        when HTTP_REQUEST priority 100 {
+            set redirect_target [class lookup [HTTP::uri] uri_redirect_map]
+            if { $redirect_target ne "" } {
+                HTTP::redirect "https://[HTTP::host]$redirect_target"
+            }
+        }
+    }
+
+  [ltm_snatpool] /Common/my_snatpool  (depth 2)
+    ltm snatpool /Common/my_snatpool {
+
+        members {
+            10.0.2.100
+            10.0.2.101
+        }
+    }
+
+  [ltm_data_group_internal] /Common/allowed_hosts  (depth 3)
+    ltm data-group internal /Common/allowed_hosts {
+
+        records {
+            www.example.com { }
+            api.example.com { }
+            admin.example.com { }
+        }
+        type string
+    }
+
+  [ltm_data_group_internal] /Common/blocked_ips  (depth 3)
+    ltm data-group internal /Common/blocked_ips {
+
+        records {
+            10.0.0.0/8 {
+                data "RFC1918"
+            }
+            172.16.0.0/12 {
+                data "RFC1918"
+            }
+            192.168.0.0/16 {
+                data "RFC1918"
+            }
+        }
+        type ip
+    }
+
+  [ltm_data_group_internal] /Common/uri_redirect_map  (depth 3)
+    ltm data-group internal /Common/uri_redirect_map {
+
+        records {
+            /old-path {
+                data "/new-path"
+            }
+            /legacy {
+                data "/modern"
+            }
+        }
+        type string
+    }
+
+  [ltm_node] /Common/web3  (depth 3)
+    ltm node /Common/web3 {
+
+        address 10.0.1.12
+    }
+
+  [ltm_virtual] /Common/api_vs  (depth 3)
+    ltm virtual /Common/api_vs {
+
+        destination /Common/10.0.0.2:443
+        pool /Common/api_pool
+        profiles {
+            /Common/my_http_profile { }
+            /Common/my_tcp_profile { }
+            /Common/my_clientssl { }
+        }
+        rules {
+            /Common/route_by_host
+        }
+    }
+
+  [ltm_virtual] /Common/bad_vs  (depth 3)
+    ltm virtual /Common/bad_vs {
+
+        destination /Common/10.0.0.4:80
+        pool /Common/nonexistent_pool
+        profiles {
+            /Common/my_tcp_profile { }
+        }
+        rules {
+            /Common/nonexistent_rule
+            /Common/bad_references
+            /Common/bad_references
+        }
+    }
+
+  [ltm_rule] /Common/bad_references  (depth 4)
+    ltm rule /Common/bad_references {
+
+        when HTTP_REQUEST {
+            # This references a data-group that does not exist
+            if { [class match [HTTP::host] equals nonexistent_datagroup] } {
+                drop
+            }
+            # This references a pool that does not exist
+            pool /Common/missing_pool
+            # This references a SNAT pool that does not exist
+            snatpool /Common/missing_snatpool
+        }
+    }
+

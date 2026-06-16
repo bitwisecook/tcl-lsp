@@ -1,0 +1,85 @@
+[
+  {
+    "name": "x509_parse_rsa",
+    "kind": "x509_parse",
+    "pem_fixture": "x509_example.pem",
+    "output": {
+      "subject": "CN=example.test,O=Example Corp,C=US",
+      "issuer": "CN=example.test,O=Example Corp,C=US",
+      "not_before": "2026-06-15T18:28:56+00:00",
+      "not_after": "2036-06-12T18:28:56+00:00",
+      "serial": "2EEBD6256C81BFEF9C2B015A434A3C8540C0E15E",
+      "fingerprint_sha256": "051B08743FE24044500609876DC3F008773FD0B91EDADD94A63DB5482D1FD8FE",
+      "sans": [
+        "example.test",
+        "www.example.test",
+        "10.0.0.1"
+      ],
+      "key_alg": "RSAPublicKey",
+      "key_size": 2048,
+      "sig_alg": "sha256WithRSAEncryption",
+      "version": "v3",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuiBEfDi4FQ06DP209zan\nuwtR8JhtrP+b2J2qaxgc4xAroW5TDKIH4ZIJ64Qnxau404NMsJ5ErNeA5E7FaT9i\nHah4jH2Kfx1gSwwUZRp/7L/jhv7lJdcB1FS7mumgg18+uq/bzCXZnEmvzx/vo+6i\npLPLoeVp6BOfiI22RaG0tXSkfvsLwxRvOraPX21x/BaJpO1gZZ0TeSGSHoYyV8bi\ncZbk8/WnLNSlx38UaVewmMU7VGToKtom3Lsx9k5isRWYEgKwSeCsXThNaBamqbyV\nUOLYzu11wx1Kcu/JL1CpxL5tjfRjPyzOSEe9eEi1+5t9my4DWDVsZw83hHUARs+H\npQIDAQAB\n-----END PUBLIC KEY-----\n"
+    }
+  },
+  {
+    "name": "gating_ping",
+    "kind": "gating",
+    "builtin": "ping",
+    "output": "ping: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_portping",
+    "kind": "gating",
+    "builtin": "portping",
+    "output": "portping: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_traceroute",
+    "kind": "gating",
+    "builtin": "traceroute",
+    "output": "traceroute: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_socket_get",
+    "kind": "gating",
+    "builtin": "socket_get",
+    "output": "socket_get: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_tls_handshake",
+    "kind": "gating",
+    "builtin": "tls_handshake",
+    "output": "tls_handshake: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_url_get",
+    "kind": "gating",
+    "builtin": "url_get",
+    "output": "url_get: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_url_head",
+    "kind": "gating",
+    "builtin": "url_head",
+    "output": "url_head: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_url_options",
+    "kind": "gating",
+    "builtin": "url_options",
+    "output": "url_options: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "gating_url_post",
+    "kind": "gating",
+    "builtin": "url_post",
+    "output": "url_post: network probes are disabled; pass --enable-probes to opt in for this query.  Probes always go to the network and are gated by default so an offline read-only query never accidentally reaches out."
+  },
+  {
+    "name": "x509_parse_bad",
+    "kind": "x509_parse_err",
+    "input": "not a cert",
+    "output_prefix": "x509_parse: not a PEM certificate ("
+  }
+]

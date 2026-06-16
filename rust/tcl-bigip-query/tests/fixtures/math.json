@@ -1,0 +1,1269 @@
+[
+  {
+    "query": "round(2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "round(-2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -3\n]\n"
+  },
+  {
+    "query": "round(2.49)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "round(2.51)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "round(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1\n]\n"
+  },
+  {
+    "query": "round(-0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -1\n]\n"
+  },
+  {
+    "query": "round(3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "fabs(-5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5.0\n]\n"
+  },
+  {
+    "query": "fabs(3.14)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.14\n]\n"
+  },
+  {
+    "query": "fabs(-2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2.5\n]\n"
+  },
+  {
+    "query": "trunc(3.9)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "trunc(-3.9)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -3\n]\n"
+  },
+  {
+    "query": "trunc(3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "rint(2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "rint(3.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": "rint(-2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -2\n]\n"
+  },
+  {
+    "query": "rint(2.49)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "rint(3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "nearbyint(2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2\n]\n"
+  },
+  {
+    "query": "nearbyint(3.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4\n]\n"
+  },
+  {
+    "query": "nearbyint(-0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0\n]\n"
+  },
+  {
+    "query": "sqrt(16)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  4.0\n]\n"
+  },
+  {
+    "query": "sqrt(2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.4142135623730951\n]\n"
+  },
+  {
+    "query": "sqrt(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "sqrt(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "sqrt: negative input -1"
+  },
+  {
+    "query": "sqrt(-2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "sqrt: negative input -2.5"
+  },
+  {
+    "query": "cbrt(27)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.0\n]\n"
+  },
+  {
+    "query": "cbrt(-8)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -2.0\n]\n"
+  },
+  {
+    "query": "cbrt(2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.2599210498948732\n]\n"
+  },
+  {
+    "query": "cbrt(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "pow(2, 10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1024.0\n]\n"
+  },
+  {
+    "query": "pow(2, 0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.4142135623730951\n]\n"
+  },
+  {
+    "query": "pow(2.0, -1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.5\n]\n"
+  },
+  {
+    "query": "pow(0, 0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "exp(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2.718281828459045\n]\n"
+  },
+  {
+    "query": "exp(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "exp(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.36787944117144233\n]\n"
+  },
+  {
+    "query": "exp2(10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1024.0\n]\n"
+  },
+  {
+    "query": "exp2(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.4142135623730951\n]\n"
+  },
+  {
+    "query": "exp10(3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1000.0\n]\n"
+  },
+  {
+    "query": "exp10(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "pow10(3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1000.0\n]\n"
+  },
+  {
+    "query": "pow10(-2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.01\n]\n"
+  },
+  {
+    "query": "expm1(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "expm1(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.718281828459045\n]\n"
+  },
+  {
+    "query": "log(2.718281828459045)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "log(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "log(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "log: non-positive input 0"
+  },
+  {
+    "query": "log(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "log: non-positive input -1"
+  },
+  {
+    "query": "log10(1000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.0\n]\n"
+  },
+  {
+    "query": "log10(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "log10: non-positive input 0"
+  },
+  {
+    "query": "log2(1024)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  10.0\n]\n"
+  },
+  {
+    "query": "log2(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "log2: non-positive input 0"
+  },
+  {
+    "query": "log1p(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "log1p(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.6931471805599453\n]\n"
+  },
+  {
+    "query": "logb(8)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.0\n]\n"
+  },
+  {
+    "query": "logb(0.25)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -2.0\n]\n"
+  },
+  {
+    "query": "logb(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -Infinity\n]\n"
+  },
+  {
+    "query": "logb(-8)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.0\n]\n"
+  },
+  {
+    "query": "logb(infinite)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  Infinity\n]\n"
+  },
+  {
+    "query": "significand(12)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.5\n]\n"
+  },
+  {
+    "query": "significand(-12)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -1.5\n]\n"
+  },
+  {
+    "query": "significand(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "significand(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "nan",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  NaN\n]\n"
+  },
+  {
+    "query": "infinite",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  Infinity\n]\n"
+  },
+  {
+    "query": "-infinite",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -Infinity\n]\n"
+  },
+  {
+    "query": "isnan(nan)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "isnan(1.0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnan(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnan(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isinfinite(infinite)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "isinfinite(-infinite)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "isinfinite(1.0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isinfinite(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnormal(1.0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "isnormal(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnormal(0.0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnormal(nan)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnormal(infinite)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "isnormal(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  true\n]\n"
+  },
+  {
+    "query": "isnormal(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  false\n]\n"
+  },
+  {
+    "query": "sin(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "cos(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "tan(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "asin(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.5235987755982989\n]\n"
+  },
+  {
+    "query": "acos(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "acos(2)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "math domain error"
+  },
+  {
+    "query": "asin(2)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "math domain error"
+  },
+  {
+    "query": "atan(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.7853981633974483\n]\n"
+  },
+  {
+    "query": "atan2(1, 1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.7853981633974483\n]\n"
+  },
+  {
+    "query": "atan2(0, -1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.141592653589793\n]\n"
+  },
+  {
+    "query": "sinh(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.1752011936438014\n]\n"
+  },
+  {
+    "query": "cosh(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.5430806348152437\n]\n"
+  },
+  {
+    "query": "tanh(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.7615941559557649\n]\n"
+  },
+  {
+    "query": "asinh(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.881373587019543\n]\n"
+  },
+  {
+    "query": "acosh(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "acosh(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "math domain error"
+  },
+  {
+    "query": "atanh(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.5493061443340548\n]\n"
+  },
+  {
+    "query": "atanh(2)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "math domain error"
+  },
+  {
+    "query": "copysign(3, -1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -3.0\n]\n"
+  },
+  {
+    "query": "copysign(-3, 1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.0\n]\n"
+  },
+  {
+    "query": "copysign(3.5, -2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -3.5\n]\n"
+  },
+  {
+    "query": "fdim(5, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2.0\n]\n"
+  },
+  {
+    "query": "fdim(3, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "fdim(3.5, 1.0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  2.5\n]\n"
+  },
+  {
+    "query": "frexp(12)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    0.75,\n    4\n  ]\n]\n"
+  },
+  {
+    "query": "frexp(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    0.0,\n    0\n  ]\n]\n"
+  },
+  {
+    "query": "frexp(-12)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    -0.75,\n    4\n  ]\n]\n"
+  },
+  {
+    "query": "frexp(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    0.5,\n    0\n  ]\n]\n"
+  },
+  {
+    "query": "ldexp(0.75, 4)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  12.0\n]\n"
+  },
+  {
+    "query": "ldexp(3, 2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  12.0\n]\n"
+  },
+  {
+    "query": "ldexp(1, -2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.25\n]\n"
+  },
+  {
+    "query": "modf(3.75)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    0.75,\n    3.0\n  ]\n]\n"
+  },
+  {
+    "query": "modf(-3.75)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    -0.75,\n    -3.0\n  ]\n]\n"
+  },
+  {
+    "query": "modf(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    0.0,\n    5.0\n  ]\n]\n"
+  },
+  {
+    "query": "hypot(3, 4)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  5.0\n]\n"
+  },
+  {
+    "query": "hypot(5, 12)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  13.0\n]\n"
+  },
+  {
+    "query": "hypot(0, 0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "fma(2, 3, 1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7.0\n]\n"
+  },
+  {
+    "query": "fma(2.5, 4, -3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7.0\n]\n"
+  },
+  {
+    "query": "fmax(3, 7)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7\n]\n"
+  },
+  {
+    "query": "fmax(7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7\n]\n"
+  },
+  {
+    "query": "fmax(3.0, 7)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  7\n]\n"
+  },
+  {
+    "query": "fmax(3.5, 3.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.5\n]\n"
+  },
+  {
+    "query": "fmin(3, 7)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "fmin(7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3\n]\n"
+  },
+  {
+    "query": "fmin(3.0, 7)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.0\n]\n"
+  },
+  {
+    "query": "fmod(7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "fmod(-7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -1.0\n]\n"
+  },
+  {
+    "query": "fmod(7.5, 2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.5\n]\n"
+  },
+  {
+    "query": "remainder(7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "remainder(5, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -1.0\n]\n"
+  },
+  {
+    "query": "remainder(-7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -1.0\n]\n"
+  },
+  {
+    "query": "drem(7, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.0\n]\n"
+  },
+  {
+    "query": "drem(5, 3)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -1.0\n]\n"
+  },
+  {
+    "query": "gamma(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  24.0\n]\n"
+  },
+  {
+    "query": "gamma(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.7724538509055159\n]\n"
+  },
+  {
+    "query": "gamma(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "gamma: math domain error"
+  },
+  {
+    "query": "gamma(-0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -3.544907701811032\n]\n"
+  },
+  {
+    "query": "tgamma(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  24.0\n]\n"
+  },
+  {
+    "query": "tgamma(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.7724538509055159\n]\n"
+  },
+  {
+    "query": "lgamma(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.178053830347945\n]\n"
+  },
+  {
+    "query": "lgamma(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.5723649429247004\n]\n"
+  },
+  {
+    "query": "lgamma(-2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.05624371649767457\n]\n"
+  },
+  {
+    "query": "lgamma_r(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    3.178053830347945,\n    1\n  ]\n]\n"
+  },
+  {
+    "query": "lgamma_r(0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    0.5723649429247004,\n    1\n  ]\n]\n"
+  },
+  {
+    "query": "lgamma_r(-2.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    -0.05624371649767457,\n    -1\n  ]\n]\n"
+  },
+  {
+    "query": "lgamma_r(-0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    1.265512123484645,\n    -1\n  ]\n]\n"
+  },
+  {
+    "query": "j0(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1.00000000283141\n]\n"
+  },
+  {
+    "query": "j0(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.7651976837548592\n]\n"
+  },
+  {
+    "query": "j0(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.1775967741123433\n]\n"
+  },
+  {
+    "query": "j0(10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.24593576441799062\n]\n"
+  },
+  {
+    "query": "j1(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "j1(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.4400505856771301\n]\n"
+  },
+  {
+    "query": "j1(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.3275791385663632\n]\n"
+  },
+  {
+    "query": "j1(10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.04347274613822412\n]\n"
+  },
+  {
+    "query": "y0(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.08825697139770806\n]\n"
+  },
+  {
+    "query": "y0(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.3085176230320572\n]\n"
+  },
+  {
+    "query": "y0(10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.055671167282729285\n]\n"
+  },
+  {
+    "query": "y0(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "y0: argument must be positive, got 0"
+  },
+  {
+    "query": "y1(1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.7812128209531197\n]\n"
+  },
+  {
+    "query": "y1(5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.14786313988734273\n]\n"
+  },
+  {
+    "query": "y1(10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.24901542409310506\n]\n"
+  },
+  {
+    "query": "y1(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "y1: argument must be positive, got -1"
+  },
+  {
+    "query": "jn(2, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.04656511868579799\n]\n"
+  },
+  {
+    "query": "jn(3, 10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.05837937932003005\n]\n"
+  },
+  {
+    "query": "jn(0, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.1775967741123433\n]\n"
+  },
+  {
+    "query": "jn(1, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.3275791385663632\n]\n"
+  },
+  {
+    "query": "jn(-2, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.04656511868579799\n]\n"
+  },
+  {
+    "query": "jn(2, 0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "yn(2, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.3676628789869943\n]\n"
+  },
+  {
+    "query": "yn(3, 10)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.2513626570787484\n]\n"
+  },
+  {
+    "query": "yn(0, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  -0.3085176230320572\n]\n"
+  },
+  {
+    "query": "yn(1, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.14786313988734273\n]\n"
+  },
+  {
+    "query": "yn(-2, 5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.3676628789869943\n]\n"
+  },
+  {
+    "query": "yn(2, 0)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "yn: argument must be positive, got 0"
+  },
+  {
+    "query": "sqrt(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "sqrt: argument 1 must be a number, got string"
+  },
+  {
+    "query": "sqrt(true)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "sqrt: argument 1 must be a number, got bool"
+  },
+  {
+    "query": "pow(2, \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "pow: argument 2 must be a number, got string"
+  },
+  {
+    "query": "ldexp(0.75, 1.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "ldexp: argument 2 must be an integer, got float"
+  }
+]
