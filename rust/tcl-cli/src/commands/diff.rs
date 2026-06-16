@@ -16,6 +16,7 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, difflib, ensure_ascii, read_input_documents,
     registry_for_dialect, write_text_output,
 };
+use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::segmenter::{SegmentedCommand, UnclosedDelimiter, segment_commands};
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
@@ -169,7 +170,29 @@ fn compute_layer_diff(
     (false, lines)
 }
 
-/// `tcl diff` — AST/IR/CFG structural diff (AST layer ported).
+/// Build one layer's canonical-JSON payload text for `src`.
+fn layer_payload(
+    layer: &str,
+    src: &str,
+    registry: &CommandRegistry,
+    line_index: &LineIndex,
+) -> anyhow::Result<String> {
+    match layer {
+        "ast" => Ok(serialise_command_ast(src, registry, line_index)),
+        "ir" => {
+            let cu = CompilationUnit::build_for(src, registry, false);
+            Ok(crate::commands::serialise::serialise_ir(&cu.ir_module, line_index, src).dumps_indent2())
+        }
+        // The CFG layer needs the SSA serialiser (`tooling/cli/serialise.py`'s
+        // `_serialise_cfg_*`), not ported yet.
+        other => anyhow::bail!(
+            "`tcl diff` layer `{other}` is not yet implemented in the Rust port \
+             (the CFG serialiser is a separate workstream); use `--show ast,ir`"
+        ),
+    }
+}
+
+/// `tcl diff` — AST/IR/CFG structural diff (AST + IR layers ported).
 #[allow(clippy::too_many_arguments)]
 pub fn run_diff(
     left: Option<&Path>,
@@ -182,14 +205,6 @@ pub fn run_diff(
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
     let layers = parse_layers(show)?;
-    for layer in &layers {
-        if *layer != "ast" {
-            anyhow::bail!(
-                "`tcl diff` layer `{layer}` is not yet implemented in the Rust port \
-                 (the IR/CFG serialiser is a separate workstream); use `--show ast`"
-            );
-        }
-    }
 
     let Some(left) = left else {
         anyhow::bail!("diff requires a left input");
@@ -211,10 +226,13 @@ pub fn run_diff(
     let left_index = LineIndex::new(&left_src);
     let right_index = LineIndex::new(&right_src);
 
-    let left_payload = serialise_command_ast(&left_src, registry, &left_index);
-    let right_payload = serialise_command_ast(&right_src, registry, &right_index);
-    let (equal, diff_lines) =
-        compute_layer_diff("ast", &left_payload, &right_payload, &left_name, &right_name);
+    let mut results: Vec<(String, bool, Vec<String>)> = Vec::new();
+    for layer in &layers {
+        let lp = layer_payload(layer, &left_src, registry, &left_index)?;
+        let rp = layer_payload(layer, &right_src, registry, &right_index)?;
+        let (equal, lines) = compute_layer_diff(layer, &lp, &rp, &left_name, &right_name);
+        results.push(((*layer).to_owned(), equal, lines));
+    }
 
     let target = OutputTarget::from_arg(output);
     write_diff_result(
@@ -225,14 +243,13 @@ pub fn run_diff(
         &right_name,
         &left_docs,
         &right_docs,
-        equal,
-        &diff_lines,
+        &results,
     )
 }
 
-/// Emit the single-layer (`ast`) diff result as JSON or unified-diff text,
-/// returning the exit code (1 when the sides differ). Mirrors the JSON
-/// payload + text chunk assembly in `_run_diff`.
+/// Emit the multi-layer diff result as JSON or unified-diff text, returning the
+/// exit code (1 when any layer differs). Mirrors `_run_diff`'s payload + chunk
+/// assembly.
 #[allow(clippy::too_many_arguments)]
 fn write_diff_result(
     target: &OutputTarget,
@@ -242,25 +259,26 @@ fn write_diff_result(
     right_name: &str,
     left_docs: &[tcl_cli_support::InputDocument],
     right_docs: &[tcl_cli_support::InputDocument],
-    equal: bool,
-    diff_lines: &[String],
+    results: &[(String, bool, Vec<String>)],
 ) -> anyhow::Result<u8> {
-    let stripped: Vec<String> = diff_lines
-        .iter()
-        .map(|l| l.trim_end_matches('\n').to_owned())
-        .collect();
-    let has_differences = !equal;
+    let has_differences = results.iter().any(|(_, equal, _)| !equal);
 
     if json_out {
         let mut layer_obj = Map::new();
-        layer_obj.insert(
-            "ast".to_owned(),
-            json!({
-                "equal": equal,
-                "diff": stripped,
-                "diffLineCount": diff_lines.len(),
-            }),
-        );
+        for (layer, equal, lines) in results {
+            let stripped: Vec<String> = lines
+                .iter()
+                .map(|l| l.trim_end_matches('\n').to_owned())
+                .collect();
+            layer_obj.insert(
+                layer.clone(),
+                json!({
+                    "equal": equal,
+                    "diff": stripped,
+                    "diffLineCount": lines.len(),
+                }),
+            );
+        }
         let payload = json!({
             "equal": !has_differences,
             "dialect": dialect,
@@ -275,15 +293,19 @@ fn write_diff_result(
     }
 
     let mut chunks: Vec<String> = Vec::new();
-    if equal {
-        chunks.push("ast: identical\n".to_owned());
-    } else {
-        chunks.push("=== ast diff ===\n".to_owned());
+    for (layer, equal, lines) in results {
+        if *equal {
+            chunks.push(format!("{layer}: identical\n"));
+            continue;
+        }
+        chunks.push(format!("=== {layer} diff ===\n"));
+        let stripped: Vec<&str> = lines.iter().map(|l| l.trim_end_matches('\n')).collect();
         if stripped.is_empty() {
-            chunks
-                .push("(differences detected, but no unified diff lines were produced)\n".to_owned());
+            chunks.push(
+                "(differences detected, but no unified diff lines were produced)\n".to_owned(),
+            );
         } else {
-            for line in &stripped {
+            for line in stripped {
                 chunks.push(format!("{line}\n"));
             }
         }

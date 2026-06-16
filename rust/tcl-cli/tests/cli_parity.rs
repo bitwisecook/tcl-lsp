@@ -232,6 +232,49 @@ fn diff_ast_json_matches_python() {
     assert_eq!(normalised, expected);
 }
 
+// `diff --show ir` — the **IR layer** is a byte-parity port of the `ir` half of
+// `tooling/cli/serialise.py` (`_serialise_ir` / `_serialise_script` + the
+// `stmt_*` / `preview` helpers) via the new `tcl-cli` `serialise` module: the
+// `tcl-compiler` `CompilationUnit` IR is rendered with the same statement kinds,
+// summaries, colour classes, control-flow children, and span-derived ranges
+// (incl. `widen_for_highlight` brace widening). The CFG layer still needs the
+// SSA serialiser. These fixtures carry procs + `if`/`for`/`expr` so the IR
+// rendering is exercised.
+#[test]
+fn diff_ir_text_matches_python() {
+    let fx = fixtures_dir();
+    let actual = run_tcl_in(
+        &fx,
+        &["diff", "diff-ir-left.tcl", "diff-ir-right.tcl", "--show", "ir"],
+    );
+    let expected = std::fs::read(fx.join("diff.ir.golden")).expect("read diff.ir.golden");
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+    );
+}
+
+#[test]
+fn diff_ir_json_matches_python() {
+    let fx = fixtures_dir();
+    let actual = String::from_utf8(run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-ir-left.tcl",
+            "diff-ir-right.tcl",
+            "--show",
+            "ir",
+            "--json",
+        ],
+    ))
+    .expect("utf8 stdout");
+    let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
+    let expected =
+        std::fs::read_to_string(fx.join("diff.ir.json.golden")).expect("read diff.ir.json.golden");
+    assert_eq!(normalised, expected);
+}
+
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
 // for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
 // `_effect_region_str`) and the taint engine (`find_taint_warnings` over the top
