@@ -911,9 +911,7 @@ fn resolve_const_string(
         return match values.get(&(name.to_owned(), *ver))? {
             LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
             LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
-            LatticeValue::Const(ConstValue::Bool(b)) => {
-                Some(if *b { "1" } else { "0" }.to_owned())
-            }
+            LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
             LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
             _ => None,
         };

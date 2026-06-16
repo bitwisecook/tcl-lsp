@@ -108,14 +108,27 @@ mod tests {
 
     #[test]
     fn unsigned_leb128_roundtrips() {
-        for v in [0u64, 1, 63, 64, 127, 128, 300, 16384, 624_485, u64::from(u32::MAX)] {
+        for v in [
+            0u64,
+            1,
+            63,
+            64,
+            127,
+            128,
+            300,
+            16384,
+            624_485,
+            u64::from(u32::MAX),
+        ] {
             assert_eq!(decode_leb128_unsigned(&leb128_unsigned(v)), v, "value {v}");
         }
     }
 
     #[test]
     fn signed_leb128_roundtrips() {
-        for v in [0i64, 1, -1, 63, -63, 64, -64, 127, -128, 128, -129, 624_485, -624_485] {
+        for v in [
+            0i64, 1, -1, 63, -63, 64, -64, 127, -128, 128, -129, 624_485, -624_485,
+        ] {
             assert_eq!(decode_leb128_signed(&leb128_signed(v)), v, "value {v}");
         }
     }

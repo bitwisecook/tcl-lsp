@@ -1565,7 +1565,15 @@ fn scan_value_substitutions(
             && text.is_char_boundary(start)
             && text.is_char_boundary(end)
         {
-            scan_source_for_calls(&text[start..end], caller, known, registry, dialect, facts, params);
+            scan_source_for_calls(
+                &text[start..end],
+                caller,
+                known,
+                registry,
+                dialect,
+                facts,
+                params,
+            );
         }
     }
 }
