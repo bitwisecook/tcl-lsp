@@ -14,6 +14,28 @@ use super::{CodegenCtx, Op, Operand};
 /// invokes so the peephole pass can selectively remove them.
 pub(crate) const SC_GENERIC_TAG: &str = "sc:generic";
 
+/// Whether `s` contains a `$` or `[` that is *not* backslash-escaped, i.e. a
+/// real variable / command substitution that must be resolved at runtime.
+///
+/// A word with only escaped markers (`\$`, `\[`) and other backslash escapes is
+/// a pure compile-time literal: it can be backslash-substituted and pushed
+/// directly. Without this distinction a word like `x\$y` or list-1.11's
+/// `list e\n} f\$}` would keep its backslashes (real Tcl delivers `x$y` /
+/// `list e\n} f$}`).
+pub(crate) fn has_unescaped_subst(s: &str) -> bool {
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            // A backslash escapes the next byte (`\$`, `\[`, `\\`); skip both.
+            b'\\' => i += 2,
+            b'$' | b'[' => return true,
+            _ => i += 1,
+        }
+    }
+    false
+}
+
 /// Tag appended to no-dedup literal comments.
 pub(crate) const NO_DEDUP_TAG: &str = " #nodedup";
 
@@ -426,6 +448,15 @@ impl CodegenCtx<'_> {
             });
             if braced {
                 self.push_lit_verbatim(a);
+            } else if a.contains('\\') && !has_unescaped_subst(a) {
+                // A non-braced word whose only substitution markers are
+                // backslash-escaped (`\{`, `a\{b`, `\ x`, `x\$y`) is a pure
+                // compile-time literal: backslash-substitute it and push.
+                // Without this the raw escapes reach the VM unchanged and a
+                // proc argument keeps its backslashes (real Tcl delivers the
+                // substituted text). Words with a *real* `$`/`[` fall through to
+                // the interpolation path below.
+                self.push_lit(&tcl_lexer::backslash_subst(a));
             } else {
                 self.emit_value_interpolated(a);
             }

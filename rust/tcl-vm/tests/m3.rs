@@ -664,3 +664,46 @@ fn string_is_classes() {
     out_eq("puts [string is wordchar foo_1]\n", "1\n");
     out_eq("puts [string is wordchar foo-1]\n", "0\n");
 }
+
+#[test]
+fn backslash_substituted_command_arguments() {
+    // A non-braced literal command argument with backslash escapes must be
+    // backslash-substituted at call time, like real Tcl. Previously the raw
+    // escapes reached the VM unchanged (e.g. `\{` arrived as the two chars
+    // `\{`). Covers pure escapes and an *escaped* `$`/`[` (no real subst).
+    out_eq(
+        "proc p {a} { puts [string length $a]:$a }\n\
+         p \\{\n\
+         p a\\{b\n\
+         p x\\$y\n\
+         p f\\[g\n",
+        "1:{\n3:a{b\n3:x$y\n3:f[g\n",
+    );
+    // A real `$var` substitution still resolves (escaped markers don't disable
+    // interpolation of the rest of the word).
+    out_eq(
+        "set y hi\nproc p {a} { puts $a }\np \\$=$y\n",
+        "$=hi\n",
+    );
+}
+
+#[test]
+fn lappend_no_values_preserves_string_rep() {
+    // `lappend var` with no values returns the variable unchanged — it does NOT
+    // re-render the list, so a leading `#` element keeps its bare form instead
+    // of being requoted to `{#}` (Tcl shimmer-validates but never reformats).
+    out_eq("set lst \"# 1 2 3\"\nputs [lappend lst]\n", "# 1 2 3\n");
+    out_eq("set z \"  spaced   out  \"\nputs <[lappend z]>\n", "<  spaced   out  >\n");
+    // Appending values DOES canonicalise as usual.
+    out_eq("set x {1 2 3}\nputs [lappend x 4]\n", "1 2 3 4\n");
+    // An unset variable is created as the empty string.
+    out_eq("puts <[lappend brandnew]>\nputs [info exists brandnew]\n", "<>\n1\n");
+}
+
+#[test]
+fn list_element_quoting_balanced_braces() {
+    // Balanced braces inside an element stay bare; `]`/`"` escape; `[`/`$` brace.
+    out_eq("puts [list a{b}c b{} d]\n", "a{b}c b{} d\n");
+    out_eq("set e {a]b}\nputs [list $e]\n", "a\\]b\n");
+    out_eq("set f {a[b}\nputs [list $f]\n", "{a[b}\n");
+}
