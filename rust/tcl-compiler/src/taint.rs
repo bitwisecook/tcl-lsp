@@ -1568,7 +1568,16 @@ fn irule3002_name_position_safe(
 /// one `TaintWarning`. Iterates blocks in `cfg_order` for deterministic
 /// diagnostic ordering (matching the other shimmer/taint passes).
 #[must_use]
-pub(crate) fn find_taint_warnings(
+/// Emit taint sink warnings (`T100` family) for one function.
+///
+/// This is the per-function sink scan; the whole-unit `dataflow` / `diag`
+/// aggregation calls it over the top level and every procedure unit. Mirrors
+/// the `_find_taint_sinks` half of Python's
+/// `compiler.taint.find_taint_warnings`; the other Python warning kinds
+/// (setter-constraint / uri-split / path-concat / destructive-file) are not
+/// ported yet (the documented T-code gap).
+#[allow(clippy::implicit_hasher)]
+pub fn find_taint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,

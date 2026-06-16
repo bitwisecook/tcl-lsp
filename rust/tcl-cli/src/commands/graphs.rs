@@ -17,9 +17,10 @@ use tcl_cli_support::{
     write_text_output,
 };
 use tcl_compiler::analyser::{AnalysisResult, Analyser, ProcDef, Scope, ScopeKind, VarDef};
-use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::ir::Module as IrModule;
 use tcl_compiler::side_effects::EffectRegion;
+use tcl_compiler::taint::find_taint_warnings;
 use tcl_lexer::{LineIndex, Span};
 
 use crate::cli::InputArgs;
@@ -845,6 +846,171 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     if !leaves.is_empty() {
         let names: Vec<&str> = leaves.iter().filter_map(Value::as_str).collect();
         lines.push(format!("leaves: {}", names.join(", ")));
+    }
+    write_text_output(&target, &lines.join("\n"))?;
+    Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// dataflow
+// ---------------------------------------------------------------------------
+
+/// Aggregate the `T100`-family taint sink warnings for one function unit
+/// into the dataflow JSON shape (port of `build_dataflow_graph`'s warning
+/// loop; every Rust taint warning is a `TaintWarning`, so `variable` /
+/// `sink_command` are always present).
+fn collect_taint_warnings(
+    fu: &FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: &str,
+    line_index: &LineIndex,
+    out: &mut Vec<Value>,
+) {
+    let warnings = find_taint_warnings(
+        &fu.cfg,
+        &fu.ssa,
+        &fu.taints,
+        &fu.sccp.executable_blocks,
+        registry,
+        Some(dialect),
+    );
+    for w in warnings {
+        out.push(json!({
+            "code": w.code,
+            "line": line0(line_index, w.span.start()),
+            "message": w.message,
+            "variable": w.variable,
+            "sink_command": w.sink_command,
+        }));
+    }
+}
+
+/// Tainted variable names in `fu` (deduplicated, sorted for a
+/// deterministic order). Python iterates the taint lattice map in SSA
+/// insertion order; the Rust taint map is a `HashMap`, so the order is
+/// recovered by sorting — this only matters once the taint engine starts
+/// reporting tainted variables (the documented taint gap).
+fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
+    let mut names: Vec<&str> = fu
+        .taints
+        .iter()
+        .filter(|(_, lattice)| lattice.is_tainted())
+        .map(|((name, _version), _)| name.as_str())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+/// Build the dataflow / taint graph payload — port of
+/// `build_dataflow_graph`.
+fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
+    let registry = registry_for_dialect(dialect);
+    let cu = CompilationUnit::build_for(source, registry, false)
+        .with_interprocedural(registry, Some(dialect));
+    let line_index = LineIndex::new(source);
+
+    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
+    proc_names.sort();
+
+    // Taint warnings: top level first, then each procedure.
+    let mut taint_warnings: Vec<Value> = Vec::new();
+    collect_taint_warnings(&cu.top_level, registry, dialect, &line_index, &mut taint_warnings);
+    for qname in &proc_names {
+        collect_taint_warnings(&cu.procedures[*qname], registry, dialect, &line_index, &mut taint_warnings);
+    }
+
+    // Tainted variables per scope: top level first, then each procedure.
+    let mut tainted_variables: Vec<Value> = Vec::new();
+    for name in tainted_var_names(&cu.top_level) {
+        tainted_variables.push(json!({ "scope": "<top-level>", "variable": name }));
+    }
+    for qname in &proc_names {
+        for name in tainted_var_names(&cu.procedures[*qname]) {
+            tainted_variables.push(json!({ "scope": qname, "variable": name }));
+        }
+    }
+
+    // Per-proc side-effect classification (interproc summaries, by qname).
+    let interproc = cu
+        .interproc
+        .as_ref()
+        .expect("with_interprocedural populates the summary");
+    let mut effect_names: Vec<&String> = interproc.procedures.keys().collect();
+    effect_names.sort();
+    let mut proc_effects: Vec<Value> = Vec::new();
+    let mut pure_count = 0i64;
+    let mut impure_count = 0i64;
+    for qname in &effect_names {
+        let summary = &interproc.procedures[*qname];
+        if summary.pure {
+            pure_count += 1;
+        } else {
+            impure_count += 1;
+        }
+        proc_effects.push(json!({
+            "name": qname,
+            "pure": summary.pure,
+            "reads": effect_region_str(summary.effect_reads),
+            "writes": effect_region_str(summary.effect_writes),
+            "has_barrier": summary.has_barrier,
+        }));
+    }
+
+    json!({
+        "taint_warnings": taint_warnings,
+        "tainted_variables": tainted_variables,
+        "proc_effects": proc_effects,
+        "summary": {
+            "total_taint_warnings": taint_warnings.len(),
+            "tainted_variable_count": tainted_variables.len(),
+            "pure_proc_count": pure_count,
+            "impure_proc_count": impure_count,
+        },
+    })
+}
+
+/// `tcl dataflow` — taint warnings, tainted variables, and per-proc
+/// side-effect classification.
+pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
+    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let source = combine_sources(&documents);
+    let data = build_dataflow_graph(&source, &input.dialect);
+
+    let target = OutputTarget::from_arg(input.output.as_deref());
+
+    if json_out {
+        let text = ensure_ascii(&serde_json::to_string_pretty(&data)?);
+        write_text_output(&target, &text)?;
+        return Ok(0);
+    }
+
+    let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
+    let get = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
+    let mut lines = vec![format!(
+        "dataflow: taintWarnings={} taintedVars={} pure={} impure={}",
+        get("total_taint_warnings"),
+        get("tainted_variable_count"),
+        get("pure_proc_count"),
+        get("impure_proc_count"),
+    )];
+
+    let empty: Vec<Value> = Vec::new();
+    let warnings = data
+        .get("taint_warnings")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
+    if !warnings.is_empty() {
+        lines.push("taint warnings:".to_owned());
+        for warning in warnings {
+            let line_no = warning
+                .get("line")
+                .and_then(Value::as_i64)
+                .map_or_else(|| "?".to_owned(), |l| (l + 1).to_string());
+            let code = warning.get("code").and_then(Value::as_str).unwrap_or("");
+            let message = warning.get("message").and_then(Value::as_str).unwrap_or("");
+            lines.push(format!("  {code} line {line_no}: {message}"));
+        }
     }
     write_text_output(&target, &lines.join("\n"))?;
     Ok(0)

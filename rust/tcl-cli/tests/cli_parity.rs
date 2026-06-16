@@ -174,6 +174,34 @@ fn callgraph_json_matches_python() {
     );
 }
 
+// `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
+// for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
+// `_effect_region_str`) and the taint engine (`find_taint_warnings` over the top
+// level + each procedure unit for `taint_warnings`, and the `FunctionUnit`
+// taint lattices for `tainted_variables`). The `proc_effects` half is at parity
+// (it rides on the closed interproc engine). The **taint half is engine-gapped**
+// (documented in docs/rust-cli-port.md): the Rust taint engine emits only the
+// `T100` sink family (Python also emits setter-constraint / uri-split /
+// path-concat / destructive-file codes), and its taint propagation differs (it
+// can mark a proc-param-derived global tainted where Python does not). So this
+// golden uses a faithful subset — pure procs with no taint sources/sinks — where
+// both taint outputs are empty, locking the `proc_effects` + summary
+// serialisation byte-for-byte.
+#[test]
+fn dataflow_text_matches_python() {
+    let input = fixtures_dir().join("dataflow.tcl");
+    assert_matches_golden(&["dataflow", input.to_str().unwrap()], "dataflow.golden");
+}
+
+#[test]
+fn dataflow_json_matches_python() {
+    let input = fixtures_dir().join("dataflow.tcl");
+    assert_matches_golden(
+        &["dataflow", "--json", input.to_str().unwrap()],
+        "dataflow.json.golden",
+    );
+}
+
 // `registry-dump` is wired onto the Rust command-registry snapshot
 // (`tcl_registry::command_snapshot`, a faithful port of Python
 // `command_registry_snapshot`). Whole-dialect byte-parity is gated by
