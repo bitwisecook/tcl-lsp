@@ -17,6 +17,7 @@ use crate::obj::{self, TclObj};
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"set", set);
     interp.register_builtin(b"incr", incr);
+    interp.register_builtin(b"const", const_cmd);
     interp.register_builtin(b"return", ret);
     interp.register_builtin(b"unset", unset);
     interp.register_builtin(b"subst", subst_cmd);
@@ -92,11 +93,75 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
         VarError::IsArray => &b"\": variable is array"[..],
         VarError::IsScalar => &b"\": variable isn't array"[..],
         VarError::NoSuchNamespace => &b"\": parent namespace doesn't exist"[..],
+        VarError::IsConstant => &b"\": variable is a constant"[..],
         VarError::TraceError => unreachable!("handled above"),
     };
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
     msg.extend_from_slice(verb);
+    interp.set_error(&msg)
+}
+
+/// `can't incr "name": variable is a constant` when `incr` targets a `const`
+/// scalar (C checks this before the read-modify-write, so no read trace fires).
+fn incr_constant_error(
+    interp: &mut Interp,
+    base: &[u8],
+    elem: &Option<Vec<u8>>,
+    name: &[u8],
+) -> Option<Code> {
+    if elem.is_none() && interp.is_constant(base) {
+        let mut msg = b"can't incr \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": variable is a constant");
+        return Some(interp.set_error(&msg));
+    }
+    None
+}
+
+/// `const varName value` (TIP 677) — set `varName` and flag it unmodifiable.
+/// Re-`const`'ing an existing constant is a silent no-op; any other existing
+/// variable, an array, or an array element is an error.
+fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return wrong_args(interp, b"const varName value");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = split_array_ref(&name);
+    // `const X(a)` — a constant may not be an array element.
+    if elem.is_some() {
+        return make_constant_error(interp, &name, b"name refers to an element in an array");
+    }
+    // `const X` where X is already an array.
+    if interp.var_is_array(&base) {
+        return make_constant_error(interp, &name, b"variable is array");
+    }
+    // Already defined: a constant is a no-op; anything else already exists.
+    if interp.var_exists(&base) {
+        if interp.is_constant(&base) {
+            interp.set_result_bytes(b""); // C's `const` yields an empty result
+            return Code::Ok;
+        }
+        return make_constant_error(interp, &name, b"variable already exists");
+    }
+    // Set the value (firing write traces; a trace error aborts the const), then
+    // flag the cell constant.
+    match interp.var_set(&base, argv[2]) {
+        Ok(()) => {
+            interp.mark_constant(&base);
+            interp.set_result_bytes(b""); // C's `const` yields an empty result
+            Code::Ok
+        }
+        Err(e) => var_error(interp, &name, e),
+    }
+}
+
+/// `can't make constant "name": <reason>` (the `const` command's lookup errors).
+fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code {
+    let mut msg = b"can't make constant \"".to_vec();
+    msg.extend_from_slice(name);
+    msg.extend_from_slice(b"\": ");
+    msg.extend_from_slice(reason);
     interp.set_error(&msg)
 }
 
@@ -166,6 +231,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
 
     // Current cell value (borrowed) or a fresh 0 for an unset variable; the
     // fresh-0 is `rc 0` and freed below whether or not it's used.
@@ -229,6 +297,9 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
 
     let cur = match read_cell(interp, &base, &elem) {
         Some(bytes) => match parse_i64(&bytes) {
@@ -413,6 +484,17 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &a in &argv[i..] {
         let name = obj_bytes(a);
         let (base, elem) = split_array_ref(&name);
+        // A constant cannot be unset; `-nocomplain` leaves it in place silently
+        // (var-26.11/26.12), otherwise it is an error.
+        if elem.is_none() && interp.is_constant(&base) {
+            if nocomplain {
+                continue;
+            }
+            let mut msg = b"can't unset \"".to_vec();
+            msg.extend_from_slice(&name);
+            msg.extend_from_slice(b"\": variable is a constant");
+            return interp.set_error(&msg);
+        }
         let existed = match &elem {
             Some(k) => interp.var_unset_elem(&base, k),
             None => interp.var_unset(&base),
@@ -433,24 +515,27 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// unset variable or a failing command substitution propagate.
 fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const USAGE: &[u8] = b"subst ?-nobackslashes? ?-nocommands? ?-novariables? string";
-    let mut flags = crate::subst::SubstFlags::default();
-    let mut i = 1;
-    while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-nobackslashes" => flags.backslashes = false,
-            b"-nocommands" => flags.cmds = false,
-            b"-novariables" => flags.vars = false,
-            _ => break,
-        }
-        i += 1;
-    }
-    if i != argv.len() - 1 {
+    if argv.len() < 2 {
         return wrong_args(interp, USAGE);
     }
-    let src = obj_bytes(argv[i]);
+    // Every argument before the last is an option (C's `TclSubstOptions` over
+    // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
+    let mut flags = crate::subst::SubstFlags::default();
+    for &opt in &argv[1..argv.len() - 1] {
+        let name = obj_bytes(opt);
+        match subst_option_index(&name) {
+            SubstOpt::Backslashes => flags.backslashes = false,
+            SubstOpt::Commands => flags.cmds = false,
+            SubstOpt::Variables => flags.vars = false,
+            SubstOpt::Bad => return subst_bad_option(interp, b"bad", &name),
+            SubstOpt::Ambiguous => return subst_bad_option(interp, b"ambiguous", &name),
+        }
+    }
+    let last = argv[argv.len() - 1];
+    let src = obj_bytes(last);
     // TIP 280: a `[...]` inside the substituted string reports the line it sits
     // on, derived from the argument word's recorded source location.
-    let loc = interp.arg_location(argv[i]);
+    let loc = interp.arg_location(last);
     match interp.do_subst_located(&src, flags, loc) {
         Ok(bytes) => {
             interp.set_result_bytes(&bytes);
@@ -458,6 +543,48 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Err(code) => code, // the failing sub already set the result
     }
+}
+
+/// The resolution of a `subst` option word against `{-nobackslashes,
+/// -nocommands, -novariables}` (Tcl's exact-or-unique-prefix matching).
+enum SubstOpt {
+    Backslashes,
+    Commands,
+    Variables,
+    Bad,
+    Ambiguous,
+}
+
+fn subst_option_index(name: &[u8]) -> SubstOpt {
+    const NAMES: [&[u8]; 3] = [b"-nobackslashes", b"-nocommands", b"-novariables"];
+    let mut found = None;
+    let mut count = 0;
+    for (k, n) in NAMES.iter().enumerate() {
+        if *n == name {
+            count = 1;
+            found = Some(k);
+            break;
+        }
+        if n.starts_with(name) {
+            found = Some(k);
+            count += 1;
+        }
+    }
+    match (count, found) {
+        (1, Some(0)) => SubstOpt::Backslashes,
+        (1, Some(1)) => SubstOpt::Commands,
+        (1, Some(2)) => SubstOpt::Variables,
+        (0, _) => SubstOpt::Bad,
+        _ => SubstOpt::Ambiguous,
+    }
+}
+
+fn subst_bad_option(interp: &mut Interp, kind: &[u8], name: &[u8]) -> Code {
+    let mut m = kind.to_vec();
+    m.extend_from_slice(b" option \"");
+    m.extend_from_slice(name);
+    m.extend_from_slice(b"\": must be -nobackslashes, -nocommands, or -novariables");
+    interp.set_error(&m)
 }
 
 // -- helpers ---------------------------------------------------------------

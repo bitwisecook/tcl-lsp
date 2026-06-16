@@ -173,6 +173,19 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() > 4 {
                 return wrong_args(interp, b"info loaded ?interp? ?prefix?");
             }
+            // A named interp must resolve (C's `Tcl_GetChild` in
+            // `TclGetLoadedLibraries`); the empty path is the current interp.
+            // Nothing is ever loaded in this runtime, so the result is always
+            // empty — but an unknown interp is still an error.
+            if let Some(&a) = argv.get(2) {
+                let path = obj_bytes(a);
+                if !path.is_empty() && !interp.child_exists(&path) {
+                    let mut m = b"could not find interpreter \"".to_vec();
+                    m.extend_from_slice(&path);
+                    m.push(b'"');
+                    return interp.set_error(&m);
+                }
+            }
             interp.set_result_bytes(b"");
             Code::Ok
         }
@@ -230,21 +243,21 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"constant" => {
-            // TIP 677: whether a variable is a `const`. No const variables yet ⇒ 0.
+            // TIP 677: whether `varName` resolves to a `const` scalar.
             if argv.len() != 3 {
                 return wrong_args(interp, b"info constant varName");
             }
-            interp.set_result_bytes(b"0");
+            let is_const = interp.is_constant(&obj_bytes(argv[2]));
+            interp.set_result_bytes(if is_const { b"1" } else { b"0" });
             Code::Ok
         }
-        b"consts" => {
-            // TIP 677: the const variables (glob-filtered). None yet ⇒ empty.
-            if argv.len() > 3 {
-                return wrong_args(interp, b"info consts ?pattern?");
-            }
-            interp.set_result_bytes(b"");
-            Code::Ok
-        }
+        b"consts" => set_list_qualified(
+            interp,
+            argv,
+            b"info consts ?pattern?",
+            Interp::consts_in_namespace,
+            Interp::visible_const_names,
+        ),
         other => {
             let mut m = b"unknown or ambiguous subcommand \"".to_vec();
             m.extend_from_slice(other);

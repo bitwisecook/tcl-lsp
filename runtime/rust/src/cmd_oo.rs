@@ -2693,6 +2693,22 @@ impl Interp {
         }
     }
 
+    /// The `info cmdtype` classification of the per-object private command `fqn`
+    /// (a `my`/`myclass` builtin): `privateObject` for an object's `my`,
+    /// `privateClass` for its `myclass`, else `None`. Matched against the
+    /// object's tracked `my_aliases` so a renamed command is still classified.
+    pub(crate) fn oo_private_cmd_kind(&self, fqn: &[u8]) -> Option<&'static [u8]> {
+        let oo = self.oo.borrow();
+        for o in oo.objects.values() {
+            match o.my_aliases.iter().position(|a| a.as_slice() == fqn) {
+                Some(0) => return Some(b"privateObject"),
+                Some(1) => return Some(b"privateClass"),
+                _ => {}
+            }
+        }
+        None
+    }
+
     /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`
     /// body (so `dispatch` should try definition-subcommand resolution on a miss).
     pub(crate) fn in_oo_define(&self) -> bool {

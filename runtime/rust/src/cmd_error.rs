@@ -134,25 +134,27 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// A `try` handler clause. The handler `script` is kept as its argument object
 /// (not flattened to bytes) so it evaluates through `eval_control_body`, which
-/// recovers the literal's TIP 280 source location for `info frame`.
-enum Handler {
-    /// `on code varList script` — matches the body's completion code.
-    On {
-        code: Vec<u8>,
-        vars: Vec<u8>,
-        script: *mut TclObj,
-    },
-    /// `trap pattern varList script` — matches an error whose `-errorcode`
-    /// has `pattern` (a list) as a leading sublist.
-    Trap {
-        pattern: Vec<u8>,
-        vars: Vec<u8>,
-        script: *mut TclObj,
-    },
+/// A parsed `try` handler clause (`on code …` or `trap pattern …`). The
+/// completion code / errorcode prefix are resolved at parse time so a bad code
+/// word or trap prefix errors before the body runs; `is_dash` marks a `-`
+/// fall-through body (the next non-`-` clause's body runs instead).
+struct Handler {
+    /// The completion code an `on` clause matches (a `trap` is always `1`).
+    code: i64,
+    /// `true` for a `trap` clause (matches an error by `-errorcode` prefix).
+    is_trap: bool,
+    /// The `trap` errorcode prefix (a list); empty for `on`.
+    pattern: Vec<u8>,
+    /// The `[resultVar ?optionsVar?]` bind list.
+    vars: Vec<u8>,
+    /// The handler body, or `-` (see `is_dash`).
+    script: *mut TclObj,
+    /// Whether the body is the fall-through marker `-`.
+    is_dash: bool,
 }
 
 /// Map a `try`/`on` completion-code word (`ok`/`error`/`return`/`break`/
-/// `continue` or an integer 0–4) to its numeric code.
+/// `continue` or an integer that fits a C `int`) to its numeric code.
 fn code_word_to_int(spec: &[u8]) -> Option<i64> {
     match spec {
         b"ok" => Some(0),
@@ -160,7 +162,13 @@ fn code_word_to_int(spec: &[u8]) -> Option<i64> {
         b"return" => Some(2),
         b"break" => Some(3),
         b"continue" => Some(4),
-        _ => core::str::from_utf8(spec).ok()?.trim().parse::<i64>().ok(),
+        // A completion code must fit a 32-bit int (C's `Tcl_GetIntFromObj`).
+        _ => core::str::from_utf8(spec)
+            .ok()?
+            .trim()
+            .parse::<i32>()
+            .ok()
+            .map(i64::from),
     }
 }
 
@@ -193,7 +201,10 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while j < argv.len() {
         match obj_bytes(argv[j]).as_slice() {
             b"finally" => {
-                if j + 2 != argv.len() {
+                if j < argv.len() - 2 {
+                    return interp.set_error(b"finally clause must be last");
+                }
+                if j == argv.len() - 1 {
                     return interp.set_error(
                         b"wrong # args to finally clause: must be \"... finally script\"",
                     );
@@ -201,28 +212,62 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 finally = Some(argv[j + 1]);
                 j += 2;
             }
-            b"on" if j + 4 <= argv.len() => {
-                handlers.push(Handler::On {
-                    code: obj_bytes(argv[j + 1]),
+            b"on" => {
+                if j + 4 > argv.len() {
+                    return interp.set_error(
+                        b"wrong # args to on clause: must be \"... on code variableList script\"",
+                    );
+                }
+                let code = match code_word_to_int(&obj_bytes(argv[j + 1])) {
+                    Some(c) => c,
+                    None => return bad_completion_code(interp, &obj_bytes(argv[j + 1])),
+                };
+                let script = argv[j + 3];
+                handlers.push(Handler {
+                    code,
+                    is_trap: false,
+                    pattern: Vec::new(),
                     vars: obj_bytes(argv[j + 2]),
-                    script: argv[j + 3],
+                    script,
+                    is_dash: obj_bytes(script).as_slice() == b"-",
                 });
                 j += 4;
             }
-            b"trap" if j + 4 <= argv.len() => {
-                handlers.push(Handler::Trap {
-                    pattern: obj_bytes(argv[j + 1]),
+            b"trap" => {
+                if j + 4 > argv.len() {
+                    return interp.set_error(
+                        b"wrong # args to trap clause: must be \"... trap pattern variableList script\"",
+                    );
+                }
+                let pattern = obj_bytes(argv[j + 1]);
+                if crate::parse::split_list(&pattern).is_err() {
+                    let mut m = b"bad prefix '".to_vec();
+                    m.extend_from_slice(&pattern);
+                    m.extend_from_slice(b"': must be a list");
+                    return interp.set_error(&m);
+                }
+                let script = argv[j + 3];
+                handlers.push(Handler {
+                    code: 1,
+                    is_trap: true,
+                    pattern,
                     vars: obj_bytes(argv[j + 2]),
-                    script: argv[j + 3],
+                    script,
+                    is_dash: obj_bytes(script).as_slice() == b"-",
                 });
                 j += 4;
             }
-            _ => {
-                return interp.set_error(
-                    b"bad handler clause: must be \"on code varList script\", \"trap pattern varList script\", or \"finally script\"",
-                );
+            other => {
+                let mut m = b"bad handler type \"".to_vec();
+                m.extend_from_slice(other);
+                m.extend_from_slice(b"\": must be finally, on, or trap");
+                return interp.set_error(&m);
             }
         }
+    }
+    // The last non-finally clause may not be a `-` fall-through (nothing follows).
+    if handlers.last().is_some_and(|h| h.is_dash) {
+        return interp.set_error(b"last non-finally clause must not have a body of \"-\"");
     }
 
     // Run the body, snapshotting its completion code, result, and -errorcode.
@@ -236,55 +281,41 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Vec::new()
     };
 
-    // Locate the first matching handler.
+    // Locate the first matching handler, then scan forward over `-` bodies to the
+    // clause whose body actually runs (binding *that* clause's variables).
     let mut outcome_code = body_code;
     let mut outcome_result = body_result.clone();
-    for h in &handlers {
-        let (matches, vars, script) = match h {
-            Handler::On { code, vars, script } => (
-                code_word_to_int(code) == Some(body_code.as_int()),
-                vars,
-                script,
-            ),
-            Handler::Trap {
-                pattern,
-                vars,
-                script,
-            } => (
-                body_code == Code::Error && errorcode_prefix_match(pattern, &errorcode),
-                vars,
-                script,
-            ),
-        };
-        if !matches {
-            continue;
+    let matched = handlers.iter().position(|h| {
+        if h.is_trap {
+            body_code == Code::Error && errorcode_prefix_match(&h.pattern, &errorcode)
+        } else {
+            h.code == body_code.as_int()
         }
-        // Bind the handler's variables: [resultVar ?optionsVar?].
-        let names = crate::parse::split_list(vars).unwrap_or_default();
-        if let Some(rv) = names.first() {
-            if !rv.is_empty() {
-                let o = new_string(&body_result);
-                if interp.var_set(rv, o).is_err() {
-                    drop_fresh(o);
-                    return cant_set(interp, rv);
+    });
+    if let Some(m) = matched {
+        let mut b = m;
+        while handlers[b].is_dash {
+            b += 1; // guaranteed to terminate (the last body is not `-`)
+        }
+        // Bind the running clause's variables: [resultVar ?optionsVar?]. The
+        // options dict must be built from the *live* body error/return state, so
+        // this runs before the error is published+reset. A failed bind becomes
+        // the outcome (and skips the handler body), but `finally` still runs.
+        match bind_handler_vars(interp, &handlers[b].vars, &body_result, body_code) {
+            Ok(()) => {
+                // The body's exception is now handled: publish + reset so the
+                // handler starts with clean error state.
+                if body_code == Code::Error {
+                    interp.publish_and_reset_error();
                 }
+                outcome_code = interp.eval_control_body(handlers[b].script);
+                outcome_result = interp.result_bytes();
+            }
+            Err(()) => {
+                outcome_code = Code::Error;
+                outcome_result = interp.result_bytes();
             }
         }
-        if let Some(ov) = names.get(1) {
-            let opts = build_options(interp, body_code);
-            if interp.var_set(ov, opts).is_err() {
-                drop_fresh(opts);
-                return cant_set(interp, ov);
-            }
-        }
-        // The body's error is now handled: publish + reset before the handler
-        // runs (which starts its own error state if it throws).
-        if body_code == Code::Error {
-            interp.publish_and_reset_error();
-        }
-        outcome_code = interp.eval_control_body(*script);
-        outcome_result = interp.result_bytes();
-        break;
     }
 
     // `finally` always runs; only its error overrides the result.
@@ -299,6 +330,47 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     outcome_code
 }
 
+/// `bad completion code "X": must be ok, error, return, break, continue, or an
+/// integer` — an unrecognised `on` code word.
+fn bad_completion_code(interp: &mut Interp, word: &[u8]) -> Code {
+    let mut m = b"bad completion code \"".to_vec();
+    m.extend_from_slice(word);
+    m.extend_from_slice(b"\": must be ok, error, return, break, continue, or an integer");
+    interp.set_error(&m)
+}
+
+/// Bind a `try` handler clause's `[resultVar ?optionsVar?]` to the body's result
+/// and option dict. `Err(())` if a variable can't be set (the interp error is
+/// left in place); the result variable is set before the options variable, so a
+/// later failure still leaves the result variable assigned (error-19.11).
+fn bind_handler_vars(
+    interp: &mut Interp,
+    vars: &[u8],
+    body_result: &[u8],
+    body_code: Code,
+) -> Result<(), ()> {
+    let names = crate::parse::split_list(vars).unwrap_or_default();
+    if let Some(rv) = names.first() {
+        if !rv.is_empty() {
+            let o = new_string(body_result);
+            if interp.var_set(rv, o).is_err() {
+                drop_fresh(o);
+                cant_set(interp, rv);
+                return Err(());
+            }
+        }
+    }
+    if let Some(ov) = names.get(1) {
+        let opts = build_options(interp, body_code);
+        if interp.var_set(ov, opts).is_err() {
+            drop_fresh(opts);
+            cant_set(interp, ov);
+            return Err(());
+        }
+    }
+    Ok(())
+}
+
 /// `throw type message` — raise an error with `-errorcode type` (a non-empty
 /// list). Equivalent to `return -code error -errorcode $type $message`.
 fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -308,7 +380,10 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ecode = obj_bytes(argv[1]);
     match crate::parse::split_list(&ecode) {
         Ok(parts) if !parts.is_empty() => {}
-        _ => return interp.set_error(b"type must be non-empty list"),
+        // A malformed type list reports the list parse error verbatim
+        // (error-8.8/8.11); a well-formed but empty list is the type error.
+        Ok(_) => return interp.set_error(b"type must be non-empty list"),
+        Err(e) => return interp.set_error(e.message()),
     }
     interp.set_result(argv[2]);
     // Like `return -code error -errorcode $type $msg`: set the code, let the

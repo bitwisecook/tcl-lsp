@@ -404,12 +404,19 @@ fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     match var_name {
         Some(name) => {
-            let o = new_string_bytes(&final_bytes);
-            if interp.var_set(&name, o).is_err() {
-                drop_fresh(o);
-                return interp.set_error(b"couldn't set variable");
+            // A constant target is rejected with the standard message (a write
+            // trace / array mismatch is reported by `var_error`).
+            if let Some(c) = interp.const_write_check(&name) {
+                return c;
             }
-            set_int(interp, num_matches);
+            let o = new_string_bytes(&final_bytes);
+            match interp.var_set(&name, o) {
+                Ok(()) => set_int(interp, num_matches),
+                Err(e) => {
+                    drop_fresh(o);
+                    return crate::builtins::var_error(interp, &name, e);
+                }
+            }
         }
         None => interp.set_result(new_string_bytes(&final_bytes)),
     }

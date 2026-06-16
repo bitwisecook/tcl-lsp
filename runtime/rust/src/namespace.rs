@@ -303,6 +303,16 @@ impl Namespaces {
             .collect()
     }
 
+    /// `const` scalar names in `ns` (`info consts`).
+    pub(crate) fn const_names(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.arena[ns]
+            .vars
+            .const_names()
+            .into_iter()
+            .map(<[u8]>::to_vec)
+            .collect()
+    }
+
     /// Sorted names of the commands in `ns` that are procs (`info procs`).
     #[must_use]
     pub(crate) fn proc_names(&self, ns: NsId) -> Vec<Vec<u8>> {

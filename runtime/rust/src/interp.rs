@@ -583,6 +583,10 @@ pub struct InterpState {
     /// wrote it. `removed` is how many leading words of `source` map to the
     /// rewritten prefix. Set at the root dispatch, cleared when it returns.
     ensemble_rewrite: RefCell<Option<EnsembleRewrite>>,
+    /// The `expr rand()`/`srand()` PRNG seed (C's `iPtr->randSeed`); `None`
+    /// until first seeded (lazily from a nondeterministic source on first
+    /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
+    rand_seed: Cell<Option<i64>>,
     result: Cell<*mut TclObj>,
 }
 
@@ -635,6 +639,7 @@ impl Interp {
             events: RefCell::new(crate::cmd_event::EventQueue::default()),
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
+            rand_seed: Cell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -1310,6 +1315,80 @@ impl Interp {
             return Err(VarError::TraceError);
         }
         Ok(())
+    }
+
+    /// Flag the scalar `name` `const` (the `const` command, after its value is
+    /// stored and its write traces have fired).
+    pub(crate) fn mark_constant(&self, name: &[u8]) {
+        crate::vars::mark_constant(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        );
+    }
+
+    /// `Some(error)` — `can't set "name": variable is a constant` — when the
+    /// (possibly `arr(idx)`) `name` targets a `const` scalar; `None` otherwise.
+    /// The read-modify-write commands (`lappend`/`dict set`/`regsub`/`gets`)
+    /// call this before mutating, since their in-place value update would
+    /// otherwise bypass the store-time constant check.
+    pub(crate) fn const_write_check(&mut self, name: &[u8]) -> Option<Code> {
+        let (base, elem) = crate::frame::split_array_ref(name);
+        if elem.is_none() && self.is_constant(&base) {
+            let mut m = b"can't set \"".to_vec();
+            m.extend_from_slice(name);
+            m.extend_from_slice(b"\": variable is a constant");
+            return Some(self.set_error(&m));
+        }
+        None
+    }
+
+    /// Whether `name` resolves to a `const` scalar.
+    pub(crate) fn is_constant(&self, name: &[u8]) -> bool {
+        crate::vars::is_constant(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
+    /// `array default set arrayName value` — set the array's TIP 508 default
+    /// (creating an empty array if needed). `Err` if the name is a scalar / its
+    /// namespace is missing.
+    pub(crate) fn set_array_default(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+    ) -> Result<(), VarError> {
+        crate::vars::set_array_default(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+            obj,
+        )
+    }
+
+    /// The array's TIP 508 default value (borrowed), or `None`.
+    pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+        crate::vars::array_default(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            name,
+        )
+    }
+
+    /// `array default unset arrayName` — drop the array's default value.
+    pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+        crate::vars::unset_array_default(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            self.current_ns.get(),
+            name,
+        );
     }
 
     /// The call-frame level a variable trace on `base` should be tied to, so it
@@ -2017,6 +2096,35 @@ impl Interp {
         self.frames.borrow().local_names_no_links()
     }
 
+    /// `info consts` — the `const` scalar names visible in the current scope.
+    /// Filters the visible variables by constness (following links), so an OO
+    /// instance variable linked to a `const` namespace variable is included.
+    pub(crate) fn visible_const_names(&self) -> Vec<Vec<u8>> {
+        self.visible_var_names()
+            .into_iter()
+            .filter(|n| self.is_constant(n))
+            .collect()
+    }
+
+    /// `info consts ns::pat` — the `const` scalar names in the namespace named
+    /// `qualifier` (absolute or relative to the current namespace).
+    pub(crate) fn consts_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let target = if qualifier.is_empty() {
+            Some(GLOBAL)
+        } else {
+            ns.find_namespace(self.current_ns.get(), qualifier)
+        };
+        match target {
+            Some(id) => {
+                let mut v = ns.const_names(id);
+                v.sort();
+                v
+            }
+            None => Vec::new(),
+        }
+    }
+
     /// `info globals` — the global namespace's variable names.
     pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
         self.namespaces.borrow().var_names(GLOBAL)
@@ -2153,6 +2261,18 @@ impl Interp {
             self.current_ns.get(),
             target,
             local,
+        );
+    }
+
+    /// `upvar … target ns::tail` — install the link as namespace variable
+    /// `home_ns::tail` (a qualified local name).
+    pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {
+        crate::vars::make_upvar_in(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            home_ns,
+            tail,
+            target,
         );
     }
 
@@ -3549,6 +3669,48 @@ impl Interp {
         self.cmd_count.get()
     }
 
+    /// `expr srand(n)`: reset the PRNG seed to `n` (C's `ExprSrandFunc` — mask
+    /// to 31 bits, avoid the LCG's two fixed points), then return the first
+    /// `rand()` of the new sequence.
+    pub(crate) fn srand(&self, n: i64) -> f64 {
+        let mut seed = n & 0x7FFF_FFFF;
+        if seed == 0 || seed == 0x7FFF_FFFF {
+            seed ^= 123_459_876;
+        }
+        self.rand_seed.set(Some(seed));
+        self.rand_next()
+    }
+
+    /// `expr rand()`: advance the Park–Miller minimal-standard LCG and return a
+    /// double in `(0, 1)` (C's `ExprRandFunc`). Seeds nondeterministically on
+    /// first use if `srand` hasn't run.
+    pub(crate) fn rand_next(&self) -> f64 {
+        // Constants from `ExprRandFunc`: IA=16807, IM=2^31-1, IQ=127773, IR=2836.
+        const RAND_IA: i64 = 16807;
+        const RAND_IM: i64 = 2_147_483_647;
+        const RAND_IQ: i64 = 127_773;
+        const RAND_IR: i64 = 2836;
+        let mut seed = self.rand_seed.get().unwrap_or_else(|| {
+            // Nondeterministic first seed, kept in [1, 2^31-2].
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as i64)
+                .unwrap_or(1);
+            let mut s = t & 0x7FFF_FFFF;
+            if s == 0 || s == 0x7FFF_FFFF {
+                s ^= 123_459_876;
+            }
+            s
+        });
+        let tmp = seed / RAND_IQ;
+        seed = RAND_IA * (seed - tmp * RAND_IQ) - RAND_IR * tmp;
+        if seed < 0 {
+            seed += RAND_IM;
+        }
+        self.rand_seed.set(Some(seed));
+        seed as f64 * (1.0 / RAND_IM as f64)
+    }
+
     /// The `info cmdtype` classification of `name`, or `None` if no such command.
     pub(crate) fn cmdtype(&self, name: &[u8]) -> Option<&'static [u8]> {
         let cmd = self
@@ -3556,13 +3718,26 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)?;
         Some(match cmd {
-            Command::Builtin(_) => b"native",
+            // A coroutine resume command and the per-object `my`/`myclass`
+            // commands all register as builtins but report their own cmdType
+            // (C's per-command registrations).
+            Command::Builtin(_) => {
+                let fqn = self
+                    .namespaces
+                    .borrow()
+                    .resolve_fqn(self.current_ns.get(), name);
+                match fqn {
+                    Some(fqn) if self.coros.borrow().contains_key(&fqn) => b"coroutine",
+                    Some(fqn) => self.oo_private_cmd_kind(&fqn).unwrap_or(b"native"),
+                    None => b"native",
+                }
+            }
             Command::Proc(_) => b"proc",
             Command::Alias { .. } | Command::ParentAlias { .. } => b"alias",
             Command::Imported { .. } => b"import",
             Command::Ensemble(_) => b"ensemble",
             Command::OoObject(_) => b"object",
-            Command::ChildInterp(_) => b"native",
+            Command::ChildInterp(_) => b"interp",
         })
     }
 
@@ -4395,7 +4570,7 @@ impl Interp {
                     match &parts[0] {
                         WordPart::Variable(v) => {
                             let index = match &v.index {
-                                Some(p) => Some(self.subst_index(p)?),
+                                Some(p) => Some(self.subst_index_value(p)?),
                                 None => None,
                             };
                             if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
@@ -4438,7 +4613,7 @@ impl Interp {
                         WordPart::Text(b) => buf.extend_from_slice(b),
                         WordPart::Variable(v) => {
                             let index = match &v.index {
-                                Some(parts) => Some(self.subst_index(parts)?),
+                                Some(parts) => Some(self.subst_index_value(parts)?),
                                 None => None,
                             };
                             if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
@@ -4527,56 +4702,100 @@ impl Interp {
             match part {
                 WordPart::Text(b) => out.extend_from_slice(b),
                 WordPart::Variable(v) => {
-                    let index = match &v.index {
-                        Some(p) => Some(self.subst_index(p)?),
-                        None => None,
+                    // A `break`/`continue`/`return` from a `[...]` in the array
+                    // index diverts the whole variable substitution (C's
+                    // `TCL_TOKEN_VARIABLE` arm of `TclSubstTokens`): on `break`
+                    // the subst ends, on `continue` this variable contributes
+                    // nothing, on `return` the result is substituted in place of
+                    // the variable's value (which is not looked up).
+                    let (index, idx_code) = match &v.index {
+                        Some(p) => {
+                            let (val, code) = self.subst_index(p)?;
+                            (Some(val), code)
+                        }
+                        None => (None, Code::Ok),
                     };
-                    if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
-                        return Err(c);
-                    }
-                    match self.read_var(v.name, index.as_deref()) {
-                        Some(bytes) => out.extend_from_slice(&bytes),
-                        None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                    match idx_code {
+                        Code::Ok => {
+                            if let Some(c) = self.fire_read_trace(v.name, index.as_deref()) {
+                                return Err(c);
+                            }
+                            match self.read_var(v.name, index.as_deref()) {
+                                Some(bytes) => out.extend_from_slice(&bytes),
+                                None => return Err(self.no_such_variable(v.name, index.as_deref())),
+                            }
+                        }
+                        Code::Break => break,
+                        Code::Continue => {}
+                        _ => out.extend_from_slice(&self.result_bytes()),
                     }
                 }
                 WordPart::Command(script) => {
-                    let code = self.eval_command_subst(src, script);
-                    if code != Code::Ok {
-                        return Err(code);
+                    // `subst`'s per-`[...]` completion-code rule (C's compiled
+                    // subst / `TclSubstTokens`): `break` ends the whole
+                    // substitution (returning what's accumulated), `continue`
+                    // contributes nothing for this bracket, and any other
+                    // non-error code (`return`, custom) substitutes its result.
+                    // Only a genuine error propagates.
+                    match self.eval_command_subst(src, script) {
+                        Code::Ok | Code::Return => out.extend_from_slice(&self.result_bytes()),
+                        Code::Break => break,
+                        Code::Continue => {}
+                        Code::Error => return Err(Code::Error),
                     }
-                    out.extend_from_slice(&self.result_bytes());
                 }
             }
         }
         Ok(out)
     }
 
-    /// Resolve a `$arr(index)` index (itself substituted) to its bytes.
-    fn subst_index(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+    /// [`subst_index`](Self::subst_index) for the word-substitution path, where a
+    /// non-OK completion code in the index propagates as an error/code (rather
+    /// than diverting an enclosing `subst`).
+    fn subst_index_value(&mut self, parts: &[WordPart]) -> Result<Vec<u8>, Code> {
+        match self.subst_index(parts)? {
+            (val, Code::Ok) => Ok(val),
+            (_, code) => Err(code),
+        }
+    }
+
+    /// Resolve a `$arr(index)` index (itself substituted) to its bytes plus the
+    /// completion code of the last `[...]` in it (`Ok` normally; `Break`/
+    /// `Continue`/`Return` divert the enclosing variable substitution per C's
+    /// `TclSubstTokens`). An error propagates as `Err`.
+    fn subst_index(&mut self, parts: &[WordPart]) -> Result<(Vec<u8>, Code), Code> {
         let mut buf = Vec::new();
         for part in parts {
             match part {
                 WordPart::Text(b) => buf.extend_from_slice(b),
                 WordPart::Variable(v) => {
-                    let idx = match &v.index {
-                        Some(p) => Some(self.subst_index(p)?),
-                        None => None,
+                    let (idx, idx_code) = match &v.index {
+                        Some(p) => {
+                            let (val, code) = self.subst_index(p)?;
+                            (Some(val), code)
+                        }
+                        None => (None, Code::Ok),
                     };
-                    match self.read_var(v.name, idx.as_deref()) {
-                        Some(bytes) => buf.extend_from_slice(&bytes),
-                        None => return Err(self.no_such_variable(v.name, idx.as_deref())),
+                    match idx_code {
+                        Code::Ok => match self.read_var(v.name, idx.as_deref()) {
+                            Some(bytes) => buf.extend_from_slice(&bytes),
+                            None => return Err(self.no_such_variable(v.name, idx.as_deref())),
+                        },
+                        other => return Ok((buf, other)),
                     }
                 }
-                WordPart::Command(script) => {
-                    let code = self.eval_str(script);
-                    if code != Code::Ok {
-                        return Err(code);
+                WordPart::Command(script) => match self.eval_str(script) {
+                    Code::Ok => buf.extend_from_slice(&self.result_bytes()),
+                    Code::Error => return Err(Code::Error),
+                    Code::Return => {
+                        buf.extend_from_slice(&self.result_bytes());
+                        return Ok((buf, Code::Return));
                     }
-                    buf.extend_from_slice(&self.result_bytes());
-                }
+                    other => return Ok((buf, other)),
+                },
             }
         }
-        Ok(buf)
+        Ok((buf, Code::Ok))
     }
 
     /// Read a variable's value bytes via the variable resolver.
