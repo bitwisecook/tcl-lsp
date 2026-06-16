@@ -728,6 +728,79 @@ fn build_opt(d: &Value) -> Vec<ViewNode> {
     }
 }
 
+fn build_structural_index(d: &Value) -> Vec<ViewNode> {
+    let si = &d["structuralIndex"];
+    if !si.is_object() {
+        return vec![ViewNode::note("(structural index unavailable)", "dim")];
+    }
+    let mut roots = Vec::new();
+    let complete = si["scriptComplete"].as_bool().unwrap_or(false);
+    roots.push(ViewNode::leaf(
+        format!("script complete: {complete}"),
+        Vec::new(),
+        Some(if complete { "green" } else { "yellow" }),
+    ));
+
+    let boundaries = arr(si, "commandBoundaries");
+    let cb_children: Vec<ViewNode> = boundaries
+        .iter()
+        .map(|b| {
+            ViewNode::leaf(
+                format!(
+                    "offset {} ({}:{})",
+                    s(b, "offset"),
+                    b["line"].as_i64().unwrap_or(0) + 1,
+                    b["col"].as_i64().unwrap_or(0) + 1
+                ),
+                Vec::new(),
+                None,
+            )
+        })
+        .collect();
+    roots.push(ViewNode::branch(
+        format!("command boundaries ({})", boundaries.len()),
+        Vec::new(),
+        cb_children,
+        Some("cyan"),
+    ));
+
+    for (key, label) in [("brackets", "brackets [ ]"), ("braces", "braces { }")] {
+        let group = &si[key];
+        let inert = arr(group, "inertSpans");
+        let children: Vec<ViewNode> = inert
+            .iter()
+            .map(|span| {
+                let terminated = span["terminated"].as_bool().unwrap_or(false);
+                ViewNode::leaf(
+                    format!(
+                        "inert {}…{} {}",
+                        s(span, "start"),
+                        s(span, "end"),
+                        if terminated {
+                            "(terminated)"
+                        } else {
+                            "(unterminated)"
+                        }
+                    ),
+                    vec![det("text", s(span, "text"))],
+                    Some(if terminated { "dim" } else { "red" }),
+                )
+            })
+            .collect();
+        roots.push(ViewNode::branch(
+            format!(
+                "{label}: {} unterminated, {} inert span(s)",
+                s(group, "unterminated"),
+                inert.len()
+            ),
+            vec![det("structural events", s(group, "structuralEvents"))],
+            children,
+            None,
+        ));
+    }
+    roots
+}
+
 fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
     let out: Vec<ViewNode> = arr(d, "optimiserPasses")
         .iter()
@@ -1000,6 +1073,7 @@ fn build_callouts(d: &Value) -> Vec<ViewNode> {
 /// builder). `asm` / `wasm` stay on the text renderer. `cst` is the parse
 /// tree (Rust has a single red-green CST, no separate "green tree").
 pub const TREE_VIEWS: &[&str] = &[
+    "structuralIndex",
     "ir",
     "cfg",
     "ssa",
@@ -1035,6 +1109,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "dataflow" => build_dataflow(data),
         "interproc" => build_interproc(data),
         "rendered" => build_rendered(data),
+        "structuralIndex" => build_structural_index(data),
         "opt" => build_opt(data),
         "optimiserPasses" => build_optimiser_passes(data),
         "gvn" => build_gvn(data),

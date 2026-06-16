@@ -779,6 +779,37 @@ function renderSegments() {
   setupExpandable(pane);
 }
 
+// Rust-native: the lexer structural pre-scan (tcl-lexer::structural_index) —
+// command boundaries, bracket/brace balance, and the inert spans where
+// [ ] { } are literal. Absent when served by the Python backend.
+function renderStructuralIndex() {
+  var pane = $('#pane-structural-index');
+  if (!pane) return;
+  var si = data.structuralIndex;
+  if (!si) { pane.innerHTML = '<div class="empty-state">Structural index unavailable</div>'; return; }
+  var html = '';
+  var col = si.scriptComplete ? 'var(--green)' : 'var(--yellow)';
+  html += '<div class="analysis-entry">script complete: <span class="val" style="color:' + col + '">' + si.scriptComplete + '</span></div>';
+
+  html += '<div class="section-header">command boundaries <span style="color:var(--text-dim);font-weight:normal">' + si.commandBoundaries.length + '</span></div>';
+  for (var b of si.commandBoundaries) {
+    html += '<div class="analysis-entry" style="margin-left:8px"><span class="val">offset ' + b.offset + '</span> <span style="color:var(--text-dim)">(' + (b.line + 1) + ':' + (b.col + 1) + ')</span></div>';
+  }
+
+  for (var g of [['brackets', '[ ]'], ['braces', '{ }']]) {
+    var grp = si[g[0]];
+    html += '<div class="section-header">' + g[1] + ' <span style="color:var(--text-dim);font-weight:normal">' + grp.unterminated + ' unterminated &middot; ' + grp.structuralEvents + ' structural &middot; ' + grp.inertSpans.length + ' inert</span></div>';
+    for (var sp of grp.inertSpans) {
+      var t = (sp.text || '').replace(/\n/g, '⏎');
+      var tp = t.length > 48 ? t.slice(0, 48) + '…' : t;
+      var scol = sp.terminated ? 'var(--text-dim)' : 'var(--red)';
+      html += '<div class="analysis-entry" style="margin-left:8px; color:' + scol + '" data-start="' + sp.start + '" data-end="' + sp.end + '">inert [' + sp.start + ':' + sp.end + '] ' + (sp.terminated ? '' : '(unterminated) ') + '<span style="color:var(--text)">' + esc(tp) + '</span></div>';
+    }
+  }
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+}
+
 function fmtBound(v, pos) { return v === null || v === undefined ? (pos ? '+∞' : '−∞') : String(v); }
 
 // Natural-loop forest

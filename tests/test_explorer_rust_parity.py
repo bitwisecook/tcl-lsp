@@ -73,7 +73,7 @@ _SHAPE_ONLY_KEYS = {"interprocedural"}
 # docs/design/contracts/explorer-view-audit.md). Skipped by the differential
 # harness and stripped from the `meta.views` comparison; pinned by Rust unit
 # tests instead.
-_RUST_NATIVE_KEYS = {"optimiserPasses"}
+_RUST_NATIVE_KEYS = {"optimiserPasses", "structuralIndex"}
 
 # Views whose Rust backend is materially different from Python, so a Python
 # differential is the wrong gate. Each is classified per

@@ -18,6 +18,7 @@ pub type ViewMeta = (&'static str, &'static str, &'static str);
 pub const VIEW_META: &[ViewMeta] = &[
     ("cst", "CST", "compiler"),
     ("segments", "Segments", "compiler"),
+    ("structuralIndex", "Structural Index", "compiler"),
     ("ir", "IR", "compiler"),
     ("cfg", "CFG (pre-SSA)", "compiler"),
     ("ssa", "CFG (post-SSA)", "compiler"),

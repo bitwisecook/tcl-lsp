@@ -959,6 +959,7 @@ puts $x"></textarea>
         <div class="tab active" data-tab="ir">IR</div>
         <div class="tab" data-tab="cst">CST</div>
         <div class="tab" data-tab="segments">Segments</div>
+        <div class="tab" data-tab="structural-index">Structural Index</div>
         <div class="tab" data-tab="cfg-pre">CFG</div>
         <div class="tab" data-tab="cfg-post">SSA+Analysis</div>
         <div class="tab" data-tab="loops">Loops</div>
@@ -985,6 +986,7 @@ puts $x"></textarea>
         </div>
         <div class="tab-pane" id="pane-cst"></div>
         <div class="tab-pane" id="pane-segments"></div>
+        <div class="tab-pane" id="pane-structural-index"></div>
         <div class="tab-pane" id="pane-cfg-pre"></div>
         <div class="tab-pane" id="pane-cfg-post"></div>
         <div class="tab-pane" id="pane-loops"></div>
@@ -1231,6 +1233,7 @@ function renderAll() {
   renderIR();
   renderCst();
   renderSegments();
+  renderStructuralIndex();
   renderCfgPre();
   renderCfgPost();
   renderLoops();

@@ -1223,6 +1223,60 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex) -> Value {
     Value::Array(entries)
 }
 
+/// Serialise the Rust-native `structuralIndex` view: the lexer's structural
+/// pre-scan (`tcl_lexer::structural_index`) — where commands begin, the
+/// bracket/brace balance, and the inert spans where `[`/`]`/`{`/`}` are
+/// *literal* (brace words, comments, `${…}`, escapes). This acceleration
+/// layer drives incremental reparse; **Python has no analogue**.
+#[must_use]
+pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
+    use tcl_lexer::{BraceIndex, BracketIndex, command_boundaries, script_is_complete};
+
+    fn pos(li: &LineIndex, off: u32) -> Value {
+        let p = li.position_at(off);
+        json!({ "line": p.line, "col": p.character, "offset": p.offset })
+    }
+    fn inert_spans(li: &LineIndex, source: &str, spans: &[(u32, u32, bool)]) -> Value {
+        Value::Array(
+            spans
+                .iter()
+                .map(|&(start, end, terminated)| {
+                    let (s, e) = (start as usize, end as usize);
+                    json!({
+                        "start": start,
+                        "end": end,
+                        "terminated": terminated,
+                        "startPos": pos(li, start),
+                        "text": source.get(s..e).unwrap_or(""),
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    let brackets = BracketIndex::build(source);
+    let braces = BraceIndex::build(source);
+    let boundaries: Vec<Value> = command_boundaries(source)
+        .iter()
+        .map(|&off| pos(li, off))
+        .collect();
+
+    json!({
+        "scriptComplete": script_is_complete(source),
+        "commandBoundaries": boundaries,
+        "brackets": {
+            "unterminated": brackets.unterminated_count(),
+            "structuralEvents": brackets.events().len(),
+            "inertSpans": inert_spans(li, source, brackets.inert_spans()),
+        },
+        "braces": {
+            "unterminated": braces.unterminated_count(),
+            "structuralEvents": braces.events().len(),
+            "inertSpans": inert_spans(li, source, braces.inert_spans()),
+        },
+    })
+}
+
 /// Serialise the `stats` summary. Mirrors `compute_stats`.
 ///
 /// `_NO_PARITY`: `deadStores` counts the optimiser's **O109** dead stores
@@ -1557,6 +1611,11 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("types".to_owned(), serialise_types(result));
     out.insert("cst".to_owned(), crate::cst::serialise_cst(&result.source));
     out.insert("segments".to_owned(), serialise_segments(&result.source));
+    // Rust-native: the lexer structural pre-scan (no Python counterpart).
+    out.insert(
+        "structuralIndex".to_owned(),
+        serialise_structural_index(&result.source, &li),
+    );
     out.insert("loops".to_owned(), serialise_loops(result));
     out.insert("intervals".to_owned(), serialise_intervals(result));
     out.insert("bounds".to_owned(), serialise_bounds(result));
@@ -1652,9 +1711,10 @@ mod tests {
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 14);
-        // 24 views: Python's 24 minus the dropped `greentree` tab (Rust has a
-        // single red-green CST) plus the Rust-native `optimiserPasses` view.
-        assert_eq!(meta["views"].as_array().unwrap().len(), 24);
+        // 25 views: Python's 24 minus the dropped `greentree` tab (Rust has a
+        // single red-green CST) plus the Rust-native `optimiserPasses` and
+        // `structuralIndex` views.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 25);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
@@ -1763,6 +1823,27 @@ mod tests {
         let result = run_pipeline("proc f {} { set x 1; return $x }", "tcl8.6");
         let value = serialise_result(&result);
         assert_eq!(value["stats"]["deadStores"], 0);
+    }
+
+    #[test]
+    fn structural_index_reports_boundaries_and_balance() {
+        // Two complete commands, balanced brackets/braces.
+        let result = run_pipeline("set x {a b c}\nputs [llength $x]", "tcl8.6");
+        let si = serialise_result(&result)["structuralIndex"].clone();
+        assert_eq!(si["scriptComplete"], true);
+        assert_eq!(si["commandBoundaries"].as_array().unwrap().len(), 2);
+        assert_eq!(si["brackets"]["unterminated"], 0);
+        assert_eq!(si["braces"]["unterminated"], 0);
+    }
+
+    #[test]
+    fn structural_index_flags_incomplete_script() {
+        // An unclosed brace leaves the script incomplete with an unterminated
+        // inert span.
+        let result = run_pipeline("proc f {} {\n  set x 1", "tcl8.6");
+        let si = serialise_result(&result)["structuralIndex"].clone();
+        assert_eq!(si["scriptComplete"], false);
+        assert!(si["braces"]["unterminated"].as_i64().unwrap() >= 1);
     }
 
     #[test]
