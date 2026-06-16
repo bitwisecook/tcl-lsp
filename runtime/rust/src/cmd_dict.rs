@@ -894,54 +894,59 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // then store it back through the path. The body may have replaced the dict,
     // so re-read it; if the path no longer resolves, skip the write-back.
     if let Some(cur) = dict_var_get(interp, &dict_var) {
-        if let Some(acc) = copy_dict(interp, cur) {
-            // Navigate `acc` to the sub-dict at `path`.
-            let mut sub_src = acc;
-            let mut reached = true;
-            for &k in path {
-                match dict::dict_get(sub_src, &obj_bytes(k)) {
-                    Ok(Some(v)) => sub_src = v,
-                    _ => {
-                        reached = false;
-                        break;
-                    }
+        // A malformed current/sub dict is a write-back error, not a silent
+        // skip (the `copy_dict` call has already set the result).
+        let Some(acc) = copy_dict(interp, cur) else {
+            return Code::Error;
+        };
+        // Navigate `acc` to the sub-dict at `path`.
+        let mut sub_src = acc;
+        let mut reached = true;
+        for &k in path {
+            match dict::dict_get(sub_src, &obj_bytes(k)) {
+                Ok(Some(v)) => sub_src = v,
+                _ => {
+                    reached = false;
+                    break;
                 }
             }
-            if reached {
-                if let Some(newsub) = copy_dict(interp, sub_src) {
-                    for key in &keys {
-                        let kobj = crate::interp::new_string(key);
-                        unsafe { obj::incr_ref_count(kobj) };
-                        match interp.var_get(key) {
-                            Some(val) => {
-                                let _ = dict::dict_set(newsub, kobj, val);
-                            }
-                            None => {
-                                let _ = dict::dict_unset(newsub, key);
-                            }
-                        }
-                        unsafe { obj::decr_ref_count(kobj) };
-                    }
-                    // The rebuilt sub is the whole dict (no path) or is set back
-                    // at the path within `acc`.
-                    let store = if path.is_empty() {
-                        newsub
-                    } else {
-                        let _ = dict_path_set(acc, path, newsub);
-                        acc
-                    };
-                    if dict_var_set(interp, &dict_var, store).is_err() {
-                        unsafe {
-                            obj::decr_ref_count(newsub);
-                            obj::decr_ref_count(acc);
-                        }
-                        return cant_set(interp, &dict_var);
-                    }
-                    unsafe { obj::decr_ref_count(newsub) };
-                }
-            }
-            unsafe { obj::decr_ref_count(acc) };
         }
+        if reached {
+            let Some(newsub) = copy_dict(interp, sub_src) else {
+                unsafe { obj::decr_ref_count(acc) };
+                return Code::Error;
+            };
+            for key in &keys {
+                let kobj = crate::interp::new_string(key);
+                unsafe { obj::incr_ref_count(kobj) };
+                match interp.var_get(key) {
+                    Some(val) => {
+                        let _ = dict::dict_set(newsub, kobj, val);
+                    }
+                    None => {
+                        let _ = dict::dict_unset(newsub, key);
+                    }
+                }
+                unsafe { obj::decr_ref_count(kobj) };
+            }
+            // The rebuilt sub is the whole dict (no path) or is set back
+            // at the path within `acc`.
+            let store = if path.is_empty() {
+                newsub
+            } else {
+                let _ = dict_path_set(acc, path, newsub);
+                acc
+            };
+            if dict_var_set(interp, &dict_var, store).is_err() {
+                unsafe {
+                    obj::decr_ref_count(newsub);
+                    obj::decr_ref_count(acc);
+                }
+                return cant_set(interp, &dict_var);
+            }
+            unsafe { obj::decr_ref_count(newsub) };
+        }
+        unsafe { obj::decr_ref_count(acc) };
     }
     code
 }

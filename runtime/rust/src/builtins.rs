@@ -139,6 +139,7 @@ fn const_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Already defined: a constant is a no-op; anything else already exists.
     if interp.var_exists(&base) {
         if interp.is_constant(&base) {
+            interp.set_result_bytes(b""); // C's `const` yields an empty result
             return Code::Ok;
         }
         return make_constant_error(interp, &name, b"variable already exists");
