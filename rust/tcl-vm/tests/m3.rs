@@ -189,6 +189,30 @@ fn expr_math_functions() {
 }
 
 #[test]
+fn upvar_to_namespace_array_element() {
+    // `upvar` to an array element whose base is a `variable`-linked namespace
+    // array resolves through the link.
+    out_eq(
+        "namespace eval foo { variable Opt\nset Opt(x) hello\nproc np {pv} { upvar 1 $pv path; return $path }\nproc t {} { variable Opt; return [np Opt(x)] } }\nputs [foo::t]\n",
+        "hello\n",
+    );
+}
+
+#[test]
+fn array_element_traces_are_distinct() {
+    // A trace on `a(x)` fires only for `a(x)`, not `a(y)`.
+    out_eq(
+        "proc cb {n1 n2 op} { puts $n2 }\ntrace add variable a(x) write cb\nset a(x) 1\nset a(y) 2\n",
+        "x\n",
+    );
+    // A whole-array trace fires for every element.
+    out_eq(
+        "proc cb {n1 n2 op} { puts \"$n1/$n2\" }\ntrace add variable a write cb\nset a(p) 1\nset a(q) 2\n",
+        "a/p\na/q\n",
+    );
+}
+
+#[test]
 fn upvar_to_array_element() {
     // `upvar 0 arr(key) alias` aliases a scalar to an array element.
     out_eq(

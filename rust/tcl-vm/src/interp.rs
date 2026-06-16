@@ -259,12 +259,17 @@ impl Vm {
     // -- variable traces (`trace add|remove|info variable`) --
 
     /// The resolved-owner key a variable name's traces are stored under, so a
-    /// trace fires regardless of access path (alias / qualified name). Array
-    /// element references key on the base array.
+    /// trace fires regardless of access path (alias / qualified name). An array
+    /// *element* reference (`arr(key)`) keys on the resolved element so element
+    /// traces are distinct from each other and from whole-array traces.
     fn trace_key(&self, name: &str) -> String {
-        let base = elem_ref(name).map_or(name, |(b, _)| b);
-        let (lvl, nm) = self.locate(base);
-        format!("{lvl}\u{0}{nm}")
+        if let Some((base, key)) = elem_ref(name) {
+            let (lvl, nm) = self.locate(base);
+            format!("{lvl}\u{0}{nm}({key})")
+        } else {
+            let (lvl, nm) = self.locate(name);
+            format!("{lvl}\u{0}{nm}")
+        }
     }
 
     /// Register a `trace add variable` callback.
@@ -315,38 +320,46 @@ impl Vm {
             || (name.to_string(), String::new()),
             |(b, k)| (b.to_string(), k.to_string()),
         );
-        let key = self.trace_key(name);
-        let guard = format!("{key}\u{0}{op}");
-        if self.active_traces.contains(&guard) {
-            return Ok(());
+        // Fire the element-specific traces, then the whole-array traces (for an
+        // element write a trace on the base array also fires).
+        let mut keys = vec![self.trace_key(name)];
+        if elem_ref(name).is_some() {
+            let (lvl, nm) = self.locate(&base);
+            keys.push(format!("{lvl}\u{0}{nm}"));
         }
-        let Some(traces) = self.var_traces.get(&key).cloned() else {
-            return Ok(());
-        };
-        for tr in traces.iter().rev() {
-            if !tr.ops.iter().any(|o| o == op) {
+        for key in keys {
+            let guard = format!("{key}\u{0}{op}");
+            if self.active_traces.contains(&guard) {
                 continue;
             }
-            let script = format!(
-                "{} {} {} {}",
-                tr.command,
-                tcl_brace(&base),
-                tcl_brace(&elem),
-                op
-            );
-            self.active_traces.insert(guard.clone());
-            let r = self.eval_source(&script);
-            self.active_traces.remove(&guard);
-            let failed = match r {
-                Ok(c) if c.code.is_ok() => None,
-                Ok(c) => Some(c.result.to_str().to_string()),
-                Err(e) => Some(e.message),
+            let Some(traces) = self.var_traces.get(&key).cloned() else {
+                continue;
             };
-            if let Some(msg) = failed {
-                match op {
-                    "write" => return Err(err(format!("can't set \"{name}\": {msg}"))),
-                    "read" => return Err(err(format!("can't read \"{name}\": {msg}"))),
-                    _ => {} // unset trace errors are ignored
+            for tr in traces.iter().rev() {
+                if !tr.ops.iter().any(|o| o == op) {
+                    continue;
+                }
+                let script = format!(
+                    "{} {} {} {}",
+                    tr.command,
+                    tcl_brace(&base),
+                    tcl_brace(&elem),
+                    op
+                );
+                self.active_traces.insert(guard.clone());
+                let r = self.eval_source(&script);
+                self.active_traces.remove(&guard);
+                let failed = match r {
+                    Ok(c) if c.code.is_ok() => None,
+                    Ok(c) => Some(c.result.to_str().to_string()),
+                    Err(e) => Some(e.message),
+                };
+                if let Some(msg) = failed {
+                    match op {
+                        "write" => return Err(err(format!("can't set \"{name}\": {msg}"))),
+                        "read" => return Err(err(format!("can't read \"{name}\": {msg}"))),
+                        _ => {} // unset trace errors are ignored
+                    }
                 }
             }
         }
@@ -471,14 +484,21 @@ impl Vm {
     /// keyed by its canonical name (leading `::` stripped) — this is where
     /// namespace variables (`tcltest::numTests`) are stored.
     fn locate(&self, name: &str) -> (usize, String) {
+        self.locate_from(name, self.frames.len().saturating_sub(1))
+    }
+
+    /// Like [`Self::locate`] but begins link resolution at frame `start` (used
+    /// to resolve an array base that an `upvar`/`variable` link landed on at a
+    /// non-top frame level).
+    fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
         let stripped = name.strip_prefix("::").unwrap_or(name);
         if stripped.contains("::") || name.starts_with("::") {
             return (0, stripped.to_owned());
         }
-        let mut level = self.frames.len() - 1;
+        let mut level = start;
         let mut nm = name.to_owned();
         for _ in 0..64 {
-            match self.frames[level].locals.get(&nm) {
+            match self.frames.get(level).and_then(|f| f.locals.get(&nm)) {
                 Some(Local::Link {
                     level: tl,
                     name: tn,
@@ -497,14 +517,16 @@ impl Vm {
     #[must_use]
     pub fn get_var(&self, name: &str) -> Option<Value> {
         let (lvl, nm) = self.locate(name);
-        let frame = self.frames.get(lvl)?;
         if let Some((base, key)) = elem_ref(&nm) {
-            return match frame.locals.get(base) {
+            // The base may itself be a link (`variable`/`upvar` to a namespace
+            // array), so resolve it onward from the frame it landed on.
+            let (blvl, bnm) = self.locate_from(base, lvl);
+            return match self.frames.get(blvl)?.locals.get(&bnm) {
                 Some(Local::Array(m)) => m.get(key).cloned(),
                 _ => None,
             };
         }
-        match frame.locals.get(&nm) {
+        match self.frames.get(lvl)?.locals.get(&nm) {
             Some(Local::Scalar(v)) => Some(v.clone()),
             _ => None,
         }
@@ -515,9 +537,12 @@ impl Vm {
     fn write_scalar_raw(&mut self, name: &str, value: Value) {
         let (lvl, nm) = self.locate(name);
         if let Some((base, key)) = elem_ref(&nm) {
-            let (base, key) = (base.to_owned(), key.to_owned());
-            if let Some(f) = self.frames.get_mut(lvl) {
-                match f.locals.get_mut(&base) {
+            // Resolve the array base onward (it may be a link to a namespace
+            // array) before writing the element.
+            let key = key.to_owned();
+            let (blvl, bnm) = self.locate_from(base, lvl);
+            if let Some(f) = self.frames.get_mut(blvl) {
+                match f.locals.get_mut(&bnm) {
                     Some(Local::Array(m)) => {
                         m.insert(key, value);
                     }
@@ -525,7 +550,7 @@ impl Vm {
                     None => {
                         let mut m = BTreeMap::new();
                         m.insert(key, value);
-                        f.locals.insert(base, Local::Array(m));
+                        f.locals.insert(bnm, Local::Array(m));
                     }
                 }
             }
