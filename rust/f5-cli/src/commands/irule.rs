@@ -251,6 +251,26 @@ fn flatten_rule_path(rule_full_path: Option<&str>, fallback_label: &str) -> Stri
     stem.replace('/', "__")
 }
 
+/// `str(pathlib.PurePosixPath(s))` — collapse repeated `/`, drop `.` and
+/// trailing slashes (keeping `..`); empty → `.`, root stays `/`. Used so the
+/// `irule context` directory message matches Python's `print(f"… {out_dir}")`.
+fn pathlib_str(s: &str) -> String {
+    let absolute = s.starts_with('/');
+    let parts: Vec<&str> = s
+        .split('/')
+        .filter(|seg| !seg.is_empty() && *seg != ".")
+        .collect();
+    if parts.is_empty() {
+        return if absolute { "/".to_owned() } else { ".".to_owned() };
+    }
+    let joined = parts.join("/");
+    if absolute {
+        format!("/{joined}")
+    } else {
+        joined
+    }
+}
+
 /// Decide whether `output` should be treated as a directory (port of
 /// `_is_directory_target`).
 fn is_directory_target(output: &str) -> bool {
@@ -391,8 +411,13 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
             json,
             severity,
         } => run_irule_lint(input, *json, severity.as_deref()),
+        IruleCommand::Context {
+            input,
+            rule,
+            no_transitive,
+            json,
+        } => run_irule_context(input, rule, *no_transitive, *json),
         // Deferred subs: each needs an engine the Rust port does not yet carry.
-        IruleCommand::Context { .. } => Err(deferred("context", "analyser")),
         IruleCommand::Trace { .. } => Err(deferred("trace", "compiler-VM")),
         IruleCommand::Pgo { .. } => Err(deferred("pgo", "compiler-VM")),
     };
@@ -690,6 +715,113 @@ fn run_irule_lint(input: &IruleInputArgs, json: bool, severity: Option<&str>) ->
     } else {
         Ok(0)
     }
+}
+
+// ---------------------------------------------------------------------------
+// context
+// ---------------------------------------------------------------------------
+
+/// `f5 irule context` — bundle each iRule with the BIG-IP objects it
+/// references. Port of `_run_irule_context` (`tooling/f5/verbs/irule.py`) over
+/// the [`tcl_bigip::irule_context`] engine: resolve inputs, merge the configs
+/// once for cross-file resolution, build one bundle per rule, and render to
+/// JSON / Tcl-flavoured text (directory → one file per rule; otherwise a single
+/// concatenated stream). Exit `0`, or `1` when no iRules were found.
+fn run_irule_context(
+    input: &IruleInputArgs,
+    rule_filter: &[String],
+    no_transitive: bool,
+    json: bool,
+) -> Result<u8, u8> {
+    use tcl_bigip::irule_context::{
+        build_irule_context, bundles_to_json, context_bundle_to_json, context_bundle_to_text,
+        origin_source,
+    };
+
+    let loaded = resolve_irule_inputs(input)?;
+
+    // Merge configs once so cross-file references all resolve (mirrors
+    // `_merge_configs_for_trace`: empty → default, else the merged union).
+    let config_refs: Vec<(String, &tcl_bigip::parser::BigipConfig)> = loaded
+        .configs
+        .iter()
+        .map(|(origin, cfg)| (origin.clone(), cfg))
+        .collect();
+    let merged = tcl_bigip::lint::merge_configs(&config_refs);
+
+    let mut registry = tcl_registry::registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+
+    let filter: std::collections::HashSet<&str> =
+        rule_filter.iter().map(String::as_str).collect();
+    let transitive = !no_transitive;
+
+    // (rule_full_path, bundle) per rule, in config-then-source order.
+    let mut bundles: Vec<(String, tcl_bigip::irule_context::IruleContextBundle)> = Vec::new();
+    for (origin, cfg) in &loaded.configs {
+        let src_text = origin_source(&loaded.sources, Some(origin));
+        for placed in &cfg.objects {
+            if placed.table_name != "rules" {
+                continue;
+            }
+            let ModelObject::Rule(rule) = &placed.object else {
+                continue;
+            };
+            if !filter.is_empty() && !filter.contains(placed.full_path.as_str()) {
+                continue;
+            }
+            let bundle = build_irule_context(rule, &merged, transitive, src_text, &registry);
+            bundles.push((placed.full_path.clone(), bundle));
+        }
+    }
+
+    if bundles.is_empty() {
+        eprintln!("error: no iRules found in input");
+        return Err(1);
+    }
+
+    if is_directory_target(&input.output) {
+        let out_dir = Path::new(&input.output);
+        if let Err(e) = std::fs::create_dir_all(out_dir) {
+            eprintln!("error: {e}");
+            return Err(2);
+        }
+        let suffix = if json { ".json" } else { ".tcl" };
+        for (rule_path, bundle) in &bundles {
+            let flat = rule_path.trim_start_matches('/').replace('/', "__");
+            let payload = if json {
+                format!("{}\n", context_bundle_to_json(bundle))
+            } else {
+                context_bundle_to_text(bundle)
+            };
+            let target = out_dir.join(format!("{flat}{suffix}"));
+            if let Err(e) = std::fs::write(&target, payload) {
+                eprintln!("error: {e}");
+                return Err(2);
+            }
+        }
+        eprintln!(
+            "wrote {} iRule context bundle(s) to {}",
+            bundles.len(),
+            pathlib_str(&input.output)
+        );
+        return Ok(0);
+    }
+
+    // Single-file / stdout: concatenate.
+    let payload = if json {
+        let only: Vec<tcl_bigip::irule_context::IruleContextBundle> =
+            bundles.into_iter().map(|(_, b)| b).collect();
+        format!("{}\n", bundles_to_json(&only))
+    } else {
+        let chunks: Vec<String> = bundles
+            .iter()
+            .map(|(_, b)| format!("{}\n", context_bundle_to_text(b).trim_end()))
+            .collect();
+        chunks.join("\n")
+    };
+    write_text(&input.output, &payload).map_err(|_| 2u8)?;
+    Ok(0)
 }
 
 // ---------------------------------------------------------------------------

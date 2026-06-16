@@ -3,9 +3,9 @@
 //! Runs the built `f5-query` binary against committed `.irule` / `.conf`
 //! fixtures and asserts stdout matches goldens captured from
 //! `python -m tooling.f5.main irule <sub> …` for the **ported** sub-subcommands
-//! (event-order, event-info, lint, format, minify, extract). Self-contained: no
-//! Python at test time. Also asserts each **deferred** sub (trace, pgo, context)
-//! exits 2 with the expected "not yet ported" message.
+//! (event-order, event-info, lint, context, format, minify, extract).
+//! Self-contained: no Python at test time. Also asserts each **deferred** sub
+//! (trace, pgo) exits 2 with the expected "not yet ported" message.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -352,12 +352,111 @@ fn pgo_is_deferred() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// context — byte-for-byte stdout parity with `python -m tooling.f5.main irule
+// context` (the `tcl-bigip::irule_context` engine: reference walk + one-hop
+// transitive expansion + source slices; JSON / Tcl-flavoured text).
+// ---------------------------------------------------------------------------
+
 #[test]
-fn context_is_deferred() {
-    assert_deferred(
-        &["irule", "context", &fixture("irule-sample.irule")],
+fn context_full_config_all_sections_text() {
+    // Exercises every section: pool, data-group, persistence, snat-pool,
+    // profile, monitor, node (transitive), plus unresolved refs + slices.
+    let (code, out, _) = run(&["irule", "context", &fixture("irule-context-full.conf")]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-full.text.golden"));
+}
+
+#[test]
+fn context_full_config_all_sections_json() {
+    let (code, out, _) = run(&[
+        "irule",
         "context",
-    );
+        &fixture("irule-context-full.conf"),
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-full.json.golden"));
+}
+
+#[test]
+fn context_realistic_bigip_text() {
+    // Multi-rule config; transitive pool→node/monitor expansion + real slices.
+    let (code, out, _) = run(&["irule", "context", &fixture("bigip.conf")]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-bigip.text.golden"));
+}
+
+#[test]
+fn context_realistic_bigip_json() {
+    let (code, out, _) = run(&["irule", "context", &fixture("bigip.conf"), "--json"]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-bigip.json.golden"));
+}
+
+#[test]
+fn context_missing_object_refs_json() {
+    let (code, out, _) = run(&[
+        "irule",
+        "context",
+        &fixture("validate-irule-refs.conf"),
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-refs.json.golden"));
+}
+
+#[test]
+fn context_no_transitive_json() {
+    // `--no-transitive` drops the pool→node/monitor expansion.
+    let (code, out, _) = run(&[
+        "irule",
+        "context",
+        &fixture("bigip.conf"),
+        "--no-transitive",
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-notrans.json.golden"));
+}
+
+#[test]
+fn context_standalone_irule_text() {
+    // A standalone `.irule` is bundled as a synthetic single-rule config.
+    let (code, out, _) = run(&[
+        "irule",
+        "context",
+        &fixture("irule-lint-standalone.irule"),
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-standalone.text.golden"));
+}
+
+#[test]
+fn context_inline_source_json() {
+    let (code, out, _) = run(&[
+        "irule",
+        "context",
+        "--source",
+        "when HTTP_REQUEST { pool /Common/web_pool }",
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-context-source.json.golden"));
+}
+
+#[test]
+fn context_no_irules_found_exits_1() {
+    // A `--rule` filter matching nothing yields no bundles → exit 1.
+    let (code, _out, stderr) = run(&[
+        "irule",
+        "context",
+        &fixture("bigip.conf"),
+        "--rule",
+        "/Common/does-not-exist",
+    ]);
+    assert_eq!(code, 1);
+    assert_eq!(stderr, "error: no iRules found in input\n");
 }
 
 // ---------------------------------------------------------------------------
