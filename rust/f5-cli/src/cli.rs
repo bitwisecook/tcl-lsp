@@ -653,28 +653,36 @@ pub enum Command {
 
     /// Trace each flow in a PCAP through the BIG-IP config.
     ExplainFlow {
-        /// PCAP / PCAPNG capture file.
+        /// PCAP file to analyse (libpcap or pcapng).
         pcap: PathBuf,
-        /// Config inputs (repeatable).
-        #[arg(long = "config", short = 'c', value_name = "FILE")]
-        config: Vec<PathBuf>,
-        /// Path to the tshark binary.
-        #[arg(long, value_name = "BIN")]
-        tshark: Option<PathBuf>,
-        /// TLS keylog file for decryption.
+        /// bigip.conf / SCF files (`-` for stdin).
+        #[arg(required = true, value_name = "PATHS")]
+        paths: Vec<PathBuf>,
+        /// Enrich flows via tshark (HTTP method/Host/URI, TLS SNI/version/cipher).
+        /// Requires `tshark` on PATH; silently no-ops otherwise.
+        #[arg(long)]
+        tshark: bool,
+        /// NSS-format TLS keylog file (SSLKEYLOGFILE). Implies --tshark.
         #[arg(long, value_name = "FILE")]
         keylog: Option<PathBuf>,
-        /// Extra tshark display filter.
-        #[arg(long = "tshark-filter", value_name = "EXPR")]
+        /// tshark display filter applied via -Y. Implies --tshark.
+        #[arg(long = "tshark-filter", value_name = "FILTER")]
         tshark_filter: Option<String>,
-        /// Simulate iRule event bodies per session.
+        /// Run each matched session's iRule under the C-tcl orchestrator.
         #[arg(long)]
         simulate: bool,
-        /// Omit iRule event bodies from the report.
+        /// Suppress the verbatim `when EVENT { ... }` body for each fired event.
         #[arg(long = "no-event-bodies")]
         no_event_bodies: bool,
+        /// Truncate each event body after N lines (default 40).
+        #[arg(long = "max-event-lines", value_name = "N", default_value_t = 40)]
+        max_event_lines: usize,
+        /// Emit JSON instead of text.
         #[arg(long)]
         json: bool,
+        /// Write report here (default: stdout).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Inject name-resolution (and optional keylog) blocks into a PCAPNG.
