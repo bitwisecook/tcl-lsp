@@ -287,6 +287,43 @@ impl EventRegistry {
         self.per_request.contains(event)
     }
 
+    /// The multiplicity category for an event: `"init"`,
+    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`.
+    ///
+    /// Mirrors `event_multiplicity` in `namespace_data.py`.
+    #[must_use]
+    pub fn event_multiplicity(&self, event: &str) -> &'static str {
+        if event == "RULE_INIT" {
+            "init"
+        } else if self.once_per_connection.contains(event) {
+            "once_per_connection"
+        } else if self.per_request.contains(event) {
+            "per_request"
+        } else {
+            "unknown"
+        }
+    }
+
+    /// Sort `events` into canonical firing order. Events absent from the
+    /// master-order table are appended in sorted order, so none are dropped.
+    ///
+    /// Mirrors `order_events` in `namespace_data.py`. Callers pass a unique
+    /// set of names (duplicates would each be kept).
+    #[must_use]
+    pub fn order_events(&self, events: &[String]) -> Vec<String> {
+        let mut known: Vec<(usize, String)> = Vec::new();
+        let mut unknown: Vec<String> = Vec::new();
+        for evt in events {
+            match self.master_order_index(evt) {
+                Some(idx) => known.push((idx, evt.clone())),
+                None => unknown.push(evt.clone()),
+            }
+        }
+        known.sort();
+        unknown.sort();
+        known.into_iter().map(|(_, e)| e).chain(unknown).collect()
+    }
+
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///

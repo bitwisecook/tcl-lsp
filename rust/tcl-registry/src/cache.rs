@@ -4,12 +4,16 @@
 //! canonical dialect gets one lazily-built, cached `&'static` registry so the
 //! per-call build cost is paid once. Unparseable dialect strings collapse to
 //! the plain-Tcl entry so a stream of typos cannot leak one registry per typo.
+//!
+//! Lives in `tcl-registry` (not a consumer crate) so every downstream
+//! tool — the CLI, the compiler explorer, future MCP/AI surfaces — shares
+//! one cache rather than each rebuilding its own.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use tcl_registry::dialects::DialectSet;
-use tcl_registry::registry::CommandRegistry;
+use crate::dialects::DialectSet;
+use crate::registry::CommandRegistry;
 
 /// Return the cached registry for `dialect`, building it on first use.
 pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {

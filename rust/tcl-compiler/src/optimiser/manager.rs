@@ -25,6 +25,7 @@ use tcl_registry::CommandRegistry;
 use crate::compilation_unit::CompilationUnit;
 use crate::interprocedural::build_interprocedural_analysis;
 
+use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
 use super::{Optimisation, PassContext, PassId, run_passes};
 
@@ -76,6 +77,53 @@ pub fn optimise_unit(
     ctx.registry = Some(registry);
     run_passes(&mut ctx, cu, &PassId::all());
     select_non_overlapping(&ctx.optimisations)
+}
+
+/// Run every pass over `cu` and return the **O109 dead stores** the
+/// elimination pass determined eliminable (each keyed by function / block /
+/// statement / SSA value). Mirrors [`optimise_unit`] but exposes the
+/// structured dead-store records ([`PassContext::dead_stores`]) instead of
+/// the optimisation list — so tools (the compiler explorer's `cfgPostSsa`
+/// analysis, dead-store callouts, and `stats`) can show dead stores from
+/// where Rust actually computes them, with the optimiser's full suppression
+/// applied (purity, scope aliases, place model, cross-event scope).
+#[must_use]
+pub fn find_dead_stores(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<DeadStore> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    run_passes(&mut ctx, cu, &PassId::all());
+    ctx.dead_stores
+}
+
+/// Run the passes one at a time over a shared context and return, for each
+/// [`PassId`] in [`PassId::all`] order, the optimisations *that pass*
+/// produced (raw, before overlap arbitration). Powers the explorer's
+/// Rust-native "optimiser pass pipeline" view — there is no Python analogue
+/// because the Python optimiser is not structured as this pass sequence.
+///
+/// Equivalent to [`optimise_unit`] in effect (each pass sees the prior
+/// passes' context), but it attributes every finding to its originating pass.
+#[must_use]
+pub fn optimise_by_pass(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<(PassId, Vec<Optimisation>)> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
+    ctx.registry = Some(registry);
+    let mut by_pass = Vec::new();
+    for pass in PassId::all() {
+        let before = ctx.optimisations.len();
+        run_passes(&mut ctx, cu, &[pass]);
+        by_pass.push((pass, ctx.optimisations[before..].to_vec()));
+    }
+    by_pass
 }
 
 /// Build, run every pass, and return the full *unfiltered*

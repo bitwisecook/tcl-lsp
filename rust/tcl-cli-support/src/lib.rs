@@ -16,7 +16,6 @@ mod highlight;
 mod input;
 mod output;
 pub mod prompt;
-mod registry;
 pub mod secret_input;
 
 pub use highlight::{highlight_ansi, highlight_html};
@@ -25,7 +24,10 @@ pub use output::{
     OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_highlighted_output,
     write_text_output,
 };
-pub use registry::registry_for_dialect;
+// The per-dialect registry cache now lives in `tcl-registry` so every
+// downstream tool (CLI, compiler explorer, …) shares one cache. Re-exported
+// here to preserve the existing `tcl_cli_support::registry_for_dialect` path.
+pub use tcl_registry::registry_for_dialect;
 
 /// Result alias for fallible CLI-support operations.
 pub type Result<T> = std::result::Result<T, CliError>;

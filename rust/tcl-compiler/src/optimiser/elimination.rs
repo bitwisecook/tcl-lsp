@@ -385,6 +385,26 @@ fn unreachable_blocks(cfg: &CfgFunction, sccp: &SccpResult) -> HashSet<String> {
         .collect()
 }
 
+/// A dead store the optimiser determined eliminable (**O109**) — exposed so
+/// tools can show dead stores from where Rust *actually* computes them
+/// (the optimiser's SSA def-use pass, with its purity / scope-alias /
+/// place-model / cross-event suppression), rather than a naive SSA
+/// re-derivation that would over-report. Used by the compiler explorer's
+/// `cfgPostSsa` analysis block, dead-store callouts, and `stats`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeadStore {
+    /// The owning function's qualified name (`::top`, `::add`, …).
+    pub function: String,
+    /// The CFG block holding the dead store.
+    pub block: String,
+    /// The statement's index within its block.
+    pub statement_index: i32,
+    /// The dead SSA value's variable name.
+    pub variable: String,
+    /// The dead SSA value's SSA version.
+    pub version: u32,
+}
+
 /// Collected per-chain metadata used by
 /// [`emit_dead_stores_and_unused`] to sort + emit in span order.
 struct DseEntry {
@@ -392,6 +412,8 @@ struct DseEntry {
     code: &'static str,
     msg: &'static str,
     key: (String, u32),
+    block: String,
+    stmt_index: i32,
 }
 
 /// Emit O109 (dead store) + O126 (unused variable) for each
@@ -528,12 +550,26 @@ fn emit_dead_stores_and_unused(
             code,
             msg,
             key: chain.key.clone(),
+            block: chain.definition.block.clone(),
+            stmt_index: chain.definition.statement_index,
         });
     }
 
     entries.sort_by_key(|e| e.span.start());
     let mut removed: HashSet<(String, u32)> = HashSet::new();
     for e in entries {
+        // Record O109 dead stores (not O126 unused vars) so tools can show
+        // them from where Rust determines them. `run` collects these into
+        // `ctx.dead_stores`.
+        if e.code == "O109" {
+            ctx.dead_stores.push(DeadStore {
+                function: fu.name.clone(),
+                block: e.block.clone(),
+                statement_index: e.stmt_index,
+                variable: e.key.0.clone(),
+                version: e.key.1,
+            });
+        }
         ctx.report(Optimisation::new(
             e.code,
             e.msg,
