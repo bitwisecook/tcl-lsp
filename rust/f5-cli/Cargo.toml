@@ -32,6 +32,12 @@ ureq = "3"
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rpassword = "7"
+# `encrypt-secrets` / `decrypt-secrets`: F5 master-key (`f5mku`) AES-ECB crypto.
+# The block transform comes from the audited pure-Rust `aes` crate (already in
+# the workspace lockfile for the encrypted-UCS path); `getrandom` seeds the
+# two-character secret salt.
+aes = "0.8"
+getrandom = "0.3"
 
 [lints]
 workspace = true

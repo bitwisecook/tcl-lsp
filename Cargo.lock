@@ -525,11 +525,13 @@ dependencies = [
 name = "f5-cli"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "anyhow",
  "base64",
  "chrono",
  "clap",
  "clap_complete",
+ "getrandom 0.3.4",
  "regex",
  "rpassword",
  "serde",
@@ -1870,6 +1872,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "temp-env",
  "thiserror",
 ]
 

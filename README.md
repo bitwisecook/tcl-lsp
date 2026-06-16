@@ -801,7 +801,7 @@ f5 irule event-info HTTP_REQUEST --json
 | --- | --- |
 | Acquisition | `fetch`, `extract` (UCS → SCF) |
 | Analysis | `stats`, `graph`, `explain`, `diff`, `grep`, `cleanup`, `validate` |
-| Transformation | `rename`, `redact`, `unredact`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
+| Transformation | `rename`, `redact`, `unredact`, `encrypt-secrets`, `decrypt-secrets`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
 | Round-trip | `pull`, `push` |
 | iRules | `irule event-order`, `irule event-info`, `irule lint`, `irule trace`, `irule extract` |
 | Misc | `completion` |
@@ -848,6 +848,24 @@ Highlights of the newer verbs:
   reuses every prior assignment, so iterative work with F5 support
   stays consistent.  `unredact` walks the map in reverse over any text,
   including support emails and log snippets.
+- **`f5 encrypt-secrets` + `f5 decrypt-secrets`** (aliases `encrypt` /
+  `decrypt`) — convert the credential-bearing values in a `bigip.conf` /
+  SCF between clear text and the `$M$<salt>$<base64>` form BIG-IP stores,
+  using the unit master key (`f5mku -K` base64 output).  The transform is
+  AES-ECB with PKCS#7 padding and a two-character salt — byte-for-byte the
+  scheme the device uses.  Only the fields BIG-IP actually master-key
+  encrypts are touched (`passphrase`, `password`, `secret`,
+  `shared-secret`, `auth-password`, `privacy-password`); SNMP community
+  strings, the `auth user` crypt(3) hash, and values already in a
+  `$scheme$…` form are left alone, so both verbs are idempotent.  The key
+  resolves from `--f5mku KEY` / `--f5mku-file FILE` / `$F5MKU` / a secure
+  no-echo prompt.
+
+  ```sh
+  f5mku -K > key.txt
+  f5 decrypt-secrets bigip.conf --f5mku-file key.txt -o clear.conf
+  F5MKU="$(cat key.txt)" f5 encrypt-secrets clear.conf -o sealed.conf
+  ```
 - **`f5 pcap-remap`** — apply the same map to a PCAP capture: rewrites
   IPv4/IPv6 src/dst, recomputes IP and TCP/UDP/ICMP checksums, and
   *parses* the F5 Ethernet trailer (legacy + DPT formats; `tcpdump -i
