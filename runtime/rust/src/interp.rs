@@ -587,6 +587,14 @@ pub struct InterpState {
     /// until first seeded (lazily from a nondeterministic source on first
     /// `rand()`, or explicitly by `srand()`). Kept in `[1, 2^31-2]`.
     rand_seed: Cell<Option<i64>>,
+    /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
+    /// handler or `finally` script throws, the options dict of the *prior*
+    /// exception it superseded is stashed here so the next error-options build
+    /// ([`build_options`](crate::cmd_error)) splices it in as `-during`. Holds an
+    /// owning reference (released when overwritten, cleared, or the interp drops).
+    /// Cleared when an error is published/caught ([`publish_error`](Self::publish_error)),
+    /// since the chain is then consumed.
+    during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
 }
 
@@ -640,6 +648,7 @@ impl Interp {
             coros: RefCell::new(std::collections::BTreeMap::new()),
             ensemble_rewrite: RefCell::new(None),
             rand_seed: Cell::new(None),
+            during: Cell::new(None),
             result: Cell::new(result),
         }));
         builtins::install(&mut interp);
@@ -2801,11 +2810,42 @@ impl Interp {
             drop_fresh(ec);
         }
         *self.exc.borrow_mut() = ExceptionState::default();
+        // The exception is consumed: drop any `-during` chain link with it.
+        self.clear_during();
     }
 
     /// Publish + reset, for `catch`/`try` once they have captured the options.
     pub(crate) fn publish_and_reset_error(&mut self) {
         self.publish_error();
+    }
+
+    /// Stash the `-during` chain link for the next error-options build (TIP 329
+    /// exception chaining): `opts` is the options dict of the exception the
+    /// just-thrown handler/`finally` exception supersedes. Takes its own owning
+    /// reference (releasing any prior link); the caller keeps its own.
+    pub(crate) fn set_during(&self, opts: *mut TclObj) {
+        // SAFETY: `opts` is a live object; retain it for the field's own ref.
+        unsafe { obj::incr_ref_count(opts) };
+        if let Some(old) = self.during.replace(Some(opts)) {
+            // SAFETY: drop the previously-held link's owning reference.
+            unsafe { obj::decr_ref_count(old) };
+        }
+    }
+
+    /// Drop the pending `-during` chain link, if any (no error to chain).
+    pub(crate) fn clear_during(&self) {
+        if let Some(old) = self.during.take() {
+            // SAFETY: release the field's owning reference.
+            unsafe { obj::decr_ref_count(old) };
+        }
+    }
+
+    /// The pending `-during` chain link (borrowed), for `build_options` to splice
+    /// into an error's options dict. `None` when no chaining is active.
+    pub(crate) fn during_opts(&self) -> Option<*mut TclObj> {
+        let d = self.during.take();
+        self.during.set(d);
+        d
     }
 
     // -- eval -----------------------------------------------------------------
@@ -4966,6 +5006,11 @@ impl Drop for InterpState {
         // SAFETY: `result` is the interp's owned reference, dropped once.
         unsafe { obj::decr_ref_count(self.result.get()) };
         self.result.set(core::ptr::null_mut());
+        // Release any pending `-during` chain link the interp still owns.
+        if let Some(d) = self.during.take() {
+            // SAFETY: `during` held an owning reference; drop it once.
+            unsafe { obj::decr_ref_count(d) };
+        }
     }
 }
 

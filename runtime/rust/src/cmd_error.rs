@@ -16,7 +16,7 @@
 
 use crate::dict;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
-use crate::obj::TclObj;
+use crate::obj::{self, TclObj};
 
 /// Register `catch`, `error`, `try`, and `throw`.
 pub fn install(interp: &mut Interp) {
@@ -95,6 +95,12 @@ fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
         // The full accumulated trace + code, not the (deferred) globals.
         pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
         pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
+        // TIP 329 exception chaining: when a `try` handler/`finally` threw over a
+        // prior exception, that prior exception's options ride along as `-during`
+        // (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
+        if let Some(during) = interp.during_opts() {
+            pairs.push((new_string(b"-during"), during));
+        }
     }
     dict::new_dict_obj(&pairs)
 }
@@ -297,11 +303,18 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         while handlers[b].is_dash {
             b += 1; // guaranteed to terminate (the last body is not `-`)
         }
-        // Bind the running clause's variables: [resultVar ?optionsVar?]. The
-        // options dict must be built from the *live* body error/return state, so
-        // this runs before the error is published+reset. A failed bind becomes
-        // the outcome (and skips the handler body), but `finally` still runs.
-        match bind_handler_vars(interp, &handlers[b].vars, &body_result, body_code) {
+        // Build the body's options dict from the *live* body error/return state
+        // (before it is published+reset). It is bound to the handler's optionsVar
+        // and reused as the `-during` chain link if the handler itself throws
+        // (TIP 329 exception chaining). Retained for the duration of the handler.
+        let body_opts = build_options(interp, body_code);
+        // SAFETY: keep `body_opts` alive across the handler eval / var binding.
+        unsafe { obj::incr_ref_count(body_opts) };
+        // Bind the running clause's variables: [resultVar ?optionsVar?]. A failed
+        // bind becomes the outcome (and skips the handler body), but `finally`
+        // still runs; the bind error chains to the body via `-during` (C's
+        // `handlerFailed`).
+        match bind_handler_vars(interp, &handlers[b].vars, &body_result, body_opts) {
             Ok(()) => {
                 // The body's exception is now handled: publish + reset so the
                 // handler starts with clean error state.
@@ -310,20 +323,42 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
                 outcome_code = interp.eval_control_body(handlers[b].script);
                 outcome_result = interp.result_bytes();
+                if outcome_code == Code::Error {
+                    // The handler threw over the body's exception: chain it.
+                    interp.set_during(body_opts);
+                }
             }
             Err(()) => {
                 outcome_code = Code::Error;
                 outcome_result = interp.result_bytes();
+                interp.set_during(body_opts);
             }
         }
+        // SAFETY: release our hold; `set_during`/the optionsVar keep their own.
+        unsafe { obj::decr_ref_count(body_opts) };
     }
 
-    // `finally` always runs; only its error overrides the result.
+    // `finally` always runs; only an exception from it overrides the result.
     if let Some(fin) = finally {
+        // Capture the options that would propagate from the body/handler stage
+        // (carrying any `-during` already chained) in case `finally` throws and
+        // must chain them in turn.
+        let prior_opts = build_options(interp, outcome_code);
+        // SAFETY: keep `prior_opts` alive across the finally eval.
+        unsafe { obj::incr_ref_count(prior_opts) };
         let fc = interp.eval_control_body(fin);
         if fc != Code::Ok {
+            if fc == Code::Error {
+                interp.set_during(prior_opts); // chain the superseded exception
+            } else {
+                interp.clear_during(); // a non-error finally exception does not chain
+            }
+            // SAFETY: release our hold (`set_during` kept its own if it ran).
+            unsafe { obj::decr_ref_count(prior_opts) };
             return fc; // finally's result is already the interp result
         }
+        // SAFETY: finally completed OK — discard the speculative capture.
+        unsafe { obj::decr_ref_count(prior_opts) };
     }
 
     interp.set_result_bytes(&outcome_result);
@@ -340,14 +375,15 @@ fn bad_completion_code(interp: &mut Interp, word: &[u8]) -> Code {
 }
 
 /// Bind a `try` handler clause's `[resultVar ?optionsVar?]` to the body's result
-/// and option dict. `Err(())` if a variable can't be set (the interp error is
-/// left in place); the result variable is set before the options variable, so a
-/// later failure still leaves the result variable assigned (error-19.11).
+/// and the prebuilt option dict (`body_opts`, retained into the variable).
+/// `Err(())` if a variable can't be set (the interp error is left in place); the
+/// result variable is set before the options variable, so a later failure still
+/// leaves the result variable assigned (error-19.11).
 fn bind_handler_vars(
     interp: &mut Interp,
     vars: &[u8],
     body_result: &[u8],
-    body_code: Code,
+    body_opts: *mut TclObj,
 ) -> Result<(), ()> {
     let names = crate::parse::split_list(vars).unwrap_or_default();
     if let Some(rv) = names.first() {
@@ -361,9 +397,7 @@ fn bind_handler_vars(
         }
     }
     if let Some(ov) = names.get(1) {
-        let opts = build_options(interp, body_code);
-        if interp.var_set(ov, opts).is_err() {
-            drop_fresh(opts);
+        if interp.var_set(ov, body_opts).is_err() {
             cant_set(interp, ov);
             return Err(());
         }
