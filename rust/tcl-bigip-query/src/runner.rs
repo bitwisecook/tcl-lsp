@@ -277,16 +277,33 @@ pub fn run_query(
 
             if ctx.edits.has_edits() {
                 attempted_mutation = true;
-                // Edits target the iterating source (cross-file `$other.x`
-                // edits are a deferred edge case); apply against the running
-                // text for this URI.
-                let mut sources_now: HashMap<String, String> = HashMap::new();
+                // Edits may target the iterating source or any named source the
+                // query reached via `$name`. Apply across every loaded source
+                // (with the iterating URI overridden by its post-edit text) —
+                // `apply` partitions by URI. Cross-file edits land directly on
+                // `result.edits_per_file`; the iterating source's own edit
+                // folds into `current_source` and is written at end-of-URI.
+                let mut sources_now: HashMap<String, String> =
+                    sources.iter().cloned().collect();
                 sources_now.insert(uri.clone(), current_source.clone());
                 let applied = apply(&ctx.edits, &sources_now)?;
                 if let Some(self_applied) = applied.get(uri) {
                     current_source.clone_from(&self_applied.new_source);
                     accumulated_field_edits += self_applied.field_edits;
                     accumulated_rename_reports.extend(self_applied.rename_reports.iter().cloned());
+                }
+                // Cross-file edits (`$other.x.y = …` from inside this
+                // per-file iteration) target a different source — merge them
+                // into `result.edits_per_file`, in source order for stable
+                // output, accumulating onto any prior entry.
+                for (other_uri, other_src) in sources {
+                    if other_uri == uri {
+                        continue;
+                    }
+                    let Some(other_applied) = applied.get(other_uri) else {
+                        continue;
+                    };
+                    merge_cross_file_edit(&mut result, other_uri, other_src, other_applied);
                 }
             }
         }
@@ -296,19 +313,83 @@ pub fn run_query(
             .push((uri.clone(), accumulated_values));
         if attempted_mutation {
             result.has_mutation = true;
-            result.edits_per_file.push((
-                uri.clone(),
+            // Fold this source's accumulated self-edit onto any entry a prior
+            // iteration's cross-file edit already created for this URI (port of
+            // `_run_query`'s `existing = result.edits_per_file.get(uri)`).
+            let (base_renames, base_edits) = take_existing_edit(&result, uri);
+            let mut rename_reports = base_renames;
+            rename_reports.extend(accumulated_rename_reports);
+            upsert_edit(
+                &mut result,
+                uri,
                 AppliedSource {
                     uri: uri.clone(),
                     original: source.clone(),
                     new_source: current_source,
-                    rename_reports: accumulated_rename_reports,
-                    field_edits: accumulated_field_edits,
+                    rename_reports,
+                    field_edits: base_edits + accumulated_field_edits,
                 },
-            ));
+            );
         }
     }
     Ok(result)
+}
+
+/// Insert or replace the [`AppliedSource`] for *uri* in
+/// `result.edits_per_file`, preserving first-insertion position — the
+/// `Vec`-backed equivalent of Python's `edits_per_file[uri] = …` dict write.
+fn upsert_edit(result: &mut QueryResult, uri: &str, applied: AppliedSource) {
+    if let Some(entry) = result.edits_per_file.iter_mut().find(|(u, _)| u == uri) {
+        entry.1 = applied;
+    } else {
+        result.edits_per_file.push((uri.to_owned(), applied));
+    }
+}
+
+/// Read (without removing) the accumulated rename reports + field-edit count
+/// already recorded for *uri*, or `(empty, 0)` — port of the `base_renames` /
+/// `base_edits` reads guarding each `edits_per_file` write.
+fn take_existing_edit(
+    result: &QueryResult,
+    uri: &str,
+) -> (Vec<crate::rewrite::RenameReport>, usize) {
+    result
+        .edits_per_file
+        .iter()
+        .find(|(u, _)| u == uri)
+        .map_or_else(
+            || (Vec::new(), 0),
+            |(_, a)| (a.rename_reports.clone(), a.field_edits),
+        )
+}
+
+/// Merge a cross-file [`AppliedSource`] (an edit that originated while
+/// iterating a *different* source) into `result.edits_per_file`, accumulating
+/// onto any prior entry — port of `_run_query`'s cross-file edit loop.
+fn merge_cross_file_edit(
+    result: &mut QueryResult,
+    other_uri: &str,
+    other_original: &str,
+    other_applied: &AppliedSource,
+) {
+    let existing = result.edits_per_file.iter().find(|(u, _)| u == other_uri);
+    let base_original = existing.map_or(other_original.to_owned(), |(_, a)| a.original.clone());
+    let (mut rename_reports, base_edits) = existing.map_or_else(
+        || (Vec::new(), 0),
+        |(_, a)| (a.rename_reports.clone(), a.field_edits),
+    );
+    rename_reports.extend(other_applied.rename_reports.iter().cloned());
+    upsert_edit(
+        result,
+        other_uri,
+        AppliedSource {
+            uri: other_uri.to_owned(),
+            original: base_original,
+            new_source: other_applied.new_source.clone(),
+            rename_reports,
+            field_edits: base_edits + other_applied.field_edits,
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------

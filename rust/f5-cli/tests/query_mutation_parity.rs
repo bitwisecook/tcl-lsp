@@ -318,6 +318,37 @@ fn noop_strict_exits_2() {
     );
 }
 
+// --- cross-file edits ---------------------------------------------------
+
+#[test]
+fn cross_file_edit_targets_named_source() {
+    // A mutation reaching another loaded source via `$name` (here `$xfb`,
+    // while the per-file runner iterates `xfa` then `xfb`) must apply against
+    // that source — not fail with "no source loaded". The diff lands on the
+    // named file, byte-identical to the Python runner.
+    let xfa = std::fs::canonicalize(fixtures_dir().join("xfa.conf"))
+        .expect("canonicalize xfa.conf")
+        .to_string_lossy()
+        .into_owned();
+    let xfb = std::fs::canonicalize(fixtures_dir().join("xfb.conf"))
+        .expect("canonicalize xfb.conf")
+        .to_string_lossy()
+        .into_owned();
+    let out = run_query(
+        &[
+            r#"$xfb.ltm.pool[].monitor = "/Common/tcp""#,
+            &xfa,
+            &xfb,
+        ],
+        &[0],
+    );
+    assert_eq!(
+        out,
+        golden("query-crossfile-edit.golden"),
+        "cross-file edit diff does not match the Python CLI"
+    );
+}
+
 #[test]
 fn select_nothing_queues_no_edit_exits_0() {
     // The predicate drops every object, so no edit op is queued: the query is

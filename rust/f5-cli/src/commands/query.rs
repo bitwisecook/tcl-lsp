@@ -37,7 +37,17 @@ use tcl_bigip_io::read_path;
 use tcl_bigip_query::value::Value;
 use tcl_bigip_query::{QueryOptions, QueryResult, output, run_query};
 
+use crate::cli::FormatArgs;
+
 use super::difflib;
+
+/// Whether *path*'s extension is `.ucs` (case-insensitive) — mirrors
+/// `Path(path).suffix.lower() == ".ucs"`.
+fn has_ucs_suffix(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("ucs"))
+}
 
 /// The mutually-exclusive output-mode flags, resolved to an `output::render`
 /// mode by [`OutputModeFlags::resolve`]. Mirrors the `--scf` / `--raw` /
@@ -108,6 +118,53 @@ fn parse_name_bindings(
             ));
         }
         bindings.insert(nm.to_owned(), pth.to_owned());
+    }
+    Ok(bindings)
+}
+
+/// Parse `--partition PATH=PARTITION` (or bare `--partition PARTITION`)
+/// entries — port of `query._parse_partition_bindings`.
+///
+/// Returns ordered `(path, partition)` bindings where an empty `path` is the
+/// bare form (applies to every loaded source). Validates that each `PATH=`
+/// form names a positional input, that a single source isn't bound twice, and
+/// that the bare form is given at most once.
+fn parse_partition_bindings(
+    raw: &[String],
+    paths: &[String],
+) -> Result<Vec<(String, String)>, String> {
+    let mut bindings: Vec<(String, String)> = Vec::new();
+    let mut seen_paths: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut saw_bare = false;
+    for entry in raw {
+        if let Some((pth, partition)) = entry.split_once('=') {
+            if pth.is_empty() {
+                return Err(format!("--partition '{entry}': PATH side cannot be empty"));
+            }
+            if partition.is_empty() {
+                return Err(format!(
+                    "--partition '{entry}': PARTITION side cannot be empty"
+                ));
+            }
+            if !paths.iter().any(|p| p == pth) {
+                return Err(format!(
+                    "--partition {pth}={partition}: path was not given as a \
+                     positional input (so the runner would have no source for it)"
+                ));
+            }
+            if seen_paths.contains(pth) {
+                return Err(format!("--partition {pth}: duplicate binding"));
+            }
+            seen_paths.insert(pth.to_owned());
+            bindings.push((pth.to_owned(), partition.to_owned()));
+        } else {
+            // Bare `--partition NAME` applies to every source.
+            if saw_bare {
+                return Err("--partition: bare PARTITION may only be given once".to_owned());
+            }
+            saw_bare = true;
+            bindings.push((String::new(), entry.clone()));
+        }
     }
     Ok(bindings)
 }
@@ -495,10 +552,12 @@ pub fn run_query_verb(
     expression: Option<&str>,
     inputs: &[PathBuf],
     names: &[String],
+    partition: &[String],
     input_args: &InputArgs,
     mode: &str,
     render_opts: &BTreeMap<String, String>,
     flags: QueryFlags,
+    format: &FormatArgs,
     probes: &ProbeArgs,
 ) -> anyhow::Result<u8> {
     // Mirror `_run_query`'s up-front validation order and messages.
@@ -508,6 +567,20 @@ pub fn run_query_verb(
     };
     if inputs.is_empty() {
         eprintln!("error: no input files (pass '-' to read stdin)");
+        return Ok(2);
+    }
+
+    // `--format tmsh` re-renders the parsed config as a `tmsh modify` script —
+    // never a safe replacement for the on-disk SCF source. Reject the
+    // `--in-place` + tmsh combination up front (mirrors `_run_query`).
+    if flags.in_place && (format.format == "tmsh" || format.format == "tmsh-delta") {
+        eprintln!(
+            "error: --in-place is incompatible with --format {} \
+             (in-place writes must preserve the SCF source format; \
+             use --write or redirect to an explicit output file for \
+             tmsh script output)",
+            format.format
+        );
         return Ok(2);
     }
 
@@ -524,6 +597,14 @@ pub fn run_query_verb(
 
     let name_map = match parse_name_bindings(names, &path_strs) {
         Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return Ok(2);
+        }
+    };
+
+    let partition_bindings = match parse_partition_bindings(partition, &path_strs) {
+        Ok(b) => b,
         Err(e) => {
             eprintln!("error: {e}");
             return Ok(2);
@@ -547,7 +628,21 @@ pub fn run_query_verb(
     let mut sources: Vec<(String, String)> = Vec::with_capacity(path_strs.len());
     let mut path_for_uri: Vec<(String, String)> = Vec::new();
     for path_str in &path_strs {
-        let (uri, src) = match read_path(path_str, false, &opts) {
+        // `--in-place` rewriting a UCS archive would mean repacking the
+        // gzipped tar and losing other artefacts — refuse (mirrors
+        // `_run_query`).
+        if flags.in_place && path_str != "-" && has_ucs_suffix(path_str) {
+            eprintln!(
+                "error: --in-place not supported for UCS archives ({path_str}); \
+                 extract first with `f5 extract` or use --write"
+            );
+            return Ok(2);
+        }
+        // Strict UTF-8 for mutating in-place writes: if any byte can't be
+        // decoded, raise instead of silently swapping it for U+FFFD —
+        // otherwise the read…rewrite…write round-trip would permanently
+        // overwrite the unreadable bytes.
+        let (uri, src) = match read_path(path_str, flags.in_place, &opts) {
             Ok(pair) => pair,
             Err(e) => {
                 eprintln!("error: {e}");
@@ -588,6 +683,34 @@ pub fn run_query_verb(
         resolved_names.insert(nm, uri);
     }
 
+    // Translate `--partition PATH=PARTITION` keys into URI form so the
+    // runner's per-URI partition lookup uses the same key shape the source
+    // map does. The bare form (empty path) applies to every loaded source.
+    let mut resolved_partitions: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for (path_str, partition) in &partition_bindings {
+        if path_str.is_empty() {
+            for (uri, _) in &path_for_uri {
+                resolved_partitions
+                    .entry(uri.clone())
+                    .or_insert_with(|| partition.clone());
+            }
+            continue;
+        }
+        let uri = path_for_uri
+            .iter()
+            .find(|(_, p)| p == path_str)
+            .map(|(u, _)| u.clone());
+        let Some(uri) = uri else {
+            eprintln!(
+                "error: --partition {path_str}={partition}: path was not \
+                 loaded (must also appear as a positional argument)"
+            );
+            return Ok(2);
+        };
+        resolved_partitions.insert(uri, partition.clone());
+    }
+
     // Load every structured side-input into `$NAME`-bound `SideInput`s
     // (port of `_run_query`'s `_load_side_input` loop).
     let side_inputs = match load_side_inputs(&parsed_inputs, &path_for_uri, &opts) {
@@ -606,7 +729,7 @@ pub fn run_query_verb(
 
     let query_opts = QueryOptions {
         names: resolved_names,
-        partitions: std::collections::HashMap::new(),
+        partitions: resolved_partitions,
         side_inputs,
         enable_probes: probes.enable_probes,
         ca_bundle: probes.ca_bundle.clone(),
@@ -628,7 +751,7 @@ pub fn run_query_verb(
     };
 
     if result.has_mutation {
-        return emit_mutation(&result, &path_for_uri, flags);
+        return emit_mutation(&result, &path_for_uri, flags, format);
     }
 
     emit_values(&result, n_sources, mode, render_opts, flags.strict)
@@ -643,6 +766,7 @@ fn emit_mutation(
     result: &QueryResult,
     path_for_uri: &[(String, String)],
     flags: QueryFlags,
+    format: &FormatArgs,
 ) -> anyhow::Result<u8> {
     let mut any_changed = false;
     let stdout = std::io::stdout();
@@ -668,9 +792,20 @@ fn emit_mutation(
             .iter()
             .find(|(u, _)| u == uri)
             .map_or(uri.as_str(), |(_, p)| p.as_str());
-        let rewritten = &applied.new_source;
+        // `--format tmsh` / `tmsh-delta` re-render the rewritten SCF as a
+        // `tmsh modify` script for the stdout / explicit-output paths. The
+        // unified-diff path stays SCF↔SCF (the on-disk source is SCF), and
+        // `--in-place` + tmsh is already rejected up front, so in-place writes
+        // always render verbatim SCF.
+        let rewritten = super::emit::render_config(
+            &applied.new_source,
+            &format.format,
+            "modify",
+            format.transaction,
+            &applied.original,
+        );
         if flags.in_place && path_str != "-" {
-            std::fs::write(Path::new(path_str), rewritten)?;
+            std::fs::write(Path::new(path_str), &rewritten)?;
             continue;
         }
         if flags.write {

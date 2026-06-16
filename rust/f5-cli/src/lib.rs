@@ -434,7 +434,9 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
     let Command::Query {
         expression,
         inputs,
+        from_file,
         name,
+        partition,
         input_json,
         input_jsonl,
         input_csv,
@@ -454,6 +456,7 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
         ca_bundle,
         render_name,
         render_opt,
+        format,
         ..
     } = command
     else {
@@ -465,6 +468,28 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
     if let Some(code) = dispatch_query_help(command)? {
         return Ok(code);
     }
+
+    // Resolve the query expression, honouring `-f/--from-file` — port of
+    // `query._resolve_expression`. When `--from-file` is set, the positional
+    // `expression` is actually the first input file (argparse fills the
+    // positional slot before `inputs`), so promote it into `inputs`.
+    let mut inputs = inputs.clone();
+    let resolved_expression: Option<String> = if let Some(from_file) = from_file {
+        if let Some(expr) = expression {
+            inputs.insert(0, std::path::PathBuf::from(expr));
+        }
+        match std::fs::read_to_string(from_file) {
+            Ok(text) => Some(text),
+            Err(e) => {
+                // Mirror Python: print the read error, then fall through with
+                // `None` so the verb prints the "no query expression" message.
+                eprintln!("error: {e}");
+                None
+            }
+        }
+    } else {
+        expression.clone()
+    };
 
     // `--render NAME` re-uses the same output dispatch path as the built-in
     // modes: `output::render` falls through to the renderer registry on an
@@ -498,9 +523,10 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
     };
 
     commands::query::run_query_verb(
-        expression.as_deref(),
-        inputs,
+        resolved_expression.as_deref(),
+        &inputs,
         name,
+        partition,
         &commands::query::InputArgs {
             input_json,
             input_jsonl,
@@ -516,6 +542,7 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
             in_place: *in_place,
             strict: *strict,
         },
+        format,
         &commands::query::ProbeArgs {
             enable_probes: *enable_probes,
             ca_bundle: ca_bundle.clone(),

@@ -309,19 +309,45 @@ fn l4_checksum(
     Some(cksum)
 }
 
+/// Whether a full IP header fits at `off` — `rewrite_ip_layer` indexes the
+/// fixed 20-byte IPv4 / 40-byte IPv6 header without further bounds checks, so a
+/// candidate offset is only usable when the packet is long enough. A truncated
+/// capture record (e.g. an Ethernet frame with an IPv4 ethertype but no
+/// 20-byte IP header) is therefore reported as "no IP layer" and skipped rather
+/// than triggering an out-of-bounds slice panic.
+///
+/// Parity note: on such a truncated record Python's `_find_ip_offset` returns
+/// the offset unguarded and `ipaddress.IPv4Address(b'')` then raises, surfacing
+/// as `error:` / exit 2 with a corrupt partial output file. We instead skip the
+/// malformed packet (passing it through unmodified) — a deliberate, safer
+/// divergence on malformed input; well-formed captures (the only shape the
+/// differential corpus and any real device produces) carry full headers and are
+/// unaffected.
+fn ip_header_fits(packet: &[u8], off: usize, is_v6: bool) -> bool {
+    let need = if is_v6 { 40 } else { 20 };
+    off.checked_add(need).is_some_and(|end| end <= packet.len())
+}
+
 /// Return `(offset, is_v6)` for the IP header inside `packet`, or `None`.
+///
+/// A candidate offset is only returned when a full IP header fits at it (see
+/// [`ip_header_fits`]); truncated packets yield `None`.
 #[must_use]
 pub fn find_ip_offset(packet: &[u8], linktype: u16) -> Option<(usize, bool)> {
+    // Funnel every candidate through the fixed-header length guard so callers
+    // never index past a truncated capture record.
+    let fit = |off: usize, is_v6: bool| ip_header_fits(packet, off, is_v6).then_some((off, is_v6));
+
     if linktype == LINKTYPE_RAW || linktype == LINKTYPE_RAW_IPV4 {
         return if !packet.is_empty() && (packet[0] >> 4) == 4 {
-            Some((0, false))
+            fit(0, false)
         } else {
             None
         };
     }
     if linktype == LINKTYPE_RAW_IPV6 {
         return if !packet.is_empty() && (packet[0] >> 4) == 6 {
-            Some((0, true))
+            fit(0, true)
         } else {
             None
         };
@@ -330,18 +356,18 @@ pub fn find_ip_offset(packet: &[u8], linktype: u16) -> Option<(usize, bool)> {
     if (linktype == LINKTYPE_ETHERNET || linktype == LINKTYPE_F5_USER0) && packet.len() >= 14 {
         let ethertype = u16_at(packet, 12);
         if ethertype == 0x0800 {
-            return Some((14, false));
+            return fit(14, false);
         }
         if ethertype == 0x86DD {
-            return Some((14, true));
+            return fit(14, true);
         }
         if ethertype == 0x8100 && packet.len() >= 18 {
             let inner = u16_at(packet, 16);
             if inner == 0x0800 {
-                return Some((18, false));
+                return fit(18, false);
             }
             if inner == 0x86DD {
-                return Some((18, true));
+                return fit(18, true);
             }
         }
     }
@@ -349,20 +375,20 @@ pub fn find_ip_offset(packet: &[u8], linktype: u16) -> Option<(usize, bool)> {
     if linktype == LINKTYPE_LINUX_SLL && packet.len() >= 16 {
         let proto = u16_at(packet, 14);
         if proto == 0x0800 {
-            return Some((16, false));
+            return fit(16, false);
         }
         if proto == 0x86DD {
-            return Some((16, true));
+            return fit(16, true);
         }
     }
 
     if linktype == LINKTYPE_LINUX_SLL2 && packet.len() >= 20 {
         let proto = u16_at(packet, 0);
         if proto == 0x0800 {
-            return Some((20, false));
+            return fit(20, false);
         }
         if proto == 0x86DD {
-            return Some((20, true));
+            return fit(20, true);
         }
     }
 
@@ -370,8 +396,10 @@ pub fn find_ip_offset(packet: &[u8], linktype: u16) -> Option<(usize, bool)> {
         let limit = 64.min(packet.len().saturating_sub(1));
         for (off, &byte) in packet.iter().enumerate().take(limit) {
             let ver = byte >> 4;
-            if ver == 4 || ver == 6 {
-                return Some((off, ver == 6));
+            if (ver == 4 || ver == 6)
+                && let Some(hit) = fit(off, ver == 6)
+            {
+                return Some(hit);
             }
         }
     }
@@ -1069,5 +1097,54 @@ mod tests {
         let mut rm = RedactionMap::default();
         let err = remap_pcap(&input, &mut rm, false, UnknownPolicy::Error).unwrap_err();
         assert!(matches!(err, PcapError::Value(_)));
+    }
+
+    /// A truncated Ethernet/IPv4 record (IPv4 ethertype but fewer than 20
+    /// trailing bytes) has no room for a full IP header, so `find_ip_offset`
+    /// reports "no IP layer" instead of returning an offset the rewriter would
+    /// index out of bounds. A full header at the same offset is accepted.
+    #[test]
+    fn find_ip_offset_rejects_truncated_header() {
+        // Ethernet(14) + ethertype 0x0800 + only 4 IP bytes = 18 total.
+        let mut trunc = vec![0u8; 12];
+        trunc.extend_from_slice(&[0x08, 0x00]); // ethertype IPv4
+        trunc.extend_from_slice(&[0x45, 0x00, 0x00, 0x14]); // partial IP header
+        assert_eq!(find_ip_offset(&trunc, LINKTYPE_ETHERNET), None);
+
+        // The same frame with a full 20-byte IPv4 header is accepted.
+        let mut full = trunc.clone();
+        full.extend_from_slice(&[0u8; 16]);
+        assert_eq!(find_ip_offset(&full, LINKTYPE_ETHERNET), Some((14, false)));
+    }
+
+    /// A truncated IPv4 packet must not panic the whole-file rewriter: the
+    /// malformed record is skipped (passed through unmodified) and the run
+    /// completes cleanly. Regression guard for the out-of-bounds slice panic.
+    #[test]
+    fn remap_pcap_skips_truncated_packet() {
+        let mut rm = map_with(&[("93.184.216.34", "10.0.0.34")]);
+        // Ethernet(14) + ethertype 0x0800 + 4 IP bytes — no full IP header.
+        let mut eth = vec![0u8; 12];
+        eth.extend_from_slice(&[0x08, 0x00]);
+        eth.extend_from_slice(&[0x45, 0x00, 0x00, 0x14]);
+        let mut input = Vec::new();
+        input.extend_from_slice(&0xa1b2_c3d4u32.to_le_bytes());
+        input.extend_from_slice(&2u16.to_le_bytes());
+        input.extend_from_slice(&4u16.to_le_bytes());
+        input.extend_from_slice(&0i32.to_le_bytes());
+        input.extend_from_slice(&0u32.to_le_bytes());
+        input.extend_from_slice(&0x40000u32.to_le_bytes());
+        input.extend_from_slice(&1u32.to_le_bytes()); // linktype = Ethernet
+        input.extend_from_slice(&0u32.to_le_bytes());
+        input.extend_from_slice(&0u32.to_le_bytes());
+        input.extend_from_slice(&(eth.len() as u32).to_le_bytes());
+        input.extend_from_slice(&(eth.len() as u32).to_le_bytes());
+        input.extend_from_slice(&eth);
+
+        let (out, result) = remap_pcap(&input, &mut rm, false, UnknownPolicy::Error)
+            .expect("truncated packet must not panic or error");
+        assert_eq!(out, input, "the malformed record passes through unmodified");
+        assert_eq!(result.packets_total, 1);
+        assert_eq!(result.packets_rewritten, 0);
     }
 }

@@ -323,12 +323,21 @@ pub enum Command {
     /// jq-flavoured DSL for inspecting and rewriting BIG-IP configs.
     #[command(visible_alias = "q")]
     Query {
-        /// The query expression.
+        /// The query expression. Use -f/--from-file to read it from a file.
         expression: Option<String>,
         inputs: Vec<PathBuf>,
+        /// Read the query expression from FILE (mutually exclusive with passing
+        /// the expression as the first positional argument).
+        #[arg(short = 'f', long = "from-file", value_name = "FILE")]
+        from_file: Option<String>,
         /// Bind a named config (NAME=PATH, repeatable).
         #[arg(long = "name", value_name = "NAME=PATH")]
         name: Vec<String>,
+        /// Tell the loader which BIG-IP partition a source belongs to
+        /// (PATH=PARTITION, or a bare PARTITION applied to every source).
+        /// Repeatable; defaults to `Common`.
+        #[arg(long = "partition", value_name = "PATH=PARTITION")]
+        partition: Vec<String>,
         /// Bind an external JSON file to $NAME as a side input (repeatable).
         #[arg(long = "input-json", value_name = "NAME=PATH")]
         input_json: Vec<String>,
