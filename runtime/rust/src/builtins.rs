@@ -465,12 +465,17 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         interp.set_result_bytes(b"");
     }
-    // On an error completion, stamp the error globals (like `error`).
+    // On an error completion, populate the live exception state from the error
+    // options (`TclProcessReturn`) — *not* the `::errorInfo`/`::errorCode`
+    // globals, which are written only when the error is reported. This runs
+    // regardless of `-level`, so a deferred (`-level > 0`) error carries its
+    // info/code once the return boundary turns it into a real error.
     if code == Code::Error {
-        let info = errorinfo.unwrap_or_else(|| obj_bytes(interp.get_obj_result()));
-        let ecode = errorcode.unwrap_or_else(|| b"NONE".to_vec());
-        set_global(interp, b"::errorInfo", &info);
-        set_global(interp, b"::errorCode", &ecode);
+        interp.process_return_error(
+            errorinfo.as_deref(),
+            errorcode.as_deref(),
+            errorstack.as_deref(),
+        );
     }
     if level == 0 {
         // No unwinding: complete with `code` right here.
@@ -478,14 +483,6 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         interp.set_return_state(level, code);
         Code::Return
-    }
-}
-
-/// Set a global (`::name`) to `bytes` (for the error globals).
-fn set_global(interp: &mut Interp, name: &[u8], bytes: &[u8]) {
-    let o = obj::new_string_bytes(bytes);
-    if interp.var_set(name, o).is_err() {
-        drop_fresh(o);
     }
 }
 

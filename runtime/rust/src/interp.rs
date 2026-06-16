@@ -2564,6 +2564,40 @@ impl Interp {
         Code::Error
     }
 
+    /// Apply the error-related options of a `return -code error` to the live
+    /// exception state (`TclProcessReturn`'s `TCL_ERROR` arm). This populates the
+    /// interp's errorInfo/errorCode/errorStack — *not* the `::errorInfo`/
+    /// `::errorCode` globals, which are written only when the error is actually
+    /// reported (caught as code 1 / reaching the top level). An explicit non-empty
+    /// `-errorinfo` is taken verbatim and marks the error already-logged (so the
+    /// unwind does not append a `while executing` frame); otherwise the trace
+    /// accumulates normally. `-errorcode` defaults to `NONE`; a valid `-errorstack`
+    /// replaces the built stack.
+    pub(crate) fn process_return_error(
+        &mut self,
+        errorinfo: Option<&[u8]>,
+        errorcode: Option<&[u8]>,
+        errorstack: Option<&[u8]>,
+    ) {
+        let (info, already_logged) = match errorinfo {
+            Some(i) if !i.is_empty() => (Some(i.to_vec()), true),
+            _ => (None, false),
+        };
+        *self.exc.borrow_mut() = ExceptionState {
+            info,
+            code: errorcode.unwrap_or(b"NONE").to_vec(),
+            code_explicit: errorcode.is_some(),
+            line: 1,
+            already_logged,
+        };
+        if let Some(es) = errorstack {
+            if let Ok(parts) = crate::parse::split_list(es) {
+                *self.error_stack.borrow_mut() = parts;
+                self.reset_error_stack.set(false);
+            }
+        }
+    }
+
     /// Append one `while executing` / `invoked from within` frame for the command
     /// `src[cmd.start..cmd.end]` as an error unwinds through it — the
     /// `TclLogCommandInfo` mirror (`tclNamesp.c`). A no-op (consuming the flag)
@@ -4439,11 +4473,23 @@ impl Interp {
         };
         // On error, append the `(procedure "name" line N)` / `(lambda term ...)`
         // frame and clear `already_logged` so the proc-call command logs next.
+        // Skipped when the error was produced by the return boundary itself
+        // (`return -code error`, i.e. the body completed with `Code::Return`):
+        // C only adds the procedure frame when the error unwinds *through* the
+        // body, not when `return` synthesises it (error-6.7, result-6.2).
         if settled == Code::Error {
-            self.make_proc_error(meta.err);
-            // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
-            if let Some(words) = call_words {
-                self.error_stack_push_call(&words);
+            if code != Code::Return {
+                self.make_proc_error(meta.err);
+                // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
+                if let Some(words) = call_words {
+                    self.error_stack_push_call(&words);
+                }
+            } else {
+                // `return -code error`: no procedure frame, but the *caller* still
+                // logs its own `invoked from within "<call>"` frame, so release
+                // the already-logged flag that `process_return_error` may have set
+                // for an explicit `-errorinfo` (error-6.7).
+                self.clear_error_logged();
             }
         }
         settled
