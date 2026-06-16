@@ -176,8 +176,10 @@ impl<T> OrderedMap<T> {
 
 // ── Reference-kind classification (port of `_classify_kind`) ─────────
 
-/// Map an object reference's kinds to a coarse bucket, or `None` to skip.
-fn classify_kind(kinds: &[&str]) -> Option<&'static str> {
+/// Map an object reference's kinds to a coarse bucket, or `None` to skip
+/// (port of `_classify_kind`). Shared with the `f5 irule trace` verb.
+#[must_use]
+pub fn classify_kind(kinds: &[&str]) -> Option<&'static str> {
     if kinds.contains(&"ltm_pool") {
         return Some("pool");
     }
@@ -309,6 +311,33 @@ pub fn origin_source<'a>(
         return Some(sources[0].1.as_str());
     }
     None
+}
+
+/// Resolve an object reference of `kind` named `name` against `config`,
+/// returning the resolved full-path (port of `dialects/f5/bigip/lint`'s
+/// `_resolve_reference`). Shares the `resolve_name`-over-model resolver with
+/// [`build_irule_context`]; consumed by the `f5 irule trace` verb.
+#[must_use]
+pub fn resolve_reference(config: &BigipConfig, kind: &str, name: &str) -> Option<String> {
+    let view = ConfigView::build(config);
+    let dp = view.default_partition;
+    match kind {
+        "pool" => resolve_in(name, &view.pools, dp).map(|i| view.pools[i].0.to_owned()),
+        "data-group" => {
+            resolve_in(name, &view.data_groups, dp).map(|i| view.data_groups[i].0.to_owned())
+        }
+        "persistence" => {
+            resolve_in(name, &view.persistence, dp).map(|i| view.persistence[i].0.to_owned())
+        }
+        "snat-pool" => {
+            resolve_in(name, &view.snat_pools, dp).map(|i| view.snat_pools[i].0.to_owned())
+        }
+        "monitor" => resolve_in(name, &view.monitors, dp).map(|i| view.monitors[i].0.to_owned()),
+        "profile" => resolve_in(name, &view.profiles, dp).map(|i| view.profiles[i].0.to_owned()),
+        "node" => resolve_in(name, &view.nodes, dp).map(|i| view.nodes[i].0.to_owned()),
+        "rule" => resolve_in(name, &view.rules, dp).map(|i| view.rules[i].0.to_owned()),
+        _ => None,
+    }
 }
 
 /// Slice the original config text for an object's `range` (port of

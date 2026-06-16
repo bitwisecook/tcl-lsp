@@ -540,6 +540,7 @@ dependencies = [
  "tcl-bigip-io",
  "tcl-bigip-query",
  "tcl-cli-support",
+ "tcl-irules",
  "tcl-lsp-core",
  "tcl-registry",
  "ureq",

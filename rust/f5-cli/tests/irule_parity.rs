@@ -3,9 +3,9 @@
 //! Runs the built `f5-query` binary against committed `.irule` / `.conf`
 //! fixtures and asserts stdout matches goldens captured from
 //! `python -m tooling.f5.main irule <sub> …` for the **ported** sub-subcommands
-//! (event-order, event-info, lint, context, format, minify, extract).
-//! Self-contained: no Python at test time. Also asserts each **deferred** sub
-//! (trace, pgo) exits 2 with the expected "not yet ported" message.
+//! (event-order, event-info, lint, context, trace, format, minify, extract).
+//! Self-contained: no Python at test time. Also asserts the **deferred** `pgo`
+//! sub exits 2 with the expected "not yet ported" message.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -326,19 +326,6 @@ fn lint_clean_input_no_findings() {
 }
 
 #[test]
-fn trace_is_deferred() {
-    assert_deferred(
-        &[
-            "irule",
-            "trace",
-            "HTTP_REQUEST",
-            &fixture("irule-sample.irule"),
-        ],
-        "trace",
-    );
-}
-
-#[test]
 fn pgo_is_deferred() {
     assert_deferred(
         &[
@@ -457,6 +444,81 @@ fn context_no_irules_found_exits_1() {
     ]);
     assert_eq!(code, 1);
     assert_eq!(stderr, "error: no iRules found in input\n");
+}
+
+// ---------------------------------------------------------------------------
+// trace — byte-for-byte stdout parity with `python -m tooling.f5.main irule
+// trace EVENT` (purely static: `when EVENT {…}` block-match + balanced-brace
+// slice + command/object-reference extraction; no VM).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn trace_bigip_http_request_text() {
+    let (code, out, _) = run(&["irule", "trace", "HTTP_REQUEST", &fixture("bigip.conf")]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-trace-bigip.text.golden"));
+}
+
+#[test]
+fn trace_bigip_http_request_json() {
+    let (code, out, _) = run(&[
+        "irule",
+        "trace",
+        "HTTP_REQUEST",
+        &fixture("bigip.conf"),
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-trace-bigip.json.golden"));
+}
+
+#[test]
+fn trace_full_config_all_reference_kinds_text() {
+    let (code, out, _) = run(&[
+        "irule",
+        "trace",
+        "HTTP_REQUEST",
+        &fixture("irule-context-full.conf"),
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-trace-full.text.golden"));
+}
+
+#[test]
+fn trace_full_config_all_reference_kinds_json() {
+    // resolved + unresolved refs across pool/persistence/snat-pool/profile/node.
+    let (code, out, _) = run(&[
+        "irule",
+        "trace",
+        "HTTP_REQUEST",
+        &fixture("irule-context-full.conf"),
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-trace-full.json.golden"));
+}
+
+#[test]
+fn trace_event_name_is_case_insensitive() {
+    // `http_request` matches `when HTTP_REQUEST` (Python uses re.IGNORECASE);
+    // the `event` field echoes the query as typed, so the golden differs only
+    // in that one string from the upper-case run.
+    let (code, out, _) = run(&[
+        "irule",
+        "trace",
+        "http_request",
+        &fixture("bigip.conf"),
+        "--json",
+    ]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-trace-lowercase.json.golden"));
+}
+
+#[test]
+fn trace_no_matching_event_exits_1() {
+    let (code, out, _) = run(&["irule", "trace", "TOTALLY_FAKE", &fixture("bigip.conf")]);
+    assert_eq!(code, 1);
+    assert_eq!(out, golden("irule-trace-nomatch.text.golden"));
 }
 
 // ---------------------------------------------------------------------------

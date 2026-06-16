@@ -417,8 +417,9 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
             no_transitive,
             json,
         } => run_irule_context(input, rule, *no_transitive, *json),
-        // Deferred subs: each needs an engine the Rust port does not yet carry.
-        IruleCommand::Trace { .. } => Err(deferred("trace", "compiler-VM")),
+        IruleCommand::Trace { event, input, json } => run_irule_trace(event, input, *json),
+        // Deferred sub: PGO needs the `compiler/pgo` branch-reorder engine
+        // (and `--capture` needs tclsh) — not yet ported.
         IruleCommand::Pgo { .. } => Err(deferred("pgo", "compiler-VM")),
     };
     // Both the success path and the printed-error path resolve to a process
@@ -822,6 +823,238 @@ fn run_irule_context(
     };
     write_text(&input.output, &payload).map_err(|_| 2u8)?;
     Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// trace
+// ---------------------------------------------------------------------------
+
+/// Return the body text inside the `{...}` starting at byte `open_brace` (port
+/// of `_slice_balanced_braces`). Brace-depth scan that skips `"…"` strings
+/// (honouring `\` escapes). Operates on bytes — `{` / `}` / `"` / `\` are all
+/// ASCII, so UTF-8 multibyte sequences are passed through untouched and the
+/// returned slice lands on char boundaries, matching Python's char-indexed slice.
+fn slice_balanced_braces(source: &str, open_brace: usize) -> String {
+    let bytes = source.as_bytes();
+    if bytes.get(open_brace) != Some(&b'{') {
+        return String::new();
+    }
+    let mut depth = 1usize;
+    let mut i = open_brace + 1;
+    let start = i;
+    while i < bytes.len() && depth > 0 {
+        match bytes[i] {
+            b'{' => depth += 1,
+            b'}' => depth -= 1,
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    source[start..i.saturating_sub(1)].to_owned()
+}
+
+/// First token of each non-blank, non-comment line in `body` (port of
+/// `_extract_commands`): the leading whitespace-delimited word, right-trimmed
+/// of `{`, `}`, `;`.
+fn extract_commands(body: &str) -> Vec<String> {
+    let mut cmds: Vec<String> = Vec::new();
+    for raw in body.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let head = line.split_whitespace().next().unwrap_or("");
+        let head = head.trim_end_matches(['{', '}', ';']);
+        if !head.is_empty() {
+            cmds.push(head.to_owned());
+        }
+    }
+    cmds
+}
+
+/// One resolved object reference in a trace (mirrors the Python `references`
+/// payload entry).
+struct TraceRef {
+    kind: &'static str,
+    name: String,
+    command: String,
+    resolved_path: Option<String>,
+}
+
+/// One event-handler trace: the commands the body runs and the objects it
+/// references (mirrors the Python `traces` payload entry).
+struct Trace {
+    rule: String,
+    commands: Vec<String>,
+    references: Vec<TraceRef>,
+}
+
+/// `f5 irule trace EVENT` — static trace of a single event handler: the
+/// commands it runs and the BIG-IP objects it references. Port of
+/// `_run_irule_trace` (`tooling/f5/verbs/irule.py`). Purely static — no VM /
+/// simulator. Exit `0` when at least one rule has a matching `when EVENT`
+/// block, else `1`.
+fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
+    use tcl_bigip::irule_context::{classify_kind, resolve_reference};
+    use tcl_irules::extract_irules_object_references;
+
+    let loaded = resolve_irule_inputs(input)?;
+
+    let config_refs: Vec<(String, &tcl_bigip::parser::BigipConfig)> = loaded
+        .configs
+        .iter()
+        .map(|(origin, cfg)| (origin.clone(), cfg))
+        .collect();
+    let merged = tcl_bigip::lint::merge_configs(&config_refs);
+
+    let mut registry = tcl_registry::registry::CommandRegistry::build_default();
+    registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
+
+    // `\bwhen\s+<EVENT>\s*\{`, case-insensitive (mirrors the Python regex).
+    let block_re =
+        regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
+            .map_err(|_| 2u8)?;
+
+    let mut traces: Vec<Trace> = Vec::new();
+    for entry in &loaded.inputs {
+        let Some(m) = block_re.find(&entry.source) else {
+            continue;
+        };
+        let open_brace = m.end() - 1; // the `{` the regex ended on
+        let body = slice_balanced_braces(&entry.source, open_brace);
+        let commands = extract_commands(&body);
+        let rule_label = entry
+            .rule_full_path
+            .clone()
+            .unwrap_or_else(|| entry.label.clone());
+
+        let mut references: Vec<TraceRef> = Vec::new();
+        let mut seen: std::collections::HashSet<(&str, String)> = std::collections::HashSet::new();
+        for reference in extract_irules_object_references(&body, None, &registry) {
+            let Some(kind) = classify_kind(&reference.kinds) else {
+                continue;
+            };
+            if !seen.insert((kind, reference.name.clone())) {
+                continue;
+            }
+            let resolved_path = resolve_reference(&merged, kind, &reference.name);
+            references.push(TraceRef {
+                kind,
+                name: reference.name,
+                command: reference.command,
+                resolved_path,
+            });
+        }
+
+        traces.push(Trace {
+            rule: rule_label,
+            commands,
+            references,
+        });
+    }
+
+    let out = if json {
+        trace_json(event, &traces)
+    } else {
+        let mut lines = vec![format!("event {event}: {} matching rule(s)", traces.len())];
+        for t in &traces {
+            lines.push(format!("  {} — {} command(s)", t.rule, t.commands.len()));
+            for cmd in &t.commands {
+                lines.push(format!("    {cmd}"));
+            }
+            for r in &t.references {
+                let marker = if r.resolved_path.is_some() { "✓" } else { "✗" };
+                let target = r.resolved_path.as_ref().unwrap_or(&r.name);
+                lines.push(format!("    {marker} {}: {target}", r.kind));
+            }
+        }
+        format!("{}\n", lines.join("\n"))
+    };
+    write_text(&input.output, &out).map_err(|_| 2u8)?;
+    Ok(u8::from(traces.is_empty()))
+}
+
+/// `json.dumps({"event": …, "traces": [...]}, indent=2)` + "\n", insertion-
+/// ordered keys (mirrors the Python trace payload).
+fn trace_json(event: &str, traces: &[Trace]) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::from("{\n");
+    let _ = write!(out, "  \"event\": {}", json_string(event));
+    out.push_str(",\n  \"traces\": ");
+    if traces.is_empty() {
+        out.push_str("[]\n}\n");
+        return out;
+    }
+    out.push_str("[\n");
+    for (ti, t) in traces.iter().enumerate() {
+        out.push_str("    {\n");
+        let _ = writeln!(out, "      \"rule\": {},", json_string(&t.rule));
+        let _ = writeln!(out, "      \"commandCount\": {},", t.commands.len());
+        out.push_str("      \"commands\": ");
+        push_str_array(&mut out, &t.commands, 6);
+        out.push_str(",\n      \"references\": ");
+        if t.references.is_empty() {
+            out.push_str("[]");
+        } else {
+            out.push_str("[\n");
+            for (ri, r) in t.references.iter().enumerate() {
+                out.push_str("        {\n");
+                let _ = writeln!(out, "          \"kind\": {},", json_string(r.kind));
+                let _ = writeln!(out, "          \"name\": {},", json_string(&r.name));
+                let _ = writeln!(out, "          \"command\": {},", json_string(&r.command));
+                let _ = writeln!(out, "          \"resolved\": {},", r.resolved_path.is_some());
+                out.push_str("          \"resolvedPath\": ");
+                match &r.resolved_path {
+                    Some(p) => out.push_str(&json_string(p)),
+                    None => out.push_str("null"),
+                }
+                out.push_str("\n        }");
+                if ri + 1 < t.references.len() {
+                    out.push(',');
+                }
+                out.push('\n');
+            }
+            out.push_str("      ]");
+        }
+        out.push_str("\n    }");
+        if ti + 1 < traces.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  ]\n}\n");
+    out
+}
+
+/// A JSON array of strings at `indent` spaces: `[]` when empty, else one item
+/// per line (`indent + 2`) with the bracket back at `indent`.
+fn push_str_array(out: &mut String, items: &[String], indent: usize) {
+    if items.is_empty() {
+        out.push_str("[]");
+        return;
+    }
+    let pad = " ".repeat(indent + 2);
+    out.push_str("[\n");
+    for (i, item) in items.iter().enumerate() {
+        out.push_str(&pad);
+        out.push_str(&json_string(item));
+        if i + 1 < items.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str(&" ".repeat(indent));
+    out.push(']');
 }
 
 // ---------------------------------------------------------------------------
