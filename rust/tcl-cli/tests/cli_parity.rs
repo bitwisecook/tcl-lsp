@@ -32,6 +32,19 @@ fn run_tcl(args: &[&str]) -> Vec<u8> {
     output.stdout
 }
 
+/// Run the built `tcl` binary from `dir` (so relative input paths resolve and
+/// the diff headers carry stable bare filenames), returning stdout. Unlike
+/// [`run_tcl`] this does not assert success — `diff` exits 1 when the sides
+/// differ.
+fn run_tcl_in(dir: &std::path::Path, args: &[&str]) -> Vec<u8> {
+    Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .expect("failed to spawn tcl binary")
+        .stdout
+}
+
 fn assert_matches_golden(args: &[&str], golden: &str) {
     let fixtures = fixtures_dir();
     let golden_path = fixtures.join(golden);
@@ -172,6 +185,94 @@ fn callgraph_json_matches_python() {
         &["callgraph", "--json", input.to_str().unwrap()],
         "callgraph.json.golden",
     );
+}
+
+// `diff` compares two sources at the AST / IR / CFG layers. The **AST layer**
+// is a byte-parity port: it segments each side (`tcl-compiler` segmenter),
+// resolves subcommands + ranges into the canonical `_serialise_command_ast`
+// JSON, and emits a `difflib.unified_diff`-faithful diff
+// (`tcl_cli_support::difflib`). The IR/CFG layers depend on the IR/SSA
+// serialiser (`tooling/cli/serialise.py`) and are not ported yet (requesting
+// them is a clear error), so these goldens lock the AST layer. The tests run
+// the binary from the fixtures dir with bare filenames so the `ast:<name>`
+// headers + `leftInput` stay stable; the JSON's absolute `leftDocuments` path
+// is normalised to a `__FIXTURES__` placeholder (as the golden was captured).
+#[test]
+fn diff_ast_text_matches_python() {
+    let fx = fixtures_dir();
+    let actual = run_tcl_in(
+        &fx,
+        &["diff", "diff-left.tcl", "diff-right.tcl", "--show", "ast"],
+    );
+    let expected = std::fs::read(fx.join("diff.ast.golden")).expect("read diff.ast.golden");
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+    );
+}
+
+#[test]
+fn diff_ast_json_matches_python() {
+    let fx = fixtures_dir();
+    let actual = String::from_utf8(run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-left.tcl",
+            "diff-right.tcl",
+            "--show",
+            "ast",
+            "--json",
+        ],
+    ))
+    .expect("utf8 stdout");
+    let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
+    let expected =
+        std::fs::read_to_string(fx.join("diff.ast.json.golden")).expect("read diff.ast.json.golden");
+    assert_eq!(normalised, expected);
+}
+
+// `diff --show ir` — the **IR layer** is a byte-parity port of the `ir` half of
+// `tooling/cli/serialise.py` (`_serialise_ir` / `_serialise_script` + the
+// `stmt_*` / `preview` helpers) via the new `tcl-cli` `serialise` module: the
+// `tcl-compiler` `CompilationUnit` IR is rendered with the same statement kinds,
+// summaries, colour classes, control-flow children, and span-derived ranges
+// (incl. `widen_for_highlight` brace widening). The CFG layer still needs the
+// SSA serialiser. These fixtures carry procs + `if`/`for`/`expr` so the IR
+// rendering is exercised.
+#[test]
+fn diff_ir_text_matches_python() {
+    let fx = fixtures_dir();
+    let actual = run_tcl_in(
+        &fx,
+        &["diff", "diff-ir-left.tcl", "diff-ir-right.tcl", "--show", "ir"],
+    );
+    let expected = std::fs::read(fx.join("diff.ir.golden")).expect("read diff.ir.golden");
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+    );
+}
+
+#[test]
+fn diff_ir_json_matches_python() {
+    let fx = fixtures_dir();
+    let actual = String::from_utf8(run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-ir-left.tcl",
+            "diff-ir-right.tcl",
+            "--show",
+            "ir",
+            "--json",
+        ],
+    ))
+    .expect("utf8 stdout");
+    let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
+    let expected =
+        std::fs::read_to_string(fx.join("diff.ir.json.golden")).expect("read diff.ir.json.golden");
+    assert_eq!(normalised, expected);
 }
 
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
