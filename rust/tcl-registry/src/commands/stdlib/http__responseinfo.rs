@@ -4,7 +4,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseInfo",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(1),
         return_type: Some(TclType::Dict),
         hover: Some(HoverSnippet {

@@ -162,7 +162,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Sets or returns the unknown command handler for the current namespace.",
         synopsis: "namespace unknown ?script?",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL85_PLUS),
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -190,6 +190,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "namespace",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

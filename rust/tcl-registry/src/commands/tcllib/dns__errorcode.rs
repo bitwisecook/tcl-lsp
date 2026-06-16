@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dns::errorcode",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the error code from a DNS query.",

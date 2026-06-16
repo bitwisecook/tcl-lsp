@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "logger::enable",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Enable logging at the specified level.",

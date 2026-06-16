@@ -8,11 +8,13 @@
 //!   [`tcl_bigip`] model), and `format` / `minify` (the [`tcl_lsp_core`]
 //!   formatter / minifier engines, driven with the `f5-irules` dialect exactly
 //!   as the `tcl` CLI drives them).
-//! - **Deferred** — `event-info` (its `validCommands` cross-product needs the
-//!   full f5-irules command corpus, which the Rust registry does not yet carry),
-//!   `lint` / `context` (the iRule analyser), and `trace` / `pgo` (the compiler
-//!   lowering / CFG / VM). Each parses its args (so `--help` works) but its
-//!   handler prints a clear "not yet ported" error and exits 2.
+//!   as the `tcl` CLI drives them), and `event-info` (event metadata + the
+//!   `validCommands` cross-product over the reconciled command registry,
+//!   `CommandRegistry::event_info`).
+//! - **Deferred** — `lint` / `context` (the iRule analyser), and `trace` /
+//!   `pgo` (the compiler lowering / CFG / VM). Each parses its args (so
+//!   `--help` works) but its handler prints a clear "not yet ported" error and
+//!   exits 2.
 
 use std::path::{Path, PathBuf};
 
@@ -289,11 +291,12 @@ pub fn run_irule(action: &IruleCommand) -> anyhow::Result<u8> {
             *isolated,
             colour,
         ),
+        IruleCommand::EventInfo {
+            event,
+            json,
+            output,
+        } => run_event_info(event, *json, output),
         // Deferred subs: each needs an engine the Rust port does not yet carry.
-        IruleCommand::EventInfo { .. } => Err(deferred(
-            "event-info",
-            "full f5-irules command-registry (validCommands cross-product)",
-        )),
         IruleCommand::Lint { .. } => Err(deferred("lint", "analyser")),
         IruleCommand::Context { .. } => Err(deferred("context", "analyser")),
         IruleCommand::Trace { .. } => Err(deferred("trace", "compiler-VM")),
@@ -440,6 +443,89 @@ fn run_event_order(input: &IruleInputArgs, json: bool) -> Result<u8, u8> {
     }
     write_text(&input.output, &lines.join("\n")).map_err(|_| 1u8)?;
     Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// event-info
+// ---------------------------------------------------------------------------
+
+/// `f5 irule event-info EVENT` — look up event metadata + valid commands.
+/// Port of `_run_event_info` (`tooling/f5/verbs/irule.py`) over the
+/// reconciled command-registry cross-product (`CommandRegistry::event_info`).
+/// Exit code is `0` for a known event, `1` otherwise (both streams written).
+fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
+    let mut cmds = tcl_registry::registry::CommandRegistry::build_default();
+    cmds.load_irules();
+    let events = tcl_registry::events::EventRegistry::build();
+    let profiles = tcl_registry::profiles::ProfileRegistry::build();
+    let info = cmds.event_info(event, &events, &profiles);
+    let rc = u8::from(!info.known);
+
+    if json {
+        use std::fmt::Write as _;
+        // `json.dumps(payload, indent=2)` — insertion-ordered keys.
+        let mut out = String::from("{\n");
+        let _ = write!(out, "  \"event\": {}", json_string(&info.event));
+        let _ = write!(out, ",\n  \"known\": {}", info.known);
+        let _ = write!(out, ",\n  \"deprecated\": {}", info.deprecated);
+        let _ = write!(out, ",\n  \"multiplicity\": {}", json_string(info.multiplicity));
+        let _ = write!(out, ",\n  \"description\": {}", json_string(&info.description));
+        let _ = write!(out, ",\n  \"side\": {}", json_string(info.side));
+        out.push_str(",\n  \"transport\": ");
+        match &info.transport {
+            Some(t) => out.push_str(&json_string(t)),
+            None => out.push_str("null"),
+        }
+        out.push_str(",\n  \"impliedProfiles\": ");
+        push_json_string_array(&mut out, info.implied_profiles.iter().copied());
+        let _ = write!(out, ",\n  \"validCommandCount\": {}", info.valid_command_count());
+        out.push_str(",\n  \"validCommands\": ");
+        push_json_string_array(&mut out, info.valid_commands.iter().map(String::as_str));
+        out.push_str("\n}");
+        write_text(output, &out).map_err(|_| 1u8)?;
+        return Ok(rc);
+    }
+
+    let mut lines = vec![
+        format!("event: {}", info.event),
+        format!("known: {}", if info.known { "yes" } else { "no" }),
+        format!("deprecated: {}", if info.deprecated { "yes" } else { "no" }),
+        format!("multiplicity: {}", info.multiplicity),
+    ];
+    if !info.description.is_empty() {
+        lines.push(format!("description: {}", info.description));
+    }
+    lines.push(format!("side: {}", info.side));
+    if let Some(t) = info.transport.as_deref().filter(|t| !t.is_empty()) {
+        lines.push(format!("transport: {t}"));
+    }
+    if !info.implied_profiles.is_empty() {
+        lines.push(format!("profiles: {}", info.implied_profiles.join(", ")));
+    }
+    lines.push(format!("valid commands: {}", info.valid_command_count()));
+    write_text(output, &lines.join("\n")).map_err(|_| 1u8)?;
+    Ok(rc)
+}
+
+/// Append a JSON array of strings rendered as `json.dumps(..., indent=2)`
+/// would at a top-level (2-space) key: `[]` when empty, else one item per
+/// line indented four spaces with the closing bracket at two.
+fn push_json_string_array<'a>(out: &mut String, items: impl Iterator<Item = &'a str>) {
+    let rendered: Vec<String> = items.map(json_string).collect();
+    if rendered.is_empty() {
+        out.push_str("[]");
+        return;
+    }
+    out.push_str("[\n");
+    for (i, item) in rendered.iter().enumerate() {
+        out.push_str("    ");
+        out.push_str(item);
+        if i + 1 < rendered.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  ]");
 }
 
 // ---------------------------------------------------------------------------

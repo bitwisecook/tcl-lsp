@@ -4,7 +4,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "platform::patterns",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return a list of platform patterns that match the given identifier.",

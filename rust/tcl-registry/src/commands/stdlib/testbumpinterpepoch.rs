@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testbumpinterpepoch",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Bump the interpreter compilation epoch.",

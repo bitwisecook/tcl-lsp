@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::longestCommonPrefix",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Find the longest common prefix of strings.",

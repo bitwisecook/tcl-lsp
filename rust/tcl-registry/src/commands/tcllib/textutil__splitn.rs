@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::splitn",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Split a string into chunks of length N.",

@@ -16,7 +16,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "md5::md5",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Compute the MD5 hash of a string or file.",

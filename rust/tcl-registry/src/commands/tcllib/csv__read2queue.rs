@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::read2queue",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(2, 4),
         hover: Some(HoverSnippet {
             summary: "Read CSV data from a channel into a queue object.",

@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ip::contract",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Contract an IPv6 address to its shortest form.",

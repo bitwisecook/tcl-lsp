@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroprobe",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        dialects: Some(DialectSet::TCL90),
         arity: Arity::at_least(2),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

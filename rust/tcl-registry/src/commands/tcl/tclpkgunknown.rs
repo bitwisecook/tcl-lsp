@@ -3,6 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclPkgUnknown",
+        dialects: Some(DialectSet::ALL_TCL),
         // A redefinable Tcl library proc — see `Traits::OVERRIDABLE_LIBRARY_PROC`.
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         arity: Arity::at_least(1),

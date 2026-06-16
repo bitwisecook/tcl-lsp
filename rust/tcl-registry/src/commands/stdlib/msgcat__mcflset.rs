@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcflset",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Set a translation for the locale of the current message file.",

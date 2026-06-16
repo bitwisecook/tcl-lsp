@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "base64::encode",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 5),
         hover: Some(HoverSnippet {
             summary: "Encode binary data as a base64 string.",

@@ -48,7 +48,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "option",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Add or retrieve window options to or from the option database.",

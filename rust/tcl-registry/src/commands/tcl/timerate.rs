@@ -23,6 +23,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timerate",
+        dialects: Some(DialectSet::NON_IRULES_OPERATORS),
         // The body's position varies with the leading options, so we
         // don't pin a fixed BODY index beyond arg 0; the option /
         // positional mix makes the upper arity bound unbounded.

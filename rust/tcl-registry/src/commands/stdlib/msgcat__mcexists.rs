@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcexists",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Check whether a translation exists for the given source string.",

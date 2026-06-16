@@ -6,8 +6,10 @@
 //! writing a sidecar map file so `f5 unredact` can reverse it.
 //!
 //! `--format scf` (default) emits the rewritten text verbatim, reaching
-//! byte-for-byte parity with the Python CLI. `tmsh` / `tmsh-delta` need the
-//! unported tmsh emitter and are cleanly rejected.
+//! byte-for-byte parity with the Python CLI. `tmsh` / `tmsh-delta` re-render the
+//! rewritten config via the BIG-IP tmsh emit engine
+//! (`tcl_bigip::tmsh_emit`); like the Python verb, no pre-edit original is
+//! threaded, so `tmsh-delta` treats every object as freshly created.
 
 use std::path::{Path, PathBuf};
 
@@ -76,14 +78,6 @@ pub fn run_redact(
     format: &FormatArgs,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
-    // Deferred: `tmsh` / `tmsh-delta` need the unported tmsh emitter.
-    if format.format != "scf" {
-        anyhow::bail!(
-            "`f5 redact --format {}` is not yet implemented in the Rust port (needs the tmsh emitter)",
-            format.format
-        );
-    }
-
     let opts = crate::cli::PassphraseArgs::default().to_options();
     let (_uri, source) = match read_path(path, false, &opts) {
         Ok(pair) => pair,
@@ -134,10 +128,17 @@ pub fn run_redact(
         }
     };
 
-    // `--format scf` => verbatim (`render_config`).
-    let rendered = &report.new_source;
+    // `--format scf` => verbatim; `tmsh` / `tmsh-delta` re-render. Like the
+    // Python verb, no pre-edit original is threaded (delta treats all as new).
+    let rendered = crate::commands::emit::render_config(
+        &report.new_source,
+        &format.format,
+        "modify",
+        format.transaction,
+        "",
+    );
     if let Some(out) = output {
-        std::fs::write(out, rendered)?;
+        std::fs::write(out, &rendered)?;
     } else {
         print!("{rendered}");
     }

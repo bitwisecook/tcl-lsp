@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::replaceInFile",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::at_least(4),
         hover: Some(HoverSnippet {
             summary: "Replace data in a file.",

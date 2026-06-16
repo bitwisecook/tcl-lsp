@@ -15,7 +15,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::trim",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Remove leading whitespace from each line of text.",

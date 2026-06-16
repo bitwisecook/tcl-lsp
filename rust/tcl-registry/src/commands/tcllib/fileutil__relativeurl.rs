@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::relativeUrl",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Compute a relative URL path.",

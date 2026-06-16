@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptKeyParse",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Parse arguments using a previously registered option description.",

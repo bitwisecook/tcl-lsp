@@ -141,7 +141,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info frame ?depth?",
         pure: true,
         return_type: Some(TclType::Dict),
-        dialects: Some(DialectSet::TCL85_PLUS),
+        dialects: None,
         ..SubCommand::DEFAULT
     },
     SubCommand {

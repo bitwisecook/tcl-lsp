@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dns::dump",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Dump the contents of a DNS query token for debugging.",

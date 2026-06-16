@@ -9,7 +9,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::test-Duckworth",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Perform Duckworth test.",

@@ -8,7 +8,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::joinmatrix",
-        dialects: Some(DialectSet::ALL_TCL),
+        dialects: None,
         arity: Arity::new(1, 4),
         hover: Some(HoverSnippet {
             summary: "Join a matrix object into CSV-formatted lines.",

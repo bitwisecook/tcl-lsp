@@ -102,7 +102,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::treeview",
-        dialects: Some(DialectSet::TK),
+        dialects: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed hierarchical multicolumn data display widget.",
