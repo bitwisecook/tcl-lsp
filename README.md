@@ -785,7 +785,7 @@ f5 irule event-info HTTP_REQUEST --json
 | --- | --- |
 | Acquisition | `fetch`, `extract` (UCS → SCF) |
 | Analysis | `stats`, `graph`, `explain`, `diff`, `grep`, `cleanup`, `validate` |
-| Transformation | `rename`, `redact`, `unredact`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
+| Transformation | `rename`, `redact`, `unredact`, `encrypt-secrets`, `decrypt-secrets`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
 | Round-trip | `pull`, `push` |
 | iRules | `irule event-order`, `irule event-info`, `irule lint`, `irule trace`, `irule extract` |
 | Misc | `completion` |
@@ -832,6 +832,23 @@ Highlights of the newer verbs:
   reuses every prior assignment, so iterative work with F5 support
   stays consistent.  `unredact` walks the map in reverse over any text,
   including support emails and log snippets.
+- **`f5 encrypt-secrets` + `f5 decrypt-secrets`** — encrypt or decrypt the
+  credential-bearing values in a `bigip.conf` / SCF (passphrase, password,
+  secret, shared-secret, auth-password, priv-password, encrypted-password)
+  using the unit master key — the base64 key `f5mku -K` prints on the
+  device.  `encrypt-secrets` wraps clear-text values in the
+  `$M$<salt>$<base64>` envelope BIG-IP stores; `decrypt-secrets` recovers the
+  clear text.  Both leave values already in the target form untouched, so
+  they are idempotent.  The key is supplied via `--f5mku KEY`,
+  `--f5mku-file FILE`, or `$F5MKU`; the AES-ECB transform runs on the
+  bundled pure-Python cipher, so it works in the zipapp with no
+  `cryptography` dependency.
+
+  ```sh
+  f5mku -K > key.txt                                       # on the device
+  f5 decrypt-secrets bigip.conf --f5mku-file key.txt       # reveal secrets
+  F5MKU="$(cat key.txt)" f5 encrypt-secrets clear.conf -o sealed.conf
+  ```
 - **`f5 pcap-remap`** — apply the same map to a PCAP capture: rewrites
   IPv4/IPv6 src/dst, recomputes IP and TCP/UDP/ICMP checksums, and
   *parses* the F5 Ethernet trailer (legacy + DPT formats; `tcpdump -i

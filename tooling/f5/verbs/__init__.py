@@ -29,6 +29,7 @@ def load_verbs() -> None:
         redact,
         registry,
         rename,
+        secrets,
         split,
         stats,
         tmsh,

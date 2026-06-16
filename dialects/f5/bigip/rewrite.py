@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from .parser import parse_bigip_conf
 
@@ -284,3 +284,97 @@ def redact_secrets(
         new_source=out,
         redaction_map=rm,
     )
+
+
+# ── encrypt / decrypt secrets ───────────────────────────────────────
+
+# BIG-IP fields whose values it stores encrypted under the unit master
+# key (the ``$M$...`` envelope produced by ``f5mku``).  This is a
+# deliberately tighter set than ``_SECRET_KEYS`` above: redaction also
+# blanks SNMP community strings and monitor receive strings, but those
+# are kept in clear text on the device and are never master-key
+# encrypted, so feeding them through the cipher would corrupt the
+# config.
+_ENCRYPTED_SECRET_KEYS = (
+    "passphrase",
+    "password",
+    "encrypted-password",
+    "secret",
+    "shared-secret",
+    "auth-password",
+    "priv-password",
+)
+
+# A secret value token is either a double-quoted string or a run of
+# non-whitespace, non-brace characters.  The F5 ``$M$<salt>$<base64>``
+# ciphertext is whitespace-free so it always lands in the bare-token arm.
+_SECRET_VALUE = r'"(?:[^"\\]|\\.)*"|[^\s{}]+'
+
+# Values BIG-IP uses as a sentinel for "no secret set" — never crypto.
+_SECRET_SENTINELS = frozenset({"none", "<REDACTED>"})
+
+
+@dataclass(frozen=True, slots=True)
+class SecretRewriteReport:
+    # Number of secret values *transform* actually rewrote.
+    transformed: int
+    # Number of secret-bearing values left untouched (transform returned
+    # None — e.g. already in the target form, or a ``none`` sentinel).
+    skipped: int
+    new_source: str
+
+
+def _unquote(token: str) -> tuple[str, bool]:
+    """Return ``(value, was_quoted)`` for a secret-value *token*."""
+    if len(token) >= 2 and token[0] == '"' and token[-1] == '"':
+        return token[1:-1].replace('\\"', '"').replace("\\\\", "\\"), True
+    return token, False
+
+
+def _requote(value: str, was_quoted: bool) -> str:
+    """Render *value* back as a SCF token, quoting when it needs it."""
+    needs_quote = was_quoted or value == "" or any(c in value for c in ' \t"{}#;')
+    if not needs_quote:
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def rewrite_secrets(
+    source: str,
+    transform: Callable[[str], str | None],
+) -> SecretRewriteReport:
+    """Apply *transform* to every encrypted-secret-bearing value in *source*.
+
+    For each ``<key> <value>`` whose key is in
+    :data:`_ENCRYPTED_SECRET_KEYS`, *transform* is called with the
+    decoded value and returns the replacement value, or ``None`` to
+    leave it untouched.  This is a text-level rewrite — comments,
+    whitespace, and ordering survive — and the caller supplies the
+    actual cipher (``f5 encrypt-secrets`` / ``f5 decrypt-secrets`` wire
+    in :mod:`tooling.f5.f5mku`), so this module stays free of any
+    crypto dependency.
+    """
+    transformed = 0
+    skipped = 0
+    out = source
+    for key in _ENCRYPTED_SECRET_KEYS:
+        pattern = re.compile(
+            rf"(?<![\w-])({re.escape(key)})([ \t]+)({_SECRET_VALUE})",
+        )
+
+        def _sub(match: re.Match[str]) -> str:
+            nonlocal transformed, skipped
+            value, was_quoted = _unquote(match.group(3))
+            if value in _SECRET_SENTINELS:
+                skipped += 1
+                return match.group(0)
+            replacement = transform(value)
+            if replacement is None:
+                skipped += 1
+                return match.group(0)
+            transformed += 1
+            return f"{match.group(1)}{match.group(2)}{_requote(replacement, was_quoted)}"
+
+        out = pattern.sub(_sub, out)
+    return SecretRewriteReport(transformed=transformed, skipped=skipped, new_source=out)
