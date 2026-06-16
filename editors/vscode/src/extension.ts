@@ -206,10 +206,17 @@ function resolveRustServer(
   if (explicit) {
     return existsSync(explicit) ? explicit : undefined;
   }
-  // Packaged install: the universal VSIX bundles one binary per platform.
-  const bundled = path.join(extensionPath, "server", bundlePlatformDir(), RUST_SERVER_EXE);
-  if (existsSync(bundled)) {
-    return bundled;
+  // A configured `serverPath` means "run from this checkout" and must take
+  // precedence over the binary bundled in the VSIX — otherwise an installed
+  // user who points at a local checkout to test server changes would silently
+  // keep getting the packaged binary.  Only consult the bundled binary when no
+  // serverPath is set.
+  if (!configuredServerPath.trim()) {
+    // Packaged install: the universal VSIX bundles one binary per platform.
+    const bundled = path.join(extensionPath, "server", bundlePlatformDir(), RUST_SERVER_EXE);
+    if (existsSync(bundled)) {
+      return bundled;
+    }
   }
   // Dev checkout: pick up a locally built binary.
   const root = resolveServerDir(configuredServerPath, extensionPath);
