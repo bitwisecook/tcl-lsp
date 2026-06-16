@@ -47,12 +47,12 @@ pub enum Json {
 
 impl Json {
     /// Build a `Json::Str` from any displayable string.
-    fn s(value: impl Into<String>) -> Json {
+    pub(crate) fn s(value: impl Into<String>) -> Json {
         Json::Str(value.into())
     }
 
     /// Build a `Json::Array` of strings.
-    fn str_array<I, T>(items: I) -> Json
+    pub(crate) fn str_array<I, T>(items: I) -> Json
     where
         I: IntoIterator<Item = T>,
         T: Into<String>,

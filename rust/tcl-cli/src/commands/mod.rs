@@ -8,4 +8,5 @@ pub mod diag;
 pub mod graphs;
 pub mod highlight;
 pub mod lookup;
+pub mod registry;
 pub mod transform;

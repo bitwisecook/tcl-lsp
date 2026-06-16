@@ -107,6 +107,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             *isolated,
             colour,
         ),
+        Command::RegistryDump {
+            dialect,
+            all_dialects,
+            json: _,
+            output,
+        } => commands::registry::run_registry_dump(dialect, *all_dialects, output.as_deref()),
         Command::UnminifyError {
             symbol_map,
             error,

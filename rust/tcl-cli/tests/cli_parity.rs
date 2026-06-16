@@ -142,3 +142,45 @@ fn symbolgraph_json_matches_python() {
         "symbolgraph.json.golden",
     );
 }
+
+// `registry-dump` is wired onto the Rust command-registry snapshot
+// (`tcl_registry::command_snapshot`, a faithful port of Python
+// `command_registry_snapshot`). Whole-dialect byte-parity is gated by
+// command-registry *data* parity: the Rust and Python registries differ on
+// the `dialects` field representation (Rust uses explicit dialect sets where
+// Python uses `None`, and Rust carries no `f5-bigip`/`f5-tmsh` dialect bits)
+// plus scattered trait / hover-synopsis / arity / subcommand-modelling data
+// divergences (see docs/rust-cli-port.md). So this golden locks the faithful
+// subset — the core commands whose registry data is already byte-identical to
+// Python — verifying the snapshot serialisation + field derivation while the
+// data gap converges as a separate workstream.
+#[test]
+fn registry_dump_faithful_subset_matches_python() {
+    // Core commands verified byte-identical to the Python `registry-dump`
+    // entry (`dialects: null` in both, matching traits/forms/scalars/info).
+    const NAMES: &[&str] = &[
+        "append", "array", "break", "catch", "continue", "error", "eval", "expr", "for", "global",
+        "incr", "info", "join", "lappend", "lassign", "lindex", "llength", "lrange", "proc",
+        "regexp", "regsub", "return", "set", "split", "switch", "throw", "try", "unset", "uplevel",
+        "upvar", "variable", "while",
+    ];
+    use std::collections::BTreeMap;
+    use tcl_registry::snapshot::Json;
+
+    let registry = tcl_cli_support::registry_for_dialect("tcl8.6");
+    let mut obj: BTreeMap<String, Json> = BTreeMap::new();
+    for name in NAMES {
+        let entry = tcl_registry::command_snapshot::command_entry_json(registry, "tcl8.6", name)
+            .unwrap_or_else(|| panic!("registry has no entry for {name}"));
+        obj.insert((*name).to_owned(), entry);
+    }
+    let actual = Json::Object(obj).dumps_indent2();
+
+    let golden_path = fixtures_dir().join("registry-dump.tcl8.6-subset.golden");
+    let expected = std::fs::read_to_string(&golden_path)
+        .unwrap_or_else(|e| panic!("read golden {}: {e}", golden_path.display()));
+    assert_eq!(
+        actual, expected,
+        "registry-dump faithful-subset snapshot does not match the Python golden"
+    );
+}

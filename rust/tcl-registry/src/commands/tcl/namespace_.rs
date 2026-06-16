@@ -196,7 +196,8 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::NEVER_INLINE_BODY
             | Traits::HAS_DESTRUCTIVE_OPS
-            | Traits::DYNAMIC_EVAL_BODY,
+            | Traits::DYNAMIC_EVAL_BODY
+            | Traits::WASM_EMITS_NOTHING,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         side_effects: &[

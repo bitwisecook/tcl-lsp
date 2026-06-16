@@ -34,6 +34,7 @@ pub mod arg_role;
 pub mod arity;
 pub mod bigip;
 pub mod body_kind;
+pub mod command_snapshot;
 pub mod commands;
 pub mod const_fold;
 pub mod dialects;
