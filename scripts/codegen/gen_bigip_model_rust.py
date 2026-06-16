@@ -294,8 +294,8 @@ def gen_dispatch() -> str:
     import dataclasses as dc
     import re as _re
 
-    from dialects.f5.bigip.model._config import BigipConfig
     import dialects.f5.bigip.parser._parsers as PP
+    from dialects.f5.bigip.model._config import BigipConfig
 
     attr2struct: dict[str, str] = {}
     for f in dc.fields(BigipConfig):
