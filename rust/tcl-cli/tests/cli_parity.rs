@@ -118,3 +118,27 @@ fn symbols_json_matches_python() {
         "symbols.json.golden",
     );
 }
+
+// `symbolgraph` is wired onto the analyser scope tree + command-invocation
+// records. Like `symbols` it inherits the analyser gaps (explicit
+// `::`-qualified proc names report the simple name, which also skews
+// `ref_count`/`proc_references`; some variable references aren't tracked), so
+// the goldens use the same faithful-subset fixture and lock the scope/ref
+// serialisation shape byte-for-byte.
+#[test]
+fn symbolgraph_text_matches_python() {
+    let input = fixtures_dir().join("symbols.tcl");
+    assert_matches_golden(
+        &["symbolgraph", input.to_str().unwrap()],
+        "symbolgraph.golden",
+    );
+}
+
+#[test]
+fn symbolgraph_json_matches_python() {
+    let input = fixtures_dir().join("symbols.tcl");
+    assert_matches_golden(
+        &["symbolgraph", "--json", input.to_str().unwrap()],
+        "symbolgraph.json.golden",
+    );
+}
