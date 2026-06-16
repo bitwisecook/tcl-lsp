@@ -104,7 +104,7 @@ helpers are done; the rest await engine ports.
 | `tmsh` (+delta), `convert` (`scf2as3`/`ucs2scf`), `redact`/`unredact` | ✅ byte-parity | `tmsh`: SCF→tmsh `create`/`modify`/delta emitter (`tcl-bigip::tmsh_emit`) — also powers `--format tmsh` in `extract`/`split`/`merge`/`redact`/`unredact`/`rename`. `convert`: AS3 declaration engine (`tcl-bigip::convert`) + ucs2scf (reuses `extract`). `redact`/`unredact`: secret-stripping + IP-remap (`tcl-bigip::redact`) incl. a hand-ported CPython-MT19937 `--shuffle`, with round-trip + sidecar-`.map` parity. `--format tmsh`/`tmsh-delta`/`--transaction` wired via `render_config` (tmsh `modify` verb; no pre-edit original threaded, so delta treats all objects as created — matching Python); golden-tested |
 | `grep`, `pcap-remap`, `enrich-pcapng`/`enrich-wireshark` | ✅ byte-parity | `grep`: `compute_grep` ref-graph search (`tcl-bigip::grep`; literal/regex/CIDR seeds, direction/depth, text/json/tmsh). `pcap-remap`: PCAP IP-remap (`tcl-bigip::pcap_remap`; classic libpcap + pcapng + F5 trailers, checksum byte-parity; custom `--schema` TOML deferred). `enrich-*`: config→capture/profile enrichment (`tcl-bigip::pcap_enrich`/`wireshark_profile`; Wireshark profile + NameIndex + direct-write PCAPNG annotation byte-parity; `editcap`-driven libpcap→pcapng conversion deferred as in Python) |
 | `fetch`/`push`/`pull` | ✅ offline parity / live untested | Remote verbs (`f5-cli` `commands::remote`). `push --dry-run` request dump + `resolve_credentials` precedence/errors byte-parity (golden-tested offline). Live iControl REST via `ureq`+`rustls` (push PUT/POST, pull GET, fetch UCS→SCF via `tcl-bigip-io`) — implemented, only runs against a real device. **SSH transport deferred** (`russh` needs `unsafe`/C deps) |
-| `irule` group | 🚧 partial | `event-order`/`extract`/`format`/`minify` byte-parity (reuse `tcl-registry`/`tcl-bigip`/`tcl-lsp-core`). `event-info` deferred (Rust registry carries ~191 cmds vs Python's ~1236 — registry-data regen). `lint`/`context` (analyser) + `trace`/`pgo` (compiler-VM) deferred — engine-gap workstreams |
+| `irule` group | 🚧 partial | `event-order`/`extract`/`format`/`minify`/`event-info` byte-parity (reuse `tcl-registry`/`tcl-bigip`/`tcl-lsp-core`). **`event-info`**: ports `lookup_event_info` over the reconciled command registry (`CommandRegistry::event_info` + the event-validity cross-product) + a generated `event_descriptions` prose table; verified byte-identical across all 178 events (text + JSON). `lint`/`context` (analyser) + `trace`/`pgo` (compiler-VM) deferred — engine-gap workstreams |
 | `explain-flow` | ⛔ blocked | needs the **iRule simulator** (`simulate_irule_for_session` → the Tcl runtime/VM, the excluded `runtime/rust` crate) |
 | `query` (`q`) | ✅ byte-parity | **`f5 query` runs end-to-end byte-identical to the Python CLI** — read-only AND mutating. `tcl-bigip-query` ports the full engine: front-end (lexer/AST/parser), value model + `json.dumps`-faithful output (auto/json/raw/paths/scf/table/table-lineart), the evaluator (full jq core + all 29 special forms), **244/244 builtins**, the **BIG-IP projection** layer (Container/ObjectRef/PathRef over the typed model), graph `refs`/`referenced_by` + rule `.refs`, the **edit-plan** (field-value + identity-field/`rename*` mutations with a faithful `difflib.unified_diff` port, `--write`/`--in-place`/diff, `--format tmsh`/`tmsh-delta`/`--transaction` rendering of the rewritten config with the `--in-place`+tmsh guard + strict-UTF-8 in-place reads, and cross-file edits via `$name`), `--partition` source binding, `-f`/`--from-file`, **renderers** (`--render mermaid`/`gantt`/`ascii-blocks`), **side-inputs** (`--input-json`/`jsonl`/`csv`/`f5log` + loaders), **live probes** (dns/ping/tls/x509 + `cert_load`, `--enable-probes` gating; `x509_parse` byte-parity), `--merge` (cross-file unified namespace + cross-file refs), and `--help-dsl`/`--help-examples`/`--help-renderers`/`--help-inputs`. **All 24 cookbook examples + a broad query matrix verified byte-identical** end-to-end vs `python -m tooling.f5.main query`. ~25 golden-differential suites. **Documented deferrals:** `--help-builtins`/`--help-manual` (the per-function prose metadata was intentionally omitted from the Rust registry), live `url_*` HTTP (stub returns the faithful result-dict shape; gating + the `http_*` accessors are real), `ucs_cert`'s UCS reader (cross-layer), PKCS#12 `cert_load`, and the long-tail object kinds the Rust model doesn't carry |
 
@@ -196,6 +196,28 @@ Keystone progress / remaining pieces:
 > pins deleted), and the BIG-IP graph is byte-identical to the Python `f5 graph`
 > on real configs. Re-run the generator whenever the Python `OBJECT_SPECS`
 > baseline moves.
+
+> **Command-dialect reconcile — RESOLVED.** The Rust command registry
+> (`tcl-registry/src/commands/**`) encoded Tcl-version availability and Tk
+> membership in the `DialectSet` itself (`Some(ALL_TCL)`/`Some(TK)`/version
+> subsets) where Python uses `dialects=None` (universal) or an explicit
+> per-command frozenset. ~627 commands diverged, breaking the iRules
+> event/command cross-product (`commands_for_event`). Reconciled every
+> spec's `dialects:` field to mirror Python across all 13 modelled dialects
+> via `scripts/registry-audit/reconcile_irules_dialects.py` (+ a
+> `NON_IRULES_OPERATORS` aggregate). `valid_irules_commands_for_event` is now
+> byte-identical to Python for all 176 events (HTTP_REQUEST: 1290). This is
+> the registry-data half of the old `~191-vs-~1236` `irule event-info` gap.
+
+> **`registry-dump` `commands`/`events`/`all` — still deferred.** The
+> `profiles`/`objects` sections are byte-parity. `events` is now tractable
+> (the event-validity cross-product + digest land via `event_info`, modulo a
+> `FlowChain.notes` data add + `EventProps` field/transport remapping), but
+> `commands`/`all` embed `command_registry_snapshot`'s per-command `traits`
+> (≈50 keys) / `scalars` dicts, which mirror the Python `CommandSpec`
+> *dataclass field layout* — no clean byte-identical Rust mapping (the Rust
+> `CommandSpec` is a different shape, traits are bitflags). Same boundary as
+> the `tcl` `registry-dump commands`/`events` deferral.
 
 ## Prioritised remaining roadmap
 
