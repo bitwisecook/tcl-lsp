@@ -69,10 +69,17 @@ backlog all reflect that intent.
    Rust-pinned in the explorer (the view is honest) but belong on the
    analyser/codegen backlog in `docs/rust-rewrite.md`.
 
-3. **Add Rust-native views** the Python contract never had — surface internals
-   that exist only in the Rust pipeline (candidates: the lexer structural
-   index, the `SourceMap`, the optimiser pass log / per-pass deltas). These
-   are additive contract keys with new frontend tabs.
+3. **Add Rust-native views** the Python contract never had. ✅ **Done.** Three
+   additive keys (skipped by the parity harness via `_RUST_NATIVE_KEYS`, each
+   with a `meta` tab, a `view_tree` builder, and a GUI tab):
+   - `optimiserPasses` — each `PassId` in execution order with the rewrites it
+     produced (`optimiser::optimise_by_pass`); reveals Rust's multi-pass
+     structure.
+   - `structuralIndex` — the lexer's structural pre-scan (command boundaries,
+     bracket/brace balance, inert literal-delimiter spans) that drives
+     incremental reparse (`tcl_lexer::structural_index`).
+   - `sourceMap` — the `LineIndex` span model (line-start table) that powers
+     O(1) offset↔line:col resolution.
 
 4. **WASM emitter (⛔)** — unblocks `wasm`/`wasmOptimised` and the `run` view;
    tracked under the broader `EXP*` / `tcl-vm` work.
