@@ -11,8 +11,10 @@
 //!
 //! Diagnostic codes ported here:
 //!
+//! - **IRULE1002** (WARNING): unknown iRules event name.
 //! - **IRULE1003** (WARNING): deprecated iRules event.
 //! - **IRULE1004** (HINT): `when` block missing explicit `priority`.
+//! - **IRULE2003** (ERROR): unsafe iRules command (context escalation).
 //! - **IRULE2101** (HINT): heavy `regexp` in a hot event.
 //! - **IRULE4001** (WARNING): write to `static::` outside `RULE_INIT`.
 //! - **IRULE4003** (HINT): variable scoping concern across events.
@@ -21,7 +23,7 @@
 
 use std::sync::OnceLock;
 
-use tcl_lexer::Token;
+use tcl_lexer::{Token, TokenType};
 use tcl_registry::events::EventRegistry;
 
 use super::state::Analyser;
@@ -125,13 +127,62 @@ impl Analyser {
         }
         let event = self.current_event.clone();
         let event_ref = event.as_deref();
+        self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens);
         self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens);
         self.emit_irule1004_when_missing_priority(cmd_name, args, cmd_tok);
+        self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
         self.emit_irule5001_ungated_log(cmd_name, cmd_tok, event_ref);
         self.emit_irule4001_static_write(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule4003_var_scope(cmd_name, args, cmd_tok, event_ref);
         self.emit_irule6001_global_var(cmd_name, args, arg_tokens, cmd_tok, event_ref);
+    }
+
+    /// **IRULE1002.** `when` references an unknown iRules event name.
+    /// Only literal event names are validated (`$var` / `[cmd]` skipped).
+    fn emit_irule1002_unknown_event(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if cmd_name != "when" {
+            return;
+        }
+        let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
+            return;
+        };
+        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+            return;
+        }
+        if event_registry().is_known(event_name) {
+            return;
+        }
+        self.result.diagnostics.push(Diagnostic {
+            code: "IRULE1002".to_string(),
+            span: tok.span,
+            message: format!("Unknown iRules event '{event_name}'. Check the event name spelling."),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **IRULE2003.** Unsafe iRules command (context escalation).
+    fn emit_irule2003_unsafe_command(&mut self, cmd_name: &str, cmd_tok: Token) {
+        let is_unsafe = self
+            .registry
+            .as_ref()
+            .is_some_and(|r| r.is_unsafe(cmd_name));
+        if !is_unsafe {
+            return;
+        }
+        self.result.diagnostics.push(Diagnostic {
+            code: "IRULE2003".to_string(),
+            span: cmd_tok.span,
+            message: format!("'{cmd_name}' is unsafe in iRules and may allow context escalation"),
+            severity: Severity::Error,
+            fixes: Vec::new(),
+        });
     }
 
     /// **IRULE1003.** Deprecated iRules event referenced by `when`.
@@ -548,6 +599,22 @@ mod tests {
             "when HTTP_REQUEST priority 100 { set x 1 }",
             "IRULE1004"
         ));
+    }
+
+    #[test]
+    fn irule1002_fires_for_unknown_event() {
+        assert!(has("when BOGUS_EVENT { log local0. hi }", "IRULE1002"));
+    }
+
+    #[test]
+    fn irule1002_quiet_for_known_event() {
+        assert!(!has("when HTTP_REQUEST { set x 1 }", "IRULE1002"));
+    }
+
+    #[test]
+    fn irule2003_fires_for_unsafe_command() {
+        let cs = codes("when HTTP_REQUEST { uplevel 1 { set x 1 } }");
+        assert!(cs.iter().any(|(c, _)| c == "IRULE2003"));
     }
 
     #[test]

@@ -132,6 +132,12 @@ pub struct CommandSpec {
     /// Excluded iRules events.
     pub excluded_events: &'static [&'static str],
 
+    /// Command is unsafe in sandboxed dialects — it allows context
+    /// escalation (e.g. `uplevel`, `history`).  Drives the IRULE2003
+    /// "unsafe iRules command" check.  Mirrors the Python
+    /// `CommandSpec.unsafe` flag read by `CommandRegistry.is_unsafe`.
+    pub unsafe_command: bool,
+
     /// Layer-based iRules event requirements (transport / profiles /
     /// `also_in` / side / init-only / flow / capability) used by the
     /// IRULE1001 event-validity check. `None` = no requirement.
@@ -334,6 +340,7 @@ impl CommandSpec {
         inferred_storage_type: None,
         required_package: None,
         excluded_events: &[],
+        unsafe_command: false,
         event_requires: None,
         options: &[],
         arg_values: &[],
