@@ -26,6 +26,7 @@ pub mod jsonfmt;
 pub mod lint;
 pub mod model;
 pub mod parser;
+pub mod pcap_enrich;
 pub mod pcap_remap;
 pub mod pcapng;
 pub mod range;
@@ -33,5 +34,6 @@ pub mod redact;
 pub mod stats;
 pub mod tmsh_emit;
 pub mod value;
+pub mod wireshark_profile;
 
 pub use range::{Position, Range};

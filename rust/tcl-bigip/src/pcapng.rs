@@ -18,6 +18,20 @@ pub const BLOCK_TYPE_SHB: u32 = 0x0A0D_0D0A;
 pub const BLOCK_TYPE_IDB: u32 = 0x0000_0001;
 /// Enhanced Packet Block.
 pub const BLOCK_TYPE_EPB: u32 = 0x0000_0006;
+/// Name Resolution Block.
+pub const BLOCK_TYPE_NRB: u32 = 0x0000_0004;
+/// Decryption Secrets Block.
+pub const BLOCK_TYPE_DSB: u32 = 0x0000_000A;
+
+/// NRB record type: end-of-records sentinel.
+pub const NRB_RECORD_END: u16 = 0x0000;
+/// NRB record type: IPv4 address → name(s).
+pub const NRB_RECORD_IPV4: u16 = 0x0001;
+/// NRB record type: IPv6 address → name(s).
+pub const NRB_RECORD_IPV6: u16 = 0x0002;
+
+/// DSB secrets type: NSS-format TLS keylog text (`"TLSK"`).
+pub const DSB_SECRETS_TYPE_TLS: u32 = 0x544C_534B;
 
 const SHB_BYTE_ORDER_MAGIC: u32 = 0x1A2B_3C4D;
 
@@ -44,6 +58,12 @@ impl Endian {
         }
     }
     fn u32_bytes(self, v: u32) -> [u8; 4] {
+        match self {
+            Endian::Little => v.to_le_bytes(),
+            Endian::Big => v.to_be_bytes(),
+        }
+    }
+    fn u16_bytes(self, v: u16) -> [u8; 2] {
         match self {
             Endian::Little => v.to_le_bytes(),
             Endian::Big => v.to_be_bytes(),
@@ -276,4 +296,125 @@ pub fn write_block(out: &mut Vec<u8>, block: &PcapngBlock) -> Result<(), String>
     out.extend_from_slice(&body);
     out.extend_from_slice(&endian.u32_bytes(block_total_len));
     Ok(())
+}
+
+/// Build a Name Resolution Block (NRB) from per-address name lists.
+///
+/// `v4_names` maps 4-byte big-endian IPv4 packed addresses to a list of UTF-8
+/// names; `v6_names` maps 16-byte big-endian IPv6 packed addresses similarly.
+/// The order of the slices is preserved. A terminating `nrb_record_end`
+/// (type 0, length 0) record is always emitted, per the PCAPNG spec.
+///
+/// Faithful port of `dialects/f5/bigip/pcapng.build_nrb_block`.
+///
+/// # Panics
+/// Panics if a v4 address is not 4 bytes or a v6 address is not 16 bytes
+/// (mirrors the Python `ValueError`; callers always pass packed addresses).
+#[must_use]
+pub fn build_nrb_block(
+    endian: Endian,
+    v4_names: &[([u8; 4], Vec<String>)],
+    v6_names: &[([u8; 16], Vec<String>)],
+) -> PcapngBlock {
+    let mut body: Vec<u8> = Vec::new();
+
+    let mut append_record = |rec_type: u16, addr: &[u8], names: &[String]| {
+        let mut names_blob: Vec<u8> = Vec::new();
+        for n in names {
+            if n.is_empty() {
+                continue;
+            }
+            names_blob.extend_from_slice(n.as_bytes());
+            names_blob.push(0);
+        }
+        if names_blob.is_empty() {
+            return;
+        }
+        let mut value: Vec<u8> = Vec::with_capacity(addr.len() + names_blob.len());
+        value.extend_from_slice(addr);
+        value.extend_from_slice(&names_blob);
+        body.extend_from_slice(&endian.u16_bytes(rec_type));
+        body.extend_from_slice(&endian.u16_bytes(value.len() as u16));
+        body.extend_from_slice(&value);
+        let pad = value.len().wrapping_neg() & 3;
+        body.resize(body.len() + pad, 0);
+    };
+
+    for (addr, names) in v4_names {
+        append_record(NRB_RECORD_IPV4, addr, names);
+    }
+    for (addr, names) in v6_names {
+        append_record(NRB_RECORD_IPV6, addr, names);
+    }
+
+    // End-of-records sentinel — required even with no name records.
+    body.extend_from_slice(&endian.u16_bytes(NRB_RECORD_END));
+    body.extend_from_slice(&endian.u16_bytes(0));
+
+    block(BLOCK_TYPE_NRB, body, endian)
+}
+
+/// Build a Decryption Secrets Block (DSB) carrying `secrets_data`.
+///
+/// Faithful port of `dialects/f5/bigip/pcapng.build_dsb_block`.
+#[must_use]
+pub fn build_dsb_block(endian: Endian, secrets_type: u32, secrets_data: &[u8]) -> PcapngBlock {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(&endian.u32_bytes(secrets_type));
+    body.extend_from_slice(&endian.u32_bytes(secrets_data.len() as u32));
+    body.extend_from_slice(secrets_data);
+    let pad = secrets_data.len().wrapping_neg() & 3;
+    body.resize(body.len() + pad, 0);
+    block(BLOCK_TYPE_DSB, body, endian)
+}
+
+#[cfg(test)]
+mod nrb_dsb_tests {
+    use super::*;
+
+    #[test]
+    fn nrb_round_trips_with_records_and_sentinel() {
+        let v4 = vec![(
+            [10u8, 0, 0, 1],
+            vec!["vs-a".to_owned(), "irule-b".to_owned()],
+        )];
+        let v6: Vec<([u8; 16], Vec<String>)> = vec![];
+        let block = build_nrb_block(Endian::Little, &v4, &v6);
+        assert_eq!(block.block_type, BLOCK_TYPE_NRB);
+        // record: type(0001) len(0010) addr(4) "vs-a\0irule-b\0" = 4+5+8=17 -> pad to 20
+        // The value length is 17 (not padded).
+        let b = &block.body;
+        // First record header.
+        assert_eq!(u16::from_le_bytes([b[0], b[1]]), NRB_RECORD_IPV4);
+        assert_eq!(u16::from_le_bytes([b[2], b[3]]), 17);
+        assert_eq!(&b[4..8], &[10, 0, 0, 1]);
+        // Padded to a multiple of 4: 4(hdr)+17(value)=21 -> +3 pad = 24, then end sentinel(4).
+        assert_eq!(b.len(), 24 + 4);
+        // End sentinel.
+        let tail = &b[b.len() - 4..];
+        assert_eq!(u16::from_le_bytes([tail[0], tail[1]]), NRB_RECORD_END);
+        assert_eq!(u16::from_le_bytes([tail[2], tail[3]]), 0);
+    }
+
+    #[test]
+    fn dsb_carries_padded_secrets() {
+        let block = build_dsb_block(Endian::Little, DSB_SECRETS_TYPE_TLS, b"abc");
+        assert_eq!(block.block_type, BLOCK_TYPE_DSB);
+        let b = &block.body;
+        assert_eq!(
+            u32::from_le_bytes([b[0], b[1], b[2], b[3]]),
+            DSB_SECRETS_TYPE_TLS
+        );
+        assert_eq!(u32::from_le_bytes([b[4], b[5], b[6], b[7]]), 3);
+        assert_eq!(&b[8..11], b"abc");
+        // 3 bytes secrets -> 1 byte padding.
+        assert_eq!(b.len(), 8 + 3 + 1);
+        assert_eq!(b[11], 0);
+    }
+
+    #[test]
+    fn empty_nrb_is_just_the_sentinel() {
+        let block = build_nrb_block(Endian::Big, &[], &[]);
+        assert_eq!(block.body, vec![0, 0, 0, 0]);
+    }
 }

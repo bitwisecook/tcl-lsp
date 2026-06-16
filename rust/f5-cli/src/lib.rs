@@ -254,6 +254,26 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             schema,
             *list_schemas,
         ),
+        Command::EnrichPcapng {
+            config,
+            input,
+            output,
+            keylog,
+            all,
+            dry_run,
+        } => commands::enrich_pcapng::run_enrich_pcapng(
+            config,
+            input,
+            output,
+            keylog.as_deref(),
+            *all,
+            *dry_run,
+        ),
+        Command::EnrichWireshark {
+            config,
+            output,
+            force,
+        } => commands::enrich_wireshark::run_enrich_wireshark(config, output, *force),
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Irule { action } => commands::irule::run_irule(action),
         Command::Completion { shell } => {

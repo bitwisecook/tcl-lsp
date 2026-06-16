@@ -310,7 +310,8 @@ fn l4_checksum(
 }
 
 /// Return `(offset, is_v6)` for the IP header inside `packet`, or `None`.
-fn find_ip_offset(packet: &[u8], linktype: u16) -> Option<(usize, bool)> {
+#[must_use]
+pub fn find_ip_offset(packet: &[u8], linktype: u16) -> Option<(usize, bool)> {
     if linktype == LINKTYPE_RAW || linktype == LINKTYPE_RAW_IPV4 {
         return if !packet.is_empty() && (packet[0] >> 4) == 4 {
             Some((0, false))
