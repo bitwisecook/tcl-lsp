@@ -123,9 +123,21 @@ impl CodegenCtx<'_> {
                 value_needs_backsubst,
                 ..
             } => {
-                let value = if *value_needs_backsubst {
+                let value = if *value_needs_backsubst
+                    && !value.contains('[')
+                    && !value.contains("${")
+                {
                     tcl_lexer::backslash_subst(value).into_owned()
                 } else {
+                    // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
+                    // a real substitution) is left raw: the runtime `subst_word`
+                    // does backslash decoding plus command / variable
+                    // substitution in a single left-to-right pass. Pre-decoding
+                    // here would turn `\[` / `\${` into a bare `[` / `${` that
+                    // `subst_word` then mis-reads as a substitution start, and
+                    // would double-decode the escapes (e.g. `"x\[y z\\]"` →
+                    // `x[y z]` instead of `x[y z\]`, and `"\${x}"` → the value of
+                    // `x` instead of the literal `${x}`).
                     value.clone()
                 };
                 if needs_stk_var_ref(name, self.is_proc) {
@@ -450,13 +462,20 @@ impl CodegenCtx<'_> {
                 self.push_lit_verbatim(a);
             } else if a.contains('\\') && !has_unescaped_subst(a) {
                 // A non-braced word whose only substitution markers are
-                // backslash-escaped (`\{`, `a\{b`, `\ x`, `x\$y`) is a pure
-                // compile-time literal: backslash-substitute it and push.
-                // Without this the raw escapes reach the VM unchanged and a
-                // proc argument keeps its backslashes (real Tcl delivers the
-                // substituted text). Words with a *real* `$`/`[` fall through to
-                // the interpolation path below.
-                self.push_lit(&tcl_lexer::backslash_subst(a));
+                // backslash-escaped (`\{`, `a\{b`, `\ x`, `x\$y`). If decoding
+                // it would (re)introduce a `[` / `${` — i.e. the word carries an
+                // escaped `\[` or `\${` — leave it raw so the runtime
+                // `subst_word` decodes it in a single left-to-right pass;
+                // pre-decoding here would create a bare `[` the VM then mis-reads
+                // as a command substitution and double-decodes (`list a\[} b\]}`
+                // → `list a[} b]}`). Otherwise it is a pure compile-time literal:
+                // backslash-substitute it and push so the escapes don't reach
+                // the VM unchanged.
+                if a.contains('[') || a.contains("${") {
+                    self.push_lit(a);
+                } else {
+                    self.push_lit(&tcl_lexer::backslash_subst(a));
+                }
             } else {
                 self.emit_value_interpolated(a);
             }

@@ -707,3 +707,27 @@ fn list_element_quoting_balanced_braces() {
     out_eq("set e {a]b}\nputs [list $e]\n", "a\\]b\n");
     out_eq("set f {a[b}\nputs [list $f]\n", "{a[b}\n");
 }
+
+#[test]
+fn escaped_brackets_not_double_substituted() {
+    // A word carrying an escaped bracket (`\[` / `\]`) must be backslash-decoded
+    // exactly once. Pre-decoding `\[` to a bare `[` made the runtime word-subst
+    // re-read it as a command substitution and drop the backslash before the
+    // matching `]` (`"x\[y z\\]"` → `x[y z]` instead of `x[y z\]`).
+    out_eq("set a \"x\\[y z\\\\]\"\nputs $a\n", "x[y z\\]\n");
+    out_eq("set b \"{a\\[} b\\\\]\"\nputs $b\n", "{a[} b\\]\n");
+    // An escaped `\${…}` is the literal `${…}`, not a variable substitution.
+    out_eq("set x 9\nputs \"\\${x}\"\n", "${x}\n");
+    // Same word as a (non-braced) proc argument.
+    out_eq(
+        "proc plen {s} { return [string length $s]:$s }\nputs [plen a\\[b\\]c]\n",
+        "5:a[b]c\n",
+    );
+    // And surviving a `[list …]` → `uplevel` round-trip: the escaped brackets
+    // and trailing braces must reach the evaluated `list` intact (the list.test
+    // `invalid command name "}"` abort).
+    out_eq(
+        "proc run {s} { return [uplevel 1 $s] }\nputs [run {list a\\[ b\\]}]\n",
+        "{a[} b\\]\n",
+    );
+}
