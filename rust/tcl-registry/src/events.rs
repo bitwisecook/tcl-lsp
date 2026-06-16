@@ -64,6 +64,19 @@ pub struct EventProps {
 }
 
 impl EventProps {
+    /// Human-readable connection-side label — one of `"client-side"`,
+    /// `"server-side"`, `"client-side and server-side"`, or `"global"`.
+    /// Mirrors `event_side_label`.
+    #[must_use]
+    pub fn side_label(&self) -> &'static str {
+        match (self.client_side, self.server_side) {
+            (true, true) => "client-side and server-side",
+            (true, false) => "client-side",
+            (false, true) => "server-side",
+            (false, false) => "global",
+        }
+    }
+
     /// Default: not side-specific, no transport, flow = true.
     const DEFAULT: Self = Self {
         client_side: false,
@@ -150,6 +163,7 @@ pub struct EventRegistry {
     flow_chains: Vec<FlowChain>,
     once_per_connection: HashSet<&'static str>,
     per_request: HashSet<&'static str>,
+    descriptions: HashMap<&'static str, &'static str>,
 }
 
 impl EventRegistry {
@@ -168,6 +182,33 @@ impl EventRegistry {
             flow_chains: flow_chains(),
             once_per_connection: once_per_connection(),
             per_request: per_request(),
+            descriptions: crate::event_descriptions::EVENT_DESCRIPTIONS
+                .iter()
+                .copied()
+                .collect(),
+        }
+    }
+
+    /// Description prose for `event`, or `None` when none is recorded.
+    /// Mirrors `get_event_description`.
+    #[must_use]
+    pub fn description(&self, event: &str) -> Option<&'static str> {
+        self.descriptions.get(event).copied()
+    }
+
+    /// Multiplicity category for `event` — one of `"init"`,
+    /// `"once_per_connection"`, `"per_request"`, or `"unknown"`. Mirrors
+    /// `event_multiplicity`.
+    #[must_use]
+    pub fn multiplicity(&self, event: &str) -> &'static str {
+        if event == "RULE_INIT" {
+            "init"
+        } else if self.is_once_per_connection(event) {
+            "once_per_connection"
+        } else if self.is_per_request(event) {
+            "per_request"
+        } else {
+            "unknown"
         }
     }
 

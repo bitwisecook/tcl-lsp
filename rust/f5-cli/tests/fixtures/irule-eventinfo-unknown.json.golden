@@ -1,0 +1,12 @@
+{
+  "event": "BOGUS_EVENT",
+  "known": false,
+  "deprecated": false,
+  "multiplicity": "unknown",
+  "description": "",
+  "side": "unknown",
+  "transport": null,
+  "impliedProfiles": [],
+  "validCommandCount": 0,
+  "validCommands": []
+}

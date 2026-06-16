@@ -37,6 +37,7 @@ pub mod body_kind;
 pub mod commands;
 pub mod const_fold;
 pub mod dialects;
+mod event_descriptions;
 pub mod events;
 pub mod forms;
 pub mod hooks;

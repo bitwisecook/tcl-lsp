@@ -164,11 +164,73 @@ fn assert_deferred(args: &[&str], expect_sub: &str) {
     );
 }
 
+/// Assert `f5 irule event-info EVENT [--json]` matches the golden and exits
+/// `expect_code` (0 known, 1 unknown).
+fn assert_event_info(base: &str, event: &str, expect_code: i32) {
+    let (code, out, _) = run(&["irule", "event-info", event]);
+    assert_eq!(code, expect_code, "{base}: text exit code");
+    assert_eq!(
+        out,
+        golden(&format!("irule-eventinfo-{base}.text.golden")),
+        "{base}: text stdout"
+    );
+    let (jcode, jout, _) = run(&["irule", "event-info", event, "--json"]);
+    assert_eq!(jcode, expect_code, "{base}: json exit code");
+    assert_eq!(
+        jout,
+        golden(&format!("irule-eventinfo-{base}.json.golden")),
+        "{base}: json stdout"
+    );
+}
+
 #[test]
-fn event_info_is_deferred() {
-    assert_deferred(&["irule", "event-info", "HTTP_REQUEST"], "event-info");
-    // Alias routes to the same deferred handler.
-    assert_deferred(&["irule", "eventinfo", "HTTP_REQUEST"], "event-info");
+fn event_info_http_request() {
+    // client-side, tcp, FASTHTTP/HTTP profiles, per_request, 1290 commands.
+    assert_event_info("http-request", "HTTP_REQUEST", 0);
+}
+
+#[test]
+fn event_info_rule_init() {
+    // global, no transport (null), no profiles, init multiplicity.
+    assert_event_info("rule-init", "RULE_INIT", 0);
+}
+
+#[test]
+fn event_info_both_sides_dual_transport() {
+    // client-side and server-side, tcp/udp transport.
+    assert_event_info("lb-selected", "LB_SELECTED", 0);
+}
+
+#[test]
+fn event_info_client_accepted() {
+    assert_event_info("client-accepted", "CLIENT_ACCEPTED", 0);
+}
+
+#[test]
+fn event_info_props_deprecated_still_reports_no() {
+    // HTTP_CLASS_FAILED carries EventProps.deprecated=true, but Python's
+    // `when`-argument-value path reports `deprecated: no` — so do we.
+    assert_event_info("class-failed", "HTTP_CLASS_FAILED", 0);
+}
+
+#[test]
+fn event_info_unknown_event_exits_1() {
+    assert_event_info("unknown", "BOGUS_EVENT", 1);
+}
+
+#[test]
+fn event_info_event_name_is_upcased() {
+    // A lowercase query resolves to the same known event (exit 0); output is
+    // byte-identical to the upper-case HTTP_REQUEST form.
+    assert_event_info("lowercase", "http_request", 0);
+}
+
+#[test]
+fn event_info_alias_routes_to_handler() {
+    // The `eventinfo` alias produces the same output as `event-info`.
+    let (code, out, _) = run(&["irule", "eventinfo", "HTTP_REQUEST"]);
+    assert_eq!(code, 0);
+    assert_eq!(out, golden("irule-eventinfo-http-request.text.golden"));
 }
 
 #[test]
