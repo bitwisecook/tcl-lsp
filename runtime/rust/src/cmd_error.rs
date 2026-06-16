@@ -88,25 +88,39 @@ fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
 /// `-errorinfo` from the live error accumulator on an error). Returns a fresh
 /// (`rc 0`) dict.
 fn build_options(interp: &mut Interp, code: Code) -> *mut TclObj {
-    let code_str = code.as_int().to_string();
+    // A body that completed via `return` propagates the return's *own* requested
+    // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
+    // `catch`'s options dict and TIP 329 `-during` chaining record
+    // (`Tcl_GetReturnOptions`, `tclResult.c`). Every other code is at level 0.
+    let (eff_code, level) = if code == Code::Return {
+        (interp.pending_return_code(), interp.pending_return_level())
+    } else {
+        (code, 0)
+    };
+    let code_str = eff_code.as_int().to_string();
+    let level_str = level.to_string();
     let mut pairs: Vec<(*mut TclObj, *mut TclObj)> = vec![
         (new_string(b"-code"), new_string(code_str.as_bytes())),
-        (new_string(b"-level"), new_string(b"0")),
+        (new_string(b"-level"), new_string(level_str.as_bytes())),
     ];
-    if code == Code::Error {
-        // The full accumulated trace + code, not the (deferred) globals.
+    if eff_code == Code::Error {
+        // `-errorcode` rides along with any error completion (incl. a pending
+        // `return -code error`). The accumulated trace + stack and the `-during`
+        // chain only exist once the error has actually been raised (level 0).
         pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
-        pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
-        // TIP 348: the error stack built as the error unwound.
-        pairs.push((
-            new_string(b"-errorstack"),
-            new_string(&interp.error_stack_value()),
-        ));
-        // TIP 329 exception chaining: when a `try` handler/`finally` threw over a
-        // prior exception, that prior exception's options ride along as `-during`
-        // (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
-        if let Some(during) = interp.during_opts() {
-            pairs.push((new_string(b"-during"), during));
+        if level == 0 {
+            pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
+            // TIP 348: the error stack built as the error unwound.
+            pairs.push((
+                new_string(b"-errorstack"),
+                new_string(&interp.error_stack_value()),
+            ));
+            // TIP 329 exception chaining: when a `try` handler/`finally` threw
+            // over a prior exception, that prior exception's options ride along as
+            // `-during` (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
+            if let Some(during) = interp.during_opts() {
+                pairs.push((new_string(b"-during"), during));
+            }
         }
     }
     dict::new_dict_obj(&pairs)
@@ -182,33 +196,10 @@ fn code_word_to_int(spec: &[u8]) -> Option<i64> {
         b"return" => Some(2),
         b"break" => Some(3),
         b"continue" => Some(4),
-        // A completion code must fit a 32-bit int (C's `Tcl_GetIntFromObj`),
-        // accepting `0x`/`0o`/`0b`/`0d` radix prefixes and a sign.
-        _ => completion_code_int(spec).map(i64::from),
+        // A completion code accepts the full signed/unsigned 32-bit range (C's
+        // `Tcl_GetIntFromObj`), with `0x`/`0o`/`0b`/`0d` prefixes and a sign.
+        _ => crate::interp::parse_completion_int(spec).map(i64::from),
     }
-}
-
-/// Parse a completion-code integer like `TclGetIntFromObj`: optional sign then a
-/// `0x`/`0o`/`0b`/`0d` radix prefix (else decimal), within an `i32`.
-fn completion_code_int(spec: &[u8]) -> Option<i32> {
-    let s = core::str::from_utf8(spec).ok()?.trim();
-    let (neg, rest) = match s.as_bytes().first() {
-        Some(b'-') => (true, &s[1..]),
-        Some(b'+') => (false, &s[1..]),
-        _ => (false, s),
-    };
-    let (radix, digits) = match rest.as_bytes() {
-        [b'0', b'x' | b'X', ..] => (16, &rest[2..]),
-        [b'0', b'o' | b'O', ..] => (8, &rest[2..]),
-        [b'0', b'b' | b'B', ..] => (2, &rest[2..]),
-        [b'0', b'd' | b'D', ..] => (10, &rest[2..]),
-        _ => (10, rest),
-    };
-    if digits.is_empty() {
-        return None;
-    }
-    let mag = i32::from_str_radix(digits, radix).ok()?;
-    Some(if neg { mag.checked_neg()? } else { mag })
 }
 
 /// Does `pattern` (a list) match `errorcode` (a list) as a leading sublist?

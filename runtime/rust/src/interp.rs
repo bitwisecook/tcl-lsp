@@ -76,6 +76,38 @@ impl Code {
     }
 }
 
+/// Parse a completion-code integer the way `TclGetIntFromObj` does: an optional
+/// sign and a `0x`/`0o`/`0b`/`0d` radix prefix (else decimal), accepting the full
+/// signed **and** unsigned 32-bit range (`-2147483648 ..= 4294967295`) and
+/// reducing it to an `int` (so `0xFFFFFFFF` → `-1`, `2147483648` → `-2147483648`),
+/// matching C. Shared by `return -code` and `try on`.
+#[must_use]
+pub(crate) fn parse_completion_int(b: &[u8]) -> Option<i32> {
+    let s = core::str::from_utf8(b).ok()?.trim();
+    let (neg, rest) = match s.as_bytes().first() {
+        Some(b'-') => (true, &s[1..]),
+        Some(b'+') => (false, &s[1..]),
+        _ => (false, s),
+    };
+    let (radix, digits) = match rest.as_bytes() {
+        [b'0', b'x' | b'X', ..] => (16, &rest[2..]),
+        [b'0', b'o' | b'O', ..] => (8, &rest[2..]),
+        [b'0', b'b' | b'B', ..] => (2, &rest[2..]),
+        [b'0', b'd' | b'D', ..] => (10, &rest[2..]),
+        _ => (10, rest),
+    };
+    if digits.is_empty() {
+        return None;
+    }
+    // Parse the magnitude wide so `i32::MIN` and the unsigned half are reachable.
+    let mag = i64::from_str_radix(digits, radix).ok()?;
+    let value = if neg { -mag } else { mag };
+    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
+        return None;
+    }
+    Some(value as i32)
+}
+
 /// A built-in command handler. Receives the full argv (`argv[0]` is the command
 /// name, like Tcl's `objv`); sets the result via [`Interp::set_result`] /
 /// [`Interp::set_result_bytes`] and returns a [`Code`].
@@ -1157,6 +1189,17 @@ impl Interp {
     pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
         self.return_level.set(level);
         self.return_code.set(code);
+    }
+
+    /// The pending `return` `-code`/`-level` (the options a body that completed
+    /// via `return` would propagate) — for `catch`/`try`'s options dict and TIP
+    /// 329 `-during` chaining.
+    pub(crate) fn pending_return_code(&self) -> Code {
+        self.return_code.get()
+    }
+
+    pub(crate) fn pending_return_level(&self) -> usize {
+        self.return_level.get()
     }
 
     /// Apply a procedure/source **return boundary** to a body completion code

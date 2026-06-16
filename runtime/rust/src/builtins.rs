@@ -366,31 +366,8 @@ fn parse_code(b: &[u8]) -> Option<Code> {
         b"return" => Some(Code::Return),
         b"break" => Some(Code::Break),
         b"continue" => Some(Code::Continue),
-        _ => parse_code_int(b).map(Code::from_int),
+        _ => crate::interp::parse_completion_int(b).map(Code::from_int),
     }
-}
-
-/// Parse a completion-code integer the way `TclGetIntFromObj` would: an optional
-/// sign then a `0x`/`0o`/`0b`/`0d` radix prefix (else decimal), within an `i32`.
-fn parse_code_int(b: &[u8]) -> Option<i32> {
-    let s = core::str::from_utf8(b).ok()?.trim();
-    let (neg, rest) = match s.as_bytes().first() {
-        Some(b'-') => (true, &s[1..]),
-        Some(b'+') => (false, &s[1..]),
-        _ => (false, s),
-    };
-    let (radix, digits) = match rest.as_bytes() {
-        [b'0', b'x' | b'X', ..] => (16, &rest[2..]),
-        [b'0', b'o' | b'O', ..] => (8, &rest[2..]),
-        [b'0', b'b' | b'B', ..] => (2, &rest[2..]),
-        [b'0', b'd' | b'D', ..] => (10, &rest[2..]),
-        _ => (10, rest),
-    };
-    if digits.is_empty() {
-        return None;
-    }
-    let mag = i32::from_str_radix(digits, radix).ok()?;
-    Some(if neg { mag.checked_neg()? } else { mag })
 }
 
 /// `return ?-code code? ?-level n? ?-errorcode list? ?-errorinfo info?
