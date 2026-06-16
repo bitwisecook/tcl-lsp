@@ -1277,6 +1277,43 @@ pub fn serialise_structural_index(source: &str, li: &LineIndex) -> Value {
     })
 }
 
+/// Serialise the Rust-native `sourceMap` view: the `LineIndex` span model
+/// that powers O(1) offset ↔ line:col resolution (`tcl_lexer::SourceMap` /
+/// `LineIndex`). Surfaces the line-start table the analyses resolve every
+/// span through — the reference for debugging range/offset bugs. **Python
+/// has no analogue** (it recomputes positions ad hoc).
+#[must_use]
+pub fn serialise_source_map(source: &str, li: &LineIndex) -> Value {
+    let byte_length = u32::try_from(source.len()).unwrap_or(u32::MAX);
+    let line_count = u32::try_from(li.line_count()).unwrap_or(u32::MAX);
+    let lines: Vec<Value> = (0..line_count)
+        .map(|line| {
+            let start = li.line_start(line);
+            let end = if line + 1 < line_count {
+                li.line_start(line + 1)
+            } else {
+                byte_length
+            };
+            let text = source
+                .get(start as usize..end as usize)
+                .unwrap_or("")
+                .trim_end_matches('\n');
+            json!({
+                "line": line,
+                "start": start,
+                "end": end,
+                "length": end - start,
+                "text": text,
+            })
+        })
+        .collect();
+    json!({
+        "byteLength": byte_length,
+        "lineCount": line_count,
+        "lines": lines,
+    })
+}
+
 /// Serialise the `stats` summary. Mirrors `compute_stats`.
 ///
 /// `_NO_PARITY`: `deadStores` counts the optimiser's **O109** dead stores
@@ -1589,6 +1626,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
 /// add one family per step. The argument is accepted now so the signature
 /// is stable as views that read `result` land.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn serialise_result(result: &ExplorerResult) -> Value {
     let li = LineIndex::new(&result.source);
     let mut out = Map::new();
@@ -1615,6 +1653,11 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert(
         "structuralIndex".to_owned(),
         serialise_structural_index(&result.source, &li),
+    );
+    // Rust-native: the LineIndex span model (no Python counterpart).
+    out.insert(
+        "sourceMap".to_owned(),
+        serialise_source_map(&result.source, &li),
     );
     out.insert("loops".to_owned(), serialise_loops(result));
     out.insert("intervals".to_owned(), serialise_intervals(result));
@@ -1711,10 +1754,10 @@ mod tests {
     fn meta_lists_all_dialects_views_and_severities() {
         let meta = serialise_meta();
         assert_eq!(meta["dialects"].as_array().unwrap().len(), 14);
-        // 25 views: Python's 24 minus the dropped `greentree` tab (Rust has a
-        // single red-green CST) plus the Rust-native `optimiserPasses` and
-        // `structuralIndex` views.
-        assert_eq!(meta["views"].as_array().unwrap().len(), 25);
+        // 26 views: Python's 24 minus the dropped `greentree` tab (Rust has a
+        // single red-green CST) plus the Rust-native `structuralIndex`,
+        // `sourceMap`, and `optimiserPasses` views.
+        assert_eq!(meta["views"].as_array().unwrap().len(), 26);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
@@ -1847,6 +1890,21 @@ mod tests {
     }
 
     #[test]
+    fn source_map_maps_lines_to_byte_ranges() {
+        let result = run_pipeline("set x 1\nputs $x\n", "tcl8.6");
+        let sm = serialise_result(&result)["sourceMap"].clone();
+        assert_eq!(sm["lineCount"], 3); // two lines + the trailing empty line
+        let lines = sm["lines"].as_array().unwrap();
+        assert_eq!(lines[0]["start"], 0);
+        assert_eq!(lines[0]["text"], "set x 1");
+        // Line 1 starts right after the first newline.
+        assert_eq!(lines[1]["start"], 8);
+        assert_eq!(lines[1]["text"], "puts $x");
+        // Byte length covers the whole source.
+        assert_eq!(sm["byteLength"], 16);
+    }
+
+    #[test]
     fn optimiser_passes_lists_every_pass_in_order() {
         // The Rust-native pass-pipeline view: all 9 passes in execution
         // order, each with the optimisations it produced.
@@ -1861,7 +1919,7 @@ mod tests {
         for p in arr {
             assert!(p["label"].is_string());
             let opts = p["optimisations"].as_array().unwrap();
-            assert_eq!(p["count"].as_u64().unwrap() as usize, opts.len());
+            assert_eq!(p["count"].as_u64().unwrap(), opts.len() as u64);
         }
         // Propagation folds the constant var-ref / interpolation here.
         let prop = &arr[0];

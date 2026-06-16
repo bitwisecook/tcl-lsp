@@ -801,6 +801,42 @@ fn build_structural_index(d: &Value) -> Vec<ViewNode> {
     roots
 }
 
+fn build_source_map(d: &Value) -> Vec<ViewNode> {
+    let sm = &d["sourceMap"];
+    if !sm.is_object() {
+        return vec![ViewNode::note("(source map unavailable)", "dim")];
+    }
+    let mut roots = vec![ViewNode::leaf(
+        format!(
+            "{} bytes, {} line(s)",
+            s(sm, "byteLength"),
+            s(sm, "lineCount")
+        ),
+        Vec::new(),
+        Some("cyan"),
+    )];
+    for line in arr(sm, "lines") {
+        let n = line["line"].as_i64().unwrap_or(0) + 1;
+        roots.push(ViewNode::leaf(
+            format!("{n}: {}", s(line, "text")),
+            vec![
+                det(
+                    "byte range",
+                    format!(
+                        "{}…{} ({} bytes)",
+                        s(line, "start"),
+                        s(line, "end"),
+                        s(line, "length")
+                    ),
+                ),
+                det("line", n.to_string()),
+            ],
+            None,
+        ));
+    }
+    roots
+}
+
 fn build_optimiser_passes(d: &Value) -> Vec<ViewNode> {
     let out: Vec<ViewNode> = arr(d, "optimiserPasses")
         .iter()
@@ -1074,6 +1110,7 @@ fn build_callouts(d: &Value) -> Vec<ViewNode> {
 /// tree (Rust has a single red-green CST, no separate "green tree").
 pub const TREE_VIEWS: &[&str] = &[
     "structuralIndex",
+    "sourceMap",
     "ir",
     "cfg",
     "ssa",
@@ -1110,6 +1147,7 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
         "interproc" => build_interproc(data),
         "rendered" => build_rendered(data),
         "structuralIndex" => build_structural_index(data),
+        "sourceMap" => build_source_map(data),
         "opt" => build_opt(data),
         "optimiserPasses" => build_optimiser_passes(data),
         "gvn" => build_gvn(data),

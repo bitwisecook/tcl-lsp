@@ -810,6 +810,28 @@ function renderStructuralIndex() {
   setupHoverHighlighting(pane);
 }
 
+// Rust-native: the LineIndex span model (tcl-lexer::SourceMap) — the
+// line-start table that powers O(1) offset↔line:col resolution, the
+// reference for debugging range bugs. Absent on the Python backend.
+function renderSourceMap() {
+  var pane = $('#pane-source-map');
+  if (!pane) return;
+  var sm = data.sourceMap;
+  if (!sm) { pane.innerHTML = '<div class="empty-state">Source map unavailable</div>'; return; }
+  var html = '<div class="section-header">source map <span style="color:var(--text-dim);font-weight:normal">' + sm.byteLength + ' bytes &middot; ' + sm.lineCount + ' line' + (sm.lineCount === 1 ? '' : 's') + '</span></div>';
+  html += '<div class="source-listing">';
+  for (var ln of sm.lines) {
+    html += '<div class="source-line" data-start="' + ln.start + '" data-end="' + ln.end + '">';
+    html += '<span class="gutter">' + (ln.line + 1) + '</span>';
+    html += '<span class="code-text">' + esc(ln.text) + '</span>';
+    html += '<span class="gt-range" style="margin-left:auto; color:var(--text-dim)">[' + ln.start + ':' + ln.end + ']</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+  pane.innerHTML = html;
+  setupHoverHighlighting(pane);
+}
+
 function fmtBound(v, pos) { return v === null || v === undefined ? (pos ? '+∞' : '−∞') : String(v); }
 
 // Natural-loop forest

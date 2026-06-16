@@ -19,6 +19,7 @@ pub const VIEW_META: &[ViewMeta] = &[
     ("cst", "CST", "compiler"),
     ("segments", "Segments", "compiler"),
     ("structuralIndex", "Structural Index", "compiler"),
+    ("sourceMap", "Source Map", "compiler"),
     ("ir", "IR", "compiler"),
     ("cfg", "CFG (pre-SSA)", "compiler"),
     ("ssa", "CFG (post-SSA)", "compiler"),
