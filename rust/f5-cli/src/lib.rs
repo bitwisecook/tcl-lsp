@@ -237,6 +237,23 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             let path = (output != "-").then(|| std::path::Path::new(output));
             commands::registry_dump::run_registry_dump(section, path)
         }
+        Command::PcapRemap {
+            map_file,
+            input,
+            output,
+            reverse,
+            on_unknown,
+            schema,
+            list_schemas,
+        } => commands::pcap_remap::run_pcap_remap(
+            map_file,
+            input,
+            output,
+            *reverse,
+            on_unknown,
+            schema,
+            *list_schemas,
+        ),
         cmd @ Command::Query { .. } => dispatch_query(cmd),
         Command::Irule { action } => commands::irule::run_irule(action),
         Command::Completion { shell } => {

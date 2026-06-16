@@ -16,6 +16,7 @@ pub mod graph;
 pub mod grep;
 pub mod irule;
 pub mod merge;
+pub mod pcap_remap;
 pub mod query;
 pub mod redact;
 pub mod registry_dump;

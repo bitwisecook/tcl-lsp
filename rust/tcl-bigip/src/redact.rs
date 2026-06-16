@@ -1142,7 +1142,7 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
 }
 
 /// Return the redacted form of `real`, or `real` unchanged if no rule applies.
-fn map_address(rm: &mut RedactionMap, real: &str) -> String {
+pub fn map_address(rm: &mut RedactionMap, real: &str) -> String {
     if let Some(v) = rm.forward.get(real) {
         return v.clone();
     }
@@ -1199,7 +1199,7 @@ fn direct_map(addr: Addr, source: Net, target: Net) -> Addr {
 }
 
 /// Return the real form of `fake`, or `fake` unchanged if no rule applies.
-fn unmap_address(rm: &mut RedactionMap, fake: &str) -> String {
+pub fn unmap_address(rm: &mut RedactionMap, fake: &str) -> String {
     if let Some(v) = rm.reverse.get(fake) {
         return v.clone();
     }

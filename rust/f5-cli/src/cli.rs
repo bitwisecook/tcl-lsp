@@ -593,25 +593,25 @@ pub enum Command {
         force: bool,
     },
 
-    /// Apply an `f5 redact` map to a PCAP capture.
+    /// Apply a `f5 redact` map to a PCAP capture (rewrites IP layer + parsed F5 trailer).
     #[command(visible_alias = "pcapmap")]
     PcapRemap {
-        /// Sidecar map file.
+        /// The TOML map file produced by `f5 redact`.
         map_file: PathBuf,
-        /// Input capture.
+        /// Input PCAP file.
         input: PathBuf,
-        /// Output capture.
+        /// Output PCAP file.
         output: PathBuf,
-        /// Reverse the mapping.
+        /// Apply the map in reverse (recover originals from a redacted capture).
         #[arg(long)]
         reverse: bool,
-        /// Behaviour for IPs not in the map.
-        #[arg(long = "on-unknown", value_name = "MODE")]
-        on_unknown: Option<String>,
-        /// F5 trailer schema name.
-        #[arg(long, value_name = "NAME")]
-        schema: Option<String>,
-        /// List known F5 trailer schemas and exit.
+        /// What to do when an F5 trailer TLV's (type, version) has no registered IP-field schema.
+        #[arg(long = "on-unknown", value_parser = ["error", "preserve", "sweep"], default_value = "error")]
+        on_unknown: String,
+        /// Additional F5 trailer schema TOML to overlay on top of the built-ins (repeatable).
+        #[arg(long, value_name = "FILE")]
+        schema: Vec<PathBuf>,
+        /// Print every registered trailer schema and exit.
         #[arg(long = "list-schemas")]
         list_schemas: bool,
     },
