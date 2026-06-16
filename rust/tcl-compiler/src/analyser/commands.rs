@@ -510,6 +510,7 @@ impl Analyser {
         self.result.diagnostics.extend(lset_diags);
         let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(str_diags);
+        self.emit_w127_closed_value_args(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(

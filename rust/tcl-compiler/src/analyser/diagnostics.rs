@@ -85,6 +85,36 @@ use super::state::Analyser;
 use super::types::Severity;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
+/// Built-in `expr` math functions — mirrors
+/// `compiler/parsing/expr_lexer.py::BUILTIN_MATH_FUNCTIONS`.  Used by the
+/// W117 stub-shadow check.
+const BUILTIN_MATH_FUNCTIONS: &[&str] = &[
+    "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
+    "exp", "floor", "fmod", "hypot", "int", "isinf", "isnan", "isqrt", "log", "log10", "max",
+    "min", "pow", "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
+];
+
+/// Built-in `expr` operators — mirrors
+/// `compiler/parsing/expr_lexer.py::BUILTIN_EXPR_OPS`.
+const BUILTIN_EXPR_OPS: &[&str] = &[
+    "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>",
+    "^", "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "||", "~",
+];
+
+/// iRules-only `expr` operators — mirrors
+/// `compiler/parsing/expr_lexer.py::IRULES_EXPR_OPS`.
+const IRULES_EXPR_OPS: &[&str] = &[
+    "and",
+    "contains",
+    "ends_with",
+    "equals",
+    "matches_glob",
+    "matches_regex",
+    "not",
+    "or",
+    "starts_with",
+];
+
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
 /// The source text covered by `span`, or `None` when the span is out
@@ -4865,6 +4895,150 @@ matching time on crafted input."
             severity: Severity::Warning,
             fixes: Vec::new(),
         });
+    }
+
+    /// **W127.** A literal at a closed-value argument index is not in the
+    /// command's allowed set.  Mirrors
+    /// `analyser/compiler_checks.py::_check_closed_value_args`.  Only fires
+    /// for indices the spec marks `closed_value_args` (the `arg_values`
+    /// are exhaustive, not hints).  Dynamic values (`$var` / `[cmd]`) and
+    /// declared option flags are skipped.
+    pub(super) fn emit_w127_closed_value_args(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        let mut hits: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        if let Some(registry) = self.registry.as_ref() {
+            let Some(spec) = registry.get(cmd_name) else {
+                return;
+            };
+            if spec.closed_value_args.is_empty() {
+                return;
+            }
+            let option_names: std::collections::HashSet<&str> =
+                spec.options.iter().map(|o| o.name).collect();
+            let mut closed: Vec<u8> = spec.closed_value_args.to_vec();
+            closed.sort_unstable();
+            for idx in closed {
+                let i = idx as usize;
+                let Some(value) = args.get(i) else {
+                    continue;
+                };
+                if value.contains('$')
+                    || value.contains('[')
+                    || option_names.contains(value.as_str())
+                {
+                    continue;
+                }
+                let allowed = spec.arg_values_at(idx);
+                if allowed.iter().any(|av| av.value == value) {
+                    continue;
+                }
+                if allowed.is_empty() {
+                    continue;
+                }
+                let allowed_list = allowed
+                    .iter()
+                    .map(|av| av.value)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let span = arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
+                hits.push((
+                    format!(
+                        "Invalid value '{value}' for '{cmd_name}'; expected one of: {allowed_list}"
+                    ),
+                    span,
+                ));
+            }
+        }
+        for (message, span) in hits {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W127".to_string(),
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W116 / W117.** Stub command / expression definition shadows a
+    /// built-in.  Post-walk check mirroring
+    /// `_AnalyserCoreMixin._check_stub_shadows`
+    /// (`analyser/_analyser/_core.py`).  W116 fires when a `# tcl-lsp:
+    /// stub` command name (with leading `::` stripped) collides with a
+    /// registered command; W117 when a stub expr function/operator name
+    /// collides with a built-in `expr` function or operator.
+    pub(super) fn emit_w116_w117_stub_shadows(&mut self) {
+        use super::types::{Diagnostic, Severity};
+
+        if self.result.stub_commands.is_empty() && self.result.stub_expr_defs.is_empty() {
+            return;
+        }
+
+        // W116 — stub command shadows a built-in command.  Build the
+        // dialect command-name set locally (mirrors Python's
+        // `set(REGISTRY.command_names(dialect))`).
+        if !self.result.stub_commands.is_empty() {
+            use tcl_registry::CommandRegistry;
+            use tcl_registry::prelude::DialectSet;
+            let mut registry = CommandRegistry::build_default();
+            if let Some(d) = DialectSet::parse(&self.dialect) {
+                registry.load_dialect(d);
+            }
+            let commands: std::collections::HashSet<&str> = registry.command_names().collect();
+            let hits: Vec<(String, tcl_lexer::Span)> = self
+                .result
+                .stub_commands
+                .iter()
+                .filter(|s| commands.contains(s.name.trim_start_matches(':')))
+                .map(|s| (s.name.clone(), s.range))
+                .collect();
+            for (name, span) in hits {
+                self.result.diagnostics.push(Diagnostic {
+                    code: "W116".to_string(),
+                    span,
+                    message: format!("Stub command '{name}' shadows built-in command."),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+
+        // W117 — stub expr function/operator shadows a built-in.
+        if !self.result.stub_expr_defs.is_empty() {
+            let irules = self.dialect == "f5-irules";
+            let hits: Vec<(String, String, tcl_lexer::Span)> = self
+                .result
+                .stub_expr_defs
+                .iter()
+                .filter(|s| {
+                    BUILTIN_MATH_FUNCTIONS.contains(&s.name.as_str())
+                        || BUILTIN_EXPR_OPS.contains(&s.name.as_str())
+                        || (irules && IRULES_EXPR_OPS.contains(&s.name.as_str()))
+                })
+                .map(|s| (s.name.clone(), s.kind.clone(), s.range))
+                .collect();
+            for (name, kind, span) in hits {
+                let kind_label = if kind == "function" {
+                    "function"
+                } else {
+                    "operator"
+                };
+                self.result.diagnostics.push(Diagnostic {
+                    code: "W117".to_string(),
+                    span,
+                    message: format!(
+                        "Stub expression {kind_label} '{name}' shadows built-in {kind_label}."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
     }
 
     /// **IRULE2002.** Warn when a deprecated iRules command is used —

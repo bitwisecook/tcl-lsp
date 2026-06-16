@@ -64,12 +64,8 @@ fn var_write_index(cmd_name: &str) -> Option<usize> {
 /// `_static_var_from_set` — return the `static::` variable name a command
 /// writes, or `None`.
 fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
-    if cmd_name == "set" {
-        if let Some(first) = args.first() {
-            if first.starts_with("static::") {
-                return Some(first.as_str());
-            }
-        }
+    if cmd_name == "set" && args.first().is_some_and(|f| f.starts_with("static::")) {
+        return Some(args[0].as_str());
     }
     if cmd_name == "array" && args.len() >= 2 && args[0] == "set" && args[1].starts_with("static::")
     {
@@ -466,22 +462,22 @@ impl Analyser {
         event: Option<&str>,
     ) {
         // `global varname` — imports from the global namespace.
-        if cmd_name == "global" {
-            if let Some(var_name) = args.first() {
-                let static_name = format!("static::{var_name}");
-                self.result.diagnostics.push(Diagnostic {
-                    code: "IRULE6001".to_string(),
-                    span: cmd_tok.span,
-                    message: format!(
-                        "'global {var_name}' imports from the global namespace, \
-                         forcing CMP compatibility mode and pinning the virtual server \
-                         to a single TMM. Use '{static_name}' instead."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
-                return;
-            }
+        if cmd_name == "global"
+            && let Some(var_name) = args.first()
+        {
+            let static_name = format!("static::{var_name}");
+            self.result.diagnostics.push(Diagnostic {
+                code: "IRULE6001".to_string(),
+                span: cmd_tok.span,
+                message: format!(
+                    "'global {var_name}' imports from the global namespace, \
+                     forcing CMP compatibility mode and pinning the virtual server \
+                     to a single TMM. Use '{static_name}' instead."
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+            return;
         }
 
         // `set ::var`, `incr ::var`, etc.
@@ -511,29 +507,29 @@ impl Analyser {
 
         // Implicit globals in RULE_INIT: `set var value` (no `::`) is global
         // because RULE_INIT executes at the global namespace scope.
-        if event == Some("RULE_INIT") {
-            if let Some(bare) = implicit_global_var_from_command(cmd_name, args) {
-                let static_name = format!("static::{bare}");
-                let fix_span = var_write_index(cmd_name)
-                    .and_then(|idx| arg_tokens.get(idx))
-                    .map_or(cmd_tok.span, |t| t.span);
-                self.result.diagnostics.push(Diagnostic {
-                    code: "IRULE6001".to_string(),
+        if event == Some("RULE_INIT")
+            && let Some(bare) = implicit_global_var_from_command(cmd_name, args)
+        {
+            let static_name = format!("static::{bare}");
+            let fix_span = var_write_index(cmd_name)
+                .and_then(|idx| arg_tokens.get(idx))
+                .map_or(cmd_tok.span, |t| t.span);
+            self.result.diagnostics.push(Diagnostic {
+                code: "IRULE6001".to_string(),
+                span: fix_span,
+                message: format!(
+                    "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
+                     runs at the global namespace scope. This forces CMP \
+                     compatibility mode, pinning the virtual server to a \
+                     single TMM. Use '{static_name}' instead."
+                ),
+                severity: Severity::Warning,
+                fixes: vec![CodeFix {
                     span: fix_span,
-                    message: format!(
-                        "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
-                         runs at the global namespace scope. This forces CMP \
-                         compatibility mode, pinning the virtual server to a \
-                         single TMM. Use '{static_name}' instead."
-                    ),
-                    severity: Severity::Warning,
-                    fixes: vec![CodeFix {
-                        span: fix_span,
-                        new_text: static_name.clone(),
-                        description: format!("Replace '{bare}' with '{static_name}'"),
-                    }],
-                });
-            }
+                    new_text: static_name.clone(),
+                    description: format!("Replace '{bare}' with '{static_name}'"),
+                }],
+            });
         }
     }
 }
@@ -732,13 +728,9 @@ fn match_zero_ne_dollar(b: &[u8], mut p: usize) -> Option<String> {
 
 /// Match `!=` or `ne`, returning the position past the operator.
 fn match_ne_op(b: &[u8], p: usize) -> Option<usize> {
-    if b.get(p) == Some(&b'!') && b.get(p + 1) == Some(&b'=') {
-        Some(p + 2)
-    } else if b.get(p) == Some(&b'n') && b.get(p + 1) == Some(&b'e') {
-        Some(p + 2)
-    } else {
-        None
-    }
+    let is_ne = (b.get(p) == Some(&b'!') && b.get(p + 1) == Some(&b'='))
+        || (b.get(p) == Some(&b'n') && b.get(p + 1) == Some(&b'e'));
+    is_ne.then_some(p + 2)
 }
 
 /// Port of `_INCR_DECREMENT_RE.finditer` — does *body* contain

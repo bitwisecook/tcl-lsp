@@ -39,6 +39,7 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// Use `..CommandSpec::DEFAULT` to fill unset fields with sensible
 /// defaults.
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct CommandSpec {
     /// Command name (e.g. `"for"`, `"dict"`, `"HTTP::header"`).
     pub name: &'static str,
@@ -137,6 +138,14 @@ pub struct CommandSpec {
     /// "unsafe iRules command" check.  Mirrors the Python
     /// `CommandSpec.unsafe` flag read by `CommandRegistry.is_unsafe`.
     pub unsafe_command: bool,
+
+    /// 0-based argument indices whose [`Self::arg_values`] are an
+    /// **exhaustive** legal set (not mere completion hints).  A literal
+    /// at one of these indices that is not among `arg_values` is invalid
+    /// (W127).  Mirrors the union of `FormSpec.closed_value_args` in the
+    /// Python registry, flattened to the command level alongside
+    /// `arg_values`.
+    pub closed_value_args: &'static [u8],
 
     /// Layer-based iRules event requirements (transport / profiles /
     /// `also_in` / side / init-only / flow / capability) used by the
@@ -341,6 +350,7 @@ impl CommandSpec {
         required_package: None,
         excluded_events: &[],
         unsafe_command: false,
+        closed_value_args: &[],
         event_requires: None,
         options: &[],
         arg_values: &[],
