@@ -134,7 +134,7 @@ const TCL_VERSION_DIALECTS: Record<string, string> = {
   "9.0": "tcl9.0",
 };
 
-// Python discovery
+// LSP wire types (used by rename partitioning)
 
 interface LspPosition {
   line: number;
@@ -171,13 +171,11 @@ function getOutputChannel(): vscode.OutputChannel {
   return outputChannel;
 }
 
-// Server bundle detection
+// Rust workspace detection — the directory holding `target/` after a
+// `cargo build`, used to locate a dev-checkout build of `tcl-lsp-server`.
 
-function hasServerBundle(dir: string): boolean {
-  return (
-    existsSync(path.join(dir, "server", "__main__.py")) &&
-    existsSync(path.join(dir, "pyproject.toml"))
-  );
+function hasRustWorkspace(dir: string): boolean {
+  return existsSync(path.join(dir, "Cargo.toml"));
 }
 
 // The native server filename for the current OS.
@@ -191,12 +189,12 @@ function bundlePlatformDir(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-// Locate the native Rust `tcl-lsp-server` binary for serverKind="rust".
+// Locate the native Rust `tcl-lsp-server` binary.
 // Honours an explicit path first (config `tclLsp.rustServerPath` or the
 // `TCL_LSP_SERVER_BIN` env var), then the platform binary bundled inside the
 // VSIX (`server/<platform>-<arch>/`), then probes `target/{release,debug}/`
-// under the project root (resolved like the Python server dir) so a plain
-// `cargo build -p tcl-lsp-server` in a checkout is picked up automatically.
+// under the workspace root (resolved by walking up to the `Cargo.toml`) so a
+// plain `cargo build -p tcl-lsp-server` in a checkout is picked up automatically.
 function resolveRustServer(
   configuredBin: string,
   configuredServerPath: string,
@@ -234,12 +232,12 @@ function resolveServerDir(configuredPath: string, extensionPath: string): string
   if (configured) {
     return configured;
   }
-  // Walk up from the extension directory to find the server bundle.
+  // Walk up from the extension directory to find the workspace root.
   // Handles both repo-root layouts (extension at /) and nested layouts
   // (extension at editors/vscode/).
   let dir = extensionPath;
   for (let i = 0; i < 3; i++) {
-    if (hasServerBundle(dir)) {
+    if (hasRustWorkspace(dir)) {
       return dir;
     }
     const parent = path.resolve(dir, "..");
@@ -314,89 +312,34 @@ export async function activate(context: ExtensionContext) {
   const config = workspace.getConfiguration("tclLsp");
   const configuredServerPath = config.get<string>("serverPath", "");
 
-  let serverOptions: ServerOptions | undefined;
-
-  // Backend selection: "rust" (default, the native `tcl-lsp-server` binary
-  // from the Rust workspace) or "python" (the packaged/uv reference server).
-  // Env vars override config so the e2e / VS Code test harnesses can pick a
-  // backend without writing workspace settings: TCL_LSP_SERVER_KIND=python|rust
-  // and TCL_LSP_SERVER_BIN=/path/to/tcl-lsp-server.
-  //
-  // We must distinguish "user explicitly chose a backend" from "left at the
-  // default".  `config.get("serverKind")` folds in the package.json schema
-  // default ("rust"), so it can't tell them apart — use `inspect()` and look
-  // only at values the user actually set.  When nothing is set, Rust is the
-  // default but a missing binary falls back to Python (see below); an explicit
-  // "rust" with no binary is a hard error.
-  const inspected = config.inspect<string>("serverKind");
-  const userConfiguredKind =
-    inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue ?? "";
-  const explicitKind = (process.env.TCL_LSP_SERVER_KIND || userConfiguredKind).trim().toLowerCase();
-  const serverKind = explicitKind || "rust";
-
-  if (serverKind === "rust" || serverKind === "native") {
-    const rustBin = resolveRustServer(
-      process.env.TCL_LSP_SERVER_BIN || config.get<string>("rustServerPath", ""),
-      configuredServerPath,
-      context.extensionPath,
+  // The extension runs the native Rust `tcl-lsp-server` exclusively.  The
+  // universal VSIX bundles one binary per platform under
+  // `server/<platform>-<arch>/`; a dev checkout builds it with
+  // `cargo build -p tcl-lsp-server` and it is picked up from
+  // `target/{release,debug}/`.  An explicit binary can be supplied via
+  // `tclLsp.rustServerPath` or the `TCL_LSP_SERVER_BIN` env var (the latter
+  // lets test harnesses point at a freshly built binary without writing
+  // workspace settings).
+  const rustBin = resolveRustServer(
+    process.env.TCL_LSP_SERVER_BIN || config.get<string>("rustServerPath", ""),
+    configuredServerPath,
+    context.extensionPath,
+  );
+  if (!rustBin) {
+    window.showErrorMessage(
+      `Tcl LSP: no native tcl-lsp-server binary found for ${bundlePlatformDir()}. ` +
+        "In a checkout, build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
+        "or set 'tclLsp.rustServerPath' to a native binary. A packaged install reaching this " +
+        "point does not ship a binary for your OS/architecture.",
     );
-    if (!rustBin) {
-      // When the user *explicitly* asked for the native backend, surface the
-      // missing-binary error.  When Rust is merely the default (no explicit
-      // preference), fall through to the dev `uv run` Python server if this is
-      // a checkout; a packaged install with no matching binary is reported as
-      // an unsupported platform below.
-      if (explicitKind === "rust" || explicitKind === "native") {
-        window.showErrorMessage(
-          `Tcl LSP: serverKind is 'rust' but no native tcl-lsp-server binary was found for ${bundlePlatformDir()}. ` +
-            "In a checkout, build it with `cargo build -p tcl-lsp-server` (or `make rust-server`); " +
-            "otherwise set 'tclLsp.rustServerPath'.",
-        );
-        return;
-      }
-      ch.appendLine(
-        `No native tcl-lsp-server binary found for ${bundlePlatformDir()}; ` +
-          "trying the dev Python server (checkout only).",
-      );
-    } else {
-      ch.appendLine(`Rust mode: using native server ${rustBin}`);
-      serverOptions = {
-        command: rustBin,
-        args: [],
-        options: { cwd: path.dirname(rustBin) },
-      };
-    }
+    return;
   }
-
-  if (!serverOptions) {
-    // Dev mode: explicit serverPath or running from a git checkout.
-    const serverDir = resolveServerDir(configuredServerPath, context.extensionPath);
-    if (configuredServerPath || hasServerBundle(serverDir)) {
-      if (!hasServerBundle(serverDir)) {
-        window.showErrorMessage(
-          `Unable to locate Tcl server bundle under '${serverDir}'. Set 'tclLsp.serverPath' to the tcl-lsp project root.`,
-        );
-      }
-      ch.appendLine(`Dev mode: using uv in ${serverDir}`);
-      serverOptions = {
-        command: "uv",
-        args: ["run", "--directory", serverDir, "--no-dev", "python", "-m", "server"],
-        options: { cwd: serverDir },
-      };
-    } else {
-      // Packaged install with no native binary bundled for this platform, and
-      // not a checkout.  The universal VSIX ships a `tcl-lsp-server` binary per
-      // supported platform under `server/<platform>-<arch>/`; reaching here
-      // means this platform is not in the shipped set.
-      window.showErrorMessage(
-        `Tcl LSP: no bundled server binary for this platform (${bundlePlatformDir()}). ` +
-          "This build of the extension does not support your OS/architecture. " +
-          "If you have a Tcl LSP checkout, set 'tclLsp.serverPath' to its root, " +
-          "or point 'tclLsp.rustServerPath' at a native tcl-lsp-server binary.",
-      );
-      return;
-    }
-  }
+  ch.appendLine(`Using native tcl-lsp-server: ${rustBin}`);
+  const serverOptions: ServerOptions = {
+    command: rustBin,
+    args: [],
+    options: { cwd: path.dirname(rustBin) },
+  };
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
@@ -449,12 +392,6 @@ export async function activate(context: ExtensionContext) {
       },
     },
   };
-
-  if (!serverOptions) {
-    // Every backend branch above either assigns serverOptions or returns; this
-    // guard makes that invariant explicit for the type checker.
-    return;
-  }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
 

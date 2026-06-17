@@ -14,10 +14,9 @@ import {
  *
  * Like the lsp_e2e suite, this is intentionally **implementation-agnostic**: it
  * asserts the observable recovery behaviour an editor user depends on, never a
- * server internal or a Python-specific diagnostic code.  It is the editor-side
- * half of the contract the recovery engine must satisfy in *any* implementation
- * — Python today, Rust after the port — so these exact tests re-run unchanged to
- * prove the Rust port behaves correctly end to end.
+ * server internal or a backend-specific diagnostic code.  It is the editor-side
+ * half of the contract the recovery engine must satisfy in the native Rust
+ * tcl-lsp-server, driven end to end through the real VS Code extension.
  *
  *   C1  an unterminated [ / " / { is flagged with an error diagnostic
  *   C2  recovery is non-fatal — a proc after the break is still a document symbol
