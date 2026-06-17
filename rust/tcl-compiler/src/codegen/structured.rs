@@ -205,3 +205,182 @@ fn condition_text(source: &str, span: Span) -> &str {
 fn opt(text: &str) -> Option<&str> {
     if text.is_empty() { None } else { Some(text) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lowering::lower_to_ir;
+    use tcl_registry::CommandRegistry;
+
+    /// A backend-free [`Emit`] that records each call as a string, so the
+    /// driver's decisions can be asserted in isolation (independent of any
+    /// target). This is the contract test for the "common emitter layer".
+    #[derive(Default)]
+    struct Recorder(Vec<String>);
+
+    impl Emit for Recorder {
+        fn emit_command(&mut self, t: &str) {
+            self.0.push(format!("cmd({t})"));
+        }
+        fn begin_if(&mut self, c: &str) {
+            self.0.push(format!("if({c})"));
+        }
+        fn begin_else(&mut self) {
+            self.0.push("else".into());
+        }
+        fn end_if(&mut self) {
+            self.0.push("endif".into());
+        }
+        fn begin_loop(&mut self) {
+            self.0.push("loop{".into());
+        }
+        fn loop_test(&mut self, c: Option<&str>) {
+            self.0.push(format!("test({})", c.unwrap_or("-")));
+        }
+        fn begin_loop_body(&mut self) {
+            self.0.push("body{".into());
+        }
+        fn end_loop_body(&mut self) {
+            self.0.push("}body".into());
+        }
+        fn end_loop(&mut self) {
+            self.0.push("}loop".into());
+        }
+        fn emit_break(&mut self) {
+            self.0.push("break".into());
+        }
+        fn emit_continue(&mut self) {
+            self.0.push("continue".into());
+        }
+        fn emit_return(&mut self) {
+            self.0.push("return".into());
+        }
+    }
+
+    /// Lower `src` and record the structured-walk event sequence.
+    fn events(src: &str) -> Vec<String> {
+        let module = lower_to_ir(src, &CommandRegistry::build_default());
+        let mut rec = Recorder::default();
+        walk(&mut rec, &module.top_level, src);
+        rec.0
+    }
+
+    #[test]
+    fn linear_emits_commands_in_order() {
+        assert_eq!(events("set x 5\nputs $x\n"), ["cmd(set x 5)", "cmd(puts $x)"]);
+    }
+
+    #[test]
+    fn if_else_two_arms() {
+        assert_eq!(
+            events("if {1} {puts a} else {puts b}\n"),
+            ["if(1)", "cmd(puts a)", "else", "cmd(puts b)", "endif"],
+        );
+    }
+
+    #[test]
+    fn if_without_else_has_no_else_arm() {
+        assert_eq!(events("if {1} {puts a}\n"), ["if(1)", "cmd(puts a)", "endif"]);
+    }
+
+    #[test]
+    fn elseif_desugars_to_nested_if() {
+        // `elseif` becomes a nested two-armed `if` in the `else` arm.
+        assert_eq!(
+            events("if {$a} {puts a} elseif {$b} {puts b} else {puts c}\n"),
+            [
+                "if($a)",
+                "cmd(puts a)",
+                "else",
+                "if($b)",
+                "cmd(puts b)",
+                "else",
+                "cmd(puts c)",
+                "endif",
+                "endif",
+            ],
+        );
+    }
+
+    #[test]
+    fn while_drives_the_loop_protocol() {
+        assert_eq!(
+            events("while {$x} {puts hi}\n"),
+            ["loop{", "test($x)", "body{", "cmd(puts hi)", "}body", "}loop"],
+        );
+    }
+
+    #[test]
+    fn for_runs_init_then_loop_with_step() {
+        // init runs once before the loop; the `next` clause is one eval after
+        // the body scope closes (so a `continue` would run it).
+        assert_eq!(
+            events("for {set i 0} {$i < 3} {incr i} {puts $i}\n"),
+            [
+                "cmd(set i 0)",
+                "loop{",
+                "test($i < 3)",
+                "body{",
+                "cmd(puts $i)",
+                "}body",
+                "cmd(incr i)",
+                "}loop",
+            ],
+        );
+    }
+
+    #[test]
+    fn break_and_continue_are_completion_codes_in_a_loop() {
+        assert_eq!(
+            events("while {1} {if {$x} {break} else {continue}}\n"),
+            [
+                "loop{",
+                "test(1)",
+                "body{",
+                "if($x)",
+                "break",
+                "else",
+                "continue",
+                "endif",
+                "}body",
+                "}loop",
+            ],
+        );
+    }
+
+    #[test]
+    fn break_outside_a_loop_is_an_ordinary_command() {
+        // No enclosing loop ⇒ `break` is eval-fallback'd (the runtime raises).
+        assert_eq!(events("break\n"), ["cmd(break)"]);
+    }
+
+    #[test]
+    fn return_diverges_and_suppresses_dead_code() {
+        // The `return` command is eval'd (sets the result), then the function
+        // returns; the following statement is unreachable and not emitted.
+        assert_eq!(events("return 1\nputs after\n"), ["cmd(return 1)", "return"]);
+    }
+
+    #[test]
+    fn statement_after_break_in_loop_is_dead() {
+        assert_eq!(
+            events("while {1} {break\nputs never}\n"),
+            ["loop{", "test(1)", "body{", "break", "}body", "}loop"],
+        );
+    }
+
+    #[test]
+    fn foreach_is_one_opaque_command() {
+        assert_eq!(
+            events("foreach x {a b c} {puts $x}\n"),
+            ["cmd(foreach x {a b c} {puts $x})"],
+        );
+    }
+
+    #[test]
+    fn empty_for_condition_means_no_guard() {
+        // `for {} {} {} {body}` — empty condition ⇒ `test(-)` (unconditional).
+        let ev = events("for {} {} {} {puts hi}\n");
+        assert!(ev.contains(&"test(-)".to_string()), "{ev:?}");
+    }
+}
