@@ -38,12 +38,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bytecode"
+version = "0.1.0"
+dependencies = [
+ "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
  "tcl-platform",
  "tcl-syntax",
 ]
+
+[[package]]
+name = "tcl-core-types"
+version = "0.1.0"
 
 [[package]]
 name = "tcl-lexer"
@@ -62,7 +74,16 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-lexer",
+ "tcl-runtime-api",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-core-types",
 ]
 
 [[package]]
