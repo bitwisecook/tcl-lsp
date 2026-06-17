@@ -18,9 +18,11 @@
 // then the IR surface is exercised only by unit tests.
 #![allow(dead_code)]
 
+pub mod backend;
 mod encoding;
 mod ir;
 
+pub use backend::wasm_codegen_module;
 pub use ir::{
     SectionId, ValType, WasmData, WasmFunction, WasmImport, WasmInstruction, WasmModule, WasmOp,
 };
