@@ -82,16 +82,118 @@ pub fn repeat<O: ValueOps>(
     Ok(ops.new_string(src.repeat(n)))
 }
 
-/// `string toupper str` (whole-string form).
-pub fn to_upper<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let out = ops.as_str(s).to_uppercase();
-    ops.new_string(out)
+/// Which case conversion [`case_convert`] performs.
+#[derive(Clone, Copy)]
+pub enum CaseMode {
+    /// `string toupper`.
+    Upper,
+    /// `string tolower`.
+    Lower,
+    /// `string totitle` — first char of the range uppercased, rest lowercased.
+    Title,
 }
 
-/// `string tolower str` (whole-string form).
-pub fn to_lower<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let out = ops.as_str(s).to_lowercase();
-    ops.new_string(out)
+/// `string toupper`/`tolower`/`totitle string ?first? ?last?` — convert the case
+/// of the characters in `[first, last]` (default the whole string; with only
+/// `first`, that single character), leaving the rest unchanged.
+pub fn case_convert<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    mode: CaseMode,
+    usage: &str,
+) -> Result<O::Value, CmdError> {
+    let (s, first_spec, last_spec) = match args {
+        [s] => (s, None, None),
+        [s, f] => (s, Some(f), None),
+        [s, f, l] => (s, Some(f), Some(l)),
+        _ => return Err(CmdError::wrong_args(usage)),
+    };
+    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let len = chars.len();
+    if len == 0 {
+        return Ok(ops.empty());
+    }
+    let first = match first_spec {
+        None => 0,
+        Some(f) => index::resolve(&ops.as_str(f), len)?.max(0),
+    };
+    let last = match last_spec {
+        Some(l) => index::resolve(&ops.as_str(l), len)?,
+        None if first_spec.is_some() => first,
+        None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
+    };
+    let mut out = String::new();
+    for (idx, &c) in chars.iter().enumerate() {
+        let i = i64::try_from(idx).unwrap_or(i64::MAX);
+        if i < first || i > last {
+            out.push(c);
+            continue;
+        }
+        let uppercase = match mode {
+            CaseMode::Upper => true,
+            CaseMode::Lower => false,
+            CaseMode::Title => i == first, // titlecase the first char, lowercase the rest
+        };
+        if uppercase {
+            out.extend(c.to_uppercase());
+        } else {
+            out.extend(c.to_lowercase());
+        }
+    }
+    Ok(ops.new_string(out))
+}
+
+/// `string replace string first last ?newstring?` — remove the characters in
+/// `[first, last]` (inclusive), optionally inserting `newstring`. An empty or
+/// inverted range leaves the string unchanged.
+pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    if args.len() < 3 || args.len() > 4 {
+        return Err(CmdError::wrong_args(
+            "string replace string first last ?string?",
+        ));
+    }
+    let chars: Vec<char> = ops.as_str(&args[0]).chars().collect();
+    let len = chars.len();
+    let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+    let first = index::resolve(&ops.as_str(&args[1]), len)?;
+    let last = index::resolve(&ops.as_str(&args[2]), len)?;
+    if last < 0 || first > end || last < first {
+        let unchanged: String = chars.iter().collect();
+        return Ok(ops.new_string(unchanged));
+    }
+    let first = first.max(0);
+    let last = last.min(end);
+    let lo = usize::try_from(first).unwrap_or(0);
+    let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
+    let mut out: String = chars[..lo].iter().collect();
+    if args.len() == 4 {
+        out.push_str(&ops.as_str(&args[3]));
+    }
+    out.extend(chars[hi_excl..].iter());
+    Ok(ops.new_string(out))
+}
+
+/// `string insert string index insertString` — insert `insertString` before the
+/// character at `index`. `end` denotes the position *after* the last character
+/// (so it appends); the index resolves against `len + 1`.
+pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    let [s, idx, ins] = args else {
+        return Err(CmdError::wrong_args(
+            "string insert string index insertString",
+        ));
+    };
+    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let len = chars.len();
+    let at = index::resolve(&ops.as_str(idx), len + 1)?;
+    let at = if at < 0 {
+        0
+    } else {
+        usize::try_from(at).unwrap_or(len).min(len)
+    };
+    let mut out: String = chars[..at].iter().collect();
+    out.push_str(&ops.as_str(ins));
+    out.extend(chars[at..].iter());
+    Ok(ops.new_string(out))
 }
 
 /// `string cat ?arg ...?` — concatenate the string reps of all arguments.
@@ -314,6 +416,26 @@ pub fn dispatch_canon<O: ValueOps>(
         "cat" => Some(Ok(cat(ops, rest))),
         "match" => Some(string_match(ops, rest)),
         "map" => Some(map(ops, rest)),
+        "toupper" => Some(case_convert(
+            ops,
+            rest,
+            CaseMode::Upper,
+            "string toupper string ?first? ?last?",
+        )),
+        "tolower" => Some(case_convert(
+            ops,
+            rest,
+            CaseMode::Lower,
+            "string tolower string ?first? ?last?",
+        )),
+        "totitle" => Some(case_convert(
+            ops,
+            rest,
+            CaseMode::Title,
+            "string totitle string ?first? ?last?",
+        )),
+        "replace" => Some(replace(ops, rest)),
+        "insert" => Some(insert(ops, rest)),
         "first" => match rest {
             [n, h] => Some(first(ops, n, h, None)),
             [n, h, s] => Some(first(ops, n, h, Some(s))),
@@ -343,9 +465,8 @@ pub fn dispatch_canon<O: ValueOps>(
             false,
             true,
         )),
-        // Not yet ported into the core — caller falls back to its legacy path.
-        // (`toupper`/`tolower`/`totitle` need the optional `?first? ?last?` range
-        // form before they can move here without a regression.)
+        // Not yet ported into the core — caller falls back to its legacy path
+        // (`is`, `wordstart`/`wordend`, …).
         _ => None,
     }
 }

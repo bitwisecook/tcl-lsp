@@ -150,6 +150,19 @@ fn lindex_bad_index_errors() {
     assert!(result.contains("bad index"), "got: {result}");
 }
 
+/// Case conversions (with the `?first? ?last?` range form), `replace`, `insert`.
+#[test]
+fn string_case_replace_insert() {
+    assert_eq!(run("puts [string toupper hello]").2, "HELLO\n");
+    assert_eq!(run("puts [string toupper hello 0 2]").2, "HELlo\n");
+    assert_eq!(run("puts [string tolower HELLO 1]").2, "HeLLO\n");
+    assert_eq!(run("puts [string totitle hello]").2, "Hello\n");
+    assert_eq!(run("puts [string replace abcde 1 3]").2, "ae\n");
+    assert_eq!(run("puts [string replace abcde 1 3 XY]").2, "aXYe\n");
+    assert_eq!(run("puts [string insert abc 1 XY]").2, "aXYbc\n");
+    assert_eq!(run("puts [string insert abc end Z]").2, "abcZ\n");
+}
+
 /// `string cat` and the `string trim` family, ported into the shared core.
 #[test]
 fn string_cat_and_trim() {
