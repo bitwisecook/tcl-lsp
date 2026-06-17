@@ -104,38 +104,12 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "range" => string_range(rest),
         "equal" => str_compare(rest, true),
         "compare" => str_compare(rest, false),
-        "match" => match rest {
-            [pat, s] => ok(Value::bool(string_case_match(
-                &pat.to_str(),
-                &s.to_str(),
-                false,
-            ))),
-            [nocase, pat, s] if &*nocase.to_str() == "-nocase" => ok(Value::bool(
-                string_case_match(&pat.to_str(), &s.to_str(), true),
-            )),
-            _ => err("wrong # args: should be \"string match ?-nocase? pattern string\""),
-        },
-        "first" => match rest {
-            [needle, hay] => {
-                let h = hay.to_str();
-                let n = needle.to_str();
-                let idx = h.find(&*n).map_or(-1, |b| ilen(h[..b].chars().count()));
-                ok(Value::int(idx))
-            }
-            _ => err("wrong # args: should be \"string first needleString haystackString\""),
-        },
-        "last" => match rest {
-            [needle, hay] => {
-                let h = hay.to_str();
-                let n = needle.to_str();
-                let idx = h.rfind(&*n).map_or(-1, |b| ilen(h[..b].chars().count()));
-                ok(Value::int(idx))
-            }
-            _ => err("wrong # args: should be \"string last needleString haystackString\""),
-        },
-        "tolower" => map_str(rest, str::to_lowercase),
-        "toupper" => map_str(rest, str::to_uppercase),
-        "totitle" => map_str(rest, totitle),
+        "match" => string_match(rest),
+        "first" => string_first(rest),
+        "last" => string_last(rest),
+        "tolower" => case_convert(rest, "tolower"),
+        "toupper" => case_convert(rest, "toupper"),
+        "totitle" => case_convert(rest, "totitle"),
         "reverse" => map_str(rest, |s| s.chars().rev().collect()),
         "trim" => trim_str(rest, true, true),
         "trimleft" => trim_str(rest, true, false),
@@ -152,10 +126,12 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "map" => match rest {
             [pairs, s] => string_map(pairs, &s.to_str(), false),
-            [opt, pairs, s] if matches!(&*opt.to_str(), "-nocase" | "-no") => {
-                string_map(pairs, &s.to_str(), true)
-            }
-            _ => err("wrong # args: should be \"string map ?-nocase? mapping string\""),
+            [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(pairs, &s.to_str(), true),
+            [opt, _, _] => err(format!(
+                "bad option \"{}\": must be -nocase",
+                opt.to_str()
+            )),
+            _ => err("wrong # args: should be \"string map ?-nocase? charMap string\""),
         },
         "cat" => ok(Value::string(
             rest.iter()
@@ -253,16 +229,208 @@ fn string_insert(rest: &[Value]) -> Completion<Value> {
     ok(Value::string(out))
 }
 
-fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
-    // Ignore leading options (-nocase/-length) beyond the two operands for M3.
-    let ops: Vec<&Value> = rest
-        .iter()
-        .filter(|v| !v.to_str().starts_with('-'))
-        .collect();
-    let [a, b] = ops.as_slice() else {
-        return err("wrong # args: should be \"string equal/compare ?options? s1 s2\"");
+/// Whether `opt` is `-nocase` (or a non-empty unique abbreviation of it).
+fn is_nocase(opt: &str) -> bool {
+    opt.len() >= 2 && "-nocase".starts_with(opt)
+}
+
+/// `string match ?-nocase? pattern string`.
+fn string_match(rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [pat, s] => ok(Value::bool(string_case_match(&pat.to_str(), &s.to_str(), false))),
+        [opt, pat, s] if is_nocase(&opt.to_str()) => {
+            ok(Value::bool(string_case_match(&pat.to_str(), &s.to_str(), true)))
+        }
+        [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
+        _ => err("wrong # args: should be \"string match ?-nocase? pattern string\""),
+    }
+}
+
+/// `string toupper|tolower|totitle string ?first? ?last?` — convert the
+/// characters in `[first, last]` (default the whole string).
+fn case_convert(rest: &[Value], op: &str) -> Completion<Value> {
+    let (s, first_spec, last_spec) = match rest {
+        [s] => (s, None, None),
+        [s, f] => (s, Some(f), None),
+        [s, f, l] => (s, Some(f), Some(l)),
+        _ => {
+            return err(format!(
+                "wrong # args: should be \"string {op} string ?first? ?last?\""
+            ));
+        }
     };
-    let ord = (*a.to_str()).cmp(&b.to_str());
+    let chars: Vec<char> = s.to_str().chars().collect();
+    let len = chars.len();
+    if len == 0 {
+        return ok(Value::empty());
+    }
+    let first = match first_spec {
+        None => 0,
+        Some(f) => match resolve_index(&f.to_str(), len) {
+            Some(i) => i.max(0),
+            None => return bad_index(&f.to_str()),
+        },
+    };
+    let last = match last_spec {
+        Some(l) => match resolve_index(&l.to_str(), len) {
+            Some(i) => i,
+            None => return bad_index(&l.to_str()),
+        },
+        // With only a `first` index, just that one character is converted; with
+        // no indices at all, the whole string.
+        None if first_spec.is_some() => first,
+        None => isize::try_from(len).unwrap_or(isize::MAX) - 1,
+    };
+    let mut out = String::with_capacity(s.to_str().len());
+    for (idx, &c) in chars.iter().enumerate() {
+        let i = isize::try_from(idx).unwrap_or(isize::MAX);
+        if i >= first && i <= last {
+            match op {
+                "toupper" => out.extend(c.to_uppercase()),
+                "tolower" => out.extend(c.to_lowercase()),
+                // `totitle` titlecases the first character of the range and
+                // lowercases the remainder.
+                _ if i == first => out.extend(c.to_uppercase()),
+                _ => out.extend(c.to_lowercase()),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    ok(Value::string(out))
+}
+
+fn bad_index(spec: &str) -> Completion<Value> {
+    err(format!(
+        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
+    ))
+}
+
+/// `string first needle haystack ?startIndex?` — first occurrence at or after
+/// `startIndex` (character index, or -1).
+fn string_first(rest: &[Value]) -> Completion<Value> {
+    let (needle, hay, start_spec) = match rest {
+        [n, h] => (n, h, None),
+        [n, h, s] => (n, h, Some(s)),
+        _ => {
+            return err(
+                "wrong # args: should be \"string first needleString haystackString ?startIndex?\"",
+            );
+        }
+    };
+    let hay: Vec<char> = hay.to_str().chars().collect();
+    let needle: Vec<char> = needle.to_str().chars().collect();
+    let start = match start_spec {
+        None => 0,
+        Some(s) => match resolve_index(&s.to_str(), hay.len()) {
+            Some(i) => usize::try_from(i).unwrap_or(0),
+            None => return bad_index(&s.to_str()),
+        },
+    };
+    if needle.is_empty() {
+        return ok(Value::int(-1));
+    }
+    let mut idx = -1;
+    if needle.len() <= hay.len() {
+        for i in start..=hay.len() - needle.len() {
+            if hay[i..i + needle.len()] == needle[..] {
+                idx = ilen(i);
+                break;
+            }
+        }
+    }
+    ok(Value::int(idx))
+}
+
+/// `string last needle haystack ?lastIndex?` — last occurrence starting at or
+/// before `lastIndex` (character index, or -1).
+fn string_last(rest: &[Value]) -> Completion<Value> {
+    let (needle, hay, last_spec) = match rest {
+        [n, h] => (n, h, None),
+        [n, h, s] => (n, h, Some(s)),
+        _ => {
+            return err(
+                "wrong # args: should be \"string last needleString haystackString ?lastIndex?\"",
+            );
+        }
+    };
+    let hay: Vec<char> = hay.to_str().chars().collect();
+    let needle: Vec<char> = needle.to_str().chars().collect();
+    let last = match last_spec {
+        None => hay.len(),
+        Some(s) => match resolve_index(&s.to_str(), hay.len()) {
+            Some(i) => usize::try_from(i).unwrap_or(0).min(hay.len()),
+            None => return bad_index(&s.to_str()),
+        },
+    };
+    if needle.is_empty() {
+        return ok(Value::int(-1));
+    }
+    let mut idx = -1;
+    if needle.len() <= hay.len() {
+        let hi = last.min(hay.len() - needle.len());
+        for i in (0..=hi).rev() {
+            if hay[i..i + needle.len()] == needle[..] {
+                idx = ilen(i);
+                break;
+            }
+        }
+    }
+    ok(Value::int(idx))
+}
+
+fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
+    let name = if equal { "equal" } else { "compare" };
+    let wrong = || {
+        err(format!(
+            "wrong # args: should be \"string {name} ?-nocase? ?-length int? string1 string2\""
+        ))
+    };
+    // Options are only parsed while more than the two operands remain (so e.g.
+    // `string compare -nocase a` compares the literal strings).
+    let mut nocase = false;
+    let mut length: Option<i64> = None;
+    let mut i = 0;
+    while rest.len() - i > 2 {
+        match &*rest[i].to_str() {
+            "-nocase" => {
+                nocase = true;
+                i += 1;
+            }
+            "-length" => {
+                let Some(v) = rest.get(i + 1) else {
+                    return wrong();
+                };
+                match v.as_int() {
+                    Ok(n) => length = Some(n),
+                    Err(_) => {
+                        return err(format!("expected integer but got \"{}\"", v.to_str()));
+                    }
+                }
+                i += 2;
+            }
+            other => {
+                return err(format!("bad option \"{other}\": must be -nocase or -length"));
+            }
+        }
+    }
+    if rest.len() - i != 2 {
+        return wrong();
+    }
+    let key = |v: &Value| -> String {
+        let mut chars: Vec<char> = v.to_str().chars().collect();
+        if let Some(n) = length
+            && n >= 0
+        {
+            chars.truncate(usize::try_from(n).unwrap_or(0));
+        }
+        if nocase {
+            chars.iter().flat_map(|c| c.to_lowercase()).collect()
+        } else {
+            chars.into_iter().collect()
+        }
+    };
+    let ord = key(&rest[i]).cmp(&key(&rest[i + 1]));
     if equal {
         ok(Value::bool(ord.is_eq()))
     } else {
@@ -279,18 +447,6 @@ fn map_str(rest: &[Value], f: impl Fn(&str) -> String) -> Completion<Value> {
         [s] => ok(Value::string(f(&s.to_str()))),
         _ => err("wrong # args: should be \"string <op> string\""),
     }
-}
-
-fn totitle(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for (i, c) in s.chars().enumerate() {
-        if i == 0 {
-            out.extend(c.to_uppercase());
-        } else {
-            out.extend(c.to_lowercase());
-        }
-    }
-    out
 }
 
 fn trim_str(rest: &[Value], left: bool, right: bool) -> Completion<Value> {
