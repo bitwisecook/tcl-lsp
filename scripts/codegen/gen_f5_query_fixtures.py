@@ -223,7 +223,7 @@ QUERIES: list[str] = [
     "f(a, b)",
     "f((a, b))",
     "f(.x | basename(.))",
-    "in_cidr(., \"10.0.0.0/8\")",
+    'in_cidr(., "10.0.0.0/8")',
     # binops / unary / precedence
     "1 + 2 * 3",
     "1 * 2 + 3",

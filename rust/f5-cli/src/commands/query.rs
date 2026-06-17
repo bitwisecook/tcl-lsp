@@ -9,8 +9,9 @@
 //! Field-value mutations (`=` / `|=` / `+=` / `-=`) are supported: the
 //! default is a unified-diff preview, `--write` prints the rewritten config,
 //! and `--in-place` overwrites the input. Identity-field writes (`.name = …`)
-//! and the `rename*` builtins are deferred (cleanly rejected) — they route
-//! through the unported rename token-rewrite engine.
+//! and the `rename*` builtins (`rename` / `rename_partition` / `rename_folder`
+//! / `rename_prefix`) are supported too — they route through the ported
+//! `rewrite::rename_object` token-rewrite engine.
 //!
 //! Side-inputs are supported: `--input-json` / `--input-jsonl` /
 //! `--input-csv` / `--input-f5log` and the generic `--input KIND NAME=PATH`
@@ -23,23 +24,101 @@
 //! references across files, and two sources defining the same
 //! `(kind, full-path)` are refused.
 //!
-//! Deferred (cleanly rejected / ignored): the `--help-dsl` /
-//! `--help-builtins` / `--help-examples` actions. Live
-//! network probes (`dns` / `ping` / `http` / `tls` / x509 + `cert_load`) land
-//! gated behind `--enable-probes`; `ucs_cert` is deferred (no UCS reader is
-//! wired — it raises the same "run it through the f5 CLI" deferral error).
+//! Help actions are all implemented: `--help-dsl` / `--help-examples` /
+//! `--help-renderers` / `--help-inputs` are byte-for-byte ports, while
+//! `--help-builtins [NAME]` / `--help-manual` are idiomatic Rust surfaces
+//! generated from the builtin registry metadata (the Rust `BuiltinSpec` omits
+//! the Python per-function prose). Live network probes (`dns` / `ping` /
+//! `http` / `tls` / x509 + `cert_load`) land gated behind `--enable-probes`.
+//! `ucs_cert` has its UCS reader wired here (read the PEM out of the archive
+//! via `read_ucs_member`, then `x509_parse`); reaching it through the DSL also
+//! needs the `sys file-ssl-cert` object projection, which the query engine does
+//! not yet surface (only the LTM kinds are projected).
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use tcl_bigip_io::read_path;
+use tcl_bigip_io::{read_path, read_ucs_member, resolve_passphrase};
 use tcl_bigip_query::value::Value;
-use tcl_bigip_query::{QueryOptions, QueryResult, output, run_query};
+use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
 
 use crate::cli::FormatArgs;
 
 use super::difflib;
+
+/// Percent-decode a URI component (the inverse of the `file_uri` encoder in
+/// `tcl-bigip-io`), so a `config_uri` round-trips back to the on-disk path.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    let hex = |b: u8| -> Option<u8> {
+        match b {
+            b'0'..=b'9' => Some(b - b'0'),
+            b'a'..=b'f' => Some(b - b'a' + 10),
+            b'A'..=b'F' => Some(b - b'A' + 10),
+            _ => None,
+        }
+    };
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2]))
+        {
+            out.push(h * 16 + l);
+            i += 3;
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Resolve a `config_uri` to a local path, accepting `file://` and bare paths
+/// (mirrors the Python reader's `urlsplit` scheme check). Returns `None` for a
+/// non-file scheme.
+fn ucs_uri_to_path(config_uri: &str) -> Option<String> {
+    if let Some(rest) = config_uri.strip_prefix("file://") {
+        // Strip an optional `//netloc`; the path starts at the first `/`.
+        let path = rest.find('/').map_or(rest, |i| &rest[i..]);
+        Some(percent_decode(path))
+    } else if config_uri.contains("://") {
+        None
+    } else {
+        Some(percent_decode(config_uri))
+    }
+}
+
+/// Build the `ucs_cert` reader the query engine injects: map a cert object's
+/// `config_uri` + filestore `cache-path` to an `x509_parse`-shaped value,
+/// reading the PEM out of the (possibly encrypted) UCS. Mirrors the Python
+/// CLI's `_make_ucs_cert_reader`.
+fn make_ucs_cert_reader() -> tcl_bigip_query::eval::UcsCertReader {
+    let opts = crate::cli::PassphraseArgs::default().to_options();
+    std::rc::Rc::new(
+        move |config_uri: &str, cache_path: &str| -> Result<Value, QueryError> {
+            let path = ucs_uri_to_path(config_uri).ok_or_else(|| {
+                QueryError::builtin(format!(
+                    "ucs_cert: source {config_uri} is not a local file-backed UCS"
+                ))
+            })?;
+            let raw = std::fs::read(&path).map_err(|e| {
+                QueryError::builtin(format!("ucs_cert: cannot read UCS {path}: {e}"))
+            })?;
+            let provider = || resolve_passphrase(&opts);
+            let pem = read_ucs_member(&raw, cache_path, &provider, &path).map_err(|e| {
+                QueryError::builtin(format!(
+                    "ucs_cert: {cache_path} not found in {path} ({e}) \
+                 (a plain bigip.conf has no filestore — read the UCS itself)"
+                ))
+            })?;
+            let pem_str = String::from_utf8_lossy(&pem);
+            tcl_bigip_query::probes::x509_parse(&pem_str)
+        },
+    )
+}
 
 /// Whether *path*'s extension is `.ucs` (case-insensitive) — mirrors
 /// `Path(path).suffix.lower() == ".ucs"`.
@@ -733,12 +812,10 @@ pub fn run_query_verb(
         side_inputs,
         enable_probes: probes.enable_probes,
         ca_bundle: probes.ca_bundle.clone(),
-        // `ucs_cert` re-opens a cert from inside a UCS, which means
-        // decrypting + un-tarring the archive — that lives in the `tooling`
-        // UCS layer and is deferred in this port. With no reader wired,
-        // `ucs_cert` raises the same clean "no UCS reader is wired" deferral
-        // error Python raises when `UCS_CERT_READER` is unset.
-        ucs_cert_reader: None,
+        // `ucs_cert` re-opens a cert from inside a UCS (decrypt + un-tar in the
+        // `tooling` UCS layer); inject a reader using the same passphrase
+        // resolution the input loader uses, mirroring the Python CLI wiring.
+        ucs_cert_reader: Some(make_ucs_cert_reader()),
         merge: flags.merge,
     };
 
@@ -919,4 +996,61 @@ pub fn help_renderers_text() -> String {
         "Use --render NAME to dispatch, --render-opt KEY=VALUE for per-renderer options.\n",
     );
     out
+}
+
+#[cfg(test)]
+mod ucs_cert_tests {
+    use super::{make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
+    use tcl_bigip_query::value::Value;
+
+    // The committed UCS holds a metadata-free `sys file ssl-cert` stanza plus
+    // the real PEM in the filestore; `ucs_cert` must recover the cert's identity
+    // from the PEM, not the stanza. (End-to-end reachability via the query DSL
+    // additionally needs the unported `sys file-ssl-cert` projection.)
+    const CACHE_PATH: &str = "/config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1";
+    const EXPECTED_FP: &str = "79F67B000B1E685F3B2EC336A82C37985A1175F17176D60A60CDD6DD7FE874CD";
+
+    #[test]
+    fn reader_reads_and_parses_real_cert() {
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/ucs-cert-sample.ucs"
+        );
+        let reader = make_ucs_cert_reader();
+        let value = reader(&format!("file://{fixture}"), CACHE_PATH)
+            .expect("reader reads + parses the cert");
+        let Value::Object(map) = value else {
+            panic!("ucs_cert must return an x509 dict");
+        };
+        let fp = match map.get("fingerprint_sha256") {
+            Some(Value::Str(s)) => s.clone(),
+            _ => panic!("x509 dict has no fingerprint_sha256 string"),
+        };
+        assert_eq!(
+            fp, EXPECTED_FP,
+            "ucs_cert must parse the real PEM from the filestore",
+        );
+    }
+
+    #[test]
+    fn reader_errors_on_missing_member() {
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/ucs-cert-sample.ucs"
+        );
+        let reader = make_ucs_cert_reader();
+        let err = reader(&format!("file://{fixture}"), "/config/filestore/nope_1").unwrap_err();
+        assert!(format!("{err}").contains("ucs_cert"), "got: {err}");
+    }
+
+    #[test]
+    fn uri_and_percent_decode() {
+        assert_eq!(
+            ucs_uri_to_path("file:///tmp/a.ucs").as_deref(),
+            Some("/tmp/a.ucs")
+        );
+        assert_eq!(ucs_uri_to_path("/tmp/a.ucs").as_deref(), Some("/tmp/a.ucs"));
+        assert_eq!(ucs_uri_to_path("https://x/a"), None);
+        assert_eq!(percent_decode("a%20b%2Fc"), "a b/c");
+    }
 }

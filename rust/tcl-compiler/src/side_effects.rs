@@ -1488,7 +1488,10 @@ mod tests {
         let agnostic = classify_side_effects(&registry, "log", &["hi".into()], None, None);
         assert!(!agnostic.pure);
         assert_eq!(agnostic.effects[0].target, SideEffectTarget::LogIo);
-        assert_eq!(agnostic.to_effect_regions(), (EffectRegion::NONE, EffectRegion::NONE));
+        assert_eq!(
+            agnostic.to_effect_regions(),
+            (EffectRegion::NONE, EffectRegion::NONE)
+        );
         // Under a Tcl dialect the irules spec is gated out → UNKNOWN write.
         let tcl = classify_side_effects(&registry, "log", &["hi".into()], Some("tcl8.6"), None);
         assert!(!tcl.pure);

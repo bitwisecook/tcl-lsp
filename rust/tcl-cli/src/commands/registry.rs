@@ -15,7 +15,11 @@ const TCL_DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"];
 
 /// `tcl registry-dump` — dump the command registry for one dialect (or
 /// every Tcl dialect with `--all-dialects`) as canonical JSON.
-pub fn run_registry_dump(dialect: &str, all_dialects: bool, output: Option<&Path>) -> anyhow::Result<u8> {
+pub fn run_registry_dump(
+    dialect: &str,
+    all_dialects: bool,
+    output: Option<&Path>,
+) -> anyhow::Result<u8> {
     let target = OutputTarget::from_arg(output);
     // `build_default` already carries every Tcl dialect's commands, so the
     // `tcl8.6` registry serves all four Tcl dialects (and `--all-dialects`).

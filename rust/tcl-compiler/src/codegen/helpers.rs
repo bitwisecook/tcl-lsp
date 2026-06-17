@@ -87,6 +87,72 @@ pub fn split_list_simple(text: &str) -> Vec<String> {
     result
 }
 
+/// Split a list like [`split_list_simple`], but return each element's decoded
+/// *value*: braced words are kept verbatim while quoted and bare words are run
+/// through [`tcl_lexer::backslash_subst`]. This is what the runtime `list`
+/// command sees as its arguments, so constant-folding `[list …]` must decode the
+/// same way (e.g. `"\x00"` → a NUL byte) before re-quoting each element.
+fn split_list_values(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < n {
+        while i < n && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+            i += 1;
+        }
+        if i >= n {
+            break;
+        }
+
+        if bytes[i] == b'{' {
+            // Braced element — verbatim, no decoding.
+            let mut level: u32 = 1;
+            i += 1;
+            let start = i;
+            while i < n && level > 0 {
+                if bytes[i] == b'\\' {
+                    i += 2;
+                    continue;
+                }
+                if bytes[i] == b'{' {
+                    level += 1;
+                } else if bytes[i] == b'}' {
+                    level -= 1;
+                }
+                i += 1;
+            }
+            result.push(text[start..i.saturating_sub(1)].to_owned());
+        } else if bytes[i] == b'"' {
+            // Quoted element — backslash-decode the content.
+            i += 1;
+            let start = i;
+            while i < n && bytes[i] != b'"' {
+                if bytes[i] == b'\\' {
+                    i += 1;
+                }
+                i += 1;
+            }
+            result.push(tcl_lexer::backslash_subst(&text[start..i]).into_owned());
+            if i < n {
+                i += 1; // skip closing "
+            }
+        } else {
+            // Bare word — backslash-decode.
+            let start = i;
+            while i < n && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+                if bytes[i] == b'\\' {
+                    i += 1;
+                }
+                i += 1;
+            }
+            result.push(tcl_lexer::backslash_subst(&text[start..i]).into_owned());
+        }
+    }
+    result
+}
+
 /// Compute the Tcl string hash (matches `Tcl_HashString`).
 #[must_use]
 pub fn tcl_string_hash(s: &str) -> u32 {
@@ -359,8 +425,11 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
         }
     }
 
-    // Parse the literal arguments and re-format as a canonical Tcl list.
-    let args = split_list_simple(&inner);
+    // Parse the literal arguments and re-format as a canonical Tcl list. Each
+    // argument's *value* is what `list` quotes: braced words are verbatim, while
+    // quoted and bare words are backslash-decoded first (so `"\x00"` becomes a
+    // NUL byte and `"a\tb"` an embedded tab, not the literal escape text).
+    let args = split_list_values(&inner);
     Some(
         args.iter()
             .map(|a| tcl_list_element(a))

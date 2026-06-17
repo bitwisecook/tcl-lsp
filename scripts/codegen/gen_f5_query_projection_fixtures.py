@@ -37,12 +37,7 @@ from dialects.f5.query.runner import _build_root
 
 # The fixture config the Rust test parses via `parse_bigip_conf`.
 FIXTURE = (
-    Path(__file__).resolve().parents[2]
-    / "rust"
-    / "tcl-bigip"
-    / "tests"
-    / "fixtures"
-    / "bigip.conf"
+    Path(__file__).resolve().parents[2] / "rust" / "tcl-bigip" / "tests" / "fixtures" / "bigip.conf"
 )
 URI = "bigip.conf"
 
@@ -139,20 +134,11 @@ def run(query: str, mode: str, source: str) -> dict:
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    out_path = (
-        repo_root
-        / "rust"
-        / "tcl-bigip-query"
-        / "tests"
-        / "fixtures"
-        / "projection.json"
-    )
+    out_path = repo_root / "rust" / "tcl-bigip-query" / "tests" / "fixtures" / "projection.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     source = FIXTURE.read_text(encoding="utf-8")
     cases = [run(q, mode, source) for (q, mode) in CASES]
-    out_path.write_text(
-        json.dumps(cases, indent=2, ensure_ascii=True) + "\n", encoding="utf-8"
-    )
+    out_path.write_text(json.dumps(cases, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     ok = sum(1 for c in cases if c["kind"] == "ok")
     print(f"wrote {out_path} ({len(cases)} cases, {ok} ok, {len(cases) - ok} err)")
 

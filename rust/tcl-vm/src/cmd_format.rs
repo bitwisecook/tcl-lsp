@@ -166,14 +166,22 @@ fn scan_field(
             i64::from_str_radix(&s, 8).ok().map(Value::int)
         }
         'f' | 'e' | 'E' | 'g' | 'G' => take(ip, &|n, c| {
-            c.is_ascii_digit() || c == '.' || (n == 0 && (c == '-' || c == '+')) || c == 'e' || c == 'E'
+            c.is_ascii_digit()
+                || c == '.'
+                || (n == 0 && (c == '-' || c == '+'))
+                || c == 'e'
+                || c == 'E'
         })
         .parse::<f64>()
         .ok()
         .map(Value::double),
         's' => {
             let s = take(ip, &|_, c| !c.is_whitespace());
-            if s.is_empty() { None } else { Some(Value::string(s)) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(Value::string(s))
+            }
         }
         other => return Err(format!("bad scan conversion character \"%{other}\"")),
     };

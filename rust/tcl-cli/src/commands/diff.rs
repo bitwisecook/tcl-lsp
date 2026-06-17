@@ -112,15 +112,16 @@ fn resolve_subcommand<'a>(cmd: &'a SegmentedCommand, registry: &CommandRegistry)
 /// The `ast` layer payload (`{"commands": [...]}`), as canonical
 /// `json.dumps(indent=2, sort_keys=True)` text — port of
 /// `_serialise_command_ast`.
-fn serialise_command_ast(source: &str, registry: &CommandRegistry, line_index: &LineIndex) -> String {
+fn serialise_command_ast(
+    source: &str,
+    registry: &CommandRegistry,
+    line_index: &LineIndex,
+) -> String {
     let commands: Vec<Json> = segment_commands(source)
         .iter()
         .map(|cmd| {
             let mut m = BTreeMap::new();
-            m.insert(
-                "name".to_owned(),
-                Json::s(cmd.name()),
-            );
+            m.insert("name".to_owned(), Json::s(cmd.name()));
             m.insert(
                 "subcommand".to_owned(),
                 Json::s(resolve_subcommand(cmd, registry)),
@@ -189,7 +190,10 @@ fn layer_payload(
         "ast" => Ok(serialise_command_ast(src, registry, line_index)),
         "ir" => {
             let cu = CompilationUnit::build_for(src, registry, false);
-            Ok(crate::commands::serialise::serialise_ir(&cu.ir_module, line_index, src).dumps_indent2())
+            Ok(
+                crate::commands::serialise::serialise_ir(&cu.ir_module, line_index, src)
+                    .dumps_indent2(),
+            )
         }
         // The CFG layer needs the SSA serialiser (`tooling/cli/serialise.py`'s
         // `_serialise_cfg_*`), not ported yet.
@@ -296,7 +300,10 @@ fn write_diff_result(
             "leftDocuments": left_docs.iter().map(|d| d.label.clone()).collect::<Vec<_>>(),
             "rightDocuments": right_docs.iter().map(|d| d.label.clone()).collect::<Vec<_>>(),
         });
-        write_text_output(target, &ensure_ascii(&serde_json::to_string_pretty(&payload)?))?;
+        write_text_output(
+            target,
+            &ensure_ascii(&serde_json::to_string_pretty(&payload)?),
+        )?;
         return Ok(u8::from(has_differences));
     }
 

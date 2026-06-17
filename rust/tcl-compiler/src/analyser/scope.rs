@@ -17,7 +17,7 @@
 //! tracking maps (``const_strings``, ``regex_vars``, ``ns_cache``,
 //! ``result.regex_patterns``).
 
-use tcl_lexer::{Span, Token};
+use tcl_lexer::{Span, Token, TokenType};
 
 use crate::naming::{normalise_qualified_name, normalise_var_name, split_array_name};
 
@@ -523,6 +523,14 @@ impl Analyser {
             .map(ToString::to_string);
 
         let path = scope_path.to_vec();
+        // First definition of this variable → the W215 reachability check
+        // fires here (mirrors the `first_definition` branch in `_scope.py`).
+        // Done with a short immutable borrow before the mutable scope handle.
+        let is_first_def = scope_at(&self.result.global_scope, &path)
+            .is_some_and(|s| !s.variables.contains_key(base_name));
+        if is_first_def {
+            self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span);
+        }
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) else {
             return;
         };
@@ -563,6 +571,79 @@ impl Analyser {
             scope.variables.insert(base_owned.clone(), var.clone());
             let key = format!("{}::{base_owned}", scope.name);
             self.result.all_variables.insert(key, var);
+        }
+    }
+
+    /// **W215.** Emit when a variable's runtime name (or array element
+    /// index) cannot be reached via `$`-substitution, even though it can
+    /// be created/read via `set` / `info exists` / `upvar`.  Mirrors the
+    /// `first_definition` branch of `_AnalyserScopeMixin._record_var_def`
+    /// (`analyser/_analyser/_scope.py`).  The runtime name applies Tcl
+    /// backslash substitution unless the word was braced (`STR`), since
+    /// `{...}` preserves every byte verbatim.
+    fn emit_w215_unreachable_name(
+        &mut self,
+        base_name: &str,
+        element: Option<&str>,
+        tok: Token,
+        site_span: Span,
+    ) {
+        use super::types::{Diagnostic, Severity};
+        use crate::naming::is_brace_substitutable;
+        use std::borrow::Cow;
+
+        let braced = tok.kind == TokenType::Str;
+        let subst = |s: &str| -> String {
+            if s.contains('\\') && !braced {
+                tcl_lexer::backslash_subst(s).into_owned()
+            } else {
+                s.to_string()
+            }
+        };
+
+        let runtime_name = subst(base_name);
+        if !is_brace_substitutable(&runtime_name) {
+            let detail = if runtime_name.contains('}') {
+                "the brace form ``${name}`` ends at the first ``}`` not preceded by ``\\`` (and the bare form stops at the first non-word character)"
+            } else if runtime_name.ends_with('\\') {
+                "the brace form ``${name}`` would read the trailing ``\\`` as the start of a 2-char escape and run out of input -- missing close-brace"
+            } else if runtime_name.contains('{') {
+                "the brace form ``${name}`` has unbalanced ``{`` and runs out of input -- missing close-brace"
+            } else {
+                "the brace form ``${name}`` cannot match this name"
+            };
+            self.result.diagnostics.push(Diagnostic {
+                code: "W215".to_string(),
+                span: site_span,
+                message: format!(
+                    "variable name ``{runtime_name}`` is not reachable via $-substitution; \
+                     it can still be created/read via ``set name`` / ``[set \"name\"]`` / \
+                     ``info exists`` / ``upvar``, but {detail}"
+                ),
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+
+        if let Some(elem) = element {
+            let runtime_element: Cow<str> = if elem.contains('\\') && !braced {
+                Cow::Owned(tcl_lexer::backslash_subst(elem).into_owned())
+            } else {
+                Cow::Borrowed(elem)
+            };
+            if runtime_element.contains(')') {
+                self.result.diagnostics.push(Diagnostic {
+                    code: "W215".to_string(),
+                    span: site_span,
+                    message: "array element index contains ')'; the element can be created \
+                              and read via ``set arr(idx) ...`` / ``[set \"arr(idx)\"]``, but \
+                              is not reachable via $-substitution (``$arr(idx)`` reads up \
+                              to the first ``)`` and stops there)"
+                        .to_string(),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
         }
     }
 
@@ -855,6 +936,61 @@ mod tests {
             .push(Scope::new(ScopeKind::Proc, "::ns1::myproc"));
         a.result.global_scope.children.push(ns);
         assert_eq!(a.namespace_from_scope_path(&[0, 0]), "::ns1");
+    }
+
+    fn diag_codes(source: &str, dialect: &str) -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .map(|d| d.code.clone())
+            .collect()
+    }
+
+    #[test]
+    fn w215_fires_for_unreachable_quoted_name() {
+        assert!(diag_codes("set \"a}b\" 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_quiet_for_braced_escaped_name() {
+        // `{a\}b}` is braced, so `\}` is preserved verbatim and the
+        // runtime name `a\}b` IS brace-substitutable.
+        assert!(!diag_codes("set {a\\}b} 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_fires_for_array_index_with_paren() {
+        assert!(diag_codes("set arr(a)b) 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w215_quiet_for_normal_name() {
+        assert!(!diag_codes("set normal 1", "tcl").contains(&"W215".to_string()));
+    }
+
+    #[test]
+    fn w116_fires_for_stub_shadowing_builtin() {
+        let src = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub set {a:var b}\n# tcl-lsp: stubs-end\n";
+        assert!(diag_codes(src, "tcl").contains(&"W116".to_string()));
+    }
+
+    #[test]
+    fn w117_fires_for_stub_expr_shadowing_builtin() {
+        let src = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub expr-func sin 1\n# tcl-lsp: stubs-end\n";
+        assert!(diag_codes(src, "tcl").contains(&"W117".to_string()));
+    }
+
+    #[test]
+    fn w127_fires_for_value_outside_closed_set() {
+        let src = "when HTTP_REQUEST { HTTP::version \"2.0\" }";
+        assert!(diag_codes(src, "f5-irules").contains(&"W127".to_string()));
+    }
+
+    #[test]
+    fn w127_quiet_for_allowed_value() {
+        let src = "when HTTP_REQUEST { HTTP::version \"1.1\" }";
+        assert!(!diag_codes(src, "f5-irules").contains(&"W127".to_string()));
     }
 
     #[test]

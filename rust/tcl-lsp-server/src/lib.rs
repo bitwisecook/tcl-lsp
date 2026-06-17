@@ -2117,6 +2117,77 @@ impl Backend {
         }
     }
 
+    /// Build the **complete** diagnostic set for a document — analyser +
+    /// compiler/optimiser + source-style — exactly as the push path
+    /// ([`run_diagnostics_core`]) assembles it. The pull handler
+    /// (`textDocument/diagnostic`) uses this so an editor on the pull path is
+    /// not silently missing the compiler, optimiser, and source-style
+    /// warnings that `publish_diagnostics` adds (the capability is advertised
+    /// unconditionally, so `vscode-languageclient` and peers may choose pull).
+    ///
+    /// Compiler checks run **uncached** here: pull requests are on demand
+    /// (hover/save), not per-keystroke, so they need no salsa file handle, and
+    /// the analyser result still comes through the shared [`Self::analysis_for`]
+    /// cache.
+    async fn full_diagnostics_for(
+        &self,
+        uri: &Url,
+        text: String,
+        dialect: String,
+    ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+        let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
+        let opt_disabled: HashSet<String> = {
+            let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
+                *self.optimiser_profile.lock().await,
+            )
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+            for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
+                if *enabled {
+                    set.remove(code);
+                } else {
+                    set.insert(code.clone());
+                }
+            }
+            set
+        };
+        let (disabled, _non_ascii_mode) = self.analyser_config().await;
+        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        let registry = self.registry_for_dialect(&dialect).await;
+
+        let compiler_diags = {
+            let (c_text, c_dialect, c_registry) =
+                (text.clone(), dialect.clone(), Arc::clone(&registry));
+            tokio::task::spawn_blocking(move || {
+                tcl_lsp_db::compiler_check_diagnostics_uncached(&c_text, &c_registry, &c_dialect)
+            })
+            .await
+            .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
+                checks: Vec::new(),
+                optimisations: Vec::new(),
+            })
+        };
+
+        tokio::task::spawn_blocking(move || {
+            let mut diagnostics = lift_analyser_diagnostics(&text, &analysis.diagnostics);
+            diagnostics.extend(lift_compiler_diagnostics(
+                &text,
+                &compiler_diags,
+                optimiser_enabled,
+                &opt_disabled,
+            ));
+            diagnostics.extend(lift_source_style_diagnostics(
+                &text,
+                &analysis.suppressed_lines,
+                &disabled,
+            ));
+            diagnostics
+        })
+        .await
+        .unwrap_or_default()
+    }
+
     /// Compute and publish diagnostics synchronously (awaited).  Used by the
     /// on-close/disk paths and tests; the interactive open/change paths use the
     /// detached [`Self::schedule_diagnostics`] instead so they never block the
@@ -3106,18 +3177,12 @@ impl LanguageServer for Backend {
         if Self::is_bigip_dialect(&doc.dialect) {
             return Ok(empty_diagnostic_report());
         }
-        let analysis = self
-            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+        // Mirror the push path's full set (analyser + compiler/optimiser +
+        // source-style) so pull-mode editors don't lose the compiler /
+        // optimiser / style warnings.
+        let items = self
+            .full_diagnostics_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let items = tokio::task::spawn_blocking(move || {
-            lift_analyser_diagnostics(&doc.text, &analysis.diagnostics)
-        })
-        .await
-        .map_err(|err| jsonrpc::Error {
-            code: jsonrpc::ErrorCode::InternalError,
-            message: format!("diagnostic worker panicked: {err}").into(),
-            data: None,
-        })?;
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
@@ -5497,6 +5562,40 @@ mod tests {
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_config: Arc::new(Mutex::new(db_config)),
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pull_diagnostics_include_compiler_and_optimiser_codes() {
+        // Regression: the pull handler (`textDocument/diagnostic`) must return
+        // the same full set as the push path — analyser + compiler/optimiser +
+        // source-style — so editors on the pull path don't lose O-codes.
+        let backend = test_backend();
+        *backend.optimiser_profile.lock().await =
+            tcl_compiler::optimiser::profiles::OptimisationProfile::Full;
+        let uri = Url::parse("file:///pull.tcl").unwrap();
+        let src = "if {1} { set x 1 } else { set y 2 }\n";
+        let full = backend
+            .full_diagnostics_for(&uri, src.to_owned(), "tcl8.6".to_owned())
+            .await;
+        let analyser_only = {
+            let mut a = Analyser::new();
+            let analysis = a.analyse(src, "tcl8.6").clone();
+            lift_analyser_diagnostics(src, &analysis.diagnostics)
+        };
+        let has_o100 = |ds: &[tower_lsp::lsp_types::Diagnostic]| {
+            ds.iter().any(|d| {
+                matches!(&d.code, Some(tower_lsp::lsp_types::NumberOrString::String(c)) if c == "O100")
+            })
+        };
+        assert!(
+            has_o100(&full),
+            "pull diagnostics must include the optimiser O100, got {:?}",
+            full.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+        );
+        assert!(
+            !has_o100(&analyser_only),
+            "the analyser-only path should not emit O100 (sanity)",
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

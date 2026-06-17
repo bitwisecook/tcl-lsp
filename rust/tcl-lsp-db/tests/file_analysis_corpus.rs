@@ -12,7 +12,9 @@
 
 use std::path::{Path, PathBuf};
 
-use tcl_lsp_db::{AnalyserConfig, SourceFile, TclDatabase, file_analysis, file_analysis_incremental};
+use tcl_lsp_db::{
+    AnalyserConfig, SourceFile, TclDatabase, file_analysis, file_analysis_incremental,
+};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")

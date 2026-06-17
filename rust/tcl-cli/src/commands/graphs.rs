@@ -16,15 +16,15 @@ use tcl_cli_support::{
     OutputTarget, combine_sources, ensure_ascii, read_input_documents, registry_for_dialect,
     write_text_output,
 };
-use tcl_compiler::analyser::{AnalysisResult, Analyser, ProcDef, Scope, ScopeKind, VarDef};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind, VarDef};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::ir::Module as IrModule;
+use tcl_compiler::path_concat::find_path_concat_warnings;
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
     find_destructive_file_warnings, find_setter_constraint_warnings, find_taint_warnings,
     is_irules_dialect,
 };
-use tcl_compiler::path_concat::find_path_concat_warnings;
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
 
@@ -207,16 +207,24 @@ pub fn run_symbols(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
     let mut lines = vec![format!("symbols: {}", entries.len())];
     for entry in &entries {
         let indent = "  ".repeat(entry.depth);
-        let line_suffix = entry.line.map_or_else(String::new, |l| format!(" (line {l})"));
+        let line_suffix = entry
+            .line
+            .map_or_else(String::new, |l| format!(" (line {l})"));
         if entry.kind == "function" {
             let params = entry
                 .params
                 .as_ref()
                 .map(|p| p.join(", "))
                 .unwrap_or_default();
-            lines.push(format!("{indent}function {}({params}){line_suffix}", entry.name));
+            lines.push(format!(
+                "{indent}function {}({params}){line_suffix}",
+                entry.name
+            ));
         } else {
-            lines.push(format!("{indent}{} {}{line_suffix}", entry.kind, entry.name));
+            lines.push(format!(
+                "{indent}{} {}{line_suffix}",
+                entry.kind, entry.name
+            ));
         }
     }
     write_text_output(&target, &lines.join("\n"))?;
@@ -358,7 +366,10 @@ fn collect_var_values(
         .collect();
     let mut vars: Vec<&VarDef> = scope.variables.values().collect();
     vars.sort_by(|a, b| {
-        match (param_pos.get(a.name.as_str()), param_pos.get(b.name.as_str())) {
+        match (
+            param_pos.get(a.name.as_str()),
+            param_pos.get(b.name.as_str()),
+        ) {
             (Some(ia), Some(ib)) => ia.cmp(ib),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
@@ -457,7 +468,12 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     let result = Analyser::new().analyse(&source, &input.dialect);
     let line_index = LineIndex::new(&source);
 
-    let scopes = vec![scope_to_value(&result.global_scope, &result, &line_index, &source)];
+    let scopes = vec![scope_to_value(
+        &result.global_scope,
+        &result,
+        &line_index,
+        &source,
+    )];
 
     // proc_references: every proc's deduped call sites, source-ordered keys.
     let mut all_procs: Vec<&ProcDef> = result.all_procs.values().collect();
@@ -480,7 +496,10 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
         .map(|pr| {
             let mut map = serde_json::Map::new();
             map.insert("name".to_string(), json!(pr.name));
-            map.insert("line".to_string(), json!(line0(&line_index, pr.range.start())));
+            map.insert(
+                "line".to_string(),
+                json!(line0(&line_index, pr.range.start())),
+            );
             if let Some(version) = &pr.version {
                 map.insert("version".to_string(), json!(version));
             }
@@ -694,8 +713,7 @@ fn build_call_graph(source: &str, dialect: &str) -> Value {
     // keyed and surfaced in sorted qualified-name order).
     let mut proc_names: Vec<String> = interproc.procedures.keys().cloned().collect();
     proc_names.sort();
-    let proc_set: std::collections::HashSet<&str> =
-        proc_names.iter().map(String::as_str).collect();
+    let proc_set: std::collections::HashSet<&str> = proc_names.iter().map(String::as_str).collect();
 
     let nodes = build_nodes(&proc_names, interproc, ir_module, &line_index);
 
@@ -796,9 +814,18 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     }
 
     let empty: Vec<Value> = Vec::new();
-    let nodes = data.get("nodes").and_then(Value::as_array).unwrap_or(&empty);
-    let edges = data.get("edges").and_then(Value::as_array).unwrap_or(&empty);
-    let roots = data.get("roots").and_then(Value::as_array).unwrap_or(&empty);
+    let nodes = data
+        .get("nodes")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
+    let edges = data
+        .get("edges")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
+    let roots = data
+        .get("roots")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
     let leaves = data
         .get("leaf_procs")
         .and_then(Value::as_array)
@@ -1013,9 +1040,21 @@ fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
 
     // Taint warnings: top level first, then each procedure.
     let mut taint_warnings: Vec<Value> = Vec::new();
-    collect_taint_warnings(&cu.top_level, registry, dialect, &line_index, &mut taint_warnings);
+    collect_taint_warnings(
+        &cu.top_level,
+        registry,
+        dialect,
+        &line_index,
+        &mut taint_warnings,
+    );
     for qname in &proc_names {
-        collect_taint_warnings(&cu.procedures[*qname], registry, dialect, &line_index, &mut taint_warnings);
+        collect_taint_warnings(
+            &cu.procedures[*qname],
+            registry,
+            dialect,
+            &line_index,
+            &mut taint_warnings,
+        );
     }
 
     // Tainted variables per scope: top level first, then each procedure.

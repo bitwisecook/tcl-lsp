@@ -213,7 +213,7 @@ fn expr_has_observable_side_effect(
 /// unless its optional amount word has a side effect. Any other
 /// statement form is conservatively unsafe. Mirrors Python's
 /// `_assignment_safe_to_delete`.
-fn assignment_safe_to_delete(
+pub(crate) fn assignment_safe_to_delete(
     stmt: &Statement,
     registry: Option<&CommandRegistry>,
     interproc_pure: &HashSet<String>,

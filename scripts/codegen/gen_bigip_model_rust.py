@@ -294,8 +294,8 @@ def gen_dispatch() -> str:
     import dataclasses as dc
     import re as _re
 
-    from dialects.f5.bigip.model._config import BigipConfig
     import dialects.f5.bigip.parser._parsers as PP
+    from dialects.f5.bigip.model._config import BigipConfig
 
     attr2struct: dict[str, str] = {}
     for f in dc.fields(BigipConfig):
@@ -324,8 +324,7 @@ def gen_dispatch() -> str:
         f"const THREE_WORD_TYPES: &[&str] = {rs_str_slice(PP._THREE_WORD_TYPES)};",
         f"const FOUR_WORD_TYPES: &[&str] = {rs_str_slice(PP._FOUR_WORD_TYPES)};",
         "",
-        "/// Port of the strict `_parse_header` -> `(module, object_type,"
-        " full_path)`.",
+        "/// Port of the strict `_parse_header` -> `(module, object_type, full_path)`.",
         "#[must_use]",
         "pub fn parse_header_strict(header: &str) -> Option<(String, String, String)> {",
         "    let parts: Vec<&str> = header.split_whitespace().collect();",
@@ -334,31 +333,31 @@ def gen_dispatch() -> str:
         "    }",
         "    let module = parts[0].to_owned();",
         "    if parts.len() >= 6 {",
-        "        let four = parts[1..5].join(\" \");",
+        '        let four = parts[1..5].join(" ");',
         "        if FOUR_WORD_TYPES.contains(&four.as_str()) {",
         "            return Some((module, four, parts[5].to_owned()));",
         "        }",
         "    }",
         "    if parts.len() >= 5 {",
-        "        let three = parts[1..4].join(\" \");",
+        '        let three = parts[1..4].join(" ");',
         "        if THREE_WORD_TYPES.contains(&three.as_str()) {",
         "            return Some((module, three, parts[4].to_owned()));",
         "        }",
         "    }",
         "    if parts.len() == 4 {",
-        "        let three = parts[1..4].join(\" \");",
+        '        let three = parts[1..4].join(" ");',
         "        if THREE_WORD_TYPES.contains(&three.as_str()) {",
         "            return Some((module, three, String::new()));",
         "        }",
         "    }",
         "    if parts.len() == 3 {",
-        "        let two = format!(\"{} {}\", parts[1], parts[2]);",
+        '        let two = format!("{} {}", parts[1], parts[2]);',
         "        if TWO_WORD_TYPES.contains(&two.as_str()) {",
         "            return Some((module, two, String::new()));",
         "        }",
         "    }",
         "    if parts.len() >= 4 {",
-        "        let two = format!(\"{} {}\", parts[1], parts[2]);",
+        '        let two = format!("{} {}", parts[1], parts[2]);',
         "        if TWO_WORD_TYPES.contains(&two.as_str()) {",
         "            return Some((module, two, parts[3].to_owned()));",
         "        }",
@@ -430,7 +429,7 @@ def gen_dispatch() -> str:
     out += [
         "        _ => return None,",
         "    };",
-        "    let kind = format!(\"{module} {object_type}\");",
+        '    let kind = format!("{module} {object_type}");',
         "    Some((attr, ModelObject::Minimal(make_minimal(full_path, body, &kind, range))))",
         "}",
         "",
@@ -548,7 +547,7 @@ def main() -> None:
     obj.append("}")
     obj.append("")
     obj.append("impl ModelObject {")
-    obj.append("    /// Canonical `\"d\"` field map for this object.")
+    obj.append('    /// Canonical `"d"` field map for this object.')
     obj.append("    #[must_use]")
     obj.append("    pub fn canon_fields(&self) -> serde_json::Value {")
     obj.append("        use crate::canonical::Canon;")

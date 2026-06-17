@@ -464,11 +464,12 @@ impl CompilationUnit {
                         dialect,
                         param_constants: &encoded_pc,
                     });
-                    // Approach B: leave the unit at offset 0 and record its real
-                    // body offset; the diagnostic consumers add `base_offset`
-                    // (`abs_span`) at emit time, so we skip the O(unit)
-                    // `rebase_function_unit` span walk entirely.
-                    fu.base_offset = i64::from(body_offset);
+                    // Rebase the offset-0 memo result to the procedure's real
+                    // position so every consumer sees **absolute** spans without
+                    // needing offset-awareness — robust against new/upstream
+                    // diagnostic & optimiser passes that read `fu.cfg` spans
+                    // directly (`base_offset` stays 0; `abs_span` is identity).
+                    crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
                     Some(fu)
                 }
                 _ => None,

@@ -465,7 +465,10 @@ impl WasmModule {
                     e
                 })
                 .collect();
-            sections.extend(Self::make_section(SectionId::Type, &encode_vector(&entries)));
+            sections.extend(Self::make_section(
+                SectionId::Type,
+                &encode_vector(&entries),
+            ));
         }
 
         // Import section (host functions + optionally the runtime memory).
@@ -493,7 +496,10 @@ impl WasmModule {
                 e.extend(leb128_unsigned(self.memory_pages));
                 entries.push(e);
             }
-            sections.extend(Self::make_section(SectionId::Import, &encode_vector(&entries)));
+            sections.extend(Self::make_section(
+                SectionId::Import,
+                &encode_vector(&entries),
+            ));
         }
 
         // Function section (type index per defined function).
@@ -545,12 +551,19 @@ impl WasmModule {
             }
         }
         if !exports.is_empty() {
-            sections.extend(Self::make_section(SectionId::Export, &encode_vector(&exports)));
+            sections.extend(Self::make_section(
+                SectionId::Export,
+                &encode_vector(&exports),
+            ));
         }
 
         // Code section.
         if !self.functions.is_empty() {
-            let bodies: Vec<Vec<u8>> = self.functions.iter().map(WasmFunction::encode_body).collect();
+            let bodies: Vec<Vec<u8>> = self
+                .functions
+                .iter()
+                .map(WasmFunction::encode_body)
+                .collect();
             sections.extend(Self::make_section(SectionId::Code, &encode_vector(&bodies)));
         }
 
@@ -569,7 +582,10 @@ impl WasmModule {
                     e
                 })
                 .collect();
-            sections.extend(Self::make_section(SectionId::Data, &encode_vector(&entries)));
+            sections.extend(Self::make_section(
+                SectionId::Data,
+                &encode_vector(&entries),
+            ));
         }
 
         let mut out = Vec::with_capacity(8 + sections.len());
@@ -602,7 +618,11 @@ impl WasmModule {
                 .iter()
                 .map(|rt| format!("(result {})", rt.wat_name()))
                 .collect();
-            lines.push(format!("  (type $t{i} (func {} {}))", p.join(" "), r.join(" ")));
+            lines.push(format!(
+                "  (type $t{i} (func {} {}))",
+                p.join(" "),
+                r.join(" ")
+            ));
         }
 
         for imp in &self.imports {
@@ -613,9 +633,15 @@ impl WasmModule {
         }
 
         if self.import_memory {
-            lines.push(format!("  (import \"tcl\" \"memory\" (memory {}))", self.memory_pages));
+            lines.push(format!(
+                "  (import \"tcl\" \"memory\" (memory {}))",
+                self.memory_pages
+            ));
         } else {
-            lines.push(format!("  (memory (export \"memory\") {})", self.memory_pages));
+            lines.push(format!(
+                "  (memory (export \"memory\") {})",
+                self.memory_pages
+            ));
         }
 
         for func in &self.functions {
@@ -626,7 +652,11 @@ impl WasmModule {
             };
             let mut sig: Vec<String> = Vec::new();
             for (j, p) in func.params.iter().enumerate() {
-                let name = func.local_names.get(j).cloned().unwrap_or_else(|| format!("$p{j}"));
+                let name = func
+                    .local_names
+                    .get(j)
+                    .cloned()
+                    .unwrap_or_else(|| format!("$p{j}"));
                 sig.push(format!("(param {name} {})", p.wat_name()));
             }
             for r in &func.results {

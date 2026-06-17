@@ -283,8 +283,7 @@ pub fn run_query(
                 // `apply` partitions by URI. Cross-file edits land directly on
                 // `result.edits_per_file`; the iterating source's own edit
                 // folds into `current_source` and is written at end-of-URI.
-                let mut sources_now: HashMap<String, String> =
-                    sources.iter().cloned().collect();
+                let mut sources_now: HashMap<String, String> = sources.iter().cloned().collect();
                 sources_now.insert(uri.clone(), current_source.clone());
                 let applied = apply(&ctx.edits, &sources_now)?;
                 if let Some(self_applied) = applied.get(uri) {

@@ -15,8 +15,9 @@ use tcl_lexer::Span;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
 use crate::irules_checks::{
-    IrulesCheckWarning, find_collect_flow_warnings, find_hoistable_set_warnings,
-    find_http_flow_warnings, find_unguarded_drop_warnings, find_unnormalised_getter_warnings,
+    IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
+    find_hoistable_set_warnings, find_http_flow_warnings, find_unguarded_drop_warnings,
+    find_unnormalised_getter_warnings,
 };
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
@@ -329,6 +330,9 @@ fn push_irules_flow_checks(
         out.push(Diagnostic::from_irules_check(&w));
     }
     for w in find_hoistable_set_warnings(cu, dialect) {
+        out.push(Diagnostic::from_irules_check(&w));
+    }
+    for w in find_generic_static_name_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
 }

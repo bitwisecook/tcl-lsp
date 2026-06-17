@@ -51,7 +51,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 
-use super::helpers::expr_simplify::try_unwrap_expr_in_expr;
+use super::helpers::expr_simplify::{NumericCtx, numeric_var_names, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
 use super::helpers::spans::{full_quoted_string_span, full_word_span};
 use super::{Optimisation, PassContext};
@@ -166,6 +166,13 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
                     let Some(text) = tokens.argv_texts.get(i) else {
                         continue;
                     };
+                    // A braced word (`{$x}`) is a literal — Tcl performs no
+                    // substitution inside braces — so `$x` there must not be
+                    // forwarded. `argv_texts` has the braces stripped, so the
+                    // word kind is the only signal.
+                    if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
+                        continue;
+                    }
                     if !simple_var_ref_matches(text, var_name) {
                         continue;
                     }
@@ -322,12 +329,19 @@ fn forward_candidate(
 
     let (ctx, fu) = (env.ctx, env.fu);
 
-    // Exactly one operand use.
-    if chain.use_count() != 1 {
-        return None;
-    }
-    let use_site = &chain.uses[0];
-    if use_site.kind != UseKind::Operand {
+    // Exactly one *non-terminator* use, and it must be a statement operand.
+    // A `return $x` / branch-condition read is a `Terminator` use; Rust's
+    // def-use records those in the chain but Python's does not. The forward
+    // preserves the assignment (`[set x …]`), and the operand use precedes
+    // the block terminator, so any terminator read still sees `x` — exclude
+    // terminator uses from the single-use test to match Python's
+    // `optimise_load_forwarding`. (A phi use, like Python, still blocks it.)
+    let mut non_terminator = chain
+        .uses
+        .iter()
+        .filter(|u| u.kind != UseKind::Terminator);
+    let use_site = non_terminator.next()?;
+    if non_terminator.next().is_some() || use_site.kind != UseKind::Operand {
         return None;
     }
     let def = &chain.definition;
@@ -618,7 +632,8 @@ fn run_function(
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value.
     let constants = sccp_constants_for(fu);
-    walk_script(ctx, cu, script, &constants);
+    let numeric = numeric_var_names(fu);
+    walk_script(ctx, cu, script, &constants, Some(&numeric));
 }
 
 fn walk_script(
@@ -626,9 +641,10 @@ fn walk_script(
     cu: &CompilationUnit,
     script: &Script,
     constants: &std::collections::HashMap<String, String>,
+    numeric: NumericCtx<'_>,
 ) {
     for stmt in &script.statements {
-        walk_statement(ctx, cu, stmt, constants);
+        walk_statement(ctx, cu, stmt, constants, numeric);
     }
 }
 
@@ -637,6 +653,7 @@ fn walk_statement(
     cu: &CompilationUnit,
     stmt: &Statement,
     constants: &std::collections::HashMap<String, String>,
+    numeric: NumericCtx<'_>,
 ) {
     match stmt {
         Statement::Call {
@@ -690,40 +707,40 @@ fn walk_statement(
             );
         }
         Statement::AssignExpr { span, name, expr } => {
-            try_substitute_assign_expr(ctx, *span, name, expr, constants);
+            try_substitute_assign_expr(ctx, *span, name, expr, constants, numeric);
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, cu, &c.body, constants);
+                walk_script(ctx, cu, &c.body, constants, numeric);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, cu, b, constants);
+                walk_script(ctx, cu, b, constants, numeric);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, cu, init, constants);
-            walk_script(ctx, cu, next, constants);
-            walk_script(ctx, cu, body, constants);
+            walk_script(ctx, cu, init, constants, numeric);
+            walk_script(ctx, cu, next, constants, numeric);
+            walk_script(ctx, cu, body, constants, numeric);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants),
+        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants, numeric),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, cu, body, constants);
+            walk_script(ctx, cu, body, constants, numeric);
             for h in handlers {
-                walk_script(ctx, cu, &h.body, constants);
+                walk_script(ctx, cu, &h.body, constants, numeric);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, cu, fb, constants);
+                walk_script(ctx, cu, fb, constants, numeric);
             }
         }
         Statement::Switch {
@@ -731,15 +748,182 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, cu, b, constants);
+                    walk_script(ctx, cu, b, constants, numeric);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, cu, b, constants);
+                walk_script(ctx, cu, b, constants, numeric);
             }
         }
         _ => {}
     }
+}
+
+/// Evaluate a pure procedure with its parameters bound to the call's
+/// constant arguments, returning the constant return value when every
+/// reachable `return` agrees on it.
+///
+/// Mirrors Python's `interprocedural.evaluate_proc_with_constants`: seed the
+/// parameters as version-0 lattice constants, re-run SCCP over the callee's
+/// CFG, then resolve a single constant from all reachable `return`
+/// terminators. Used for the argument-sensitive O103 fold
+/// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
+/// `constant_return` cannot express.
+fn evaluate_proc_with_constants(
+    callee: &FunctionUnit,
+    params: &[String],
+    args: &[ConstValue],
+) -> Option<ConstValue> {
+    if params.len() != args.len() {
+        return None;
+    }
+    let mut seed: std::collections::HashMap<crate::ssa::ValueKey, LatticeValue> =
+        std::collections::HashMap::new();
+    for (p, a) in params.iter().zip(args.iter()) {
+        seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
+    }
+    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed));
+    resolve_return_constant(callee, &result)
+}
+
+/// Resolve the constant return value of `fu` under a computed SCCP `result`.
+/// Every reachable `return` terminator must fold to the **same** constant;
+/// a void return, an unfoldable return, or disagreeing returns yield `None`.
+/// Mirrors Python's `_resolve_return_constant`.
+fn resolve_return_constant(
+    fu: &FunctionUnit,
+    result: &crate::sccp::SccpResult,
+) -> Option<ConstValue> {
+    use crate::cfg::Terminator;
+    let mut found: Option<ConstValue> = None;
+    for (bn, block) in &fu.cfg.blocks {
+        if !result.executable_blocks.contains(bn) {
+            continue;
+        }
+        let Some(Terminator::Return { value, expr, .. }) = &block.terminator else {
+            continue;
+        };
+        let folded =
+            fold_return_under_lattice(fu, bn, value.as_deref(), expr.as_ref(), result)?;
+        match &found {
+            None => found = Some(folded),
+            Some(prev) if *prev == folded => {}
+            Some(_) => return None, // reachable returns disagree
+        }
+    }
+    found
+}
+
+/// Fold one `return` value/expr under the SCCP lattice for block `bn`.
+/// Handles `return [expr {…}]` (evaluated under the block-exit env),
+/// `return $var` (a lattice constant), and a bare literal return.
+fn fold_return_under_lattice(
+    fu: &FunctionUnit,
+    bn: &str,
+    value: Option<&str>,
+    expr: Option<&crate::expr_ast::ExprNode>,
+    result: &crate::sccp::SccpResult,
+) -> Option<ConstValue> {
+    use crate::tcl_expr_eval::{Env, eval_tcl_expr};
+
+    let value = value?.trim();
+
+    // Path 1 — bare literal return (no substitution metacharacters).
+    if !value.contains(['$', '[', ']', '\\', '"', '{', '}']) {
+        return Some(crate::sccp::parse_literal_value(value));
+    }
+
+    // Path 2 — a simple `$var` return. This MUST use the variable's *exit
+    // version* at this block precisely: a loop-carried var (`return $total`
+    // after a `foreach`) is a phi whose exit value is Overdefined, even
+    // though an earlier `set total 0` left a stale Const(0) under another
+    // version. Reading the precise version is what makes us bail on
+    // `sum_list` / `fibonacci` (matching Python's `_try_fold_return_value`
+    // path 2) instead of mis-folding to the pre-loop value.
+    if let Some(name) = simple_var_ref(value) {
+        let ver = fu
+            .ssa
+            .blocks
+            .get(bn)
+            .and_then(|b| b.exit_versions.get(name).copied())
+            .unwrap_or(0);
+        return match result.values.get(&(name.to_owned(), ver)) {
+            Some(LatticeValue::Const(c)) => Some(c.clone()),
+            _ => None,
+        };
+    }
+
+    // Path 3 — `return [expr {…}]` / interpolation. Build the env from every
+    // lattice constant (so version-0 params, absent from `exit_versions`, are
+    // bound), preferring a non-zero version, then overlay the block-exit
+    // versions for precise local state. Only used for the expr/interpolation
+    // form (the simple-`$var` precision above is handled by path 2).
+    let mut env: Env = Env::new();
+    let mut chosen_ver: std::collections::HashMap<&str, crate::ssa::Version> =
+        std::collections::HashMap::new();
+    for ((name, ver), lv) in &result.values {
+        if let LatticeValue::Const(c) = lv {
+            let take = chosen_ver.get(name.as_str()).is_none_or(|prev| *ver > *prev);
+            if take {
+                chosen_ver.insert(name.as_str(), *ver);
+                env.insert(name.clone(), const_to_env_value(c));
+            }
+        }
+    }
+    if let Some(ssa_block) = fu.ssa.blocks.get(bn) {
+        for (name, ver) in &ssa_block.exit_versions {
+            if let Some(LatticeValue::Const(c)) = result.values.get(&(name.clone(), *ver)) {
+                env.insert(name.clone(), const_to_env_value(c));
+            }
+        }
+    }
+    if let Some(expr) = expr {
+        let v = eval_tcl_expr(expr, &env)?;
+        return Some(crate::sccp::tcl_value_to_const(v));
+    }
+    None
+}
+
+/// Convert a [`ConstValue`] to the expr-folder's [`EnvValue`].
+fn const_to_env_value(c: &ConstValue) -> crate::tcl_expr_eval::EnvValue {
+    use crate::tcl_expr_eval::EnvValue;
+    match c {
+        ConstValue::Int(i) => EnvValue::Int(*i),
+        ConstValue::Float(f) => EnvValue::Float(*f),
+        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
+        ConstValue::String(s) => EnvValue::Str(s.clone()),
+    }
+}
+
+/// Parse the static (constant) argument words of a `[proc arg…]` command
+/// substitution body `inner`, given the number of leading head words to skip
+/// (`1` for a direct call, `2` for `call proc …`). Each argument must be a
+/// bare literal or a `$var` resolvable to a whole-function constant via
+/// `constants`; any quoted / braced / command-substituting word makes the
+/// whole call non-static (returns `None`).
+fn parse_static_call_args(
+    inner: &str,
+    skip_words: usize,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<Vec<ConstValue>> {
+    let mut words = inner.split_whitespace();
+    for _ in 0..skip_words {
+        words.next()?;
+    }
+    let mut out = Vec::new();
+    for w in words {
+        if let Some(name) = simple_var_ref(w) {
+            let dollar = format!("${name}");
+            let norm = normalise_var_name(&dollar);
+            let val = constants.get(norm).or_else(|| constants.get(name))?;
+            out.push(crate::sccp::parse_literal_value(val));
+        } else if !w.contains(['$', '[', ']', '\\', '"', '{', '}', '(', ')']) {
+            out.push(crate::sccp::parse_literal_value(w));
+        } else {
+            return None;
+        }
+    }
+    Some(out)
 }
 
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`
@@ -917,9 +1101,10 @@ fn try_substitute_assign_expr(
     name: &str,
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
+    numeric: NumericCtx<'_>,
 ) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, instcombine_expr, substitute_expr_constants,
+        expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants,
     };
     use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr;
@@ -962,7 +1147,7 @@ fn try_substitute_assign_expr(
     // Not fully constant; try one pass of instcombine on the
     // substituted expression to pick up identity simplifications
     // (e.g. ``$a + 0`` after ``$a`` folds to ``3``).
-    let (simplified, _changed) = instcombine_expr(&result.text, false);
+    let (simplified, _changed) = instcombine_expr_typed(&result.text, false, numeric);
     let final_text = if simplified.trim().is_empty() {
         result.text.clone()
     } else {
@@ -1004,6 +1189,7 @@ fn o115_redundant_nested_expr(word: &str) -> Option<String> {
 /// [`try_fold_static_proc_call`], which stays hint-only because
 /// folding `::answer` as a statement would turn the discarded
 /// call into a bare `42` (invalid as a command name).
+#[allow(clippy::too_many_lines)]
 fn visit_call_cmd_subst_folds(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
@@ -1041,13 +1227,28 @@ fn visit_call_cmd_subst_folds(
         {
             let mut parts = inner.splitn(2, char::is_whitespace);
             if parts.next() == Some("expr") {
-                let body = parts.next().unwrap_or("").trim();
-                let body = body
-                    .strip_prefix('{')
-                    .and_then(|b| b.strip_suffix('}'))
-                    .unwrap_or(body);
-                if let Some(folded) =
-                    super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                let raw_body = parts.next().unwrap_or("").trim();
+                // A *braced* `[expr {…}]` uses value-substitution semantics, so
+                // fold it under the known constants — `puts [expr {$a + $b}]`
+                // with `$a`/`$b` proven constant collapses to its value (the
+                // SCCP `[expr …]` fold doesn't reach a Call-argument position).
+                // A quoted / bare `expr "…"` substitutes the variable values
+                // textually before parsing; Python is conservative there and
+                // never folds it, so keep the historical literal-only fold (no
+                // constants env) to preserve parity.
+                let folded = if let Some(braced_body) =
+                    raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}'))
+                {
+                    super::helpers::expr_simplify::try_fold_expr_with_constants(
+                        braced_body,
+                        constants,
+                        true,
+                        ctx.dialect,
+                    )
+                } else {
+                    super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.dialect)
+                };
+                if let Some(folded) = folded
                     && !folded.contains(['$', '['])
                 {
                     ctx.report(Optimisation::new(
@@ -1099,22 +1300,43 @@ fn visit_call_cmd_subst_folds(
         let Some(summary) = ia.procedures.get(&qname) else {
             continue;
         };
-        if !summary.can_fold_static_calls {
+        // A redefined proc has an ambiguous body — never fold its calls.
+        if cu.ir_module.redefined_procedures.contains(&qname) {
             continue;
         }
-        let Some(cr) = &summary.constant_return else {
-            continue;
+        let render_const = |cv: &ConstValue| match cv {
+            ConstValue::Int(i) => i.to_string(),
+            ConstValue::Float(f) => f.to_string(),
+            ConstValue::Bool(b) => i64::from(*b).to_string(),
+            ConstValue::String(s) => render_propagation_word(s),
         };
-        let replacement = match cr {
-            ConstantReturn::Int(i) => i.to_string(),
-            ConstantReturn::Float(f) => f.to_string(),
-            ConstantReturn::Bool(true) => "1".to_owned(),
-            ConstantReturn::Bool(false) => "0".to_owned(),
-            // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
-            // too, list-quoted as a single word via the canonical quoter
-            // (the cmd-sub is one argument word) — `set msg {a b}; return
-            // $msg` in the callee no longer blocks the fold.
-            ConstantReturn::Str(s) => render_propagation_word(s),
+        let replacement = if summary.can_fold_static_calls
+            && let Some(cr) = &summary.constant_return
+        {
+            // Argument-independent constant return from the summary.
+            match cr {
+                ConstantReturn::Int(i) => i.to_string(),
+                ConstantReturn::Float(f) => f.to_string(),
+                ConstantReturn::Bool(true) => "1".to_owned(),
+                ConstantReturn::Bool(false) => "0".to_owned(),
+                // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
+                // too, list-quoted as a single word via the canonical quoter
+                // (the cmd-sub is one argument word) — `set msg {a b}; return
+                // $msg` in the callee no longer blocks the fold.
+                ConstantReturn::Str(s) => render_propagation_word(s),
+            }
+        } else if summary.pure
+            && let Some(callee) = cu.procedures.get(&qname)
+            && let Some(args) = parse_static_call_args(inner, 1, constants)
+            && let Some(cv) = evaluate_proc_with_constants(callee, &summary.params, &args)
+        {
+            // Argument-sensitive: re-run SCCP on the pure callee with the
+            // call's constant arguments bound and fold the constant return
+            // (`[::math::add 2 4]` → `6`). Mirrors Python's fallback to
+            // `evaluate_proc_with_constants`.
+            render_const(&cv)
+        } else {
+            continue;
         };
         ctx.report(Optimisation::new(
             "O103",
@@ -1297,16 +1519,16 @@ fn visit_call_tokens(
         let Some(text) = tokens.argv_texts.get(i) else {
             continue;
         };
-        if single {
-            visit_simple_var_word(ctx, *span, text, constants);
-        }
-        // A braced `{…}` word (kind `Str`) is a literal / script body: its
-        // `$var` and `[cmd]` are NOT substitutions, so the interpolation
-        // folds must not touch it (else a proc body like
-        // `{ set d [dict create a 1] }` is wrongly spliced into a quoted
-        // string). The `"…"` / bareword interpolation paths still apply.
+        // A braced `{…}` word (kind `Str`) is a literal / script body: Tcl
+        // performs NO substitution inside braces, so neither the simple-`$var`
+        // fold nor the `"…"` / `[cmd]` interpolation folds may touch it (else
+        // `puts {$x}` is wrongly rewritten to `puts 42`, or a proc body like
+        // `{ set d [dict create a 1] }` is spliced into a quoted string).
         if tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Str) {
             continue;
+        }
+        if single {
+            visit_simple_var_word(ctx, *span, text, constants);
         }
         // `"..."` interpolation substitution — works on both
         // single-token (quoted strings) and composite (mixed
@@ -1512,6 +1734,14 @@ fn visit_string_interpolation(
     if simple_var_ref(inside).is_some() {
         return;
     }
+    // A free-standing `[cmd …]` word is a command substitution, not a
+    // `"…"` interpolation: wrapping it in quotes (below) and extending the
+    // span to a non-existent close-quote both corrupt the output (e.g.
+    // `puts [expr {$a + $b}]` → `puts "[expr {3 + 4}]"]`). Whole-word subs
+    // are folded by `visit_call_cmd_subst_folds`; leave them alone here.
+    if is_whole_word_cmd_subst(inside) {
+        return;
+    }
     let Some(rewritten) = substitute_dollar_refs(inside, constants) else {
         return;
     };
@@ -1544,6 +1774,12 @@ fn substitute_dollar_refs(
     let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());
     let mut i = 0;
+    // Command-substitution nesting depth. A `$var` inside a `"…[cmd $var]…"`
+    // command substitution is a *command argument*, not literal string text:
+    // its value is re-parsed into words, so a multi-word value (e.g. the list
+    // `{a b c}`) would split one argument into several — a miscompile. Track
+    // the depth so those occurrences are held to the single-word bar.
+    let mut cmd_depth = 0u32;
     while i < bytes.len() {
         if bytes[i] == b'\\' {
             // Copy a two-char backslash-escape verbatim.
@@ -1555,6 +1791,18 @@ fn substitute_dollar_refs(
                 out.push('\\');
                 i += 1;
             }
+            continue;
+        }
+        if bytes[i] == b'[' {
+            cmd_depth += 1;
+            out.push('[');
+            i += 1;
+            continue;
+        }
+        if bytes[i] == b']' {
+            cmd_depth = cmd_depth.saturating_sub(1);
+            out.push(']');
+            i += 1;
             continue;
         }
         if bytes[i] != b'$' {
@@ -1603,6 +1851,15 @@ fn substitute_dollar_refs(
         };
         let value = constants.get(&name)?;
         if value.contains(['$', '[', '\\', '"']) {
+            return None;
+        }
+        // Inside a `[…]` command substitution the value becomes a command
+        // word, so it must be a single self-contained word — a value with
+        // whitespace (a list literal like `tran 1n 100n uic`) would split
+        // into multiple arguments. Bail rather than propagate (matches
+        // Python, which leaves the `$var` in place). Plain string-text
+        // occurrences (`cmd_depth == 0`) inline the value verbatim as before.
+        if cmd_depth > 0 && !is_value_safe_bare_word(value) {
             return None;
         }
         out.push_str(value);
@@ -1760,6 +2017,24 @@ mod tests {
     }
 
     #[test]
+    fn o127_forwards_past_extra_terminator_use() {
+        // `$x` has one operand use (`baz $x`) plus a terminator use
+        // (`return $x`). Python's def-use chain excludes terminator reads,
+        // so it still forwards into the operand use while preserving the
+        // assignment for the `return`. Rust records the terminator use but
+        // must not let it block the forward — the inlined `[set x …]` keeps
+        // `x` defined for the trailing `return`.
+        let src = "proc p {y} {\n    set x [llength $y]\n    baz $x\n    return $x\n}\n";
+        let opts = o127(src);
+        assert_eq!(opts.len(), 2, "{opts:?}");
+        assert!(
+            opts.iter()
+                .any(|o| o.replacement.contains("[set x [llength $y]]")),
+            "{opts:?}"
+        );
+    }
+
+    #[test]
     fn o127_skips_literal_assignment() {
         // A literal `set x 5` is the O102 path, not O127.
         let src = "proc p {} {\n    set x 5\n    puts $x\n}\n";
@@ -1903,6 +2178,28 @@ mod tests {
     }
 
     #[test]
+    fn braced_expr_cmd_sub_arg_folds_under_constants() {
+        // `puts [expr {$a + $b}]` with a, b proven constant folds the braced
+        // expr in the call-argument position to its value.
+        let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
+        assert!(
+            opts.iter().any(|o| o.code == "O101" && o.replacement == "7"),
+            "expected O101 folding [expr {{$a + $b}}] to 7, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn quoted_expr_cmd_sub_arg_not_folded_under_constants() {
+        // `puts [expr "$a + $b"]` is the quoted form — Python is conservative
+        // and never folds it (textual substitution), so neither do we.
+        let opts = run_pass("set a 3\nset b 4\nputs [expr \"$a + $b\"]");
+        assert!(
+            opts.iter().all(|o| !(o.code == "O101" && o.replacement == "7")),
+            "quoted expr must not fold under constants, got {opts:?}",
+        );
+    }
+
+    #[test]
     fn string_interpolation_unknown_var_skipped() {
         // `$name` is not in the constants map → must not fire.
         let opts = run_pass("puts \"hello $name\"");
@@ -1922,6 +2219,57 @@ mod tests {
         );
         // Missing var → None (cannot partially substitute).
         assert!(substitute_dollar_refs("$unknown", &c).is_none());
+    }
+
+    #[test]
+    fn substitute_dollar_refs_guards_multiword_in_cmd_sub() {
+        let mut c = std::collections::HashMap::new();
+        c.insert("lst".into(), "a b c".into());
+        c.insert("n".into(), "5".into());
+        // A multi-word value in plain string text inlines verbatim (it stays
+        // part of the one string word).
+        assert_eq!(
+            substitute_dollar_refs("x=$lst", &c).as_deref(),
+            Some("x=a b c"),
+        );
+        // The SAME value inside a `[…]` command substitution would split one
+        // argument into several — bail (matches Python, which keeps `$lst`).
+        assert!(substitute_dollar_refs("r: [lsearch $lst x]", &c).is_none());
+        // A single-word value inside a cmd-sub is still safe to inline.
+        assert_eq!(
+            substitute_dollar_refs("r: [expr $n + 1]", &c).as_deref(),
+            Some("r: [expr 5 + 1]"),
+        );
+    }
+
+    #[test]
+    fn whole_word_cmd_sub_not_wrapped_as_string_interpolation() {
+        // Regression: `puts [expr {$a + $b}]` is a free-standing command
+        // substitution, not a `"…"` string. The interpolation path must not
+        // wrap it in quotes / mis-span it (which produced the corrupt
+        // `puts "[expr {3 + 4}]"]`). No O100 string-interpolation rewrite may
+        // fire on a whole-word `[…]`.
+        let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
+        assert!(
+            opts.iter().all(|o| o.replacement != "\"[expr {3 + 4}]\""
+                && !o.replacement.contains("\"]")),
+            "whole-word cmd-sub must not be string-interpolated, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn list_constant_not_inlined_into_string_cmd_sub() {
+        // Regression: `[lsearch -exact $tokens uic]` must NOT become
+        // `[lsearch -exact tran 1n 100n uic uic]` — that splits the list into
+        // separate args and errors at runtime (`bad option "tran"`).
+        let opts = run_pass(
+            "set tokens {tran 1n 100n uic}\nputs \"r: [lsearch -exact $tokens uic]\"",
+        );
+        assert!(
+            opts.iter()
+                .all(|o| !o.replacement.contains("tran 1n 100n uic uic")),
+            "list literal must not be word-split into the cmd-sub, got {opts:?}",
+        );
     }
 
     #[test]
@@ -2100,9 +2448,12 @@ mod tests {
     }
 
     #[test]
-    fn o103_no_fire_when_head_is_not_constant_return() {
-        // `::not_const` has no constant_return → O103 must not
-        // fire for either the bare call or the CMD-subst form.
+    fn o103_folds_arg_sensitive_passthrough_cmd_subst() {
+        // `::not_const {x} { return $x }` has no argument-*independent*
+        // constant return, but with the call's constant arg bound it folds:
+        // `[::not_const 1]` → `1` (matching Python, which folds the
+        // passthrough). The applicable rewrite fires only for the CMD-subst
+        // form; the bare-call form stays hint-only.
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(
@@ -2114,8 +2465,32 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().all(|o| o.code != "O103"),
-            "no O103 expected for non-constant-return proc, got {:?}",
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == "O103" && o.replacement == "1" && !o.hint_only),
+            "expected applicable O103 folding [::not_const 1] to 1, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn o103_does_not_fold_recursive_or_loop_proc() {
+        // A proc whose return SCCP cannot determine under the bound args must
+        // not fold — a loop-carried `return $total` is a phi (Overdefined at
+        // exit), even though a pre-loop `set total 0` leaves a stale Const(0).
+        // Mis-folding it would be a miscompile.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let src = "proc ::sum {ns} {\n  set total 0\n  foreach n $ns { set total [expr {$total + $n}] }\n  return $total\n}\nputs [::sum {1 2 3}]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .all(|o| o.code != "O103" || o.hint_only),
+            "loop-carried return must not fold, got {:?}",
             ctx.optimisations,
         );
     }

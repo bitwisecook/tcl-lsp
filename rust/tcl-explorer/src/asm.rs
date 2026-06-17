@@ -350,7 +350,11 @@ mod tests {
 
         // At least one instruction must now carry a real (non-null) range
         // with a 1-based sourceLine — the per-op span plumbing.
-        let mapped: Vec<&Value> = rows.iter().filter(|r| !r["range"].is_null()).copied().collect();
+        let mapped: Vec<&Value> = rows
+            .iter()
+            .filter(|r| !r["range"].is_null())
+            .copied()
+            .collect();
         assert!(
             !mapped.is_empty(),
             "no instruction carried a source range: {rows:#?}"
@@ -394,7 +398,10 @@ mod tests {
             .expect("proc ::p present");
         for row in proc_entry["instructions"].as_array().unwrap() {
             if row["kind"] == "instr" {
-                assert!(row["range"].is_null(), "synthetic op range is null: {row:#?}");
+                assert!(
+                    row["range"].is_null(),
+                    "synthetic op range is null: {row:#?}"
+                );
                 assert_eq!(row["sourceLine"], json!(0), "synthetic op sourceLine is 0");
             }
         }

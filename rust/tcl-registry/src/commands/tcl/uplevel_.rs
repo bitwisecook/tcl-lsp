@@ -44,6 +44,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         xc_translatable: Some(false),
+        unsafe_command: true,
         ..CommandSpec::DEFAULT
     }
 }

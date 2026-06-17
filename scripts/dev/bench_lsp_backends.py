@@ -296,7 +296,10 @@ def bench_multifile(client: LspClient, files: list[Path], kind: str):
     for p in sample:
         line, char = _first_code_position(texts[p])
         for label, method in pos_methods.items():
-            params = {"textDocument": {"uri": uris[p]}, "position": {"line": line, "character": char}}
+            params = {
+                "textDocument": {"uri": uris[p]},
+                "position": {"line": line, "character": char},
+            }
             if label == "references":
                 params["context"] = {"includeDeclaration": True}
             try:
@@ -375,7 +378,10 @@ def run_backend(kind: str, pyz: Path, large_files: list[Path], corpus: list[Path
     finally:
         client.shutdown()
     mf = out["multifile"]
-    print(f"      open+index={_fmt(mf['open_ms'])}ms  features={ {k: round(v) for k,v in mf['feature_totals_ms'].items()} }", flush=True)
+    print(
+        f"      open+index={_fmt(mf['open_ms'])}ms  features={ {k: round(v) for k, v in mf['feature_totals_ms'].items()} }",
+        flush=True,
+    )
     return out
 
 
@@ -423,8 +429,7 @@ def main() -> int:
     large_files = [p for p in large_files if p.exists()]
     corpus = gather_corpus()
     print(f"Large files: {[p.name for p in large_files]}")
-    print(f"Corpus: {len(corpus)} files, "
-          f"{sum(p.stat().st_size for p in corpus) // 1024} KB total")
+    print(f"Corpus: {len(corpus)} files, {sum(p.stat().st_size for p in corpus) // 1024} KB total")
 
     results = {}
     for kind in ("python", "rust"):
@@ -455,8 +460,16 @@ def print_summary(results: dict) -> None:
         print(f"\n  {name}  ({p['lines']} lines)")
         print(f"    {'metric':<24}{'python':>14}{'rust':>14}{'speedup':>12}")
         rows = [
-            ("time→semantic tokens", p["semantic_tokens"]["ms"], r.get("semantic_tokens", {}).get("ms")),
-            ("heavy edit (re-analyse)", p["heavy_edits"]["median_ms"], r.get("heavy_edits", {}).get("median_ms")),
+            (
+                "time→semantic tokens",
+                p["semantic_tokens"]["ms"],
+                r.get("semantic_tokens", {}).get("ms"),
+            ),
+            (
+                "heavy edit (re-analyse)",
+                p["heavy_edits"]["median_ms"],
+                r.get("heavy_edits", {}).get("median_ms"),
+            ),
             ("time→full diagnostics", p["diagnostics"]["ms"], r.get("diagnostics", {}).get("ms")),
             ("time→full optimisation", p["optimise"]["ms"], r.get("optimise", {}).get("ms")),
         ]
@@ -469,8 +482,10 @@ def print_summary(results: dict) -> None:
     if pm:
         print(f"\n  Multi-file codebase ({pm.get('files')} files)")
         print(f"    {'metric':<24}{'python':>14}{'rust':>14}{'speedup':>12}")
-        print(f"    {'open + index':<24}{pm['open_ms']:>11,.0f} ms{rm.get('open_ms', 0):>11,.0f} ms"
-              f"{ratio(pm['open_ms'], rm.get('open_ms')):>12}")
+        print(
+            f"    {'open + index':<24}{pm['open_ms']:>11,.0f} ms{rm.get('open_ms', 0):>11,.0f} ms"
+            f"{ratio(pm['open_ms'], rm.get('open_ms')):>12}"
+        )
         for feat in pm.get("feature_totals_ms", {}):
             pv = pm["feature_totals_ms"][feat]
             rv = rm.get("feature_totals_ms", {}).get(feat)

@@ -776,7 +776,12 @@ pub fn find_divide_by_zero(
                 condition,
                 span: Some(span),
                 ..
-            }) => collect_divzero(condition, *span, &env_for(&sb.exit_versions, bn), &mut findings),
+            }) => collect_divzero(
+                condition,
+                *span,
+                &env_for(&sb.exit_versions, bn),
+                &mut findings,
+            ),
             Some(Terminator::Return {
                 expr: Some(e),
                 span: Some(span),

@@ -11,6 +11,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lpop",
+        // `lpop` reads the list's current value before removing an element.
+        traits: Traits::READS_BEFORE_WRITE,
         dialects: Some(DialectSet::TCL90),
         arity: Arity::at_least(1),
         assigns_variable_at: Some(0),

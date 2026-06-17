@@ -43,66 +43,84 @@ use crate::ir::{Script, Statement};
 use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
 use tcl_lexer::Span;
 
-use super::helpers::expr_simplify::try_unwrap_expr_in_expr;
+use super::helpers::expr_simplify::{NumericCtx, try_unwrap_expr_in_expr};
 use super::{Optimisation, PassContext};
 
 /// Run the expression-simplification pass across every function
 /// in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    walk_script(ctx, &cu.ir_module.top_level, ctx.dialect);
-    for proc in cu.ir_module.procedures.values() {
-        walk_script(ctx, &proc.body, ctx.dialect);
+    use super::helpers::expr_simplify::numeric_var_names;
+    let top_numeric = numeric_var_names(&cu.top_level);
+    walk_script(
+        ctx,
+        &cu.ir_module.top_level,
+        ctx.dialect,
+        Some(&top_numeric),
+    );
+    for (qname, proc) in &cu.ir_module.procedures {
+        let numeric = cu.procedures.get(qname).map(numeric_var_names);
+        walk_script(ctx, &proc.body, ctx.dialect, numeric.as_ref());
     }
 }
 
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script, dialect: Option<&str>) {
+fn walk_script(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    dialect: Option<&str>,
+    numeric: NumericCtx<'_>,
+) {
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, dialect);
+        walk_statement(ctx, stmt, dialect, numeric);
     }
     let _ = dialect;
 }
 
-fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, dialect: Option<&str>) {
+fn walk_statement(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    dialect: Option<&str>,
+    numeric: NumericCtx<'_>,
+) {
     match stmt {
         Statement::ExprEval { span, expr } => {
             try_rewrite_expr(ctx, *span, expr);
         }
         Statement::AssignExpr { span, name, expr } => {
-            try_rewrite_assign_expr(ctx, *span, name, expr);
+            try_rewrite_assign_expr(ctx, *span, name, expr, numeric);
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, dialect);
+                walk_script(ctx, &c.body, dialect, numeric);
             }
             if let Some(body) = else_body {
-                walk_script(ctx, body, dialect);
+                walk_script(ctx, body, dialect, numeric);
             }
         }
         Statement::While { body, .. } | Statement::Catch { body, .. } => {
-            walk_script(ctx, body, dialect);
+            walk_script(ctx, body, dialect, numeric);
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, dialect);
-            walk_script(ctx, body, dialect);
-            walk_script(ctx, next, dialect);
+            walk_script(ctx, init, dialect, numeric);
+            walk_script(ctx, body, dialect, numeric);
+            walk_script(ctx, next, dialect, numeric);
         }
-        Statement::Foreach { body, .. } => walk_script(ctx, body, dialect),
+        Statement::Foreach { body, .. } => walk_script(ctx, body, dialect, numeric),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, dialect);
+            walk_script(ctx, body, dialect, numeric);
             for h in handlers {
-                walk_script(ctx, &h.body, dialect);
+                walk_script(ctx, &h.body, dialect, numeric);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, dialect);
+                walk_script(ctx, fb, dialect, numeric);
             }
         }
         Statement::Switch {
@@ -110,11 +128,11 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, dialect: Option<&
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, dialect);
+                    walk_script(ctx, b, dialect, numeric);
                 }
             }
             if let Some(db) = default_body {
-                walk_script(ctx, db, dialect);
+                walk_script(ctx, db, dialect, numeric);
             }
         }
         _ => {}
@@ -132,9 +150,15 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, dialect: Option<&
 /// Matches the Python `_expr_simplify` behaviour for
 /// `IRAssignExpr` nodes. Skipped when the expression contains a
 /// command substitution (side-effect risk).
-fn try_rewrite_assign_expr(ctx: &mut PassContext<'_>, span: Span, name: &str, expr: &ExprNode) {
+fn try_rewrite_assign_expr(
+    ctx: &mut PassContext<'_>,
+    span: Span,
+    name: &str,
+    expr: &ExprNode,
+    numeric: NumericCtx<'_>,
+) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, instcombine_expr, try_strength_reduce_expr,
+        expr_has_command_subst, instcombine_expr_typed, try_strength_reduce_expr_typed,
     };
     use super::helpers::spans::full_rewrite_span;
 
@@ -183,7 +207,7 @@ fn try_rewrite_assign_expr(ctx: &mut PassContext<'_>, span: Span, name: &str, ex
     // (`$x ** 2` → `$x * $x`). Running instcombine first keeps
     // the categorisation in line with the Python tests.
     let rendered_expr = crate::expr_ast::render_expr(expr);
-    let (simplified, inst_changed) = instcombine_expr(&rendered_expr, false);
+    let (simplified, inst_changed) = instcombine_expr_typed(&rendered_expr, false, numeric);
     if inst_changed {
         ctx.report(Optimisation::new(
             "O110",
@@ -193,7 +217,7 @@ fn try_rewrite_assign_expr(ctx: &mut PassContext<'_>, span: Span, name: &str, ex
         ));
         return;
     }
-    let (reduced, sred_changed) = try_strength_reduce_expr(&rendered_expr);
+    let (reduced, sred_changed) = try_strength_reduce_expr_typed(&rendered_expr, numeric);
     if sred_changed {
         ctx.report(Optimisation::new(
             "O113",
