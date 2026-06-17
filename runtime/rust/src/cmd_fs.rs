@@ -9,7 +9,7 @@
 //! WASI. See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use std::path::Path;
+use tcl_platform::HostError;
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::list;
@@ -54,24 +54,19 @@ fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, USAGE);
     }
     let path = obj_bytes(argv[i]);
-    match std::fs::read(as_str(&path)) {
+    let read = interp
+        .host()
+        .filesystem()
+        .map_or(Err(HostError::NotFound), |fs| fs.read(as_str(&path)));
+    match read {
         Ok(bytes) => interp.eval_sourced(&bytes, &path),
         Err(e) => {
             let mut m = b"couldn't read file \"".to_vec();
             m.extend_from_slice(&path);
             m.extend_from_slice(b"\": ");
-            m.extend_from_slice(io_reason(&e).as_bytes());
+            m.extend_from_slice(e.reason().as_bytes());
             interp.set_error(&m)
         }
-    }
-}
-
-fn io_reason(e: &std::io::Error) -> &'static str {
-    use std::io::ErrorKind;
-    match e.kind() {
-        ErrorKind::NotFound => "no such file or directory",
-        ErrorKind::PermissionDenied => "permission denied",
-        _ => "I/O error",
     }
 }
 
@@ -148,24 +143,22 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"separator" => str_result(interp, b"/"),
         b"nativename" => str_result(interp, &arg(2).unwrap_or_default()),
-        b"exists" => bool_result(
-            interp,
-            Path::new(as_str(&arg(2).unwrap_or_default())).exists(),
-        ),
-        b"isdirectory" => bool_result(
-            interp,
-            Path::new(as_str(&arg(2).unwrap_or_default())).is_dir(),
-        ),
-        b"isfile" => bool_result(
-            interp,
-            Path::new(as_str(&arg(2).unwrap_or_default())).is_file(),
-        ),
+        b"exists" => {
+            let e = fs_exists(interp, &arg(2).unwrap_or_default());
+            bool_result(interp, e)
+        }
+        b"isdirectory" => {
+            let d = fs_meta(interp, &arg(2).unwrap_or_default()).is_some_and(|m| m.is_dir);
+            bool_result(interp, d)
+        }
+        b"isfile" => {
+            let f = fs_meta(interp, &arg(2).unwrap_or_default()).is_some_and(|m| m.is_file);
+            bool_result(interp, f)
+        }
         b"readable" | b"writable" | b"executable" => {
             // Approximate: existence (fine-grained perms are deferred).
-            bool_result(
-                interp,
-                Path::new(as_str(&arg(2).unwrap_or_default())).exists(),
-            )
+            let e = fs_exists(interp, &arg(2).unwrap_or_default());
+            bool_result(interp, e)
         }
         // `file pathtype name` — pure-syntax classification.
         b"pathtype" => {
@@ -186,8 +179,14 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 if p.is_empty() {
                     continue;
                 }
-                if let Err(e) = std::fs::create_dir_all(as_str(&p)) {
-                    return fs_error(interp, b"can't create directory", &p, &e);
+                let res = interp
+                    .host()
+                    .filesystem()
+                    .map_or(Err(HostError::Unsupported), |fs| {
+                        fs.create_dir_all(as_str(&p))
+                    });
+                if let Err(e) = res {
+                    return host_fs_error(interp, b"can't create directory", &p, &e.reason());
                 }
             }
             interp.set_result_bytes(b"");
@@ -195,12 +194,16 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"size" => {
             let p = arg(2).unwrap_or_default();
-            match std::fs::metadata(as_str(&p)) {
+            let meta = interp
+                .host()
+                .filesystem()
+                .map_or(Err(HostError::NotFound), |fs| fs.metadata(as_str(&p)));
+            match meta {
                 Ok(m) => {
-                    interp.set_result(crate::obj::new_wide_int_obj(m.len() as i64));
+                    interp.set_result(crate::obj::new_wide_int_obj(m.len as i64));
                     Code::Ok
                 }
-                Err(e) => fs_error(interp, b"could not read", &p, &e),
+                Err(e) => host_fs_error(interp, b"could not read", &p, &e.reason()),
             }
         }
         b"type" => {
@@ -250,22 +253,18 @@ fn file_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     for &a in &argv[i..] {
         let p = obj_bytes(a);
-        let path = Path::new(as_str(&p));
-        let meta = match std::fs::symlink_metadata(path) {
-            Ok(m) => m,
-            Err(_) => continue, // not there ⇒ nothing to delete (no error)
-        };
-        let res = if meta.is_dir() && !meta.file_type().is_symlink() {
-            if force {
-                std::fs::remove_dir_all(path)
-            } else {
-                std::fs::remove_dir(path)
-            }
-        } else {
-            std::fs::remove_file(path)
-        };
-        if let Err(e) = res {
-            return fs_error(interp, b"error deleting", &p, &e);
+        // The host's `remove` already takes its own (non-following)
+        // `symlink_metadata` to decide file-vs-recursive-dir, so a symlink to a
+        // directory is unlinked rather than recursed — matching the prior
+        // inline logic. A missing path yields `NotFound`, which we swallow
+        // (`file delete` ignores absent targets).
+        let res = interp
+            .host()
+            .filesystem()
+            .map_or(Ok(()), |fs| fs.remove(as_str(&p), force));
+        match res {
+            Ok(()) | Err(HostError::NotFound) => {}
+            Err(e) => return host_fs_error(interp, b"error deleting", &p, &e.reason()),
         }
     }
     interp.set_result_bytes(b"");
@@ -292,6 +291,36 @@ fn io_error_reason(e: &std::io::Error) -> &'static str {
         AlreadyExists => "file already exists",
         _ => "i/o error",
     }
+}
+
+/// A `file` I/O error in Tcl's shape, with the reason already rendered from a
+/// [`HostError`] (the [`Filesystem`](tcl_platform::Filesystem)-routed twin of
+/// [`fs_error`], which renders from a `std::io::Error`).
+fn host_fs_error(interp: &mut Interp, prefix: &[u8], path: &[u8], reason: &str) -> Code {
+    let mut m = prefix.to_vec();
+    m.extend_from_slice(b" \"");
+    m.extend_from_slice(path);
+    m.extend_from_slice(b"\": ");
+    m.extend_from_slice(reason.as_bytes());
+    interp.set_error(&m)
+}
+
+/// Existence via the host filesystem (`false` when the host provides none, e.g.
+/// a no-VFS browser — nothing exists where there is no filesystem).
+fn fs_exists(interp: &Interp, path: &[u8]) -> bool {
+    interp
+        .host()
+        .filesystem()
+        .is_some_and(|fs| fs.exists(as_str(path)))
+}
+
+/// Metadata via the host filesystem (`None` when the host provides none, or on
+/// any error — callers needing the failure reason call `metadata` directly).
+fn fs_meta(interp: &Interp, path: &[u8]) -> Option<tcl_platform::Metadata> {
+    interp
+        .host()
+        .filesystem()
+        .and_then(|fs| fs.metadata(as_str(path)).ok())
 }
 
 fn str_result(interp: &mut Interp, s: &[u8]) -> Code {
