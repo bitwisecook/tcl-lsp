@@ -119,6 +119,8 @@ fn dict_ops() {
     // `dispatch_canon` seam).
     out_eq("puts [dict replace {a 1 b 2} b 3 c 4]\n", "a 1 b 3 c 4\n");
     out_eq("puts [dict remove {a 1 b 2 c 3} b d]\n", "a 1 c 3\n");
+    out_eq("puts [dict getdef {a 1 b 2} a X]\n", "1\n");
+    out_eq("puts [dict getdef {a 1 b 2} z X]\n", "X\n");
 }
 
 #[test]

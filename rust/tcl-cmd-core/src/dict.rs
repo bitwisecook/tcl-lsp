@@ -188,6 +188,27 @@ pub fn remove<O: ValueOps>(
     Ok(ops.new_dict(kept))
 }
 
+/// `dict getdef`/`getwithdefault dictionary ?key ...? key default` — like
+/// [`get`] over a key path, but returns `default` when any key is absent (a
+/// malformed dict or a non-dict intermediate value still errors).
+pub fn getdef<O: ValueOps>(
+    ops: &mut O,
+    dict: &O::Value,
+    keys: &[O::Value],
+    default: &O::Value,
+) -> Result<O::Value, CmdError> {
+    let mut cur = dict.clone();
+    for k in keys {
+        let ks = ops.as_str(k).to_string();
+        let pairs = ops.dict_pairs(&cur)?;
+        match lookup(ops, &pairs, &ks) {
+            Some(v) => cur = v,
+            None => return Ok(default.clone()),
+        }
+    }
+    Ok(cur)
+}
+
 /// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand.
 /// Returns `None` for a not-yet-ported (variable-mutating) subcommand so the
 /// caller falls back to its legacy path.
@@ -235,6 +256,21 @@ pub fn dispatch_canon<O: ValueOps>(
             Some((d, keys)) => Some(remove(ops, d, keys)),
             None => Some(Err(CmdError::wrong_args("dict remove dictionary ?key ...?"))),
         },
+        // `dict getdef`/`getwithdefault dictionary ?key ...? key default` — needs
+        // the dict, at least one key, and a default (≥ 3 args). The usage echoes
+        // the invoked sub-name.
+        "getdef" | "getwithdefault" => {
+            if rest.len() < 3 {
+                Some(Err(CmdError::wrong_args(&format!(
+                    "dict {sub} dictionary ?key ...? key default"
+                ))))
+            } else {
+                let dict = &rest[0];
+                let default = &rest[rest.len() - 1];
+                let keys = &rest[1..rest.len() - 1];
+                Some(getdef(ops, dict, keys, default))
+            }
+        }
         _ => None,
     }
 }

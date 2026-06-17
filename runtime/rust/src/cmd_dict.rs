@@ -43,7 +43,6 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match sub.as_slice() {
         b"create" => create(interp, argv),
         b"get" => get(interp, argv),
-        b"getdef" | b"getwithdefault" => getdef(interp, argv),
         b"set" => set(interp, argv),
         b"exists" => exists(interp, argv),
         b"unset" => unset(interp, argv),
@@ -257,34 +256,6 @@ fn copy_dict(interp: &mut Interp, src: *mut TclObj) -> Option<*mut TclObj> {
         let _ = dict::dict_set(acc, k, v);
     }
     Some(acc)
-}
-
-/// `dict getwithdefault`/`getdef dictionary ?key ...? key default` — like
-/// `dict get` over a key path, but returns `default` if any key is absent.
-fn getdef(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 5 {
-        // The usage echoes the actual sub-name (`getdef` or `getwithdefault`).
-        let mut usage = b"dict ".to_vec();
-        usage.extend_from_slice(&obj_bytes(argv[1]));
-        usage.extend_from_slice(b" dictionary ?key ...? key default");
-        return wrong_args(interp, &usage);
-    }
-    let default = argv[argv.len() - 1];
-    let keys = &argv[3..argv.len() - 1];
-    let mut cur = argv[2];
-    for &k in keys {
-        let key = obj_bytes(k);
-        match dict::dict_get(cur, &key) {
-            Ok(Some(v)) => cur = v,
-            Ok(None) => {
-                interp.set_result(default);
-                return Code::Ok;
-            }
-            Err(e) => return bad_dict(interp, e),
-        }
-    }
-    interp.set_result(cur);
-    Code::Ok
 }
 
 /// `dict filter dictionary key|value ?globPattern ...?` (glob forms) or
@@ -1077,6 +1048,21 @@ mod tests {
         // An odd key/value count to `replace` is a wrong-# args error.
         let (c, _) = run(b"dict replace {a 1} b");
         assert_eq!(c, Code::Error);
+    }
+
+    #[test]
+    fn getdef_returns_default_on_miss() {
+        assert_eq!(ok(b"dict getdef {a 1 b 2} a X"), b"1");
+        assert_eq!(ok(b"dict getdef {a 1 b 2} z X"), b"X");
+        // Nested key path.
+        assert_eq!(ok(b"dict getdef {a {b 1}} a b X"), b"1");
+        assert_eq!(ok(b"dict getdef {a {b 1}} a z X"), b"X");
+        // The alias behaves identically and echoes its own name on misuse.
+        assert_eq!(ok(b"dict getwithdefault {a 1} z D"), b"D");
+        let (c, b) = run(b"dict getwithdefault {a 1} z");
+        assert_eq!(c, Code::Error);
+        assert!(b.starts_with(b"wrong # args"));
+        assert!(b.windows(14).any(|w| w == b"getwithdefault"));
     }
 
     #[test]
