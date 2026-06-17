@@ -617,14 +617,34 @@ O(file) lowering floor + the still-present per-proc deep-clone dominate).
   `function_lattice`) + a per-proc offset would drop the clone too — but it
   ripples through every `cu.procedures` / `cu.function()` / `cu.functions()`
   accessor, so it is its own change.
-- *Backlog #2 (per-function `optimise_unit` memo) is unblocked but **not** trivial.*
-  The optimiser is now offset-aware (its prerequisite), but its passes are **not
-  cleanly per-function**: O127 reads `ctx.optimisations` from *earlier passes and
-  other functions* (the `rewritten` overlap snapshot), the IR-walking passes span
-  the whole module, and group-id allocation + overlap arbitration are whole-unit.
-  A per-function optimisation memo must first hoist that cross-function state out
-  of the per-function pass body — a real refactor for the ~12 ms `optimise_unit`
-  costs, so lower priority than the deep-clone removal.
+- *Backlog #2 (per-function `optimise_unit` memo): correctness-de-risked, but a
+  major refactor.*  The optimiser is now offset-aware (its prerequisite).  The
+  feared cross-function `PassContext` coupling turns out to be **inert**: the only
+  writes to `propagated_branch_uses` / `propagated_use_groups` /
+  `propagated_expr_stmts` are in **unit tests** — in production those sets are
+  always empty, so the `propagation.rs` reads have no effect, and
+  `reset_function_state` is dead (test-only).  `next_group` is canonicalised by
+  `renumber_groups`, and O127's `rewritten` snapshot only overlaps spans **within
+  one function's source region** (cross-function opts are in disjoint regions).
+  So a per-function optimise **can** be byte-identical to the whole-unit run.
+  - **Design.**  A salsa query `function_optimisations(FnLatticeKey + ctx)` that
+    optimises one procedure **in isolation at offset 0** and returns offset-0
+    optimisations; `optimise_unit` then rebases each by the proc's `base_offset`,
+    merges, and runs the existing whole-unit canonicalise + `select_non_overlapping`
+    + `renumber_groups` arbitration (cheap).  Offset-invariance requires the run's
+    `ctx.source` to be the **proc's body substring** (`source[proc.span]`, stable
+    across edits when the body is unchanged) so offset-0 spans index it, plus the
+    proc's offset-0 IR body — both already produced for the `function_lattice`
+    key.  The cross-function *read-only* context the passes consume (`interproc`,
+    `command_mutations`, `proc_cfgs`, `cross_event_vars`) must be interned into the
+    key (coarse: a summary edit invalidates all per-proc optimise memos; a
+    reachable-context projection like `taint_cascade`'s would be tighter).
+  - **Cost.**  Building the single-function offset-0 view touches nearly every
+    `CompilationUnit` field the passes read (`ir_module`, `cfg_module`,
+    `connection_scope`, …), so it is a refactor on the order of Approach B for the
+    ~12 ms `optimise_unit` spends — gate with `compiler_check_corpus` (fast, the
+    O127-overlap inertness assumption is exactly what it verifies).  Sequence it
+    after the deep-clone removal.
 
 ### Recommendation (for the lowering floor proper)
 
