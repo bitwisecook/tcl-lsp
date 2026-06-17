@@ -329,6 +329,50 @@ fn diff_cfg_json_matches_python() {
     assert_eq!(normalised, expected);
 }
 
+// Wider cfg coverage: a multi-proc script with if/elseif/else, foreach, and
+// while — every variable read (no dead stores) so the `_NO_PARITY` deadStores
+// sub-field is `[]` on both sides and the diff stays byte-identical.
+#[test]
+fn diff_cfg2_text_matches_python() {
+    let fx = fixtures_dir();
+    let actual = run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-cfg2-left.tcl",
+            "diff-cfg2-right.tcl",
+            "--show",
+            "cfg",
+        ],
+    );
+    let expected = std::fs::read(fx.join("diff.cfg2.golden")).expect("read diff.cfg2.golden");
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+    );
+}
+
+#[test]
+fn diff_cfg2_json_matches_python() {
+    let fx = fixtures_dir();
+    let actual = String::from_utf8(run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-cfg2-left.tcl",
+            "diff-cfg2-right.tcl",
+            "--show",
+            "cfg",
+            "--json",
+        ],
+    ))
+    .expect("utf8 stdout");
+    let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
+    let expected = std::fs::read_to_string(fx.join("diff.cfg2.json.golden"))
+        .expect("read diff.cfg2.json.golden");
+    assert_eq!(normalised, expected);
+}
+
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
 // for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
 // `_effect_region_str`) and the taint engine. The `taint_warnings` half now
