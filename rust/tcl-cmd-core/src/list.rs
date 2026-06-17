@@ -110,6 +110,60 @@ pub fn lrepeat<O: ValueOps>(
     Ok(ops.new_list(out))
 }
 
+/// `linsert list index ?element ...?` — insert `elements` before `index`.
+///
+/// `index` is an **insertion index**: unlike `lindex`/`lrange`, `end` names the
+/// position *after* the last element (`len`, not `len-1`) — so `linsert {a b}
+/// end c` appends. Resolving against `len + 1` gives `end`/`end±N` that offset.
+/// A bad index spec errors faithfully; an out-of-range result clamps to
+/// `[0, len]`. Mirrors `Tcl_LinsertObjCmd`.
+pub fn linsert<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    index: &O::Value,
+    elements: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    let mut elems = ops.list_elements(value)?;
+    let len = elems.len();
+    let at = index::resolve(&ops.as_str(index), len + 1)?;
+    let at = usize::try_from(at.max(0)).unwrap_or(0).min(len);
+    for (k, e) in elements.iter().enumerate() {
+        elems.insert(at + k, e.clone());
+    }
+    Ok(ops.new_list(elems))
+}
+
+/// `lreplace list first last ?element ...?` — replace the inclusive range
+/// `first..last` with `elements`.
+///
+/// `first`/`last` are element indices (`end` = `len-1`), clamped to the list;
+/// `last < first` (or both past the end) makes this a pure insertion at `first`.
+/// A bad index spec errors faithfully. Mirrors `Tcl_LreplaceObjCmd`.
+pub fn lreplace<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    first: &O::Value,
+    last: &O::Value,
+    elements: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    let mut elems = ops.list_elements(value)?;
+    let len = elems.len();
+    let lo = index::resolve(&ops.as_str(first), len)?.max(0);
+    let lo = usize::try_from(lo).unwrap_or(0).min(len);
+    let hi = index::resolve(&ops.as_str(last), len)?;
+    // Exclusive end of the removed range; `last < first` removes nothing.
+    let end = if hi < 0 {
+        lo
+    } else {
+        usize::try_from(hi)
+            .unwrap_or(0)
+            .saturating_add(1)
+            .clamp(lo, len)
+    };
+    elems.splice(lo..end, elements.iter().cloned());
+    Ok(ops.new_list(elems))
+}
+
 /// The ASCII whitespace Tcl trims/splits on (space, tab, newline, CR, VT, FF).
 const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 

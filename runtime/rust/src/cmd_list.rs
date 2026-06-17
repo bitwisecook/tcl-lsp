@@ -266,7 +266,11 @@ fn join(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return wrong_args(interp, b"join list ?joinString?");
     }
-    let sep = if argv.len() == 3 { Some(&argv[2]) } else { None };
+    let sep = if argv.len() == 3 {
+        Some(&argv[2])
+    } else {
+        None
+    };
     let r = list_core::join(interp, &argv[1], sep);
     adapt(interp, r)
 }
@@ -277,7 +281,11 @@ fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return wrong_args(interp, b"split string ?splitChars?");
     }
-    let chars = if argv.len() == 3 { Some(&argv[2]) } else { None };
+    let chars = if argv.len() == 3 {
+        Some(&argv[2])
+    } else {
+        None
+    };
     let v = list_core::split(interp, &argv[1], chars);
     interp.set_result(v);
     Code::Ok
@@ -355,26 +363,8 @@ fn linsert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"linsert list index ?element ...?");
     }
-    let elems = match list::list_elements(argv[1]) {
-        Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
-    };
-    let len = elems.len();
-    // For `linsert`, the index names the insertion point, so `end` is *after*
-    // the last element (= `len`); resolving against `len + 1` makes `end`,
-    // `end-N`, etc. land correctly.
-    let spec = obj_bytes(argv[2]);
-    let raw = match index_spec(&spec, len + 1) {
-        Some(i) => i,
-        None => return bad_index(interp, &spec),
-    };
-    let at = raw.clamp(0, len as isize) as usize;
-    let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len() - 3);
-    out.extend_from_slice(&elems[..at]);
-    out.extend_from_slice(&argv[3..]);
-    out.extend_from_slice(&elems[at..]);
-    set_list(interp, &out);
-    Code::Ok
+    let r = list_core::linsert(interp, &argv[1], &argv[2], &argv[3..]);
+    adapt(interp, r)
 }
 
 /// `lreplace list first last ?element ...?` — replace the `[first,last]` range.
@@ -382,26 +372,8 @@ fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return wrong_args(interp, b"lreplace list first last ?element ...?");
     }
-    let elems = match list::list_elements(argv[1]) {
-        Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
-    };
-    let len = elems.len();
-    let Some(first) = index_spec(&obj_bytes(argv[2]), len) else {
-        return bad_index(interp, &obj_bytes(argv[2]));
-    };
-    let Some(last) = index_spec(&obj_bytes(argv[3]), len) else {
-        return bad_index(interp, &obj_bytes(argv[3]));
-    };
-    let lo = first.max(0).min(len as isize) as usize;
-    // Exclusive end of the removed range; `last < first` removes nothing.
-    let hi = ((last + 1).max(0) as usize).clamp(lo, len);
-    let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len());
-    out.extend_from_slice(&elems[..lo]);
-    out.extend_from_slice(&argv[4..]);
-    out.extend_from_slice(&elems[hi..]);
-    set_list(interp, &out);
-    Code::Ok
+    let r = list_core::lreplace(interp, &argv[1], &argv[2], &argv[3], &argv[4..]);
+    adapt(interp, r)
 }
 
 /// `ledit listVar first last ?element ...?` — the in-place `lreplace` on a list
@@ -1596,6 +1568,14 @@ mod tests {
         assert_eq!(ok(b"lreplace {a b c d} 1 2"), b"a d");
         assert_eq!(ok(b"lreplace {a b c} end end Z"), b"a b Z");
         assert_eq!(ok(b"lreplace {a b c} 1 0 X"), b"a X b c"); // first>last → insert
+        // Out-of-range indices clamp (no error); `end`/`end±N` offset correctly.
+        assert_eq!(ok(b"linsert {a b c} end+1 X"), b"a b c X"); // past end → append
+        assert_eq!(ok(b"linsert {a b c} -5 X"), b"X a b c"); // negative → prepend
+        assert_eq!(ok(b"lreplace {a b c} 5 7 X"), b"a b c X"); // past end → append
+        // A *malformed* index spec errors faithfully (shared index parser).
+        assert!(err(b"linsert {a b c} foo X").starts_with(b"bad index"));
+        assert!(err(b"lreplace {a b c} foo 1 X").starts_with(b"bad index"));
+        assert!(err(b"lreplace {a b c} 1 foo X").starts_with(b"bad index"));
     }
 
     fn err(src: &[u8]) -> Vec<u8> {

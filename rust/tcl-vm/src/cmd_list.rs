@@ -6,7 +6,6 @@ use std::rc::Rc;
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
-use crate::command::resolve_index;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -142,47 +141,18 @@ fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     adapt(list_core::lrepeat(vm, count, elems))
 }
 
-fn cmd_linsert(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((list, tail)) = args.split_first() else {
+fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [list, index, elems @ ..] = args else {
         return err("wrong # args: should be \"linsert list index ?element ...?\"");
     };
-    let Some((idx, elems)) = tail.split_first() else {
-        return err("wrong # args: should be \"linsert list index ?element ...?\"");
-    };
-    let mut items = match as_list(list) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    let at = resolve_index(&idx.to_str(), items.len())
-        .unwrap_or(0)
-        .clamp(0, isize::try_from(items.len()).unwrap_or(isize::MAX));
-    let at = usize::try_from(at).unwrap_or(0).min(items.len());
-    for (k, e) in elems.iter().enumerate() {
-        items.insert(at + k, e.clone());
-    }
-    ok(Value::list(items))
+    adapt(list_core::linsert(vm, list, index, elems))
 }
 
-fn cmd_lreplace(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to, rest @ ..] = args else {
         return err("wrong # args: should be \"lreplace list first last ?element ...?\"");
     };
-    let mut items = match as_list(list) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    let len = items.len();
-    let lo = resolve_index(&from.to_str(), len).unwrap_or(0).max(0);
-    let lo = usize::try_from(lo).unwrap_or(0).min(len);
-    let hi = resolve_index(&to.to_str(), len).unwrap_or(-1);
-    let end = if hi < 0 {
-        lo
-    } else {
-        (usize::try_from(hi).unwrap_or(0) + 1).clamp(lo, len)
-    };
-    let replacement = rest.to_vec();
-    items.splice(lo..end, replacement);
-    ok(Value::list(items))
+    adapt(list_core::lreplace(vm, list, from, to, rest))
 }
 
 fn cmd_lsearch(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
