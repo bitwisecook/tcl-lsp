@@ -1715,7 +1715,15 @@ fn emit_statement_warnings(
     // `_classify_sink` order (T100/output/log, then T102, then T104/T105).
 
     // T103: tainted data in a regexp/regsub pattern position.
-    emit_regexp_pattern_warnings(command, call_args, &ssa_stmt.uses, taints, span, registry, warnings);
+    emit_regexp_pattern_warnings(
+        command,
+        call_args,
+        &ssa_stmt.uses,
+        taints,
+        span,
+        registry,
+        warnings,
+    );
 
     // T106: re-encoding an already-encoded tainted value.
     emit_double_encode_warnings(registry, command, &ssa_stmt.uses, taints, span, warnings);
@@ -3579,11 +3587,8 @@ mod tests {
         let registry = CommandRegistry::build_default();
         // `file delete -- $u`: the `--` terminator protects the path
         // position, so no T102 (W313 still fires elsewhere).
-        let cu = CompilationUnit::build_for(
-            "set u [gets stdin]\nfile delete -- $u",
-            &registry,
-            false,
-        );
+        let cu =
+            CompilationUnit::build_for("set u [gets stdin]\nfile delete -- $u", &registry, false);
         let fu = cu.function("::top").unwrap();
         let warnings = find_taint_warnings(
             &fu.cfg,

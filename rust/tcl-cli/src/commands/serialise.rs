@@ -158,7 +158,10 @@ fn stmt_summary(stmt: &Statement, source: &str) -> String {
     match stmt {
         Statement::AssignConst { name, value, .. } => format!("assign-const {name} = {value}"),
         Statement::AssignExpr { name, span, .. } => {
-            format!("assign-expr {name} = [expr {{{}}}]", preview(&expr_text(slice(source, *span)), 48))
+            format!(
+                "assign-expr {name} = [expr {{{}}}]",
+                preview(&expr_text(slice(source, *span)), 48)
+            )
         }
         Statement::AssignValue { name, value, .. } => {
             format!("assign-value {name} = {}", preview(value, 48))
@@ -183,9 +186,10 @@ fn stmt_summary(stmt: &Statement, source: &str) -> String {
                 format!("call {command} {joined}")
             }
         }
-        Statement::Return { value, .. } => value
-            .as_ref()
-            .map_or_else(|| "return".to_owned(), |v| format!("return {}", preview(v, 48))),
+        Statement::Return { value, .. } => value.as_ref().map_or_else(
+            || "return".to_owned(),
+            |v| format!("return {}", preview(v, 48)),
+        ),
         Statement::Barrier {
             reason, command, ..
         } => {
@@ -204,9 +208,10 @@ fn stmt_summary(stmt: &Statement, source: &str) -> String {
             clauses.len(),
             if else_body.is_some() { ", else" } else { "" }
         ),
-        Statement::For {
-            condition_span, ..
-        } => format!("for ({})", preview(inner_text(slice(source, *condition_span)), 40)),
+        Statement::For { condition_span, .. } => format!(
+            "for ({})",
+            preview(inner_text(slice(source, *condition_span)), 40)
+        ),
         Statement::Switch { subject, arms, .. } => {
             format!("switch {} ({} arm(s))", preview(subject, 40), arms.len())
         }
@@ -296,7 +301,11 @@ fn children_json(stmt: &Statement, line_index: &LineIndex, source: &str) -> Opti
             for arm in arms {
                 let label = format!(
                     "{}: {}",
-                    if arm.fallthrough { "fallthrough" } else { "arm" },
+                    if arm.fallthrough {
+                        "fallthrough"
+                    } else {
+                        "arm"
+                    },
                     preview(&arm.pattern, 48)
                 );
                 let body = arm.body.as_ref().map_or_else(
@@ -329,7 +338,10 @@ fn statement_json(stmt: &Statement, line_index: &LineIndex, source: &str) -> Jso
     m.insert("kind".to_owned(), Json::s(stmt_kind(stmt)));
     m.insert("summary".to_owned(), Json::s(stmt_summary(stmt, source)));
     m.insert("colorClass".to_owned(), Json::s(stmt_color_class(stmt)));
-    m.insert("range".to_owned(), range_json(*stmt_span(stmt), line_index, source));
+    m.insert(
+        "range".to_owned(),
+        range_json(*stmt_span(stmt), line_index, source),
+    );
     if let Some(children) = children_json(stmt, line_index, source) {
         m.insert("children".to_owned(), children);
     }
@@ -383,7 +395,10 @@ pub fn serialise_ir(ir_module: &IrModule, line_index: &LineIndex, source: &str) 
             "params".to_owned(),
             Json::Array(proc.params.iter().map(|p| Json::s(p.clone())).collect()),
         );
-        entry.insert("range".to_owned(), range_json(proc.span, line_index, source));
+        entry.insert(
+            "range".to_owned(),
+            range_json(proc.span, line_index, source),
+        );
         entry.insert(
             "body".to_owned(),
             serialise_script(&proc.body, line_index, source),

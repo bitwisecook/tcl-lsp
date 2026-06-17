@@ -50,7 +50,10 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("has_destructive_ops", Traits::HAS_DESTRUCTIVE_OPS),
     ("has_interp_eval", Traits::HAS_INTERP_EVAL),
     ("has_loop_body", Traits::HAS_LOOP_BODY),
-    ("has_string_list_confusion_risk", Traits::STRING_LIST_CONFUSION),
+    (
+        "has_string_list_confusion_risk",
+        Traits::STRING_LIST_CONFUSION,
+    ),
     ("has_switch_body", Traits::HAS_SWITCH_BODY),
     ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
     ("is_control_flow", Traits::CONTROL_FLOW),
@@ -59,7 +62,10 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("is_oo_metaclass", Traits::IS_OO_METACLASS),
     ("is_side_switch", Traits::IS_SIDE_SWITCH),
     ("is_unescape_command", Traits::IS_UNESCAPE),
-    ("is_unnormalized_http_getter", Traits::UNNORMALISED_HTTP_GETTER),
+    (
+        "is_unnormalized_http_getter",
+        Traits::UNNORMALISED_HTTP_GETTER,
+    ),
     ("loop_list_header", Traits::LOOP_LIST_HEADER),
     ("needs_start_cmd", Traits::NEEDS_START_CMD),
     ("never_inline_body", Traits::NEVER_INLINE_BODY),
@@ -402,11 +408,7 @@ fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String>
 /// when the command is unavailable. Used by the faithful-subset golden
 /// test to compare individual command entries.
 #[must_use]
-pub fn command_entry_json(
-    registry: &CommandRegistry,
-    dialect: &str,
-    name: &str,
-) -> Option<Json> {
+pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
     let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
     resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset))
 }
@@ -442,10 +444,7 @@ pub fn command_registry_snapshots(registry: &CommandRegistry, dialects: &[&str])
         );
     }
     let mut m = BTreeMap::new();
-    m.insert(
-        "schema".to_owned(),
-        Json::s("tcl-lsp/registry/commands/v1"),
-    );
+    m.insert("schema".to_owned(), Json::s("tcl-lsp/registry/commands/v1"));
     m.insert("dialects".to_owned(), Json::Object(by_dialect));
     Json::Object(m)
 }
