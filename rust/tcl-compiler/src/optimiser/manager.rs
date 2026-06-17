@@ -650,6 +650,32 @@ mod tests {
     }
 
     #[test]
+    fn braced_word_is_never_propagated() {
+        // Tcl performs no substitution inside `{…}`, so `$x` in a braced word
+        // is a literal — it must not be propagated, and the def stays live.
+        assert_eq!(
+            optimised("set x 42\nputs {$x}\nputs $x\n"),
+            "set x 42\nputs {$x}\nputs 42\n",
+        );
+    }
+
+    #[test]
+    fn read_modify_write_target_keeps_feeding_set() {
+        // `lset` / `lpop` read the list before rewriting it, so the feeding
+        // `set` is live — not a dead store.
+        for src in [
+            "set lst {a b c d e}\nlset lst 2 X\nputs $lst\n",
+            "set lst {1 2 3}\nlpop lst\nputs $lst\n",
+        ] {
+            assert!(
+                optimised(src).contains("set lst"),
+                "RMW target's feeding set must be kept; got {:?}",
+                optimised(src),
+            );
+        }
+    }
+
+    #[test]
     fn constant_branch_fires_via_manager() {
         // if {1} { set x 1 } triggers both O101 (branch fold)
         // and O112 (structure elimination). The overlap filter

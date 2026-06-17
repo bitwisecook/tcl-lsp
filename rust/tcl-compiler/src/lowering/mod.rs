@@ -1646,6 +1646,15 @@ impl<'r> Lowerer<'r> {
         let var_read_indices =
             self.registry
                 .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarRead);
+        // Read-modify-write commands (`lset` / `lpop` / `ledit` — like
+        // `incr` / `append` / `lappend`, which are hook-lowered) read the
+        // current value of their target before rewriting it, so the prior
+        // definition is live. Carry that as `reads_own_defs` so dead-store /
+        // unused-variable analysis does not treat a feeding `set` as dead.
+        let reads_before_write = self
+            .registry
+            .get(&role_cmd)
+            .is_some_and(|s| s.traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE));
 
         if !body_indices.is_empty() {
             return Statement::Barrier {
@@ -1680,7 +1689,7 @@ impl<'r> Lowerer<'r> {
                 args: args.to_vec(),
                 defs: var_defs,
                 reads: var_reads,
-                reads_own_defs: false,
+                reads_own_defs: reads_before_write,
                 safe_on_uninit: false,
                 tokens: Some(Self::cmd_tokens(seg)),
                 foreach_groups: None,

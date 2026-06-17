@@ -166,6 +166,13 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
                     let Some(text) = tokens.argv_texts.get(i) else {
                         continue;
                     };
+                    // A braced word (`{$x}`) is a literal — Tcl performs no
+                    // substitution inside braces — so `$x` there must not be
+                    // forwarded. `argv_texts` has the braces stripped, so the
+                    // word kind is the only signal.
+                    if tokens.argv_kinds.get(i) == Some(&tcl_lexer::TokenType::Str) {
+                        continue;
+                    }
                     if !simple_var_ref_matches(text, var_name) {
                         continue;
                     }
@@ -1272,16 +1279,16 @@ fn visit_call_tokens(
         let Some(text) = tokens.argv_texts.get(i) else {
             continue;
         };
-        if single {
-            visit_simple_var_word(ctx, *span, text, constants);
-        }
-        // A braced `{…}` word (kind `Str`) is a literal / script body: its
-        // `$var` and `[cmd]` are NOT substitutions, so the interpolation
-        // folds must not touch it (else a proc body like
-        // `{ set d [dict create a 1] }` is wrongly spliced into a quoted
-        // string). The `"…"` / bareword interpolation paths still apply.
+        // A braced `{…}` word (kind `Str`) is a literal / script body: Tcl
+        // performs NO substitution inside braces, so neither the simple-`$var`
+        // fold nor the `"…"` / `[cmd]` interpolation folds may touch it (else
+        // `puts {$x}` is wrongly rewritten to `puts 42`, or a proc body like
+        // `{ set d [dict create a 1] }` is spliced into a quoted string).
         if tokens.argv_kinds.get(i).copied() == Some(tcl_lexer::TokenType::Str) {
             continue;
+        }
+        if single {
+            visit_simple_var_word(ctx, *span, text, constants);
         }
         // `"..."` interpolation substitution — works on both
         // single-token (quoted strings) and composite (mixed
