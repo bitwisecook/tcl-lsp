@@ -12,6 +12,7 @@
 
 use std::path::{Path, PathBuf};
 
+use rayon::prelude::*;
 use tcl_lsp_db::{
     AnalyserConfig, SourceFile, TclDatabase, file_analysis, file_analysis_incremental,
 };
@@ -55,34 +56,38 @@ fn file_analysis_incremental_matches_full_over_corpus() {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
     }
 
-    let db = TclDatabase::default();
-    let cfg = AnalyserConfig::new(
-        &db,
-        Vec::new(),
-        tcl_compiler::analyser::NonAsciiMode::Default,
-    );
-    let mut checked = 0usize;
-    let mut bad: Vec<String> = Vec::new();
-    for path in &files {
-        let Ok(src) = std::fs::read_to_string(path) else {
-            continue;
-        };
-        if src.is_empty() || src.len() > 400_000 {
-            continue;
-        }
-        let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
-        let inc = file_analysis_incremental(&db, file, cfg);
-        let full = file_analysis(&db, file, cfg);
-        checked += 1;
-        if inc.diagnostics != full.diagnostics && bad.len() < 40 {
-            bad.push(
+    // Per-file analysis is independent — the original shared one `TclDatabase`
+    // across files but each `SourceFile` is a distinct input analysed once for
+    // `inc` and once for `full`, so there is no cross-file memo reuse to lose.
+    // Give each parallel task its own database (salsa inputs are mutated on
+    // creation, so a fresh db per task avoids any shared-state contention).
+    let outcomes: Vec<Option<String>> = files
+        .par_iter()
+        .filter_map(|path| {
+            let src = std::fs::read_to_string(path).ok()?;
+            if src.is_empty() || src.len() > 400_000 {
+                return None;
+            }
+            let db = TclDatabase::default();
+            let cfg = AnalyserConfig::new(
+                &db,
+                Vec::new(),
+                tcl_compiler::analyser::NonAsciiMode::Default,
+            );
+            let file = SourceFile::new(&db, src.clone(), dialect.to_owned());
+            let inc = file_analysis_incremental(&db, file, cfg);
+            let full = file_analysis(&db, file, cfg);
+            Some((inc.diagnostics != full.diagnostics).then(|| {
                 path.strip_prefix(repo_root())
                     .unwrap_or(path)
                     .display()
-                    .to_string(),
-            );
-        }
-    }
+                    .to_string()
+            }))
+        })
+        .collect();
+
+    let checked = outcomes.len();
+    let bad: Vec<String> = outcomes.into_iter().flatten().take(40).collect();
 
     assert!(
         bad.is_empty(),

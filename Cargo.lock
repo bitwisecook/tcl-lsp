@@ -2154,6 +2154,7 @@ name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "rayon",
  "tcl-bytecode",
  "tcl-lexer",
  "tcl-registry",
@@ -2207,6 +2208,7 @@ dependencies = [
 name = "tcl-lsp-db"
 version = "0.1.0"
 dependencies = [
+ "rayon",
  "salsa",
  "tcl-compiler",
  "tcl-lexer",
