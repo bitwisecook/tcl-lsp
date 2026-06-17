@@ -1,0 +1,29 @@
+ByteCode ::top, 10 instructions, 18 bytes, 5 literals, 0 variables
+  Literals:
+    0: "proc"
+    1: "greet"
+    2: "n"
+    3: "puts $n"
+    4: "world"
+  Instructions:
+    (0) push1 0	# "proc"
+    (2) push1 1	# "greet"
+    (4) push1 2	# "n"
+    (6) push1 3	# "puts $n"
+    (8) invokeStk1 4	# proc
+    (10) pop
+    (11) push1 1	# "greet"
+    (13) push1 4	# "world"
+    (15) invokeStk1 2	# greet
+    (17) done
+
+ByteCode ::greet, 4 instructions, 7 bytes, 1 literals, 1 variables
+  Literals:
+    0: "puts"
+  Local variables:
+    %v0: "n"
+  Instructions:
+    (0) push1 0	# "puts"
+    (2) loadScalar1 %v0	# var "n"
+    (4) invokeStk1 2	# puts
+    (6) done

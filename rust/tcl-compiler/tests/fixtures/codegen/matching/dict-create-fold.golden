@@ -1,0 +1,11 @@
+ByteCode ::top, 6 instructions, 8 bytes, 2 literals, 0 variables
+  Literals:
+    0: "d"
+    1: "k1 v1 k2 v2"
+  Instructions:
+    (0) push1 0	# "d"
+    (2) push1 1	# "k1 v1 k2 v2"
+    (4) dup
+    (5) verifyDict
+    (6) storeStk
+    (7) done
