@@ -8,7 +8,7 @@
 //! - [`build_cfg`] — build CFGs for a whole module (top-level + procs).
 //! - [`build_cfg_function`] — build a CFG for a single script body.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use tcl_lexer::Span;
 
@@ -16,6 +16,7 @@ use crate::cfg::{Block, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
+use crate::naming::normalise_var_name;
 
 use self::upvar_info::{UpvarInfo, collect_upvar_targets};
 
@@ -277,32 +278,46 @@ impl CfgBuilder {
     }
 
     /// Push a non-control-flow statement into `current` (after upvar
-    /// invalidation), promoting `error` / `throw` / `exit` to a `Return`
-    /// terminator so any following statements become dead code (mirrors the
-    /// `TERMINATES_BLOCK` registry trait).
+    /// invalidation), promoting `error` / `throw` / `exit` (and, in analysis
+    /// builds, `tailcall`) to a `Return` terminator so any following statements
+    /// become dead code (mirrors the `TERMINATES_BLOCK` registry trait).
     fn push_plain_statement(&mut self, current: &str, stmt: &Statement) {
         for s in self.apply_upvar_invalidation(stmt.clone()) {
             self.block_mut(current).statements.push(s);
         }
-        if let Statement::Call { command, span, .. } = stmt
-            && is_block_terminating_command(command)
+        if let Statement::Call {
+            command,
+            canonical_command,
+            span,
+            ..
+        } = stmt
             && self.block_mut(current).terminator.is_none()
         {
-            // A catchable `error` / `throw` (not `exit`, which leaves the
-            // process) is a throw point: record the current block so an
-            // enclosing `try`'s on-error edge can be sourced from here,
-            // where the body's prior defs are live.
-            if is_catchable_throw(command)
-                && let Some(blocks) = self.throw_blocks.as_mut()
-            {
-                blocks.push(current.to_owned());
+            let canon = canonical_command.as_deref().unwrap_or(command);
+            // `tailcall` (Tcl 8.6+, FP-RBS-13) replaces the current frame and
+            // never returns here, so it ends straight-line flow exactly like
+            // `error`/`exit`.  Promote it only in analysis builds
+            // (`faithful_exceptions`) so the codegen / non-faithful CFG shape
+            // stays byte-identical — codegen leaves the call as a fall-through.
+            let exits_proc = is_block_terminating_command(canon)
+                || (self.faithful_exceptions && is_tailcall_command(canon));
+            if exits_proc {
+                // A catchable `error` / `throw` (not `exit` / `tailcall`, which
+                // leave the process / pop the frame) is a throw point: record
+                // the current block so an enclosing `try`'s on-error edge can be
+                // sourced from here, where the body's prior defs are live.
+                if is_catchable_throw(canon)
+                    && let Some(blocks) = self.throw_blocks.as_mut()
+                {
+                    blocks.push(current.to_owned());
+                }
+                self.block_mut(current).terminator = Some(Terminator::Return {
+                    value: None,
+                    span: Some(*span),
+                    expr: None,
+                    braced: false,
+                });
             }
-            self.block_mut(current).terminator = Some(Terminator::Return {
-                value: None,
-                span: Some(*span),
-                expr: None,
-                braced: false,
-            });
         }
     }
 
@@ -849,6 +864,159 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 /// as its own `Statement::Return`.
 fn is_block_terminating_command(command: &str) -> bool {
     matches!(command.trim_start_matches(':'), "error" | "throw" | "exit")
+}
+
+/// Whether `command` is `tailcall` (canonical `::tailcall`).
+///
+/// `tailcall` (Tcl 8.6+) replaces the current procedure's frame and never
+/// returns here: `TclNRTailcallObjCmd` (generic/tclBasic.c) always
+/// `return TCL_RETURN` — both bare `tailcall` and `tailcall command ...` exit
+/// the proc; the arg count only decides what runs *after* the frame pops, not
+/// whether this proc continues.  So *any* `tailcall` ends straight-line flow
+/// exactly like `error` / `exit` (with no args guard).
+fn is_tailcall_command(command: &str) -> bool {
+    command.trim_start_matches(':') == "tailcall"
+}
+
+// --- Definite-assignment ("flow facts") over un-lowered IR scripts ----------
+//
+// Shared by the CFG builder (to promote an opaque `switch` whose every arm
+// exits to a terminator — Bug 3 / FP-RBS-15) and by SSA (to recover the def
+// set an opaque switch *definitely* establishes — Bug 2 / FP-RBS-14).  Both
+// consumers agree on one definition of "cannot complete normally".  Mirrors
+// the Python `_flow_facts_*` family in `compiler/cfg.py` (relocated there from
+// `ssa.py` so the control-flow and SSA layers share one definition).
+
+/// `(must-defines, can-complete-normally)` for a single statement.
+///
+/// * assignments (`set`/`incr`/`expr`-assign) contribute their target and
+///   complete;
+/// * a plain `Call` contributes its synthetic `defs` and completes — *except* a
+///   non-returning one (`error`/`throw`/`exit` via the terminating-command set,
+///   `break`/`continue`, or `tailcall`), which cannot complete; `Return` and a
+///   `return -code` / expansion `Barrier` likewise cannot complete;
+/// * `Block` / `UpFrame` bodies always run, so recurse;
+/// * an `If` *with* an else, or a `Switch` *with* a default, takes the
+///   intersection over its completing branches (and is non-completing only when
+///   every branch is); an else-less `If` / default-less `Switch` has a
+///   fall-through path, so it completes assigning nothing for certain;
+/// * loops (`For`/`While`/`Foreach`), `Catch`/`Try` and everything else may not
+///   execute / always complete, so they contribute no must-define and complete
+///   normally.
+pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, bool) {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => {
+            let mut set = BTreeSet::new();
+            let n = normalise_var_name(name);
+            if !n.is_empty() {
+                set.insert(n.to_owned());
+            }
+            (set, true)
+        }
+        Statement::Return { .. } => (BTreeSet::new(), false),
+        Statement::Barrier { reason, .. } => {
+            // A `return -options …` / `return {*}…` barrier unconditionally
+            // exits the proc, so it cannot complete normally.
+            let non_returning = matches!(
+                reason.as_str(),
+                "return with options" | "return with expansion"
+            );
+            (BTreeSet::new(), !non_returning)
+        }
+        Statement::Call {
+            command,
+            canonical_command,
+            defs,
+            ..
+        } => {
+            let canon = canonical_command.as_deref().unwrap_or(command);
+            let non_returning = is_block_terminating_command(canon)
+                || is_tailcall_command(canon)
+                || matches!(canon.trim_start_matches(':'), "break" | "continue");
+            (defs.iter().cloned().collect(), !non_returning)
+        }
+        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => flow_facts_script(body),
+        Statement::If {
+            clauses,
+            else_body: Some(eb),
+            ..
+        } => {
+            let mut bodies: Vec<&Script> = clauses.iter().map(|c| &c.body).collect();
+            bodies.push(eb);
+            intersect_completing(&bodies)
+        }
+        Statement::Switch {
+            arms,
+            default_body: Some(default),
+            ..
+        } => {
+            let mut bodies: Vec<&Script> = vec![default];
+            bodies.extend(arms.iter().filter_map(|arm| arm.body.as_ref()));
+            intersect_completing(&bodies)
+        }
+        // An else-less `If` / default-less `Switch` has a fall-through path that
+        // assigns nothing for certain; everything else may not run / always
+        // completes.
+        _ => (BTreeSet::new(), true),
+    }
+}
+
+/// `(vars definitely assigned at normal completion, can-complete-normally)`.
+///
+/// Sound definite-assignment over an un-lowered IR script: walk the statements
+/// in order accumulating must-defines; the first statement that cannot complete
+/// normally makes everything after it dead and the whole script non-completing.
+/// Only names guaranteed to be assigned are returned, so it never over-claims
+/// (which would hide a real read-before-set).
+pub(crate) fn flow_facts_script(script: &Script) -> (BTreeSet<String>, bool) {
+    let mut assigned = BTreeSet::new();
+    for stmt in &script.statements {
+        let (defs, completes) = flow_facts_stmt(stmt);
+        assigned.extend(defs);
+        if !completes {
+            return (assigned, false);
+        }
+    }
+    (assigned, true)
+}
+
+/// `(must-defines over the branches that can complete, any-completes)`.
+///
+/// The intersection skips any branch that cannot complete normally: such a
+/// branch never reaches the control-flow merge, so by the standard
+/// definite-assignment rule it vacuously defines everything (⊤, the identity of
+/// intersection).  `any-completes` is `false` only when *every* branch is
+/// non-completing — then the merge itself is unreachable.
+fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, bool) {
+    let mut common: Option<BTreeSet<String>> = None;
+    let mut completes_any = false;
+    for body in bodies {
+        let (assigned, completes) = flow_facts_script(body);
+        if !completes {
+            continue;
+        }
+        completes_any = true;
+        common = Some(match common {
+            None => assigned,
+            Some(acc) => acc.intersection(&assigned).cloned().collect(),
+        });
+    }
+    (common.unwrap_or_default(), completes_any)
+}
+
+/// Variables an opaque `switch` assigns on *every* reaching path.
+///
+/// Empty unless the switch has a `default` arm (otherwise an unmatched subject
+/// falls through assigning nothing).  With a default, the result is the
+/// intersection of the must-define sets of the default body and of every arm
+/// that has a body — but an arm that *cannot complete normally* (always
+/// `return`s / `error`s / `tailcall`s / …) never reaches the code after the
+/// switch, so it is excluded from the intersection (FP-RBS-14).
+pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
+    flow_facts_stmt(stmt).0
 }
 
 /// Whether `command` raises a *catchable* exception (`error` / `throw`) —

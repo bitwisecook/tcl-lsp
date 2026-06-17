@@ -10777,6 +10777,93 @@ mod tests {
         );
     }
 
+    /// Helper: does the analyser emit a W210 for a read of `var` in `src`?
+    #[cfg(test)]
+    fn w210_fires_for(src: &str, var: &str) -> bool {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(src);
+        let needle = format!("'{var}'");
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W210" && d.message.contains(&needle))
+    }
+
+    #[test]
+    fn fp_rbs_13_tailcall_is_a_terminator() {
+        // Bug 1 / FP-RBS-13: `tailcall` replaces the current frame and never
+        // returns (TclNRTailcallObjCmd always `return TCL_RETURN`), so it ends
+        // straight-line flow exactly like `return`/`error`. A var set only on
+        // the *other* branch of an `if {…} { tailcall … }` is therefore always
+        // set at a read after the `if` — no false W210.
+
+        // FP: `tailcall g` (with args) — only the else branch reaches `return`.
+        assert!(
+            !w210_fires_for(
+                "proc f {cond} { if {$cond} { tailcall g } else { set result 1 }\n return $result }",
+                "result",
+            ),
+            "tailcall g must terminate the then-branch (no W210 on result)",
+        );
+
+        // FP: bare `tailcall` is *also* a terminator (no args guard) — the C
+        // impl returns TCL_RETURN regardless of arg count.
+        assert!(
+            !w210_fires_for(
+                "proc f {cond} { if {$cond} { tailcall } else { set result 1 }\n return $result }",
+                "result",
+            ),
+            "bare tailcall must terminate the then-branch (no W210 on result)",
+        );
+
+        // TP control: a non-terminating then-branch (`puts hi`) leaves `result`
+        // maybe-unset at the read — W210 must still fire. Proves the
+        // suppression is specific to the terminator, not the if/return shape.
+        assert!(
+            w210_fires_for(
+                "proc f {cond} { if {$cond} { puts hi } else { set result 1 }\n return $result }",
+                "result",
+            ),
+            "non-terminating then-branch must still fire W210 on result",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_14_opaque_switch_excludes_non_completing_arm() {
+        // Bug 2 / FP-RBS-14: an opaque switch's must-define set excludes any arm
+        // that cannot complete normally (it never reaches the code after the
+        // switch). The default sets `y`; the `a*` arm exits, so `y` is defined
+        // on every *reaching* path.
+
+        // FP: returning arm excluded — default defines `y`.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 0 } default { set y 2 } }\n puts $y }",
+                "y",
+            ),
+            "returning arm must be excluded from must-define (no W210 on y)",
+        );
+
+        // FP: erroring arm likewise cannot complete normally.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { error bad } default { set y 2 } }\n puts $y }",
+                "y",
+            ),
+            "erroring arm must be excluded from must-define (no W210 on y)",
+        );
+
+        // TP control: a *completing* arm that omits `y` (`set z 9`) reaches the
+        // code after the switch with `y` unset — W210 must fire.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { set z 9 } default { set y 2 } }\n puts $y }",
+                "y",
+            ),
+            "completing arm omitting y must still fire W210 on y",
+        );
+    }
+
     #[test]
     fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         // `lappend` / `append` auto-create their target, so a first use is

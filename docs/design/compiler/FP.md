@@ -2371,6 +2371,141 @@ The `read_before_set` row pins the verdict: the `$v` read in `if_then_3` is repo
 
 ---
 
+### FP-RBS-13 — `tailcall` replaces the frame; code after it never runs
+
+- **Verdict:** FALSE POSITIVE (W210) — `tailcall` ends the proc's straight-line
+  flow, but the CFG modelled it as an ordinary fall-through call, so a variable
+  set only on the *other* branch of an `if` looked maybe-unset at a read after
+  the `if`.
+- **Status:** FIXED (Rust port). Found while auditing the control-flow-terminator
+  family (sibling of the `break`/`continue` CFG-jump fix); `tailcall` was the
+  missing proc-exit terminator. Ported from the Python builder (commit `d312c6e`)
+  and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (Tcl 8.6+ `tailcall` dispatch idiom).
+
+#### Reproducer
+
+```tcl
+proc f {cond} {
+    # tailcall g replaces this frame: the `return $result` below is only
+    # reached via the else branch, where result is always set.
+    if {$cond} {
+        tailcall g
+    } else {
+        set result 1
+    }
+    return $result
+}
+```
+
+#### Per-line reasoning
+
+1. `if {$cond} { tailcall g } else { set result 1 }` — exactly one branch runs.
+2. `tailcall g` — replaces the current procedure with `g`. Control **never
+   returns** to `f`, so the `then` branch does not reach the code after the
+   `if`. The C implementation `TclNRTailcallObjCmd` (generic/tclBasic.c) ends
+   with `return TCL_RETURN` for *any* arg count — both bare `tailcall` and
+   `tailcall command ...` exit the proc; the arg count only decides what runs
+   *after* the frame is popped.
+3. `return $result` — reachable only via the `else` branch, where `set result
+   1` ran. So `result` is **always** defined when read → no read-before-set.
+4. Pre-fix, the CFG builder pushed `tailcall` as a plain fall-through call, so
+   the `then` block edged into the `if` join; the join's `return $result` then
+   merged an "unset" version of `result` from the `then` path → false W210.
+
+#### tclsh ground truth (9.0.3)
+
+`proc g {} { return GG }; f 0` → `1`; `f 1` → `GG`. No `can't read "result"`
+error on either path. Bare `tailcall` behaves identically — `proc f {} { puts
+before; tailcall; puts after }; f` prints only `before`.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/mod.rs` `CfgBuilder::push_plain_statement`:
+in analysis builds (`faithful_exceptions`), a `Statement::Call` whose canonical
+command is `::tailcall` (via `is_tailcall_command`) promotes the block to a
+`Terminator::Return`, on the same path as `error`/`throw`/`exit`
+(`is_block_terminating_command`), so post-`tailcall` statements are routed to an
+orphan unreachable block exactly like `return`. Codegen builds
+(`faithful_exceptions = false`) leave the call untouched, so bytecode is
+unchanged. `tailcall` is not catchable, so it is not added to `throw_blocks`.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator`
+  (FP: `tailcall g` silent; FP: bare `tailcall` silent; TP control: a
+  non-terminating then-branch — `puts hi` — restores the W210).
+
+---
+
+### FP-RBS-14 — opaque-switch arm that can't complete normally is excluded from must-define
+
+- **Verdict:** FALSE POSITIVE (W210) — an opaque `switch`'s must-define set was
+  a plain intersection over arm bodies, so an arm that always `return`s /
+  `error`s (and therefore never reaches the code after the `switch`) wrongly
+  dropped a variable that every *reaching* arm assigns.
+- **Status:** FIXED (Rust port). Refines the opaque-switch arm-def recovery with
+  the standard definite-assignment rule: a branch that cannot complete normally
+  contributes ⊤ (vacuously defines everything) at the merge. Ported from the
+  Python builder (commit `d312c6e`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (dispatch `switch` with an early-return guard arm).
+
+#### Reproducer
+
+```tcl
+proc f {x} {
+    # the a* arm returns, so it never reaches `puts $y`; the only path that
+    # does (default) sets y -> y is definitely defined.
+    switch -glob $x {
+        a* { return 0 }
+        default { set y 2 }
+    }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `switch -glob $x { … }` stays *opaque* (one `Statement::Switch`; its
+   shared-body topology is not lowered into CFG blocks), so its arm-body defs
+   are recovered by an exhaustive must-define rule rather than by SSA phis.
+2. `a* { return 0 }` — this arm `return`s, so it **cannot complete normally**;
+   it never reaches `puts $y`. By definite assignment, a non-completing branch
+   is excluded from the must-define intersection at the merge.
+3. `default { set y 2 }` — the only arm that *reaches* `puts $y` assigns `y`.
+4. `puts $y` — every path that arrives here has run `set y 2`, so `y` is
+   definitely defined → no read-before-set. Pre-fix, the plain intersection
+   counted the `return`-arm's empty def set, dropping `y` → false W210.
+
+#### tclsh ground truth (9.0.3)
+
+`f abc` → `0` (returns from the `a*` arm before `puts $y`); `f xyz` → `2`
+(takes the default, sets `y`). No `can't read "y"` error. TP control: with the
+`a*` arm changed to `{ set z 9 }` it falls through with `y` unset, and tclsh
+errors `can't read "y": no such variable`.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/ssa.rs` `defs_of_with_registry` (the
+`Statement::Switch { default_body: Some(_), .. }` arm) calls
+`cfg_builder::switch_must_defines`, which is `flow_facts_stmt(stmt).0`. The
+shared `flow_facts_*` helpers in `rust/tcl-compiler/src/cfg_builder/mod.rs`
+intersect only the bodies that `flow_facts_script` reports *can* complete
+normally (`intersect_completing` skips a body whose flow facts say it cannot —
+`return`/`error`/`throw`/`exit`/`tailcall`/`break`/`continue`, or an exhaustive
+`if`/`switch` whose every branch cannot). The resulting set feeds the switch's
+`defs`, so SSA versions `y` at the switch and the later read resolves.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_14_opaque_switch_excludes_non_completing_arm`
+  (FP: returning arm silent; FP: erroring arm silent; TP control: a completing
+  arm that omits `y` keeps the W210).
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in
