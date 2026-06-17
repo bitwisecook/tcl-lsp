@@ -119,8 +119,10 @@ fn class_check(class: &str, chars: &[char], strict: bool) -> (bool, i64) {
         return (!strict, 0);
     }
     match class {
-        "integer" | "wideinteger" => scan_integer(chars, true),
-        "entier" => scan_integer(chars, false),
+        // Only `wideinteger` is bounded to 64 bits; `integer`/`entier` accept
+        // arbitrary-precision values in Tcl 9.
+        "wideinteger" => scan_integer(chars, true),
+        "integer" | "entier" => scan_integer(chars, false),
         "double" => scan_double(chars),
         "boolean" | "true" | "false" => (check_boolean(chars, class), 0),
         "list" => scan_list(chars).0,
@@ -234,20 +236,17 @@ fn is_radix_digit(c: char, radix: u32) -> bool {
     }
 }
 
-/// Scan a Tcl double (also accepts integers). The fail index is the end of the
-/// longest valid floating-point prefix.
+/// Scan a Tcl double (also accepts integers). Only ASCII whitespace surrounds a
+/// number (so a trailing NBSP makes it invalid); the fail index is the end of
+/// the longest valid floating-point prefix, or 0 when there is no number.
 fn scan_double(chars: &[char]) -> (bool, i64) {
-    let s: String = chars.iter().collect();
-    let trimmed = s.trim();
-    if !trimmed.is_empty() && trimmed.parse::<f64>().is_ok() {
-        return (true, -1);
-    }
+    let ascii_ws = |c: char| matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}');
     let n = chars.len();
     let mut i = 0;
-    while i < n && chars[i].is_whitespace() {
+    while i < n && ascii_ws(chars[i]) {
         i += 1;
     }
-    let start = i;
+    let core_start = i;
     if i < n && (chars[i] == '+' || chars[i] == '-') {
         i += 1;
     }
@@ -277,7 +276,17 @@ fn scan_double(chars: &[char]) -> (bool, i64) {
             }
         }
     }
-    (false, if has_digits { ci(i) } else { ci(start) })
+    let core_end = i;
+    while i < n && ascii_ws(chars[i]) {
+        i += 1;
+    }
+    if has_digits && i == n {
+        let core: String = chars[core_start..core_end].iter().collect();
+        if core.parse::<f64>().is_ok() {
+            return (true, -1);
+        }
+    }
+    (false, if has_digits { ci(core_end) } else { 0 })
 }
 
 fn is_list_space(c: char) -> bool {
