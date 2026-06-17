@@ -230,28 +230,50 @@ fn is_radix_digit(c: char, radix: u32) -> bool {
     }
 }
 
-/// Scan a Tcl double (also accepts integers).
+/// Scan a Tcl double (also accepts integers). The fail index is the end of the
+/// longest valid floating-point prefix.
 fn scan_double(chars: &[char]) -> (bool, i64) {
     let s: String = chars.iter().collect();
     let trimmed = s.trim();
     if !trimmed.is_empty() && trimmed.parse::<f64>().is_ok() {
         return (true, -1);
     }
-    // Approximate the failure position: the first char a float parse rejects.
+    let n = chars.len();
     let mut i = 0;
-    while i < chars.len() && chars[i].is_whitespace() {
+    while i < n && chars[i].is_whitespace() {
         i += 1;
     }
     let start = i;
-    while i < chars.len() {
-        let c = chars[i];
-        if c.is_ascii_digit() || matches!(c, '.' | '+' | '-' | 'e' | 'E') {
+    if i < n && (chars[i] == '+' || chars[i] == '-') {
+        i += 1;
+    }
+    let mut has_digits = false;
+    while i < n && chars[i].is_ascii_digit() {
+        i += 1;
+        has_digits = true;
+    }
+    if i < n && chars[i] == '.' {
+        i += 1;
+        while i < n && chars[i].is_ascii_digit() {
             i += 1;
-        } else {
-            break;
+            has_digits = true;
         }
     }
-    (false, if i > start { ci(i) } else { ci(start) })
+    // A valid exponent extends the prefix; an `e` with no following digits ends
+    // it (so `1.0e4e4` stops at the second `e`).
+    if has_digits && i < n && (chars[i] == 'e' || chars[i] == 'E') {
+        let mut j = i + 1;
+        if j < n && (chars[j] == '+' || chars[j] == '-') {
+            j += 1;
+        }
+        if j < n && chars[j].is_ascii_digit() {
+            i = j;
+            while i < n && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+    }
+    (false, if has_digits { ci(i) } else { ci(start) })
 }
 
 fn is_list_space(c: char) -> bool {
