@@ -634,6 +634,73 @@ All steps keep the full-rebuild fallback and gate on
 `compiler_check_memo_matches_uncached_over_corpus` + `per_item_corpus` +
 `differential_incremental` + e2e (the existing byte-identity contract).
 
+### Approach B — landed foundation + validated execution plan
+
+**Foundation (shipped).**  `FunctionUnit` gained a `base_offset: i64` plus
+`abs_span` / `abs_pos` helpers: `absolute = local + base_offset`.  A unit built
+at its real position keeps `base_offset = 0` (`abs_span` is identity); the flip
+will build memoised procedure units at **offset 0** with `base_offset = body
+offset`.  No behaviour change yet (`base_offset` is 0 everywhere, unread).
+
+**The span-provenance rule (the key to a *tractable* conversion).**  Only spans
+read from a `FunctionUnit`'s `cfg` / `ssa` / `sccp` (incl. the `CommandTokens`
+`argv_span`s those statements carry) become offset-0 after the flip and need
+`abs_span` / `abs_pos`.  **`cu.ir_module` keeps absolute (whole-file) offsets** —
+it is lowered once whole-file and only the per-proc `function_lattice` *key* is
+normalised to 0 — so every optimiser pass that walks `cu.ir_module` is
+**unaffected**:
+
+- *No change (IR-absolute):* `pattern_recognition`, `code_sinking`,
+  `structure_elimination`, `tail_call`, `unused_procs`, `expr_simplify` — they
+  iterate `cu.ir_module`, not `cu.functions()`.
+- *Needs conversion (reads `fu.cfg`/`ssa`/`sccp`, via `cu.functions()`):*
+  - analyser tail (`emit_cfg_ssa_diagnostics`): ~8 sites (W220 `diagnostics.rs`
+    ~5660, W211 ~5739, H300 ~5824, W210 ~6134/6408/7027, W307 ~8314, IRULE4005
+    ~8642).  **Hybrid risk:** W307 (`emit_var_command_diagnostics`) also scans the
+    full `self.source` — those reads stay absolute; only the `fu`-sourced span
+    shifts.
+  - `compiler_checks`/`run_all_checks`: `gvn.rs` 744/1494/1506, `shimmer/span.rs`
+    29/57/66, `taint.rs` 1680/2313, `sccp.constant_branches` (compiler_checks:194).
+  - `elimination.rs` 361/549/721 + their `full_rewrite_span(ctx.source, …)` (some
+    in `emit_unreachable`/`emit_adce` helpers where `fu` must be **threaded in**).
+  - `propagation.rs` O102/O127 (175/191/423/428/434/444): `full_word_span(ctx.source,
+    argv_span)` and `source[…]` slices where `argv_span` is from `fu.cfg`
+    `CommandTokens` → wrap with `fu.abs_span` / `fu.abs_pos`; several are in
+    `forward_candidate`-style helpers needing `base_offset` threaded.
+  - `branch_folding.rs` 171/252 (`Terminator::Branch` span from `fu.cfg`).
+
+**Fast-gate strategy (why this is *not* the hours-long grind it first looks).**
+The flip only changes the **memoised db path** — `analyse` / `analyse_per_item`
+build their own real-offset units (`base_offset = 0`), so **`per_item_corpus` and
+`differential_incremental` do not exercise it** and need not be re-run per
+iteration.  The fast oracle is:
+- `compiler_check_memo_matches_uncached_over_corpus` (~130 s) — covers the
+  optimiser + `run_all_checks` + taint consumers, catching **both** a missed
+  `fu`-span (stays offset-0 → wrong) and an over-wrapped IR-absolute span (shifted
+  → wrong).
+- a **new** file-analysis corpus differential (`file_analysis_incremental` vs
+  `analyse` over `tmp/`, mirroring `compiler_check_corpus`) — add this to gate the
+  analyser-tail conversion (no such corpus gate exists today; `file_analysis`'s
+  taint-derived diagnostics make it worth having regardless).
+- e2e.
+
+**The flip.**  In `build_for_inner`'s memoised arm, set `fu.base_offset =
+i64::from(body_offset)` and **drop** the `rebase_function_unit` call (it becomes
+dead — keep `rebase_script`, still needed to form the offset-0 key).  Convert
+**every** site above first (each is byte-identical at `base_offset = 0`, so the
+conversion commits cleanly ahead of the flip); the flip is the single atomic
+switch that banks the win.  Removing `rebase_function_unit` eliminates the
+per-proc rebase walk (~half of the 52 ms); a follow-up storing `Arc<FunctionUnit>`
+in `cu.procedures` (offset-0, shared from `function_lattice`) eliminates the
+remaining per-proc deep-clone.
+
+**Backlog #4 (`practcl.tcl`) is *not* unblocked by Approach B.**  practcl's
+fallback is the per-item **analyser walk**'s genuinely-twice-defined method-style
+definer (a correctness fallback in `body_needs_enclosing_context` /
+duplicate-detection), not the per-edit CU lowering cost Approach B attacks.  It
+needs the incremental-lowering / duplicate-grafting work (Approach A's territory +
+the duplicate-definer handling), so it should follow A, not B.
+
 ## How to run the experiments
 
 - **E1/E2/E3/E6/E7** (item-locality, offset-invariance, cost split, lattice
