@@ -383,6 +383,7 @@ impl CfgBuilder {
     /// Returns `Some(tail_block)` — the block where subsequent code
     /// should go — or `None` if control doesn't fall through (e.g.
     /// the script ends with a `return`).
+    #[allow(clippy::too_many_lines)]
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
         // True once the *main* (reachable) path has hit an unconditional

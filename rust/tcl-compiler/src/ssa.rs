@@ -190,8 +190,102 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             }
             Vec::new()
         }
+        // An opaque (glob/regexp/fall-through) `switch` definitely-defines a
+        // variable only when *every* execution path assigns it: there must be a
+        // `default` arm (covering the no-match path) and the variable must be
+        // *must-defined* in the default body and in every arm that has a body
+        // (fall-through arms with no body delegate to a later body, already
+        // covered). This reproduces the phi the expanded arm blocks would build,
+        // conservatively — a variable only *conditionally* assigned inside an
+        // arm is not claimed, so we never hide a genuine read-before-set. The
+        // expanded (exact, non-fall-through) switch never reaches here; its arm
+        // defs come from the real per-block statements.
+        Statement::Switch {
+            arms,
+            default_body: Some(default),
+            ..
+        } => {
+            let mut common = definitely_assigned_in_script(default);
+            for arm in arms {
+                if let Some(body) = &arm.body {
+                    let arm_defs = definitely_assigned_in_script(body);
+                    common.retain(|v| arm_defs.contains(v));
+                    if common.is_empty() {
+                        break;
+                    }
+                }
+            }
+            common.into_iter().collect()
+        }
         _ => Vec::new(),
     }
+}
+
+/// Variables a script assigns on *every* path (must-define): direct top-level
+/// assignments / `incr` / call defs, `Block`/`UpFrame` bodies (always run), and
+/// `if`/`elseif`/`else` chains where every branch *and* the else must-define the
+/// variable, plus a nested exhaustive `switch`. Conditional constructs that may
+/// not execute or may throw (`for`/`while`/`foreach`/`catch`/`try`/a
+/// default-less `switch`/an else-less `if`) contribute nothing. Sound: it never
+/// over-claims, so a variable it reports is genuinely defined on all paths and
+/// can be used to suppress a read-before-set without hiding a real one.
+fn definitely_assigned_in_script(script: &crate::ir::Script) -> BTreeSet<String> {
+    use crate::ir::Statement as S;
+    let mut out = BTreeSet::new();
+    for stmt in &script.statements {
+        match stmt {
+            S::AssignConst { name, .. }
+            | S::AssignExpr { name, .. }
+            | S::AssignValue { name, .. }
+            | S::Incr { name, .. } => {
+                let n = normalise_var_name(name);
+                if !n.is_empty() {
+                    out.insert(n.to_owned());
+                }
+            }
+            S::Call { defs, .. } => out.extend(defs.iter().cloned()),
+            S::Block { body, .. } | S::UpFrame { body, .. } => {
+                out.extend(definitely_assigned_in_script(body));
+            }
+            S::If {
+                clauses,
+                else_body: Some(eb),
+                ..
+            } => {
+                // Definitely-assigned by the whole `if` = assigned in every
+                // clause body *and* the else body (intersection).
+                let mut inter: Option<BTreeSet<String>> = None;
+                for clause in clauses {
+                    let cd = definitely_assigned_in_script(&clause.body);
+                    inter = Some(match inter {
+                        None => cd,
+                        Some(acc) => acc.intersection(&cd).cloned().collect(),
+                    });
+                }
+                let ed = definitely_assigned_in_script(eb);
+                out.extend(match inter {
+                    None => ed,
+                    Some(acc) => acc.intersection(&ed).cloned().collect(),
+                });
+            }
+            S::Switch {
+                arms,
+                default_body: Some(d),
+                ..
+            } => {
+                let mut common = definitely_assigned_in_script(d);
+                for arm in arms {
+                    if let Some(body) = &arm.body {
+                        let ad = definitely_assigned_in_script(body);
+                        common.retain(|v| ad.contains(v));
+                    }
+                }
+                out.extend(common);
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 // Dominator algorithms
@@ -819,6 +913,13 @@ pub fn uses_of(
                 scanner,
                 registry,
             ));
+            // The subject is read *before* any arm assigns, so it stays a live
+            // read even when an arm also defines it (`defs_of` may now report
+            // the subject var as switch-defined). Without this the read-before-
+            // def of the subject would be filtered out below.
+            for v in scanner.scan_word(subject, registry) {
+                reads_own_def.insert(v);
+            }
         }
 
         // Other structured IR statements (If, For, While, …) are flattened by

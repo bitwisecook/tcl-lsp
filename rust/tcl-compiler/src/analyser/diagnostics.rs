@@ -10743,6 +10743,41 @@ mod tests {
     }
 
     #[test]
+    fn opaque_switch_recovers_exhaustive_arm_defs() {
+        // A glob/regexp/fall-through switch is kept opaque, but it still
+        // definitely-defines a variable assigned on *every* path. An exhaustive
+        // switch (a `default` plus every arm setting `y`) defines `y`, so the
+        // following `$y` read is NOT a read-before-set — no false W210.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(
+            "proc f {x} { switch -glob $x {a* {set y 1} default {set y 2}}\n puts $y }",
+        );
+        assert!(
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            "exhaustive opaque switch must define y (no W210); got {:?}",
+            a.result.diagnostics,
+        );
+
+        // A non-exhaustive switch (no `default`) leaves `y` only maybe-defined,
+        // so the read IS a read-before-set — W210 must still fire.
+        let mut b = Analyser::new();
+        b.emit_cfg_ssa_diagnostics(
+            "proc g {x} { switch -glob $x {a* {set y 1} b* {set y 2}}\n puts $y }",
+        );
+        assert!(
+            b.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            "non-exhaustive opaque switch leaves y maybe-undef (W210 expected); got {:?}",
+            b.result.diagnostics,
+        );
+    }
+
+    #[test]
     fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         // `lappend` / `append` auto-create their target, so a first use is
         // not a read-before-set (matches Python excluding RMW targets).
