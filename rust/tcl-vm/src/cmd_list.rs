@@ -3,11 +3,20 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
 
+use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
 use crate::command::resolve_index;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+
+/// Map a portable `tcl-cmd-core` result onto the VM's `Completion`.
+fn adapt(result: Result<Value, tcl_cmd_core::CmdError>) -> Completion<Value> {
+    match result {
+        Ok(v) => ok(v),
+        Err(e) => err(e.into_message()),
+    }
+}
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("list", cmd_list);
@@ -35,64 +44,29 @@ fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
-fn cmd_list(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    ok(Value::list(args.to_vec()))
+fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    ok(list_core::list(vm, args))
 }
 
-fn cmd_llength(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_llength(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => match as_list(l) {
-            Ok(items) => ok(Value::int(ilen(items.len()))),
-            Err(c) => c,
-        },
+        [l] => adapt(list_core::llength(vm, l)),
         _ => err("wrong # args: should be \"llength list\""),
     }
 }
 
-/// Resolve an index against `len`, returning `Some(i)` only when in range.
-fn in_range(spec: &str, len: usize) -> Option<usize> {
-    let idx = resolve_index(spec, len)?;
-    usize::try_from(idx).ok().filter(|&i| i < len)
-}
-
-fn cmd_lindex(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((list, idxs)) = args.split_first() else {
         return err("wrong # args: should be \"lindex list ?index ...?\"");
     };
-    let mut cur = list.clone();
-    for idx in idxs {
-        let items = match as_list(&cur) {
-            Ok(i) => i,
-            Err(c) => return c,
-        };
-        match in_range(&idx.to_str(), items.len()) {
-            Some(i) => cur = items[i].clone(),
-            None => return ok(Value::empty()),
-        }
-    }
-    ok(cur)
+    adapt(list_core::lindex(vm, list, idxs))
 }
 
-fn cmd_lrange(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [list, from, to] = args else {
         return err("wrong # args: should be \"lrange list first last\"");
     };
-    let items = match as_list(list) {
-        Ok(i) => i,
-        Err(c) => return c,
-    };
-    let len = items.len();
-    let lo = resolve_index(&from.to_str(), len).unwrap_or(0).max(0);
-    let hi = resolve_index(&to.to_str(), len).unwrap_or(0);
-    let lo = usize::try_from(lo).unwrap_or(0);
-    if hi < 0 || lo >= len {
-        return ok(Value::empty());
-    }
-    let hi = usize::try_from(hi).unwrap_or(0).min(len - 1);
-    if lo > hi {
-        return ok(Value::empty());
-    }
-    ok(Value::list(items[lo..=hi].to_vec()))
+    adapt(list_core::lrange(vm, list, from, to))
 }
 
 fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -154,34 +128,18 @@ fn cmd_lassign(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::list(rest))
 }
 
-fn cmd_lreverse(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
-        [l] => match as_list(l) {
-            Ok(items) => {
-                let mut v = (*items).clone();
-                v.reverse();
-                ok(Value::list(v))
-            }
-            Err(c) => c,
-        },
+        [l] => adapt(list_core::lreverse(vm, l)),
         _ => err("wrong # args: should be \"lreverse list\""),
     }
 }
 
-fn cmd_lrepeat(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((count, elems)) = args.split_first() else {
         return err("wrong # args: should be \"lrepeat count ?value ...?\"");
     };
-    let n = match count.as_int() {
-        Ok(n) if n >= 0 => usize::try_from(n).unwrap_or(0),
-        Ok(_) => return err("bad count \"lrepeat\": must be >= 0"),
-        Err(e) => return err(e.message),
-    };
-    let mut v = Vec::with_capacity(n.saturating_mul(elems.len()));
-    for _ in 0..n {
-        v.extend(elems.iter().cloned());
-    }
-    ok(Value::list(v))
+    adapt(list_core::lrepeat(vm, count, elems))
 }
 
 fn cmd_linsert(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -319,42 +277,22 @@ fn cmd_lsort(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::list(items))
 }
 
-fn cmd_concat(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let joined = args
-        .iter()
-        .map(|v| v.to_str().trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    ok(Value::string(joined))
+fn cmd_concat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    ok(list_core::concat(vm, args))
 }
 
-fn cmd_join(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (list, sep) = match args {
-        [l] => (l, " ".to_string()),
-        [l, s] => (l, s.to_str().to_string()),
-        _ => return err("wrong # args: should be \"join list ?joinString?\""),
-    };
-    let items = match as_list(list) {
-        Ok(i) => i,
-        Err(c) => return c,
-    };
-    let parts: Vec<String> = items.iter().map(|v| v.to_str().to_string()).collect();
-    ok(Value::string(parts.join(&sep)))
+fn cmd_join(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [l] => adapt(list_core::join(vm, l, None)),
+        [l, s] => adapt(list_core::join(vm, l, Some(s))),
+        _ => err("wrong # args: should be \"join list ?joinString?\""),
+    }
 }
 
-fn cmd_split(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (s, chars) = match args {
-        [s] => (s.to_str(), " \t\n".to_string()),
-        [s, c] => (s.to_str(), c.to_str().to_string()),
-        _ => return err("wrong # args: should be \"split string ?splitChars?\""),
-    };
-    let pieces: Vec<Value> = if chars.is_empty() {
-        // Split into individual characters.
-        s.chars().map(|c| Value::string(c.to_string())).collect()
-    } else {
-        let set: Vec<char> = chars.chars().collect();
-        s.split(|c| set.contains(&c)).map(Value::string).collect()
-    };
-    ok(Value::list(pieces))
+fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [s] => ok(list_core::split(vm, s, None)),
+        [s, c] => ok(list_core::split(vm, s, Some(c))),
+        _ => err("wrong # args: should be \"split string ?splitChars?\""),
+    }
 }

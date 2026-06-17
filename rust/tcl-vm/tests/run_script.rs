@@ -123,3 +123,29 @@ fn string_repeat_bad_count_errors() {
     assert!(!ok);
     assert_eq!(result, "expected integer but got \"x\"");
 }
+
+/// The `list`-family commands ported into the shared `tcl-cmd-core` (driven over
+/// the VM's `ValueOps` list operations) behave identically end-to-end.
+#[test]
+fn list_core_helpers() {
+    assert_eq!(run("puts [llength {a b c}]").2, "3\n");
+    assert_eq!(run("puts [lindex {a b c} 1]").2, "b\n");
+    assert_eq!(run("puts [lindex {a b c} end]").2, "c\n");
+    assert_eq!(run("puts [lindex {{a b} {c d}} 1 0]").2, "c\n");
+    assert_eq!(run("puts [lrange {a b c d} 1 2]").2, "b c\n");
+    assert_eq!(run("puts [lreverse {a b c}]").2, "c b a\n");
+    assert_eq!(run("puts [lrepeat 3 x]").2, "x x x\n");
+    assert_eq!(run("puts [concat a {b c} d]").2, "a b c d\n");
+    assert_eq!(run("puts [join {a b c} -]").2, "a-b-c\n");
+    assert_eq!(run("puts [llength [split a,b,c ,]]").2, "3\n");
+    assert_eq!(run("puts [list x {a b} y]").2, "x {a b} y\n");
+}
+
+/// A malformed list index errors faithfully (the shared core errors where the
+/// VM's old lenient path silently returned empty).
+#[test]
+fn lindex_bad_index_errors() {
+    let (ok, result, _out) = run("lindex {a b c} foo");
+    assert!(!ok);
+    assert!(result.contains("bad index"), "got: {result}");
+}

@@ -13,6 +13,7 @@
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
+use crate::index;
 
 /// `string length str` — the character count.
 pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
@@ -28,7 +29,7 @@ pub fn index<O: ValueOps>(
     idx: &O::Value,
 ) -> Result<O::Value, CmdError> {
     let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let i = parse_index(&ops.as_str(idx), chars.len())?;
+    let i = index::resolve(&ops.as_str(idx), chars.len())?;
     if i < 0 {
         return Ok(ops.empty());
     }
@@ -47,8 +48,8 @@ pub fn range<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let chars: Vec<char> = ops.as_str(s).chars().collect();
     let len = chars.len();
-    let lo = parse_index(&ops.as_str(first), len)?.max(0);
-    let hi = parse_index(&ops.as_str(last), len)?;
+    let lo = index::resolve(&ops.as_str(first), len)?.max(0);
+    let hi = index::resolve(&ops.as_str(last), len)?;
     let Ok(lo) = usize::try_from(lo) else {
         return Ok(ops.empty());
     };
@@ -142,52 +143,3 @@ pub fn dispatch<O: ValueOps>(
     dispatch_canon(ops, &sub, &args[1..])
 }
 
-/// Parse a Tcl string index (`Tcl_GetIntForIndex`): `integer`, `integer±integer`,
-/// `end`, or `end±integer`, resolved against `char_len` (so `end` is
-/// `char_len - 1`). The result may be out of range; callers clamp.
-fn parse_index(s: &str, char_len: usize) -> Result<i64, CmdError> {
-    let s = s.trim();
-    let len = i64::try_from(char_len).unwrap_or(i64::MAX);
-    if let Some(rest) = s.strip_prefix("end") {
-        if rest.is_empty() {
-            return Ok(len - 1);
-        }
-        if let Some(off) = parse_signed(rest) {
-            return Ok(len - 1 + off);
-        }
-        return Err(bad_index(s));
-    }
-    parse_arith(s).ok_or_else(|| bad_index(s))
-}
-
-/// Parse `±integer` (a leading sign is required).
-fn parse_signed(s: &str) -> Option<i64> {
-    if s.starts_with(['+', '-']) {
-        s.parse::<i64>().ok()
-    } else {
-        None
-    }
-}
-
-/// Parse `integer` or `integer±integer`.
-fn parse_arith(s: &str) -> Option<i64> {
-    if let Ok(n) = s.parse::<i64>() {
-        return Some(n);
-    }
-    // Split on the operator that is not the (optional) leading sign.
-    let bytes = s.as_bytes();
-    for i in 1..bytes.len() {
-        if bytes[i] == b'+' || bytes[i] == b'-' {
-            let a = s[..i].parse::<i64>().ok()?;
-            let b = s[i..].parse::<i64>().ok()?; // includes the sign
-            return Some(a + b);
-        }
-    }
-    None
-}
-
-fn bad_index(s: &str) -> CmdError {
-    CmdError::new(format!(
-        "bad index \"{s}\": must be integer?[+-]integer? or end?[+-]integer?"
-    ))
-}

@@ -6,9 +6,24 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::list as list_core;
+
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
+
+/// Map a portable `tcl-cmd-core` result onto the runtime's set-result/`Code` ABI.
+/// A fresh result object (rc 0) is retained by `set_result`; a borrowed element
+/// (e.g. `lindex`) is retained too, its parent list keeping its own ref.
+fn adapt(interp: &mut Interp, result: Result<*mut TclObj, tcl_cmd_core::CmdError>) -> Code {
+    match result {
+        Ok(v) => {
+            interp.set_result(v);
+            Code::Ok
+        }
+        Err(e) => interp.set_error(e.message().as_bytes()),
+    }
+}
 
 /// Register the list commands.
 pub fn install(interp: &mut Interp) {
@@ -107,11 +122,6 @@ pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     Some(base + offset)
 }
 
-#[inline]
-fn is_ws(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-}
-
 /// Whether an index spec is *encodable* the way `TclIndexEncode` requires for
 /// `lsearch`/`lsort -index`: `Some(true)` for a normal index (non-negative
 /// integer, or `end`/`end-N`), `Some(false)` for one that can never be in range
@@ -135,7 +145,8 @@ fn index_encodable(spec: &[u8]) -> Option<bool> {
 
 /// `list ?arg ...?` — a list of its arguments.
 fn list_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    set_list(interp, &argv[1..]);
+    let v = list_core::list(interp, &argv[1..]);
+    interp.set_result(v);
     Code::Ok
 }
 
@@ -144,13 +155,8 @@ fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
         return wrong_args(interp, b"llength list");
     }
-    match list::list_length(argv[1]) {
-        Ok(n) => {
-            set_int(interp, n as i64);
-            Code::Ok
-        }
-        Err(e) => bad_list(interp, e),
-    }
+    let r = list_core::llength(interp, &argv[1]);
+    adapt(interp, r)
 }
 
 /// `lindex list ?index ...?` — drill into a (nested) list. With no index the
@@ -162,48 +168,8 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"lindex list ?index ...?");
     }
-    let index_args = &argv[2..];
-    if index_args.is_empty() {
-        interp.set_result(argv[1]);
-        return Code::Ok;
-    }
-    // Build the index path: a lone argument is split into a list of indices;
-    // multiple arguments are each a single index.
-    let path: Vec<Vec<u8>> = if index_args.len() == 1 {
-        match crate::parse::split_list(&obj_bytes(index_args[0])) {
-            Ok(p) => p,
-            Err(e) => return interp.set_error(e.message()),
-        }
-    } else {
-        index_args.iter().map(|&a| obj_bytes(a)).collect()
-    };
-
-    let mut cur = argv[1];
-    for spec in &path {
-        let n = match list::list_length(cur) {
-            Ok(n) => n,
-            Err(e) => return bad_list(interp, e),
-        };
-        let idx = match index_spec(spec, n) {
-            Some(i) => i,
-            None => return bad_index(interp, spec),
-        };
-        if idx < 0 || idx as usize >= n {
-            interp.set_result_bytes(b""); // out of range → empty (Tcl)
-            return Code::Ok;
-        }
-        match list::list_index(cur, idx as usize) {
-            // Each element is owned by its parent list (alive up the chain to
-            // `argv[1]`), so borrowing it for the next step is safe.
-            Ok(Some(e)) => cur = e,
-            _ => {
-                interp.set_result_bytes(b"");
-                return Code::Ok;
-            }
-        }
-    }
-    interp.set_result(cur);
-    Code::Ok
+    let r = list_core::lindex(interp, &argv[1], &argv[2..]);
+    adapt(interp, r)
 }
 
 /// `lappend varName ?value ...?` — append to the list in `varName` (creating it
@@ -273,28 +239,8 @@ fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return wrong_args(interp, b"lrange list first last");
     }
-    let elems = match list::list_elements(argv[1]) {
-        Ok(e) => e,
-        Err(e) => return bad_list(interp, e),
-    };
-    let n = elems.len();
-    let first_b = obj_bytes(argv[2]);
-    let last_b = obj_bytes(argv[3]);
-    let first = match index_spec(&first_b, n) {
-        Some(i) => i.max(0) as usize,
-        None => return bad_index(interp, &first_b),
-    };
-    let last = match index_spec(&last_b, n) {
-        Some(i) => i,
-        None => return bad_index(interp, &last_b),
-    };
-    if last < 0 || first >= n || (last as usize) < first {
-        interp.set_result_bytes(b"");
-        return Code::Ok;
-    }
-    let last = (last as usize).min(n - 1);
-    set_list(interp, &elems[first..=last]);
-    Code::Ok
+    let r = list_core::lrange(interp, &argv[1], &argv[2], &argv[3]);
+    adapt(interp, r)
 }
 
 /// `lreverse list`.
@@ -302,31 +248,15 @@ fn lreverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
         return wrong_args(interp, b"lreverse list");
     }
-    match list::list_elements(argv[1]) {
-        Ok(mut e) => {
-            e.reverse();
-            set_list(interp, &e);
-            Code::Ok
-        }
-        Err(e) => bad_list(interp, e),
-    }
+    let r = list_core::lreverse(interp, &argv[1]);
+    adapt(interp, r)
 }
 
 /// `concat ?arg ...?` — trim each arg of surrounding whitespace, drop empties,
 /// join with single spaces (Tcl's string-level concat).
 fn concat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut out: Vec<u8> = Vec::new();
-    for &a in &argv[1..] {
-        let b = obj_bytes(a);
-        let start = b.iter().position(|&c| !is_ws(c));
-        let Some(start) = start else { continue }; // all-whitespace → skip
-        let end = b.iter().rposition(|&c| !is_ws(c)).unwrap() + 1;
-        if !out.is_empty() {
-            out.push(b' ');
-        }
-        out.extend_from_slice(&b[start..end]);
-    }
-    interp.set_result_bytes(&out);
+    let v = list_core::concat(interp, &argv[1..]);
+    interp.set_result(v);
     Code::Ok
 }
 
@@ -336,24 +266,9 @@ fn join(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return wrong_args(interp, b"join list ?joinString?");
     }
-    let sep = if argv.len() == 3 {
-        obj_bytes(argv[2])
-    } else {
-        b" ".to_vec()
-    };
-    let elems = match list::list_elements(argv[1]) {
-        Ok(e) => e,
-        Err(e) => return bad_list(interp, e),
-    };
-    let mut out = Vec::new();
-    for (i, &e) in elems.iter().enumerate() {
-        if i > 0 {
-            out.extend_from_slice(&sep);
-        }
-        out.extend_from_slice(&obj_bytes(e));
-    }
-    interp.set_result_bytes(&out);
-    Code::Ok
+    let sep = if argv.len() == 3 { Some(&argv[2]) } else { None };
+    let r = list_core::join(interp, &argv[1], sep);
+    adapt(interp, r)
 }
 
 /// `split string ?splitChars?` — split into a list on any byte of `splitChars`
@@ -362,58 +277,9 @@ fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return wrong_args(interp, b"split string ?splitChars?");
     }
-    let s = obj_bytes(argv[1]);
-    let chars = if argv.len() == 3 {
-        Some(obj_bytes(argv[2]))
-    } else {
-        None
-    };
-    let mut elems: Vec<*mut TclObj> = Vec::new();
-
-    // `split` works on characters (code points), not bytes — a multi-byte
-    // separator or an empty split string must respect UTF-8 boundaries.
-    let s_chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
-    let push_str = |elems: &mut Vec<*mut TclObj>, cur: &str| {
-        elems.push(obj::new_string_bytes(cur.as_bytes()));
-    };
-
-    match chars {
-        Some(ref c) if c.is_empty() => {
-            // Each character becomes its own element.
-            let mut b = [0u8; 4];
-            for &ch in &s_chars {
-                elems.push(obj::new_string_bytes(ch.encode_utf8(&mut b).as_bytes()));
-            }
-        }
-        _ => {
-            let sep: Vec<char> = chars
-                .as_ref()
-                .map(|c| String::from_utf8_lossy(c).chars().collect())
-                .unwrap_or_default();
-            let is_sep = |ch: char| match &chars {
-                Some(_) => sep.contains(&ch),
-                None => matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}'),
-            };
-            let mut cur = String::new();
-            for &ch in &s_chars {
-                if is_sep(ch) {
-                    push_str(&mut elems, &cur);
-                    cur.clear();
-                } else {
-                    cur.push(ch);
-                }
-            }
-            // Trailing element (Tcl: split "" → empty list, no trailing "").
-            if !s_chars.is_empty() {
-                push_str(&mut elems, &cur);
-            }
-        }
-    }
-    // new_list_obj retains each element; release our construction refs.
-    set_list(interp, &elems);
-    for e in elems {
-        drop_fresh(e);
-    }
+    let chars = if argv.len() == 3 { Some(&argv[2]) } else { None };
+    let v = list_core::split(interp, &argv[1], chars);
+    interp.set_result(v);
     Code::Ok
 }
 

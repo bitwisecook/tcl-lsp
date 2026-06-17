@@ -18,6 +18,8 @@
 //! ([`string`], [`path`], …), platform-backed families under [`platform`].
 
 pub mod error;
+pub mod index;
+pub mod list;
 pub mod path;
 pub mod platform;
 pub mod string;
