@@ -170,8 +170,13 @@ fn string_range(rest: &[Value]) -> Completion<Value> {
     };
     let chars: Vec<char> = s.to_str().chars().collect();
     let len = chars.len();
-    let lo = resolve_index(&first.to_str(), len).unwrap_or(0).max(0);
-    let hi = resolve_index(&last.to_str(), len).unwrap_or(-1);
+    let Some(lo) = resolve_index(&first.to_str(), len) else {
+        return bad_index(&first.to_str());
+    };
+    let Some(hi) = resolve_index(&last.to_str(), len) else {
+        return bad_index(&last.to_str());
+    };
+    let lo = lo.max(0);
     let lo = usize::try_from(lo).unwrap_or(0);
     if hi < 0 || lo >= len {
         return ok(Value::empty());
@@ -361,19 +366,24 @@ fn string_last(rest: &[Value]) -> Completion<Value> {
     };
     let hay: Vec<char> = hay.to_str().chars().collect();
     let needle: Vec<char> = needle.to_str().chars().collect();
-    let last = match last_spec {
-        None => hay.len(),
+    // `lastIndex` is the index of the last character considered; the match must
+    // end at or before it.
+    let last: isize = match last_spec {
+        None => isize::try_from(hay.len()).unwrap_or(isize::MAX) - 1,
         Some(s) => match resolve_index(&s.to_str(), hay.len()) {
-            Some(i) => usize::try_from(i).unwrap_or(0).min(hay.len()),
+            Some(i) => i,
             None => return bad_index(&s.to_str()),
         },
     };
-    if needle.is_empty() {
+    if needle.is_empty() || last < 0 {
         return ok(Value::int(-1));
     }
+    let last = usize::try_from(last)
+        .unwrap_or(0)
+        .min(hay.len().saturating_sub(1));
     let mut idx = -1;
-    if needle.len() <= hay.len() {
-        let hi = last.min(hay.len() - needle.len());
+    if !needle.is_empty() && last + 1 >= needle.len() {
+        let hi = last + 1 - needle.len();
         for i in (0..=hi).rev() {
             if hay[i..i + needle.len()] == needle[..] {
                 idx = ilen(i);
@@ -391,36 +401,35 @@ fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
             "wrong # args: should be \"string {name} ?-nocase? ?-length int? string1 string2\""
         ))
     };
-    // Options are only parsed while more than the two operands remain (so e.g.
-    // `string compare -nocase a` compares the literal strings).
+    // Mirror StringCmpOpts (tclCmdMZ.c): 2..=5 args, options (abbreviatable)
+    // occupy everything but the final two operands.
+    if rest.len() < 2 || rest.len() > 5 {
+        return wrong();
+    }
     let mut nocase = false;
     let mut length: Option<i64> = None;
+    let opt_end = rest.len() - 2;
     let mut i = 0;
-    while rest.len() - i > 2 {
-        match &*rest[i].to_str() {
-            "-nocase" => {
-                nocase = true;
-                i += 1;
+    while i < opt_end {
+        let opt = rest[i].to_str();
+        if opt.len() > 1 && "-nocase".starts_with(&*opt) {
+            nocase = true;
+            i += 1;
+        } else if opt.len() > 1 && "-length".starts_with(&*opt) {
+            if i + 1 >= opt_end {
+                return wrong();
             }
-            "-length" => {
-                let Some(v) = rest.get(i + 1) else {
-                    return wrong();
-                };
-                match v.as_int() {
-                    Ok(n) => length = Some(n),
-                    Err(_) => {
-                        return err(format!("expected integer but got \"{}\"", v.to_str()));
-                    }
+            i += 1;
+            match rest[i].as_int() {
+                Ok(n) => length = Some(n),
+                Err(_) => {
+                    return err(format!("expected integer but got \"{}\"", rest[i].to_str()));
                 }
-                i += 2;
             }
-            other => {
-                return err(format!("bad option \"{other}\": must be -nocase or -length"));
-            }
+            i += 1;
+        } else {
+            return err(format!("bad option \"{opt}\": must be -nocase or -length"));
         }
-    }
-    if rest.len() - i != 2 {
-        return wrong();
     }
     let key = |v: &Value| -> String {
         let mut chars: Vec<char> = v.to_str().chars().collect();
