@@ -104,8 +104,321 @@ pub fn optimise_unit(
             ))
     });
     let mut selected = select_non_overlapping(&ctx.optimisations);
+    // Couple constant propagation with dead-store removal: a `set x <const>`
+    // whose every use was propagated away by a *surviving* O100/O101/O102/O103
+    // rewrite is now dead and can be removed. Done after overlap selection so
+    // the removal is emitted only when the propagations actually survived —
+    // Rust's group mechanism is not application-gating, so a survival check is
+    // the safe coupling primitive. Mirrors Python's
+    // `_eliminate_propagated_constants`.
+    couple_propagated_const_dead_stores(cu, registry, dialect, &mut selected);
     renumber_groups(&mut selected);
     selected
+}
+
+/// Whether `code` is a constant-propagation / fold rewrite that can consume a
+/// `$var` reference (so removing the now-unread `set` is safe).
+fn is_propagation_code(code: &str) -> bool {
+    matches!(code, "O100" | "O101" | "O102" | "O103")
+}
+
+/// How many `$var` / `${var}` references `opt` consumed — present in its
+/// original source span but gone from its replacement. Mirrors the
+/// "`ref in orig_span and ref not in opt.replacement`" idea in Python's
+/// `_CompilerOptimiser`, generalised to a count so one string rewrite that
+/// folds several `$var` occurrences is tallied correctly.
+fn consumed_var_count(opt: &Optimisation, source: &str, var: &str) -> usize {
+    let (s, e) = (opt.span.start() as usize, opt.span.end() as usize);
+    if s >= e || e > source.len() {
+        return 0;
+    }
+    let before = count_var_refs(&source[s..e], var);
+    let after = count_var_refs(&opt.replacement, var);
+    before.saturating_sub(after)
+}
+
+/// Number of `$var` / `${var}` references in `text` (word-bounded).
+fn count_var_refs(text: &str, var: &str) -> usize {
+    let bytes = text.as_bytes();
+    let dollar = format!("${var}");
+    let mut n = 0;
+    let mut from = 0;
+    while let Some(rel) = text[from..].find(&dollar) {
+        let pos = from + rel;
+        let after = pos + dollar.len();
+        // `${var}` form: a `{` immediately after `$`, matched separately below.
+        let boundary = bytes
+            .get(after)
+            .is_none_or(|b| !(b.is_ascii_alphanumeric() || *b == b'_'));
+        if boundary {
+            n += 1;
+        }
+        from = pos + 1;
+    }
+    let braced = format!("${{{var}}}");
+    n += text.matches(&braced).count();
+    n
+}
+
+/// Count occurrences of `var` as a standalone bareword in `text` — word
+/// boundaries on both sides, and **not** the `$var` / `${var}` substitution
+/// forms (those are counted by [`count_var_refs`]). Used to detect by-name
+/// reads (`[set x]`, `info exists x`, …) the `$var` scan misses.
+fn bareword_occurrences(text: &str, var: &str) -> usize {
+    let bytes = text.as_bytes();
+    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut n = 0;
+    let mut from = 0;
+    while let Some(rel) = text[from..].find(var) {
+        let pos = from + rel;
+        from = pos + 1;
+        // Word boundary after.
+        let after = pos + var.len();
+        if bytes.get(after).is_some_and(|b| is_word(*b)) {
+            continue;
+        }
+        // Word boundary before, and not a `$`-substitution form.
+        match pos.checked_sub(1).and_then(|i| bytes.get(i)).copied() {
+            Some(b'$') => continue,                                       // `$var`
+            Some(b'{') if pos >= 2 && bytes[pos - 2] == b'$' => continue, // `${var`
+            Some(b) if is_word(b) => continue,                            // part of a longer word
+            _ => n += 1,
+        }
+    }
+    n
+}
+
+/// Couple constant propagation with dead-store removal — see the call site in
+/// [`optimise_unit`]. For each single-def constant scalar variable whose every
+/// use was propagated by a surviving rewrite, append an `O109` removal of the
+/// defining `set`. Conservative on every axis: a single safe-to-delete
+/// constant def, all uses simple `Operand` reads each covered by a surviving
+/// propagation that consumed the `$var`, no aliasing / RMW-hidden / global /
+/// array involvement, the textual `$var` count equal to the use count (no
+/// untracked reference), and the removal span free of overlap with any selected
+/// rewrite. iRules dialects are skipped (cross-event variable lifetimes need
+/// the connection-scope model, out of scope here).
+fn couple_propagated_const_dead_stores(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    selected: &mut Vec<Optimisation>,
+) {
+    if crate::taint::is_irules_dialect(dialect) {
+        return;
+    }
+    let source = &cu.source;
+    let mut functions: Vec<&crate::compilation_unit::FunctionUnit> = vec![&cu.top_level];
+    functions.extend(cu.procedures.values());
+    functions.extend(cu.methods.values());
+
+    let mut removals: Vec<Optimisation> = Vec::new();
+    for fu in functions {
+        couple_const_dead_stores_in_function(fu, registry, source, selected, &mut removals);
+    }
+
+    // Append a removal only when its span is free of any selected rewrite —
+    // the def line is disjoint from the use propagations, but a structural
+    // rewrite (O112) could already cover it.
+    for rem in removals {
+        let overlaps = selected.iter().any(|o| {
+            !o.hint_only && rem.span.start() < o.span.end() && o.span.start() < rem.span.end()
+        });
+        if !overlaps {
+            selected.push(rem);
+        }
+    }
+}
+
+fn couple_const_dead_stores_in_function(
+    fu: &crate::compilation_unit::FunctionUnit,
+    registry: &CommandRegistry,
+    source: &str,
+    selected: &[Optimisation],
+    removals: &mut Vec<Optimisation>,
+) {
+    use crate::analyses::LatticeValue;
+    use crate::def_use::{DefKind, UseKind};
+    use std::collections::HashSet;
+
+    let scope_aliases = super::elimination::scan_scope_aliases(&fu.cfg);
+    let rmw_hidden = super::elimination::collect_rmw_hidden_reads(fu, registry);
+    let empty: HashSet<String> = HashSet::new();
+
+    // Per-variable def count — only single-def scalars qualify.
+    let mut def_count: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for chain in fu.def_use.chains.values() {
+        if chain.definition.kind == DefKind::Statement {
+            *def_count.entry(chain.key.0.as_str()).or_insert(0) += 1;
+        }
+    }
+
+    for chain in fu.def_use.chains.values() {
+        if chain.definition.kind != DefKind::Statement {
+            continue;
+        }
+        let (var, _ver) = &chain.key;
+        // Single constant scalar def, never aliased / global / RMW-hidden.
+        if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
+            continue;
+        }
+        if var.starts_with("::") || scope_aliases.contains(var) || rmw_hidden.contains(var) {
+            continue;
+        }
+        if !matches!(fu.sccp.values.get(&chain.key), Some(LatticeValue::Const(_))) {
+            continue;
+        }
+        // Any def-tracked use must be a simple operand read — a phi/terminator
+        // use means the value flows somewhere a textual `$var` scan can't see,
+        // so bail conservatively.
+        if chain
+            .uses
+            .iter()
+            .any(|u| !matches!(u.kind, UseKind::Operand))
+        {
+            continue;
+        }
+        let Some(def_block) = fu.cfg.blocks.get(&chain.definition.block) else {
+            continue;
+        };
+        let Ok(def_idx) = usize::try_from(chain.definition.statement_index) else {
+            continue;
+        };
+        let Some(def_stmt) = def_block.statements.get(def_idx) else {
+            continue;
+        };
+        // The def must be a plain `set x <literal>` whose value carries no
+        // substitution metacharacters. Inlining such a value at the use sites
+        // can never change substitution/command semantics — whereas a value
+        // like `{$name [cmd]}` or a computed `[expr …]` could behave
+        // differently once inlined, so those are left to the conservative
+        // path (and to Python, which preserves them). This also keeps the
+        // removal aligned with what the propagation actually substituted.
+        let crate::ir::Statement::AssignConst { value, .. } = def_stmt else {
+            continue;
+        };
+        if value.contains(['$', '[', ']', '\\']) {
+            continue;
+        }
+        // Pure constant assignment — removing it loses no observable effect.
+        if !super::elimination::assignment_safe_to_delete(
+            def_stmt,
+            Some(registry),
+            &empty,
+            &empty,
+            None,
+        ) {
+            continue;
+        }
+
+        // Textual coupling check (robust to def-use gaps such as
+        // string-interpolation reads): count `$var` references across the
+        // function, then count how many a *surviving* propagation actually
+        // consumed. The def is removable only when at least one reference
+        // existed and **every** reference was propagated away. A braced
+        // literal `{$var}` (no substitution) or an array `$var(i)` read is
+        // counted but never consumed, so the counts diverge and we keep the
+        // def — conservative and safe.
+        let (fs, fe) = function_source_span(fu);
+        if fs >= fe || fe > source.len() {
+            continue;
+        }
+        let func_src = &source[fs..fe];
+        let total_refs = count_var_refs(func_src, var);
+        if total_refs == 0 {
+            // Never read (or read only in a non-substituting form) — the
+            // existing unused-variable pass owns this; not a propagation
+            // coupling.
+            continue;
+        }
+        // Miscompilation guard: the variable name must appear as a *bareword*
+        // exactly once — the def target. Any other bareword occurrence is a
+        // by-name read the `$var` scan can't see (`[set x]`, `info exists x`,
+        // `upvar … x`, a `"…x…"` literal, …); removing the def would then drop a
+        // value still consumed. Conservative: a stray textual `x` keeps the def.
+        if bareword_occurrences(func_src, var) != 1 {
+            continue;
+        }
+        // Attribute a propagation to this function by its *start* offset —
+        // a rewrite never spans two functions, and a word-token's span may
+        // run one past `fe` (the inner-end convention leaves the closing
+        // delimiter outside the statement span).
+        let consumed: usize = selected
+            .iter()
+            .filter(|o| {
+                !o.hint_only
+                    && is_propagation_code(&o.code)
+                    && o.span.start() >= fs as u32
+                    && o.span.start() <= fe as u32
+            })
+            .map(|o| consumed_var_count(o, source, var))
+            .sum();
+        if consumed != total_refs {
+            continue;
+        }
+
+        let del_span = line_delete_span(source, def_stmt.span());
+        removals.push(Optimisation::new(
+            "O109",
+            "Eliminate dead store",
+            del_span,
+            "",
+        ));
+    }
+}
+
+/// Source byte range spanning every statement of `fu` (for textual reference
+/// counting). Falls back to an empty range when the function has no spans.
+fn function_source_span(fu: &crate::compilation_unit::FunctionUnit) -> (usize, usize) {
+    let mut lo = u32::MAX;
+    let mut hi = 0u32;
+    for block in fu.cfg.blocks.values() {
+        for stmt in &block.statements {
+            let sp = stmt.span();
+            if sp.start() < lo {
+                lo = sp.start();
+            }
+            if sp.end() > hi {
+                hi = sp.end();
+            }
+        }
+        if let Some(t) = block
+            .terminator
+            .as_ref()
+            .and_then(crate::cfg::Terminator::span)
+        {
+            if t.start() < lo {
+                lo = t.start();
+            }
+            if t.end() > hi {
+                hi = t.end();
+            }
+        }
+    }
+    if lo == u32::MAX {
+        (0, 0)
+    } else {
+        (lo as usize, hi as usize)
+    }
+}
+
+/// Extend a statement's span to swallow its trailing newline (and leading
+/// indentation) so the whole `set` line is removed cleanly.
+fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
+    let bytes = source.as_bytes();
+    let mut start = span.start() as usize;
+    let mut end = span.end() as usize;
+    // Back up over leading spaces/tabs on the line.
+    while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
+        start -= 1;
+    }
+    // Swallow a single trailing newline (and a preceding CR).
+    if end < bytes.len() && bytes[end] == b'\n' {
+        end += 1;
+    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
+        end += 2;
+    }
+    tcl_lexer::Span::new(start as u32, end as u32)
 }
 
 /// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.
@@ -295,6 +608,45 @@ mod tests {
     fn empty_source_yields_empty_result() {
         let opts = optimise("", &registry());
         assert!(opts.is_empty());
+    }
+
+    fn optimised(src: &str) -> String {
+        let opts = optimise(src, &registry());
+        apply_optimisations(src, &opts)
+    }
+
+    #[test]
+    fn couples_constant_propagation_with_dead_store_removal() {
+        // The propagated constant leaves `set x 42` dead — it is removed.
+        assert_eq!(optimised("set x 42\nputs $x\n"), "puts 42\n");
+        // String-interpolation reads are covered too (the textual scan does
+        // not rely on def-use tracking the in-string `$x`).
+        assert_eq!(
+            optimised("proc f {} {\n  set x 42\n  puts \"v $x\"\n}\n"),
+            "proc f {} {\n  puts \"v 42\"\n}\n",
+        );
+    }
+
+    #[test]
+    fn coupling_keeps_defs_it_cannot_prove_dead() {
+        // Never read at top level → kept (the unused-variable pass owns the
+        // proc case; a top-level const may be an externally-consumed global).
+        assert_eq!(
+            optimised("set x 42\nputs hello\n"),
+            "set x 42\nputs hello\n"
+        );
+        // Read by name, not via `$x` — `[set x]` still needs the value.
+        let by_name = optimised("proc f {} {\n  set x 42\n  puts [set x]\n}\n");
+        assert!(
+            by_name.contains("set x 42"),
+            "by-name read must keep the def; got {by_name:?}",
+        );
+        // A value carrying substitution metacharacters is never coupled.
+        let meta = optimised("set e {$y [k]}\ncatch {subst $e}\n");
+        assert!(
+            meta.contains("set e "),
+            "metacharacter-bearing const must keep its def; got {meta:?}",
+        );
     }
 
     #[test]

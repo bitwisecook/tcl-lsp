@@ -156,12 +156,41 @@ fix therefore requires:
 4. Re-running the optimiser corpus differential, the full Rust suite, the
    Python `test_optimiser*` equivalents, and the bytecode-compare gate.
 
-## Status
+## Status — coupling landed (post-selection survival check)
 
-This is a self-contained but **correctness-critical** strip: a missed
-group id silently miscompiles. It needs the grouping machinery in (1)–(2)
-plus the full validation in (4) — not a drive-by edit. The diagnostic-side
-dead-store/unused parity (W210 / W211 / W220) is already closed.
+The dead-store coupling is implemented in
+`optimiser::manager::couple_propagated_const_dead_stores`, using a design
+that sidesteps the grouping problem entirely. Rust's group mechanism turned
+out **not** to be application-gating (a dropped group member only clears the
+survivors' group id; they still apply — see `helpers/select.rs`), so
+grouping the removal with the propagations would not have prevented the
+miscompile. Instead the removal is decided **after** `select_non_overlapping`,
+conditional on the propagations having actually *survived*:
+
+- a single `AssignConst` whose literal value has no substitution
+  metacharacters (`$` `[` `]` `\`), SCCP-`Const`, scalar, not
+  aliased/global/cross-event/RMW-hidden;
+- every textual `$var` reference across the function consumed by a
+  *surviving* propagation rewrite (`count_var_refs` == consumed count);
+- the variable name appears as a bareword exactly once (the def target) —
+  guards against by-name reads (`[set x]`, `info exists x`) the `$var` scan
+  can't see;
+- the removal span free of overlap with any selected rewrite.
+
+Verified: `set x 42; puts $x` → `puts 42`; string-interpolation reads
+removed; never-used / by-name-read / metacharacter-bearing defs kept;
+**zero** new over-removals across the sample corpus (the 14 pre-existing
+over-removals — e.g. `lset` not modelled as read-modify-write — are
+untouched); behaviourally equivalent under `tclsh`.
+
+Reach is currently modest (the conservative `AssignConst`-only guard
+excludes `AssignExpr`-fold constants like `set x [expr {1+1}]`, and many
+corpus files diverge on other axes too). **Follow-ups:** broaden to
+`AssignExpr`/`AssignValue` SCCP-constants whose *folded* value is a simple
+literal (distinguishing the clean `[expr {…}]` fold from the quoted-expr
+`[expr "…"]` smell Python preserves), then O110 reassociation and O127
+forwarding. The diagnostic-side dead-store/unused parity (W210 / W211 /
+W220) is already closed.
 
 Diagnostic-side dead-store/unused parity (W210 / W211 / W220) is now
 closed — see the analyser changes landed alongside this note.
