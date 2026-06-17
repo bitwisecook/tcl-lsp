@@ -152,7 +152,8 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "tclversion" => ok(Value::string("9.0")),
         "patchlevel" => ok(Value::string("9.0.0")),
-        "nameofexecutable" | "script" => ok(Value::empty()),
+        "script" => ok(Value::string(vm.current_script())),
+        "nameofexecutable" => ok(Value::empty()),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }

@@ -10,6 +10,7 @@ use crate::value::Value;
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("tcl::mathfunc::abs", m_abs);
     vm.register("tcl::mathfunc::int", m_int);
+    vm.register("tcl::mathfunc::wide", m_wide);
     vm.register("tcl::mathfunc::double", m_double);
     vm.register("tcl::mathfunc::round", m_round);
     vm.register("tcl::mathfunc::sqrt", m_sqrt);
@@ -49,6 +50,21 @@ fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
+    match x.as_double() {
+        Ok(f) => ok(Value::int(f.trunc() as i64)),
+        Err(e) => err(e.message),
+    }
+}
+
+fn m_wide(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // `wide()` truncates to a 64-bit integer — the same width as our `int`.
+    let x = match one(args, "wide") {
+        Ok(v) => v,
+        Err(c) => return c,
+    };
+    if let Ok(n) = x.as_int() {
+        return ok(Value::int(n));
+    }
     match x.as_double() {
         Ok(f) => ok(Value::int(f.trunc() as i64)),
         Err(e) => err(e.message),

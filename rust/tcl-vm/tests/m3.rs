@@ -670,3 +670,137 @@ fn string_is_classes() {
     out_eq("puts [string is wordchar foo_1]\n", "1\n");
     out_eq("puts [string is wordchar foo-1]\n", "0\n");
 }
+
+#[test]
+fn backslash_substituted_command_arguments() {
+    // A non-braced literal command argument with backslash escapes must be
+    // backslash-substituted at call time, like real Tcl. Previously the raw
+    // escapes reached the VM unchanged (e.g. `\{` arrived as the two chars
+    // `\{`). Covers pure escapes and an *escaped* `$`/`[` (no real subst).
+    out_eq(
+        "proc p {a} { puts [string length $a]:$a }\n\
+         p \\{\n\
+         p a\\{b\n\
+         p x\\$y\n\
+         p f\\[g\n",
+        "1:{\n3:a{b\n3:x$y\n3:f[g\n",
+    );
+    // A real `$var` substitution still resolves (escaped markers don't disable
+    // interpolation of the rest of the word).
+    out_eq(
+        "set y hi\nproc p {a} { puts $a }\np \\$=$y\n",
+        "$=hi\n",
+    );
+}
+
+#[test]
+fn lappend_no_values_preserves_string_rep() {
+    // `lappend var` with no values returns the variable unchanged — it does NOT
+    // re-render the list, so a leading `#` element keeps its bare form instead
+    // of being requoted to `{#}` (Tcl shimmer-validates but never reformats).
+    out_eq("set lst \"# 1 2 3\"\nputs [lappend lst]\n", "# 1 2 3\n");
+    out_eq("set z \"  spaced   out  \"\nputs <[lappend z]>\n", "<  spaced   out  >\n");
+    // Appending values DOES canonicalise as usual.
+    out_eq("set x {1 2 3}\nputs [lappend x 4]\n", "1 2 3 4\n");
+    // An unset variable is created as the empty string.
+    out_eq("puts <[lappend brandnew]>\nputs [info exists brandnew]\n", "<>\n1\n");
+}
+
+#[test]
+fn list_element_quoting_balanced_braces() {
+    // Balanced braces inside an element stay bare; `]`/`"` escape; `[`/`$` brace.
+    out_eq("puts [list a{b}c b{} d]\n", "a{b}c b{} d\n");
+    out_eq("set e {a]b}\nputs [list $e]\n", "a\\]b\n");
+    out_eq("set f {a[b}\nputs [list $f]\n", "{a[b}\n");
+}
+
+#[test]
+fn escaped_brackets_not_double_substituted() {
+    // A word carrying an escaped bracket (`\[` / `\]`) must be backslash-decoded
+    // exactly once. Pre-decoding `\[` to a bare `[` made the runtime word-subst
+    // re-read it as a command substitution and drop the backslash before the
+    // matching `]` (`"x\[y z\\]"` → `x[y z]` instead of `x[y z\]`).
+    out_eq("set a \"x\\[y z\\\\]\"\nputs $a\n", "x[y z\\]\n");
+    out_eq("set b \"{a\\[} b\\\\]\"\nputs $b\n", "{a[} b\\]\n");
+    // An escaped `\${…}` is the literal `${…}`, not a variable substitution.
+    out_eq("set x 9\nputs \"\\${x}\"\n", "${x}\n");
+    // Same word as a (non-braced) proc argument.
+    out_eq(
+        "proc plen {s} { return [string length $s]:$s }\nputs [plen a\\[b\\]c]\n",
+        "5:a[b]c\n",
+    );
+    // And surviving a `[list …]` → `uplevel` round-trip: the escaped brackets
+    // and trailing braces must reach the evaluated `list` intact (the list.test
+    // `invalid command name "}"` abort).
+    out_eq(
+        "proc run {s} { return [uplevel 1 $s] }\nputs [run {list a\\[ b\\]}]\n",
+        "{a[} b\\]\n",
+    );
+}
+
+#[test]
+fn list_constant_fold_decodes_and_quotes() {
+    // Constant-folding `[list …]` must decode quoted/bare argument values
+    // (`\x00` → NUL, `\t` → tab) and treat braced ones verbatim, then requote.
+    out_eq(
+        "puts [string equal [list \"\" \"\\x00\" \"\\x00\\x00\"] \"{} \\x00 \\x00\\x00\"]\n",
+        "1\n",
+    );
+    out_eq("puts [string equal [list \"\\x00abc\" xyz] \"\\x00abc xyz\"]\n", "1\n");
+    // A single-element fold whose result is brace-quoted must not be mistaken
+    // for a braced literal and stripped at runtime.
+    out_eq("puts [string length [list \"a b\"]]\n", "5\n");
+    out_eq("puts [string length [list \"a\\tb\"]]\n", "5\n");
+}
+
+#[test]
+fn bare_dollar_literal_decodes() {
+    // A deferred literal carrying a *bare* `$` (`f\$}` — `$}` is not a variable)
+    // must still have its backslash escapes decoded once, not left raw.
+    out_eq("set body \"list e\\\\n} f\\\\$} \"\nputs [string length $body]\n", "15\n");
+    out_eq("set x \"a\\\\nq$\"\nputs $x\n", "a\\nq$\n");
+    // Real variables still interpolate.
+    out_eq("set z hi\nputs \"a $z b\"\n", "a hi b\n");
+}
+
+#[test]
+fn brace_wrapped_command_substitution_runs() {
+    // A quoted `{…}`-wrapped value with a command substitution runs the command
+    // and keeps the literal braces (rather than being stripped as a braced
+    // literal). `string is list` / `string is dict` validate list-ness.
+    out_eq("set s \"{[list a b]}\"\nputs $s\n", "{a b}\n");
+    out_eq("puts [string is list {a b c}]\n", "1\n");
+    out_eq("puts [string is list \"a \\{b\"]\n", "0\n");
+    out_eq("puts [string is dict {a 1 b 2}]\n", "1\n");
+    out_eq("puts [string is dict {a 1 b}]\n", "0\n");
+}
+
+#[test]
+fn rename_rejects_existing_destination() {
+    // Renaming onto an existing command errors (both commands stay intact),
+    // matching Tcl; a fresh destination renames normally.
+    let (ok, _result, _out) = run("rename set puts\n");
+    assert!(!ok, "rename onto an existing command should error");
+    out_eq(
+        "proc foo {} { return 1 }\nrename foo bar\nputs [bar]\n",
+        "1\n",
+    );
+    out_eq(
+        "proc demo {} {}\nrename demo {}\nputs [llength [info commands demo]]\n",
+        "0\n",
+    );
+}
+
+#[test]
+fn binary_format_rejects_invalid_integer() {
+    // A malformed integer is an error, not a silent zero byte.
+    let (ok1, _r1, _o1) = run("binary format c bad\n");
+    assert!(!ok1, "binary format c bad should error");
+    let (ok2, _r2, _o2) = run("binary format c* {1 bad 3}\n");
+    assert!(!ok2, "binary format c* with a bad element should error");
+    // Valid radix lists still work.
+    out_eq(
+        "puts [string length [binary format I* {0x50515253 0x52}]]\n",
+        "8\n",
+    );
+}
