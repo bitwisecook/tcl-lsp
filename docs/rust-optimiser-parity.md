@@ -19,9 +19,18 @@ configure_signatures()
 from compiler.optimiser import optimise_source_multipass
 for f in sorted(glob.glob("samples/**/*.tcl", recursive=True)):
     py, _, _ = optimise_source_multipass(Path(f).read_text())
-    out = subprocess.run(["target/debug/tcl", "opt", f],
+    # IMPORTANT: compare against `--profile aggressive` — that is the only
+    # multipass-to-fixpoint Rust profile, matching Python's
+    # `optimise_source_multipass`. The default `full` profile is SINGLE-PASS
+    # (see `tcl-cli::run_opt`), so comparing it against the multipass Python
+    # library understates parity (a fold that needs propagate-then-fold across
+    # two passes never lands in one pass).
+    out = subprocess.run(["target/debug/tcl", "opt", "--profile", "aggressive", f],
                          capture_output=True, text=True).stdout
-    rust = re.split(r'\n+# -+\n', out)[0]
+    # Footer marker is `\n# ----…\n# optimised: N rewrite(s)`; the files' own
+    # `# ----` comment lines must NOT be mistaken for it.
+    m = re.search(r'\n# -+\n# optimised: \d+ rewrite', out)
+    rust = out[:m.start()] if m else out
     if rust.rstrip("\n") != py.rstrip("\n"):
         print("DIVERGE", f)
 PY
@@ -29,11 +38,19 @@ PY
 
 ## Current snapshot (2026-06)
 
-Final-source parity over the 79-file sample corpus: **42 exact / 37
-divergent** (was 37/42 at the start of the coupling work). Both pipelines
-already iterate to a fixpoint (`optimise_source_multipass` / the loop in
-`tcl-cli::run_opt`), so the remaining gap is *per-pass content*, not the
-loop.
+Final-source parity over the 79-file sample corpus, comparing
+`tcl opt --profile aggressive` (multipass) against
+`optimise_source_multipass`: **44 exact / 35 divergent** (was 37/42 at the
+start of the coupling work). The remaining gap is *per-pass content*, not
+the loop.
+
+> **Measurement caveat (corrected 2026-06):** an earlier version of the
+> reproduce script compared the *default* `tcl opt` profile (`full`, which
+> is **single-pass** — only `aggressive` iterates to a fixpoint) against the
+> multipass Python library, and used a `# -+` footer split that also matched
+> the corpus files' own `# ----` comment separators. Both are fixed above.
+> Under the single-pass `full` profile the count is 43/79; the genuine
+> per-pass gaps are the 35 that remain even under multipass.
 
 Divergence classes:
 
