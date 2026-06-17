@@ -101,6 +101,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
+        unsafe_command: true,
         ..CommandSpec::DEFAULT
     }
 }

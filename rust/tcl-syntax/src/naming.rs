@@ -113,6 +113,48 @@ pub fn normalise_var_name(name: &str) -> &str {
     }
 }
 
+/// Return `true` when `${name}` would successfully look up `name`.
+///
+/// Mirrors `shared/naming.py::is_brace_substitutable`, which in turn
+/// mirrors Tcl 9.0.3's `Tcl_ParseVarName` brace-form parser
+/// (`tclParse.c` §1383+):
+///
+/// - `\X` (backslash + any char) consumes 2 source chars, both kept in
+///   the lookup name — so a `}` preceded by `\` does not end the span.
+/// - `{` / `}` are tracked with a depth counter; only a `}` at depth 0
+///   ends the var-name span.
+///
+/// Returns `false` for a `}` at depth 0, a trailing lone `\`, or
+/// unbalanced `{` (depth > 0 at end).  Drives the W215 reachability
+/// check.
+#[must_use]
+pub fn is_brace_substitutable(name: &str) -> bool {
+    if name.is_empty() {
+        return true; // `${}` looks up the var literally named "".
+    }
+    let b = name.as_bytes();
+    let n = b.len();
+    let mut depth: i32 = 0;
+    let mut i = 0;
+    while i < n {
+        match b[i] {
+            b'}' if depth == 0 => return false,
+            b'\\' => {
+                if i + 1 >= n {
+                    return false;
+                }
+                i += 2;
+                continue;
+            }
+            b'{' => depth += 1,
+            b'}' => depth -= 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    depth == 0
+}
+
 /// Return `true` when `$name` would lex as a single bare variable token.
 ///
 /// Mirrors `compiler/parsing/lexer._parse_var`'s bare-form rule: a name is
@@ -294,6 +336,20 @@ mod tests {
     #[test]
     fn simple_dollar() {
         assert_eq!(normalise_var_name("$foo"), "foo");
+    }
+
+    #[test]
+    fn brace_substitutable_cases() {
+        // Reachable names.
+        assert!(is_brace_substitutable(""));
+        assert!(is_brace_substitutable("foo"));
+        assert!(is_brace_substitutable("a(b)")); // `)` is fine in brace form
+        assert!(is_brace_substitutable("a{b}c")); // balanced inner braces
+        assert!(is_brace_substitutable(r"a\}b")); // `\}` consumes 2, kept
+        // Unreachable names.
+        assert!(!is_brace_substitutable("a}b")); // `}` at depth 0 ends span early
+        assert!(!is_brace_substitutable(r"trail\")); // trailing lone backslash
+        assert!(!is_brace_substitutable("a{b")); // unbalanced `{`
     }
 
     #[test]

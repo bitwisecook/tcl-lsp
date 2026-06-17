@@ -31,6 +31,24 @@ pub const fn spec() -> CommandSpec {
             kind: FormKind::Default,
             synopsis: "HTTP::version ('0.9' | '1.0' | '1.1')?\nHTTP::version -string ?value?",
         }],
+        arg_values: &[(
+            0,
+            &[
+                ArgValue {
+                    value: "0.9",
+                    detail: "HTTP/0.9",
+                },
+                ArgValue {
+                    value: "1.0",
+                    detail: "HTTP/1.0",
+                },
+                ArgValue {
+                    value: "1.1",
+                    detail: "HTTP/1.1",
+                },
+            ],
+        )],
+        closed_value_args: &[0],
         options: &[OptionSpec {
             name: "-string",
             takes_value: true,

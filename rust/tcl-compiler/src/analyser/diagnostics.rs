@@ -85,6 +85,69 @@ use super::state::Analyser;
 use super::types::Severity;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
+/// Collect the bracketed text of every `[…]` command-substitution node in
+/// an `expr` AST (recursing operands but stopping at the substitution
+/// boundary, like Python's `command_texts_in_expr_node`). Used to recover
+/// variable reads hidden inside `if`/`while` conditions and `expr` values.
+fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
+    match node {
+        ExprNode::Command { text, .. } => out.push(text.clone()),
+        ExprNode::Binary { left, right, .. } => {
+            collect_expr_command_texts(left, out);
+            collect_expr_command_texts(right, out);
+        }
+        ExprNode::Unary { operand, .. } => collect_expr_command_texts(operand, out),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            collect_expr_command_texts(condition, out);
+            collect_expr_command_texts(true_branch, out);
+            collect_expr_command_texts(false_branch, out);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                collect_expr_command_texts(arg, out);
+            }
+        }
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Raw { .. } => {}
+    }
+}
+
+/// Built-in `expr` math functions — mirrors
+/// `compiler/parsing/expr_lexer.py::BUILTIN_MATH_FUNCTIONS`.  Used by the
+/// W117 stub-shadow check.
+const BUILTIN_MATH_FUNCTIONS: &[&str] = &[
+    "abs", "acos", "asin", "atan", "atan2", "bool", "ceil", "cos", "cosh", "double", "entier",
+    "exp", "floor", "fmod", "hypot", "int", "isinf", "isnan", "isqrt", "log", "log10", "max",
+    "min", "pow", "rand", "round", "sin", "sinh", "sqrt", "srand", "tan", "tanh", "wide",
+];
+
+/// Built-in `expr` operators — mirrors
+/// `compiler/parsing/expr_lexer.py::BUILTIN_EXPR_OPS`.
+const BUILTIN_EXPR_OPS: &[&str] = &[
+    "!", "!=", "%", "&", "&&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>",
+    "^", "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "||", "~",
+];
+
+/// iRules-only `expr` operators — mirrors
+/// `compiler/parsing/expr_lexer.py::IRULES_EXPR_OPS`.
+const IRULES_EXPR_OPS: &[&str] = &[
+    "and",
+    "contains",
+    "ends_with",
+    "equals",
+    "matches_glob",
+    "matches_regex",
+    "not",
+    "or",
+    "starts_with",
+];
+
 /// Find a case-insensitive match for `variable` in `defined_vars`.
 ///
 /// The source text covered by `span`, or `None` when the span is out
@@ -4867,6 +4930,150 @@ matching time on crafted input."
         });
     }
 
+    /// **W127.** A literal at a closed-value argument index is not in the
+    /// command's allowed set.  Mirrors
+    /// `analyser/compiler_checks.py::_check_closed_value_args`.  Only fires
+    /// for indices the spec marks `closed_value_args` (the `arg_values`
+    /// are exhaustive, not hints).  Dynamic values (`$var` / `[cmd]`) and
+    /// declared option flags are skipped.
+    pub(super) fn emit_w127_closed_value_args(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        let mut hits: Vec<(String, tcl_lexer::Span)> = Vec::new();
+        if let Some(registry) = self.registry.as_ref() {
+            let Some(spec) = registry.get(cmd_name) else {
+                return;
+            };
+            if spec.closed_value_args.is_empty() {
+                return;
+            }
+            let option_names: std::collections::HashSet<&str> =
+                spec.options.iter().map(|o| o.name).collect();
+            let mut closed: Vec<u8> = spec.closed_value_args.to_vec();
+            closed.sort_unstable();
+            for idx in closed {
+                let i = idx as usize;
+                let Some(value) = args.get(i) else {
+                    continue;
+                };
+                if value.contains('$')
+                    || value.contains('[')
+                    || option_names.contains(value.as_str())
+                {
+                    continue;
+                }
+                let allowed = spec.arg_values_at(idx);
+                if allowed.iter().any(|av| av.value == value) {
+                    continue;
+                }
+                if allowed.is_empty() {
+                    continue;
+                }
+                let allowed_list = allowed
+                    .iter()
+                    .map(|av| av.value)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let span = arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
+                hits.push((
+                    format!(
+                        "Invalid value '{value}' for '{cmd_name}'; expected one of: {allowed_list}"
+                    ),
+                    span,
+                ));
+            }
+        }
+        for (message, span) in hits {
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W127".to_string(),
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
+        }
+    }
+
+    /// **W116 / W117.** Stub command / expression definition shadows a
+    /// built-in.  Post-walk check mirroring
+    /// `_AnalyserCoreMixin._check_stub_shadows`
+    /// (`analyser/_analyser/_core.py`).  W116 fires when a `# tcl-lsp:
+    /// stub` command name (with leading `::` stripped) collides with a
+    /// registered command; W117 when a stub expr function/operator name
+    /// collides with a built-in `expr` function or operator.
+    pub(super) fn emit_w116_w117_stub_shadows(&mut self) {
+        use super::types::{Diagnostic, Severity};
+
+        if self.result.stub_commands.is_empty() && self.result.stub_expr_defs.is_empty() {
+            return;
+        }
+
+        // W116 — stub command shadows a built-in command.  Build the
+        // dialect command-name set locally (mirrors Python's
+        // `set(REGISTRY.command_names(dialect))`).
+        if !self.result.stub_commands.is_empty() {
+            use tcl_registry::CommandRegistry;
+            use tcl_registry::prelude::DialectSet;
+            let mut registry = CommandRegistry::build_default();
+            if let Some(d) = DialectSet::parse(&self.dialect) {
+                registry.load_dialect(d);
+            }
+            let commands: std::collections::HashSet<&str> = registry.command_names().collect();
+            let hits: Vec<(String, tcl_lexer::Span)> = self
+                .result
+                .stub_commands
+                .iter()
+                .filter(|s| commands.contains(s.name.trim_start_matches(':')))
+                .map(|s| (s.name.clone(), s.range))
+                .collect();
+            for (name, span) in hits {
+                self.result.diagnostics.push(Diagnostic {
+                    code: "W116".to_string(),
+                    span,
+                    message: format!("Stub command '{name}' shadows built-in command."),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+
+        // W117 — stub expr function/operator shadows a built-in.
+        if !self.result.stub_expr_defs.is_empty() {
+            let irules = self.dialect == "f5-irules";
+            let hits: Vec<(String, String, tcl_lexer::Span)> = self
+                .result
+                .stub_expr_defs
+                .iter()
+                .filter(|s| {
+                    BUILTIN_MATH_FUNCTIONS.contains(&s.name.as_str())
+                        || BUILTIN_EXPR_OPS.contains(&s.name.as_str())
+                        || (irules && IRULES_EXPR_OPS.contains(&s.name.as_str()))
+                })
+                .map(|s| (s.name.clone(), s.kind.clone(), s.range))
+                .collect();
+            for (name, kind, span) in hits {
+                let kind_label = if kind == "function" {
+                    "function"
+                } else {
+                    "operator"
+                };
+                self.result.diagnostics.push(Diagnostic {
+                    code: "W117".to_string(),
+                    span,
+                    message: format!(
+                        "Stub expression {kind_label} '{name}' shadows built-in {kind_label}."
+                    ),
+                    severity: Severity::Warning,
+                    fixes: Vec::new(),
+                });
+            }
+        }
+    }
+
     /// **IRULE2002.** Warn when a deprecated iRules command is used —
     /// the command's spec carries a `deprecated_replacement`.  Only fires
     /// under the `f5-irules` dialect.  Mirrors
@@ -5526,6 +5733,56 @@ file; this call falls through to the 'unknown' handler."
         })
     }
 
+    /// Variable names read inside positions the version-precise SSA `used`
+    /// set can't see — `[…]` command substitutions in command arguments,
+    /// `expr` values, and `if`/`while`/`for` branch conditions. A write to
+    /// such a name is not a dead store even when its SSA version looks
+    /// unused. Mirrors Python's `_extra_local_reads` (`expr_sub_reads`) used
+    /// by `_dead_stores`.
+    fn substitution_hidden_reads(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) -> HashSet<String> {
+        use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+        let mut out = HashSet::new();
+        let Some(registry) = self.registry.as_ref() else {
+            return out;
+        };
+        // Command-argument + AssignValue substitutions (deep RMW scan minus
+        // shallow), already factored out for the optimiser's elimination pass.
+        out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
+            fu, registry,
+        ));
+        // Branch conditions and expr-valued statements carry their `[…]` in an
+        // `ExprNode`, not a word. Walk the AST for `Command` nodes (bracketed
+        // substitution text) and scan each — their inner reads are invisible to
+        // the version-precise `used` set, so they keep every write alive. A
+        // bare `$x` in `if {$x}` is already a version-precise condition use, so
+        // it is not collected here.
+        let mut deep = VarReferenceScanner::new(VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: true,
+        });
+        let mut cmd_texts: Vec<String> = Vec::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                if let crate::ir::Statement::AssignExpr { expr, .. }
+                | crate::ir::Statement::ExprEval { expr, .. } = stmt
+                {
+                    collect_expr_command_texts(expr, &mut cmd_texts);
+                }
+            }
+            if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
+                collect_expr_command_texts(condition, &mut cmd_texts);
+            }
+        }
+        for text in &cmd_texts {
+            out.extend(deep.scan_word(text, registry));
+        }
+        out
+    }
+
     /// W220 — dead-store hint.
     ///
     /// Mirrors `_emit_dead_store_diagnostics` in
@@ -5575,6 +5832,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::ir::Statement;
         use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
+        let hidden_reads = self.substitution_hidden_reads(fu);
         // Phase 8 place-model precision: array-element / dict-path writes the
         // name-level SSA mis-folds but that a read actually observes.
         let place_suppressed = self.place_suppressed_dead_stores(fu);
@@ -5582,7 +5840,14 @@ file; this call falls through to the 'unknown' handler."
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let (var, version) = &chain.key;
+            let (var, _version) = &chain.key;
+            // A name read inside a command substitution / expr / branch
+            // condition the version-precise `used` set can't see keeps every
+            // write of it alive (`set i 0` before `[incr i $j]`). Suppress at
+            // name level, mirroring Python's `expr_sub_reads` gate.
+            if hidden_reads.contains(var) {
+                continue;
+            }
             // Globals (``::``-prefixed) are externally consumed
             // — Python `_dead_stores` skips them.
             if var.starts_with("::") {
@@ -5606,19 +5871,13 @@ file; this call falls through to the 'unknown' handler."
             if !fu.sccp.executable_blocks.contains(&chain.definition.block) {
                 continue;
             }
-            // ``any_other_live`` — another SSA version of this
-            // variable has live uses, so this assignment is
-            // overwritten.  When no other version is live, the
-            // variable is truly unused — that's W211, handled
-            // separately.
-            let any_other_live = fu
-                .def_use
-                .chains
-                .iter()
-                .any(|(k, c)| k.0 == *var && k.1 != *version && !c.is_dead());
-            if !any_other_live {
-                continue;
-            }
+            // A dead assignment is W220 whether or not the variable is also
+            // unused overall: Python reports both the assignment-level dead
+            // store (W220) and, when the variable is never read at all, the
+            // variable-level unused hint (W211) — they are distinct
+            // diagnostics with distinct fixes (drop this assignment vs. drop
+            // the variable). Mirrors `core_analyses.py::_dead_stores`, which
+            // fires on any dead store regardless of other live versions.
             let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
                 continue;
             };
@@ -5706,6 +5965,13 @@ file; this call falls through to the 'unknown' handler."
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
+        // W211 is a per-variable verdict ("the variable is set but never
+        // used"), not per-assignment: a variable set several times and never
+        // read fires once, at its earliest definition. Collect the earliest
+        // reportable span per variable, then emit. Mirrors Python emitting a
+        // single W211 per unused variable.
+        let mut earliest: std::collections::HashMap<String, tcl_lexer::Span> =
+            std::collections::HashMap::new();
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
@@ -5736,12 +6002,35 @@ file; this call falls through to the 'unknown' handler."
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
+            // Only pure assignments are reportable as "set but never used".
+            // A variable written by a command (`scan` / `binary scan` /
+            // `regexp -> capture`, etc.) or a barrier is a command output the
+            // user may legitimately ignore — Python's `_unused_variables`
+            // skips `IRCall` / `IRBarrier` defs (`core_analyses.py`).
+            if matches!(
+                stmt,
+                crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
+            ) {
+                continue;
+            }
             let span = stmt.span();
             if span.is_empty() {
                 continue;
             }
+            earliest
+                .entry(var.clone())
+                .and_modify(|s| {
+                    if span.start() < s.start() {
+                        *s = span;
+                    }
+                })
+                .or_insert(span);
+        }
+        let mut entries: Vec<(String, tcl_lexer::Span)> = earliest.into_iter().collect();
+        entries.sort_by_key(|(_, span)| span.start());
+        for (var, span) in entries {
             let mut message = format!("Variable '{var}' is set but never used");
-            if let Some(similar) = find_case_mismatch(var, defined_vars) {
+            if let Some(similar) = find_case_mismatch(&var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -6040,6 +6329,7 @@ file; this call falls through to the 'unknown' handler."
     /// - Everything else emits W210 with the canonical
     ///   "read before set" message + optional "did you mean…?"
     ///   suggestion.
+    #[allow(clippy::too_many_lines)]
     fn emit_read_before_set_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -6134,6 +6424,27 @@ file; this call falls through to the 'unknown' handler."
                         (stmt.span(), Some(stmt))
                     };
                 if span.is_empty() {
+                    continue;
+                }
+                // A read-modify-write command (`lappend` / `append`) that
+                // auto-creates its target is not a read-before-set: it both
+                // reads and defines the variable, creating it from an empty
+                // default when absent. Mirrors Python excluding RMW targets
+                // (incr/append/lappend) from the W210 read set
+                // (`compiler/ssa.py:165` — they are reads only in the separate
+                // suppress-only recovery mode). `unset` also carries
+                // `reads_own_defs` but is destructive, not auto-creating — its
+                // missing-variable case is exactly the W213 handled just below,
+                // so it must not be skipped here.
+                if let Some(Statement::Call {
+                    reads_own_defs: true,
+                    command,
+                    defs,
+                    ..
+                }) = stmt_opt
+                    && command != "unset"
+                    && defs.iter().any(|d| d == var)
+                {
                     continue;
                 }
                 // SYNC-MAY31-3: skip the existence-query word itself and
@@ -9810,16 +10121,59 @@ mod tests {
     }
 
     #[test]
-    fn emit_cfg_ssa_diagnostics_no_w220_on_simple_assignment() {
-        // ``set x 1`` — single assignment, no overwrite, no
-        // W220.  Smoke test that pipeline runs without
-        // emitting spurious W codes for clean code.
+    fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
+        // ``set x 1`` set once and never read is a dead store: Python
+        // reports both W220 (this assignment is dead) and W211 (the variable
+        // is unused). A single assignment that *is* read fires neither.
         let mut a = Analyser::new();
-        a.emit_cfg_ssa_diagnostics("set x 1");
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1 }");
         assert!(
-            !a.result.diagnostics.iter().any(|d| d.code == "W220"),
-            "W220 must not fire on a single assignment; got {:?}",
+            a.result.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 expected for a dead set-once store; got {:?}",
             a.result.diagnostics,
+        );
+
+        let mut b = Analyser::new();
+        b.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nreturn $x }");
+        assert!(
+            !b.result.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 must not fire when the assignment is read; got {:?}",
+            b.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
+        // A variable read only inside a command substitution the
+        // version-precise SSA can't see — a branch condition, an `expr`
+        // value, or a read-modify-write buried in a `[…]` — is not a dead
+        // store. Mirrors Python's `expr_sub_reads` gate.
+        // Uses the full `analyse` entry so the command registry (which the
+        // hidden-read recovery consults) is populated.
+        for src in [
+            // read in an `if` condition substitution
+            "proc f {} { set x 1\nif {[string length $x]} { puts hi } }",
+            // read in an expr value substitution
+            "proc f {} { set x 1\nset y [expr {[string length $x]}]\nreturn $y }",
+            // read-modify-write buried in a substitution keeps the feed alive
+            "proc f {} { set i 0\nforeach j {1 2 3} { lappend r [incr i $j] }\nreturn $r }",
+        ] {
+            let mut a = Analyser::new();
+            let res = a.analyse(src, "tcl");
+            assert!(
+                !res.diagnostics.iter().any(|d| d.code == "W220"),
+                "W220 must not fire for a substitution-hidden read; got {:?} for {src:?}",
+                res.diagnostics,
+            );
+        }
+        // Control: a normal later read does not hide anything, so an earlier
+        // overwritten store is still a dead store.
+        let mut a = Analyser::new();
+        let res = a.analyse("proc f {} { set x 1\nset x 2\nputs $x }", "tcl");
+        assert!(
+            res.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 must still fire for a genuine overwrite; got {:?}",
+            res.diagnostics,
         );
     }
 
@@ -10186,6 +10540,45 @@ mod tests {
     }
 
     #[test]
+    fn w211_not_emitted_for_command_output_vars() {
+        // `scan` / `binary scan` / `regexp -> capture` write their targets
+        // via the command, not a pure `set` — Python excludes IRCall defs
+        // from W211, so unused command outputs do not fire it.
+        for src in [
+            "proc f {} { scan $in \"%d\" n }",
+            "proc f {} { binary scan $d cu4 b1 b2 b3 b4 }",
+            "proc f {} { regexp {(\\w+)} $s -> word }",
+        ] {
+            let mut a = Analyser::new();
+            let res = a.analyse(src, "tcl");
+            assert!(
+                !res.diagnostics.iter().any(|d| d.code == "W211"),
+                "W211 must not fire for command-output vars; got {:?} for {src:?}",
+                res.diagnostics,
+            );
+        }
+    }
+
+    #[test]
+    fn w211_fires_once_per_variable_set_twice() {
+        // A variable set twice and never read is one unused variable, reported
+        // once at the earliest definition (W220 still flags each dead store).
+        let mut a = Analyser::new();
+        let res = a.analyse("proc f {} { set x 1\nset x 2 }", "tcl");
+        let w211: Vec<_> = res
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W211")
+            .collect();
+        assert_eq!(w211.len(), 1, "expected one W211 for x; got {w211:?}");
+        assert!(
+            res.diagnostics.iter().filter(|d| d.code == "W220").count() == 2,
+            "both dead stores still fire W220; got {:?}",
+            res.diagnostics,
+        );
+    }
+
+    #[test]
     fn emit_cfg_ssa_diagnostics_w211_w220_skipped_for_traced_var() {
         // A write trace makes `x` observable on every `set`, so neither
         // W211 (unused) nor W220 (dead store) may fire.  Both the 8.5+
@@ -10313,6 +10706,33 @@ mod tests {
         );
         assert_eq!(w210s[0].severity, Severity::Warning);
         assert!(w210s[0].message.contains("read before it is set"));
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
+        // `lappend` / `append` auto-create their target, so a first use is
+        // not a read-before-set (matches Python excluding RMW targets).
+        for src in [
+            "proc foo {} { lappend items a\nputs $items }",
+            "proc foo {} { append buf x\nputs $buf }",
+        ] {
+            let mut a = Analyser::new();
+            a.emit_cfg_ssa_diagnostics(src);
+            assert!(
+                !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+                "W210 must not fire for auto-creating RMW; got {:?} for {src:?}",
+                a.result.diagnostics,
+            );
+        }
+        // `unset` (without -nocomplain) is destructive, not auto-creating —
+        // its missing-variable case must still raise W213.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { unset gone }");
+        assert!(
+            a.result.diagnostics.iter().any(|d| d.code == "W213"),
+            "W213 must still fire for unset of a possibly-undef var; got {:?}",
+            a.result.diagnostics,
+        );
     }
 
     #[test]

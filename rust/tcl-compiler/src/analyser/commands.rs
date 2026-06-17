@@ -489,6 +489,9 @@ impl Analyser {
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
         // IRULE2002: deprecated iRules command (f5-irules only).
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
+        // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
+        // analyser-level iRules event-context checks (f5-irules only).
+        self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w212_name_vs_value(cmd_name, args, arg_tokens);
         self.emit_w104_append_list(cmd_name, args, arg_tokens);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
@@ -507,6 +510,7 @@ impl Analyser {
         self.result.diagnostics.extend(lset_diags);
         let str_diags = super::bounds_checks::string_index_diagnostics(cmd_name, args, arg_tokens);
         self.result.diagnostics.extend(str_diags);
+        self.emit_w127_closed_value_args(cmd_name, args, arg_tokens, cmd_tok);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
         self.emit_w004_dialect_invalid_option(cmd_name, args, arg_tokens);
         self.emit_arity_diagnostics(

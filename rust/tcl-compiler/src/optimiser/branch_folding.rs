@@ -36,8 +36,9 @@ use crate::expr_ast::{BinOp, ExprNode};
 use crate::sccp::ConstantBranch;
 
 use super::helpers::expr_simplify::{
-    instcombine_expr, substitute_expr_constants, try_eq_ne_string_compare_simplify_expr,
-    try_strength_reduce_expr, try_strlen_simplify_expr,
+    instcombine_expr_typed, numeric_var_names, substitute_expr_constants,
+    try_eq_ne_string_compare_simplify_expr, try_strength_reduce_expr_typed,
+    try_strlen_simplify_expr,
 };
 use super::helpers::literals::format_constant;
 use super::{Optimisation, PassContext};
@@ -79,6 +80,9 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     if constants.is_empty() {
         return;
     }
+    // Numeric-type context so identity rewrites (`$x + 0` → `$x`, etc.) on a
+    // branch condition fire only when the dropped operand is provably numeric.
+    let numeric = numeric_var_names(fu);
     let folded: HashSet<String> = fu
         .sccp
         .constant_branches
@@ -134,7 +138,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
                 inner.to_owned()
             };
 
-            let (sred, sred_changed) = try_strength_reduce_expr(&working);
+            let (sred, sred_changed) = try_strength_reduce_expr_typed(&working, Some(&numeric));
             if sred_changed {
                 ("O113", "Strength-reduce expression", sred)
             } else {
@@ -146,7 +150,8 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
                     if streq_changed {
                         ("O120", "Use eq/ne for string comparison", streq)
                     } else {
-                        let (combined, combined_changed) = instcombine_expr(&working, true);
+                        let (combined, combined_changed) =
+                            instcombine_expr_typed(&working, true, Some(&numeric));
                         if combined_changed {
                             ("O110", "Canonicalise expression (InstCombine)", combined)
                         } else if sub.changed {

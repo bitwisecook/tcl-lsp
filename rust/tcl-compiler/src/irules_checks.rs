@@ -68,7 +68,7 @@ fn is_getter_form(args: &[String]) -> bool {
 }
 
 /// Format the IRULE3102 message for `cmd`.
-fn format_message(cmd: &str) -> String {
+pub(crate) fn format_message(cmd: &str) -> String {
     format!(
         "Use '{cmd} -normalized' for canonicalized request data; \
          non-normalized values may allow URL evasion patterns."
@@ -77,7 +77,11 @@ fn format_message(cmd: &str) -> String {
 
 /// Return `true` when `cmd` is one of the commands that carry the
 /// `-normalized` option and `args` misses it in a getter form.
-fn is_unnormalised_getter(registry: &CommandRegistry, cmd: &str, args: &[String]) -> bool {
+pub(crate) fn is_unnormalised_getter(
+    registry: &CommandRegistry,
+    cmd: &str,
+    args: &[String],
+) -> bool {
     if !supports_normalized_flag(registry, cmd) {
         return false;
     }
@@ -819,6 +823,150 @@ pub fn find_hoistable_set_warnings(
 }
 
 // ---------------------------------------------------------------------------
+// IRULE4002 — generic `static::` variable name that will collide
+// ---------------------------------------------------------------------------
+//
+// Mirrors `irules_flow.py::_find_generic_static_names`. Walks every
+// `::when::` CFG body for statements that define a `static::` variable
+// and flags bare names matching a fixed set of generic patterns
+// (`DEFAULT_GENERIC_VARIABLE_PATTERNS`). Deduplicated across events —
+// the first occurrence's span wins. Custom user patterns are not
+// plumbed here (the analyser uses the default set, same as Python's
+// default-config path).
+
+/// Lowercased bare names considered generic. Every default pattern in
+/// `compiler/irules_static_names.py::DEFAULT_GENERIC_VARIABLE_PATTERNS`
+/// is fully `^…$`-anchored over a finite alternation, so the regex
+/// `search` over the lowercased bare name is equivalent to exact
+/// membership in this set.
+const GENERIC_STATIC_NAMES: &[&str] = &[
+    // Debug / logging
+    "debug",
+    "debug_level",
+    "debug_enabled",
+    "dbg",
+    "log_level",
+    "log_server",
+    "log_enabled",
+    "logging",
+    "verbose",
+    "trace",
+    // Configuration
+    "timeout",
+    "response_timeout",
+    "retry",
+    "retries",
+    "max_retry",
+    "max_retries",
+    "config",
+    "enabled",
+    "disabled",
+    "active",
+    "mode",
+    "port",
+    "host",
+    "server",
+    "pool",
+    // Counters / limits
+    "count",
+    "counter",
+    "limit",
+    "max_connections",
+    "threshold",
+    "rate",
+    "interval",
+    // Generic state
+    "flag",
+    "level",
+    "status",
+    "state",
+    "version",
+    "name",
+    "value",
+    "data",
+    "result",
+    "test",
+    "init",
+    "default",
+];
+
+/// `is_generic_static_name` — `var_name` (with the `static::` prefix) is
+/// generic when its lowercased bare name is in [`GENERIC_STATIC_NAMES`].
+fn is_generic_static_name(var_name: &str) -> bool {
+    let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
+    GENERIC_STATIC_NAMES.contains(&bare.to_ascii_lowercase().as_str())
+}
+
+/// Generic-static-name warnings for IRULE4002.
+#[must_use]
+pub fn find_generic_static_name_warnings(
+    cu: &CompilationUnit,
+    dialect: Option<&str>,
+) -> Vec<IrulesCheckWarning> {
+    let mut out = Vec::new();
+    if !is_irules_dialect(dialect) {
+        return out;
+    }
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for fu in cu.functions() {
+        if !fu.name.starts_with("::when::") {
+            continue;
+        }
+        for bn in cfg_order(&fu.cfg) {
+            let Some(block) = fu.cfg.blocks.get(&bn) else {
+                continue;
+            };
+            for stmt in &block.statements {
+                let span = stmt.span();
+                match stmt {
+                    Statement::AssignConst { name, .. }
+                    | Statement::AssignValue { name, .. }
+                    | Statement::Incr { name, .. } => {
+                        check_generic_static(name, span, &mut seen, &mut out);
+                    }
+                    Statement::Call { defs, .. } => {
+                        for name in defs {
+                            check_generic_static(name, span, &mut seen, &mut out);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    out
+}
+
+fn check_generic_static(
+    var_name: &str,
+    span: Span,
+    seen: &mut std::collections::HashSet<String>,
+    out: &mut Vec<IrulesCheckWarning>,
+) {
+    if !var_name.starts_with("static::") {
+        return;
+    }
+    if seen.contains(var_name) {
+        return;
+    }
+    if !is_generic_static_name(var_name) {
+        return;
+    }
+    seen.insert(var_name.to_owned());
+    let bare = var_name.strip_prefix("static::").unwrap_or(var_name);
+    out.push(IrulesCheckWarning {
+        span,
+        code: "IRULE4002".to_owned(),
+        message: format!(
+            "'{var_name}' is a generic name that will collide with other iRules. \
+             static:: variables are shared across every iRule on the BIG-IP system — \
+             prefix with the application or rule name (e.g. 'static::<app>_{bare}')."
+        ),
+        replacement: None,
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1301,5 +1449,62 @@ mod tests {
         );
         let none = find_hoistable_set_warnings(&cu, None);
         assert!(none.is_empty(), "got {none:?}");
+    }
+
+    // -- IRULE4002 ----------------------------------------------------
+
+    fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_generic_static_name_warnings(&cu, Some("f5-irules"))
+    }
+
+    #[test]
+    fn irule4002_fires_for_generic_static_name() {
+        let ws = generic_warnings("when RULE_INIT { set static::debug 1 }");
+        assert!(
+            ws.iter()
+                .any(|w| w.code == "IRULE4002" && w.message.contains("'static::debug'")),
+            "expected IRULE4002 for static::debug, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4002_quiet_for_specific_static_name() {
+        let ws = generic_warnings("when RULE_INIT { set static::myapp_cache_ttl 60 }");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE4002"),
+            "no IRULE4002 expected for a specific name, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4002_deduplicates_across_events() {
+        let src = "when RULE_INIT { set static::timeout 30 }\n\
+                   when HTTP_REQUEST { set static::timeout 30 }";
+        let ws = generic_warnings(src);
+        assert_eq!(
+            ws.iter().filter(|w| w.code == "IRULE4002").count(),
+            1,
+            "expected a single deduplicated IRULE4002, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4002_only_in_irules_dialect() {
+        let cu = CompilationUnit::build_for(
+            "when RULE_INIT { set static::debug 1 }",
+            &registry(),
+            false,
+        );
+        assert!(find_generic_static_name_warnings(&cu, None).is_empty());
+    }
+
+    #[test]
+    fn is_generic_static_name_matches_default_set() {
+        assert!(is_generic_static_name("static::debug"));
+        assert!(is_generic_static_name("static::DEBUG"));
+        assert!(is_generic_static_name("static::max_retries"));
+        assert!(!is_generic_static_name("static::myapp_token"));
+        assert!(!is_generic_static_name("static::debugger"));
     }
 }

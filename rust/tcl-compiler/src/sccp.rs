@@ -753,6 +753,27 @@ fn env_from_uses(
     env
 }
 
+/// Like [`env_from_uses`] but includes only variables whose lattice value is
+/// *numeric* (int / float / bool). Used for folding a quoted / bare
+/// `expr "…"`, where Tcl substitutes the variable's value textually before
+/// parsing: a non-numeric value becomes an invalid bareword, so leaving it
+/// unbound makes the fold bail (matching Tcl's runtime error).
+fn env_from_uses_numeric(
+    uses: &HashMap<String, crate::ssa::Version>,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Env {
+    let mut env = Env::new();
+    for (name, ver) in uses {
+        let key: ValueKey = (name.clone(), *ver);
+        if let Some(LatticeValue::Const(c)) = values.get(&key)
+            && matches!(c, ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_))
+        {
+            env.insert(name.clone(), const_to_env_value(c));
+        }
+    }
+    env
+}
+
 fn const_to_env_value(c: &ConstValue) -> EnvValue {
     match c {
         ConstValue::Int(i) => EnvValue::Int(*i),
@@ -762,7 +783,7 @@ fn const_to_env_value(c: &ConstValue) -> EnvValue {
     }
 }
 
-fn tcl_value_to_const(v: TclValue) -> ConstValue {
+pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
     match v {
         TclValue::Int(i) => ConstValue::Int(i),
         TclValue::Float(f) => ConstValue::Float(f),
@@ -975,9 +996,28 @@ fn try_fold_cmd_subst(
     // `[expr {EXPR}]` — parse + fold under the current lattice.
     if cmd == "expr" {
         let arg = rest?.trim();
+        // Braced (`expr {…}`) vs quoted / bare (`expr "…"`, `expr …`) changes
+        // the substitution model. In a braced expr the `$var` references are
+        // resolved by *expr* itself, so a string-valued var is a valid string
+        // operand (`expr {$a == $b}` with a="alpha" → string compare → 0). In
+        // a quoted / bare expr Tcl substitutes the variable *values* textually
+        // *before* parsing, so a non-numeric value becomes an invalid bareword
+        // and the whole expr errors at runtime (`expr "$a == $b"` →
+        // `expr "alpha == beta"` → `invalid bareword "alpha"`). Folding that
+        // to `0` would turn an erroring program into a silent value.
+        //
+        // Numeric values survive textual substitution as valid expr tokens,
+        // so for the non-braced form restrict the env to numeric constants:
+        // a string-valued var is then left unbound and the fold bails,
+        // matching Tcl (and Python, which never folds it).
+        let braced = arg.starts_with('{');
         let expr_text = strip_one_level(arg);
         let expr = crate::expr_parser::parse_expr(expr_text, None);
-        let env = env_from_uses(uses, values);
+        let env = if braced {
+            env_from_uses(uses, values)
+        } else {
+            env_from_uses_numeric(uses, values)
+        };
         return eval_tcl_expr(&expr, &env).map(|v| LatticeValue::Const(tcl_value_to_const(v)));
     }
 
@@ -1754,6 +1794,47 @@ mod tests {
             LatticeValue::Const(ConstValue::String(s)) => assert_eq!(s, "1-2"),
             other => panic!("expected Const(String), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn quoted_expr_with_string_var_does_not_fold() {
+        // `set r [expr "$a == $b"]` with a="alpha", b="beta": Tcl substitutes
+        // the values textually before parsing, so `expr "alpha == beta"`
+        // errors (`invalid bareword`). The fold must bail rather than treat
+        // the strings as operands and return 0.
+        let mut stmt = assign_value_stmt("r", "[expr \"$a == $b\"]", 1);
+        stmt.uses.insert("a".into(), 1);
+        stmt.uses.insert("b".into(), 1);
+        let mut values = HashMap::new();
+        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::String("alpha".into())));
+        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::String("beta".into())));
+        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
+    }
+
+    #[test]
+    fn quoted_expr_with_numeric_var_still_folds() {
+        // `set r [expr "$a + $b"]` with numeric a, b is sound: textual
+        // substitution yields `3 + 4`, a valid expr → fold to 7.
+        let mut stmt = assign_value_stmt("r", "[expr \"$a + $b\"]", 1);
+        stmt.uses.insert("a".into(), 1);
+        stmt.uses.insert("b".into(), 1);
+        let mut values = HashMap::new();
+        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::Int(3)));
+        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::Int(4)));
+        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Const(ConstValue::Int(7)));
+    }
+
+    #[test]
+    fn braced_expr_with_string_var_folds_as_string_compare() {
+        // `set r [expr {$a == $b}]` is braced — expr resolves the vars itself,
+        // so a string-valued var is a valid operand and the compare folds.
+        let mut stmt = assign_value_stmt("r", "[expr {$a == $b}]", 1);
+        stmt.uses.insert("a".into(), 1);
+        stmt.uses.insert("b".into(), 1);
+        let mut values = HashMap::new();
+        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::String("alpha".into())));
+        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::String("beta".into())));
+        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Const(ConstValue::Int(0)));
     }
 
     #[test]

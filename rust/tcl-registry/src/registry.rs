@@ -393,6 +393,32 @@ impl CommandRegistry {
         })
     }
 
+    /// Whether `name` is unsafe in sandboxed dialects — it allows
+    /// context escalation (`uplevel`, `history`).  Drives the IRULE2003
+    /// "unsafe iRules command" check.  Mirrors Python
+    /// `CommandRegistry.is_unsafe` (`_any_spec_has(name, "unsafe")`):
+    /// checks every spec registered under the name.
+    #[must_use]
+    pub fn is_unsafe(&self, name: &str) -> bool {
+        self.by_name
+            .get(name)
+            .is_some_and(|specs| specs.iter().any(|s| s.unsafe_command))
+    }
+
+    /// Whether `name` is valid only at the top level of an iRule script
+    /// (`when`, `proc`, `priority`, `timing`).  Drives the IRULE5006 /
+    /// IRULE5007 placement checks.  Mirrors Python
+    /// `CommandRegistry.irules_top_level_only_commands`
+    /// ([`Traits::IRULES_TOP_LEVEL_ONLY`]).
+    #[must_use]
+    pub fn is_irules_top_level_only(&self, name: &str) -> bool {
+        self.by_name.get(name).is_some_and(|specs| {
+            specs
+                .iter()
+                .any(|s| s.traits.contains(Traits::IRULES_TOP_LEVEL_ONLY))
+        })
+    }
+
     /// Whether `name` carries the [`Traits::NOT_PROC_FACTORY`] trait —
     /// a registered command head that incidentally matches the
     /// proc-factory token shape but is not a factory wrapper.  Like

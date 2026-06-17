@@ -41,10 +41,81 @@ use std::collections::HashSet;
 
 use tcl_lexer::{ExprTokenType, tokenise_expr};
 
+use crate::compilation_unit::FunctionUnit;
 use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr;
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{Env, eval_tcl_expr, format_tcl_value};
+use crate::types::{TclType, TypeKind, TypeLattice};
+
+/// A set of variable names proven numeric for the current function, or
+/// `None` when no type context is available. Passed to the `*_typed`
+/// entry points so the operand-dropping identities fire only on provably
+/// numeric operands (mirrors Python's `_is_provably_numeric_expr_node`
+/// gate). `None` keeps the historical aggressive behaviour for callers
+/// (and tests) that have no type lattice.
+pub type NumericCtx<'a> = Option<&'a HashSet<String>>;
+
+/// Build the set of variable names whose **every** SSA version is a known
+/// numeric type (Int / Double / Numeric / Boolean). A name absent here is
+/// treated as not provably numeric, so a `$x + 0` / `$x * 0` identity is
+/// kept — matching Python, which proves numericity per use from the type
+/// lattice. Using the function-level join (all versions must agree) is a
+/// sound over-approximation of the per-use check.
+#[must_use]
+pub fn numeric_var_names(fu: &FunctionUnit) -> HashSet<String> {
+    use std::collections::HashMap;
+    // name → (all-versions-numeric-so-far).
+    let mut acc: HashMap<&str, bool> = HashMap::new();
+    for ((name, _ver), lattice) in &fu.types {
+        let is_num = lattice_is_numeric(lattice);
+        acc.entry(name.as_str())
+            .and_modify(|v| *v = *v && is_num)
+            .or_insert(is_num);
+    }
+    acc.into_iter()
+        .filter(|(_, ok)| *ok)
+        .map(|(n, _)| n.to_owned())
+        .collect()
+}
+
+/// Whether a type-lattice element is a known numeric Tcl type. Mirrors
+/// Python's `_NUMERIC_TCL_TYPES` membership.
+fn lattice_is_numeric(t: &TypeLattice) -> bool {
+    t.kind == TypeKind::Known
+        && matches!(
+            t.tcl_type,
+            Some(TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean)
+        )
+}
+
+/// Whether `node` is provably numeric for `expr` arithmetic — so dropping it
+/// from an identity rewrite cannot hide Tcl's numeric-coercion error.
+/// Mirrors `_is_provably_numeric_expr_node`. With no type context (`None`)
+/// every node is assumed numeric, preserving the legacy behaviour for
+/// callers without a lattice.
+fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
+    let Some(names) = numeric else {
+        return true;
+    };
+    match node {
+        ExprNode::Literal { .. } => true,
+        ExprNode::String { text, .. } => is_numeric_string(text),
+        ExprNode::Var { name, .. } => names.contains(name.as_str()),
+        _ => false,
+    }
+}
+
+/// Whether the (delimiter-stripped) text of an `expr` string literal parses
+/// as an integer or float — the SCCP-inlined-constant case.
+fn is_numeric_string(text: &str) -> bool {
+    let t = text
+        .trim()
+        .trim_start_matches(['"', '{'])
+        .trim_end_matches(['"', '}'])
+        .trim();
+    !t.is_empty() && (t.parse::<i64>().is_ok() || t.parse::<f64>().is_ok())
+}
 
 // ---------------------------------------------------------------------------
 // Landed: try_fold_expr (O101 — fold constant expression)
@@ -70,6 +141,52 @@ pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
         return None;
     }
     let env = Env::new();
+    let value = eval_tcl_expr(&node, &env)?;
+    let rendered = format_tcl_value(value);
+    if rendered == trimmed {
+        return None;
+    }
+    Some(rendered)
+}
+
+/// Fold `expr` to a literal under a set of known constant variable values.
+///
+/// `constants` maps variable names (no `$`) to their literal text. `braced`
+/// distinguishes the substitution model of the enclosing `expr` argument:
+///
+/// * **braced** (`expr {$a == $b}`) — `expr` resolves the `$var` references
+///   itself, so a string-valued constant is a valid string operand; every
+///   constant is bound.
+/// * **quoted / bare** (`expr "$a == $b"`, `expr $a==$b`) — Tcl substitutes
+///   the variable *values* textually before parsing, so a non-numeric value
+///   becomes an invalid bareword (a runtime error). Only numeric constants
+///   are bound; a string-valued var is left unbound and the fold bails,
+///   matching the SCCP `[expr …]` fold (`sccp::env_from_uses_numeric`).
+///
+/// Returns the folded literal, or `None` when the expression still depends
+/// on an unresolved operand / command substitution.
+#[must_use]
+pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
+    expr: &str,
+    constants: &std::collections::HashMap<String, String, S>,
+    braced: bool,
+    dialect: Option<&str>,
+) -> Option<String> {
+    use crate::tcl_expr_eval::EnvValue;
+    let trimmed = expr.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let node = parse_expr(trimmed, dialect);
+    if matches!(node, ExprNode::Raw { .. }) {
+        return None;
+    }
+    let mut env = Env::new();
+    for (name, value) in constants {
+        if braced || is_numeric_string(value) {
+            env.insert(name.clone(), EnvValue::Str(value.clone()));
+        }
+    }
     let value = eval_tcl_expr(&node, &env)?;
     let rendered = format_tcl_value(value);
     if rendered == trimmed {
@@ -220,12 +337,24 @@ fn is_numeric_literal(text: &str) -> bool {
 /// the narrow helpers instead.
 #[must_use]
 pub fn instcombine_expr(expr: &str, bool_context: bool) -> (String, bool) {
+    instcombine_expr_typed(expr, bool_context, None)
+}
+
+/// As [`instcombine_expr`], but with a numeric-type context so the
+/// operand-dropping identities (`$x + 0` → `$x`, `$x * 0` → `0`, …) fire
+/// only when the dropped operand is provably numeric. See [`NumericCtx`].
+#[must_use]
+pub fn instcombine_expr_typed(
+    expr: &str,
+    bool_context: bool,
+    numeric: NumericCtx<'_>,
+) -> (String, bool) {
     let trimmed = expr.trim();
     let parsed = parse_expr(trimmed, None);
     if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
         return (expr.to_owned(), false);
     }
-    let simplified = simplify_to_fixpoint(&parsed, bool_context);
+    let simplified = simplify_to_fixpoint(&parsed, bool_context, numeric);
     let rendered = render_expr(&simplified);
     // SYNC-MAY31-1e (#498): suppress O110 noise. When the canonical
     // re-render differs from the input only in whitespace (e.g.
@@ -248,45 +377,209 @@ fn strip_ws(expr: &str) -> String {
 /// Apply one pass of local simplifications to `node`, returning
 /// the rewritten subtree. Used as the step function in
 /// [`simplify_to_fixpoint`].
-fn simplify_node_once(node: &ExprNode) -> ExprNode {
+fn simplify_node_once(node: &ExprNode, numeric: NumericCtx<'_>) -> ExprNode {
     // First, recurse into children — bottom-up rewriting.
     let lowered = match node {
         ExprNode::Binary { op, left, right } => ExprNode::Binary {
             op: *op,
-            left: Box::new(simplify_node_once(left)),
-            right: Box::new(simplify_node_once(right)),
+            left: Box::new(simplify_node_once(left, numeric)),
+            right: Box::new(simplify_node_once(right, numeric)),
         },
         ExprNode::Unary { op, operand } => ExprNode::Unary {
             op: *op,
-            operand: Box::new(simplify_node_once(operand)),
+            operand: Box::new(simplify_node_once(operand, numeric)),
         },
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => ExprNode::Ternary {
-            condition: Box::new(simplify_node_once(condition)),
-            true_branch: Box::new(simplify_node_once(true_branch)),
-            false_branch: Box::new(simplify_node_once(false_branch)),
+            condition: Box::new(simplify_node_once(condition, numeric)),
+            true_branch: Box::new(simplify_node_once(true_branch, numeric)),
+            false_branch: Box::new(simplify_node_once(false_branch, numeric)),
         },
         other => other.clone(),
     };
 
     // Apply local rewrites at this level in priority order.
-    if let Some(rewritten) = strength_reduce_node(&lowered) {
+    if let Some(rewritten) = strength_reduce_node(&lowered, numeric) {
         return rewritten;
     }
     if let Some(rewritten) = streq_promote_node(&lowered) {
         return rewritten;
     }
+    if let Some(rewritten) = reassociate_node(&lowered) {
+        return rewritten;
+    }
     lowered
 }
 
+/// **O110 constant reassociation.** Combine the integer-literal constants
+/// across a left-associative `+`/`-` (resp. `*`) chain while keeping every
+/// non-constant term: `$a + 1 + 2` → `$a + 3`, `$a + 3 - 1` → `$a + 2`,
+/// `$a * 2 * 3` → `$a * 6`. Mirrors `_collect_add_terms` / `_collect_mul_terms`
+/// + `_build_*_expr` in `compiler/optimiser/_expr_simplify.py`.
+///
+/// Fires only when one operand is itself an additive (resp. multiplicative)
+/// chain — a pure operand reorder (`1 + $a` → `$a + 1`) is suppressed as
+/// noise. All non-constant terms are preserved, so numeric-coercion error
+/// semantics are unchanged. The two term-dropping cases that *would* need a
+/// provably-numeric guard (annihilating `* 0`, dropping a lone `* 1`) are
+/// skipped — Python proves numericity from the SSA type lattice, which this
+/// AST-level pass cannot, so it conservatively leaves them be.
+fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
+    let ExprNode::Binary { op, left, right } = node else {
+        return None;
+    };
+    match op {
+        BinOp::Add | BinOp::Sub => {
+            if !is_additive(left) && !is_additive(right) {
+                return None;
+            }
+            let mut terms = Vec::new();
+            let constant = collect_add_terms(node, &mut terms)?;
+            if constant == i64::MIN {
+                return None; // `-constant` would overflow in the builder
+            }
+            let built = build_add_expr(&terms, constant);
+            (render_expr(&built) != render_expr(node)).then_some(built)
+        }
+        BinOp::Mul => {
+            if !is_mul(left) && !is_mul(right) {
+                return None;
+            }
+            let mut terms = Vec::new();
+            let constant = collect_mul_terms(node, &mut terms)?;
+            // Conservative: don't drop terms without a numeric proof.
+            if constant == 0 || (constant == 1 && terms.len() == 1) {
+                return None;
+            }
+            let built = build_mul_expr(&terms, constant);
+            (render_expr(&built) != render_expr(node)).then_some(built)
+        }
+        _ => None,
+    }
+}
+
+fn is_additive(n: &ExprNode) -> bool {
+    matches!(
+        n,
+        ExprNode::Binary {
+            op: BinOp::Add | BinOp::Sub,
+            ..
+        }
+    )
+}
+
+fn is_mul(n: &ExprNode) -> bool {
+    matches!(n, ExprNode::Binary { op: BinOp::Mul, .. })
+}
+
+/// Flatten an `+`/`-` chain: accumulate the literal constant and push every
+/// non-literal term onto `terms`. A `-` is followed only when its RHS is an
+/// integer literal (otherwise the whole node is an opaque term — Python does
+/// not negate a non-literal subtrahend here). `None` on integer overflow.
+fn collect_add_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
+    if let ExprNode::Binary { op, left, right } = node {
+        match op {
+            BinOp::Add => {
+                let l = collect_add_terms(left, terms)?;
+                let r = collect_add_terms(right, terms)?;
+                return l.checked_add(r);
+            }
+            BinOp::Sub => {
+                if let Some(rhs) = int_literal_value(right) {
+                    let l = collect_add_terms(left, terms)?;
+                    return l.checked_sub(rhs);
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(v) = int_literal_value(node) {
+        return Some(v);
+    }
+    terms.push(node.clone());
+    Some(0)
+}
+
+fn build_add_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
+    let Some((first, rest)) = terms.split_first() else {
+        return make_int_literal(constant);
+    };
+    let mut result = first.clone();
+    for term in rest {
+        result = ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(result),
+            right: Box::new(term.clone()),
+        };
+    }
+    match constant.cmp(&0) {
+        std::cmp::Ordering::Greater => ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(result),
+            right: Box::new(make_int_literal(constant)),
+        },
+        std::cmp::Ordering::Less => ExprNode::Binary {
+            op: BinOp::Sub,
+            left: Box::new(result),
+            right: Box::new(make_int_literal(-constant)),
+        },
+        std::cmp::Ordering::Equal => result,
+    }
+}
+
+/// Flatten a `*` chain: multiply the literal constants, push non-literals.
+/// `None` on integer overflow.
+fn collect_mul_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
+    if let ExprNode::Binary {
+        op: BinOp::Mul,
+        left,
+        right,
+    } = node
+    {
+        let l = collect_mul_terms(left, terms)?;
+        let r = collect_mul_terms(right, terms)?;
+        return l.checked_mul(r);
+    }
+    if let Some(v) = int_literal_value(node) {
+        return Some(v);
+    }
+    terms.push(node.clone());
+    Some(1)
+}
+
+fn build_mul_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
+    if constant == 0 {
+        return make_int_literal(0);
+    }
+    let Some((first, rest)) = terms.split_first() else {
+        return make_int_literal(constant);
+    };
+    let mut result = first.clone();
+    for term in rest {
+        result = ExprNode::Binary {
+            op: BinOp::Mul,
+            left: Box::new(result),
+            right: Box::new(term.clone()),
+        };
+    }
+    if constant != 1 {
+        result = ExprNode::Binary {
+            op: BinOp::Mul,
+            left: Box::new(result),
+            right: Box::new(make_int_literal(constant)),
+        };
+    }
+    result
+}
+
 /// Run [`simplify_node_once`] until the AST stops changing.
-fn simplify_to_fixpoint(node: &ExprNode, _bool_context: bool) -> ExprNode {
+fn simplify_to_fixpoint(node: &ExprNode, _bool_context: bool, numeric: NumericCtx<'_>) -> ExprNode {
     let mut cur = node.clone();
     for _ in 0..16 {
-        let next = simplify_node_once(&cur);
+        let next = simplify_node_once(&cur, numeric);
         if render_expr(&next) == render_expr(&cur) {
             return next;
         }
@@ -303,12 +596,19 @@ fn simplify_to_fixpoint(node: &ExprNode, _bool_context: bool) -> ExprNode {
 /// inputs come back unchanged.
 #[must_use]
 pub fn try_strength_reduce_expr(expr: &str) -> (String, bool) {
+    try_strength_reduce_expr_typed(expr, None)
+}
+
+/// As [`try_strength_reduce_expr`], but with a numeric-type context for the
+/// operand-dropping identities. See [`NumericCtx`].
+#[must_use]
+pub fn try_strength_reduce_expr_typed(expr: &str, numeric: NumericCtx<'_>) -> (String, bool) {
     let trimmed = expr.trim();
     let parsed = parse_expr(trimmed, None);
     if matches!(parsed, ExprNode::Raw { .. }) || expr_has_command_subst(&parsed) {
         return (expr.to_owned(), false);
     }
-    let Some(rewritten) = strength_reduce_node(&parsed) else {
+    let Some(rewritten) = strength_reduce_node(&parsed, numeric) else {
         return (expr.to_owned(), false);
     };
     let rendered = render_expr(&rewritten);
@@ -407,15 +707,15 @@ pub fn try_eq_ne_string_compare_simplify_expr(expr: &str) -> (String, bool) {
 /// One pass of strength reduction. Returns `None` when no
 /// rewrite applies. Conservative — only obviously-safe rewrites
 /// (no overflow / divide-by-zero concerns).
-fn strength_reduce_node(node: &ExprNode) -> Option<ExprNode> {
+fn strength_reduce_node(node: &ExprNode, numeric: NumericCtx<'_>) -> Option<ExprNode> {
     match node {
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => reduce_ternary(condition, true_branch, false_branch),
-        ExprNode::Unary { op, operand } => reduce_unary(*op, operand),
-        ExprNode::Binary { op, left, right } => reduce_binary(*op, left, right),
+        ExprNode::Unary { op, operand } => reduce_unary(*op, operand, numeric),
+        ExprNode::Binary { op, left, right } => reduce_binary(*op, left, right, numeric),
         _ => None,
     }
 }
@@ -435,11 +735,16 @@ fn reduce_ternary(
 }
 
 /// Unary identities and negation collapses.
-fn reduce_unary(op: crate::expr_ast::UnaryOp, operand: &ExprNode) -> Option<ExprNode> {
+fn reduce_unary(
+    op: crate::expr_ast::UnaryOp,
+    operand: &ExprNode,
+    numeric: NumericCtx<'_>,
+) -> Option<ExprNode> {
     use crate::expr_ast::UnaryOp;
 
-    // `+x` → `x` (arithmetic identity).
-    if matches!(op, UnaryOp::Pos) {
+    // `+x` → `x` (arithmetic identity) — drops the unary `+`, so `x` must be
+    // provably numeric or the coercion error (`expr {+$s}`) would be lost.
+    if matches!(op, UnaryOp::Pos) && node_provably_numeric(operand, numeric) {
         return Some(operand.clone());
     }
 
@@ -514,7 +819,12 @@ fn demorgan_flip(op: BinOp) -> Option<BinOp> {
 }
 
 /// Binary-operator algebraic identities and absorbing cases.
-fn reduce_binary(op: BinOp, left: &ExprNode, right: &ExprNode) -> Option<ExprNode> {
+fn reduce_binary(
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+    numeric: NumericCtx<'_>,
+) -> Option<ExprNode> {
     // Self-comparison tautologies for pure variable references.
     if let Some(result) = reduce_self_comparison(op, left, right) {
         return Some(result);
@@ -523,11 +833,11 @@ fn reduce_binary(op: BinOp, left: &ExprNode, right: &ExprNode) -> Option<ExprNod
     let lit_right = int_literal_value(right);
     let lit_left = int_literal_value(left);
 
-    reduce_arith_identity(op, left, right, lit_left, lit_right)
-        .or_else(|| reduce_pow(op, left, right, lit_right))
-        .or_else(|| reduce_mod(op, left, lit_right))
-        .or_else(|| reduce_shift(op, left, lit_right))
-        .or_else(|| reduce_bitwise(op, left, right, lit_left, lit_right))
+    reduce_arith_identity(op, left, right, lit_left, lit_right, numeric)
+        .or_else(|| reduce_pow(op, left, right, lit_right, numeric))
+        .or_else(|| reduce_mod(op, left, lit_right, numeric))
+        .or_else(|| reduce_shift(op, left, lit_right, numeric))
+        .or_else(|| reduce_bitwise(op, left, right, lit_left, lit_right, numeric))
         .or_else(|| reduce_logical(op, lit_left, lit_right))
 }
 
@@ -552,60 +862,75 @@ fn reduce_self_comparison(op: BinOp, left: &ExprNode, right: &ExprNode) -> Optio
 }
 
 /// `+/-/*//` arithmetic identities and annihilators.
+///
+/// Every rewrite here removes an arithmetic operation, so the surviving
+/// expression must still raise Tcl's numeric-coercion error iff the
+/// original would: each is gated on the *non-literal* operand being
+/// provably numeric (mirrors Python's `_numeric` guard). Without a type
+/// context the guard passes (legacy aggressive behaviour).
 fn reduce_arith_identity(
     op: BinOp,
     left: &ExprNode,
     right: &ExprNode,
     lit_left: Option<i64>,
     lit_right: Option<i64>,
+    numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
+    let num = |n: &ExprNode| node_provably_numeric(n, numeric);
     match op {
         // x + 0 → x, 0 + x → x.
         BinOp::Add => {
-            if lit_right == Some(0) {
+            if lit_right == Some(0) && num(left) {
                 return Some(left.clone());
             }
-            if lit_left == Some(0) {
+            if lit_left == Some(0) && num(right) {
                 return Some(right.clone());
             }
             None
         }
         // x - 0 → x.
-        BinOp::Sub if lit_right == Some(0) => Some(left.clone()),
+        BinOp::Sub if lit_right == Some(0) && num(left) => Some(left.clone()),
         // x * 1 → x, 1 * x → x, x * 0 / 0 * x → 0.
-        // (Annihilator is safe only when operands are side-effect-free;
-        // gates in the caller ensure this.)
         BinOp::Mul => {
-            if lit_right == Some(1) {
+            if lit_right == Some(1) && num(left) {
                 return Some(left.clone());
             }
-            if lit_left == Some(1) {
+            if lit_left == Some(1) && num(right) {
                 return Some(right.clone());
             }
-            if lit_right == Some(0) || lit_left == Some(0) {
+            // Annihilation drops the whole non-literal operand.
+            if lit_right == Some(0) && num(left) {
+                return Some(make_int_literal(0));
+            }
+            if lit_left == Some(0) && num(right) {
                 return Some(make_int_literal(0));
             }
             None
         }
         // x / 1 → x.
-        BinOp::Div if lit_right == Some(1) => Some(left.clone()),
+        BinOp::Div if lit_right == Some(1) && num(left) => Some(left.clone()),
         _ => None,
     }
 }
 
 /// `x ** 0 → 1`, `x ** 1 → x`, `x ** 2 → x * x` for integer literal exponents.
+///
+/// `** 0` / `** 1` drop the `x ** …` operation, so `x` must be provably
+/// numeric. `** 2 → x * x` keeps `x` as an operand on both sides, preserving
+/// error semantics without a guard.
 fn reduce_pow(
     op: BinOp,
     left: &ExprNode,
     _right: &ExprNode,
     lit_right: Option<i64>,
+    numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
     if !matches!(op, BinOp::Pow) {
         return None;
     }
     match lit_right? {
-        0 => Some(make_int_literal(1)),
-        1 => Some(left.clone()),
+        0 if node_provably_numeric(left, numeric) => Some(make_int_literal(1)),
+        1 if node_provably_numeric(left, numeric) => Some(left.clone()),
         2 => Some(ExprNode::Binary {
             op: BinOp::Mul,
             left: Box::new(left.clone()),
@@ -616,12 +941,20 @@ fn reduce_pow(
 }
 
 /// `x % 1 → 0` (absorbing) and `x % pow2 → x & (pow2 - 1)`.
-fn reduce_mod(op: BinOp, left: &ExprNode, lit_right: Option<i64>) -> Option<ExprNode> {
+///
+/// `% 1 → 0` drops `x`, so it needs `x` numeric. The pow2 strength-reduction
+/// keeps `x` (the `&` coerces too), so it preserves error semantics.
+fn reduce_mod(
+    op: BinOp,
+    left: &ExprNode,
+    lit_right: Option<i64>,
+    numeric: NumericCtx<'_>,
+) -> Option<ExprNode> {
     if !matches!(op, BinOp::Mod) {
         return None;
     }
     let n = lit_right?;
-    if n == 1 {
+    if n == 1 && node_provably_numeric(left, numeric) {
         return Some(make_int_literal(0));
     }
     if n > 1 && (n & (n - 1)) == 0 {
@@ -634,12 +967,17 @@ fn reduce_mod(op: BinOp, left: &ExprNode, lit_right: Option<i64>) -> Option<Expr
     None
 }
 
-/// `x << 0 → x`, `x >> 0 → x`.
-fn reduce_shift(op: BinOp, left: &ExprNode, lit_right: Option<i64>) -> Option<ExprNode> {
+/// `x << 0 → x`, `x >> 0 → x`. Drops the shift, so `x` must be numeric.
+fn reduce_shift(
+    op: BinOp,
+    left: &ExprNode,
+    lit_right: Option<i64>,
+    numeric: NumericCtx<'_>,
+) -> Option<ExprNode> {
     if !matches!(op, BinOp::LShift | BinOp::RShift) {
         return None;
     }
-    if lit_right == Some(0) {
+    if lit_right == Some(0) && node_provably_numeric(left, numeric) {
         Some(left.clone())
     } else {
         None
@@ -647,19 +985,31 @@ fn reduce_shift(op: BinOp, left: &ExprNode, lit_right: Option<i64>) -> Option<Ex
 }
 
 /// Bitwise identities / annihilators: `x & 0 → 0`, `x | 0 → x`, `x ^ 0 → x`.
+/// Each drops or strips an operand's coercion, so the non-literal operand
+/// must be provably numeric.
 fn reduce_bitwise(
     op: BinOp,
     left: &ExprNode,
     right: &ExprNode,
     lit_left: Option<i64>,
     lit_right: Option<i64>,
+    numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
+    let num = |n: &ExprNode| node_provably_numeric(n, numeric);
     match op {
-        BinOp::BitAnd if lit_right == Some(0) || lit_left == Some(0) => Some(make_int_literal(0)),
+        BinOp::BitAnd => {
+            if lit_right == Some(0) && num(left) {
+                return Some(make_int_literal(0));
+            }
+            if lit_left == Some(0) && num(right) {
+                return Some(make_int_literal(0));
+            }
+            None
+        }
         BinOp::BitOr | BinOp::BitXor => {
-            if lit_right == Some(0) {
+            if lit_right == Some(0) && num(left) {
                 Some(left.clone())
-            } else if lit_left == Some(0) {
+            } else if lit_left == Some(0) && num(right) {
                 Some(right.clone())
             } else {
                 None
@@ -928,6 +1278,46 @@ mod tests {
         assert_eq!(out, "$x + 5");
     }
 
+    #[test]
+    fn arith_identity_numeric_guard() {
+        // No type context (`None`) → legacy aggressive behaviour: drop.
+        for e in [
+            "$x * 0", "$x + 0", "$x * 1", "$x - 0", "$x / 1", "$x % 1", "$x << 0",
+        ] {
+            let (_, changed) = instcombine_expr(e, false);
+            assert!(changed, "None ctx must still simplify {e:?}");
+        }
+        // With a type context that does NOT prove `$x` numeric → keep the
+        // operand (dropping it would hide a coercion error). Mirrors Python.
+        let empty: HashSet<String> = HashSet::new();
+        for e in ["$x * 0", "$x + 0", "$x * 1", "$x % 1", "$x << 0"] {
+            let (out, changed) = instcombine_expr_typed(e, false, Some(&empty));
+            assert!(!changed, "non-numeric `$x` must keep {e:?}, got {out:?}");
+        }
+        // With `$x` proven numeric → the identity fires again, matching Python.
+        let mut numeric = HashSet::new();
+        numeric.insert("x".to_owned());
+        let (out, changed) = instcombine_expr_typed("$x * 0", false, Some(&numeric));
+        assert!(
+            changed && out.trim() == "0",
+            "numeric `$x * 0` → 0, got {out:?}"
+        );
+        let (out, changed) = instcombine_expr_typed("$x + 0", false, Some(&numeric));
+        assert!(
+            changed && out.trim() == "$x",
+            "numeric `$x + 0` → $x, got {out:?}"
+        );
+    }
+
+    #[test]
+    fn numeric_string_literal_is_provably_numeric() {
+        // An SCCP-inlined numeric constant arrives as a string literal.
+        assert!(is_numeric_string("42"));
+        assert!(is_numeric_string("\"3.5\""));
+        assert!(!is_numeric_string("\"abc\""));
+        assert!(!is_numeric_string(""));
+    }
+
     // -- try_strlen_simplify_expr ------------------------------------------
 
     #[test]
@@ -978,6 +1368,42 @@ mod tests {
         let (out, changed) = instcombine_expr("$x + $y", false);
         assert!(!changed);
         assert_eq!(out, "$x + $y");
+    }
+
+    #[test]
+    fn o110_reassociates_constant_chains() {
+        // Additive and multiplicative constant reassociation (O110).
+        for (input, want) in [
+            ("$a + 1 + 2", "$a + 3"),
+            ("$a * 2 * 3", "$a * 6"),
+            ("$a + 3 - 1", "$a + 2"),
+            ("$a - 1 - 2", "$a - 3"),
+            ("5 + $a - 2", "$a + 3"),
+            ("$a + $b + 1 + 2", "$a + $b + 3"),
+            ("$a + 1 - 1", "$a"),
+        ] {
+            let (out, changed) = instcombine_expr(input, false);
+            assert!(changed, "expected a rewrite for {input:?}");
+            assert_eq!(out.trim(), want, "for {input:?}");
+        }
+    }
+
+    #[test]
+    fn o110_skips_pure_reorder_and_unsafe_drops() {
+        // No additive chain to flatten → the reassociation does not fire
+        // (a bare `1 + $a` reorder is left to other passes / suppressed).
+        assert!(
+            reassociate_node(&parse_expr("1 + $a", None)).is_none(),
+            "reassociation must not fire on a non-chain reorder",
+        );
+        // `* 0` annihilation across a chain needs a numeric proof this
+        // AST-level pass cannot make, so the reassociation abstains (the
+        // result, if any, comes from the separate identity pass, not here).
+        let parsed = parse_expr("$a * 0 * 3", None);
+        assert!(
+            reassociate_node(&parsed).is_none(),
+            "reassociation must not annihilate `* 0` without a numeric proof",
+        );
     }
 
     #[test]
