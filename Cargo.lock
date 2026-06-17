@@ -2258,6 +2258,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-host-native"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+]
+
+[[package]]
 name = "tcl-irules"
 version = "0.1.0"
 dependencies = [
@@ -2371,6 +2378,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",
+ "tcl-host-native",
  "tcl-platform",
  "tcl-registry",
  "tcl-runtime-api",

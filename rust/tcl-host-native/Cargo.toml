@@ -1,0 +1,24 @@
+# The std-backed `NativeHost` — the full-capability [`tcl_platform::Host`]
+# implementation for native targets, shared by every native-running Tcl runtime
+# (the bytecode VM `tcl-vm` and `runtime/rust`'s native test builds).
+#
+# It is value-agnostic — it deals in bytes, paths, and `ExecOutput`, never a
+# runtime's value type — so a single std impl serves both runtimes. The WASM
+# hosts (`WasiHost`/`BrowserHost`) live with `runtime/rust`; this crate is the
+# native one and is therefore *not* wasm32-clean (it calls `std::fs`/`std::env`/
+# `std::process`/`std::time`).
+[package]
+name = "tcl-host-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Std-backed NativeHost (full-capability Host impl) shared across Tcl runtimes"
+
+[dependencies]
+tcl-platform = { path = "../tcl-platform" }
+
+[lints]
+workspace = true

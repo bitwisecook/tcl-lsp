@@ -27,6 +27,7 @@ tcl-syntax = { path = "../tcl-syntax" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-platform = { path = "../tcl-platform" }
+tcl-host-native = { path = "../tcl-host-native" }
 regex = "1"
 
 [dev-dependencies]
