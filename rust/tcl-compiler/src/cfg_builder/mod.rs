@@ -500,6 +500,33 @@ impl CfgBuilder {
                     }
                 }
 
+                // `return -options …` / `return {*}…args` lower to an IRBarrier
+                // (codegen keeps the options/expansion as raw_args), but they
+                // still unconditionally exit the proc. In analysis builds
+                // (`faithful_exceptions`) treat them as a `Return`-style
+                // terminator so the fall-through edge to the rest of the block /
+                // the `try` handler→`try_end` join is cut — otherwise a
+                // `return -options` handler false-flows to `try_end` and adds a
+                // spurious phi (e.g. `auto_mkindex`). Codegen builds leave it as
+                // a plain barrier (bytecode unchanged). Mirrors Python
+                // `_lower_script` (`compiler/cfg.py` ~L1016).
+                Statement::Barrier { reason, span, .. }
+                    if self.faithful_exceptions
+                        && matches!(
+                            reason.as_str(),
+                            "return with options" | "return with expansion"
+                        ) =>
+                {
+                    let span = *span;
+                    self.push_plain_statement(&current, stmt);
+                    self.block_mut(&current).terminator = Some(Terminator::Return {
+                        value: None,
+                        span: Some(span),
+                        expr: None,
+                        braced: false,
+                    });
+                }
+
                 // All other statements (assignments, calls, barriers,
                 // expr-evals) go straight into the current block —
                 // after the upvar-invalidation pass augments
