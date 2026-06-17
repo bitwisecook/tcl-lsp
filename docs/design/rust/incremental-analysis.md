@@ -474,15 +474,28 @@ practcl.tcl from ~1 s to low-ms).
 >
 > **Remaining (future).**
 >
-> - **Interprocedural taint cascade.** `with_interprocedural` still re-runs
->   `propagate_taints` for every function on each edit (a small fraction of the
->   per-edit cost now). Memoising it byte-identically needs a per-function key
->   over the reachable-callee `ProcSummary`s — i.e. a `taint_cascade` query layered
->   on `function_lattice`'s baseline taints, fed the reachable summaries as
->   interned inputs.  Now tractable on the salsa-native graph; net-small perf.
->   `ProcSummary` carries `HashMap`/`HashSet` fields (no `Hash`/`Eq`), so the key
->   needs a full hashable encoding of the reachable summary set (cf. the
->   `param_constants` encoding, but much larger) — the main cost of this item.
+> - **Interprocedural taint cascade (shipped — backlog #1).**
+>   `with_interprocedural` re-ran `propagate_taints` for every procedure every
+>   edit.  A salsa-native `taint_cascade` query (`tcl-lsp-db`) now layers on
+>   `function_lattice`'s offset-0 baseline so an unchanged procedure whose
+>   reachable-callee summaries are unchanged reuses its cached taints.  The taint
+>   lattice is `ValueKey`-keyed (span-free), so the cascade runs over the offset-0
+>   baseline and installs the result directly into the rebased unit — **no rebase
+>   needed**.  The key (`TaintSummaryKey`) captures exactly what `propagate_taints`
+>   reads from the summary: the full procedure-name set (call-resolution domain)
+>   plus the taint-relevant projection (`writes_global`, `calls`,
+>   `return_passthrough_param`, `params`) of the cascade root + its transitive
+>   callees — so a body edit that flips a reachable callee's passthrough /
+>   global-write re-interns the key for exactly the callers that reach it.
+>   `CompilationUnit::with_interprocedural_memoized` routes each procedure's taint
+>   through a callback (top level stays fresh); the whole-module summary is still
+>   built per edit (it is the memo's input), so the saving is only the
+>   per-procedure re-run — **net-small, as predicted**.  Byte-identical: the
+>   `compiler_check` corpus differential proved the minimal-summary reconstruction
+>   cold over 893 files, and a new edit-staleness db test
+>   (`taint_cascade_matches_uncached_under_edits`) proved no stale cache survives a
+>   callee-behaviour edit.  Gated also by `taint_cascade_reused_on_unrelated_edit`
+>   (one cascade recomputes per unrelated edit) + e2e.
 
 ## Scoping the per-edit lowering floor (backlog #3)
 
@@ -579,11 +592,25 @@ proc's base byte-offset, added at span-emit time — eliminating both the
 
 Sequence by risk-adjusted value:
 
-1. **Micro-win, independent, low-risk:** rework `collect_call_site_constants` to
-   walk IR call statements instead of the module CFG, so memoised procs needn't
-   have their real-offset CFG built in `build_cfg` at all (shaves redundant work
-   from the ~10 ms, unblocks A).
-2. **Approach A** (incremental per-item lowering) next: lower risk (no consumer
+1. **Micro-win — *not* as cheap as it looks.**  Reworking
+   `collect_call_site_constants` to walk IR call statements (so memoised procs
+   needn't have their real-offset CFG built in `build_cfg`) is **divergence-prone**
+   and was deferred:
+   - The module CFG omits calls inside **top-level deferred loops** when
+     `defer_top_level = true` (the codegen path), while a naive recursive IR walk
+     would include them.  A faithful IR walker must replicate that `defer_top_level`
+     gating exactly.
+   - `build_for_inner` (hence `collect_call_site_constants`) is shared by the
+     **codegen** build too, and `param_constants` seed SCCP — so a *uniform*
+     behaviour change isn't caught by the memoised-vs-uncached
+     `compiler_check_corpus` differential (both sides change together); only the
+     pinned analyser unit tests + e2e would catch it.  Do this only with those
+     pins watched, and prove the `defer_top_level` parity first.
+   - **Why it matters:** on a *warm* edit `function_lattice` is a cache hit, so the
+     proc's offset-0 CFG is already built; `build_cfg`'s real-offset per-proc CFG
+     is then **pure redundant work** (~10 ms on `parse_lemon`).  Skipping it needs
+     call-site collection off the CFG first — hence this micro-win is the unblock.
+2. **Approach A** (incremental per-item lowering): lower risk (no consumer
    surface), architecturally consistent, ~36 ms ceiling — but first prove the
    body-lowering memo is byte-identical under the whole-module trace/factory/
    uplevel passes (the cross-item-facts-as-input split).
@@ -593,6 +620,15 @@ Sequence by risk-adjusted value:
    finally the **optimiser** (resolving the `propagation.rs` source-slice
    leakage) — banking the ~52 ms only when the last consumer flips.  Highest
    value, highest risk; do not start partial expecting a wall-clock win.
+
+> **Backlog #2 (memoise `optimise_unit` per-function) is the optimiser half of
+> Approach B, not an independent item.**  `optimise_unit`'s passes read
+> `ctx.source[span]` at real offsets (`propagation.rs` O102), so an
+> *offset-invariant* per-function optimiser memo — the only kind that survives the
+> shifts a real edit causes — needs exactly the offset-aware/source-slice refactor
+> Approach B's optimiser step describes.  A non-offset-invariant memo (keyed on the
+> proc's real-offset unit) would miss on every edit that shifts the proc, so it is
+> not worth building.  **Do #2 as part of #3-B's optimiser conversion**, not before.
 
 All steps keep the full-rebuild fallback and gate on
 `compiler_check_memo_matches_uncached_over_corpus` + `per_item_corpus` +
