@@ -207,9 +207,11 @@ fn layer_payload(
 /// layers use. Mirrors Python's `_collect_diff_layer_payloads` cfg branch —
 /// read the two views off `serialise_result`.
 ///
-/// `analysis.deadStores` inside `postSsa` is a documented `_NO_PARITY`
-/// sub-field (Rust reports the optimiser's O109 dead stores, Python a
-/// standalone-liveness set); see the `diff` row in `docs/rust-cli-port.md`.
+/// `analysis.deadStores` inside `postSsa` is the liveness-based set (a port of
+/// Python's `_dead_stores`), byte-identical wherever the SSA matches. A
+/// residual SSA-block construction gap on complex scripts can still diverge
+/// (and cascade into `inferredTypes`/`deadStores` there) — a separate
+/// workstream; see the `diff` row in `docs/rust-cli-port.md`.
 fn cfg_layer_payload(src: &str, dialect: &str) -> String {
     let result = tcl_explorer::run_pipeline(src, dialect);
     let serialised = tcl_explorer::serialise_result(&result);
