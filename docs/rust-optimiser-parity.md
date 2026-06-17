@@ -183,14 +183,33 @@ removed; never-used / by-name-read / metacharacter-bearing defs kept;
 over-removals — e.g. `lset` not modelled as read-modify-write — are
 untouched); behaviourally equivalent under `tclsh`.
 
-Reach is currently modest (the conservative `AssignConst`-only guard
-excludes `AssignExpr`-fold constants like `set x [expr {1+1}]`, and many
-corpus files diverge on other axes too). **Follow-ups:** broaden to
-`AssignExpr`/`AssignValue` SCCP-constants whose *folded* value is a simple
-literal (distinguishing the clean `[expr {…}]` fold from the quoted-expr
-`[expr "…"]` smell Python preserves), then O110 reassociation and O127
-forwarding. The diagnostic-side dead-store/unused parity (W210 / W211 /
-W220) is already closed.
+### Widening + bug fixes (follow-up)
+
+The by-name-read guard was relaxed to be quote/brace-aware
+(`in_string_or_braces`): the variable name appearing as *literal text*
+inside a `"…"` string or `{…}` braces (`puts "x=$x"`) is no longer mistaken
+for a by-name read, so those defs now couple-remove and match Python
+(`info exists x` and `[set x]`, which *are* by-name reads, still keep the
+def). Two pre-existing correctness bugs were fixed in the same strip:
+
+- **`lset` / `lpop` over-removal** — they read the list before rewriting it
+  but lacked the `READS_BEFORE_WRITE` trait, so the generic lowering emitted
+  `reads_own_defs: false` and a feeding `set lst {…}` was wrongly deleted
+  (and flagged W220). Added the trait and wired the generic lowering's
+  `reads_own_defs` to it.
+- **Propagation into braced literals** — `puts {$x}` was rewritten to
+  `puts 42}`. Both propagation paths now skip `Str` (braced) words before
+  any fold.
+
+Corpus exact 37 → 41; over-removals 14 → 11.
+
+**Remaining follow-ups:** `AssignExpr`/`AssignValue` SCCP-constants whose
+*folded* value is a simple literal (`set x [expr {1+1}]`) — present in the
+corpus only as proc-call assignments, so low value; it needs a
+surviving-fold check to distinguish the clean `[expr {…}]` fold from the
+quoted-expr `[expr "…"]` smell Python preserves. Then O110 reassociation
+and O127 forwarding. The diagnostic-side dead-store/unused parity (W210 /
+W211 / W220) is already closed.
 
 Diagnostic-side dead-store/unused parity (W210 / W211 / W220) is now
 closed — see the analyser changes landed alongside this note.

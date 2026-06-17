@@ -161,9 +161,11 @@ fn count_var_refs(text: &str, var: &str) -> usize {
 }
 
 /// Count occurrences of `var` as a standalone bareword in `text` — word
-/// boundaries on both sides, and **not** the `$var` / `${var}` substitution
-/// forms (those are counted by [`count_var_refs`]). Used to detect by-name
-/// reads (`[set x]`, `info exists x`, …) the `$var` scan misses.
+/// boundaries on both sides, **not** a `$var` / `${var}` substitution, and
+/// **not** inside a `"…"` quoted string or `{…}` braced literal. Used to
+/// detect by-name reads the `$var` scan misses (`info exists x`, a `[set x]`
+/// command substitution); occurrences of the name as literal text inside a
+/// string (`"x=$x"`) or braces are not reads and must not count.
 fn bareword_occurrences(text: &str, var: &str) -> usize {
     let bytes = text.as_bytes();
     let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
@@ -182,10 +184,42 @@ fn bareword_occurrences(text: &str, var: &str) -> usize {
             Some(b'$') => continue,                                       // `$var`
             Some(b'{') if pos >= 2 && bytes[pos - 2] == b'$' => continue, // `${var`
             Some(b) if is_word(b) => continue,                            // part of a longer word
-            _ => n += 1,
+            _ => {}
         }
+        // Skip occurrences inside a `"…"` string or `{…}` braces — there the
+        // name is literal text, not a variable read. (Command substitutions
+        // `[…]` are *not* skipped: `[set x]` / `[info exists x]` read by name.)
+        if in_string_or_braces(bytes, pos) {
+            continue;
+        }
+        n += 1;
     }
     n
+}
+
+/// Whether byte offset `pos` in `text` lies inside a `"…"` quoted string or
+/// `{…}` braces. A conservative scan from the start: an unescaped `"` toggles
+/// quote state (only while not inside braces), and `{`/`}` track brace depth
+/// (only while not inside a quote). Over-counting on pathological input keeps
+/// the def (safe); the common cases (`"x=$x"`, `{$x}`) are handled.
+fn in_string_or_braces(bytes: &[u8], pos: usize) -> bool {
+    let mut in_quote = false;
+    let mut brace_depth = 0u32;
+    let mut i = 0;
+    while i < pos {
+        match bytes[i] {
+            b'\\' => {
+                i += 2;
+                continue;
+            }
+            b'"' if brace_depth == 0 => in_quote = !in_quote,
+            b'{' if !in_quote => brace_depth += 1,
+            b'}' if !in_quote && brace_depth > 0 => brace_depth -= 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    in_quote || brace_depth > 0
 }
 
 /// Couple constant propagation with dead-store removal — see the call site in
@@ -647,6 +681,28 @@ mod tests {
             meta.contains("set e "),
             "metacharacter-bearing const must keep its def; got {meta:?}",
         );
+    }
+
+    #[test]
+    fn coupling_sees_through_literal_name_in_strings() {
+        // The variable name appearing as literal text inside a string
+        // (`"x=$x"`) is not a by-name read — the def is still removable when
+        // every real `$x` reference is propagated.
+        assert_eq!(
+            optimised("set x 1\nset y 2\nputs \"x=$x y=$y\"\n"),
+            "puts \"x=1 y=2\"\n",
+        );
+    }
+
+    #[test]
+    fn bareword_occurrences_skips_string_and_brace_literals() {
+        // `info exists x` / bare `x` command word → counted (by-name read).
+        assert_eq!(bareword_occurrences("info exists x", "x"), 1);
+        // Literal text inside quotes / braces → not counted.
+        assert_eq!(bareword_occurrences("puts \"x=$x\"", "x"), 0);
+        assert_eq!(bareword_occurrences("puts {x marks}", "x"), 0);
+        // A `[set x]` command substitution still counts (reads by name).
+        assert_eq!(bareword_occurrences("puts [set x]", "x"), 1);
     }
 
     #[test]
