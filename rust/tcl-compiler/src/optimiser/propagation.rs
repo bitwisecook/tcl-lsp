@@ -172,7 +172,7 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
                     ctx.report(Optimisation::new(
                         "O102",
                         message.clone(),
-                        full_word_span(ctx.source, *argv_span),
+                        full_word_span(ctx.source, fu.abs_span(*argv_span)),
                         literal.clone(),
                     ));
                     emitted_applicable = true;
@@ -187,8 +187,12 @@ fn run_load_forwarding(ctx: &mut PassContext<'_>, fu: &crate::compilation_unit::
             // entry matched as a simple `$var` word (e.g. the
             // read is inside an interpolated string — the O100
             // string-interpolation path handles that).
-            let mut opt =
-                Optimisation::new("O102", message.clone(), use_stmt.span(), literal.clone());
+            let mut opt = Optimisation::new(
+                "O102",
+                message.clone(),
+                fu.abs_span(use_stmt.span()),
+                literal.clone(),
+            );
             opt.hint_only = true;
             ctx.report(opt);
         }
@@ -407,7 +411,14 @@ fn forward_candidate(
         return None;
     }
 
-    build_forward_edits(ctx.source, def_stmt, def_name, var_span, env.rewritten)
+    build_forward_edits(
+        ctx.source,
+        def_stmt,
+        def_name,
+        var_span,
+        env.rewritten,
+        fu.base_offset,
+    )
 }
 
 /// Construct the grouped O127 `(inline, delete)` edits for a resolved
@@ -419,8 +430,22 @@ fn build_forward_edits(
     def_name: &str,
     var_span: tcl_lexer::Span,
     rewritten: &[(u32, u32)],
+    base_offset: i64,
 ) -> Option<(Optimisation, Optimisation)> {
-    let def_span = def_stmt.span();
+    // `def_stmt` / `var_span` come from the unit's `cfg`, so they are relative
+    // to `base_offset`; absolutise before slicing `source` / comparing against
+    // the (absolute) already-rewritten ranges.
+    let shift = |sp: tcl_lexer::Span| -> tcl_lexer::Span {
+        if base_offset == 0 {
+            return sp;
+        }
+        let s = (i64::from(sp.start()) + base_offset).max(0);
+        let e = (i64::from(sp.end()) + base_offset).max(0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        tcl_lexer::Span::new(s as u32, e as u32)
+    };
+    let def_span = shift(def_stmt.span());
+    let var_span = shift(var_span);
     let (ds, de) = (def_span.start(), def_span.end());
     if de as usize > source.len() || ds >= de {
         return None;

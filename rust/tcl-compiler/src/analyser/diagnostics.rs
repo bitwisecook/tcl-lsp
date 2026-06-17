@@ -5430,6 +5430,7 @@ file; this call falls through to the 'unknown' handler."
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
                 &function_unit.cfg,
+                function_unit.base_offset,
             );
         // A var read in another iRule event, or consumed *by name* via a
         // call-by-name upvar callee (SYNC-JUN02d-2), is "used" — suppress
@@ -5657,7 +5658,7 @@ file; this call falls through to the 'unknown' handler."
             )) {
                 continue;
             }
-            let span = stmt.span();
+            let span = fu.abs_span(stmt.span());
             if span.is_empty() {
                 continue;
             }
@@ -5736,7 +5737,7 @@ file; this call falls through to the 'unknown' handler."
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
-            let span = stmt.span();
+            let span = fu.abs_span(stmt.span());
             if span.is_empty() {
                 continue;
             }
@@ -5821,7 +5822,7 @@ file; this call falls through to the 'unknown' handler."
                 if var_name.starts_with('_') {
                     continue;
                 }
-                let span = block.statements[idx + 1].span();
+                let span = fu.abs_span(block.statements[idx + 1].span());
                 if span.is_empty() {
                     continue;
                 }
@@ -6123,7 +6124,7 @@ file; this call falls through to the 'unknown' handler."
                         else {
                             continue;
                         };
-                        (span, None)
+                        (fu.abs_span(span), None)
                     } else {
                         let Ok(idx) = usize::try_from(use_site.statement_index) else {
                             continue;
@@ -6131,7 +6132,7 @@ file; this call falls through to the 'unknown' handler."
                         let Some(stmt) = block.statements.get(idx) else {
                             continue;
                         };
-                        (stmt.span(), Some(stmt))
+                        (fu.abs_span(stmt.span()), Some(stmt))
                     };
                 if span.is_empty() {
                     continue;
@@ -6229,6 +6230,7 @@ file; this call falls through to the 'unknown' handler."
                 .terminator
                 .as_ref()
                 .and_then(crate::cfg::Terminator::span)
+                .map(|s| fu.abs_span(s))
             else {
                 continue;
             };
@@ -6405,7 +6407,7 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     }
                     let span = match fu.cfg.blocks.get(bn).and_then(|b| b.statements.get(idx)) {
-                        Some(st) if !st.span().is_empty() => st.span(),
+                        Some(st) if !st.span().is_empty() => fu.abs_span(st.span()),
                         _ => continue,
                     };
                     reported.insert(name.clone());
@@ -6531,7 +6533,7 @@ file; this call falls through to the 'unknown' handler."
             else {
                 continue;
             };
-            let span = *span;
+            let span = fu.abs_span(*span);
 
             let names = [
                 branch.block.as_str(),
@@ -6613,7 +6615,9 @@ file; this call falls through to the 'unknown' handler."
             None => HashSet::new(),
         };
         for cb in crate::sccp::existence_constant_branches(&fu.cfg, &params) {
-            let Some(span) = cb.span else { continue };
+            let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
+                continue;
+            };
             let message = if cb.value {
                 format!(
                     "Condition '{}' is always true; the alternate branch is unreachable",
@@ -6721,7 +6725,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: "W126".to_string(),
-                            span: *span,
+                            span: fu.abs_span(*span),
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -6745,7 +6749,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: "W126".to_string(),
-                            span: *span,
+                            span: fu.abs_span(*span),
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -6810,7 +6814,7 @@ file; this call falls through to the 'unknown' handler."
                     if let Some(versions) = versions
                         && let Some(op) = find_divide_by_zero(expr, versions, &fu.sccp.values)
                     {
-                        hits.push((*span, op));
+                        hits.push((fu.abs_span(*span), op));
                     }
                 }
             }
@@ -6823,7 +6827,7 @@ file; this call falls through to the 'unknown' handler."
                     ..
                 }) => {
                     if let Some(op) = find_divide_by_zero(e, exit, &fu.sccp.values) {
-                        hits.push((*sp, op));
+                        hits.push((fu.abs_span(*sp), op));
                     }
                 }
                 Some(Terminator::Branch {
@@ -6832,7 +6836,7 @@ file; this call falls through to the 'unknown' handler."
                     ..
                 }) => {
                     if let Some(op) = find_divide_by_zero(condition, exit, &fu.sccp.values) {
-                        hits.push((*sp, op));
+                        hits.push((fu.abs_span(*sp), op));
                     }
                 }
                 _ => {}
@@ -6911,7 +6915,7 @@ file; this call falls through to the 'unknown' handler."
             };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: f.code,
-                span: f.span,
+                span: fu.abs_span(f.span),
                 message: format!(
                     "{}: index ${} {rng}, {bound} \u{2014} {outcome}.",
                     f.command, f.index_var
@@ -7024,7 +7028,7 @@ file; this call falls through to the 'unknown' handler."
         let Some(stmt) = block.statements.get(idx) else {
             return;
         };
-        let span = stmt.span();
+        let span = fu.abs_span(stmt.span());
         if span.is_empty() {
             return;
         }
@@ -8311,7 +8315,7 @@ file; this call falls through to the 'unknown' handler."
                     if !racy_vars.contains(name) {
                         continue;
                     }
-                    let span = stmt.statement.span();
+                    let span = fu.abs_span(stmt.statement.span());
                     if span.is_empty() || !emitted_spans.insert(span.start()) {
                         continue;
                     }
@@ -8639,7 +8643,7 @@ fn w307_precise_cmd_values(
             continue;
         };
         for (idx, stmt) in block.statements.iter().enumerate() {
-            let span = stmt.span();
+            let span = fu.abs_span(stmt.span());
             if !(span.start() <= offset && offset <= span.end()) {
                 continue;
             }

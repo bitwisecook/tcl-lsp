@@ -132,7 +132,7 @@ pub fn find_unnormalised_getter_warnings(
                         // lowers to a `Call` whose command *is* the getter.
                         if is_unnormalised_getter(registry, command, args) {
                             out.push(IrulesCheckWarning {
-                                span: *span,
+                                span: fu.abs_span(*span),
                                 code: "IRULE3102".to_owned(),
                                 message: format_message(command),
                                 replacement: None,
@@ -159,7 +159,7 @@ pub fn find_unnormalised_getter_warnings(
                                     .and_then(|t| t.argv.get(i + 1).copied())
                                     .unwrap_or(*span);
                                 out.push(IrulesCheckWarning {
-                                    span: arg_span,
+                                    span: fu.abs_span(arg_span),
                                     code: "IRULE3102".to_owned(),
                                     message: format_message(&cmd),
                                     replacement: None,
@@ -173,7 +173,7 @@ pub fn find_unnormalised_getter_warnings(
                         };
                         if is_unnormalised_getter(registry, &cmd, &sub_args) {
                             out.push(IrulesCheckWarning {
-                                span: *span,
+                                span: fu.abs_span(*span),
                                 code: "IRULE3102".to_owned(),
                                 message: format_message(&cmd),
                                 replacement: None,
@@ -239,7 +239,12 @@ pub fn find_unguarded_drop_warnings(
         if !fu.name.starts_with("::when::") {
             continue;
         }
-        out.extend(scan_when_body_for_drops(fu));
+        // Scan spans come from `fu.cfg` (offset-0 on the memoised path);
+        // absolutise to the unit's real position.
+        out.extend(scan_when_body_for_drops(fu).into_iter().map(|mut w| {
+            w.span = fu.abs_span(w.span);
+            w
+        }));
     }
     out
 }
@@ -405,7 +410,7 @@ fn scan_when_body_for_collect_flow(
             continue;
         };
         for stmt in &block.statements {
-            classify_stmt_for_collect_flow(stmt, side, state, registry);
+            classify_stmt_for_collect_flow(stmt, side, state, registry, fu.base_offset);
         }
     }
 }
@@ -425,7 +430,20 @@ fn classify_stmt_for_collect_flow(
     side: &str,
     state: &mut CollectFlowState,
     registry: &CommandRegistry,
+    base_offset: i64,
 ) {
+    // The flow-state spans land in cross-event warnings emitted where the
+    // producing `fu` is out of scope, so absolutise them here (no-op when
+    // `base_offset == 0`).
+    let abs = |sp: Span| -> Span {
+        if base_offset == 0 {
+            return sp;
+        }
+        let s = (i64::from(sp.start()) + base_offset).max(0);
+        let e = (i64::from(sp.end()) + base_offset).max(0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        Span::new(s as u32, e as u32)
+    };
     match stmt {
         Statement::Call {
             command,
@@ -462,12 +480,12 @@ fn classify_stmt_for_collect_flow(
                     scan_side_switch_body(body, inner_side, state, registry);
                 }
             } else {
-                classify_collect_command(command, side, *span, state);
+                classify_collect_command(command, side, abs(*span), state);
             }
         }
         Statement::AssignValue { value, span, .. } => {
             if let Some((cmd, _)) = parse_command_substitution(value.trim()) {
-                classify_collect_command(&cmd, side, *span, state);
+                classify_collect_command(&cmd, side, abs(*span), state);
             }
         }
         _ => {}
@@ -497,7 +515,10 @@ fn scan_side_switch_body(
             continue;
         };
         for stmt in &block.statements {
-            classify_stmt_for_collect_flow(stmt, side, state, registry);
+            // Side-switch bodies are re-lowered to their own CFG, so spans are
+            // already relative to this fresh build's origin (0) — independent of
+            // the enclosing unit's `base_offset`.
+            classify_stmt_for_collect_flow(stmt, side, state, registry, 0);
         }
     }
 }
@@ -554,8 +575,14 @@ pub fn find_collect_flow_warnings(
         let anchor_span = cu
             .functions()
             .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
-            .and_then(|fu| fu.cfg.blocks.get(&fu.cfg.entry))
-            .and_then(|b| b.statements.first().map(crate::ir::Statement::span))
+            .and_then(|fu| {
+                let s = fu
+                    .cfg
+                    .blocks
+                    .get(&fu.cfg.entry)
+                    .and_then(|b| b.statements.first().map(crate::ir::Statement::span))?;
+                Some(fu.abs_span(s))
+            })
             .unwrap_or(Span::new(0, 0));
         let proto_hint: Vec<String> = protocols.iter().map(|p| format!("{p}::collect")).collect();
         out.push(IrulesCheckWarning {
@@ -666,7 +693,14 @@ pub fn find_http_flow_warnings(
         if !bare_event.starts_with("HTTP") {
             continue;
         }
-        out.extend(scan_when_body_for_http_flow(fu, bare_event));
+        out.extend(
+            scan_when_body_for_http_flow(fu, bare_event)
+                .into_iter()
+                .map(|mut w| {
+                    w.span = fu.abs_span(w.span);
+                    w
+                }),
+        );
     }
     out
 }
@@ -805,7 +839,7 @@ pub fn find_hoistable_set_warnings(
                     continue;
                 }
                 out.push(IrulesCheckWarning {
-                    span,
+                    span: fu.abs_span(span),
                     code: "IRULE4004".to_owned(),
                     message: format!(
                         "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event (e.g. CLIENT_ACCEPTED).",

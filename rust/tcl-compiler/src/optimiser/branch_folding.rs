@@ -101,6 +101,9 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         if is_switch_dispatch_cond(condition) {
             continue;
         }
+        // Terminator span is relative to the unit's `base_offset`; absolutise
+        // before slicing `ctx.source` / emitting.
+        let span = fu.abs_span(*span);
         let range = span.as_range();
         if range.end > ctx.source.len() {
             continue;
@@ -168,7 +171,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         } else {
             final_text
         };
-        ctx.report(Optimisation::new(code, message, *span, replacement));
+        ctx.report(Optimisation::new(code, message, span, replacement));
     }
 }
 
@@ -227,6 +230,11 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             continue;
         }
 
+        // `span` is carried by `fu.cfg`'s terminator, so it is relative to the
+        // unit's `base_offset` (0 for a real-position build, the body offset for
+        // a memoised offset-0 unit); recover the absolute span before slicing
+        // `ctx.source` or emitting.
+        let span = fu.abs_span(*span);
         let source = ctx.source;
         let range = span.as_range();
         if range.end > source.len() {
@@ -249,7 +257,7 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         ctx.report(Optimisation::new(
             "O101",
             "Fold constant expression",
-            *span,
+            span,
             replacement,
         ));
     }
@@ -370,6 +378,7 @@ mod tests {
             taints: std::collections::HashMap::new(),
             rendered_props: std::collections::HashMap::new(),
             memory_ssa: None,
+            base_offset: 0,
         }
     }
 

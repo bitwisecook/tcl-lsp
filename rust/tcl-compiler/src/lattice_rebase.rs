@@ -1,55 +1,21 @@
-//! Offset rebasing for a memoised [`FunctionUnit`] (slice 4 offset-invariance).
+//! Offset normalisation for a memoised procedure body (slice 4 / Approach B).
 //!
 //! The per-procedure lattice cache keys on a procedure's **body source** (not
 //! its position), so a body that is unchanged but *shifted* (lines inserted
-//! above it) is a cache hit.  The cached unit's CFG/SSA/SCCP spans are
-//! absolute, though, so on such a hit we must shift every span by the
-//! difference between the procedure's current definition offset and the offset
-//! the cached unit was built at.  The result is then byte-identical to a
-//! freshly-built unit at the new position.
+//! above it) is a cache hit.  To form that position-independent key the body is
+//! normalised to **offset 0** with [`rebase_script`] (every span shifted by
+//! `-body_offset`).
 //!
-//! Only the span-carrying parts of a [`FunctionUnit`] are traversed (every
-//! other lattice field — `types`/`taints`/`rendered_props`/`def_use`/
-//! `memory_ssa`/SSA phis — is span-free): the CFG block statements +
-//! terminators + loop-node spans, the SSA blocks' cloned statements (read for
-//! positions by some emitters), and the SCCP constant-branch spans.
-//! `ExprNode` carries *relative* offsets anchored to a statement span we shift,
-//! so it needs no rebasing.
+//! The reverse — shifting a whole built unit back to its real position — is no
+//! longer done: under Approach B the diagnostic consumers consume the offset-0
+//! unit plus its [`crate::compilation_unit::FunctionUnit::base_offset`] and add
+//! the offset at emit time (`abs_span`), so the O(unit) span walk is gone.
+//! `ExprNode` carries *relative* offsets anchored to a statement span, so it
+//! needs no rebasing.
 
 use tcl_lexer::Span;
 
-use crate::cfg::Terminator;
-use crate::compilation_unit::FunctionUnit;
 use crate::ir::{CommandTokens, Script, Statement};
-
-/// Shift every absolute span in `fu` by `delta` bytes (signed).  A no-op for
-/// `delta == 0`.
-pub(crate) fn rebase_function_unit(fu: &mut FunctionUnit, delta: i64) {
-    if delta == 0 {
-        return;
-    }
-    for block in fu.cfg.blocks.values_mut() {
-        for stmt in &mut block.statements {
-            rebase_statement(stmt, delta);
-        }
-        if let Some(term) = &mut block.terminator {
-            rebase_terminator(term, delta);
-        }
-    }
-    for loop_node in fu.cfg.loop_nodes.values_mut() {
-        shift(&mut loop_node.span, delta);
-    }
-    // SSA holds its own clones of the IR statements; some emitters read spans
-    // from them (`stmt.statement.span()`), so rebase those too.
-    for block in fu.ssa.blocks.values_mut() {
-        for ssa_stmt in &mut block.statements {
-            rebase_statement(&mut ssa_stmt.statement, delta);
-        }
-    }
-    for cb in &mut fu.sccp.constant_branches {
-        shift_opt(&mut cb.span, delta);
-    }
-}
 
 fn shift(span: &mut Span, delta: i64) {
     let start = (i64::from(span.start()) + delta).max(0);
@@ -87,14 +53,6 @@ pub(crate) fn rebase_script(script: &mut Script, delta: i64) {
     }
     for stmt in &mut script.statements {
         rebase_statement(stmt, delta);
-    }
-}
-
-fn rebase_terminator(term: &mut Terminator, delta: i64) {
-    match term {
-        Terminator::Goto { span, .. }
-        | Terminator::Branch { span, .. }
-        | Terminator::Return { span, .. } => shift_opt(span, delta),
     }
 }
 

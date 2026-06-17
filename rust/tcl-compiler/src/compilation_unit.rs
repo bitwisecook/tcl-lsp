@@ -452,8 +452,7 @@ impl CompilationUnit {
             let memoised = match (cache.as_mut(), proc, cfg_context.as_ref(), encoded_pc) {
                 (Some(memo), Some(proc), Some((upvar_procs, proc_params)), Some(encoded_pc)) => {
                     // Normalise the body to offset 0 so a shifted-but-unchanged
-                    // procedure produces an identical request (memo hit); rebase
-                    // the returned unit back to the procedure's real position.
+                    // procedure produces an identical request (memo hit).
                     let mut body = proc.body.clone();
                     crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
                     let mut fu = memo(&LatticeRequest {
@@ -465,7 +464,11 @@ impl CompilationUnit {
                         dialect,
                         param_constants: &encoded_pc,
                     });
-                    crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
+                    // Approach B: leave the unit at offset 0 and record its real
+                    // body offset; the diagnostic consumers add `base_offset`
+                    // (`abs_span`) at emit time, so we skip the O(unit)
+                    // `rebase_function_unit` span walk entirely.
+                    fu.base_offset = i64::from(body_offset);
                     Some(fu)
                 }
                 _ => None,

@@ -358,7 +358,9 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             continue;
         };
         for stmt in &block.statements {
-            let span = stmt.span();
+            // CFG statement spans are relative to the unit's `base_offset`;
+            // absolutise before slicing `ctx.source` / emitting.
+            let span = fu.abs_span(stmt.span());
             // Skip zero-length spans — those are synthesised IR
             // (e.g. implicit barriers) with no user-visible
             // source text to delete.
@@ -420,7 +422,7 @@ struct DseEntry {
 /// dead SSA def in `fu.def_use`. Returns the set of SSA value
 /// keys that were reported — the ADCE pass uses it as the
 /// "already eliminated" seed for its fixpoint.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn emit_dead_stores_and_unused(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
@@ -442,7 +444,8 @@ fn emit_dead_stores_and_unused(
     // textual pass over the CFG to collect every var name that
     // appears in any source slice. Any def of a name referenced
     // textually is kept live — conservative but correct.
-    let mut textually_referenced = collect_textual_var_references(ctx.source, &fu.cfg);
+    let mut textually_referenced =
+        collect_textual_var_references(ctx.source, &fu.cfg, fu.base_offset);
     // A read-modify-write command's target buried in a substitution
     // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive.
     if let Some(registry) = ctx.registry {
@@ -546,7 +549,8 @@ fn emit_dead_stores_and_unused(
         };
         let _ = var;
         entries.push(DseEntry {
-            span: stmt.span(),
+            // CFG statement span is relative to the unit's `base_offset`.
+            span: fu.abs_span(stmt.span()),
             code,
             msg,
             key: chain.key.clone(),
@@ -718,7 +722,8 @@ fn emit_adce_reports(
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
-            new_reports.push(stmt.span());
+            // CFG statement span is relative to the unit's `base_offset`.
+            new_reports.push(fu.abs_span(stmt.span()));
         }
     }
     new_reports.sort_by_key(|s| s.start());
@@ -865,8 +870,14 @@ fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
     }
 }
 
-pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
-    // Absolute spans now cover the function's own source range.
+pub(crate) fn collect_textual_var_references(
+    source: &str,
+    cfg: &CfgFunction,
+    base_offset: i64,
+) -> HashSet<String> {
+    // CFG spans are relative to `base_offset` (0 for a real-position build, the
+    // body offset for a memoised offset-0 unit); shift to absolute before
+    // slicing `source` (the whole-file text).
     let span_iter = cfg.blocks.values().flat_map(|b| {
         let stmts = b.statements.iter().map(crate::ir::Statement::span);
         let term = b.terminator.as_ref().and_then(crate::cfg::Terminator::span);
@@ -882,10 +893,10 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
     }) else {
         return HashSet::new();
     };
-    let start = usize::try_from(lo).unwrap_or(0);
-    let end = usize::try_from(hi)
-        .unwrap_or(source.len())
-        .min(source.len());
+    let abs =
+        |v: u32| -> usize { usize::try_from((i64::from(v) + base_offset).max(0)).unwrap_or(0) };
+    let start = abs(lo);
+    let end = abs(hi).min(source.len());
     if start >= end {
         return HashSet::new();
     }
