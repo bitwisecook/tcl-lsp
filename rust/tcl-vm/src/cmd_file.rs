@@ -124,8 +124,11 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         // -- filesystem mutation --
         "mkdir" => {
+            let Some(fs) = vm.host().filesystem() else {
+                return err("can't create directory: filesystem not available");
+            };
             for p in rest {
-                if let Err(e) = std::fs::create_dir_all(s(p)) {
+                if let Err(e) = fs.create_dir_all(&s(p)) {
                     return err(format!("can't create directory \"{}\": {e}", s(p)));
                 }
             }
@@ -140,14 +143,12 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     _ => break,
                 }
             }
-            for p in paths {
-                let path = s(p);
-                let pp = Path::new(&path);
-                let _ = if pp.is_dir() {
-                    std::fs::remove_dir_all(pp)
-                } else {
-                    std::fs::remove_file(pp)
-                };
+            if let Some(fs) = vm.host().filesystem() {
+                for p in paths {
+                    // Removes a file or a directory (recursively); a missing
+                    // target is ignored, matching `file delete`.
+                    let _ = fs.remove(&s(p), true);
+                }
             }
             ok(Value::empty())
         }
