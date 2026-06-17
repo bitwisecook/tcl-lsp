@@ -80,6 +80,14 @@ pub struct LatticeRequest<'a> {
 /// caller owns the backing store and its eviction policy.
 pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit + 'a;
 
+/// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
+///
+/// Given a procedure's qualified name and the whole-module
+/// [`InterproceduralAnalysis`], returns its (memoised) interprocedural taints,
+/// or `None` to fall back to a fresh [`FunctionUnit::interproc_taints`] re-run.
+pub type TaintCascadeCallback<'a> =
+    dyn FnMut(&str, &InterproceduralAnalysis) -> Option<HashMap<ValueKey, TaintLattice>> + 'a;
+
 // ---------------------------------------------------------------------------
 // Per-function analysis bundle
 // ---------------------------------------------------------------------------
@@ -203,6 +211,32 @@ impl FunctionUnit {
     pub fn with_memory_ssa(mut self) -> Self {
         self.memory_ssa = Some(build_memory_ssa(&self.ssa));
         self
+    }
+
+    /// Re-run interprocedural taint propagation for this unit against `ia`,
+    /// returning the taint lattice (it does **not** mutate `self.taints`).
+    ///
+    /// The taint lattice is keyed by SSA [`ValueKey`] (variable + version) and is
+    /// **span-free**, so the result is offset-independent: an offset-0 baseline
+    /// unit yields byte-identical taints to its rebased counterpart.  This is the
+    /// property the salsa-native `taint_cascade` memo relies on — it propagates
+    /// over the offset-0 baseline and installs the result into the rebased unit.
+    #[must_use]
+    pub fn interproc_taints(
+        &self,
+        registry: &CommandRegistry,
+        ia: &InterproceduralAnalysis,
+        dialect: Option<&str>,
+    ) -> HashMap<ValueKey, TaintLattice> {
+        propagate_taints(
+            &self.cfg,
+            &self.ssa,
+            &self.sccp,
+            registry,
+            Some(&self.rendered_props),
+            Some(ia),
+            dialect,
+        )
     }
 }
 
@@ -509,6 +543,60 @@ impl CompilationUnit {
                 Some(&interproc),
                 dialect,
             );
+        }
+
+        self.interproc = Some(interproc);
+        self
+    }
+
+    /// Like [`Self::with_interprocedural`] but routes each **procedure's**
+    /// interprocedural taint re-run through `taint_cb`, a salsa-native memo (the
+    /// `tcl-lsp-db` `taint_cascade` query).  The interprocedural summary is still
+    /// built whole-module here (it is the memo's *input*); only the per-procedure
+    /// `propagate_taints` re-run is memoised, so a procedure whose baseline and
+    /// reachable-callee summaries are unchanged across an edit reuses its cached
+    /// taints instead of re-propagating.
+    ///
+    /// `taint_cb(qname, &interproc)` returns the procedure's taints, or `None` to
+    /// fall back to a fresh [`FunctionUnit::interproc_taints`] (e.g. a procedure
+    /// the lattice memo didn't intern).  The top level is always re-run fresh.
+    /// Byte-identical to [`Self::with_interprocedural`] provided `taint_cb`
+    /// reproduces `propagate_taints` against the full summary — guarded by the
+    /// `compiler_check` corpus differential and the taint-cascade edit tests.
+    #[must_use]
+    pub fn with_interprocedural_memoized(
+        mut self,
+        registry: &CommandRegistry,
+        dialect: Option<&str>,
+        taint_cb: &mut TaintCascadeCallback<'_>,
+    ) -> Self {
+        let interproc = crate::interprocedural::build_interprocedural_analysis(
+            &self.ir_module,
+            registry,
+            dialect,
+        );
+
+        // Top level is built fresh (no offset-0 lattice key), so its taint
+        // re-run stays inline.
+        let top_taints = self
+            .top_level
+            .interproc_taints(registry, &interproc, dialect);
+        self.top_level.taints = top_taints;
+
+        // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
+        // miss) before mutating, so the immutable `&self.procedures` borrow the
+        // fallback needs doesn't overlap the write-back.
+        let mut new_taints: Vec<(String, HashMap<ValueKey, TaintLattice>)> =
+            Vec::with_capacity(self.procedures.len());
+        for (qname, fu) in &self.procedures {
+            let taints = taint_cb(qname, &interproc)
+                .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect));
+            new_taints.push((qname.clone(), taints));
+        }
+        for (qname, taints) in new_taints {
+            if let Some(fu) = self.procedures.get_mut(&qname) {
+                fu.taints = taints;
+            }
         }
 
         self.interproc = Some(interproc);

@@ -22,8 +22,11 @@ use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit, LatticeRequest};
 use tcl_compiler::compiler_checks::Diagnostic as CompilerCheck;
+use tcl_compiler::interprocedural::{InterproceduralAnalysis, ProcSummary};
 use tcl_compiler::ir::Script;
 use tcl_compiler::optimiser::Optimisation;
+use tcl_compiler::ssa::ValueKey;
+use tcl_compiler::taint::TaintLattice;
 
 use tcl_compiler::analyser::per_item::{BodyFragment, DeferredBody, analyse_proc_body_isolated};
 use tcl_compiler::analyser::{
@@ -328,7 +331,12 @@ pub fn memoised_compilation_unit<'db>(
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
     let mut context: Option<CfgContext<'db>> = None;
-    CompilationUnit::build_for_memoized(
+    // Record each memoised procedure's interned `FnLatticeKey` so the
+    // interprocedural taint pass below can demand the procedure's offset-0
+    // baseline (`function_lattice`) again to layer the `taint_cascade` memo on
+    // top — without re-deriving the offset-0 body/context.
+    let mut lattice_keys: HashMap<String, FnLatticeKey<'db>> = HashMap::new();
+    let cu = CompilationUnit::build_for_memoized(
         source,
         registry,
         defer_top_level,
@@ -359,10 +367,148 @@ pub fn memoised_compilation_unit<'db>(
                 req.dialect.to_owned(),
                 req.param_constants.to_vec(),
             );
+            lattice_keys.insert(req.qname.to_owned(), key);
             (*function_lattice(db, key)).clone()
         },
+    );
+    // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
+    // The whole-module summary is still rebuilt here (it is the memo's input);
+    // only unchanged procedures' `propagate_taints` is skipped.
+    cu.with_interprocedural_memoized(
+        registry,
+        dialect_opt,
+        &mut |qname: &str, ia: &InterproceduralAnalysis| {
+            let key = *lattice_keys.get(qname)?;
+            let summary_key = taint_summary_key(db, ia, qname, dialect);
+            Some((*taint_cascade(db, key, summary_key)).clone())
+        },
     )
-    .with_interprocedural(registry, dialect_opt)
+}
+
+/// The taint-relevant projection of one procedure's [`ProcSummary`], in the
+/// deterministic, hashable form interned into [`TaintSummaryKey`].  Holds only
+/// the fields `propagate_taints` reads from a summary — `writes_global`
+/// (reachable-global seeding), `return_passthrough_param` + `params` (passthrough
+/// taint transfer), and `calls` (only the cascade root's transitive callee list,
+/// used by the reachable-global check).
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ProcTaintSummary {
+    /// Fully-qualified procedure name.
+    pub qname: String,
+    /// Declared parameter names, in order.
+    pub params: Vec<String>,
+    /// Transitive callee qnames (populated only for the cascade root; sorted).
+    pub calls: Vec<String>,
+    /// Whether the procedure (or a callee) writes a global/namespace variable.
+    pub writes_global: bool,
+    /// The parameter the return value passes through, when any.
+    pub return_passthrough_param: Option<String>,
+}
+
+/// Interned identity of a procedure's interprocedural taint dependencies — the
+/// `taint_cascade` key alongside its [`FnLatticeKey`] baseline.  Holds exactly
+/// what `propagate_taints` reads from the interprocedural summary: the full set
+/// of procedure **names** (so call resolution picks the same target as the whole
+/// summary) and the taint-relevant projection of the cascade root + its
+/// transitive callees.  A body edit that leaves these unchanged is a cache hit;
+/// an edit that flips a reachable callee's `writes_global` / passthrough
+/// re-interns this key for exactly the callers that reach it.
+#[salsa::interned]
+pub struct TaintSummaryKey<'db> {
+    /// All procedure names in the module (sorted) — the call-resolution domain.
+    #[returns(ref)]
+    pub known_procs: Vec<String>,
+    /// The cascade root + its transitive callees' taint projections (sorted by
+    /// qname).
+    #[returns(ref)]
+    pub reachable: Vec<ProcTaintSummary>,
+    #[returns(ref)]
+    pub dialect: String,
+}
+
+/// Build the [`TaintSummaryKey`] for procedure `qname` from the whole-module
+/// summary `ia`.  Includes every procedure **name** (resolution domain) plus the
+/// taint projection of `qname` and each of its transitive callees.
+fn taint_summary_key<'db>(
+    db: &'db dyn TclDb,
+    ia: &InterproceduralAnalysis,
+    qname: &str,
+    dialect: &str,
+) -> TaintSummaryKey<'db> {
+    let mut known: Vec<String> = ia.procedures.keys().cloned().collect();
+    known.sort();
+    let mut reachable: Vec<ProcTaintSummary> = Vec::new();
+    if let Some(root) = ia.procedures.get(qname) {
+        let mut calls = root.calls.clone();
+        calls.sort();
+        reachable.push(ProcTaintSummary {
+            qname: qname.to_owned(),
+            params: root.params.clone(),
+            calls,
+            writes_global: root.writes_global,
+            return_passthrough_param: root.return_passthrough_param.clone(),
+        });
+        for callee in &root.calls {
+            if callee == qname {
+                continue;
+            }
+            if let Some(s) = ia.procedures.get(callee) {
+                reachable.push(ProcTaintSummary {
+                    qname: callee.clone(),
+                    params: s.params.clone(),
+                    calls: Vec::new(),
+                    writes_global: s.writes_global,
+                    return_passthrough_param: s.return_passthrough_param.clone(),
+                });
+            }
+        }
+    }
+    reachable.sort_by(|a, b| a.qname.cmp(&b.qname));
+    TaintSummaryKey::new(db, known, reachable, dialect.to_owned())
+}
+
+/// Memoised interprocedural taint for one procedure (backlog #1 — the
+/// `taint_cascade` query layered on [`function_lattice`]'s offset-0 baseline).
+///
+/// Reconstructs the minimal [`InterproceduralAnalysis`] the key encodes —
+/// every procedure name (so call resolution is identical to the whole summary)
+/// with the taint projection overlaid for the cascade root + its transitive
+/// callees — and re-runs `propagate_taints` over the offset-0 baseline.  Because
+/// the taint lattice is `ValueKey`-keyed (span-free), the offset-0 result is
+/// installed directly into the rebased unit (no rebase needed).  Byte-identical
+/// to [`CompilationUnit::with_interprocedural`]'s per-procedure re-run, guarded
+/// by the `compiler_check` corpus differential + the taint-cascade edit tests.
+#[salsa::tracked]
+pub fn taint_cascade<'db>(
+    db: &'db dyn TclDb,
+    lattice_key: FnLatticeKey<'db>,
+    summary_key: TaintSummaryKey<'db>,
+) -> Arc<HashMap<ValueKey, TaintLattice>> {
+    let baseline = function_lattice(db, lattice_key);
+    let dialect = summary_key.dialect(db);
+    let dialect_opt = (!dialect.is_empty()).then_some(dialect.as_str());
+    let registry = db.registry(dialect);
+
+    // Reconstruct the minimal summary: a stub per known name (resolution
+    // domain), with the real taint-relevant fields overlaid for the reachable
+    // set.  `propagate_taints` reads only those fields, so this is byte-identical
+    // to running against the whole summary.
+    let mut ia = InterproceduralAnalysis::default();
+    for name in summary_key.known_procs(db) {
+        ia.procedures
+            .insert(name.clone(), ProcSummary::unknown(name));
+    }
+    for r in summary_key.reachable(db) {
+        let mut s = ProcSummary::unknown(&r.qname);
+        s.params.clone_from(&r.params);
+        s.calls.clone_from(&r.calls);
+        s.writes_global = r.writes_global;
+        s.return_passthrough_param
+            .clone_from(&r.return_passthrough_param);
+        ia.procedures.insert(r.qname.clone(), s);
+    }
+
+    Arc::new(baseline.interproc_taints(&registry, &ia, dialect_opt))
 }
 
 /// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
@@ -837,6 +983,117 @@ mod tests {
         }
     }
 
+    /// The interprocedural taint cascade (`taint_cascade`, backlog #1) must stay
+    /// byte-identical to the non-memoised `with_interprocedural` re-run **across
+    /// edits** — the cold corpus differential only proves the reconstruction is
+    /// complete, not that a stale cache can't survive an edit.  Drive a sequence
+    /// of edits (including one that flips a callee's passthrough/global-write
+    /// behaviour, which must invalidate its callers' cascades) and assert the
+    /// memoised diagnostics equal a fresh uncached build at every step.
+    #[test]
+    fn taint_cascade_matches_uncached_under_edits() {
+        use salsa::Setter as _;
+        let dialect = "tcl8.6";
+        // A passthrough callee feeding a destructive sink in a caller, plus an
+        // unrelated proc — exercises return-passthrough taint transfer and the
+        // reachable-global seeding the cascade depends on.
+        let versions = [
+            "proc pass {x} { return $x }\n\
+             proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+             proc other {} { set z 1 }\n",
+            // Unrelated edit (other's body) — callers' cascades must be reused
+            // yet still correct.
+            "proc pass {x} { return $x }\n\
+             proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+             proc other {} { set z 1; set z 2 }\n",
+            // Flip the callee: no longer a passthrough (returns a constant) —
+            // danger's cascade must recompute and drop the transferred taint.
+            "proc pass {x} { return ok }\n\
+             proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+             proc other {} { set z 1; set z 2 }\n",
+            // Restore the passthrough — taint transfer must come back.
+            "proc pass {x} { return $x }\n\
+             proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+             proc other {} { set z 1; set z 2 }\n",
+        ];
+        // One warm db across the whole edit sequence — a fresh db per edit would
+        // not exercise stale-cache reuse, which is the point.
+        let mut db = TclDatabase::default();
+        let registry = db.registry(dialect);
+        let file = SourceFile::new(&db, versions[0].to_owned(), dialect.to_owned());
+        for src in versions {
+            file.set_text(&mut db).to(src.to_owned());
+            let got = compiler_check_diagnostics(&db, file);
+            let want = compiler_check_diagnostics_uncached(src, &registry, dialect);
+            assert_eq!(
+                got.checks, want.checks,
+                "cascade checks diverge after edit to:\n{src}"
+            );
+            assert_eq!(
+                got.optimisations, want.optimisations,
+                "cascade optimisations diverge after edit to:\n{src}"
+            );
+        }
+    }
+
+    /// The taint cascade memoises: a body edit to a procedure that no other
+    /// procedure's taint depends on must **not** re-execute the unrelated
+    /// procedures' `taint_cascade` (they reuse their cached taints), whereas the
+    /// edited procedure's own cascade does re-run.  Proves backlog #1 actually
+    /// skips the per-procedure `propagate_taints` re-run that
+    /// `with_interprocedural` did unconditionally.
+    #[test]
+    fn taint_cascade_reused_on_unrelated_edit() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let cascades = |log: &Arc<Mutex<Vec<String>>>| {
+            std::mem::take(&mut *log.lock().unwrap())
+                .into_iter()
+                .filter(|s| s.contains("taint_cascade"))
+                .count()
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        // Three procedures with no taint-relevant call edges between them.
+        let file = SourceFile::new(
+            &db,
+            "proc a {} { set x 11111 }\n\
+             proc b {} { set y 22222 }\n\
+             proc c {} { set z 33333 }\n"
+                .to_owned(),
+            "tcl8.6".to_owned(),
+        );
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            cascades(&log),
+            3,
+            "cold build: every procedure's taint cascade runs"
+        );
+
+        // Edit only `b`'s body — `a`/`c` are unaffected and their cascades are
+        // cache hits; only `b`'s re-runs.
+        file.set_text(&mut db).to("proc a {} { set x 11111 }\n\
+             proc b {} { set y 99999999 }\n\
+             proc c {} { set z 33333 }\n"
+            .to_owned());
+        let _ = compiler_check_diagnostics(&db, file);
+        assert_eq!(
+            cascades(&log),
+            1,
+            "unrelated body edit -> exactly ONE taint cascade recomputes"
+        );
+    }
+
     /// A length-changing body edit to one procedure shifts the others but must
     /// recompute exactly ONE `function_lattice` (the salsa-native per-procedure
     /// lattice is offset-invariant: an unedited-but-shifted body interns to the
@@ -941,10 +1198,11 @@ mod tests {
         // Length-changing edit to `other` shifts `target`/`caller`; their
         // offset-0 bodies (and `target`'s param_constants) are unchanged, so
         // they are cache hits — exactly one lattice recomputes.
-        file.set_text(&mut db).to("proc other {} { set z 123456789 }\n\
+        file.set_text(&mut db)
+            .to("proc other {} { set z 123456789 }\n\
              proc target {x} { set y $x }\n\
              proc caller {} { target 42 }\n"
-            .to_owned());
+                .to_owned());
         let _ = file_analysis_incremental(&db, file, cfg);
         assert_eq!(
             lattice_execs(&log),
@@ -954,10 +1212,11 @@ mod tests {
 
         // Change the caller's literal -> `target`'s param_constants change ->
         // its `FnLatticeKey` re-interns -> its lattice rebuilds.
-        file.set_text(&mut db).to("proc other {} { set z 123456789 }\n\
+        file.set_text(&mut db)
+            .to("proc other {} { set z 123456789 }\n\
              proc target {x} { set y $x }\n\
              proc caller {} { target 99 }\n"
-            .to_owned());
+                .to_owned());
         let _ = file_analysis_incremental(&db, file, cfg);
         assert!(
             lattice_execs(&log) >= 1,
