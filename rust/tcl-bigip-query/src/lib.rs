@@ -41,6 +41,7 @@ pub mod grammar;
 pub mod inputs;
 pub mod jsonfmt;
 pub mod lexer;
+pub mod manual;
 pub mod output;
 pub mod parser;
 pub mod probes;
