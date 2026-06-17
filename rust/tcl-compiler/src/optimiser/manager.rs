@@ -112,6 +112,31 @@ pub fn optimise_unit(
     // the safe coupling primitive. Mirrors Python's
     // `_eliminate_propagated_constants`.
     couple_propagated_const_dead_stores(cu, registry, dialect, &mut selected);
+    // Re-canonicalise: `couple_propagated_const_dead_stores` appends its O109
+    // removals in `cu.procedures` / `cu.methods` HashMap-iteration order, which
+    // differs run-to-run and — critically — between the offset-0 per-procedure
+    // memo build and the whole-module build. Sort by the same total key as
+    // above so the surviving set's order (and therefore `renumber_groups`'
+    // group numbering, which walks this order) is byte-identical given an equal
+    // `CompilationUnit`. Also keeps `output_is_sorted_by_span_start`.
+    selected.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            &a.code,
+            &a.message,
+            &a.replacement,
+            a.hint_only,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                &b.code,
+                &b.message,
+                &b.replacement,
+                b.hint_only,
+            ))
+    });
     renumber_groups(&mut selected);
     selected
 }
@@ -268,9 +293,8 @@ fn couple_propagated_const_dead_stores(
     // *partially* overlaps the line (a structural O112 spanning past it) is
     // left intact and the removal skipped.
     for rem in removals {
-        let contains = |o: &Optimisation| {
-            rem.span.start() <= o.span.start() && o.span.end() <= rem.span.end()
-        };
+        let contains =
+            |o: &Optimisation| rem.span.start() <= o.span.start() && o.span.end() <= rem.span.end();
         let partial_overlap = selected.iter().any(|o| {
             !o.hint_only
                 && rem.span.start() < o.span.end()
@@ -426,7 +450,8 @@ fn couple_const_dead_stores_in_function(
             continue;
         }
 
-        let del_span = line_delete_span(source, def_stmt.span());
+        // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
+        let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
         removals.push(Optimisation::new(
             "O109",
             "Eliminate dead store",
@@ -467,7 +492,11 @@ fn function_source_span(fu: &crate::compilation_unit::FunctionUnit) -> (usize, u
     if lo == u32::MAX {
         (0, 0)
     } else {
-        (lo as usize, hi as usize)
+        // Approach B: `fu`'s CFG spans are relative to its `base_offset`; return
+        // absolute positions so the `source[fs..fe]` slice and the comparison
+        // against (absolute) emitted optimisation spans are correct on the
+        // memoised offset-0 path.
+        (fu.abs_pos(lo) as usize, fu.abs_pos(hi) as usize)
     }
 }
 

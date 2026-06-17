@@ -87,6 +87,7 @@ pub mod compilation_unit;
 pub mod compiler_checks;
 pub mod connection_scope;
 pub mod dataflow_graph;
+pub mod dead_stores;
 pub mod def_use;
 pub mod execution_intent;
 // The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate

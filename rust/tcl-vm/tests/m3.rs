@@ -687,10 +687,7 @@ fn backslash_substituted_command_arguments() {
     );
     // A real `$var` substitution still resolves (escaped markers don't disable
     // interpolation of the rest of the word).
-    out_eq(
-        "set y hi\nproc p {a} { puts $a }\np \\$=$y\n",
-        "$=hi\n",
-    );
+    out_eq("set y hi\nproc p {a} { puts $a }\np \\$=$y\n", "$=hi\n");
 }
 
 #[test]
@@ -699,11 +696,17 @@ fn lappend_no_values_preserves_string_rep() {
     // re-render the list, so a leading `#` element keeps its bare form instead
     // of being requoted to `{#}` (Tcl shimmer-validates but never reformats).
     out_eq("set lst \"# 1 2 3\"\nputs [lappend lst]\n", "# 1 2 3\n");
-    out_eq("set z \"  spaced   out  \"\nputs <[lappend z]>\n", "<  spaced   out  >\n");
+    out_eq(
+        "set z \"  spaced   out  \"\nputs <[lappend z]>\n",
+        "<  spaced   out  >\n",
+    );
     // Appending values DOES canonicalise as usual.
     out_eq("set x {1 2 3}\nputs [lappend x 4]\n", "1 2 3 4\n");
     // An unset variable is created as the empty string.
-    out_eq("puts <[lappend brandnew]>\nputs [info exists brandnew]\n", "<>\n1\n");
+    out_eq(
+        "puts <[lappend brandnew]>\nputs [info exists brandnew]\n",
+        "<>\n1\n",
+    );
 }
 
 #[test]
@@ -746,7 +749,10 @@ fn list_constant_fold_decodes_and_quotes() {
         "puts [string equal [list \"\" \"\\x00\" \"\\x00\\x00\"] \"{} \\x00 \\x00\\x00\"]\n",
         "1\n",
     );
-    out_eq("puts [string equal [list \"\\x00abc\" xyz] \"\\x00abc xyz\"]\n", "1\n");
+    out_eq(
+        "puts [string equal [list \"\\x00abc\" xyz] \"\\x00abc xyz\"]\n",
+        "1\n",
+    );
     // A single-element fold whose result is brace-quoted must not be mistaken
     // for a braced literal and stripped at runtime.
     out_eq("puts [string length [list \"a b\"]]\n", "5\n");
@@ -757,7 +763,10 @@ fn list_constant_fold_decodes_and_quotes() {
 fn bare_dollar_literal_decodes() {
     // A deferred literal carrying a *bare* `$` (`f\$}` — `$}` is not a variable)
     // must still have its backslash escapes decoded once, not left raw.
-    out_eq("set body \"list e\\\\n} f\\\\$} \"\nputs [string length $body]\n", "15\n");
+    out_eq(
+        "set body \"list e\\\\n} f\\\\$} \"\nputs [string length $body]\n",
+        "15\n",
+    );
     out_eq("set x \"a\\\\nq$\"\nputs $x\n", "a\\nq$\n");
     // Real variables still interpolate.
     out_eq("set z hi\nputs \"a $z b\"\n", "a hi b\n");

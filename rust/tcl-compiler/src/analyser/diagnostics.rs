@@ -5637,6 +5637,7 @@ file; this call falls through to the 'unknown' handler."
             crate::optimiser::elimination::collect_textual_var_references(
                 &self.source,
                 &function_unit.cfg,
+                function_unit.base_offset,
             );
         // A var read in another iRule event, or consumed *by name* via a
         // call-by-name upvar callee (SYNC-JUN02d-2), is "used" — suppress
@@ -5743,11 +5744,19 @@ file; this call falls through to the 'unknown' handler."
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> HashSet<String> {
+        self.registry
+            .as_ref()
+            .map_or_else(HashSet::new, |reg| Self::substitution_hidden_reads_of(fu, reg))
+    }
+
+    /// `self`-free core of [`Self::substitution_hidden_reads`] so the explorer's
+    /// liveness dead-store pass (which has no `Analyser`) can reuse it.
+    pub(crate) fn substitution_hidden_reads_of(
+        fu: &crate::compilation_unit::FunctionUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> HashSet<String> {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
         let mut out = HashSet::new();
-        let Some(registry) = self.registry.as_ref() else {
-            return out;
-        };
         // Command-argument + AssignValue substitutions (deep RMW scan minus
         // shallow), already factored out for the optimiser's elimination pass.
         out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
@@ -5916,7 +5925,7 @@ file; this call falls through to the 'unknown' handler."
             )) {
                 continue;
             }
-            let span = stmt.span();
+            let span = fu.abs_span(stmt.span());
             if span.is_empty() {
                 continue;
             }
@@ -6013,7 +6022,8 @@ file; this call falls through to the 'unknown' handler."
             ) {
                 continue;
             }
-            let span = stmt.span();
+            // Approach B: CFG span is relative to the unit's `base_offset`.
+            let span = fu.abs_span(stmt.span());
             if span.is_empty() {
                 continue;
             }
@@ -6110,7 +6120,7 @@ file; this call falls through to the 'unknown' handler."
                 if var_name.starts_with('_') {
                     continue;
                 }
-                let span = block.statements[idx + 1].span();
+                let span = fu.abs_span(block.statements[idx + 1].span());
                 if span.is_empty() {
                     continue;
                 }
@@ -6413,7 +6423,7 @@ file; this call falls through to the 'unknown' handler."
                         else {
                             continue;
                         };
-                        (span, None)
+                        (fu.abs_span(span), None)
                     } else {
                         let Ok(idx) = usize::try_from(use_site.statement_index) else {
                             continue;
@@ -6421,7 +6431,7 @@ file; this call falls through to the 'unknown' handler."
                         let Some(stmt) = block.statements.get(idx) else {
                             continue;
                         };
-                        (stmt.span(), Some(stmt))
+                        (fu.abs_span(stmt.span()), Some(stmt))
                     };
                 if span.is_empty() {
                     continue;
@@ -6540,6 +6550,7 @@ file; this call falls through to the 'unknown' handler."
                 .terminator
                 .as_ref()
                 .and_then(crate::cfg::Terminator::span)
+                .map(|s| fu.abs_span(s))
             else {
                 continue;
             };
@@ -6716,7 +6727,7 @@ file; this call falls through to the 'unknown' handler."
                         continue;
                     }
                     let span = match fu.cfg.blocks.get(bn).and_then(|b| b.statements.get(idx)) {
-                        Some(st) if !st.span().is_empty() => st.span(),
+                        Some(st) if !st.span().is_empty() => fu.abs_span(st.span()),
                         _ => continue,
                     };
                     reported.insert(name.clone());
@@ -6842,7 +6853,7 @@ file; this call falls through to the 'unknown' handler."
             else {
                 continue;
             };
-            let span = *span;
+            let span = fu.abs_span(*span);
 
             let names = [
                 branch.block.as_str(),
@@ -6924,7 +6935,9 @@ file; this call falls through to the 'unknown' handler."
             None => HashSet::new(),
         };
         for cb in crate::sccp::existence_constant_branches(&fu.cfg, &params) {
-            let Some(span) = cb.span else { continue };
+            let Some(span) = cb.span.map(|s| fu.abs_span(s)) else {
+                continue;
+            };
             let message = if cb.value {
                 format!(
                     "Condition '{}' is always true; the alternate branch is unreachable",
@@ -7032,7 +7045,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: "W126".to_string(),
-                            span: *span,
+                            span: fu.abs_span(*span),
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -7056,7 +7069,7 @@ file; this call falls through to the 'unknown' handler."
                         );
                         self.result.diagnostics.push(super::types::Diagnostic {
                             code: "W126".to_string(),
-                            span: *span,
+                            span: fu.abs_span(*span),
                             message,
                             severity: Severity::Warning,
                             fixes: Vec::new(),
@@ -7121,7 +7134,7 @@ file; this call falls through to the 'unknown' handler."
                     if let Some(versions) = versions
                         && let Some(op) = find_divide_by_zero(expr, versions, &fu.sccp.values)
                     {
-                        hits.push((*span, op));
+                        hits.push((fu.abs_span(*span), op));
                     }
                 }
             }
@@ -7134,7 +7147,7 @@ file; this call falls through to the 'unknown' handler."
                     ..
                 }) => {
                     if let Some(op) = find_divide_by_zero(e, exit, &fu.sccp.values) {
-                        hits.push((*sp, op));
+                        hits.push((fu.abs_span(*sp), op));
                     }
                 }
                 Some(Terminator::Branch {
@@ -7143,7 +7156,7 @@ file; this call falls through to the 'unknown' handler."
                     ..
                 }) => {
                     if let Some(op) = find_divide_by_zero(condition, exit, &fu.sccp.values) {
-                        hits.push((*sp, op));
+                        hits.push((fu.abs_span(*sp), op));
                     }
                 }
                 _ => {}
@@ -7222,7 +7235,7 @@ file; this call falls through to the 'unknown' handler."
             };
             self.result.diagnostics.push(super::types::Diagnostic {
                 code: f.code,
-                span: f.span,
+                span: fu.abs_span(f.span),
                 message: format!(
                     "{}: index ${} {rng}, {bound} \u{2014} {outcome}.",
                     f.command, f.index_var
@@ -7335,7 +7348,7 @@ file; this call falls through to the 'unknown' handler."
         let Some(stmt) = block.statements.get(idx) else {
             return;
         };
-        let span = stmt.span();
+        let span = fu.abs_span(stmt.span());
         if span.is_empty() {
             return;
         }
@@ -8622,7 +8635,7 @@ file; this call falls through to the 'unknown' handler."
                     if !racy_vars.contains(name) {
                         continue;
                     }
-                    let span = stmt.statement.span();
+                    let span = fu.abs_span(stmt.statement.span());
                     if span.is_empty() || !emitted_spans.insert(span.start()) {
                         continue;
                     }
@@ -8950,7 +8963,7 @@ fn w307_precise_cmd_values(
             continue;
         };
         for (idx, stmt) in block.statements.iter().enumerate() {
-            let span = stmt.span();
+            let span = fu.abs_span(stmt.span());
             if !(span.start() <= offset && offset <= span.end()) {
                 continue;
             }
@@ -9993,7 +10006,10 @@ mod tests {
                     tcl_lexer::LexerConfig::default(),
                     "tcl",
                     &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
-                        let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                        let key = format!(
+                            "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                            req.qname, req.body, req.params, req.param_constants
+                        );
                         if let Some(fu) = cache.get(&key) {
                             return fu.clone();
                         }
@@ -10004,7 +10020,15 @@ mod tests {
                             req.upvar_procs.clone(),
                             req.proc_params.clone(),
                         );
-                        let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                        let pc =
+                            crate::compilation_unit::decode_param_constants(req.param_constants);
+                        let fu = FunctionUnit::build_with_param_constants(
+                            req.qname,
+                            cfg,
+                            req.params,
+                            &registry,
+                            pc.as_ref(),
+                        );
                         cache.insert(key, fu.clone());
                         fu
                     },
@@ -10074,7 +10098,10 @@ mod tests {
                 // before the callback sees it, so a shifted-but-unedited proc
                 // hits and the builder rebases the cached offset-0 unit.
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
-                    let key = format!("{}\u{0}{:?}\u{0}{:?}", req.qname, req.body, req.params);
+                    let key = format!(
+                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                        req.qname, req.body, req.params, req.param_constants
+                    );
                     if let Some(fu) = cache.get(&key) {
                         return fu.clone();
                     }
@@ -10085,7 +10112,14 @@ mod tests {
                         req.upvar_procs.clone(),
                         req.proc_params.clone(),
                     );
-                    let fu = FunctionUnit::build(req.qname, cfg, req.params, &registry);
+                    let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
+                    let fu = FunctionUnit::build_with_param_constants(
+                        req.qname,
+                        cfg,
+                        req.params,
+                        &registry,
+                        pc.as_ref(),
+                    );
                     cache.insert(key, fu.clone());
                     fu
                 },
@@ -10706,6 +10740,41 @@ mod tests {
         );
         assert_eq!(w210s[0].severity, Severity::Warning);
         assert!(w210s[0].message.contains("read before it is set"));
+    }
+
+    #[test]
+    fn opaque_switch_recovers_exhaustive_arm_defs() {
+        // A glob/regexp/fall-through switch is kept opaque, but it still
+        // definitely-defines a variable assigned on *every* path. An exhaustive
+        // switch (a `default` plus every arm setting `y`) defines `y`, so the
+        // following `$y` read is NOT a read-before-set — no false W210.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(
+            "proc f {x} { switch -glob $x {a* {set y 1} default {set y 2}}\n puts $y }",
+        );
+        assert!(
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            "exhaustive opaque switch must define y (no W210); got {:?}",
+            a.result.diagnostics,
+        );
+
+        // A non-exhaustive switch (no `default`) leaves `y` only maybe-defined,
+        // so the read IS a read-before-set — W210 must still fire.
+        let mut b = Analyser::new();
+        b.emit_cfg_ssa_diagnostics(
+            "proc g {x} { switch -glob $x {a* {set y 1} b* {set y 2}}\n puts $y }",
+        );
+        assert!(
+            b.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "W210" && d.message.contains("'y'")),
+            "non-exhaustive opaque switch leaves y maybe-undef (W210 expected); got {:?}",
+            b.result.diagnostics,
+        );
     }
 
     #[test]

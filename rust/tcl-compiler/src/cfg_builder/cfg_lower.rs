@@ -309,18 +309,15 @@ impl CfgBuilder {
 
     // ── switch ────────────────────────────────────────────────────
 
-    /// Flatten `Statement::Switch` into a chain of arm-dispatch branches.
+    /// Lower a `Statement::Switch`.
     ///
-    /// All three modes flow through the structured path so SSA recovers
-    /// the subject + arm-body variable reads. Exact arms branch on a
-    /// foldable `STR_EQ(subject, pattern)` (so the bytecode backend can
-    /// build a real jump table); glob/regexp arms branch on a
-    /// non-foldable `Raw(subject)` condition — string equality is the
-    /// wrong predicate for those modes, and a foldable condition would
-    /// let SCCP spuriously kill arms. Glob/regexp dispatches are also
-    /// recorded in [`crate::cfg::Function::switch_dispatches`] so codegen
-    /// emits a generic `switch` invoke instead of walking the chain
-    /// (matching tclsh's un-compiled approach for those modes).
+    /// Glob/regexp switches, and exact switches with any fall-through arm, are
+    /// kept **opaque** (a single `Statement::Switch` in the block) — see the
+    /// early return below; codegen emits a generic `switch` invoke and SSA
+    /// recovers the reads via `ssa::uses_of`. An exact switch without
+    /// fall-through is flattened into a chain of arm-dispatch branches on a
+    /// foldable `STR_EQ(subject, pattern)` so the bytecode backend can build a
+    /// real jump table.
     pub(super) fn lower_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Switch {
             span,
@@ -329,12 +326,26 @@ impl CfgBuilder {
             default_body,
             default_span,
             mode,
-            raw_args,
             ..
         } = stmt
         else {
             unreachable!("lower_switch called with non-Switch");
         };
+
+        // Glob/regexp switches, and exact switches with any fall-through arm,
+        // are kept *opaque* — a single `Statement::Switch` in the current block,
+        // no expanded arm blocks. Their shared-body / OR-matching topology can't
+        // be expressed as structured control flow, and tclsh 9.0 invokes them
+        // generically rather than compiling a jump table; codegen emits a
+        // generic `switch` invoke for the opaque statement. Mirrors the Python
+        // CFG builder (`compiler/cfg.py` ~L1121-1126, `expand_fallthrough_switch`
+        // defaulting off). SSA reads of the subject + arm/default bodies are
+        // recovered by `ssa::uses_of`'s `Statement::Switch` arm (Python's
+        // `_switch_reads`); the switch contributes no defs (Python's `_defs`).
+        if *mode != SwitchMode::Exact || arms.iter().any(|arm| arm.fallthrough) {
+            self.block_mut(block_name).statements.push(stmt.clone());
+            return block_name.to_owned();
+        }
 
         let end_block = self.new_block("switch_end");
         let default_block = self.new_block("switch_default");
@@ -427,59 +438,7 @@ impl CfgBuilder {
             self.ensure_goto(&default_block, &end_block, Some(*span));
         }
 
-        // Glob/regexp: record the dispatch so codegen emits a generic
-        // `switch` invoke and skips the structured (analyser-only)
-        // blocks. Members = everything reachable from the entry's
-        // successors, stopping at the join block.
-        if *mode != SwitchMode::Exact {
-            let member_blocks = self.collect_switch_members(block_name, &end_block);
-            self.switch_dispatches.insert(
-                block_name.to_owned(),
-                crate::cfg::SwitchDispatch {
-                    mode: *mode,
-                    raw_args: raw_args.clone(),
-                    end_block: end_block.clone(),
-                    member_blocks,
-                },
-            );
-        }
-
         end_block
-    }
-
-    /// Collect every block belonging to a glob/regexp switch: a BFS
-    /// from the entry dispatch block's successors, stopping at (and
-    /// excluding) the join block `end_block`. The entry block itself is
-    /// excluded — codegen still emits its preceding statements and only
-    /// intercepts its terminator.
-    fn collect_switch_members(&self, entry: &str, end_block: &str) -> Vec<String> {
-        use std::collections::HashSet;
-        let mut members = Vec::new();
-        let mut seen: HashSet<String> = HashSet::new();
-        seen.insert(end_block.to_owned());
-        seen.insert(entry.to_owned());
-        let mut queue: Vec<String> = self
-            .blocks
-            .get(entry)
-            .and_then(|b| b.terminator.as_ref())
-            .map(|t| t.successors().iter().map(|s| (*s).to_owned()).collect())
-            .unwrap_or_default();
-        while let Some(name) = queue.pop() {
-            if !seen.insert(name.clone()) {
-                continue;
-            }
-            members.push(name.clone());
-            if let Some(block) = self.blocks.get(&name)
-                && let Some(term) = &block.terminator
-            {
-                for succ in term.successors() {
-                    if !seen.contains(succ) {
-                        queue.push(succ.to_owned());
-                    }
-                }
-            }
-        }
-        members
     }
 
     // ── try ───────────────────────────────────────────────────────
@@ -575,7 +534,7 @@ impl CfgBuilder {
         // to this handler. Mirrors Python `_lower_try`.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
-        let body_tail = self.lower_script(body, &body_block);
+        let raw_body_tail = self.lower_script(body, &body_block);
         // Capture the body's terminating block *before* the handler bodies are
         // lowered below (each overwrites `last_terminal_block`).  Used to source
         // an on-error edge from a body that ended without an explicit
@@ -583,6 +542,17 @@ impl CfgBuilder {
         let body_terminal = self.last_terminal_block.take();
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
+        // `lower_script` now always returns the resting block (mirroring Python's
+        // `return current`), so distinguish *normal fall-through* from a
+        // terminated body via `body_terminal` (set iff the body did not fall
+        // through — the former `body_tail.is_none()` signal). A terminated body
+        // must not edge to `post_body`, and the handler's on-error edge must be
+        // sourced from the throw block(s), not the pre-`try` block.
+        let body_tail = if body_terminal.is_none() {
+            raw_body_tail
+        } else {
+            None
+        };
         if let Some(tail) = &body_tail {
             self.ensure_goto(tail, &post_body, Some(*body_span));
         }
@@ -834,45 +804,43 @@ mod tests {
     }
 
     #[test]
-    fn switch_glob_creates_branches() {
+    fn switch_glob_stays_opaque() {
+        // Glob/regexp switches are kept opaque (a single `Statement::Switch` in
+        // the block, no expanded arm blocks / branches) — mirroring the Python
+        // CFG builder. Codegen emits a generic `switch` invoke for them.
         let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Glob), true);
-        // No barrier — the entry dispatches via a Branch like exact mode.
         let entry = &func.blocks[&func.entry];
+        assert_eq!(entry.statements.len(), 1, "opaque switch is one statement");
         assert!(
-            !entry
-                .statements
-                .iter()
-                .any(|s| matches!(s, Statement::Barrier { .. })),
-            "glob switch should no longer lower to a barrier"
+            matches!(entry.statements[0], Statement::Switch { .. }),
+            "glob switch should stay an opaque Statement::Switch"
         );
-        assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
-        // The dispatch is recorded for the codegen invoke fallback.
-        let sd = func
-            .switch_dispatches
-            .get(&func.entry)
-            .expect("glob dispatch should be recorded");
-        assert_eq!(sd.mode, SwitchMode::Glob);
-        assert_eq!(sd.raw_args, vec!["$x", "a*", "{puts $y}"]);
-        // Member blocks (arm body / dispatch / default) are recorded so
-        // codegen can skip them, but the join block is not a member.
-        assert!(!sd.member_blocks.contains(&sd.end_block));
-        assert!(!sd.member_blocks.contains(&func.entry));
-        assert!(!sd.member_blocks.is_empty());
+        // The block falls through (no branch dispatch); `build_function` adds a
+        // goto to the synthetic trailing exit block.
+        assert!(
+            matches!(entry.terminator, Some(Terminator::Goto { .. })),
+            "opaque switch block falls through via a goto, not a branch dispatch"
+        );
+        // Only the entry + the synthetic trailing exit block exist (no arm
+        // blocks — codegen emits a generic invoke from the statement).
+        assert_eq!(func.blocks.len(), 2);
     }
 
     #[test]
-    fn switch_regexp_creates_branches() {
+    fn switch_regexp_stays_opaque() {
         let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Regexp), true);
         let entry = &func.blocks[&func.entry];
-        assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
-        let sd = func
-            .switch_dispatches
-            .get(&func.entry)
-            .expect("regexp dispatch should be recorded");
-        assert_eq!(sd.mode, SwitchMode::Regexp);
-        // Exact switches are never recorded (they keep the real jump table).
+        assert!(matches!(entry.statements[0], Statement::Switch { .. }));
+        assert!(matches!(entry.terminator, Some(Terminator::Goto { .. })));
+        // Exact switches without fall-through keep the real expanded jump table.
         let exact = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Exact), true);
-        assert!(exact.switch_dispatches.is_empty());
+        assert!(
+            matches!(
+                exact.blocks[&exact.entry].terminator,
+                Some(Terminator::Branch { .. })
+            ),
+            "exact non-fall-through switch still expands to a branch dispatch"
+        );
     }
 
     #[test]

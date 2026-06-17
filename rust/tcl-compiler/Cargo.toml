@@ -22,3 +22,4 @@ workspace = true
 
 [dev-dependencies]
 temp-env = "0.3"
+rayon = "1"

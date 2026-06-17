@@ -34,9 +34,6 @@ pub(crate) struct CfgBuilder {
     counter: u32,
     blocks: HashMap<String, MutableBlock>,
     loop_nodes: HashMap<String, LoopNode>,
-    /// Glob/regexp `switch` dispatch metadata accumulated during
-    /// lowering; frozen into [`Function::switch_dispatches`].
-    switch_dispatches: HashMap<String, crate::cfg::SwitchDispatch>,
     inline_loops: bool,
     /// Map from command name to upvar summary, used to pre-populate
     /// caller-side `defs` on calls to procs that use `upvar`.  Empty
@@ -90,7 +87,6 @@ impl CfgBuilder {
             counter: 0,
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
-            switch_dispatches: HashMap::new(),
             inline_loops,
             upvar_procs,
             proc_params,
@@ -370,7 +366,6 @@ impl CfgBuilder {
             .collect();
 
         let loop_nodes = std::mem::take(&mut self.loop_nodes);
-        let switch_dispatches = std::mem::take(&mut self.switch_dispatches);
         let exception_edges = std::mem::take(&mut self.exception_edges);
 
         Function {
@@ -378,7 +373,6 @@ impl CfgBuilder {
             entry,
             blocks: frozen,
             loop_nodes,
-            switch_dispatches,
             exception_edges,
         }
     }
@@ -389,6 +383,7 @@ impl CfgBuilder {
     /// Returns `Some(tail_block)` — the block where subsequent code
     /// should go — or `None` if control doesn't fall through (e.g.
     /// the script ends with a `return`).
+    #[allow(clippy::too_many_lines)]
     fn lower_script(&mut self, script: &Script, block_name: &str) -> Option<String> {
         let mut current = block_name.to_owned();
         // True once the *main* (reachable) path has hit an unconditional
@@ -506,6 +501,33 @@ impl CfgBuilder {
                     }
                 }
 
+                // `return -options …` / `return {*}…args` lower to an IRBarrier
+                // (codegen keeps the options/expansion as raw_args), but they
+                // still unconditionally exit the proc. In analysis builds
+                // (`faithful_exceptions`) treat them as a `Return`-style
+                // terminator so the fall-through edge to the rest of the block /
+                // the `try` handler→`try_end` join is cut — otherwise a
+                // `return -options` handler false-flows to `try_end` and adds a
+                // spurious phi (e.g. `auto_mkindex`). Codegen builds leave it as
+                // a plain barrier (bytecode unchanged). Mirrors Python
+                // `_lower_script` (`compiler/cfg.py` ~L1016).
+                Statement::Barrier { reason, span, .. }
+                    if self.faithful_exceptions
+                        && matches!(
+                            reason.as_str(),
+                            "return with options" | "return with expansion"
+                        ) =>
+                {
+                    let span = *span;
+                    self.push_plain_statement(&current, stmt);
+                    self.block_mut(&current).terminator = Some(Terminator::Return {
+                        value: None,
+                        span: Some(span),
+                        expr: None,
+                        braced: false,
+                    });
+                }
+
                 // All other statements (assignments, calls, barriers,
                 // expr-evals) go straight into the current block —
                 // after the upvar-invalidation pass augments
@@ -519,19 +541,25 @@ impl CfgBuilder {
             }
         }
 
-        // No fall-through when the main path terminated (a trailing orphan
-        // holding dead code is unreachable, not a fall-through edge) or the
-        // final block is itself terminated.  When there is no fall-through,
-        // record the terminating block so `lower_try` can source an on-error
-        // edge from a body that ended without an explicit `error`/`throw`.
-        // Mirrors Python's `_last_terminal_block`.
-        if main_terminated || self.block_mut(&current).terminator.is_some() {
-            self.last_terminal_block = Some(current);
-            None
+        // Always return the block control finally rests in — mirroring
+        // Python's `_lower_script` (`return current`), which returns the block
+        // even when it is terminated by a straight-line `return`/`error`.
+        // `build_function` then appends a synthetic (unreachable) `exit` block
+        // via `ensure_goto` (a no-op on the already-terminated block), matching
+        // the Python CFG's trailing exit.  Termination is tracked separately in
+        // `last_terminal_block` (Python's `_last_terminal_block`) so `lower_try`
+        // can source an on-error edge from a body that ended without an explicit
+        // `error`/`throw`.  Nested control-flow lowerings still signal "no
+        // continuation" by returning `None` (propagated through this loop's
+        // `?` / explicit-`None` arms), exactly as Python returns `None` after a
+        // nested `_lower_if`/`_lower_for` yields `None`.
+        let terminated = main_terminated || self.block_mut(&current).terminator.is_some();
+        self.last_terminal_block = if terminated {
+            Some(current.clone())
         } else {
-            self.last_terminal_block = None;
-            Some(current)
-        }
+            None
+        };
+        Some(current)
     }
 
     /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
@@ -722,7 +750,16 @@ pub fn prepare_cfg_context(
 ) -> (HashMap<String, UpvarInfo>, HashMap<String, Vec<String>>) {
     let upvar_procs = detect_upvar_procs(module);
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
-    for (qname, proc) in &module.procedures {
+    // Iterate procedures in a deterministic (qualified-name) order: a *short*
+    // name shared by two procedures (`::a::x` and `::b::x`) is inserted by both,
+    // so last-write-wins must be order-independent — otherwise `proc_params`
+    // (and the `CfgContext` it feeds into the `function_lattice` memo key) would
+    // depend on `HashMap` iteration order and the per-procedure lattice cache
+    // would hit or miss by random seed.  Qualified names are unique, so their
+    // entries are unaffected.
+    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    for (qname, proc) in entries {
         if let Some((_, short)) = qname.rsplit_once("::")
             && !short.is_empty()
         {
@@ -1425,6 +1462,30 @@ mod tests {
         assert!(
             s < a,
             "synthetic invalidate at {s} should precede assign at {a}",
+        );
+    }
+
+    #[test]
+    fn try_handler_return_options_terminates() {
+        // A `try` handler ending in `return -code error …` (lowered to a
+        // "return with options" barrier) returns from the proc, so it must
+        // *terminate* its block rather than fall through to the post-`try`
+        // join. Regression for the spurious `try_handler → try_end` edge +
+        // phi (e.g. `auto_mkindex`). Analysis builds only (`build_cfg` sets
+        // `faithful_exceptions`); codegen leaves the barrier as a plain stmt.
+        let module =
+            lower_module("proc f {} { try { set a 1 } on error {} { return -code error boom } }");
+        let cfg = build_cfg(&module, false);
+        let func = cfg.procedures.get("::f").expect("::f cfg");
+        let handler = func
+            .blocks
+            .values()
+            .find(|b| b.name.starts_with("try_handler"))
+            .expect("try_handler block");
+        assert!(
+            matches!(handler.terminator, Some(Terminator::Return { .. })),
+            "return-options handler must terminate (no fall-through to try_end), got {:?}",
+            handler.terminator,
         );
     }
 }

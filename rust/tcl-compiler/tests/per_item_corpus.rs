@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
+use rayon::prelude::*;
 use tcl_compiler::analyser::Analyser;
 
 fn repo_root() -> PathBuf {
@@ -46,44 +47,50 @@ fn per_item_matches_analyse_over_corpus() {
         gather(&repo_root().join("tmp").join(v), &mut files, 1500);
     }
 
-    let mut checked = 0usize;
-    let mut fellback = 0usize;
-    let mut mismatches: Vec<String> = Vec::new();
-    for path in &files {
-        let Ok(src) = std::fs::read_to_string(path) else {
-            continue;
-        };
-        if src.len() > 400_000 {
-            continue;
-        }
-        let want = Analyser::new().analyse(&src, dialect);
-        let got = Analyser::new().analyse_per_item(&src, dialect);
-        checked += 1;
-        if !tcl_lexer::script_is_complete(&src) || src.contains("tcl-lsp: stub") {
-            fellback += 1;
-        }
-        if got != want {
-            let name = path.file_name().unwrap().to_string_lossy();
-            let field = if got.all_procs != want.all_procs {
-                "all_procs"
-            } else if got.all_classes != want.all_classes {
-                "all_classes"
-            } else if got.global_scope != want.global_scope {
-                "global_scope"
-            } else if got.diagnostics != want.diagnostics {
-                "diagnostics"
-            } else if got.command_invocations != want.command_invocations {
-                "command_invocations"
-            } else if got.all_variables != want.all_variables {
-                "all_variables"
-            } else {
-                "other"
-            };
-            if mismatches.len() < 25 {
-                mismatches.push(format!("{name}: field={field}"));
+    // Each file is analysed by independent `Analyser::new()` instances, so the
+    // sweep parallelises cleanly across files (the bottleneck is the ~2 deep
+    // analyses per file in a debug build). Collect a per-file outcome and
+    // aggregate afterwards so the gate is order-independent.
+    let outcomes: Vec<(bool, Option<String>)> = files
+        .par_iter()
+        .filter_map(|path| {
+            let src = std::fs::read_to_string(path).ok()?;
+            if src.len() > 400_000 {
+                return None;
             }
-        }
-    }
+            let want = Analyser::new().analyse(&src, dialect);
+            let got = Analyser::new().analyse_per_item(&src, dialect);
+            let fellback = !tcl_lexer::script_is_complete(&src) || src.contains("tcl-lsp: stub");
+            let mismatch = (got != want).then(|| {
+                let name = path.file_name().unwrap().to_string_lossy();
+                let field = if got.all_procs != want.all_procs {
+                    "all_procs"
+                } else if got.all_classes != want.all_classes {
+                    "all_classes"
+                } else if got.global_scope != want.global_scope {
+                    "global_scope"
+                } else if got.diagnostics != want.diagnostics {
+                    "diagnostics"
+                } else if got.command_invocations != want.command_invocations {
+                    "command_invocations"
+                } else if got.all_variables != want.all_variables {
+                    "all_variables"
+                } else {
+                    "other"
+                };
+                format!("{name}: field={field}")
+            });
+            Some((fellback, mismatch))
+        })
+        .collect();
+
+    let checked = outcomes.len();
+    let fellback = outcomes.iter().filter(|(f, _)| *f).count();
+    let mismatches: Vec<String> = outcomes
+        .into_iter()
+        .filter_map(|(_, m)| m)
+        .take(25)
+        .collect();
 
     assert!(
         mismatches.is_empty(),

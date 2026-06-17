@@ -12,9 +12,28 @@ use crate::value::Value;
 
 /// Canonical class names, in the order Tcl lists them in error messages.
 const CLASSES: &[&str] = &[
-    "alnum", "alpha", "ascii", "control", "boolean", "dict", "digit", "double", "entier", "false",
-    "graph", "integer", "list", "lower", "print", "punct", "space", "true", "upper", "wideinteger",
-    "wordchar", "xdigit",
+    "alnum",
+    "alpha",
+    "ascii",
+    "control",
+    "boolean",
+    "dict",
+    "digit",
+    "double",
+    "entier",
+    "false",
+    "graph",
+    "integer",
+    "list",
+    "lower",
+    "print",
+    "punct",
+    "space",
+    "true",
+    "upper",
+    "wideinteger",
+    "wordchar",
+    "xdigit",
 ];
 
 fn oxford(items: &[&str]) -> String {
@@ -58,7 +77,8 @@ fn resolve_class(input: &str) -> Result<&'static str, String> {
 
 /// `string is …`. `rest` is everything after the `is` subcommand.
 pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    const WRONG: &str = "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"";
+    const WRONG: &str =
+        "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"";
     if rest.len() < 2 {
         return err(WRONG);
     }
@@ -142,9 +162,9 @@ fn char_class(class: &str, chars: &[char]) -> (bool, i64) {
         "graph" => |c| !c.is_control() && !c.is_whitespace() && c != '\u{0}',
         "lower" => char::is_lowercase,
         "print" => |c| !c.is_control(),
-        "punct" => |c| {
-            !c.is_alphanumeric() && !c.is_whitespace() && !c.is_control() && !c.is_ascii_digit()
-        },
+        "punct" => {
+            |c| !c.is_alphanumeric() && !c.is_whitespace() && !c.is_control() && !c.is_ascii_digit()
+        }
         "space" => char::is_whitespace,
         "upper" => char::is_uppercase,
         "wordchar" => |c| c.is_alphanumeric() || c == '_',
@@ -330,7 +350,11 @@ fn scan_list_counted(chars: &[char]) -> ((bool, i64), usize) {
         } else if chars[i] == '"' {
             i += 1;
             while i < n && chars[i] != '"' {
-                i = if chars[i] == '\\' { (i + 2).min(n) } else { i + 1 };
+                i = if chars[i] == '\\' {
+                    (i + 2).min(n)
+                } else {
+                    i + 1
+                };
             }
             if i >= n || (i + 1 < n && !is_list_space(chars[i + 1])) {
                 return ((false, ci(start)), count);
@@ -338,7 +362,11 @@ fn scan_list_counted(chars: &[char]) -> ((bool, i64), usize) {
             i += 1;
         } else {
             while i < n && !is_list_space(chars[i]) {
-                i = if chars[i] == '\\' { (i + 2).min(n) } else { i + 1 };
+                i = if chars[i] == '\\' {
+                    (i + 2).min(n)
+                } else {
+                    i + 1
+                };
             }
         }
     }

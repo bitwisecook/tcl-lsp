@@ -16,6 +16,7 @@ pub mod error;
 pub mod value;
 
 mod cmd_array;
+mod cmd_binary;
 mod cmd_chan;
 mod cmd_dict;
 mod cmd_file;
@@ -24,9 +25,8 @@ mod cmd_info;
 mod cmd_list;
 mod cmd_math;
 mod cmd_namespace;
-mod cmd_binary;
-mod cmd_prefix;
 mod cmd_package;
+mod cmd_prefix;
 mod cmd_regexp;
 mod cmd_string;
 mod cmd_string_is;

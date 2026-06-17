@@ -281,6 +281,98 @@ fn diff_ir_json_matches_python() {
     assert_eq!(normalised, expected);
 }
 
+// `diff --show cfg` — the **CFG layer** rides on the CFG/SSA engine-parity work
+// (trailing exit block, opaque glob/regexp/fall-through switches, semi-pruned
+// phi placement, SCCP live-in-root seeding), so `{preSsa, postSsa}` now matches
+// the Python CLI byte-for-byte. The fixtures carry a proc, an `if`/`expr`, and a
+// glob `switch`, with every variable read (no dead stores) so the documented
+// `_NO_PARITY` `analysis.deadStores` sub-field (Rust O109 vs Python liveness)
+// is `[]` on both sides and does not perturb the diff.
+#[test]
+fn diff_cfg_text_matches_python() {
+    let fx = fixtures_dir();
+    let actual = run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-cfg-left.tcl",
+            "diff-cfg-right.tcl",
+            "--show",
+            "cfg",
+        ],
+    );
+    let expected = std::fs::read(fx.join("diff.cfg.golden")).expect("read diff.cfg.golden");
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+    );
+}
+
+#[test]
+fn diff_cfg_json_matches_python() {
+    let fx = fixtures_dir();
+    let actual = String::from_utf8(run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-cfg-left.tcl",
+            "diff-cfg-right.tcl",
+            "--show",
+            "cfg",
+            "--json",
+        ],
+    ))
+    .expect("utf8 stdout");
+    let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
+    let expected = std::fs::read_to_string(fx.join("diff.cfg.json.golden"))
+        .expect("read diff.cfg.json.golden");
+    assert_eq!(normalised, expected);
+}
+
+// Wider cfg coverage: a multi-proc script with if/elseif/else, foreach, and
+// while — every variable read (no dead stores) so the `_NO_PARITY` deadStores
+// sub-field is `[]` on both sides and the diff stays byte-identical.
+#[test]
+fn diff_cfg2_text_matches_python() {
+    let fx = fixtures_dir();
+    let actual = run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-cfg2-left.tcl",
+            "diff-cfg2-right.tcl",
+            "--show",
+            "cfg",
+        ],
+    );
+    let expected = std::fs::read(fx.join("diff.cfg2.golden")).expect("read diff.cfg2.golden");
+    assert_eq!(
+        String::from_utf8_lossy(&actual),
+        String::from_utf8_lossy(&expected),
+    );
+}
+
+#[test]
+fn diff_cfg2_json_matches_python() {
+    let fx = fixtures_dir();
+    let actual = String::from_utf8(run_tcl_in(
+        &fx,
+        &[
+            "diff",
+            "diff-cfg2-left.tcl",
+            "diff-cfg2-right.tcl",
+            "--show",
+            "cfg",
+            "--json",
+        ],
+    ))
+    .expect("utf8 stdout");
+    let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
+    let expected = std::fs::read_to_string(fx.join("diff.cfg2.json.golden"))
+        .expect("read diff.cfg2.json.golden");
+    assert_eq!(normalised, expected);
+}
+
 // `dataflow` is wired onto the same `CompilationUnit` (`interproc` summaries
 // for the `proc_effects` half — `pure` / `reads` / `writes` / `has_barrier` via
 // `_effect_region_str`) and the taint engine. The `taint_warnings` half now

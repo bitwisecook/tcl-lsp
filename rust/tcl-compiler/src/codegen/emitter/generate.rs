@@ -393,49 +393,6 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
             ctx.emit_stmt_with_start_cmd(stmt, None, None);
         }
 
-        // Glob/regexp switch dispatch: the structured arm blocks exist
-        // only for the analyser. Emit a generic `switch` invoke (as the
-        // old barrier did), jump to the join block, and skip the
-        // member blocks — the runtime invoke subsumes them.
-        if let Some(sd) = cfg.switch_dispatches.get(bname) {
-            let next_block = block_order.get(i + 1).map(String::as_str);
-            let invoke = Statement::Barrier {
-                span: tcl_lexer::Span::new(0, 0),
-                reason: format!("switch -{}", sd.mode.as_str()),
-                command: "switch".into(),
-                canonical_command: None,
-                args: sd.raw_args.clone(),
-                tokens: None,
-            };
-            ctx.emit_stmt_with_start_cmd(&invoke, None, None);
-            // The invoke's result is the switch's value — it must reach
-            // `switch_end` on TOS like an exact arm's result, so the
-            // value-join at the join block can keep it (proc return /
-            // nested value) or pop it (statement context). Drop the
-            // statement-level POP that `emit_call` appended; without
-            // this the join's own pop / proc-return underflows the
-            // stack (a glob/regexp switch as a proc's last command, or
-            // followed by another statement).
-            if ctx
-                .instructions
-                .last()
-                .is_some_and(|inst| inst.op == Op::POP)
-            {
-                ctx.instructions.pop();
-            }
-            if next_block != Some(sd.end_block.as_str()) {
-                ctx.emit_comment(
-                    Op::JUMP4,
-                    vec![Operand::Label(sd.end_block.clone())],
-                    &format!("-> {}", sd.end_block),
-                );
-            }
-            for member in &sd.member_blocks {
-                state.skip_blocks.insert(member.clone());
-            }
-            continue;
-        }
-
         // If/switch arms: keep last statement value on TOS instead of
         // popping — the value is the arm's result.
         if let Some(Terminator::Goto { target, .. }) = &blk.terminator

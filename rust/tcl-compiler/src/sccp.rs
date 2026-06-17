@@ -233,6 +233,9 @@ pub fn sccp(
             values.insert(k.clone(), v.clone());
         }
     }
+
+    seed_live_in_roots(cfg, ssa, &mut values);
+
     let mut executable_blocks: HashSet<String> = HashSet::new();
     let mut executable_edges: HashSet<(String, String)> = HashSet::new();
     if cfg.blocks.contains_key(&cfg.entry) {
@@ -335,6 +338,55 @@ pub fn sccp(
         executable_blocks,
         executable_edges,
         constant_branches,
+    }
+}
+
+/// Seed live-in roots to `Overdefined`: a value *used* but never *defined*
+/// anywhere in this function (a proc parameter, a global / namespace read, an
+/// upvar target, or an undefined-variable read) holds a runtime-unknown value,
+/// so it is `Overdefined`, not the `Unknown` join-identity (which would
+/// silently vanish from any phi it feeds — folding `join(const, $runtime)` to
+/// the constant). Mirrors Python's `analyse_function` live-in-root seeding.
+fn seed_live_in_roots<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &mut HashMap<ValueKey, LatticeValue, S>,
+) {
+    let mut defined_keys: HashSet<ValueKey> = HashSet::new();
+    let mut used_keys: HashSet<ValueKey> = HashSet::new();
+    for ssa_block in ssa.blocks.values() {
+        for phi in &ssa_block.phis {
+            defined_keys.insert((phi.name.clone(), phi.version));
+            for inc in phi.incoming.values() {
+                if *inc > 0 {
+                    used_keys.insert((phi.name.clone(), *inc));
+                }
+            }
+        }
+        for s in &ssa_block.statements {
+            for (var, ver) in &s.defs {
+                defined_keys.insert((var.clone(), *ver));
+            }
+            for (var, ver) in &s.uses {
+                used_keys.insert((var.clone(), *ver));
+            }
+        }
+    }
+    // Branch-condition reads, resolved at each block's exit versions.
+    for (bn, block) in &cfg.blocks {
+        if let Some(Terminator::Branch { condition, .. }) = &block.terminator
+            && let Some(sb) = ssa.blocks.get(bn)
+        {
+            for var in crate::var_refs::vars_in_expr(condition) {
+                let ver = sb.exit_versions.get(&var).copied().unwrap_or(0);
+                used_keys.insert((var, ver));
+            }
+        }
+    }
+    for key in used_keys.difference(&defined_keys) {
+        values
+            .entry(key.clone())
+            .or_insert(LatticeValue::Overdefined);
     }
 }
 
@@ -766,7 +818,10 @@ fn env_from_uses_numeric(
     for (name, ver) in uses {
         let key: ValueKey = (name.clone(), *ver);
         if let Some(LatticeValue::Const(c)) = values.get(&key)
-            && matches!(c, ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_))
+            && matches!(
+                c,
+                ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
+            )
         {
             env.insert(name.clone(), const_to_env_value(c));
         }
@@ -1806,8 +1861,14 @@ mod tests {
         stmt.uses.insert("a".into(), 1);
         stmt.uses.insert("b".into(), 1);
         let mut values = HashMap::new();
-        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::String("alpha".into())));
-        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::String("beta".into())));
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("alpha".into())),
+        );
+        values.insert(
+            ("b".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("beta".into())),
+        );
         assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
     }
 
@@ -1819,9 +1880,18 @@ mod tests {
         stmt.uses.insert("a".into(), 1);
         stmt.uses.insert("b".into(), 1);
         let mut values = HashMap::new();
-        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::Int(3)));
-        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::Int(4)));
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Const(ConstValue::Int(7)));
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+        values.insert(
+            ("b".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(4)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(7))
+        );
     }
 
     #[test]
@@ -1832,9 +1902,18 @@ mod tests {
         stmt.uses.insert("a".into(), 1);
         stmt.uses.insert("b".into(), 1);
         let mut values = HashMap::new();
-        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::String("alpha".into())));
-        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::String("beta".into())));
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Const(ConstValue::Int(0)));
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("alpha".into())),
+        );
+        values.insert(
+            ("b".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("beta".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(0))
+        );
     }
 
     #[test]

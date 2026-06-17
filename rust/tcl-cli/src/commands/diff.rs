@@ -35,9 +35,9 @@ const CONTEXT: usize = 3;
 /// preserving order.
 fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
     const KNOWN: [&str; 3] = ["ast", "ir", "cfg"];
-    // `all` covers only the layers that are ported; re-add `cfg` here once its
-    // serialiser is implemented.
-    const ALL_IMPLEMENTED: [&str; 2] = ["ast", "ir"];
+    // All three layers are ported (`cfg` rides on the engine-parity CFG/SSA
+    // serialisers). Mirrors Python's `_DIFF_LAYERS`.
+    const ALL_IMPLEMENTED: [&str; 3] = ["ast", "ir", "cfg"];
     let mut selected: Vec<&'static str> = Vec::new();
     for raw in show {
         for token in raw.split(',') {
@@ -183,6 +183,7 @@ fn compute_layer_diff(
 fn layer_payload(
     layer: &str,
     src: &str,
+    dialect: &str,
     registry: &CommandRegistry,
     line_index: &LineIndex,
 ) -> anyhow::Result<String> {
@@ -195,11 +196,56 @@ fn layer_payload(
                     .dumps_indent2(),
             )
         }
-        // The CFG layer needs the SSA serialiser (`tooling/cli/serialise.py`'s
-        // `_serialise_cfg_*`), not ported yet.
-        other => anyhow::bail!(
-            "`tcl diff` layer `{other}` is not yet implemented in the Rust port \
-             (the CFG serialiser is a separate workstream); use `--show ast,ir`"
+        "cfg" => Ok(cfg_layer_payload(src, dialect)),
+        other => anyhow::bail!("unknown diff layer: {other} (expected ast,ir,cfg)"),
+    }
+}
+
+/// Build the `cfg` diff layer payload: `{preSsa, postSsa}` from the explorer's
+/// CFG/SSA serialisers (which match the Python CLI after the engine-parity
+/// work), rendered through the shared sort-keys indent-2 adapter the AST/IR
+/// layers use. Mirrors Python's `_collect_diff_layer_payloads` cfg branch —
+/// read the two views off `serialise_result`.
+///
+/// `analysis.deadStores` inside `postSsa` is the liveness-based set (a port of
+/// Python's `_dead_stores`), byte-identical wherever the SSA matches. A
+/// residual SSA-block construction gap on complex scripts can still diverge
+/// (and cascade into `inferredTypes`/`deadStores` there) — a separate
+/// workstream; see the `diff` row in `docs/rust-cli-port.md`.
+fn cfg_layer_payload(src: &str, dialect: &str) -> String {
+    let result = tcl_explorer::run_pipeline(src, dialect);
+    let serialised = tcl_explorer::serialise_result(&result);
+    let mut payload: BTreeMap<String, Json> = BTreeMap::new();
+    for (out_key, view_key) in [("preSsa", "cfgPreSsa"), ("postSsa", "cfgPostSsa")] {
+        let view = serialised
+            .get(view_key)
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        payload.insert(out_key.to_owned(), value_to_json(&view));
+    }
+    Json::Object(payload).dumps_indent2()
+}
+
+/// Convert a `serde_json::Value` (the explorer serialisers' output) into the
+/// snapshot [`Json`] so it renders through the shared `dumps_indent2`
+/// (`json.dumps(indent=2, sort_keys=True)`) adapter the AST/IR layers use. The
+/// CFG payload is integer-only (offsets / versions / counts), so a JSON number
+/// is always an `i64`.
+fn value_to_json(value: &serde_json::Value) -> Json {
+    match value {
+        serde_json::Value::Null => Json::Null,
+        serde_json::Value::Bool(b) => Json::Bool(*b),
+        // CFG payloads are integer-only; a non-`i64` number would be a bug, so
+        // surface it as a string rather than silently truncating through `f64`.
+        serde_json::Value::Number(n) => {
+            n.as_i64().map_or_else(|| Json::Str(n.to_string()), Json::Int)
+        }
+        serde_json::Value::String(s) => Json::Str(s.clone()),
+        serde_json::Value::Array(items) => Json::Array(items.iter().map(value_to_json).collect()),
+        serde_json::Value::Object(map) => Json::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), value_to_json(v)))
+                .collect(),
         ),
     }
 }
@@ -240,8 +286,8 @@ pub fn run_diff(
 
     let mut results: Vec<(String, bool, Vec<String>)> = Vec::new();
     for layer in &layers {
-        let lp = layer_payload(layer, &left_src, registry, &left_index)?;
-        let rp = layer_payload(layer, &right_src, registry, &right_index)?;
+        let lp = layer_payload(layer, &left_src, dialect, registry, &left_index)?;
+        let rp = layer_payload(layer, &right_src, dialect, registry, &right_index)?;
         let (equal, lines) = compute_layer_diff(layer, &lp, &rp, &left_name, &right_name);
         results.push(((*layer).to_owned(), equal, lines));
     }

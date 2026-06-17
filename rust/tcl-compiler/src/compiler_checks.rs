@@ -12,7 +12,7 @@
 
 use tcl_lexer::Span;
 
-use crate::compilation_unit::CompilationUnit;
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
 use crate::irules_checks::{
     IrulesCheckWarning, find_collect_flow_warnings, find_generic_static_name_warnings,
@@ -176,6 +176,15 @@ impl Diagnostic {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/// Absolutise a per-function diagnostic's span by adding the unit's
+/// `base_offset`.  The per-function checks read spans from `fu.cfg`/`fu.ssa`/
+/// `fu.sccp`, which are relative to that offset (0 for a real-position build,
+/// the body offset for a memoised offset-0 unit, Approach B).
+fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
+    d.span = fu.abs_span(d.span);
+    d
+}
+
 /// Run every landed check against a compilation unit and return a
 /// flat list of diagnostics.
 ///
@@ -193,20 +202,20 @@ pub fn run_all_checks(
     // SCCP constant branches (per function).
     for fu in cu.functions() {
         for cb in &fu.sccp.constant_branches {
-            out.push(Diagnostic::from_constant_branch(cb));
+            out.push(shift(fu, Diagnostic::from_constant_branch(cb)));
         }
     }
 
     // GVN full + partial redundancies + loop invariants.
     for fu in cu.functions() {
         for r in find_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(Diagnostic::from_redundant(&r));
+            out.push(shift(fu, Diagnostic::from_redundant(&r)));
         }
         for r in find_partial_redundancies(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(Diagnostic::from_redundant(&r));
+            out.push(shift(fu, Diagnostic::from_redundant(&r)));
         }
         for r in find_loop_invariants(registry, &fu.cfg, &fu.ssa, dialect) {
-            out.push(Diagnostic::from_redundant(&r));
+            out.push(shift(fu, Diagnostic::from_redundant(&r)));
         }
     }
 
@@ -220,10 +229,10 @@ pub fn run_all_checks(
             registry,
             &fu.sccp.values,
         ) {
-            out.push(Diagnostic::from_shimmer(&w));
+            out.push(shift(fu, Diagnostic::from_shimmer(&w)));
         }
         for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
-            out.push(Diagnostic::from_thunking(&w));
+            out.push(shift(fu, Diagnostic::from_thunking(&w)));
         }
     }
 
@@ -237,7 +246,7 @@ pub fn run_all_checks(
             registry,
             dialect,
         ) {
-            out.push(Diagnostic::from_taint(&w));
+            out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
         // IRULE3101 is iRules-only. `find_setter_constraint_warnings`
         // gates internally too; this outer check is defence-in-depth
@@ -251,7 +260,7 @@ pub fn run_all_checks(
                 &fu.sccp.executable_blocks,
                 dialect,
             ) {
-                out.push(Diagnostic::from_taint(&w));
+                out.push(shift(fu, Diagnostic::from_taint(&w)));
             }
             // IRULE3103 — `*::uri` getter + manual decomposition.
             for w in find_uri_split_suggestions(
@@ -262,7 +271,7 @@ pub fn run_all_checks(
                 registry,
                 dialect,
             ) {
-                out.push(Diagnostic::from_taint(&w));
+                out.push(shift(fu, Diagnostic::from_taint(&w)));
             }
         }
         for w in find_path_concat_warnings(
@@ -272,7 +281,7 @@ pub fn run_all_checks(
             &fu.taints,
             &fu.sccp.executable_blocks,
         ) {
-            out.push(Diagnostic::from_path_concat(&w));
+            out.push(shift(fu, Diagnostic::from_path_concat(&w)));
         }
         // W313: destructive `file` ops on a variable/tainted path.
         for w in find_destructive_file_warnings(
@@ -282,7 +291,7 @@ pub fn run_all_checks(
             &fu.sccp.executable_blocks,
             registry,
         ) {
-            out.push(Diagnostic::from_taint(&w));
+            out.push(shift(fu, Diagnostic::from_taint(&w)));
         }
     }
 

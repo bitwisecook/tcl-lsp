@@ -18,3 +18,4 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 
 [dev-dependencies]
+rayon = "1"

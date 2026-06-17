@@ -528,7 +528,7 @@ impl Analyser {
         // Done with a short immutable borrow before the mutable scope handle.
         let is_first_def = scope_at(&self.result.global_scope, &path)
             .is_some_and(|s| !s.variables.contains_key(base_name));
-        if is_first_def {
+        if is_first_def && !self.suppress_w215 {
             self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span);
         }
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) else {

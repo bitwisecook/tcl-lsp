@@ -368,19 +368,42 @@ practcl.tcl from ~1 s to low-ms).
 >     nearly all of them, and the memo was keyed *without* `param_constants` so
 >     those bypass it.  So the 52 ms is fresh SSA/SCCP/type/taint builds, and the
 >     headline lattice memo only helps callee-free procs.
->   - *Tried (param_constants in the key) then reverted — blocked by the bug
->     below, not by perf.* Folding `param_constants` into `FnLatticeKey` makes the
->     memo engage for all procs; with the cache verified hitting (a warm edit
->     re-executes 0–2 lattices, not 176), clone+rebase is **~9× cheaper than
->     fresh-build** (pki 4 ms vs 38 ms; parse_lemon 6 ms vs 52 ms) and per-edit
->     latency improves (pki BOTH-queries ~235 ms → ~150 ms; parse_lemon ~202 →
->     ~191 ms, the smaller win eaten by the IR body-normalise needed to form the
->     offset-0 key).  It is **correct in isolation** and was reverted only because
->     it *extended* the memo byte-identity bug below to more procedures; with that
->     bug now fixed (see "Memo byte-identity (fixed)"), it can land on top.
+>   - **`param_constants` folded into `FnLatticeKey` (shipped).** The
+>     caller-uniform-literal SCCP seeds (`param_constants` /
+>     `params_constants_from_call_sites`) are now part of the memo key, so a
+>     procedure with them engages the `function_lattice` memo instead of
+>     bypassing it via the old `param_constants.is_none()` guard.  The seeds are
+>     carried through `LatticeRequest` in a deterministic, hashable,
+>     position-independent encoding (`(param, version, string)`, sorted —
+>     `encode_param_constants` / `decode_param_constants`), with a defensive
+>     fresh-build fallback if a seed is ever not a string const (the only shape
+>     the producer emits).  `function_lattice` decodes the seeds and builds via
+>     `FunctionUnit::build_with_param_constants`, so a procedure rebuilds its
+>     lattice only when a caller's literal at that position changes (a new key)
+>     and is an offset-invariant cache hit otherwise.  With the memo now engaging
+>     for nearly all procs, clone+rebase is **~9× cheaper than fresh-build** (the
+>     measured-in-isolation figures: pki 4 ms vs 38 ms; parse_lemon 6 ms vs
+>     52 ms).  On the noisy CI box the aggregate BOTH-queries win is partly
+>     masked by the O(file) lowering floor that now dominates, but the achievable
+>     floor drops (pki BOTH min-of-N **~175 ms → ~153 ms**, matching the original
+>     ~150 ms experiment).  Byte-identical — the new
+>     `function_lattice_memoises_param_constant_procs` db test proves a
+>     param-constant callee now executes a `function_lattice` query and is reused
+>     across an unrelated edit, and the full corpus differential
+>     (`compiler_check_memo_matches_uncached_over_corpus`) + `differential_incremental`
+>     + `per_item_corpus` + e2e all stay green.  This was previously tried and
+>     reverted only because it *extended* the memo byte-identity bug below to more
+>     procedures; re-landed on top of that fix (#616, see "Memo byte-identity
+>     (fixed)").
 > - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
->   definer and is OO-heavy, so it needs that architectural step before it leaves
->   the full-rebuild path.
+>   definer and is OO-heavy.  **This is the per-item *analyser walk*'s fallback**
+>   (`body_needs_enclosing_context` / duplicate-definition detection), *not* the
+>   per-edit CU lowering cost — so backlog #3 Approach B (offset-aware CU
+>   consumers) does **not** move it off the full-rebuild path.  Backlog #4 needs
+>   either the duplicate-method-definer grafting (the analyser-walk analog of the
+>   shipped duplicate-*proc* grafting: union the two definitions'
+>   locals/method-facts with last-definition-wins, replayed at graft) or the
+>   incremental-lowering work of Approach A — a separate effort from this slice.
 
 > **Memo byte-identity (fixed).**  The salsa-native lattice graph (#604) promises
 > that the memoised `build_for_memoized` (offset-0 per-procedure `function_lattice`
@@ -417,6 +440,27 @@ practcl.tcl from ~1 s to low-ms).
 > corpus differential is the (now-passing) regression guard, `#[ignore]`d only for
 > being slow (`--ignored`, ~100 s).  This **unblocks extending the lattice memo**
 > (the `param_constants` win above can now land on top).
+
+> **Memo *key* determinism (fixed) — the lattice cache was flaking.**  Distinct
+> from the byte-identity fix above (which made the *output* seed-stable), the memo
+> *key* itself was nondeterministic: `function_lattice`'s `FnLatticeKey` embeds the
+> module `CfgContext` (`prepare_cfg_context`'s `upvar` + `proc_params`), and
+> `proc_params` inserted **both** the short and qualified name of every procedure
+> — so two procedures sharing a short name (`::a::x` and `::b::x`) raced on the
+> `"x"` entry with **last-write-wins by `HashMap` iteration order**.  A
+> determinism experiment (`exp_cfg_context_determinism`) showed the `proc_params`
+> checksum varying run-to-run; the db-level probe showed a whole-file-shift edit
+> re-executing **0 or all 74** pki lattices depending on seed.  Because the key
+> flaked, an edit *anywhere above a procedure* could miss the cache for **every**
+> procedure and rebuild the whole module — undermining the per-procedure memo that
+> #1 (taint cascade) and #3-B both sit on.  Fix: iterate `module.procedures` in
+> **sorted qualified-name order** in `prepare_cfg_context`, so a short-name
+> collision resolves deterministically.  Output is unchanged (the collision value
+> never affected diagnostics — pinned tests + e2e + `compiler_check_corpus` all
+> green; this is why the byte-identity gate didn't catch it), but a whole-file
+> shift now **reliably** reuses every procedure's lattice (`fn_lattice_reexec=0`
+> across runs).  Guarded by `prepare_cfg_context_short_name_collision_is_deterministic`
+> + `function_lattice_reused_on_whole_file_shift`.
 
 > **OO method-body memoisation (shipped).** Method bodies were walked *in place*
 > in pass 2 (not memoised), so a body edit re-walked every method.  They are now
@@ -457,12 +501,342 @@ practcl.tcl from ~1 s to low-ms).
 >
 > **Remaining (future).**
 >
-> - **Interprocedural taint cascade.** `with_interprocedural` still re-runs
->   `propagate_taints` for every function on each edit (a small fraction of the
->   per-edit cost now). Memoising it byte-identically needs a per-function key
->   over the reachable-callee `ProcSummary`s — i.e. a `taint_cascade` query layered
->   on `function_lattice`'s baseline taints, fed the reachable summaries as
->   interned inputs.  Now tractable on the salsa-native graph; net-small perf.
+> - **Interprocedural taint cascade (shipped — backlog #1).**
+>   `with_interprocedural` re-ran `propagate_taints` for every procedure every
+>   edit.  A salsa-native `taint_cascade` query (`tcl-lsp-db`) now layers on
+>   `function_lattice`'s offset-0 baseline so an unchanged procedure whose
+>   reachable-callee summaries are unchanged reuses its cached taints.  The taint
+>   lattice is `ValueKey`-keyed (span-free), so the cascade runs over the offset-0
+>   baseline and installs the result directly into the rebased unit — **no rebase
+>   needed**.  The key (`TaintSummaryKey`) captures exactly what `propagate_taints`
+>   reads from the summary: the full procedure-name set (call-resolution domain)
+>   plus the taint-relevant projection (`writes_global`, `calls`,
+>   `return_passthrough_param`, `params`) of the cascade root + its transitive
+>   callees — so a body edit that flips a reachable callee's passthrough /
+>   global-write re-interns the key for exactly the callers that reach it.
+>   `CompilationUnit::with_interprocedural_memoized` routes each procedure's taint
+>   through a callback (top level stays fresh); the whole-module summary is still
+>   built per edit (it is the memo's input), so the saving is only the
+>   per-procedure re-run — **net-small, as predicted**.  Byte-identical: the
+>   `compiler_check` corpus differential proved the minimal-summary reconstruction
+>   cold over 893 files, and a new edit-staleness db test
+>   (`taint_cascade_matches_uncached_under_edits`) proved no stale cache survives a
+>   callee-behaviour edit.  Gated also by `taint_cascade_reused_on_unrelated_edit`
+>   (one cascade recomputes per unrelated edit) + e2e.
+
+## Scoping the per-edit lowering floor (backlog #3)
+
+The `param_constants` fold (above) made `function_lattice` engage for nearly
+every procedure, so the per-procedure *lattice compute* is now memoised and the
+per-edit cost is dominated by the **non-memoised whole-module work** in
+`build_for_inner` / `memoised_compilation_unit`.  Fresh phase-timing
+(`cargo run --release -p tcl-lsp-db --example tail_profile FILE=…`, warm DB,
+single-char body edit):
+
+| file | LOC / fns | `file_analysis_incremental` | `compiler_check` | BOTH | CU build+interproc |
+|---|---|--:|--:|--:|--:|
+| `pki.tcl` | 3.3k / 75 | ~111 ms | ~133 ms | ~150–180 ms | ~66 ms |
+| `parse_lemon.tcl` | 7.4k / 177 | ~161 ms | ~157 ms | ~223 ms | ~110 ms |
+
+Component split of the per-edit CU build (`parse_lemon`, from the prior
+proc-loop instrumentation, still representative): `lower_to_ir` **~26 ms** +
+module `build_cfg` **~10 ms** + the per-procedure clone/rebase loop **~52 ms** +
+`with_interprocedural` **~19 ms**.  The 52 ms is *not* lattice compute (memoised)
+— it is the offset-invariant plumbing run for **every** procedure every edit:
+clone the proc's offset-0 IR body + `rebase_script`, then deep-clone the
+memoised `FunctionUnit` + `rebase_function_unit` to the proc's real span
+(`lattice_rebase.rs`).  The rebase target (the offset) shifts whenever an edit
+moves a procedure, so the rebased unit can't be cached across edits.
+
+Two ways to kill it, both larger refactors.  Neither alone is a knockout — they
+attack disjoint parts of the floor.
+
+### Approach A — incremental per-item IR lowering / CFG (attacks the ~26+10 ms)
+
+Lower **per item-body**, keyed on the offset-0 body text (mirroring
+`function_lattice` for CFGs and the per-item analyser walk for diagnostics), so
+a body edit re-lowers one body and reuses the rest.  `item_tree` already gives
+the body spans; `build_cfg`'s per-proc loop already builds each CFG from one
+body, so the CFG half is nearly free to make per-item.
+
+- **Pro:** reuses the *proven* offset-0 + rebase machinery (byte-identical for
+  lattices today); does **not** touch the ~50 span-emit sites in the consumers
+  (see Approach B's surface).  Architecturally consistent with slices 2–4.
+- **Con / blocker:** lowering is **not** body-local.  `lower_to_ir_with_config`
+  runs whole-module passes whose output for one body depends on the others —
+  `specialise_factories`, `inline_uplevel_passthrough`, `extract_oo_methods_pass`,
+  and `populate_trace_facts` (scans every body for `trace add execution …`,
+  setting module-wide `traced_commands` / `has_dynamic_trace` that GVN reads).
+  So a per-body lowering memo needs the same "cross-item facts live in the
+  aggregate, fed in as an input" split the analyser walk used (Phase B/C): the
+  body memo keys on the module-wide trace/factory facts, which a signature-class
+  edit invalidates.  Tractable but non-trivial; gated by the same corpus
+  differential.
+- **Ceiling:** ~36 ms (lower+cfg).  The 52 ms rebase/clone **remains** — A does
+  not remove it.  `collect_call_site_constants` reads the module CFG, so the
+  per-proc CFGs can't simply be skipped; rework it to walk IR call statements
+  directly first (small, independent, unblocks skipping redundant CFG builds for
+  memoised procs).
+
+### Approach B — offset-aware diagnostic consumers (attacks the ~52 ms)
+
+Leave each `function_lattice` unit at **offset 0** and hand every consumer the
+proc's base byte-offset, added at span-emit time — eliminating both the
+`rebase_function_unit` walk **and** the deep-clone (consumers borrow the cached
+`Arc<FunctionUnit>` + offset).  This is the single biggest lever (~52 ms).
+
+- **Surface (from the consumer span-read audit).**  Four consumers read
+  *absolute* spans out of a unit's `cfg`/`ssa`/`sccp`:
+  - **taint** (via `with_interprocedural`) — **2 sites** (`taint.rs:1680,2313`);
+    trivially offset-at-emit.  *Best first target.*
+  - **analyser CFG/SSA tail** (`emit_cfg_ssa_diagnostics`) — **~8 sites** across
+    5 emitters (W220/W211/H300/W210/W307); moderate.
+  - **`run_all_checks`** — **~15–20 sites** across `gvn.rs` / `shimmer/span.rs` /
+    `taint.rs` / irules; one aggregator, many helpers.
+  - **`optimise_unit`** — **~25+ sites** across **9 passes**; widest.
+- **Leakage risks (a pure offset-0 unit + whole-file `source` don't mix).**
+  - `optimiser/propagation.rs` validates `source[span.start()..span.end()]`
+    against the body text (O102) — with an offset-0 span over a whole-file
+    `source` this slices the wrong bytes.  Needs offset-aware slicing (add the
+    base before indexing) — the principal correctness hazard.
+  - the analyser's W307 / `$var` branches already read the **full** `self.source`
+    (deferred to the tail in Phase C); those stay absolute and must not be
+    offset-shifted.  So the analyser becomes a **hybrid** (offset-0 unit spans +
+    absolute source scans) — workable but fiddly.
+  - sort-by-`span.start()` determinism (gvn/shimmer/optimiser) is offset-shift-
+    invariant, so *relative* ordering is safe — but a build that mixes offset-0
+    and absolute spans in one sort would corrupt it.  All-or-nothing per unit.
+- **All-consumers-or-no-win constraint.**  `file_analysis_incremental` and
+  `compiler_check_diagnostics` **share one** built `compilation_unit`.  If even
+  one consumer (the optimiser, the hard one) still needs absolute spans, the
+  shared unit must still be rebased → **no win**.  So B only pays off once
+  *every* consumer of the shared unit is offset-aware, or the shared-unit query
+  is split so the offset-aware consumers take an un-rebased unit.  A phased
+  "taint + analyser first" rollout validates the machinery but banks **zero**
+  wall-clock until the optimiser is converted too.
+
+### Approach B — shipped (offset-aware consumers, rebase walk removed)
+
+The memoised build no longer rebases each procedure's unit to its real position.
+`FunctionUnit` carries a `base_offset`; the memoised arm leaves the unit at
+offset 0 and sets `base_offset = body_offset`, and every diagnostic consumer adds
+it at emit time (`abs_span` / `abs_pos`).  `rebase_function_unit` (the O(unit)
+per-procedure span walk) is **deleted**.  The conversion followed the
+span-provenance rule above (only `fu.cfg`/`ssa`/`sccp`-sourced spans shift;
+`cu.ir_module`-walking optimiser passes are untouched), and is gated by a new
+`file_analysis_corpus` differential (`file_analysis_incremental` vs `analyse`
+over 893 files, the analyser-tail analog of `compiler_check_corpus`) **plus**
+`compiler_check_corpus` — both byte-identical — and e2e.  Measured: pki
+`compiler_check` per edit ~133 → ~111 ms; the aggregate BOTH win is smaller (the
+O(file) lowering floor + the still-present per-proc deep-clone dominate).
+
+**Two follow-ups remain to fully bank the lever:**
+
+- *Eliminate the per-proc deep-clone.*  `build_for_inner` still
+  `(*function_lattice).clone()`s each unit before setting `base_offset`.  Storing
+  `Arc<FunctionUnit>` in `cu.procedures` (offset-0, shared straight from
+  `function_lattice`) + a per-proc offset would drop the clone too — but it
+  ripples through every `cu.procedures` / `cu.function()` / `cu.functions()`
+  accessor, so it is its own change.
+- *Backlog #2 (per-function `optimise_unit` memo): correctness-de-risked, but a
+  major refactor.*  The optimiser is now offset-aware (its prerequisite).  The
+  feared cross-function `PassContext` coupling turns out to be **inert**: the only
+  writes to `propagated_branch_uses` / `propagated_use_groups` /
+  `propagated_expr_stmts` are in **unit tests** — in production those sets are
+  always empty, so the `propagation.rs` reads have no effect, and
+  `reset_function_state` is dead (test-only).  `next_group` is canonicalised by
+  `renumber_groups`, and O127's `rewritten` snapshot only overlaps spans **within
+  one function's source region** (cross-function opts are in disjoint regions).
+  So a per-function optimise **can** be byte-identical to the whole-unit run.
+  - **Design.**  A salsa query `function_optimisations(FnLatticeKey + ctx)` that
+    optimises one procedure **in isolation at offset 0** and returns offset-0
+    optimisations; `optimise_unit` then rebases each by the proc's `base_offset`,
+    merges, and runs the existing whole-unit canonicalise + `select_non_overlapping`
+    + `renumber_groups` arbitration (cheap).  Offset-invariance requires the run's
+    `ctx.source` to be the **proc's body substring** (`source[proc.span]`, stable
+    across edits when the body is unchanged) so offset-0 spans index it, plus the
+    proc's offset-0 IR body — both already produced for the `function_lattice`
+    key.  The cross-function *read-only* context the passes consume (`interproc`,
+    `command_mutations`, `proc_cfgs`, `cross_event_vars`) must be interned into the
+    key (coarse: a summary edit invalidates all per-proc optimise memos; a
+    reachable-context projection like `taint_cascade`'s would be tighter).
+  - **Cost.**  Building the single-function offset-0 view touches nearly every
+    `CompilationUnit` field the passes read (`ir_module`, `cfg_module`,
+    `connection_scope`, …), so it is a refactor on the order of Approach B for the
+    ~12 ms `optimise_unit` spends — gate with `compiler_check_corpus` (fast, the
+    O127-overlap inertness assumption is exactly what it verifies).  Sequence it
+    after the deep-clone removal.
+  - **Isolation seam shipped + validated.**  `optimise_unit_per_function`
+    optimises each `::top`/procedure in an isolated single-function view and
+    merges + arbitrates; a new `optimise_per_function_corpus` differential proves
+    it byte-identical to `optimise_unit` over the corpus.  Finding: a fresh
+    `PassContext` restarts `next_group` at 0, so two functions' rewrite groups
+    both come out `0` and are **conflated** on merge — fixed by remapping each
+    run's group ids into a globally-unique range before merging (the final
+    `renumber_groups` then re-canonicalises identically, since the canonical id
+    depends only on the partition + sorted order).  **`unused_procs` (O124) is
+    iRules-only *and* whole-module** (reachability from `::when::*` handlers via
+    `ctx.interproc`), so the memo must run it whole-module, not per-function (the
+    tcl validation doesn't exercise it).
+  - **Open question for the salsa step — does the memo net-win?  *Measured: yes.***
+    The optimiser passes read the **whole** `interproc` summary, so the memo key
+    must capture it; I worried interning it per build (`O(procs)`) plus the
+    coarse invalidation (any *summary* edit invalidates every per-proc optimise
+    memo) might approach the ~12 ms saving.  The
+    `optimise_memo_experiments` harness disproves that:
+    - **E1 (savings ceiling):** `optimise_unit` is **12.9 ms / 74 procs** (pki),
+      **18.9 ms / 176 procs** (parse_lemon) — ~0.1–0.2 ms per proc.  A warm
+      single-proc edit re-optimises one proc + arbitration, so the memo removes
+      essentially all of the 13–19 ms.
+    - **E3 (key cost):** serialising `interproc` into a hashable key is
+      **0.005–0.02 ms** — ~600× cheaper than the optimise it gates.  The interning
+      worry was unfounded.
+    - **E2 (hit rate):** over 5 265 per-procedure body edits across 276 corpus
+      files, a benign body edit leaves `interproc` **byte-identical 100.0 %** of
+      the time (the summary is offset-independent + structural).  So even the
+      *whole-`interproc`-key* memo hits ~100 % of non-signature edits; when a
+      summary does move it is **~1** procedure, so a reachable-key memo (à la
+      `taint_cascade`) reuses everything except that proc's callers.
+    - **Verdict from E1–E3: build it.**  A whole-`interproc`-key memo wins on the
+      common benign edit; the reachable-key projection is a cheap refinement.
+  - **Built it — then reverted (the experiments were necessary but not
+    sufficient).**  The full salsa memo was implemented (`function_optimisations`
+    keyed on the offset-0 `Procedure` + `opt_context` with `PartialEq`
+    early-cutoff) and is **byte-identical** to whole-unit `optimise_unit` over the
+    893-file corpus (`compiler_check_corpus` green) — correctness is *proven*.
+    But benching revealed a perf **regression** E1–E3 missed: each procedure's
+    optimise runs in a single-function `CompilationUnit` view that must own a copy
+    of the whole `interproc` summary (`PassContext` takes it by value), so when
+    many procedures miss in one edit the per-proc loop is **O(file²)** in
+    `interproc` clones.  The standard bench edit (`find("\n    ")`, early in the
+    file) shifts *every* procedure and — because `function_lattice` itself
+    cache-misses on a whole-file shift in this path — all procedures miss at once,
+    pushing pki `compiler_check` from ~111 ms to ~200+ ms.  (For *localized* edits
+    the memo hits and helps: an edit near EOF recomputes ~5 of 75 procs.)
+    - **To ship it needs two more things, for a ~12 ms ceiling:** (1) make
+      `PassContext.interproc` an `Arc` so the single-function view shares it
+      instead of cloning per proc (kills the O(file²) cliff); and (2) the benefit
+      is still **capped by `function_lattice`'s hit rate** — on whole-file-shift
+      edits it misses everything, so the optimise memo can't help those either.
+      Given the ~12 ms ceiling and these two dependencies, it was **not worth
+      shipping a regression** now; reverted to whole-unit `optimise_unit`.
+    - **Kept (the durable, byte-identical artifacts):** `optimise_unit_per_function`
+      + the `optimise_per_function_corpus` isolation differential (proving the
+      isolation property a future memo builds on), the `optimise_memo_experiments`
+      harness, and `Procedure: Eq+Hash` (enables interning the offset-0 proc).
+
+### Recommendation (for the lowering floor proper)
+
+Sequence by risk-adjusted value:
+
+1. **Micro-win — *not* as cheap as it looks.**  Reworking
+   `collect_call_site_constants` to walk IR call statements (so memoised procs
+   needn't have their real-offset CFG built in `build_cfg`) is **divergence-prone**
+   and was deferred:
+   - The module CFG omits calls inside **top-level deferred loops** when
+     `defer_top_level = true` (the codegen path), while a naive recursive IR walk
+     would include them.  A faithful IR walker must replicate that `defer_top_level`
+     gating exactly.
+   - `build_for_inner` (hence `collect_call_site_constants`) is shared by the
+     **codegen** build too, and `param_constants` seed SCCP — so a *uniform*
+     behaviour change isn't caught by the memoised-vs-uncached
+     `compiler_check_corpus` differential (both sides change together); only the
+     pinned analyser unit tests + e2e would catch it.  Do this only with those
+     pins watched, and prove the `defer_top_level` parity first.
+   - **Why it matters:** on a *warm* edit `function_lattice` is a cache hit, so the
+     proc's offset-0 CFG is already built; `build_cfg`'s real-offset per-proc CFG
+     is then **pure redundant work** (~10 ms on `parse_lemon`).  Skipping it needs
+     call-site collection off the CFG first — hence this micro-win is the unblock.
+2. **Approach A** (incremental per-item lowering): lower risk (no consumer
+   surface), architecturally consistent, ~36 ms ceiling — but first prove the
+   body-lowering memo is byte-identical under the whole-module trace/factory/
+   uplevel passes (the cross-item-facts-as-input split).
+3. **Approach B** last and only committed-to wholesale: stage the machinery on
+   **taint** (2 sites) + the **analyser tail** (~8) behind a `SpanOffset` newtype
+   to prove byte-identity on a narrow surface, then convert `run_all_checks` and
+   finally the **optimiser** (resolving the `propagation.rs` source-slice
+   leakage) — banking the ~52 ms only when the last consumer flips.  Highest
+   value, highest risk; do not start partial expecting a wall-clock win.
+
+> **Backlog #2 (memoise `optimise_unit` per-function) is the optimiser half of
+> Approach B, not an independent item.**  `optimise_unit`'s passes read
+> `ctx.source[span]` at real offsets (`propagation.rs` O102), so an
+> *offset-invariant* per-function optimiser memo — the only kind that survives the
+> shifts a real edit causes — needs exactly the offset-aware/source-slice refactor
+> Approach B's optimiser step describes.  A non-offset-invariant memo (keyed on the
+> proc's real-offset unit) would miss on every edit that shifts the proc, so it is
+> not worth building.  **Do #2 as part of #3-B's optimiser conversion**, not before.
+
+All steps keep the full-rebuild fallback and gate on
+`compiler_check_memo_matches_uncached_over_corpus` + `per_item_corpus` +
+`differential_incremental` + e2e (the existing byte-identity contract).
+
+### Approach B — landed foundation + validated execution plan
+
+**Foundation (shipped).**  `FunctionUnit` gained a `base_offset: i64` plus
+`abs_span` / `abs_pos` helpers: `absolute = local + base_offset`.  A unit built
+at its real position keeps `base_offset = 0` (`abs_span` is identity); the flip
+will build memoised procedure units at **offset 0** with `base_offset = body
+offset`.  No behaviour change yet (`base_offset` is 0 everywhere, unread).
+
+**The span-provenance rule (the key to a *tractable* conversion).**  Only spans
+read from a `FunctionUnit`'s `cfg` / `ssa` / `sccp` (incl. the `CommandTokens`
+`argv_span`s those statements carry) become offset-0 after the flip and need
+`abs_span` / `abs_pos`.  **`cu.ir_module` keeps absolute (whole-file) offsets** —
+it is lowered once whole-file and only the per-proc `function_lattice` *key* is
+normalised to 0 — so every optimiser pass that walks `cu.ir_module` is
+**unaffected**:
+
+- *No change (IR-absolute):* `pattern_recognition`, `code_sinking`,
+  `structure_elimination`, `tail_call`, `unused_procs`, `expr_simplify` — they
+  iterate `cu.ir_module`, not `cu.functions()`.
+- *Needs conversion (reads `fu.cfg`/`ssa`/`sccp`, via `cu.functions()`):*
+  - analyser tail (`emit_cfg_ssa_diagnostics`): ~8 sites (W220 `diagnostics.rs`
+    ~5660, W211 ~5739, H300 ~5824, W210 ~6134/6408/7027, W307 ~8314, IRULE4005
+    ~8642).  **Hybrid risk:** W307 (`emit_var_command_diagnostics`) also scans the
+    full `self.source` — those reads stay absolute; only the `fu`-sourced span
+    shifts.
+  - `compiler_checks`/`run_all_checks`: `gvn.rs` 744/1494/1506, `shimmer/span.rs`
+    29/57/66, `taint.rs` 1680/2313, `sccp.constant_branches` (compiler_checks:194).
+  - `elimination.rs` 361/549/721 + their `full_rewrite_span(ctx.source, …)` (some
+    in `emit_unreachable`/`emit_adce` helpers where `fu` must be **threaded in**).
+  - `propagation.rs` O102/O127 (175/191/423/428/434/444): `full_word_span(ctx.source,
+    argv_span)` and `source[…]` slices where `argv_span` is from `fu.cfg`
+    `CommandTokens` → wrap with `fu.abs_span` / `fu.abs_pos`; several are in
+    `forward_candidate`-style helpers needing `base_offset` threaded.
+  - `branch_folding.rs` 171/252 (`Terminator::Branch` span from `fu.cfg`).
+
+**Fast-gate strategy (why this is *not* the hours-long grind it first looks).**
+The flip only changes the **memoised db path** — `analyse` / `analyse_per_item`
+build their own real-offset units (`base_offset = 0`), so **`per_item_corpus` and
+`differential_incremental` do not exercise it** and need not be re-run per
+iteration.  The fast oracle is:
+- `compiler_check_memo_matches_uncached_over_corpus` (~130 s) — covers the
+  optimiser + `run_all_checks` + taint consumers, catching **both** a missed
+  `fu`-span (stays offset-0 → wrong) and an over-wrapped IR-absolute span (shifted
+  → wrong).
+- a **new** file-analysis corpus differential (`file_analysis_incremental` vs
+  `analyse` over `tmp/`, mirroring `compiler_check_corpus`) — add this to gate the
+  analyser-tail conversion (no such corpus gate exists today; `file_analysis`'s
+  taint-derived diagnostics make it worth having regardless).
+- e2e.
+
+**The flip.**  In `build_for_inner`'s memoised arm, set `fu.base_offset =
+i64::from(body_offset)` and **drop** the `rebase_function_unit` call (it becomes
+dead — keep `rebase_script`, still needed to form the offset-0 key).  Convert
+**every** site above first (each is byte-identical at `base_offset = 0`, so the
+conversion commits cleanly ahead of the flip); the flip is the single atomic
+switch that banks the win.  Removing `rebase_function_unit` eliminates the
+per-proc rebase walk (~half of the 52 ms); a follow-up storing `Arc<FunctionUnit>`
+in `cu.procedures` (offset-0, shared from `function_lattice`) eliminates the
+remaining per-proc deep-clone.
+
+**Backlog #4 (`practcl.tcl`) is *not* unblocked by Approach B.**  practcl's
+fallback is the per-item **analyser walk**'s genuinely-twice-defined method-style
+definer (a correctness fallback in `body_needs_enclosing_context` /
+duplicate-detection), not the per-edit CU lowering cost Approach B attacks.  It
+needs the incremental-lowering / duplicate-grafting work (Approach A's territory +
+the duplicate-definer handling), so it should follow A, not B.
 
 ## How to run the experiments
 

@@ -193,9 +193,7 @@ impl Vm {
                 return Some(q);
             }
         }
-        self.commands
-            .contains_key(name)
-            .then(|| name.to_owned())
+        self.commands.contains_key(name).then(|| name.to_owned())
     }
 
     /// Resolve and remove the command `name`, returning it (for `rename`).

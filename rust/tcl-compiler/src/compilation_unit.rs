@@ -60,6 +60,13 @@ pub struct LatticeRequest<'a> {
     pub proc_params: &'a HashMap<String, Vec<String>>,
     /// Analysis dialect — selects the registry the lattice pipeline runs under.
     pub dialect: &'a str,
+    /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
+    /// (from [`params_constants_from_call_sites`]), encoded in the
+    /// deterministic, hashable `(param, version, string)` form the memo key
+    /// interns (see [`encode_param_constants`]).  Empty means "no seeds".
+    /// Position-independent — keyed by parameter name + SSA version, never by
+    /// span — so it rebases trivially with the rest of the offset-0 unit.
+    pub param_constants: &'a [(String, u32, String)],
 }
 
 /// Salsa-native per-procedure lattice memo used by
@@ -72,6 +79,14 @@ pub struct LatticeRequest<'a> {
 /// redundant lattice recompute for an unchanged procedure body is skipped.  The
 /// caller owns the backing store and its eviction policy.
 pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit + 'a;
+
+/// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
+///
+/// Given a procedure's qualified name and the whole-module
+/// [`InterproceduralAnalysis`], returns its (memoised) interprocedural taints,
+/// or `None` to fall back to a fresh [`FunctionUnit::interproc_taints`] re-run.
+pub type TaintCascadeCallback<'a> =
+    dyn FnMut(&str, &InterproceduralAnalysis) -> Option<HashMap<ValueKey, TaintLattice>> + 'a;
 
 // ---------------------------------------------------------------------------
 // Per-function analysis bundle
@@ -118,6 +133,18 @@ pub struct FunctionUnit {
     pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySSAFunction>,
+    /// Byte offset to add to this unit's (otherwise relative) spans to recover
+    /// **absolute** source positions (Approach B — offset-aware consumers).
+    ///
+    /// `0` for a unit built directly at its real source position (the top level
+    /// and the uncached `build_for_with_config` path).  For a memoised procedure
+    /// the unit is built at **offset 0** (a shifted-but-unchanged body interns to
+    /// the same `function_lattice` key) and this carries the procedure's real body
+    /// offset, so consumers recover absolute spans with [`Self::abs_span`] /
+    /// [`Self::abs_pos`] instead of the build rebasing every span.  Span-free
+    /// lattices (`types`/`taints`/`rendered_props`/`def_use`, keyed by
+    /// `ValueKey`) are unaffected.
+    pub base_offset: i64,
 }
 
 impl FunctionUnit {
@@ -188,6 +215,35 @@ impl FunctionUnit {
             taints,
             rendered_props,
             memory_ssa: None,
+            base_offset: 0,
+        }
+    }
+
+    /// Recover the absolute span of `span` (a span carried by this unit's
+    /// `cfg`/`ssa`/`sccp`) by adding [`Self::base_offset`].  A no-op when the
+    /// unit was built at its real position (`base_offset == 0`); the
+    /// offset-aware seam for the memoised (offset-0) path.
+    #[must_use]
+    pub fn abs_span(&self, span: tcl_lexer::Span) -> tcl_lexer::Span {
+        if self.base_offset == 0 {
+            return span;
+        }
+        let s = (i64::from(span.start()) + self.base_offset).max(0);
+        let e = (i64::from(span.end()) + self.base_offset).max(0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        tcl_lexer::Span::new(s as u32, e as u32)
+    }
+
+    /// Recover the absolute byte position of `pos` by adding
+    /// [`Self::base_offset`] (see [`Self::abs_span`]).
+    #[must_use]
+    pub fn abs_pos(&self, pos: u32) -> u32 {
+        if self.base_offset == 0 {
+            return pos;
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            (i64::from(pos) + self.base_offset).max(0) as u32
         }
     }
 
@@ -196,6 +252,32 @@ impl FunctionUnit {
     pub fn with_memory_ssa(mut self) -> Self {
         self.memory_ssa = Some(build_memory_ssa(&self.ssa));
         self
+    }
+
+    /// Re-run interprocedural taint propagation for this unit against `ia`,
+    /// returning the taint lattice (it does **not** mutate `self.taints`).
+    ///
+    /// The taint lattice is keyed by SSA [`ValueKey`] (variable + version) and is
+    /// **span-free**, so the result is offset-independent: an offset-0 baseline
+    /// unit yields byte-identical taints to its rebased counterpart.  This is the
+    /// property the salsa-native `taint_cascade` memo relies on — it propagates
+    /// over the offset-0 baseline and installs the result into the rebased unit.
+    #[must_use]
+    pub fn interproc_taints(
+        &self,
+        registry: &CommandRegistry,
+        ia: &InterproceduralAnalysis,
+        dialect: Option<&str>,
+    ) -> HashMap<ValueKey, TaintLattice> {
+        propagate_taints(
+            &self.cfg,
+            &self.ssa,
+            &self.sccp,
+            registry,
+            Some(&self.rendered_props),
+            Some(ia),
+            dialect,
+        )
     }
 }
 
@@ -289,8 +371,10 @@ impl CompilationUnit {
     /// memo hit (and reused, rebased).  The result is byte-identical to
     /// [`Self::build_for_with_config`]; only the redundant SSA/SCCP/type/
     /// rendered recompute for an unchanged procedure body is skipped.
-    /// Procedures with interprocedural `param_constants`, the top level, and
-    /// methods are always built fresh (no stable offset-0 key); the
+    /// Interprocedural `param_constants` (caller-uniform-literal SCCP seeds) are
+    /// folded into the memo key, so a procedure with them still memoises (it
+    /// rebuilds only when a caller's literal at that position changes).  The top
+    /// level and methods are always built fresh (no stable offset-0 key); the
     /// cross-function interproc taint re-run still runs over the whole unit in
     /// [`Self::with_interprocedural`].
     pub fn build_for_memoized(
@@ -353,18 +437,22 @@ impl CompilationUnit {
                 params_constants_from_call_sites(params, &call_site_constants, qname);
             let proc = ir_module.procedures.get(qname);
             let body_offset = proc.map_or(0, |p| p.span.start());
+            // Encode the interprocedural seeds into the hashable form the memo
+            // key carries.  The interproc `param_constants` are folded *into*
+            // the key (not a fresh-build escape hatch as before), so a procedure
+            // with caller-uniform literals still engages the memo — its key
+            // simply also distinguishes the seeds, so it rebuilds iff a caller's
+            // literal at that position changes.  `None` means a seed shape we
+            // can't intern (defensive; the current producer only emits string
+            // consts) → build fresh.
+            let encoded_pc = encode_param_constants(param_constants.as_ref());
             // Route through the memo only when (a) a cache is present, (b) the
             // procedure has a real body, (c) the module context is available,
-            // and (d) there are no interprocedural `param_constants` — those
-            // depend on call sites elsewhere in the module, so the body alone
-            // does not determine the unit; build those fresh.
-            let memoised = match (cache.as_mut(), proc, cfg_context.as_ref()) {
-                (Some(memo), Some(proc), Some((upvar_procs, proc_params)))
-                    if param_constants.is_none() =>
-                {
+            // and (d) the seeds encode into the hashable key form.
+            let memoised = match (cache.as_mut(), proc, cfg_context.as_ref(), encoded_pc) {
+                (Some(memo), Some(proc), Some((upvar_procs, proc_params)), Some(encoded_pc)) => {
                     // Normalise the body to offset 0 so a shifted-but-unchanged
-                    // procedure produces an identical request (memo hit); rebase
-                    // the returned unit back to the procedure's real position.
+                    // procedure produces an identical request (memo hit).
                     let mut body = proc.body.clone();
                     crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
                     let mut fu = memo(&LatticeRequest {
@@ -374,7 +462,13 @@ impl CompilationUnit {
                         upvar_procs,
                         proc_params,
                         dialect,
+                        param_constants: &encoded_pc,
                     });
+                    // Rebase the offset-0 memo result to the procedure's real
+                    // position so every consumer sees **absolute** spans without
+                    // needing offset-awareness — robust against new/upstream
+                    // diagnostic & optimiser passes that read `fu.cfg` spans
+                    // directly (`base_offset` stays 0; `abs_span` is identity).
                     crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
                     Some(fu)
                 }
@@ -494,6 +588,60 @@ impl CompilationUnit {
                 Some(&interproc),
                 dialect,
             );
+        }
+
+        self.interproc = Some(interproc);
+        self
+    }
+
+    /// Like [`Self::with_interprocedural`] but routes each **procedure's**
+    /// interprocedural taint re-run through `taint_cb`, a salsa-native memo (the
+    /// `tcl-lsp-db` `taint_cascade` query).  The interprocedural summary is still
+    /// built whole-module here (it is the memo's *input*); only the per-procedure
+    /// `propagate_taints` re-run is memoised, so a procedure whose baseline and
+    /// reachable-callee summaries are unchanged across an edit reuses its cached
+    /// taints instead of re-propagating.
+    ///
+    /// `taint_cb(qname, &interproc)` returns the procedure's taints, or `None` to
+    /// fall back to a fresh [`FunctionUnit::interproc_taints`] (e.g. a procedure
+    /// the lattice memo didn't intern).  The top level is always re-run fresh.
+    /// Byte-identical to [`Self::with_interprocedural`] provided `taint_cb`
+    /// reproduces `propagate_taints` against the full summary — guarded by the
+    /// `compiler_check` corpus differential and the taint-cascade edit tests.
+    #[must_use]
+    pub fn with_interprocedural_memoized(
+        mut self,
+        registry: &CommandRegistry,
+        dialect: Option<&str>,
+        taint_cb: &mut TaintCascadeCallback<'_>,
+    ) -> Self {
+        let interproc = crate::interprocedural::build_interprocedural_analysis(
+            &self.ir_module,
+            registry,
+            dialect,
+        );
+
+        // Top level is built fresh (no offset-0 lattice key), so its taint
+        // re-run stays inline.
+        let top_taints = self
+            .top_level
+            .interproc_taints(registry, &interproc, dialect);
+        self.top_level.taints = top_taints;
+
+        // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
+        // miss) before mutating, so the immutable `&self.procedures` borrow the
+        // fallback needs doesn't overlap the write-back.
+        let mut new_taints: Vec<(String, HashMap<ValueKey, TaintLattice>)> =
+            Vec::with_capacity(self.procedures.len());
+        for (qname, fu) in &self.procedures {
+            let taints = taint_cb(qname, &interproc)
+                .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect));
+            new_taints.push((qname.clone(), taints));
+        }
+        for (qname, taints) in new_taints {
+            if let Some(fu) = self.procedures.get_mut(&qname) {
+                fu.taints = taints;
+            }
         }
 
         self.interproc = Some(interproc);
@@ -641,12 +789,87 @@ fn params_constants_from_call_sites(
     }
 }
 
+/// Encode interprocedural `param_constants` (caller-uniform-literal SCCP seeds)
+/// into the deterministic, hashable form interned into the salsa-native
+/// `FnLatticeKey`.  [`params_constants_from_call_sites`] only ever emits
+/// `Const(String)` seeds, so the encoding is a sorted vec of `(param, version,
+/// string)` triples; sorting makes the encoding independent of hash-map
+/// iteration order so equal seeds always intern to the same key.
+///
+/// `None` input (no seeds) encodes to an empty vec.  Returns `None` only if a
+/// seed has some other lattice shape — a shape we can't faithfully intern, so
+/// the caller falls back to a fresh build rather than silently dropping it.
+/// Defensive: the current producer never emits a non-string seed.
+#[must_use]
+pub(crate) fn encode_param_constants(
+    param_constants: Option<&HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>>,
+) -> Option<Vec<(String, u32, String)>> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    let Some(map) = param_constants else {
+        return Some(Vec::new());
+    };
+    let mut out = Vec::with_capacity(map.len());
+    for ((name, version), val) in map {
+        let LatticeValue::Const(ConstValue::String(s)) = val else {
+            return None;
+        };
+        out.push((name.clone(), *version, s.clone()));
+    }
+    out.sort();
+    Some(out)
+}
+
+/// Inverse of [`encode_param_constants`]: rebuild the SCCP seed map a
+/// `function_lattice` build feeds to [`FunctionUnit::build_with_param_constants`].
+/// An empty slice (no seeds) decodes to `None`.
+#[must_use]
+pub fn decode_param_constants(
+    encoded: &[(String, u32, String)],
+) -> Option<HashMap<crate::ssa::ValueKey, crate::analyses::LatticeValue>> {
+    use crate::analyses::{ConstValue, LatticeValue};
+    if encoded.is_empty() {
+        return None;
+    }
+    Some(
+        encoded
+            .iter()
+            .map(|(name, version, s)| {
+                (
+                    (name.clone(), *version),
+                    LatticeValue::Const(ConstValue::String(s.clone())),
+                )
+            })
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    /// Regression: a *short* procedure name shared by two procedures must resolve
+    /// in `prepare_cfg_context` deterministically (qualified-name-sorted-last
+    /// wins), not by `HashMap` iteration order — otherwise the `function_lattice`
+    /// memo key flakes and the per-procedure lattice cache hits or misses by
+    /// random seed (found via the offset-invariance experiments).
+    #[test]
+    fn prepare_cfg_context_short_name_collision_is_deterministic() {
+        let reg = registry();
+        let src = "namespace eval ::a { proc x {p1} { set q $p1 } }
+                   namespace eval ::b { proc x {p2 extra} { set q $p2 } }
+";
+        let m = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
+        let (_, proc_params) = crate::cfg_builder::prepare_cfg_context(&m);
+        // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
+        // resolves to `::b::x`'s parameters on every run.
+        assert_eq!(
+            proc_params.get("x"),
+            Some(&vec!["p2".to_string(), "extra".to_string()]),
+        );
     }
 
     #[test]
