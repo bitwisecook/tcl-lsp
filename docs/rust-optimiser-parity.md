@@ -275,24 +275,40 @@ defined for the terminator read.
   (`puts "[expr {3 + 4}]"]`). Fixed by skipping whole-word command
   substitutions there (they belong to `visit_call_cmd_subst_folds`).
 
+**`expr "…"` quoted-expr over-fold — fixed (soundness).** `set a alpha;
+set b beta; expr "$a == $b"` was folded to `0`, but a quoted/bare expr
+substitutes the variable *values* textually before parsing, so tclsh sees
+`expr "alpha == beta"` and *errors* (`invalid bareword`). The SCCP
+`[expr …]` fold now uses a numeric-only env for the non-braced form
+(`sccp::env_from_uses_numeric`): a string-valued var is left unbound so the
+fold bails, matching Tcl / Python. Numeric values still fold.
+
+**Braced `[expr {…}]` command-argument fold — done.**
+`puts [expr {$a + $b}]` with constants folds to `puts 7`
+(`try_fold_expr_with_constants`, braced value-substitution model only — the
+quoted form stays conservative).
+
+**Interprocedural argument-sensitive pure-proc folding — done.** A call to a
+pure proc with constant arguments now folds to its constant return:
+`[::math::add 2 4]` → `6`, passthroughs (`[id 1]` → `1`). Implemented as
+`evaluate_proc_with_constants` (port of the Python helper): seed the params
+as version-0 lattice constants, re-run SCCP over the callee, resolve a
+single constant from all reachable `return` terminators
+(`resolve_return_constant` / `fold_return_under_lattice`). **Soundness:** a
+simple `$var` return reads the variable's *exit version* precisely, so a
+loop-carried `return $total` (a phi → Overdefined) or a recursive
+`fibonacci` does **not** mis-fold to a stale pre-loop value; redefined procs
+are excluded.
+
 **Remaining follow-ups:**
 
 - The 11 pre-existing over-removals.
-- **Rust does less than Python on the core samples** (the bulk of the 37
-  remaining divergences are *not* bugs — Rust is conservative): missing
-  O117/O120 readability rewrites (`[string length $s] == 0` → `$s eq ""`,
-  `==`/`!=` → `eq`/`ne`), interprocedural constant folding of pure proc
-  calls (`deep_pipeline.tcl`), append-chain collapse, array-element
-  constant propagation (`set who $arr(user)`), more builtin folding
-  (`string toupper` / `string map` / `format` / `scan`), folding a
-  whole-word `[expr {…}]` call arg to its constant (`puts [expr {3+4}]`
-  → `puts 7`), and O110 parenthesisation canonicalisation.
-- **`expr "…"` quoted-expr over-fold** (Rust-does-more, soundness): with
-  `set a alpha; set b beta`, Rust propagates into `expr "$a == $b"` →
-  `expr "alpha == beta"` and folds it to `0`, but tclsh *errors*
-  (`invalid bareword "alpha"`). Python sidesteps this by never propagating
-  string constants into a quoted-expr context (the original "quoted-expr
-  smell"). A guard on the expr folder / quoted-expr propagation is the fix.
+- **Rust does less than Python on the core samples** (the bulk of the
+  remaining divergences are *not* bugs — Rust is conservative): the
+  O117/O120 readability rewrites interact with DCE differently on dead vars
+  (a demo-file ordering nuance), append-chain collapse, array-element
+  constant propagation (`set who $arr(user)`), and O110 parenthesisation
+  canonicalisation (`$part * 100 / $whole` vs `($part * 100) / $whole`).
 - Many diverging files under `samples/diagnostics/W*` and
   `samples/for_screenshots/*` are diagnostic/demonstration fixtures whose
   optimiser output is incidental; check them against the

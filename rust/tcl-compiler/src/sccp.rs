@@ -783,7 +783,7 @@ fn const_to_env_value(c: &ConstValue) -> EnvValue {
     }
 }
 
-fn tcl_value_to_const(v: TclValue) -> ConstValue {
+pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
     match v {
         TclValue::Int(i) => ConstValue::Int(i),
         TclValue::Float(f) => ConstValue::Float(f),

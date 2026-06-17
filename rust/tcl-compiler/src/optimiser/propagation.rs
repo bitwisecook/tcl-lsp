@@ -734,6 +734,173 @@ fn walk_statement(
     }
 }
 
+/// Evaluate a pure procedure with its parameters bound to the call's
+/// constant arguments, returning the constant return value when every
+/// reachable `return` agrees on it.
+///
+/// Mirrors Python's `interprocedural.evaluate_proc_with_constants`: seed the
+/// parameters as version-0 lattice constants, re-run SCCP over the callee's
+/// CFG, then resolve a single constant from all reachable `return`
+/// terminators. Used for the argument-sensitive O103 fold
+/// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
+/// `constant_return` cannot express.
+fn evaluate_proc_with_constants(
+    callee: &FunctionUnit,
+    params: &[String],
+    args: &[ConstValue],
+) -> Option<ConstValue> {
+    if params.len() != args.len() {
+        return None;
+    }
+    let mut seed: std::collections::HashMap<crate::ssa::ValueKey, LatticeValue> =
+        std::collections::HashMap::new();
+    for (p, a) in params.iter().zip(args.iter()) {
+        seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
+    }
+    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed));
+    resolve_return_constant(callee, &result)
+}
+
+/// Resolve the constant return value of `fu` under a computed SCCP `result`.
+/// Every reachable `return` terminator must fold to the **same** constant;
+/// a void return, an unfoldable return, or disagreeing returns yield `None`.
+/// Mirrors Python's `_resolve_return_constant`.
+fn resolve_return_constant(
+    fu: &FunctionUnit,
+    result: &crate::sccp::SccpResult,
+) -> Option<ConstValue> {
+    use crate::cfg::Terminator;
+    let mut found: Option<ConstValue> = None;
+    for (bn, block) in &fu.cfg.blocks {
+        if !result.executable_blocks.contains(bn) {
+            continue;
+        }
+        let Some(Terminator::Return { value, expr, .. }) = &block.terminator else {
+            continue;
+        };
+        let folded =
+            fold_return_under_lattice(fu, bn, value.as_deref(), expr.as_ref(), result)?;
+        match &found {
+            None => found = Some(folded),
+            Some(prev) if *prev == folded => {}
+            Some(_) => return None, // reachable returns disagree
+        }
+    }
+    found
+}
+
+/// Fold one `return` value/expr under the SCCP lattice for block `bn`.
+/// Handles `return [expr {…}]` (evaluated under the block-exit env),
+/// `return $var` (a lattice constant), and a bare literal return.
+fn fold_return_under_lattice(
+    fu: &FunctionUnit,
+    bn: &str,
+    value: Option<&str>,
+    expr: Option<&crate::expr_ast::ExprNode>,
+    result: &crate::sccp::SccpResult,
+) -> Option<ConstValue> {
+    use crate::tcl_expr_eval::{Env, eval_tcl_expr};
+
+    let value = value?.trim();
+
+    // Path 1 — bare literal return (no substitution metacharacters).
+    if !value.contains(['$', '[', ']', '\\', '"', '{', '}']) {
+        return Some(crate::sccp::parse_literal_value(value));
+    }
+
+    // Path 2 — a simple `$var` return. This MUST use the variable's *exit
+    // version* at this block precisely: a loop-carried var (`return $total`
+    // after a `foreach`) is a phi whose exit value is Overdefined, even
+    // though an earlier `set total 0` left a stale Const(0) under another
+    // version. Reading the precise version is what makes us bail on
+    // `sum_list` / `fibonacci` (matching Python's `_try_fold_return_value`
+    // path 2) instead of mis-folding to the pre-loop value.
+    if let Some(name) = simple_var_ref(value) {
+        let ver = fu
+            .ssa
+            .blocks
+            .get(bn)
+            .and_then(|b| b.exit_versions.get(name).copied())
+            .unwrap_or(0);
+        return match result.values.get(&(name.to_owned(), ver)) {
+            Some(LatticeValue::Const(c)) => Some(c.clone()),
+            _ => None,
+        };
+    }
+
+    // Path 3 — `return [expr {…}]` / interpolation. Build the env from every
+    // lattice constant (so version-0 params, absent from `exit_versions`, are
+    // bound), preferring a non-zero version, then overlay the block-exit
+    // versions for precise local state. Only used for the expr/interpolation
+    // form (the simple-`$var` precision above is handled by path 2).
+    let mut env: Env = Env::new();
+    let mut chosen_ver: std::collections::HashMap<&str, crate::ssa::Version> =
+        std::collections::HashMap::new();
+    for ((name, ver), lv) in &result.values {
+        if let LatticeValue::Const(c) = lv {
+            let take = chosen_ver.get(name.as_str()).is_none_or(|prev| *ver > *prev);
+            if take {
+                chosen_ver.insert(name.as_str(), *ver);
+                env.insert(name.clone(), const_to_env_value(c));
+            }
+        }
+    }
+    if let Some(ssa_block) = fu.ssa.blocks.get(bn) {
+        for (name, ver) in &ssa_block.exit_versions {
+            if let Some(LatticeValue::Const(c)) = result.values.get(&(name.clone(), *ver)) {
+                env.insert(name.clone(), const_to_env_value(c));
+            }
+        }
+    }
+    if let Some(expr) = expr {
+        let v = eval_tcl_expr(expr, &env)?;
+        return Some(crate::sccp::tcl_value_to_const(v));
+    }
+    None
+}
+
+/// Convert a [`ConstValue`] to the expr-folder's [`EnvValue`].
+fn const_to_env_value(c: &ConstValue) -> crate::tcl_expr_eval::EnvValue {
+    use crate::tcl_expr_eval::EnvValue;
+    match c {
+        ConstValue::Int(i) => EnvValue::Int(*i),
+        ConstValue::Float(f) => EnvValue::Float(*f),
+        ConstValue::Bool(b) => EnvValue::Int(i64::from(*b)),
+        ConstValue::String(s) => EnvValue::Str(s.clone()),
+    }
+}
+
+/// Parse the static (constant) argument words of a `[proc arg…]` command
+/// substitution body `inner`, given the number of leading head words to skip
+/// (`1` for a direct call, `2` for `call proc …`). Each argument must be a
+/// bare literal or a `$var` resolvable to a whole-function constant via
+/// `constants`; any quoted / braced / command-substituting word makes the
+/// whole call non-static (returns `None`).
+fn parse_static_call_args(
+    inner: &str,
+    skip_words: usize,
+    constants: &std::collections::HashMap<String, String>,
+) -> Option<Vec<ConstValue>> {
+    let mut words = inner.split_whitespace();
+    for _ in 0..skip_words {
+        words.next()?;
+    }
+    let mut out = Vec::new();
+    for w in words {
+        if let Some(name) = simple_var_ref(w) {
+            let dollar = format!("${name}");
+            let norm = normalise_var_name(&dollar);
+            let val = constants.get(norm).or_else(|| constants.get(name))?;
+            out.push(crate::sccp::parse_literal_value(val));
+        } else if !w.contains(['$', '[', ']', '\\', '"', '{', '}', '(', ')']) {
+            out.push(crate::sccp::parse_literal_value(w));
+        } else {
+            return None;
+        }
+    }
+    Some(out)
+}
+
 /// O103: if `command` resolves to a proc with `can_fold_static_calls`
 /// and a `constant_return`, emit a rewrite replacing the call
 /// with the literal return value.
@@ -1108,22 +1275,43 @@ fn visit_call_cmd_subst_folds(
         let Some(summary) = ia.procedures.get(&qname) else {
             continue;
         };
-        if !summary.can_fold_static_calls {
+        // A redefined proc has an ambiguous body — never fold its calls.
+        if cu.ir_module.redefined_procedures.contains(&qname) {
             continue;
         }
-        let Some(cr) = &summary.constant_return else {
-            continue;
+        let render_const = |cv: &ConstValue| match cv {
+            ConstValue::Int(i) => i.to_string(),
+            ConstValue::Float(f) => f.to_string(),
+            ConstValue::Bool(b) => i64::from(*b).to_string(),
+            ConstValue::String(s) => render_propagation_word(s),
         };
-        let replacement = match cr {
-            ConstantReturn::Int(i) => i.to_string(),
-            ConstantReturn::Float(f) => f.to_string(),
-            ConstantReturn::Bool(true) => "1".to_owned(),
-            ConstantReturn::Bool(false) => "0".to_owned(),
-            // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
-            // too, list-quoted as a single word via the canonical quoter
-            // (the cmd-sub is one argument word) — `set msg {a b}; return
-            // $msg` in the callee no longer blocks the fold.
-            ConstantReturn::Str(s) => render_propagation_word(s),
+        let replacement = if summary.can_fold_static_calls
+            && let Some(cr) = &summary.constant_return
+        {
+            // Argument-independent constant return from the summary.
+            match cr {
+                ConstantReturn::Int(i) => i.to_string(),
+                ConstantReturn::Float(f) => f.to_string(),
+                ConstantReturn::Bool(true) => "1".to_owned(),
+                ConstantReturn::Bool(false) => "0".to_owned(),
+                // B3 (SYNC-JUN02d-2, #525): a multi-word string return folds
+                // too, list-quoted as a single word via the canonical quoter
+                // (the cmd-sub is one argument word) — `set msg {a b}; return
+                // $msg` in the callee no longer blocks the fold.
+                ConstantReturn::Str(s) => render_propagation_word(s),
+            }
+        } else if summary.pure
+            && let Some(callee) = cu.procedures.get(&qname)
+            && let Some(args) = parse_static_call_args(inner, 1, constants)
+            && let Some(cv) = evaluate_proc_with_constants(callee, &summary.params, &args)
+        {
+            // Argument-sensitive: re-run SCCP on the pure callee with the
+            // call's constant arguments bound and fold the constant return
+            // (`[::math::add 2 4]` → `6`). Mirrors Python's fallback to
+            // `evaluate_proc_with_constants`.
+            render_const(&cv)
+        } else {
+            continue;
         };
         ctx.report(Optimisation::new(
             "O103",
@@ -2235,9 +2423,12 @@ mod tests {
     }
 
     #[test]
-    fn o103_no_fire_when_head_is_not_constant_return() {
-        // `::not_const` has no constant_return → O103 must not
-        // fire for either the bare call or the CMD-subst form.
+    fn o103_folds_arg_sensitive_passthrough_cmd_subst() {
+        // `::not_const {x} { return $x }` has no argument-*independent*
+        // constant return, but with the call's constant arg bound it folds:
+        // `[::not_const 1]` → `1` (matching Python, which folds the
+        // passthrough). The applicable rewrite fires only for the CMD-subst
+        // form; the bare-call form stays hint-only.
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(
@@ -2249,8 +2440,32 @@ mod tests {
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
         run(&mut ctx, &cu);
         assert!(
-            ctx.optimisations.iter().all(|o| o.code != "O103"),
-            "no O103 expected for non-constant-return proc, got {:?}",
+            ctx.optimisations
+                .iter()
+                .any(|o| o.code == "O103" && o.replacement == "1" && !o.hint_only),
+            "expected applicable O103 folding [::not_const 1] to 1, got {:?}",
+            ctx.optimisations,
+        );
+    }
+
+    #[test]
+    fn o103_does_not_fold_recursive_or_loop_proc() {
+        // A proc whose return SCCP cannot determine under the bound args must
+        // not fold — a loop-carried `return $total` is a phi (Overdefined at
+        // exit), even though a pre-loop `set total 0` leaves a stale Const(0).
+        // Mis-folding it would be a miscompile.
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let src = "proc ::sum {ns} {\n  set total 0\n  foreach n $ns { set total [expr {$total + $n}] }\n  return $total\n}\nputs [::sum {1 2 3}]\n";
+        let cu = CompilationUnit::build_for(src, &registry, false)
+            .with_interprocedural(&registry, None);
+        let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
+        run(&mut ctx, &cu);
+        assert!(
+            ctx.optimisations
+                .iter()
+                .all(|o| o.code != "O103" || o.hint_only),
+            "loop-carried return must not fold, got {:?}",
             ctx.optimisations,
         );
     }
