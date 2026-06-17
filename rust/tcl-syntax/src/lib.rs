@@ -18,6 +18,8 @@
 //! - [`mod@format`] — the `format` conversion-specifier grammar (done).
 //! - [`number`] — the `TclParseNumber` numeric-literal grammar (done).
 //! - [`glob`] — `Tcl_StringCaseMatch` (`string match`) (done).
+//! - [`value`] — the `ValueOps` value seam + `ValueError` (the construct/inspect
+//!   parallel of [`expr::ExprOps`]).
 //! - `subst` — to follow.
 
 pub mod backslash;
@@ -27,3 +29,4 @@ pub mod glob;
 pub mod list;
 pub mod naming;
 pub mod number;
+pub mod value;

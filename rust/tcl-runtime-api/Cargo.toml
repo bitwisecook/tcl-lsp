@@ -17,6 +17,7 @@ description = "Family-B runtime-state contract (Code/Completion, handles, role t
 
 [dependencies]
 tcl-bytecode = { path = "../tcl-bytecode" }
+tcl-core-types = { path = "../tcl-core-types" }
 
 [lints]
 workspace = true

@@ -15,96 +15,15 @@
 
 use tcl_bytecode::ModuleAsm;
 
-/// A Tcl completion code (`TCL_OK` … `TCL_CONTINUE`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Code {
-    /// `TCL_OK` — normal completion.
-    Ok,
-    /// `TCL_ERROR` — an error; `result` is the message, `options` the dict.
-    Error,
-    /// `TCL_RETURN` — a `return` propagating to the enclosing proc boundary.
-    Return,
-    /// `TCL_BREAK` — a loop `break`.
-    Break,
-    /// `TCL_CONTINUE` — a loop `continue`.
-    Continue,
-}
-
-impl Code {
-    /// The integer completion code (`TCL_OK` = 0 … `TCL_CONTINUE` = 4) — what
-    /// `catch` returns and the `-code` options-dict entry uses.
-    #[must_use]
-    pub fn as_int(self) -> i64 {
-        match self {
-            Code::Ok => 0,
-            Code::Error => 1,
-            Code::Return => 2,
-            Code::Break => 3,
-            Code::Continue => 4,
-        }
-    }
-
-    /// Whether this is `TCL_OK`.
-    #[must_use]
-    pub fn is_ok(self) -> bool {
-        matches!(self, Code::Ok)
-    }
-}
-
-/// A command/script completion: a code, the result value, and the return
-/// options dict. The "result is not a string" contract — every dispatch yields
-/// this, never a bare string. Generic over the runtime's value type `V`.
-#[derive(Debug, Clone)]
-pub struct Completion<V> {
-    /// The completion code.
-    pub code: Code,
-    /// The result value (the message when `code == Error`).
-    pub result: V,
-    /// The return-options dict (carries `-code`/`-level`/`-errorinfo`/…).
-    pub options: V,
-}
-
-impl<V> Completion<V> {
-    /// Construct a completion from its parts.
-    pub fn new(code: Code, result: V, options: V) -> Self {
-        Self {
-            code,
-            result,
-            options,
-        }
-    }
-
-    /// Whether the completion is `TCL_OK`.
-    pub fn is_ok(&self) -> bool {
-        self.code.is_ok()
-    }
-}
-
-// -- Opaque handles --
-//
-// Arena indices into the runtime's storage; they cross the trait boundary, the
-// concrete storage behind them does not.
-
-/// A namespace handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NsId(pub u32);
-
-/// A call-frame handle (absolute level / arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FrameId(pub usize);
-
-/// A command handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CommandId(pub u32);
-
-/// A variable-cell handle (arena id).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct VarId(pub u32);
-
-/// The global call frame (level 0) and root namespace handles.
-pub const GLOBAL_FRAME: FrameId = FrameId(0);
-/// The root (`::`) namespace handle.
-pub const ROOT_NS: NsId = NsId(0);
+// The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
+// and the opaque arena handles) lives in the dependency-free `tcl-core-types`
+// leaf crate, so pure command logic (`tcl-cmd-core`) can name a completion code
+// without transitively depending on `tcl-bytecode` (pulled in below for
+// `CompileService`). Re-exported here so existing `tcl_runtime_api::{Code,
+// Completion, NsId, …}` consumers are unaffected.
+pub use tcl_core_types::{
+    Code, CommandId, Completion, FrameId, NsId, VarId, GLOBAL_FRAME, ROOT_NS,
+};
 
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --
 

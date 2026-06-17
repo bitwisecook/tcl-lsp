@@ -2219,6 +2219,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-cmd-core"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-compiler"
 version = "0.1.0"
 dependencies = [
@@ -2232,6 +2240,10 @@ dependencies = [
  "thiserror",
  "unicode-general-category",
 ]
+
+[[package]]
+name = "tcl-core-types"
+version = "0.1.0"
 
 [[package]]
 name = "tcl-explorer"
@@ -2323,6 +2335,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-platform"
+version = "0.1.0"
+
+[[package]]
 name = "tcl-registry"
 version = "0.1.0"
 dependencies = [
@@ -2336,6 +2352,7 @@ name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
  "tcl-bytecode",
+ "tcl-core-types",
 ]
 
 [[package]]

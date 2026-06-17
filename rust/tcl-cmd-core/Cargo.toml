@@ -1,0 +1,30 @@
+# Portable Tcl command logic — written once, run by every Rust runtime.
+#
+# The home for the *what a command computes* half of the split: pure value→value
+# bodies (string/list/dict/format/scan/math/regexp) generic over
+# `tcl_syntax::value::ValueOps`, plus the platform-command bodies (file/exec/…)
+# that call through the `tcl-platform` capability traits. These export **logic
+# helpers returning `Result<V, CmdError>`** — never a runtime `Completion` and
+# never an interp — so the two runtimes (with their opposite command ABIs) each
+# wrap them in a thin adapter. See
+# `docs/design/common-runtime-emitter-architecture.md` (§ central pattern).
+#
+# Deliberately depends on `tcl-syntax` (ValueOps + the parse grammars) and
+# `tcl-platform` (capability traits) only — NOT `tcl-bytecode`/`tcl-runtime-api`,
+# so pure command logic never drags in the bytecode artifact or the Code type.
+[package]
+name = "tcl-cmd-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Portable Tcl command logic (string/list/dict/… + platform helpers) generic over ValueOps"
+
+[dependencies]
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-platform = { path = "../tcl-platform" }
+
+[lints]
+workspace = true
