@@ -325,12 +325,19 @@ fn forward_candidate(
 
     let (ctx, fu) = (env.ctx, env.fu);
 
-    // Exactly one operand use.
-    if chain.use_count() != 1 {
-        return None;
-    }
-    let use_site = &chain.uses[0];
-    if use_site.kind != UseKind::Operand {
+    // Exactly one *non-terminator* use, and it must be a statement operand.
+    // A `return $x` / branch-condition read is a `Terminator` use; Rust's
+    // def-use records those in the chain but Python's does not. The forward
+    // preserves the assignment (`[set x …]`), and the operand use precedes
+    // the block terminator, so any terminator read still sees `x` — exclude
+    // terminator uses from the single-use test to match Python's
+    // `optimise_load_forwarding`. (A phi use, like Python, still blocks it.)
+    let mut non_terminator = chain
+        .uses
+        .iter()
+        .filter(|u| u.kind != UseKind::Terminator);
+    let use_site = non_terminator.next()?;
+    if non_terminator.next().is_some() || use_site.kind != UseKind::Operand {
         return None;
     }
     let def = &chain.definition;
@@ -1743,6 +1750,24 @@ mod tests {
         // Two uses of `$x` → not single-use, no forwarding.
         let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n    puts $x\n}\n";
         assert!(o127(src).is_empty(), "{:?}", o127(src));
+    }
+
+    #[test]
+    fn o127_forwards_past_extra_terminator_use() {
+        // `$x` has one operand use (`baz $x`) plus a terminator use
+        // (`return $x`). Python's def-use chain excludes terminator reads,
+        // so it still forwards into the operand use while preserving the
+        // assignment for the `return`. Rust records the terminator use but
+        // must not let it block the forward — the inlined `[set x …]` keeps
+        // `x` defined for the trailing `return`.
+        let src = "proc p {y} {\n    set x [llength $y]\n    baz $x\n    return $x\n}\n";
+        let opts = o127(src);
+        assert_eq!(opts.len(), 2, "{opts:?}");
+        assert!(
+            opts.iter()
+                .any(|o| o.replacement.contains("[set x [llength $y]]")),
+            "{opts:?}"
+        );
     }
 
     #[test]
