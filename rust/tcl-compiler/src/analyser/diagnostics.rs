@@ -10865,6 +10865,51 @@ mod tests {
     }
 
     #[test]
+    fn fp_rbs_15_all_exiting_opaque_switch_is_a_terminator() {
+        // Bug 3 / FP-RBS-15: an opaque switch with a `default` whose *every*
+        // reachable arm body cannot complete normally never falls through, so
+        // the code after it is dead — no W210 on a read in that dead code.
+
+        // FP: every arm returns — the switch is a terminator, `puts $y` is dead.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 1 } default { return 2 } }\n puts $y }",
+                "y",
+            ),
+            "all-returning opaque switch must terminate (puts $y is dead, no W210)",
+        );
+
+        // FP: a mix of error / tailcall arms is also all-exiting.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { error bad } default { tailcall g } }\n puts $y }",
+                "y",
+            ),
+            "all error/tailcall opaque switch must terminate (no W210 on y)",
+        );
+
+        // TP control: drop the `default` — an unmatched subject falls through to
+        // `puts $y` with `y` unset, so the read is reachable. W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 1 } b* { return 2 } }\n puts $y }",
+                "y",
+            ),
+            "default-less opaque switch falls through (W210 expected on y)",
+        );
+
+        // TP control: one arm that *completes* (`set z 9`) lets the switch fall
+        // through with `y` unset. W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 1 } default { set z 9 } }\n puts $y }",
+                "y",
+            ),
+            "one completing arm lets the switch fall through (W210 expected on y)",
+        );
+    }
+
+    #[test]
     fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         // `lappend` / `append` auto-create their target, so a first use is
         // not a read-before-set (matches Python excluding RMW targets).

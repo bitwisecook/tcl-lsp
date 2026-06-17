@@ -318,6 +318,37 @@ impl CfgBuilder {
     /// fall-through is flattened into a chain of arm-dispatch branches on a
     /// foldable `STR_EQ(subject, pattern)` so the bytecode backend can build a
     /// real jump table.
+    /// Terminate `block_name` when an opaque `switch` can't fall through
+    /// (Bug 3 / FP-RBS-15).
+    ///
+    /// An opaque (glob/regexp/fall-through) switch is kept as a single
+    /// `Statement::Switch` that normally falls through to the next statement.
+    /// But when it has a `default` arm *and* every reachable arm body (default +
+    /// each arm with a body) cannot complete normally — e.g. every arm
+    /// `return`s / `error`s / `tailcall`s — no path reaches the code after the
+    /// switch, so the switch is itself a terminator.  Promote the block to a
+    /// `Return` so the following statements are routed to the orphan unreachable
+    /// block (exactly like a `return`/`tailcall`), instead of being falsely
+    /// analysed as reachable.
+    ///
+    /// Analysis builds only (`faithful_exceptions`); codegen leaves the
+    /// fall-through edge so the opaque-switch `invokeStk` bytecode and CFG shape
+    /// are unchanged.  Conservative: only fires when provably non-completing, so
+    /// it never hides a real read-before-set.
+    fn maybe_terminate_opaque_switch(&mut self, stmt: &Statement, block_name: &str) {
+        if self.faithful_exceptions
+            && self.block_mut(block_name).terminator.is_none()
+            && !crate::cfg_builder::switch_completes_normally(stmt)
+        {
+            self.block_mut(block_name).terminator = Some(Terminator::Return {
+                value: None,
+                span: Some(stmt.span()),
+                expr: None,
+                braced: false,
+            });
+        }
+    }
+
     pub(super) fn lower_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Switch {
             span,
@@ -344,6 +375,7 @@ impl CfgBuilder {
         // `_switch_reads`); the switch contributes no defs (Python's `_defs`).
         if *mode != SwitchMode::Exact || arms.iter().any(|arm| arm.fallthrough) {
             self.block_mut(block_name).statements.push(stmt.clone());
+            self.maybe_terminate_opaque_switch(stmt, block_name);
             return block_name.to_owned();
         }
 

@@ -1019,6 +1019,15 @@ pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
     flow_facts_stmt(stmt).0
 }
 
+/// Whether an opaque `switch` can reach the code after it.
+///
+/// `false` only when it has a `default` *and* every arm-with-a-body plus the
+/// default cannot complete normally — then no path falls through, so the switch
+/// is itself a terminator (FP-RBS-15).
+pub(crate) fn switch_completes_normally(stmt: &Statement) -> bool {
+    flow_facts_stmt(stmt).1
+}
+
 /// Whether `command` raises a *catchable* exception (`error` / `throw`) —
 /// `exit` terminates the process and is not caught by `try`. Throw points
 /// of this kind source an enclosing `try`'s on-error edge.
