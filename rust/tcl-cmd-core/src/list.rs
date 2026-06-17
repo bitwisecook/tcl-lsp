@@ -209,7 +209,10 @@ pub fn split<O: ValueOps>(ops: &mut O, value: &O::Value, chars: Option<&O::Value
         string.chars().map(|c| c.to_string()).collect()
     } else {
         let set: Vec<char> = set.map_or_else(|| TCL_WS.to_vec(), |c| c.chars().collect());
-        string.split(|c| set.contains(&c)).map(str::to_string).collect()
+        string
+            .split(|c| set.contains(&c))
+            .map(str::to_string)
+            .collect()
     };
     let mut values = Vec::with_capacity(pieces.len());
     for p in pieces {

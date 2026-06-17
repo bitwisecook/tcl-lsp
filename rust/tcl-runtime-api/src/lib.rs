@@ -22,7 +22,7 @@ use tcl_bytecode::ModuleAsm;
 // `CompileService`). Re-exported here so existing `tcl_runtime_api::{Code,
 // Completion, NsId, …}` consumers are unaffected.
 pub use tcl_core_types::{
-    Code, CommandId, Completion, FrameId, NsId, VarId, GLOBAL_FRAME, ROOT_NS,
+    Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
 // -- Compile service (the EVAL_STK / dynamic-code injection point) --

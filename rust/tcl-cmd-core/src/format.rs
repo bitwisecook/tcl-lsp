@@ -7,7 +7,7 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
-use tcl_syntax::format::{parse_spec, FmtFlags, Spec};
+use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -72,16 +72,16 @@ fn utf8_len(b: u8) -> usize {
 }
 
 /// Render one conversion against `arg`.
-fn render_spec<O: ValueOps>(
-    ops: &mut O,
-    spec: &Spec,
-    arg: &O::Value,
-) -> Result<String, CmdError> {
+fn render_spec<O: ValueOps>(ops: &mut O, spec: &Spec, arg: &O::Value) -> Result<String, CmdError> {
     let verb = spec.verb;
     match verb {
         b'd' | b'i' | b'u' => {
             let n = ops.as_int(arg)?;
-            Ok(pad_number(&int_digits(n, spec), n < 0 && verb != b'u', spec))
+            Ok(pad_number(
+                &int_digits(n, spec),
+                n < 0 && verb != b'u',
+                spec,
+            ))
         }
         b'x' | b'X' | b'o' | b'b' => {
             let n = ops.as_int(arg)?;
@@ -97,7 +97,11 @@ fn render_spec<O: ValueOps>(
         }
         b'f' | b'e' | b'E' | b'g' | b'G' => {
             let x = ops.as_double(arg)?;
-            Ok(pad_number(&float_digits(x, spec), x.is_sign_negative(), spec))
+            Ok(pad_number(
+                &float_digits(x, spec),
+                x.is_sign_negative(),
+                spec,
+            ))
         }
         b's' => {
             let mut s = ops.as_str(arg).to_string();

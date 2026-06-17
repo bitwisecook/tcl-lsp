@@ -23,11 +23,7 @@ pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
 
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
-pub fn index<O: ValueOps>(
-    ops: &mut O,
-    s: &O::Value,
-    idx: &O::Value,
-) -> Result<O::Value, CmdError> {
+pub fn index<O: ValueOps>(ops: &mut O, s: &O::Value, idx: &O::Value) -> Result<O::Value, CmdError> {
     let chars: Vec<char> = ops.as_str(s).chars().collect();
     let i = index::resolve(&ops.as_str(idx), chars.len())?;
     if i < 0 {
@@ -208,10 +204,10 @@ pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
 /// The default `string trim` set — every Unicode space character plus NUL
 /// (`tclDefaultTrimSet`, TIP #413).
 const DEFAULT_TRIM_SET: &[char] = &[
-    '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', ' ', '\u{00}', '\u{85}', '\u{a0}', '\u{1680}',
-    '\u{180e}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
-    '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}', '\u{202f}',
-    '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
+    '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', ' ', '\u{00}', '\u{85}', '\u{a0}',
+    '\u{1680}', '\u{180e}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}',
+    '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}',
+    '\u{202f}', '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
 ];
 
 /// `string trim`/`trimleft`/`trimright` — strip `chars` (default the TIP #413
@@ -305,13 +301,15 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
     let (nocase, pat, s) = match args {
         [p, s] => (false, p, s),
         [opt, p, s] if is_nocase(&ops.as_str(opt)) => (true, p, s),
-        _ => return Err(CmdError::wrong_args("string match ?-nocase? pattern string")),
+        _ => {
+            return Err(CmdError::wrong_args(
+                "string match ?-nocase? pattern string",
+            ));
+        }
     };
     let pattern = ops.as_str(pat).to_string();
     let text = ops.as_str(s).to_string();
-    Ok(ops.new_bool(tcl_syntax::glob::string_case_match(
-        &pattern, &text, nocase,
-    )))
+    Ok(ops.new_bool(tcl_syntax::glob::string_case_match(&pattern, &text, nocase)))
 }
 
 /// Whether `opt` is `-nocase` or an unambiguous prefix of it (`-n`, `-no`, …).
@@ -408,11 +406,10 @@ pub fn dispatch_canon<O: ValueOps>(
             .or_else(|| Some(index(ops, &rest[0], &rest[1]))),
         "range" => arity(3, "string range string first last")
             .or_else(|| Some(range(ops, &rest[0], &rest[1], &rest[2]))),
-        "reverse" => {
-            arity(1, "string reverse string").or_else(|| Some(Ok(reverse(ops, &rest[0]))))
+        "reverse" => arity(1, "string reverse string").or_else(|| Some(Ok(reverse(ops, &rest[0])))),
+        "repeat" => {
+            arity(2, "string repeat string count").or_else(|| Some(repeat(ops, &rest[0], &rest[1])))
         }
-        "repeat" => arity(2, "string repeat string count")
-            .or_else(|| Some(repeat(ops, &rest[0], &rest[1]))),
         "cat" => Some(Ok(cat(ops, rest))),
         "match" => Some(string_match(ops, rest)),
         "map" => Some(map(ops, rest)),
@@ -450,7 +447,13 @@ pub fn dispatch_canon<O: ValueOps>(
                 "string last needleString haystackString ?lastIndex?",
             ))),
         },
-        "trim" => Some(trim_dispatch(ops, rest, "string trim string ?chars?", true, true)),
+        "trim" => Some(trim_dispatch(
+            ops,
+            rest,
+            "string trim string ?chars?",
+            true,
+            true,
+        )),
         "trimleft" => Some(trim_dispatch(
             ops,
             rest,
@@ -474,11 +477,7 @@ pub fn dispatch_canon<O: ValueOps>(
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
 /// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
 /// pre-resolve abbreviations; exact subcommand names only.
-pub fn dispatch<O: ValueOps>(
-    ops: &mut O,
-    args: &[O::Value],
-) -> Option<Result<O::Value, CmdError>> {
+pub fn dispatch<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Option<Result<O::Value, CmdError>> {
     let sub = ops.as_str(args.first()?).to_string();
     dispatch_canon(ops, &sub, &args[1..])
 }
-

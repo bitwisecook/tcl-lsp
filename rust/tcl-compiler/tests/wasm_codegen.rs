@@ -5,7 +5,7 @@
 //! assert the emitted structure; `wasmtime compile` (run below where the CLI is
 //! present) validates the bytes for full structural validity.
 
-use tcl_compiler::codegen::wasm::{wasm_codegen_module, WasmModule};
+use tcl_compiler::codegen::wasm::{WasmModule, wasm_codegen_module};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -44,7 +44,10 @@ fn linear_top_level_eval_fallback() {
 fn if_else_is_structured() {
     let mut m = compile_wasm("if {1} {puts a} else {puts b}\n");
     let wat = m.to_wat();
-    assert!(wat.contains("\n        if"), "expected structured if:\n{wat}");
+    assert!(
+        wat.contains("\n        if"),
+        "expected structured if:\n{wat}"
+    );
     assert!(wat.contains("else"), "expected else arm:\n{wat}");
     assert!(wat.contains("end"), "expected end:\n{wat}");
     // The condition is interned brace-stripped (`1`, not `{1`).
@@ -60,7 +63,10 @@ fn if_else_is_structured() {
 fn while_loop_is_structured() {
     let mut m = compile_wasm("while {$i < 10} {puts $i}\n");
     let wat = m.to_wat();
-    assert!(wat.contains("\n        block"), "expected break block:\n{wat}");
+    assert!(
+        wat.contains("\n        block"),
+        "expected break block:\n{wat}"
+    );
     assert!(wat.contains("loop"), "expected loop:\n{wat}");
     assert!(wat.contains("br_if"), "expected guard br_if:\n{wat}");
     // Condition interned brace-stripped; body interned.
@@ -76,10 +82,19 @@ fn break_continue_are_structured() {
     let mut m = compile_wasm("while {1} {if {$x} {break} else {continue}}\n");
     let wat = m.to_wat();
     // Two unconditional branches (break + continue); the guard uses br_if.
-    assert!(wat.contains("\n            br ") || wat.contains("\n                br "), "{wat}");
+    assert!(
+        wat.contains("\n            br ") || wat.contains("\n                br "),
+        "{wat}"
+    );
     // `break`/`continue` must NOT be interned as eval-fallback command text.
-    assert!(!wat.contains(r#""break""#), "break should be structural, not eval:\n{wat}");
-    assert!(!wat.contains(r#""continue""#), "continue should be structural:\n{wat}");
+    assert!(
+        !wat.contains(r#""break""#),
+        "break should be structural, not eval:\n{wat}"
+    );
+    assert!(
+        !wat.contains(r#""continue""#),
+        "continue should be structural:\n{wat}"
+    );
     assert_eq!(&m.to_bytes()[0..4], b"\0asm");
 }
 
@@ -92,7 +107,10 @@ fn foreach_is_opaque_eval_fallback() {
     // The whole `foreach …` command is interned and eval'd as one unit; there is
     // no structured `loop` recovered for it.
     assert!(wat.contains(r#""foreach x {a b c} {puts $x}""#), "{wat}");
-    assert!(!wat.contains("\n            loop"), "foreach must not structure:\n{wat}");
+    assert!(
+        !wat.contains("\n            loop"),
+        "foreach must not structure:\n{wat}"
+    );
     assert_eq!(&m.to_bytes()[0..4], b"\0asm");
 }
 
@@ -115,13 +133,22 @@ fn wasmtime_validates_emitted_modules() {
         ("linear", "set x 5\nputs $x\n"),
         ("if-else", "if {1} {puts a} else {puts b}\n"),
         ("if-noelse", "if {1} {puts a}\nputs after\n"),
-        ("elseif", "if {$a} {puts a} elseif {$b} {puts b} else {puts c}\n"),
+        (
+            "elseif",
+            "if {$a} {puts a} elseif {$b} {puts b} else {puts c}\n",
+        ),
         ("nested-if", "if {1} {if {2} {puts a}}\nputs done\n"),
         ("while", "while {$i < 10} {puts $i}\n"),
         ("while-break", "while {1} {if {$done} {break}\nputs x}\n"),
-        ("while-continue", "while {$i} {if {$skip} {continue}\nputs $i}\n"),
+        (
+            "while-continue",
+            "while {$i} {if {$skip} {continue}\nputs $i}\n",
+        ),
         ("for", "for {set i 0} {$i < 10} {incr i} {puts $i}\n"),
-        ("for-break", "for {set i 0} {1} {incr i} {if {$i} {break}}\n"),
+        (
+            "for-break",
+            "for {set i 0} {1} {incr i} {if {$i} {break}}\n",
+        ),
         (
             "nested-loop",
             "while {$a} {for {set i 0} {$i<3} {incr i} {if {$i} {break} else {continue}}}\n",

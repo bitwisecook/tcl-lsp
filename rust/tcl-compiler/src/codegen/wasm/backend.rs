@@ -77,8 +77,10 @@ impl WasmEmitter {
     }
 
     fn push_i32(&mut self, n: i64) {
-        self.body
-            .push(WasmInstruction::with_operands(WasmOp::I32Const, leb128_signed(n)));
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::I32Const,
+            leb128_signed(n),
+        ));
     }
 
     fn call(&mut self, func_idx: u32) {
@@ -112,14 +114,18 @@ impl WasmEmitter {
 
     fn br(&mut self, idx: u32) {
         let d = self.rel_depth(idx);
-        self.body
-            .push(WasmInstruction::with_operands(WasmOp::Br, leb128_unsigned(u64::from(d))));
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::Br,
+            leb128_unsigned(u64::from(d)),
+        ));
     }
 
     fn br_if(&mut self, idx: u32) {
         let d = self.rel_depth(idx);
-        self.body
-            .push(WasmInstruction::with_operands(WasmOp::BrIf, leb128_unsigned(u64::from(d))));
+        self.body.push(WasmInstruction::with_operands(
+            WasmOp::BrIf,
+            leb128_unsigned(u64::from(d)),
+        ));
     }
 
     /// Box `text` as a `TclObj`, leaving its i32 pointer on the stack.

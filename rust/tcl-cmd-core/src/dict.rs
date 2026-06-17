@@ -77,7 +77,11 @@ pub fn get<O: ValueOps>(
         let pairs = ops.dict_pairs(&cur)?;
         match lookup(ops, &pairs, &ks) {
             Some(v) => cur = v,
-            None => return Err(CmdError::new(format!("key \"{ks}\" not known in dictionary"))),
+            None => {
+                return Err(CmdError::new(format!(
+                    "key \"{ks}\" not known in dictionary"
+                )));
+            }
         }
     }
     Ok(cur)
@@ -161,7 +165,9 @@ pub fn replace<O: ValueOps>(
     kv: &[O::Value],
 ) -> Result<O::Value, CmdError> {
     if kv.len() % 2 != 0 {
-        return Err(CmdError::wrong_args("dict replace dictionary ?key value ...?"));
+        return Err(CmdError::wrong_args(
+            "dict replace dictionary ?key value ...?",
+        ));
     }
     let mut pairs = ops.dict_pairs(dict)?;
     for chunk in kv.chunks_exact(2) {
@@ -254,7 +260,9 @@ pub fn dispatch_canon<O: ValueOps>(
         },
         "remove" => match rest.split_first() {
             Some((d, keys)) => Some(remove(ops, d, keys)),
-            None => Some(Err(CmdError::wrong_args("dict remove dictionary ?key ...?"))),
+            None => Some(Err(CmdError::wrong_args(
+                "dict remove dictionary ?key ...?",
+            ))),
         },
         // `dict getdef`/`getwithdefault dictionary ?key ...? key default` — needs
         // the dict, at least one key, and a default (≥ 3 args). The usage echoes

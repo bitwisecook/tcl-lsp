@@ -210,7 +210,10 @@ fn dict_core_helpers() {
     assert_eq!(run("puts [dict keys {a 1 b 2}]").2, "a b\n");
     assert_eq!(run("puts [dict exists {a 1} a]").2, "1\n");
     assert_eq!(run("puts [dict exists {a 1} z]").2, "0\n");
-    assert_eq!(run("puts [dict merge {a 1 b 2} {b 3 c 4}]").2, "a 1 b 3 c 4\n");
+    assert_eq!(
+        run("puts [dict merge {a 1 b 2} {b 3 c 4}]").2,
+        "a 1 b 3 c 4\n"
+    );
     // canonicalisation (last value wins) — the VM's old non-deduping path was
     // wrong here; the shared core corrects it.
     assert_eq!(run("puts [dict get [dict create x 1 x 2] x]").2, "2\n");

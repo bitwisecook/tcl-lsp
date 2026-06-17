@@ -112,7 +112,11 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             fs.metadata(p).is_ok_and(|m| m.is_file)
         }),
         "size" => match rest {
-            [p] => match vm.host().filesystem().and_then(|fs| fs.metadata(&s(p)).ok()) {
+            [p] => match vm
+                .host()
+                .filesystem()
+                .and_then(|fs| fs.metadata(&s(p)).ok())
+            {
                 Some(m) => ok(Value::int(i64::try_from(m.len).unwrap_or(i64::MAX))),
                 None => err(format!("could not read \"{}\": no such file", s(p))),
             },
@@ -276,7 +280,10 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let patterns = &args[i..];
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
     let mut results: Vec<String> = Vec::new();
-    let entries = vm.host().filesystem().and_then(|fs| fs.read_dir(&base).ok());
+    let entries = vm
+        .host()
+        .filesystem()
+        .and_then(|fs| fs.read_dir(&base).ok());
     if let Some(entries) = entries {
         for name in entries {
             let matches = patterns.is_empty()

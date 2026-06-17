@@ -56,9 +56,7 @@ fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: &str, loop_depth:
 fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: &str, loop_depth: u32) -> Flow {
     match stmt {
         Statement::If {
-            clauses,
-            else_body,
-            ..
+            clauses, else_body, ..
         } => {
             emit_if(emit, clauses, else_body.as_ref(), source, loop_depth);
             Flow::Normal
@@ -267,7 +265,10 @@ mod tests {
 
     #[test]
     fn linear_emits_commands_in_order() {
-        assert_eq!(events("set x 5\nputs $x\n"), ["cmd(set x 5)", "cmd(puts $x)"]);
+        assert_eq!(
+            events("set x 5\nputs $x\n"),
+            ["cmd(set x 5)", "cmd(puts $x)"]
+        );
     }
 
     #[test]
@@ -280,7 +281,10 @@ mod tests {
 
     #[test]
     fn if_without_else_has_no_else_arm() {
-        assert_eq!(events("if {1} {puts a}\n"), ["if(1)", "cmd(puts a)", "endif"]);
+        assert_eq!(
+            events("if {1} {puts a}\n"),
+            ["if(1)", "cmd(puts a)", "endif"]
+        );
     }
 
     #[test]
@@ -306,7 +310,14 @@ mod tests {
     fn while_drives_the_loop_protocol() {
         assert_eq!(
             events("while {$x} {puts hi}\n"),
-            ["loop{", "test($x)", "body{", "cmd(puts hi)", "}body", "}loop"],
+            [
+                "loop{",
+                "test($x)",
+                "body{",
+                "cmd(puts hi)",
+                "}body",
+                "}loop"
+            ],
         );
     }
 
@@ -334,16 +345,8 @@ mod tests {
         assert_eq!(
             events("while {1} {if {$x} {break} else {continue}}\n"),
             [
-                "loop{",
-                "test(1)",
-                "body{",
-                "if($x)",
-                "break",
-                "else",
-                "continue",
-                "endif",
-                "}body",
-                "}loop",
+                "loop{", "test(1)", "body{", "if($x)", "break", "else", "continue", "endif",
+                "}body", "}loop",
             ],
         );
     }
@@ -358,7 +361,10 @@ mod tests {
     fn return_diverges_and_suppresses_dead_code() {
         // The `return` command is eval'd (sets the result), then the function
         // returns; the following statement is unreachable and not emitted.
-        assert_eq!(events("return 1\nputs after\n"), ["cmd(return 1)", "return"]);
+        assert_eq!(
+            events("return 1\nputs after\n"),
+            ["cmd(return 1)", "return"]
+        );
     }
 
     #[test]
