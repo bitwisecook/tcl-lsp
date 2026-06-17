@@ -217,6 +217,54 @@ fn is_nocase(opt: &str) -> bool {
     opt.len() >= 2 && "-nocase".starts_with(opt)
 }
 
+/// `string map ?-nocase? charMap string` — replace substrings per the
+/// `key value ...` map, scanning left-to-right and taking the first matching key
+/// at each position (advancing past it), else copying one character.
+pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    let (nocase, pairs, text) = match args {
+        [m, s] => (false, m, s),
+        [opt, m, s] if is_nocase(&ops.as_str(opt)) => (true, m, s),
+        _ => return Err(CmdError::wrong_args("string map ?-nocase? charMap string")),
+    };
+    let items = ops.list_elements(pairs)?;
+    if items.len() % 2 != 0 {
+        return Err(CmdError::new("char map list unbalanced"));
+    }
+    let mut map: Vec<(String, String)> = Vec::with_capacity(items.len() / 2);
+    for c in items.chunks_exact(2) {
+        map.push((ops.as_str(&c[0]).to_string(), ops.as_str(&c[1]).to_string()));
+    }
+    let string = ops.as_str(text).to_string();
+
+    // Case-insensitive matching folds ASCII case but advances by the (original)
+    // key byte length, matching the reference implementation.
+    let starts = |rest: &str, from: &str| -> bool {
+        if nocase {
+            rest.chars()
+                .zip(from.chars())
+                .all(|(a, b)| a.eq_ignore_ascii_case(&b))
+                && rest.chars().count() >= from.chars().count()
+        } else {
+            rest.starts_with(from)
+        }
+    };
+    let mut out = String::with_capacity(string.len());
+    let mut rest = string.as_str();
+    'outer: while !rest.is_empty() {
+        for (from, to) in &map {
+            if !from.is_empty() && rest.len() >= from.len() && starts(rest, from) {
+                out.push_str(to);
+                rest = &rest[from.len()..];
+                continue 'outer;
+            }
+        }
+        let ch = rest.chars().next().expect("rest is non-empty");
+        out.push(ch);
+        rest = &rest[ch.len_utf8()..];
+    }
+    Ok(ops.new_string(out))
+}
+
 /// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.
 fn trim_dispatch<O: ValueOps>(
     ops: &mut O,
@@ -265,6 +313,7 @@ pub fn dispatch_canon<O: ValueOps>(
             .or_else(|| Some(repeat(ops, &rest[0], &rest[1]))),
         "cat" => Some(Ok(cat(ops, rest))),
         "match" => Some(string_match(ops, rest)),
+        "map" => Some(map(ops, rest)),
         "first" => match rest {
             [n, h] => Some(first(ops, n, h, None)),
             [n, h, s] => Some(first(ops, n, h, Some(s))),
