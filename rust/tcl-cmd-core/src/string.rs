@@ -94,6 +94,63 @@ pub fn to_lower<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
     ops.new_string(out)
 }
 
+/// `string cat ?arg ...?` — concatenate the string reps of all arguments.
+pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
+    let mut out = String::new();
+    for a in args {
+        out.push_str(&ops.as_str(a));
+    }
+    ops.new_string(out)
+}
+
+/// The default `string trim` set — every Unicode space character plus NUL
+/// (`tclDefaultTrimSet`, TIP #413).
+const DEFAULT_TRIM_SET: &[char] = &[
+    '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', ' ', '\u{00}', '\u{85}', '\u{a0}', '\u{1680}',
+    '\u{180e}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
+    '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}', '\u{202f}',
+    '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
+];
+
+/// `string trim`/`trimleft`/`trimright` — strip `chars` (default the TIP #413
+/// whitespace set) from the requested ends.
+pub fn trim<O: ValueOps>(
+    ops: &mut O,
+    s: &O::Value,
+    chars: Option<&O::Value>,
+    left: bool,
+    right: bool,
+) -> O::Value {
+    let string = ops.as_str(s).to_string();
+    let custom: Option<Vec<char>> = chars.map(|c| ops.as_str(c).chars().collect());
+    let pred = |c: char| match &custom {
+        Some(set) => set.contains(&c),
+        None => DEFAULT_TRIM_SET.contains(&c),
+    };
+    let trimmed = match (left, right) {
+        (true, true) => string.trim_matches(pred),
+        (true, false) => string.trim_start_matches(pred),
+        (false, true) => string.trim_end_matches(pred),
+        (false, false) => string.as_str(),
+    };
+    ops.new_string(trimmed.to_string())
+}
+
+/// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.
+fn trim_dispatch<O: ValueOps>(
+    ops: &mut O,
+    rest: &[O::Value],
+    usage: &str,
+    left: bool,
+    right: bool,
+) -> Result<O::Value, CmdError> {
+    match rest {
+        [s] => Ok(trim(ops, s, None, left, right)),
+        [s, c] => Ok(trim(ops, s, Some(c), left, right)),
+        _ => Err(CmdError::wrong_args(usage)),
+    }
+}
+
 /// Dispatch a `string` subcommand whose name `sub` is **already canonical** (the
 /// runtime has resolved any unique-prefix abbreviation), with `rest` being the
 /// arguments after the subcommand.
@@ -125,6 +182,22 @@ pub fn dispatch_canon<O: ValueOps>(
         }
         "repeat" => arity(2, "string repeat string count")
             .or_else(|| Some(repeat(ops, &rest[0], &rest[1]))),
+        "cat" => Some(Ok(cat(ops, rest))),
+        "trim" => Some(trim_dispatch(ops, rest, "string trim string ?chars?", true, true)),
+        "trimleft" => Some(trim_dispatch(
+            ops,
+            rest,
+            "string trimleft string ?chars?",
+            true,
+            false,
+        )),
+        "trimright" => Some(trim_dispatch(
+            ops,
+            rest,
+            "string trimright string ?chars?",
+            false,
+            true,
+        )),
         // Not yet ported into the core — caller falls back to its legacy path.
         // (`toupper`/`tolower`/`totitle` need the optional `?first? ?last?` range
         // form before they can move here without a regression.)

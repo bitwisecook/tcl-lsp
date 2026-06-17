@@ -149,3 +149,12 @@ fn lindex_bad_index_errors() {
     assert!(!ok);
     assert!(result.contains("bad index"), "got: {result}");
 }
+
+/// `string cat` and the `string trim` family, ported into the shared core.
+#[test]
+fn string_cat_and_trim() {
+    assert_eq!(run("puts [string cat foo bar baz]").2, "foobarbaz\n");
+    assert_eq!(run("puts \"[string trim {  hi  }]<\"").2, "hi<\n");
+    assert_eq!(run("puts \"[string trimleft xxabc x]<\"").2, "abc<\n");
+    assert_eq!(run("puts \"[string trimright abcxx x]<\"").2, "abc<\n");
+}
