@@ -83,6 +83,22 @@ fn matched_virtual_with_back_side_matches_golden() {
 }
 
 #[test]
+fn matched_virtual_with_ltm_policies_matches_golden() {
+    // Three LTM policies exercise the evaluator end to end: all-match (multiple
+    // FIRED rules), best-match-approx (condition-count scoring), and first-match
+    // — across the equals / contains+case-insensitive / starts-with / ends-with
+    // operators, the geoip unsupported-operand note, a header-not-seen note, and
+    // forward / http-header / http-uri / tcp actions.
+    let (stdout, code) = run_explain_flow("explain-flow-matched.pcap", "explain-flow-policy.conf");
+    assert_eq!(
+        stdout,
+        golden("explain-flow-policy.golden"),
+        "matched explain-flow with LTM policy decisions must match the Python golden"
+    );
+    assert_eq!(code, 0, "exit code for a matched capture");
+}
+
+#[test]
 fn matched_virtual_with_irule_events_matches_golden() {
     // A rich iRule exercises the full event chain: ordered firing sequence
     // (incl. the sorted "extra" custom event and correctly-omitted unfired

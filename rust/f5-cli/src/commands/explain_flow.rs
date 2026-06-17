@@ -17,8 +17,11 @@ use std::sync::LazyLock;
 use indexmap::IndexMap;
 use regex::Regex;
 use tcl_bigip::flow::{Connection, Session, extract_flows, pair_sessions};
-use tcl_bigip::model::{BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType};
+use tcl_bigip::model::{
+    BigipPolicy, BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType,
+};
 use tcl_bigip::parser::BigipConfig;
+use tcl_bigip::policy_eval::{PolicyDecision, evaluate_policy, request_state_from_session};
 use tcl_cli_support::{OutputTarget, write_text_output};
 
 use crate::commands::explain;
@@ -82,6 +85,7 @@ struct SessionExplain {
     event_blocks: Vec<EventBlock>,
     event_annotations: Vec<EventAnnotation>,
     ltm_policies: Vec<String>,
+    policy_decisions: Vec<PolicyDecision>,
     apm_profile: String,
     gtm_wide_ips: Vec<String>,
     explain_text: String,
@@ -275,6 +279,36 @@ fn ltm_policies_for(cfg: &BigipConfig, vs: &BigipVirtualServer) -> Vec<String> {
             out.push(label);
         } else {
             out.push(format!("{reference} (unresolved)"));
+        }
+    }
+    out
+}
+
+fn find_policy<'a>(cfg: &'a BigipConfig, full_path: &str) -> Option<&'a BigipPolicy> {
+    cfg.objects.iter().find_map(|p| match &p.object {
+        ModelObject::Policy(policy) if policy.full_path == full_path => Some(policy),
+        _ => None,
+    })
+}
+
+/// Evaluate every parsed LTM policy attached to the matched VS against the
+/// captured request state. Faithful port of `_evaluate_attached_policies`.
+fn evaluate_attached_policies(
+    cfg: &BigipConfig,
+    attached_paths: &[String],
+    session: &Session,
+) -> Vec<PolicyDecision> {
+    if attached_paths.is_empty() {
+        return Vec::new();
+    }
+    let state = request_state_from_session(session);
+    let mut out: Vec<PolicyDecision> = Vec::new();
+    for path in attached_paths {
+        if path.ends_with("(unresolved)") {
+            continue;
+        }
+        if let Some(policy) = find_policy(cfg, path) {
+            out.push(evaluate_policy(policy, &state));
         }
     }
     out
@@ -779,6 +813,7 @@ fn compute_explain_flow(
         }
 
         let ltm_policies = ltm_policies_for(cfg_hit, vs);
+        let policy_decisions = evaluate_attached_policies(cfg_hit, &ltm_policies, &session);
         let apm = apm_profile_for(cfg_hit, vs);
         let gtm = gtm_wide_ips_in_config(cfg_hit);
 
@@ -810,6 +845,7 @@ fn compute_explain_flow(
             event_blocks,
             event_annotations,
             ltm_policies,
+            policy_decisions,
             apm_profile: apm,
             gtm_wide_ips: gtm,
             explain_text,
@@ -875,7 +911,62 @@ fn format_report(pcap_path: &str, sessions: &[SessionExplain]) -> String {
                 lines.push(format!("    - {p}"));
             }
         }
-        // ltm policy decisions: deferred to the policy-evaluation increment.
+        if !se.policy_decisions.is_empty() {
+            lines.push("  ltm policy decisions:".to_owned());
+            for pd in &se.policy_decisions {
+                lines.push(format!(
+                    "    --- {} (strategy: {}) ---",
+                    pd.policy, pd.strategy
+                ));
+                for rd in &pd.rules {
+                    let state = if rd.fired {
+                        "FIRED"
+                    } else if rd.matched {
+                        "matched"
+                    } else {
+                        "no-match"
+                    };
+                    lines.push(format!(
+                        "      rule {} (ord {}): {state}",
+                        py_repr(&rd.rule),
+                        rd.ordinal
+                    ));
+                    for ct in &rd.conditions {
+                        use std::fmt::Write as _;
+                        let mut target = ct.operand.clone();
+                        if !ct.name.is_empty() {
+                            let _ = write!(target, "[{}]", ct.name);
+                        } else if !ct.selector.is_empty() {
+                            let _ = write!(target, ".{}", ct.selector);
+                        }
+                        let prefix = if ct.matched { "      - " } else { "        " };
+                        if ct.note.is_empty() {
+                            lines.push(format!(
+                                "{prefix}{target} {} {} -> actual={} match={}",
+                                ct.operator,
+                                py_list_repr(&ct.expected),
+                                py_repr(&ct.actual),
+                                py_bool(ct.matched)
+                            ));
+                        } else {
+                            lines.push(format!(
+                                "{prefix}{target} {} {} (skipped: {})",
+                                ct.operator,
+                                py_list_repr(&ct.expected),
+                                ct.note
+                            ));
+                        }
+                    }
+                    for at in &rd.actions {
+                        lines.push(
+                            format!("        action: {} {} {}", at.target, at.verb, at.value)
+                                .trim_end()
+                                .to_owned(),
+                        );
+                    }
+                }
+            }
+        }
         if !se.apm_profile.is_empty() {
             lines.push(format!("  apm: {}", se.apm_profile));
         }
@@ -1035,6 +1126,17 @@ fn py_splitlines(s: &str) -> Vec<&str> {
         out.push(&s[start..]);
     }
     out
+}
+
+/// Render a `bool` the way Python's `str(bool)` does (`True`/`False`).
+fn py_bool(b: bool) -> &'static str {
+    if b { "True" } else { "False" }
+}
+
+/// Render a list of strings as Python `repr(list)` does: `['a', 'b']`.
+fn py_list_repr(values: &[String]) -> String {
+    let inner: Vec<String> = values.iter().map(|v| py_repr(v)).collect();
+    format!("[{}]", inner.join(", "))
 }
 
 /// Render a string the way Python's `repr()` does for the HUD annotations

@@ -31,6 +31,7 @@ pub mod parser;
 pub mod pcap_enrich;
 pub mod pcap_remap;
 pub mod pcapng;
+pub mod policy_eval;
 pub mod range;
 pub mod redact;
 pub mod secrets;
