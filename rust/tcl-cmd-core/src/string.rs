@@ -198,6 +198,25 @@ pub fn last<O: ValueOps>(
     Ok(ops.new_int(idx))
 }
 
+/// `string match ?-nocase? pattern string` — glob match, returning a boolean.
+pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    let (nocase, pat, s) = match args {
+        [p, s] => (false, p, s),
+        [opt, p, s] if is_nocase(&ops.as_str(opt)) => (true, p, s),
+        _ => return Err(CmdError::wrong_args("string match ?-nocase? pattern string")),
+    };
+    let pattern = ops.as_str(pat).to_string();
+    let text = ops.as_str(s).to_string();
+    Ok(ops.new_bool(tcl_syntax::glob::string_case_match(
+        &pattern, &text, nocase,
+    )))
+}
+
+/// Whether `opt` is `-nocase` or an unambiguous prefix of it (`-n`, `-no`, …).
+fn is_nocase(opt: &str) -> bool {
+    opt.len() >= 2 && "-nocase".starts_with(opt)
+}
+
 /// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.
 fn trim_dispatch<O: ValueOps>(
     ops: &mut O,
@@ -245,6 +264,7 @@ pub fn dispatch_canon<O: ValueOps>(
         "repeat" => arity(2, "string repeat string count")
             .or_else(|| Some(repeat(ops, &rest[0], &rest[1]))),
         "cat" => Some(Ok(cat(ops, rest))),
+        "match" => Some(string_match(ops, rest)),
         "first" => match rest {
             [n, h] => Some(first(ops, n, h, None)),
             [n, h, s] => Some(first(ops, n, h, Some(s))),
