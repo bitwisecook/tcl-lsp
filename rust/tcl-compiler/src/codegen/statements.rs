@@ -125,23 +125,21 @@ impl CodegenCtx<'_> {
                 value_needs_backsubst,
                 ..
             } => {
-                let value = if *value_needs_backsubst
-                    && !value.contains('[')
-                    && !value.contains("${")
-                {
-                    tcl_lexer::backslash_subst(value).into_owned()
-                } else {
-                    // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
-                    // a real substitution) is left raw: the runtime `subst_word`
-                    // does backslash decoding plus command / variable
-                    // substitution in a single left-to-right pass. Pre-decoding
-                    // here would turn `\[` / `\${` into a bare `[` / `${` that
-                    // `subst_word` then mis-reads as a substitution start, and
-                    // would double-decode the escapes (e.g. `"x\[y z\\]"` →
-                    // `x[y z]` instead of `x[y z\]`, and `"\${x}"` → the value of
-                    // `x` instead of the literal `${x}`).
-                    value.clone()
-                };
+                let value =
+                    if *value_needs_backsubst && !value.contains('[') && !value.contains("${") {
+                        tcl_lexer::backslash_subst(value).into_owned()
+                    } else {
+                        // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
+                        // a real substitution) is left raw: the runtime `subst_word`
+                        // does backslash decoding plus command / variable
+                        // substitution in a single left-to-right pass. Pre-decoding
+                        // here would turn `\[` / `\${` into a bare `[` / `${` that
+                        // `subst_word` then mis-reads as a substitution start, and
+                        // would double-decode the escapes (e.g. `"x\[y z\\]"` →
+                        // `x[y z]` instead of `x[y z\]`, and `"\${x}"` → the value of
+                        // `x` instead of the literal `${x}`).
+                        value.clone()
+                    };
                 if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
                 }

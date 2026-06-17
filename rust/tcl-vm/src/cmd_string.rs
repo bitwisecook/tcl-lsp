@@ -15,7 +15,9 @@ pub(crate) fn register(vm: &mut Vm) {
     // the `string` dispatcher. `BuiltinFn` is a plain `fn`, so each closure must
     // be non-capturing (a literal subcommand name).
     vm.register("::tcl::string::cat", |vm, a| string_op(vm, "cat", a));
-    vm.register("::tcl::string::compare", |vm, a| string_op(vm, "compare", a));
+    vm.register("::tcl::string::compare", |vm, a| {
+        string_op(vm, "compare", a)
+    });
     vm.register("::tcl::string::equal", |vm, a| string_op(vm, "equal", a));
     vm.register("::tcl::string::first", |vm, a| string_op(vm, "first", a));
     vm.register("::tcl::string::index", |vm, a| string_op(vm, "index", a));
@@ -27,14 +29,28 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::string::match", |vm, a| string_op(vm, "match", a));
     vm.register("::tcl::string::range", |vm, a| string_op(vm, "range", a));
     vm.register("::tcl::string::repeat", |vm, a| string_op(vm, "repeat", a));
-    vm.register("::tcl::string::replace", |vm, a| string_op(vm, "replace", a));
-    vm.register("::tcl::string::reverse", |vm, a| string_op(vm, "reverse", a));
-    vm.register("::tcl::string::tolower", |vm, a| string_op(vm, "tolower", a));
-    vm.register("::tcl::string::totitle", |vm, a| string_op(vm, "totitle", a));
-    vm.register("::tcl::string::toupper", |vm, a| string_op(vm, "toupper", a));
+    vm.register("::tcl::string::replace", |vm, a| {
+        string_op(vm, "replace", a)
+    });
+    vm.register("::tcl::string::reverse", |vm, a| {
+        string_op(vm, "reverse", a)
+    });
+    vm.register("::tcl::string::tolower", |vm, a| {
+        string_op(vm, "tolower", a)
+    });
+    vm.register("::tcl::string::totitle", |vm, a| {
+        string_op(vm, "totitle", a)
+    });
+    vm.register("::tcl::string::toupper", |vm, a| {
+        string_op(vm, "toupper", a)
+    });
     vm.register("::tcl::string::trim", |vm, a| string_op(vm, "trim", a));
-    vm.register("::tcl::string::trimleft", |vm, a| string_op(vm, "trimleft", a));
-    vm.register("::tcl::string::trimright", |vm, a| string_op(vm, "trimright", a));
+    vm.register("::tcl::string::trimleft", |vm, a| {
+        string_op(vm, "trimleft", a)
+    });
+    vm.register("::tcl::string::trimright", |vm, a| {
+        string_op(vm, "trimright", a)
+    });
 }
 
 /// Dispatch a `::tcl::string::<sub>` forwarder by prepending the subcommand and
@@ -54,9 +70,29 @@ fn ilen(n: usize) -> i64 {
 /// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
 /// resolution and the error message.
 const STRING_SUBS: &[&str] = &[
-    "cat", "compare", "equal", "first", "index", "insert", "is", "last", "length", "map", "match",
-    "range", "repeat", "replace", "reverse", "tolower", "totitle", "toupper", "trim", "trimleft",
-    "trimright", "wordend", "wordstart",
+    "cat",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "insert",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "reverse",
+    "tolower",
+    "totitle",
+    "toupper",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
 ];
 
 /// Resolve a (possibly abbreviated) `string` subcommand to its canonical name,
@@ -127,10 +163,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "map" => match rest {
             [pairs, s] => string_map(pairs, &s.to_str(), false),
             [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(pairs, &s.to_str(), true),
-            [opt, _, _] => err(format!(
-                "bad option \"{}\": must be -nocase",
-                opt.to_str()
-            )),
+            [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
             _ => err("wrong # args: should be \"string map ?-nocase? charMap string\""),
         },
         "cat" => ok(Value::string(
@@ -142,9 +175,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "replace" => string_replace(rest),
         "insert" => string_insert(rest),
         // Resolved to a valid-but-unimplemented subcommand.
-        other => err(format!(
-            "string {other} is not yet implemented in this VM"
-        )),
+        other => err(format!("string {other} is not yet implemented in this VM")),
     }
 }
 
@@ -250,10 +281,16 @@ fn is_nocase(opt: &str) -> bool {
 /// `string match ?-nocase? pattern string`.
 fn string_match(rest: &[Value]) -> Completion<Value> {
     match rest {
-        [pat, s] => ok(Value::bool(string_case_match(&pat.to_str(), &s.to_str(), false))),
-        [opt, pat, s] if is_nocase(&opt.to_str()) => {
-            ok(Value::bool(string_case_match(&pat.to_str(), &s.to_str(), true)))
-        }
+        [pat, s] => ok(Value::bool(string_case_match(
+            &pat.to_str(),
+            &s.to_str(),
+            false,
+        ))),
+        [opt, pat, s] if is_nocase(&opt.to_str()) => ok(Value::bool(string_case_match(
+            &pat.to_str(),
+            &s.to_str(),
+            true,
+        ))),
         [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
         _ => err("wrong # args: should be \"string match ?-nocase? pattern string\""),
     }
@@ -469,17 +506,21 @@ fn map_str(rest: &[Value], f: impl Fn(&str) -> String) -> Completion<Value> {
 /// The default `string trim` set — every Unicode space character plus NUL
 /// (`tclDefaultTrimSet`, TIP #413).
 const DEFAULT_TRIM_SET: &[char] = &[
-    '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', ' ', '\u{00}', '\u{85}', '\u{a0}', '\u{1680}',
-    '\u{180e}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
-    '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}', '\u{202f}',
-    '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
+    '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', ' ', '\u{00}', '\u{85}', '\u{a0}',
+    '\u{1680}', '\u{180e}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}',
+    '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}',
+    '\u{202f}', '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
 ];
 
 fn trim_str(rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Value> {
     let (s, chars) = match rest {
         [s] => (s.to_str(), None),
         [s, c] => (s.to_str(), Some(c.to_str())),
-        _ => return err(format!("wrong # args: should be \"string {op} string ?chars?\"")),
+        _ => {
+            return err(format!(
+                "wrong # args: should be \"string {op} string ?chars?\""
+            ));
+        }
     };
     let custom: Option<Vec<char>> = chars.as_deref().map(|c| c.chars().collect());
     let pred = |c: char| match &custom {

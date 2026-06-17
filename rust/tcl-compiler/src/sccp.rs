@@ -766,7 +766,10 @@ fn env_from_uses_numeric(
     for (name, ver) in uses {
         let key: ValueKey = (name.clone(), *ver);
         if let Some(LatticeValue::Const(c)) = values.get(&key)
-            && matches!(c, ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_))
+            && matches!(
+                c,
+                ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
+            )
         {
             env.insert(name.clone(), const_to_env_value(c));
         }
@@ -1806,8 +1809,14 @@ mod tests {
         stmt.uses.insert("a".into(), 1);
         stmt.uses.insert("b".into(), 1);
         let mut values = HashMap::new();
-        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::String("alpha".into())));
-        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::String("beta".into())));
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("alpha".into())),
+        );
+        values.insert(
+            ("b".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("beta".into())),
+        );
         assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Overdefined);
     }
 
@@ -1819,9 +1828,18 @@ mod tests {
         stmt.uses.insert("a".into(), 1);
         stmt.uses.insert("b".into(), 1);
         let mut values = HashMap::new();
-        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::Int(3)));
-        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::Int(4)));
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Const(ConstValue::Int(7)));
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(3)),
+        );
+        values.insert(
+            ("b".to_string(), 1),
+            LatticeValue::Const(ConstValue::Int(4)),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(7))
+        );
     }
 
     #[test]
@@ -1832,9 +1850,18 @@ mod tests {
         stmt.uses.insert("a".into(), 1);
         stmt.uses.insert("b".into(), 1);
         let mut values = HashMap::new();
-        values.insert(("a".to_string(), 1), LatticeValue::Const(ConstValue::String("alpha".into())));
-        values.insert(("b".to_string(), 1), LatticeValue::Const(ConstValue::String("beta".into())));
-        assert_eq!(evaluate_def(&stmt, &values), LatticeValue::Const(ConstValue::Int(0)));
+        values.insert(
+            ("a".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("alpha".into())),
+        );
+        values.insert(
+            ("b".to_string(), 1),
+            LatticeValue::Const(ConstValue::String("beta".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values),
+            LatticeValue::Const(ConstValue::Int(0))
+        );
     }
 
     #[test]

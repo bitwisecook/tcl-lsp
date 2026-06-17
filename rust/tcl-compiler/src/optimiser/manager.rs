@@ -293,9 +293,8 @@ fn couple_propagated_const_dead_stores(
     // *partially* overlaps the line (a structural O112 spanning past it) is
     // left intact and the removal skipped.
     for rem in removals {
-        let contains = |o: &Optimisation| {
-            rem.span.start() <= o.span.start() && o.span.end() <= rem.span.end()
-        };
+        let contains =
+            |o: &Optimisation| rem.span.start() <= o.span.start() && o.span.end() <= rem.span.end();
         let partial_overlap = selected.iter().any(|o| {
             !o.hint_only
                 && rem.span.start() < o.span.end()

@@ -168,7 +168,11 @@ fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
 
     // No (or ambiguous) match: build the error.
-    let kind = if matches.len() > 1 { "ambiguous" } else { "bad" };
+    let kind = if matches.len() > 1 {
+        "ambiguous"
+    } else {
+        "bad"
+    };
     let list = if table.is_empty() {
         "no valid options".to_string()
     } else {

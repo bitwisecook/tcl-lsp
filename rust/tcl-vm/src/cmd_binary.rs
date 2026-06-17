@@ -75,9 +75,7 @@ fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match &*sub.to_str() {
         "format" => binary_format(rest),
         "scan" => binary_scan(vm, rest),
-        other => err(format!(
-            "bad option \"{other}\": must be format or scan"
-        )),
+        other => err(format!("bad option \"{other}\": must be format or scan")),
     }
 }
 
@@ -108,7 +106,11 @@ fn push_int(out: &mut Vec<u8>, value: i64, width: usize, big_endian: bool) {
 fn format_chars(out: &mut Vec<u8>, f: &Field, arg: &Value) {
     let data = value_to_bytes(arg);
     let pad = if f.spec == 'A' { b' ' } else { 0 };
-    let n = if f.star { data.len() } else { f.count.unwrap_or(1) };
+    let n = if f.star {
+        data.len()
+    } else {
+        f.count.unwrap_or(1)
+    };
     for i in 0..n {
         out.push(data.get(i).copied().unwrap_or(pad));
     }
@@ -148,11 +150,14 @@ fn format_ints(out: &mut Vec<u8>, f: &Field, arg: &Value) -> Result<(), Completi
     let list = split_list(&arg.to_str())
         .map(|l| l.iter().map(ToString::to_string).collect::<Vec<_>>())
         .unwrap_or_default();
-    let n = if f.star { list.len() } else { f.count.unwrap_or(0) };
+    let n = if f.star {
+        list.len()
+    } else {
+        f.count.unwrap_or(0)
+    };
     for i in 0..n {
         let s = list.get(i).map_or("", String::as_str);
-        let v = parse_tcl_int(s)
-            .ok_or_else(|| err(format!("expected integer but got \"{s}\"")))?;
+        let v = parse_tcl_int(s).ok_or_else(|| err(format!("expected integer but got \"{s}\"")))?;
         push_int(out, v, width, big);
     }
     Ok(())
@@ -165,13 +170,21 @@ fn format_hex(out: &mut Vec<u8>, f: &Field, arg: &Value) {
         .chars()
         .filter_map(|c| c.to_digit(16).map(|d| u8::try_from(d).unwrap_or(0)))
         .collect();
-    let nibbles = if f.star { hex.len() } else { f.count.unwrap_or(1) };
+    let nibbles = if f.star {
+        hex.len()
+    } else {
+        f.count.unwrap_or(1)
+    };
     let high_first = f.spec == 'H';
     let mut i = 0;
     while i < nibbles {
         let hi = hex.get(i).copied().unwrap_or(0);
         let lo = hex.get(i + 1).copied().unwrap_or(0);
-        out.push(if high_first { (hi << 4) | lo } else { (lo << 4) | hi });
+        out.push(if high_first {
+            (hi << 4) | lo
+        } else {
+            (lo << 4) | hi
+        });
         i += 2;
     }
 }
@@ -253,7 +266,10 @@ fn scan_ints(bytes: &[u8], pos: usize, f: &Field) -> Option<(Value, usize)> {
         if pos + width > bytes.len() {
             return None;
         }
-        return Some((Value::int(read_int(&bytes[pos..], width, big, true)), pos + width));
+        return Some((
+            Value::int(read_int(&bytes[pos..], width, big, true)),
+            pos + width,
+        ));
     }
     let n = if f.star {
         (bytes.len() - pos) / width

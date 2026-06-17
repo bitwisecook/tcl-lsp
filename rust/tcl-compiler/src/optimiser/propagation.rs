@@ -336,10 +336,7 @@ fn forward_candidate(
     // the block terminator, so any terminator read still sees `x` — exclude
     // terminator uses from the single-use test to match Python's
     // `optimise_load_forwarding`. (A phi use, like Python, still blocks it.)
-    let mut non_terminator = chain
-        .uses
-        .iter()
-        .filter(|u| u.kind != UseKind::Terminator);
+    let mut non_terminator = chain.uses.iter().filter(|u| u.kind != UseKind::Terminator);
     let use_site = non_terminator.next()?;
     if non_terminator.next().is_some() || use_site.kind != UseKind::Operand {
         return None;
@@ -803,8 +800,7 @@ fn resolve_return_constant(
         let Some(Terminator::Return { value, expr, .. }) = &block.terminator else {
             continue;
         };
-        let folded =
-            fold_return_under_lattice(fu, bn, value.as_deref(), expr.as_ref(), result)?;
+        let folded = fold_return_under_lattice(fu, bn, value.as_deref(), expr.as_ref(), result)?;
         match &found {
             None => found = Some(folded),
             Some(prev) if *prev == folded => {}
@@ -863,7 +859,9 @@ fn fold_return_under_lattice(
         std::collections::HashMap::new();
     for ((name, ver), lv) in &result.values {
         if let LatticeValue::Const(c) = lv {
-            let take = chosen_ver.get(name.as_str()).is_none_or(|prev| *ver > *prev);
+            let take = chosen_ver
+                .get(name.as_str())
+                .is_none_or(|prev| *ver > *prev);
             if take {
                 chosen_ver.insert(name.as_str(), *ver);
                 env.insert(name.clone(), const_to_env_value(c));
@@ -2183,7 +2181,8 @@ mod tests {
         // expr in the call-argument position to its value.
         let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
         assert!(
-            opts.iter().any(|o| o.code == "O101" && o.replacement == "7"),
+            opts.iter()
+                .any(|o| o.code == "O101" && o.replacement == "7"),
             "expected O101 folding [expr {{$a + $b}}] to 7, got {opts:?}",
         );
     }
@@ -2194,7 +2193,8 @@ mod tests {
         // and never folds it (textual substitution), so neither do we.
         let opts = run_pass("set a 3\nset b 4\nputs [expr \"$a + $b\"]");
         assert!(
-            opts.iter().all(|o| !(o.code == "O101" && o.replacement == "7")),
+            opts.iter()
+                .all(|o| !(o.code == "O101" && o.replacement == "7")),
             "quoted expr must not fold under constants, got {opts:?}",
         );
     }
@@ -2251,8 +2251,8 @@ mod tests {
         // fire on a whole-word `[…]`.
         let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
         assert!(
-            opts.iter().all(|o| o.replacement != "\"[expr {3 + 4}]\""
-                && !o.replacement.contains("\"]")),
+            opts.iter()
+                .all(|o| o.replacement != "\"[expr {3 + 4}]\"" && !o.replacement.contains("\"]")),
             "whole-word cmd-sub must not be string-interpolated, got {opts:?}",
         );
     }
@@ -2262,9 +2262,8 @@ mod tests {
         // Regression: `[lsearch -exact $tokens uic]` must NOT become
         // `[lsearch -exact tran 1n 100n uic uic]` — that splits the list into
         // separate args and errors at runtime (`bad option "tran"`).
-        let opts = run_pass(
-            "set tokens {tran 1n 100n uic}\nputs \"r: [lsearch -exact $tokens uic]\"",
-        );
+        let opts =
+            run_pass("set tokens {tran 1n 100n uic}\nputs \"r: [lsearch -exact $tokens uic]\"");
         assert!(
             opts.iter()
                 .all(|o| !o.replacement.contains("tran 1n 100n uic uic")),
@@ -2482,8 +2481,8 @@ mod tests {
         use tcl_registry::CommandRegistry;
         let registry = CommandRegistry::build_default();
         let src = "proc ::sum {ns} {\n  set total 0\n  foreach n $ns { set total [expr {$total + $n}] }\n  return $total\n}\nputs [::sum {1 2 3}]\n";
-        let cu = CompilationUnit::build_for(src, &registry, false)
-            .with_interprocedural(&registry, None);
+        let cu =
+            CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
         let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
         run(&mut ctx, &cu);
         assert!(
