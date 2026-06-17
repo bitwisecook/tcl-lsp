@@ -76,16 +76,22 @@ pub fn optimise_unit(
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
     run_passes(&mut ctx, cu, &PassId::all());
+    arbitrate(ctx.optimisations)
+}
 
-    // Determinism chokepoint.  Several passes iterate `HashMap`s
-    // (`cu.procedures`, def-use chains, SSA blocks), so both the emission order
-    // and the monotonic group ids vary run-to-run — and, critically, between the
-    // offset-0 per-procedure memo build and the whole-module build.  Canonicalise
-    // before overlap arbitration so the surviving set, its order, and group
-    // numbering are byte-identical given an equal `CompilationUnit` (the
-    // `compiler_check_corpus` guard's contract, and the precondition for salsa
-    // early-cutoff on [`compiler_check_diagnostics`]).
-    ctx.optimisations.sort_by(|a, b| {
+/// Canonicalise + overlap-arbitrate a raw optimisation list (the shared tail of
+/// [`optimise_unit`] and [`optimise_unit_per_function`]).
+///
+/// Determinism chokepoint.  Several passes iterate `HashMap`s
+/// (`cu.procedures`, def-use chains, SSA blocks), so both the emission order
+/// and the monotonic group ids vary run-to-run — and, critically, between the
+/// offset-0 per-procedure memo build and the whole-module build.  Canonicalise
+/// before overlap arbitration so the surviving set, its order, and group
+/// numbering are byte-identical given an equal optimisation set (the
+/// `compiler_check_corpus` guard's contract, and the precondition for salsa
+/// early-cutoff on `compiler_check_diagnostics`).
+fn arbitrate(mut opts: Vec<Optimisation>) -> Vec<Optimisation> {
+    opts.sort_by(|a, b| {
         (
             a.span.start(),
             a.span.end(),
@@ -103,9 +109,90 @@ pub fn optimise_unit(
                 b.hint_only,
             ))
     });
-    let mut selected = select_non_overlapping(&ctx.optimisations);
+    let mut selected = select_non_overlapping(&opts);
     renumber_groups(&mut selected);
     selected
+}
+
+/// Like [`optimise_unit`] but runs the passes **per function in isolation** —
+/// each of `::top` and every procedure is optimised in a `CompilationUnit` view
+/// holding only that function (the others emptied), and the raw optimisations
+/// are merged before the single whole-unit [`arbitrate`] step.
+///
+/// This is byte-identical to [`optimise_unit`] because the optimiser's only
+/// cross-function `PassContext` state is inert in production: the `propagated_*`
+/// scratch sets are never written outside unit tests, `next_group` is
+/// canonicalised by [`renumber_groups`], and O127's `rewritten` overlap snapshot
+/// only matches spans within one function's own (disjoint) source region.  It is
+/// the seam the salsa-native per-procedure optimiser memo builds on (each
+/// isolated run is keyed on the procedure's offset-0 lattice + context).  Guarded
+/// by `optimise_per_function_matches_whole_unit_over_corpus`.
+#[must_use]
+pub fn optimise_unit_per_function(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+) -> Vec<Optimisation> {
+    let ia = cu.interproc.clone().unwrap_or_default();
+    // Empty-source unit: a template for the emptied `::top` slot when isolating
+    // a procedure (its top-level produces no optimisations).
+    let empty = CompilationUnit::build_for("", registry, false);
+    // Each isolated run uses a fresh `PassContext`, so its `next_group` counter
+    // restarts at 0 — two functions' rewrite groups would both be `0` and be
+    // *conflated* into one partition on merge.  Remap each run's group ids into a
+    // globally-unique range before merging so distinct partitions stay distinct;
+    // the final [`arbitrate`] `renumber_groups` then re-canonicalises them by
+    // first-appearance exactly as the whole-unit run does (the canonical id
+    // depends only on the partition + sorted order, not the pre-renumber value).
+    let mut global_next = 0u32;
+    let mut run_one = |view: &CompilationUnit, all: &mut Vec<Optimisation>| {
+        let mut ctx = PassContext::with_dialect(&view.source, ia.clone(), dialect);
+        ctx.registry = Some(registry);
+        run_passes(&mut ctx, view, &PassId::all());
+        let mut local: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+        for mut opt in ctx.optimisations {
+            if let Some(g) = opt.group {
+                let ng = *local.entry(g).or_insert_with(|| {
+                    let v = global_next;
+                    global_next += 1;
+                    v
+                });
+                opt.group = Some(ng);
+            }
+            all.push(opt);
+        }
+    };
+
+    let mut all: Vec<Optimisation> = Vec::new();
+
+    // `::top` in isolation — drop every procedure so only the top level runs.
+    {
+        let mut view = cu.clone();
+        view.procedures.clear();
+        view.ir_module.procedures.clear();
+        run_one(&view, &mut all);
+    }
+
+    // Each procedure in isolation — empty `::top` + keep only this proc.  Methods
+    // and the interprocedural summary stay intact (read-only cross-function
+    // context the passes consult, e.g. the O126 pure-method gate).
+    let mut names: Vec<&String> = cu.procedures.keys().collect();
+    names.sort();
+    for name in names {
+        let mut view = cu.clone();
+        let fu = cu.procedures.get(name).expect("name from keys").clone();
+        view.procedures.clear();
+        view.procedures.insert(name.clone(), fu);
+        view.ir_module.procedures.clear();
+        if let Some(p) = cu.ir_module.procedures.get(name).cloned() {
+            view.ir_module.procedures.insert(name.clone(), p);
+        }
+        view.ir_module.top_level = empty.ir_module.top_level.clone();
+        view.top_level = empty.top_level.clone();
+        run_one(&view, &mut all);
+    }
+
+    arbitrate(all)
 }
 
 /// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.
