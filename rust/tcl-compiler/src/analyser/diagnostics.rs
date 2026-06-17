@@ -6310,6 +6310,27 @@ file; this call falls through to the 'unknown' handler."
                 if span.is_empty() {
                     continue;
                 }
+                // A read-modify-write command (`lappend` / `append`) that
+                // auto-creates its target is not a read-before-set: it both
+                // reads and defines the variable, creating it from an empty
+                // default when absent. Mirrors Python excluding RMW targets
+                // (incr/append/lappend) from the W210 read set
+                // (`compiler/ssa.py:165` — they are reads only in the separate
+                // suppress-only recovery mode). `unset` also carries
+                // `reads_own_defs` but is destructive, not auto-creating — its
+                // missing-variable case is exactly the W213 handled just below,
+                // so it must not be skipped here.
+                if let Some(Statement::Call {
+                    reads_own_defs: true,
+                    command,
+                    defs,
+                    ..
+                }) = stmt_opt
+                    && command != "unset"
+                    && defs.iter().any(|d| d == var)
+                {
+                    continue;
+                }
                 // SYNC-MAY31-3: skip the existence-query word itself and
                 // reads narrowed by an enclosing `[info exists X]` guard.
                 if existence_exempt(stmt_opt, var, &exists_guards, &fu.ssa, &use_site.block) {
@@ -10487,6 +10508,33 @@ mod tests {
         );
         assert_eq!(w210s[0].severity, Severity::Warning);
         assert!(w210s[0].message.contains("read before it is set"));
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
+        // `lappend` / `append` auto-create their target, so a first use is
+        // not a read-before-set (matches Python excluding RMW targets).
+        for src in [
+            "proc foo {} { lappend items a\nputs $items }",
+            "proc foo {} { append buf x\nputs $buf }",
+        ] {
+            let mut a = Analyser::new();
+            a.emit_cfg_ssa_diagnostics(src);
+            assert!(
+                !a.result.diagnostics.iter().any(|d| d.code == "W210"),
+                "W210 must not fire for auto-creating RMW; got {:?} for {src:?}",
+                a.result.diagnostics,
+            );
+        }
+        // `unset` (without -nocomplain) is destructive, not auto-creating —
+        // its missing-variable case must still raise W213.
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("proc foo {} { unset gone }");
+        assert!(
+            a.result.diagnostics.iter().any(|d| d.code == "W213"),
+            "W213 must still fire for unset of a possibly-undef var; got {:?}",
+            a.result.diagnostics,
+        );
     }
 
     #[test]
