@@ -9,8 +9,9 @@
 //! Field-value mutations (`=` / `|=` / `+=` / `-=`) are supported: the
 //! default is a unified-diff preview, `--write` prints the rewritten config,
 //! and `--in-place` overwrites the input. Identity-field writes (`.name = …`)
-//! and the `rename*` builtins are deferred (cleanly rejected) — they route
-//! through the unported rename token-rewrite engine.
+//! and the `rename*` builtins (`rename` / `rename_partition` / `rename_folder`
+//! / `rename_prefix`) are supported too — they route through the ported
+//! `rewrite::rename_object` token-rewrite engine.
 //!
 //! Side-inputs are supported: `--input-json` / `--input-jsonl` /
 //! `--input-csv` / `--input-f5log` and the generic `--input KIND NAME=PATH`
@@ -23,11 +24,14 @@
 //! references across files, and two sources defining the same
 //! `(kind, full-path)` are refused.
 //!
-//! Deferred (cleanly rejected / ignored): the `--help-dsl` /
-//! `--help-builtins` / `--help-examples` actions. Live
-//! network probes (`dns` / `ping` / `http` / `tls` / x509 + `cert_load`) land
-//! gated behind `--enable-probes`; `ucs_cert` is deferred (no UCS reader is
-//! wired — it raises the same "run it through the f5 CLI" deferral error).
+//! Help actions are all implemented: `--help-dsl` / `--help-examples` /
+//! `--help-renderers` / `--help-inputs` are byte-for-byte ports, while
+//! `--help-builtins [NAME]` / `--help-manual` are idiomatic Rust surfaces
+//! generated from the builtin registry metadata (the Rust `BuiltinSpec` omits
+//! the Python per-function prose). Live network probes (`dns` / `ping` /
+//! `http` / `tls` / x509 + `cert_load`) land gated behind `--enable-probes`;
+//! `ucs_cert` is deferred (no UCS reader is wired — it raises the same "run it
+//! through the f5 CLI" deferral error).
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
