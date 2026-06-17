@@ -575,7 +575,7 @@ impl CfgBuilder {
         // to this handler. Mirrors Python `_lower_try`.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
-        let body_tail = self.lower_script(body, &body_block);
+        let raw_body_tail = self.lower_script(body, &body_block);
         // Capture the body's terminating block *before* the handler bodies are
         // lowered below (each overwrites `last_terminal_block`).  Used to source
         // an on-error edge from a body that ended without an explicit
@@ -583,6 +583,17 @@ impl CfgBuilder {
         let body_terminal = self.last_terminal_block.take();
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
+        // `lower_script` now always returns the resting block (mirroring Python's
+        // `return current`), so distinguish *normal fall-through* from a
+        // terminated body via `body_terminal` (set iff the body did not fall
+        // through — the former `body_tail.is_none()` signal). A terminated body
+        // must not edge to `post_body`, and the handler's on-error edge must be
+        // sourced from the throw block(s), not the pre-`try` block.
+        let body_tail = if body_terminal.is_none() {
+            raw_body_tail
+        } else {
+            None
+        };
         if let Some(tail) = &body_tail {
             self.ensure_goto(tail, &post_body, Some(*body_span));
         }
