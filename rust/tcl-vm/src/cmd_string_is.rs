@@ -115,7 +115,8 @@ fn class_check(class: &str, chars: &[char], strict: bool) -> (bool, i64) {
         return (!strict, 0);
     }
     match class {
-        "integer" | "wideinteger" | "entier" => scan_integer(chars),
+        "integer" | "wideinteger" => scan_integer(chars, true),
+        "entier" => scan_integer(chars, false),
         "double" => scan_double(chars),
         "boolean" | "true" | "false" => (check_boolean(chars, class), 0),
         "list" => scan_list(chars).0,
@@ -151,25 +152,29 @@ fn char_class(class: &str, chars: &[char]) -> (bool, i64) {
 }
 
 fn check_boolean(chars: &[char], class: &str) -> bool {
-    let s: String = chars.iter().collect();
-    let lc = s.to_ascii_lowercase();
-    let truthy = matches!(lc.as_str(), "1" | "true" | "yes" | "on");
-    let falsy = matches!(lc.as_str(), "0" | "false" | "no" | "off");
+    // Tcl accepts `0`/`1` and any *unique* case-insensitive prefix of the
+    // boolean words (so `f`→false, `tru`→true, but `o` is ambiguous on/off).
+    let lc: String = chars.iter().collect::<String>().to_ascii_lowercase();
+    let s = lc.as_str();
+    let truthy = s == "1" || ["true", "yes", "on"].iter().any(|w| w.starts_with(s));
+    let falsy = s == "0" || ["false", "no", "off"].iter().any(|w| w.starts_with(s));
     match class {
-        "true" => truthy,
-        "false" => falsy,
-        _ => truthy || falsy,
+        "true" => truthy && !falsy,
+        "false" => falsy && !truthy,
+        _ => truthy ^ falsy,
     }
 }
 
 /// Scan a Tcl integer, returning `(valid, fail_index)`. `fail_index` is the
-/// character offset where parsing first failed.
-fn scan_integer(chars: &[char]) -> (bool, i64) {
+/// character offset where parsing first failed. When `bounded`, a syntactically
+/// valid value that overflows a signed 64-bit integer is rejected (index -1).
+fn scan_integer(chars: &[char], bounded: bool) -> (bool, i64) {
     let n = chars.len();
     let mut i = 0;
     while i < n && chars[i].is_whitespace() {
         i += 1;
     }
+    let neg = i < n && chars[i] == '-';
     if i < n && (chars[i] == '+' || chars[i] == '-') {
         i += 1;
     }
@@ -196,12 +201,24 @@ fn scan_integer(chars: &[char]) -> (bool, i64) {
     while i < n && chars[i].is_whitespace() {
         i += 1;
     }
-    let valid = digits_end > digits_start && i == n;
-    if valid {
-        (true, -1)
-    } else {
-        (false, ci(digits_end.min(n)))
+    let has_digits = digits_end > digits_start;
+    if !has_digits || i != n {
+        // No number at all ⇒ the failure is at the start; otherwise it is the
+        // first character past the valid digits.
+        return (false, if has_digits { ci(digits_end.min(n)) } else { 0 });
     }
+    if bounded {
+        let digit_str: String = chars[digits_start..digits_end].iter().collect();
+        let fits = match u64::from_str_radix(&digit_str, radix) {
+            Ok(m) if neg => m <= 1u64 << 63,
+            Ok(m) => m < 1u64 << 63,
+            Err(_) => false,
+        };
+        if !fits {
+            return (false, -1);
+        }
+    }
+    (true, -1)
 }
 
 fn is_radix_digit(c: char, radix: u32) -> bool {
