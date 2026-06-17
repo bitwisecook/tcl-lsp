@@ -70,30 +70,38 @@ use tower_lsp::lsp_types::{
     CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, ConfigurationItem,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
-    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
-    DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
-    DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, FoldingRange,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidChangeWatchedFilesRegistrationOptions, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChanges,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams,
+    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation,
+    ExecuteCommandOptions, ExecuteCommandParams, FileChangeType, FileOperationFilter,
+    FileOperationPattern, FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange,
     FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
-    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
     MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
     ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
-    RelatedFullDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextEdit, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
+    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
+    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
+    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability,
+    UnchangedDocumentDiagnosticReport, Url, WatchKind, WillSaveTextDocumentParams,
+    WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
+    WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceFullDocumentDiagnosticReport, WorkspaceServerCapabilities, WorkspaceSymbolParams,
+    WorkspaceUnchangedDocumentDiagnosticReport,
     request::{
         GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
         GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
@@ -162,6 +170,29 @@ struct DiagJob {
     config: tcl_lsp_db::AnalyserConfig,
 }
 
+/// One document's last-published diagnostics plus the `result_id` that
+/// identifies that exact set, for the pull-diagnostic path
+/// (`textDocument/diagnostic` + `workspace/diagnostic`).  Kept in sync with
+/// the push pipeline so a pull request returns the same diagnostics the editor
+/// last received via `publish_diagnostics`, and an unchanged set can be
+/// answered with a cheap `Unchanged` report.  Mirrors the Python server's
+/// `_pull_diag_cache` / `_pull_diag_result_ids`.
+#[derive(Clone)]
+struct PullDiagEntry {
+    result_id: String,
+    diagnostics: Vec<tower_lsp::lsp_types::Diagnostic>,
+}
+
+/// Monotonic `result_id` for the pull-diagnostic cache.  A fresh id each time a
+/// document's diagnostics change lets a client's `previousResultId` be compared
+/// for the `Unchanged` short-circuit.
+fn next_pull_diag_result_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("pd-{id}")
+}
+
 /// Per-URI coalescing-scheduler slot (see [`Backend::diag_slots`]).
 #[derive(Default)]
 struct DiagSlot {
@@ -196,6 +227,10 @@ struct DiagInputs {
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+    /// Pull-diagnostic cache, updated as each push run publishes so the
+    /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
+    /// last-published set.
+    pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
 }
 
 impl DiagInputs {
@@ -253,6 +288,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         documents,
         workspace_index,
         db,
+        pull_diag_cache,
         // The worker captures the job from these before calling us; unused here.
         db_files: _,
         db_config: _,
@@ -401,6 +437,17 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
                 index.add_document(uri.as_str(), &analysis);
             }
             let diag_count = diags.len();
+            // Keep the pull-diagnostic cache in lock-step with the push: a
+            // `textDocument/diagnostic` request now returns this exact set with
+            // a fresh `result_id`, and an editor that already holds it gets a
+            // cheap `Unchanged` report.
+            pull_diag_cache.lock().await.insert(
+                uri.clone(),
+                PullDiagEntry {
+                    result_id: next_pull_diag_result_id(),
+                    diagnostics: diags.clone(),
+                },
+            );
             client
                 .publish_diagnostics(uri.clone(), diags, version)
                 .await;
@@ -530,6 +577,11 @@ pub struct Backend {
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
     /// mode); `set_*` on `workspace/didChangeConfiguration`.
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+    /// Last-published diagnostics per open document, keyed by URI, for the
+    /// pull-diagnostic path.  Written by the push pipeline and read by the
+    /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
+    /// `did_close`.  Mirrors the Python `_pull_diag_cache`.
+    pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -575,6 +627,13 @@ impl FeatureToggles {
     /// the default-on fallback.
     fn is_enabled(&self, feature: &str) -> bool {
         self.set.get(feature).copied().unwrap_or(true)
+    }
+
+    /// Like [`Self::is_enabled`] but with a default-**off** fallback, for
+    /// opt-in features (e.g. `willSaveWaitUntil`) that the Python server
+    /// leaves disabled unless an editor turns them on.
+    fn is_enabled_default_off(&self, feature: &str) -> bool {
+        self.set.get(feature).copied().unwrap_or(false)
     }
 
     /// Merge an editor-supplied `features` object, setting only the
@@ -636,6 +695,7 @@ impl Backend {
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_config: Arc::new(Mutex::new(db_config)),
+            pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -956,6 +1016,36 @@ impl Backend {
     /// Disk IO and analysis deliberately run before taking any lock; the final
     /// index update holds the `documents` lock across the still-closed re-check
     /// so a slow disk read cannot overwrite a newly reopened unsaved buffer.
+    /// Remove from the cross-document index every entry whose URI sits under
+    /// one of `folders` and is not currently open in the editor.  Used when a
+    /// workspace folder is removed (`did_change_workspace_folders`) so its
+    /// files stop contributing definitions / references / symbols.
+    async fn drop_index_under_folders(&self, folders: &[Url]) {
+        if folders.is_empty() {
+            return;
+        }
+        let folder_strs: Vec<String> = folders.iter().map(ToString::to_string).collect();
+        // Hold `documents` across the open-set read + index removals (the
+        // `documents` → `workspace_index` order used since the global gate was
+        // retired) so a file opening mid-reconcile keeps its open-buffer entry.
+        let docs = self.documents.lock().await;
+        let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
+        let mut index = self.workspace_index.lock().await;
+        let to_remove: Vec<String> = index
+            .document_uris()
+            .into_iter()
+            .filter(|uri| {
+                !open.contains(uri)
+                    && folder_strs
+                        .iter()
+                        .any(|folder| uri_under_folder(uri, folder))
+            })
+            .collect();
+        for uri in to_remove {
+            index.remove_document(&uri);
+        }
+    }
+
     async fn reindex_index_from_disk(&self, uri: &Url) {
         let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
             let dialect = match self.resolve_folder_dialect(uri).await {
@@ -1915,6 +2005,17 @@ impl Backend {
         self.feature_toggles.lock().await.is_enabled(feature)
     }
 
+    /// Whether opt-in format-on-save (`tclLsp.features.willSaveWaitUntil`)
+    /// is enabled.  Unlike the default-on feature toggles, this one defaults
+    /// **off** to match the Python server, so it cannot reuse
+    /// [`Self::feature_enabled`] (whose absent-key fallback is `true`).
+    async fn will_save_format_enabled(&self) -> bool {
+        self.feature_toggles
+            .lock()
+            .await
+            .is_enabled_default_off("willSaveWaitUntil")
+    }
+
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
     /// from the registry.  Mirrors `server/commands.py::on_list_subcommands`.
     /// An unknown command (or one with no subcommands) yields an empty list.
@@ -2114,6 +2215,7 @@ impl Backend {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_config: Arc::clone(&self.db_config),
+            pull_diag_cache: Arc::clone(&self.pull_diag_cache),
         }
     }
 
@@ -2278,6 +2380,34 @@ impl Backend {
         });
     }
 
+    /// Best-effort dynamic registration of
+    /// `workspace/didChangeWatchedFiles` for Tcl source files, so external
+    /// on-disk changes reach [`LanguageServer::did_change_watched_files`].
+    /// The glob mirrors the Python server's watched-file pattern.  A client
+    /// without dynamic-registration support rejects the request; that is
+    /// logged and ignored (the startup scan still seeds the index).
+    async fn register_file_watchers(&self) {
+        let registration = Registration {
+            id: "tcl-lsp-watched-files".to_owned(),
+            method: "workspace/didChangeWatchedFiles".to_owned(),
+            register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers: vec![FileSystemWatcher {
+                    glob_pattern: GlobPattern::String("**/*.{tcl,tm,itcl,irule,irul}".to_owned()),
+                    kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+                }],
+            })
+            .ok(),
+        };
+        if let Err(err) = self.client.register_capability(vec![registration]).await {
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!("file-watcher registration declined by client: {err}"),
+                )
+                .await;
+        }
+    }
+
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
     /// files in the workspace folders that the editor hasn't
     /// opened, merging their definitions / invocation sites into
@@ -2390,6 +2520,12 @@ impl LanguageServer for Backend {
         // feature toggles / optimiser switch / analyser knobs are in effect
         // before the first request.
         self.pull_and_apply_config().await;
+        // Ask the client to watch Tcl source files so external edits
+        // (`git checkout`, generated files, deletions) reach
+        // `did_change_watched_files` and refresh the cross-document index.
+        // Best-effort: clients without dynamic-registration support reject
+        // this, which is harmless — the startup scan still seeds the index.
+        self.register_file_watchers().await;
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
         self.scan_workspace_folders().await;
@@ -2532,6 +2668,10 @@ impl LanguageServer for Backend {
         self.client
             .publish_diagnostics(uri.clone(), Vec::new(), None)
             .await;
+        // Drop the pull-diagnostic cache entry so a `workspace/diagnostic`
+        // sweep no longer reports the now-closed document and a later reopen
+        // recomputes from scratch.
+        self.pull_diag_cache.lock().await.remove(uri);
         self.db_remove_source(uri).await;
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
@@ -2543,6 +2683,103 @@ impl LanguageServer for Backend {
         // rechecks that this URI is still closed before publishing
         // the disk-backed index entry.
         self.reindex_index_from_disk(uri).await;
+    }
+
+    async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
+        // Update the tracked folder set, then reconcile the cross-document
+        // index and configuration so multi-root behaviour is not frozen at the
+        // `initialize` snapshot.  Mirrors the Python `didChangeWorkspaceFolders`
+        // handler (drop removed-folder state, load/scan added folders, re-pull
+        // config).
+        let removed: Vec<Url> = params.event.removed.iter().map(|f| f.uri.clone()).collect();
+        {
+            let mut folders = self.workspace_folders.lock().await;
+            for uri in &removed {
+                folders.retain(|f| f != uri);
+            }
+            for added in &params.event.added {
+                if !folders.iter().any(|f| f == &added.uri) {
+                    folders.push(added.uri.clone());
+                }
+            }
+        }
+        // Drop index entries for files under removed folders so their symbols
+        // stop resolving across the workspace.  Open documents are left alone —
+        // their live buffer is the source of truth regardless of folder set.
+        if !removed.is_empty() {
+            self.drop_index_under_folders(&removed).await;
+        }
+        // Pick up files under any newly-added folder.  `scan_workspace_folders`
+        // walks the *current* folder list and skips open documents, so it is
+        // safe to call here.
+        if !params.event.added.is_empty() {
+            self.scan_workspace_folders().await;
+        }
+        // Per-folder config may differ between roots; re-pull so the resolved
+        // settings reflect the new folder set.
+        self.pull_and_apply_config().await;
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        // External (non-editor) file changes — `git checkout`, a generated
+        // file, a deletion — must refresh the cross-document index so
+        // definition / references / rename / call-hierarchy keep seeing the
+        // project's true on-disk state between restarts.  Mirrors the Python
+        // `didChangeWatchedFiles` handler.
+        for change in params.changes {
+            // Files the editor has open are driven by did_open/did_change; their
+            // unsaved buffer must not be clobbered by the on-disk copy.
+            // `reindex_index_from_disk` re-checks this under the lock as well.
+            if self.documents.lock().await.contains_key(&change.uri) {
+                continue;
+            }
+            if change.typ == FileChangeType::DELETED {
+                self.workspace_index
+                    .lock()
+                    .await
+                    .remove_document(change.uri.as_str());
+            } else {
+                // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
+                // or drop it if it no longer reads as one.
+                self.reindex_index_from_disk(&change.uri).await;
+            }
+        }
+    }
+
+    async fn will_save_wait_until(
+        &self,
+        params: WillSaveTextDocumentParams,
+    ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
+        // Opt-in format-on-save, mirroring the Python server's
+        // `willSaveWaitUntil` handler (`server/server.py`): gated behind
+        // `tclLsp.features.willSaveWaitUntil`, which is **off by default**.
+        // The capability is advertised unconditionally; the runtime guard
+        // here returns no edits when the toggle is unset, matching the
+        // repo's "always register, guard in the body" feature pattern.
+        if !self.will_save_format_enabled().await {
+            return Ok(None);
+        }
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let config = core_formatting::FormatterConfig {
+            max_line_length: *self.line_length.lock().await as usize,
+            ..core_formatting::FormatterConfig::default()
+        };
+        let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
+        if edits.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(
+            edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect(),
+        ))
     }
 
     async fn folding_range(
@@ -3168,6 +3405,34 @@ impl LanguageServer for Backend {
         // other request uses) and lift each analyser
         // diagnostic to the LSP wire shape.
         let uri = params.text_document.uri.clone();
+        let previous = params.previous_result_id;
+        // Serve from the push-maintained cache when present: pull then mirrors
+        // the exact set the editor last received via `publish_diagnostics`, and
+        // an unchanged document is answered with a cheap `Unchanged` report
+        // (no diagnostics re-sent).  Mirrors the Python `on_document_diagnostic`.
+        if let Some(entry) = self.pull_diag_cache.lock().await.get(&uri).cloned() {
+            if previous.as_deref() == Some(entry.result_id.as_str()) {
+                return Ok(DocumentDiagnosticReportResult::Report(
+                    DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
+                        related_documents: None,
+                        unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
+                            result_id: entry.result_id,
+                        },
+                    }),
+                ));
+            }
+            return Ok(DocumentDiagnosticReportResult::Report(
+                DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                    related_documents: None,
+                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                        result_id: Some(entry.result_id),
+                        items: entry.diagnostics,
+                    },
+                }),
+            ));
+        }
+        // Cache miss — a pull arrived before the first push settled (or push is
+        // disabled).  Compute the full set on demand, prime the cache, return it.
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(empty_diagnostic_report());
         };
@@ -3183,14 +3448,88 @@ impl LanguageServer for Backend {
         let items = self
             .full_diagnostics_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let result_id = next_pull_diag_result_id();
+        self.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: result_id.clone(),
+                diagnostics: items.clone(),
+            },
+        );
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
                 full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                    result_id: None,
+                    result_id: Some(result_id),
                     items,
                 },
             }),
+        ))
+    }
+
+    async fn workspace_diagnostic(
+        &self,
+        params: WorkspaceDiagnosticParams,
+    ) -> jsonrpc::Result<WorkspaceDiagnosticReportResult> {
+        // Workspace pull: report every open document's last-published set from
+        // the cache, honouring the per-URI `previousResultId` the client sends
+        // so unchanged documents cost nothing.  Mirrors the Python
+        // `on_workspace_diagnostic`.
+        let previous: HashMap<Url, String> = params
+            .previous_result_ids
+            .into_iter()
+            .map(|p| (p.uri, p.value))
+            .collect();
+        // Snapshot the cache (clone out) so we don't hold its lock while also
+        // taking the `documents` lock for versions.
+        let entries: Vec<(Url, PullDiagEntry)> = self
+            .pull_diag_cache
+            .lock()
+            .await
+            .iter()
+            .map(|(uri, entry)| (uri.clone(), entry.clone()))
+            .collect();
+        let versions: HashMap<Url, Option<i64>> = {
+            let docs = self.documents.lock().await;
+            entries
+                .iter()
+                .map(|(uri, _)| {
+                    (
+                        uri.clone(),
+                        docs.get(uri).and_then(|d| d.version.map(i64::from)),
+                    )
+                })
+                .collect()
+        };
+        let items = entries
+            .into_iter()
+            .map(|(uri, entry)| {
+                let version = versions.get(&uri).copied().flatten();
+                if previous.get(&uri).map(String::as_str) == Some(entry.result_id.as_str()) {
+                    WorkspaceDocumentDiagnosticReport::Unchanged(
+                        WorkspaceUnchangedDocumentDiagnosticReport {
+                            uri,
+                            version,
+                            unchanged_document_diagnostic_report:
+                                UnchangedDocumentDiagnosticReport {
+                                    result_id: entry.result_id,
+                                },
+                        },
+                    )
+                } else {
+                    WorkspaceDocumentDiagnosticReport::Full(WorkspaceFullDocumentDiagnosticReport {
+                        uri,
+                        version,
+                        full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                            result_id: Some(entry.result_id),
+                            items: entry.diagnostics,
+                        },
+                    })
+                }
+            })
+            .collect();
+        Ok(WorkspaceDiagnosticReportResult::Report(
+            WorkspaceDiagnosticReport { items },
         ))
     }
 
@@ -4680,8 +5019,17 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// literal lives here rather than inside the trait method.
 fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(
-            TextDocumentSyncKind::INCREMENTAL,
+        // Options form (rather than the bare `Kind`) so we can advertise
+        // `willSaveWaitUntil` alongside incremental sync. The handler is
+        // gated by `tclLsp.features.willSaveWaitUntil` (default off).
+        text_document_sync: Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::INCREMENTAL),
+                will_save: Some(false),
+                will_save_wait_until: Some(true),
+                save: None,
+            },
         )),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
@@ -4736,7 +5084,10 @@ fn build_server_capabilities() -> ServerCapabilities {
         diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
             identifier: Some("tcl-lsp".to_string()),
             inter_file_dependencies: false,
-            workspace_diagnostics: false,
+            // Workspace pull is backed by the per-URI pull-diagnostic cache the
+            // push pipeline maintains (`workspace_diagnostic` reports each open
+            // document's last-published set).
+            workspace_diagnostics: true,
             work_done_progress_options: WorkDoneProgressOptions::default(),
         })),
         // Editor-invoked workspace commands (currently the
@@ -4764,7 +5115,14 @@ fn build_server_capabilities() -> ServerCapabilities {
         // rename — the willRename handler rewrites dependents' `source`
         // literals, the didRename handler reindexes the moved file.
         workspace: Some(WorkspaceServerCapabilities {
-            workspace_folders: None,
+            // Advertise multi-root support and ask the client to send
+            // `workspace/didChangeWorkspaceFolders` so folders added or removed
+            // mid-session update the index and configuration (the
+            // `did_change_workspace_folders` handler), not just at startup.
+            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(true)),
+            }),
             file_operations: Some(WorkspaceFileOperationsServerCapabilities {
                 will_rename: Some(rename_file_operation_options()),
                 did_rename: Some(rename_file_operation_options()),
@@ -5561,6 +5919,7 @@ mod tests {
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_config: Arc::new(Mutex::new(db_config)),
+            pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -5595,6 +5954,233 @@ mod tests {
         assert!(
             !has_o100(&analyser_only),
             "the analyser-only path should not emit O100 (sanity)",
+        );
+    }
+
+    fn doc_diag_params(uri: &Url, previous: Option<&str>) -> DocumentDiagnosticParams {
+        DocumentDiagnosticParams {
+            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            identifier: None,
+            previous_result_id: previous.map(str::to_owned),
+            work_done_progress_params: tower_lsp::lsp_types::WorkDoneProgressParams::default(),
+            partial_result_params: tower_lsp::lsp_types::PartialResultParams::default(),
+        }
+    }
+
+    /// The pull handler returns a `Full` report carrying a `result_id` and,
+    /// when the client echoes that same id back as `previousResultId` and the
+    /// document has not changed, an `Unchanged` report naming the same id.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pull_diagnostic_returns_unchanged_when_result_id_matches() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///pull-unchanged.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        let first = backend
+            .diagnostic(doc_diag_params(&uri, None))
+            .await
+            .unwrap();
+        let result_id = match first {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => full
+                .full_document_diagnostic_report
+                .result_id
+                .expect("first pull must carry a result_id"),
+            other => panic!("expected a Full report, got {other:?}"),
+        };
+
+        let second = backend
+            .diagnostic(doc_diag_params(&uri, Some(&result_id)))
+            .await
+            .unwrap();
+        match second {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(u)) => {
+                assert_eq!(
+                    u.unchanged_document_diagnostic_report.result_id, result_id,
+                    "Unchanged report must name the cached result_id",
+                );
+            }
+            other => panic!("expected an Unchanged report, got {other:?}"),
+        }
+    }
+
+    /// `workspace/diagnostic` reports each cached (open) document, and honours a
+    /// matching `previousResultId` with an `Unchanged` per-document report.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_diagnostic_reports_cached_documents() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///ws-diag.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        // Prime the pull cache through the document handler.
+        let first = backend
+            .diagnostic(doc_diag_params(&uri, None))
+            .await
+            .unwrap();
+        let result_id = match first {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => {
+                full.full_document_diagnostic_report.result_id.unwrap()
+            }
+            other => panic!("expected Full, got {other:?}"),
+        };
+
+        let params = WorkspaceDiagnosticParams {
+            identifier: None,
+            previous_result_ids: vec![tower_lsp::lsp_types::PreviousResultId {
+                uri: uri.clone(),
+                value: result_id.clone(),
+            }],
+            work_done_progress_params: tower_lsp::lsp_types::WorkDoneProgressParams::default(),
+            partial_result_params: tower_lsp::lsp_types::PartialResultParams::default(),
+        };
+        let report = backend.workspace_diagnostic(params).await.unwrap();
+        let WorkspaceDiagnosticReportResult::Report(report) = report else {
+            panic!("expected a full workspace report");
+        };
+        assert_eq!(
+            report.items.len(),
+            1,
+            "the one open document must be reported"
+        );
+        match &report.items[0] {
+            WorkspaceDocumentDiagnosticReport::Unchanged(u) => {
+                assert_eq!(u.uri, uri);
+                assert_eq!(u.unchanged_document_diagnostic_report.result_id, result_id);
+            }
+            WorkspaceDocumentDiagnosticReport::Full(full) => {
+                panic!(
+                    "matching previousResultId must yield Unchanged, got Full for {:?}",
+                    full.uri,
+                )
+            }
+        }
+    }
+
+    /// `did_change_watched_files` drops a deleted file from the cross-document
+    /// index and re-indexes a (closed) changed file from disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_files_deletion_drops_index_entry() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///watched-gone.tcl").unwrap();
+        // Index a file that is NOT open (no `documents` entry).
+        {
+            let mut a = Analyser::new();
+            let analysis = a.analyse("proc gone {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+        assert!(
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .document_uris()
+                .iter()
+                .any(|u| u == uri.as_str()),
+            "precondition: file is indexed",
+        );
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp::lsp_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        assert!(
+            !backend
+                .workspace_index
+                .lock()
+                .await
+                .document_uris()
+                .iter()
+                .any(|u| u == uri.as_str()),
+            "a DELETED watched-file event must drop the index entry",
+        );
+    }
+
+    /// Removing a workspace folder drops index entries for its (closed) files
+    /// while leaving files under other folders intact.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_folder_removal_drops_index_under_folder() {
+        let backend = test_backend();
+        let gone = Url::parse("file:///proj-a/lib.tcl").unwrap();
+        let kept = Url::parse("file:///proj-b/lib.tcl").unwrap();
+        {
+            let mut a = Analyser::new();
+            let analysis = a.analyse("proc p {} {}\n", "tcl8.6").clone();
+            let mut index = backend.workspace_index.lock().await;
+            index.add_document(gone.as_str(), &analysis);
+            index.add_document(kept.as_str(), &analysis);
+        }
+        *backend.workspace_folders.lock().await = vec![
+            Url::parse("file:///proj-a").unwrap(),
+            Url::parse("file:///proj-b").unwrap(),
+        ];
+
+        backend
+            .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+                event: tower_lsp::lsp_types::WorkspaceFoldersChangeEvent {
+                    added: Vec::new(),
+                    removed: vec![tower_lsp::lsp_types::WorkspaceFolder {
+                        uri: Url::parse("file:///proj-a").unwrap(),
+                        name: "proj-a".to_owned(),
+                    }],
+                },
+            })
+            .await;
+
+        let uris = backend.workspace_index.lock().await.document_uris();
+        assert!(
+            !uris.iter().any(|u| u == gone.as_str()),
+            "files under the removed folder must be dropped",
+        );
+        assert!(
+            uris.iter().any(|u| u == kept.as_str()),
+            "files under a retained folder must remain",
+        );
+        // The folder list itself no longer carries the removed root.
+        assert!(
+            !backend
+                .workspace_folders
+                .lock()
+                .await
+                .iter()
+                .any(|f| f.as_str() == "file:///proj-a"),
+        );
+    }
+
+    /// `willSaveWaitUntil` is opt-in: with the feature toggle unset it returns
+    /// no edits even for mis-formatted source; once enabled it formats.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn will_save_format_is_opt_in() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///will-save.tcl").unwrap();
+        register(&backend, &uri, "set    x     1\n").await;
+        let params = WillSaveTextDocumentParams {
+            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            reason: tower_lsp::lsp_types::TextDocumentSaveReason::MANUAL,
+        };
+
+        let disabled = backend.will_save_wait_until(params.clone()).await.unwrap();
+        assert!(
+            disabled.is_none(),
+            "format-on-save must be inert until the feature toggle is set",
+        );
+
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .set
+            .insert("willSaveWaitUntil".to_owned(), true);
+        let enabled = backend.will_save_wait_until(params).await.unwrap();
+        assert!(
+            enabled.is_some_and(|edits| !edits.is_empty()),
+            "with the toggle on, mis-formatted source must yield edits",
         );
     }
 
