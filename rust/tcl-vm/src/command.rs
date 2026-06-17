@@ -241,12 +241,19 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"rename oldName newName\"");
     };
     let old_name = old.to_str();
+    let new_name = new.to_str();
+    // Tcl rejects a rename onto an existing command (leaving both intact), so
+    // check the destination before removing the source.
+    if !new_name.is_empty() && vm.lookup_command(&new_name).is_some() {
+        return err(format!(
+            "can't rename to \"{new_name}\": command already exists"
+        ));
+    }
     let Some(cmd) = vm.take_command(&old_name) else {
         return err(format!(
             "can't rename \"{old_name}\": command doesn't exist"
         ));
     };
-    let new_name = new.to_str();
     if !new_name.is_empty() {
         // An unqualified target binds in the current namespace; a qualified one
         // is used as given. `register_command` canonicalises the key.

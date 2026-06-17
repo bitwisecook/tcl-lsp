@@ -774,3 +774,33 @@ fn brace_wrapped_command_substitution_runs() {
     out_eq("puts [string is dict {a 1 b 2}]\n", "1\n");
     out_eq("puts [string is dict {a 1 b}]\n", "0\n");
 }
+
+#[test]
+fn rename_rejects_existing_destination() {
+    // Renaming onto an existing command errors (both commands stay intact),
+    // matching Tcl; a fresh destination renames normally.
+    let (ok, _result, _out) = run("rename set puts\n");
+    assert!(!ok, "rename onto an existing command should error");
+    out_eq(
+        "proc foo {} { return 1 }\nrename foo bar\nputs [bar]\n",
+        "1\n",
+    );
+    out_eq(
+        "proc demo {} {}\nrename demo {}\nputs [llength [info commands demo]]\n",
+        "0\n",
+    );
+}
+
+#[test]
+fn binary_format_rejects_invalid_integer() {
+    // A malformed integer is an error, not a silent zero byte.
+    let (ok1, _r1, _o1) = run("binary format c bad\n");
+    assert!(!ok1, "binary format c bad should error");
+    let (ok2, _r2, _o2) = run("binary format c* {1 bad 3}\n");
+    assert!(!ok2, "binary format c* with a bad element should error");
+    // Valid radix lists still work.
+    out_eq(
+        "puts [string length [binary format I* {0x50515253 0x52}]]\n",
+        "8\n",
+    );
+}

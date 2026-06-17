@@ -115,44 +115,47 @@ fn format_chars(out: &mut Vec<u8>, f: &Field, arg: &Value) {
 }
 
 /// Format an integer field (single value, or a list under a count/`*`).
-/// Parse a Tcl integer literal (decimal or `0x`/`0o`/`0b` radix, optional sign).
-/// A radix literal is reinterpreted bit-for-bit into `i64` (binary format only
-/// uses the low bytes), so wrapping is intentional.
+/// Parse a Tcl integer literal (decimal or `0x`/`0o`/`0b` radix, optional sign),
+/// returning `None` for malformed input. A radix literal is reinterpreted
+/// bit-for-bit into `i64` (binary format only uses the low bytes).
 #[allow(clippy::cast_possible_wrap)]
-fn parse_tcl_int(s: &str) -> i64 {
+fn parse_tcl_int(s: &str) -> Option<i64> {
     let s = s.trim();
     let (neg, body) = match s.strip_prefix('-') {
         Some(r) => (true, r),
         None => (false, s.strip_prefix('+').unwrap_or(s)),
     };
-    let parsed = if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
-        u64::from_str_radix(h, 16)
+    let mag = if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
+        u64::from_str_radix(h, 16).ok()? as i64
     } else if let Some(o) = body.strip_prefix("0o").or_else(|| body.strip_prefix("0O")) {
-        u64::from_str_radix(o, 8)
+        u64::from_str_radix(o, 8).ok()? as i64
     } else if let Some(b) = body.strip_prefix("0b").or_else(|| body.strip_prefix("0B")) {
-        u64::from_str_radix(b, 2)
+        u64::from_str_radix(b, 2).ok()? as i64
     } else {
-        return body.parse::<i64>().unwrap_or(0) * if neg { -1 } else { 1 };
-    }
-    .unwrap_or(0) as i64;
-    if neg { -parsed } else { parsed }
+        return body.parse::<i64>().ok().map(|v| if neg { -v } else { v });
+    };
+    Some(if neg { -mag } else { mag })
 }
 
-fn format_ints(out: &mut Vec<u8>, f: &Field, arg: &Value) {
+fn format_ints(out: &mut Vec<u8>, f: &Field, arg: &Value) -> Result<(), Completion<Value>> {
     let width = int_width(f.spec).unwrap_or(1);
     let big = f.spec.is_ascii_uppercase();
     if f.count.is_none() && !f.star {
-        push_int(out, arg.as_int().unwrap_or(0), width, big);
-        return;
+        let v = arg.as_int().map_err(|e| err(e.message))?;
+        push_int(out, v, width, big);
+        return Ok(());
     }
     let list = split_list(&arg.to_str())
         .map(|l| l.iter().map(ToString::to_string).collect::<Vec<_>>())
         .unwrap_or_default();
     let n = if f.star { list.len() } else { f.count.unwrap_or(0) };
     for i in 0..n {
-        let v = list.get(i).map_or(0, |s| parse_tcl_int(s));
+        let s = list.get(i).map_or("", String::as_str);
+        let v = parse_tcl_int(s)
+            .ok_or_else(|| err(format!("expected integer but got \"{s}\"")))?;
         push_int(out, v, width, big);
     }
+    Ok(())
 }
 
 /// Format an `H`/`h` hex field.
@@ -191,7 +194,11 @@ fn binary_format(rest: &[Value]) -> Completion<Value> {
         ai += 1;
         match f.spec {
             'a' | 'A' => format_chars(&mut out, f, arg),
-            'c' | 's' | 'S' | 'i' | 'I' | 'w' | 'W' => format_ints(&mut out, f, arg),
+            'c' | 's' | 'S' | 'i' | 'I' | 'w' | 'W' => {
+                if let Err(e) = format_ints(&mut out, f, arg) {
+                    return e;
+                }
+            }
             'H' | 'h' => format_hex(&mut out, f, arg),
             other => return err(format!("bad field specifier \"{other}\"")),
         }
