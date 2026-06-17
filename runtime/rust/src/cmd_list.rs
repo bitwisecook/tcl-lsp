@@ -1567,12 +1567,14 @@ mod tests {
         assert_eq!(ok(b"lreplace {a b c d} 1 2 X"), b"a X d");
         assert_eq!(ok(b"lreplace {a b c d} 1 2"), b"a d");
         assert_eq!(ok(b"lreplace {a b c} end end Z"), b"a b Z");
-        assert_eq!(ok(b"lreplace {a b c} 1 0 X"), b"a X b c"); // first>last → insert
-        // Out-of-range indices clamp (no error); `end`/`end±N` offset correctly.
-        assert_eq!(ok(b"linsert {a b c} end+1 X"), b"a b c X"); // past end → append
-        assert_eq!(ok(b"linsert {a b c} -5 X"), b"X a b c"); // negative → prepend
-        assert_eq!(ok(b"lreplace {a b c} 5 7 X"), b"a b c X"); // past end → append
-        // A *malformed* index spec errors faithfully (shared index parser).
+        // `first > last` is a pure insertion at `first`.
+        assert_eq!(ok(b"lreplace {a b c} 1 0 X"), b"a X b c");
+        // Out-of-range indices clamp (no error); `end`/`end±N` offset correctly:
+        // past-end appends, negative prepends.
+        assert_eq!(ok(b"linsert {a b c} end+1 X"), b"a b c X");
+        assert_eq!(ok(b"linsert {a b c} -5 X"), b"X a b c");
+        assert_eq!(ok(b"lreplace {a b c} 5 7 X"), b"a b c X");
+        // A malformed index spec errors faithfully (shared index parser).
         assert!(err(b"linsert {a b c} foo X").starts_with(b"bad index"));
         assert!(err(b"lreplace {a b c} foo 1 X").starts_with(b"bad index"));
         assert!(err(b"lreplace {a b c} 1 foo X").starts_with(b"bad index"));
