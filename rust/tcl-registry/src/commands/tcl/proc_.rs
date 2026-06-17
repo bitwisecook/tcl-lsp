@@ -26,7 +26,8 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE
             | Traits::NEVER_INLINE_BODY
-            | Traits::IRULES_TOP_LEVEL_ONLY,
+            | Traits::IRULES_TOP_LEVEL_ONLY
+            | Traits::WASM_EMITS_NOTHING,
         arity: Arity::exact(3),
         arg_roles: &[
             (0, ArgRole::Name),

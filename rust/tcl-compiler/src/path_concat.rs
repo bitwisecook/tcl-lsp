@@ -150,7 +150,8 @@ pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
 /// Blocks are traversed in `cfg_order` for deterministic output and
 /// skipped when not in `executable_blocks`.
 #[must_use]
-pub(crate) fn find_path_concat_warnings(
+#[allow(clippy::implicit_hasher)]
+pub fn find_path_concat_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     rendered_props: &HashMap<ValueKey, RenderedValueProps>,
