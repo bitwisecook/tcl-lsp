@@ -1505,6 +1505,14 @@ fn visit_string_interpolation(
     if simple_var_ref(inside).is_some() {
         return;
     }
+    // A free-standing `[cmd …]` word is a command substitution, not a
+    // `"…"` interpolation: wrapping it in quotes (below) and extending the
+    // span to a non-existent close-quote both corrupt the output (e.g.
+    // `puts [expr {$a + $b}]` → `puts "[expr {3 + 4}]"]`). Whole-word subs
+    // are folded by `visit_call_cmd_subst_folds`; leave them alone here.
+    if is_whole_word_cmd_subst(inside) {
+        return;
+    }
     let Some(rewritten) = substitute_dollar_refs(inside, constants) else {
         return;
     };
@@ -1980,6 +1988,21 @@ mod tests {
         assert_eq!(
             substitute_dollar_refs("r: [expr $n + 1]", &c).as_deref(),
             Some("r: [expr 5 + 1]"),
+        );
+    }
+
+    #[test]
+    fn whole_word_cmd_sub_not_wrapped_as_string_interpolation() {
+        // Regression: `puts [expr {$a + $b}]` is a free-standing command
+        // substitution, not a `"…"` string. The interpolation path must not
+        // wrap it in quotes / mis-span it (which produced the corrupt
+        // `puts "[expr {3 + 4}]"]`). No O100 string-interpolation rewrite may
+        // fire on a whole-word `[…]`.
+        let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
+        assert!(
+            opts.iter().all(|o| o.replacement != "\"[expr {3 + 4}]\""
+                && !o.replacement.contains("\"]")),
+            "whole-word cmd-sub must not be string-interpolated, got {opts:?}",
         );
     }
 
