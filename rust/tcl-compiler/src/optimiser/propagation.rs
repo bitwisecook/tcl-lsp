@@ -1537,6 +1537,12 @@ fn substitute_dollar_refs(
     let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());
     let mut i = 0;
+    // Command-substitution nesting depth. A `$var` inside a `"…[cmd $var]…"`
+    // command substitution is a *command argument*, not literal string text:
+    // its value is re-parsed into words, so a multi-word value (e.g. the list
+    // `{a b c}`) would split one argument into several — a miscompile. Track
+    // the depth so those occurrences are held to the single-word bar.
+    let mut cmd_depth = 0u32;
     while i < bytes.len() {
         if bytes[i] == b'\\' {
             // Copy a two-char backslash-escape verbatim.
@@ -1548,6 +1554,18 @@ fn substitute_dollar_refs(
                 out.push('\\');
                 i += 1;
             }
+            continue;
+        }
+        if bytes[i] == b'[' {
+            cmd_depth += 1;
+            out.push('[');
+            i += 1;
+            continue;
+        }
+        if bytes[i] == b']' {
+            cmd_depth = cmd_depth.saturating_sub(1);
+            out.push(']');
+            i += 1;
             continue;
         }
         if bytes[i] != b'$' {
@@ -1596,6 +1614,15 @@ fn substitute_dollar_refs(
         };
         let value = constants.get(&name)?;
         if value.contains(['$', '[', '\\', '"']) {
+            return None;
+        }
+        // Inside a `[…]` command substitution the value becomes a command
+        // word, so it must be a single self-contained word — a value with
+        // whitespace (a list literal like `tran 1n 100n uic`) would split
+        // into multiple arguments. Bail rather than propagate (matches
+        // Python, which leaves the `$var` in place). Plain string-text
+        // occurrences (`cmd_depth == 0`) inline the value verbatim as before.
+        if cmd_depth > 0 && !is_value_safe_bare_word(value) {
             return None;
         }
         out.push_str(value);
@@ -1933,6 +1960,42 @@ mod tests {
         );
         // Missing var → None (cannot partially substitute).
         assert!(substitute_dollar_refs("$unknown", &c).is_none());
+    }
+
+    #[test]
+    fn substitute_dollar_refs_guards_multiword_in_cmd_sub() {
+        let mut c = std::collections::HashMap::new();
+        c.insert("lst".into(), "a b c".into());
+        c.insert("n".into(), "5".into());
+        // A multi-word value in plain string text inlines verbatim (it stays
+        // part of the one string word).
+        assert_eq!(
+            substitute_dollar_refs("x=$lst", &c).as_deref(),
+            Some("x=a b c"),
+        );
+        // The SAME value inside a `[…]` command substitution would split one
+        // argument into several — bail (matches Python, which keeps `$lst`).
+        assert!(substitute_dollar_refs("r: [lsearch $lst x]", &c).is_none());
+        // A single-word value inside a cmd-sub is still safe to inline.
+        assert_eq!(
+            substitute_dollar_refs("r: [expr $n + 1]", &c).as_deref(),
+            Some("r: [expr 5 + 1]"),
+        );
+    }
+
+    #[test]
+    fn list_constant_not_inlined_into_string_cmd_sub() {
+        // Regression: `[lsearch -exact $tokens uic]` must NOT become
+        // `[lsearch -exact tran 1n 100n uic uic]` — that splits the list into
+        // separate args and errors at runtime (`bad option "tran"`).
+        let opts = run_pass(
+            "set tokens {tran 1n 100n uic}\nputs \"r: [lsearch -exact $tokens uic]\"",
+        );
+        assert!(
+            opts.iter()
+                .all(|o| !o.replacement.contains("tran 1n 100n uic uic")),
+            "list literal must not be word-split into the cmd-sub, got {opts:?}",
+        );
     }
 
     #[test]
