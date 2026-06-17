@@ -172,6 +172,21 @@ fn string_cat_and_trim() {
     assert_eq!(run("puts \"[string trimright abcxx x]<\"").2, "abc<\n");
 }
 
+/// `format` rendering, ported into the shared core over `ValueOps`.
+#[test]
+fn format_core() {
+    assert_eq!(run("puts [format %d-%s 5 hi]").2, "5-hi\n");
+    assert_eq!(run("puts [format %05d 42]").2, "00042\n");
+    assert_eq!(run("puts [format %05d -42]").2, "-0042\n");
+    assert_eq!(run("puts [format %+d 42]").2, "+42\n");
+    assert_eq!(run("puts \"[format %-5d 42]|\"").2, "42   |\n");
+    assert_eq!(run("puts [format %#x 255]").2, "0xff\n");
+    assert_eq!(run("puts [format %c 65]").2, "A\n");
+    assert_eq!(run("puts [format %.2f 1.23456]").2, "1.23\n");
+    assert_eq!(run("puts [format %.3s hello]").2, "hel\n");
+    assert_eq!(run("puts [format 100%%]").2, "100%\n");
+}
+
 /// The pure `dict` family, ported into the shared core (over the default
 /// list-backed `dict_pairs`/`new_dict` seam).
 #[test]

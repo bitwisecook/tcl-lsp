@@ -19,6 +19,7 @@
 
 pub mod dict;
 pub mod error;
+pub mod format;
 pub mod index;
 pub mod list;
 pub mod path;
