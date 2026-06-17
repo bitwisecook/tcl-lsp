@@ -45,8 +45,6 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"get" => get(interp, argv),
         b"getdef" | b"getwithdefault" => getdef(interp, argv),
         b"set" => set(interp, argv),
-        b"replace" => replace(interp, argv),
-        b"remove" => remove(interp, argv),
         b"exists" => exists(interp, argv),
         b"unset" => unset(interp, argv),
         b"size" => size(interp, argv),
@@ -259,38 +257,6 @@ fn copy_dict(interp: &mut Interp, src: *mut TclObj) -> Option<*mut TclObj> {
         let _ = dict::dict_set(acc, k, v);
     }
     Some(acc)
-}
-
-/// `dict replace dictionary ?key value ...?` — a copy with the pairs set/added.
-fn replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 3 || argv.len() % 2 == 0 {
-        return wrong_args(interp, b"dict replace dictionary ?key value ...?");
-    }
-    let Some(acc) = copy_dict(interp, argv[2]) else {
-        return Code::Error;
-    };
-    for c in argv[3..].chunks_exact(2) {
-        let _ = dict::dict_set(acc, c[0], c[1]);
-    }
-    interp.set_result(acc);
-    unsafe { obj::decr_ref_count(acc) };
-    Code::Ok
-}
-
-/// `dict remove dictionary ?key ...?` — a copy without the given keys.
-fn remove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 3 {
-        return wrong_args(interp, b"dict remove dictionary ?key ...?");
-    }
-    let Some(acc) = copy_dict(interp, argv[2]) else {
-        return Code::Error;
-    };
-    for &k in &argv[3..] {
-        let _ = dict::dict_unset(acc, &obj_bytes(k));
-    }
-    interp.set_result(acc);
-    unsafe { obj::decr_ref_count(acc) };
-    Code::Ok
 }
 
 /// `dict getwithdefault`/`getdef dictionary ?key ...? key default` — like
@@ -1098,6 +1064,19 @@ mod tests {
     #[test]
     fn merge_later_wins_first_position_kept() {
         assert_eq!(ok(b"dict merge {a 1 b 2} {b 9 c 3}"), b"a 1 b 9 c 3");
+    }
+
+    #[test]
+    fn replace_and_remove() {
+        // `replace` upserts (existing key keeps position; new key appends).
+        assert_eq!(ok(b"dict replace {a 1 b 2} b 3 c 4"), b"a 1 b 3 c 4");
+        assert_eq!(ok(b"dict replace {a 1 b 2}"), b"a 1 b 2");
+        // `remove` drops the named keys; a missing key is not an error.
+        assert_eq!(ok(b"dict remove {a 1 b 2 c 3} b d"), b"a 1 c 3");
+        assert_eq!(ok(b"dict remove {a 1 b 2}"), b"a 1 b 2");
+        // An odd key/value count to `replace` is a wrong-# args error.
+        let (c, _) = run(b"dict replace {a 1} b");
+        assert_eq!(c, Code::Error);
     }
 
     #[test]

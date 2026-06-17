@@ -115,6 +115,10 @@ fn dict_ops() {
         "set sum 0\ndict for {k v} {a 1 b 2 c 3} { incr sum $v }\nputs $sum\n",
         "6\n",
     );
+    // `replace` / `remove` (shared command core; the VM gained these via the
+    // `dispatch_canon` seam).
+    out_eq("puts [dict replace {a 1 b 2} b 3 c 4]\n", "a 1 b 3 c 4\n");
+    out_eq("puts [dict remove {a 1 b 2 c 3} b d]\n", "a 1 c 3\n");
 }
 
 #[test]

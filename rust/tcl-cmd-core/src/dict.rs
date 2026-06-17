@@ -153,6 +153,41 @@ pub fn merge<O: ValueOps>(ops: &mut O, dicts: &[O::Value]) -> Result<O::Value, C
     Ok(ops.new_dict(acc))
 }
 
+/// `dict replace dictionary ?key value ...?` — the dict with the pairs upserted
+/// (last value wins, position preserved). An odd number of `kv` args errors.
+pub fn replace<O: ValueOps>(
+    ops: &mut O,
+    dict: &O::Value,
+    kv: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    if kv.len() % 2 != 0 {
+        return Err(CmdError::wrong_args("dict replace dictionary ?key value ...?"));
+    }
+    let mut pairs = ops.dict_pairs(dict)?;
+    for chunk in kv.chunks_exact(2) {
+        upsert(ops, &mut pairs, &chunk[0], chunk[1].clone());
+    }
+    Ok(ops.new_dict(pairs))
+}
+
+/// `dict remove dictionary ?key ...?` — the dict without the given keys (a
+/// missing key is not an error). The result is canonicalised.
+pub fn remove<O: ValueOps>(
+    ops: &mut O,
+    dict: &O::Value,
+    keys: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    let pairs = ops.dict_pairs(dict)?;
+    let drop: Vec<String> = keys.iter().map(|k| ops.as_str(k).to_string()).collect();
+    let mut kept: Vec<(O::Value, O::Value)> = Vec::with_capacity(pairs.len());
+    for (k, v) in pairs {
+        if !drop.contains(&ops.as_str(&k).to_string()) {
+            kept.push((k, v));
+        }
+    }
+    Ok(ops.new_dict(kept))
+}
+
 /// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand.
 /// Returns `None` for a not-yet-ported (variable-mutating) subcommand so the
 /// caller falls back to its legacy path.
@@ -190,6 +225,16 @@ pub fn dispatch_canon<O: ValueOps>(
             _ => Some(Err(CmdError::wrong_args("dict size dictionary"))),
         },
         "merge" => Some(merge(ops, rest)),
+        "replace" => match rest.split_first() {
+            Some((d, kv)) => Some(replace(ops, d, kv)),
+            None => Some(Err(CmdError::wrong_args(
+                "dict replace dictionary ?key value ...?",
+            ))),
+        },
+        "remove" => match rest.split_first() {
+            Some((d, keys)) => Some(remove(ops, d, keys)),
+            None => Some(Err(CmdError::wrong_args("dict remove dictionary ?key ...?"))),
+        },
         _ => None,
     }
 }
