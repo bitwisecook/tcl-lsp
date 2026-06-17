@@ -309,19 +309,15 @@ impl CfgBuilder {
 
     // ── switch ────────────────────────────────────────────────────
 
-    /// Flatten `Statement::Switch` into a chain of arm-dispatch branches.
+    /// Lower a `Statement::Switch`.
     ///
-    /// All three modes flow through the structured path so SSA recovers
-    /// the subject + arm-body variable reads. Exact arms branch on a
-    /// foldable `STR_EQ(subject, pattern)` (so the bytecode backend can
-    /// build a real jump table); glob/regexp arms branch on a
-    /// non-foldable `Raw(subject)` condition — string equality is the
-    /// wrong predicate for those modes, and a foldable condition would
-    /// let SCCP spuriously kill arms. Glob/regexp dispatches are also
-    /// recorded in [`crate::cfg::Function::switch_dispatches`] so codegen
-    /// emits a generic `switch` invoke instead of walking the chain
-    /// (matching tclsh's un-compiled approach for those modes).
-    #[allow(clippy::too_many_lines)]
+    /// Glob/regexp switches, and exact switches with any fall-through arm, are
+    /// kept **opaque** (a single `Statement::Switch` in the block) — see the
+    /// early return below; codegen emits a generic `switch` invoke and SSA
+    /// recovers the reads via `ssa::uses_of`. An exact switch without
+    /// fall-through is flattened into a chain of arm-dispatch branches on a
+    /// foldable `STR_EQ(subject, pattern)` so the bytecode backend can build a
+    /// real jump table.
     pub(super) fn lower_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Switch {
             span,
@@ -330,7 +326,6 @@ impl CfgBuilder {
             default_body,
             default_span,
             mode,
-            raw_args,
             ..
         } = stmt
         else {
@@ -443,59 +438,7 @@ impl CfgBuilder {
             self.ensure_goto(&default_block, &end_block, Some(*span));
         }
 
-        // Glob/regexp: record the dispatch so codegen emits a generic
-        // `switch` invoke and skips the structured (analyser-only)
-        // blocks. Members = everything reachable from the entry's
-        // successors, stopping at the join block.
-        if *mode != SwitchMode::Exact {
-            let member_blocks = self.collect_switch_members(block_name, &end_block);
-            self.switch_dispatches.insert(
-                block_name.to_owned(),
-                crate::cfg::SwitchDispatch {
-                    mode: *mode,
-                    raw_args: raw_args.clone(),
-                    end_block: end_block.clone(),
-                    member_blocks,
-                },
-            );
-        }
-
         end_block
-    }
-
-    /// Collect every block belonging to a glob/regexp switch: a BFS
-    /// from the entry dispatch block's successors, stopping at (and
-    /// excluding) the join block `end_block`. The entry block itself is
-    /// excluded — codegen still emits its preceding statements and only
-    /// intercepts its terminator.
-    fn collect_switch_members(&self, entry: &str, end_block: &str) -> Vec<String> {
-        use std::collections::HashSet;
-        let mut members = Vec::new();
-        let mut seen: HashSet<String> = HashSet::new();
-        seen.insert(end_block.to_owned());
-        seen.insert(entry.to_owned());
-        let mut queue: Vec<String> = self
-            .blocks
-            .get(entry)
-            .and_then(|b| b.terminator.as_ref())
-            .map(|t| t.successors().iter().map(|s| (*s).to_owned()).collect())
-            .unwrap_or_default();
-        while let Some(name) = queue.pop() {
-            if !seen.insert(name.clone()) {
-                continue;
-            }
-            members.push(name.clone());
-            if let Some(block) = self.blocks.get(&name)
-                && let Some(term) = &block.terminator
-            {
-                for succ in term.successors() {
-                    if !seen.contains(succ) {
-                        queue.push(succ.to_owned());
-                    }
-                }
-            }
-        }
-        members
     }
 
     // ── try ───────────────────────────────────────────────────────
@@ -878,11 +821,8 @@ mod tests {
             matches!(entry.terminator, Some(Terminator::Goto { .. })),
             "opaque switch block falls through via a goto, not a branch dispatch"
         );
-        assert!(
-            func.switch_dispatches.is_empty(),
-            "opaque switches record no dispatch (codegen emits from the statement)"
-        );
-        // Only the entry + the synthetic trailing exit block exist.
+        // Only the entry + the synthetic trailing exit block exist (no arm
+        // blocks — codegen emits a generic invoke from the statement).
         assert_eq!(func.blocks.len(), 2);
     }
 
@@ -892,10 +832,8 @@ mod tests {
         let entry = &func.blocks[&func.entry];
         assert!(matches!(entry.statements[0], Statement::Switch { .. }));
         assert!(matches!(entry.terminator, Some(Terminator::Goto { .. })));
-        assert!(func.switch_dispatches.is_empty());
         // Exact switches without fall-through keep the real expanded jump table.
         let exact = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Exact), true);
-        assert!(exact.switch_dispatches.is_empty());
         assert!(
             matches!(
                 exact.blocks[&exact.entry].terminator,

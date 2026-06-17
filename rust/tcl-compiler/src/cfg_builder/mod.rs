@@ -34,9 +34,6 @@ pub(crate) struct CfgBuilder {
     counter: u32,
     blocks: HashMap<String, MutableBlock>,
     loop_nodes: HashMap<String, LoopNode>,
-    /// Glob/regexp `switch` dispatch metadata accumulated during
-    /// lowering; frozen into [`Function::switch_dispatches`].
-    switch_dispatches: HashMap<String, crate::cfg::SwitchDispatch>,
     inline_loops: bool,
     /// Map from command name to upvar summary, used to pre-populate
     /// caller-side `defs` on calls to procs that use `upvar`.  Empty
@@ -90,7 +87,6 @@ impl CfgBuilder {
             counter: 0,
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
-            switch_dispatches: HashMap::new(),
             inline_loops,
             upvar_procs,
             proc_params,
@@ -370,7 +366,6 @@ impl CfgBuilder {
             .collect();
 
         let loop_nodes = std::mem::take(&mut self.loop_nodes);
-        let switch_dispatches = std::mem::take(&mut self.switch_dispatches);
         let exception_edges = std::mem::take(&mut self.exception_edges);
 
         Function {
@@ -378,7 +373,6 @@ impl CfgBuilder {
             entry,
             blocks: frozen,
             loop_nodes,
-            switch_dispatches,
             exception_edges,
         }
     }
