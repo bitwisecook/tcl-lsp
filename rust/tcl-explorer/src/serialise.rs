@@ -627,20 +627,15 @@ fn ssa_value_detail(
 /// per-statement SSA `uses`/`defs` with lattice + type detail, plus a
 /// function-level `analysis` block. Mirrors `_serialise_cfg_post_ssa`.
 ///
-/// `_NO_PARITY`: `analysis.deadStores` lists the optimiser's **O109** dead
-/// stores (where Rust actually computes them, with full suppression), which
-/// differs from Python's standalone-liveness `dead_stores`. The
-/// lattice/type detail comes from the Rust analyses;
-/// `constantBranches`/`unreachableBlocks`/`inferredTypes` come from SCCP +
-/// the type lattice.
+/// `analysis.deadStores` is the per-function liveness-based set
+/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), byte-identical to
+/// Python's `analysis.dead_stores`. The lattice/type detail comes from the Rust
+/// analyses; `constantBranches`/`unreachableBlocks`/`inferredTypes` come from
+/// SCCP + the type lattice.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
-    // Dead stores are O109 optimiser findings (Rust has no standalone
-    // liveness pass); compute them once for the whole unit, then attach each
-    // to its function's analysis block below.
     let registry = registry_for_dialect(&result.dialect);
-    let dead_stores = find_dead_stores(&result.unit, registry, Some(&result.dialect));
     let funcs: Vec<Value> = result
         .snapshots()
         .iter()
@@ -728,7 +723,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                 "blockCount": cfg.blocks.len(),
                 "blocks": blocks,
                 "edges": serialise_cfg_edges(cfg, &order),
-                "analysis": post_ssa_analysis(snap, &dead_stores),
+                "analysis": post_ssa_analysis(snap, registry),
             })
         })
         .collect();
@@ -737,11 +732,12 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
 
 /// The function-level `analysis` block of the post-SSA CFG view.
 ///
-/// `dead_stores` is the whole-unit O109 list; the entries for this function
-/// (matched by qualified name) are emitted in `deadStores`.
+/// `deadStores` is the per-function liveness-based set
+/// ([`tcl_compiler::dead_stores::liveness_dead_stores`]), matching Python's
+/// `analysis.dead_stores`.
 fn post_ssa_analysis(
     snap: &crate::FunctionSnapshot,
-    dead_stores: &[tcl_compiler::optimiser::DeadStore],
+    registry: &tcl_registry::CommandRegistry,
 ) -> Value {
     let sccp = &snap.unit.sccp;
     let constant_branches: Vec<Value> = sccp
@@ -781,23 +777,20 @@ fn post_ssa_analysis(
         }
     }
 
-    // O109 dead stores for this function, in block/statement order.
-    let mut fn_dead: Vec<&tcl_compiler::optimiser::DeadStore> = dead_stores
-        .iter()
-        .filter(|d| d.function == snap.name)
-        .collect();
-    fn_dead.sort_by(|a, b| (&a.block, a.statement_index).cmp(&(&b.block, b.statement_index)));
-    let dead_store_values: Vec<Value> = fn_dead
-        .iter()
-        .map(|d| {
-            json!({
-                "block": d.block,
-                "stmtIndex": d.statement_index,
-                "variable": d.variable,
-                "version": d.version,
+    // Liveness-based dead stores for this function (Python's
+    // `analysis.dead_stores`), already in deterministic block/statement order.
+    let dead_store_values: Vec<Value> =
+        tcl_compiler::dead_stores::liveness_dead_stores(snap.unit, registry)
+            .iter()
+            .map(|d| {
+                json!({
+                    "block": d.block,
+                    "stmtIndex": d.statement_index,
+                    "variable": d.variable,
+                    "version": d.version,
+                })
             })
-        })
-        .collect();
+            .collect();
 
     json!({
         "constantBranches": constant_branches,

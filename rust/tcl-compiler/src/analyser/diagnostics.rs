@@ -5744,11 +5744,19 @@ file; this call falls through to the 'unknown' handler."
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> HashSet<String> {
+        self.registry
+            .as_ref()
+            .map_or_else(HashSet::new, |reg| Self::substitution_hidden_reads_of(fu, reg))
+    }
+
+    /// `self`-free core of [`Self::substitution_hidden_reads`] so the explorer's
+    /// liveness dead-store pass (which has no `Analyser`) can reuse it.
+    pub(crate) fn substitution_hidden_reads_of(
+        fu: &crate::compilation_unit::FunctionUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> HashSet<String> {
         use crate::var_refs::{VarReferenceScanner, VarScanOptions};
         let mut out = HashSet::new();
-        let Some(registry) = self.registry.as_ref() else {
-            return out;
-        };
         // Command-argument + AssignValue substitutions (deep RMW scan minus
         // shallow), already factored out for the optimiser's elimination pass.
         out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
