@@ -5733,44 +5733,6 @@ file; this call falls through to the 'unknown' handler."
         })
     }
 
-    /// W220 — dead-store hint.
-    ///
-    /// Mirrors `_emit_dead_store_diagnostics` in
-    /// `_diag_var_lifecycle.py:29-72`, plus the
-    /// IR-statement-type / SCCP path-sensitivity filters baked
-    /// into Python's underlying `_dead_stores` analysis
-    /// (`core_analyses.py:1105-1156`).  A *dead store* is an
-    /// assignment whose value is overwritten before being read —
-    /// some other SSA version of the same variable is live, so
-    /// this version's value never reaches a user.
-    ///
-    /// Walks every dead [`Statement`](crate::ir::Statement) chain
-    /// in `fu.def_use`, checks that another version of the same
-    /// variable has live uses, and emits a Hint at the dead
-    /// statement's span.  When the variable's name has a
-    /// case-insensitive twin among `defined_vars`, the message
-    /// includes a "did you mean…?" suggestion.
-    ///
-    /// Filters applied (each one mirrors a Python suppression):
-    ///
-    /// 1. **SCCP-unreachable blocks** — definitions in blocks
-    ///    SCCP proved unreachable are reported as O107 by the
-    ///    optimiser and intentionally suppressed here so we
-    ///    don't double-up on dead-code calls.
-    /// 2. **Scope aliases** (`global` / `upvar`) — writes are
-    ///    visible in another scope; the local "no use" verdict
-    ///    is unsafe.
-    /// 3. **Cross-event vars** — for `pkgIndex.tcl` `$dir` and
-    ///    iRules `::when::*` cross-event defs/imports, a write
-    ///    in one event may be read in another at runtime.
-    /// 4. **Globals (`::`-prefixed)** — externally consumed.
-    ///    Python skips them in `_dead_stores`.
-    /// 5. **Side-effecting stores** — only `AssignConst`,
-    ///    `AssignValue` without `[`, and `AssignExpr` without a
-    ///    command call are considered.  `Call.defs`, `Incr`, and
-    ///    other side-effecting writes shouldn't be flagged
-    ///    because removing the assignment would also drop the
-    ///    side effect.
     /// Variable names read inside positions the version-precise SSA `used`
     /// set can't see — `[…]` command substitutions in command arguments,
     /// `expr` values, and `if`/`while`/`for` branch conditions. A write to
@@ -5821,6 +5783,44 @@ file; this call falls through to the 'unknown' handler."
         out
     }
 
+    /// W220 — dead-store hint.
+    ///
+    /// Mirrors `_emit_dead_store_diagnostics` in
+    /// `_diag_var_lifecycle.py:29-72`, plus the
+    /// IR-statement-type / SCCP path-sensitivity filters baked
+    /// into Python's underlying `_dead_stores` analysis
+    /// (`core_analyses.py:1105-1156`).  A *dead store* is an
+    /// assignment whose value is overwritten before being read —
+    /// some other SSA version of the same variable is live, so
+    /// this version's value never reaches a user.
+    ///
+    /// Walks every dead [`Statement`](crate::ir::Statement) chain
+    /// in `fu.def_use`, checks that another version of the same
+    /// variable has live uses, and emits a Hint at the dead
+    /// statement's span.  When the variable's name has a
+    /// case-insensitive twin among `defined_vars`, the message
+    /// includes a "did you mean…?" suggestion.
+    ///
+    /// Filters applied (each one mirrors a Python suppression):
+    ///
+    /// 1. **SCCP-unreachable blocks** — definitions in blocks
+    ///    SCCP proved unreachable are reported as O107 by the
+    ///    optimiser and intentionally suppressed here so we
+    ///    don't double-up on dead-code calls.
+    /// 2. **Scope aliases** (`global` / `upvar`) — writes are
+    ///    visible in another scope; the local "no use" verdict
+    ///    is unsafe.
+    /// 3. **Cross-event vars** — for `pkgIndex.tcl` `$dir` and
+    ///    iRules `::when::*` cross-event defs/imports, a write
+    ///    in one event may be read in another at runtime.
+    /// 4. **Globals (`::`-prefixed)** — externally consumed.
+    ///    Python skips them in `_dead_stores`.
+    /// 5. **Side-effecting stores** — only `AssignConst`,
+    ///    `AssignValue` without `[`, and `AssignExpr` without a
+    ///    command call are considered.  `Call.defs`, `Incr`, and
+    ///    other side-effecting writes shouldn't be flagged
+    ///    because removing the assignment would also drop the
+    ///    side effect.
     fn emit_dead_store_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -6329,6 +6329,7 @@ file; this call falls through to the 'unknown' handler."
     /// - Everything else emits W210 with the canonical
     ///   "read before set" message + optional "did you mean…?"
     ///   suggestion.
+    #[allow(clippy::too_many_lines)]
     fn emit_read_before_set_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,

@@ -279,7 +279,171 @@ fn simplify_node_once(node: &ExprNode) -> ExprNode {
     if let Some(rewritten) = streq_promote_node(&lowered) {
         return rewritten;
     }
+    if let Some(rewritten) = reassociate_node(&lowered) {
+        return rewritten;
+    }
     lowered
+}
+
+/// **O110 constant reassociation.** Combine the integer-literal constants
+/// across a left-associative `+`/`-` (resp. `*`) chain while keeping every
+/// non-constant term: `$a + 1 + 2` → `$a + 3`, `$a + 3 - 1` → `$a + 2`,
+/// `$a * 2 * 3` → `$a * 6`. Mirrors `_collect_add_terms` / `_collect_mul_terms`
+/// + `_build_*_expr` in `compiler/optimiser/_expr_simplify.py`.
+///
+/// Fires only when one operand is itself an additive (resp. multiplicative)
+/// chain — a pure operand reorder (`1 + $a` → `$a + 1`) is suppressed as
+/// noise. All non-constant terms are preserved, so numeric-coercion error
+/// semantics are unchanged. The two term-dropping cases that *would* need a
+/// provably-numeric guard (annihilating `* 0`, dropping a lone `* 1`) are
+/// skipped — Python proves numericity from the SSA type lattice, which this
+/// AST-level pass cannot, so it conservatively leaves them be.
+fn reassociate_node(node: &ExprNode) -> Option<ExprNode> {
+    let ExprNode::Binary { op, left, right } = node else {
+        return None;
+    };
+    match op {
+        BinOp::Add | BinOp::Sub => {
+            if !is_additive(left) && !is_additive(right) {
+                return None;
+            }
+            let mut terms = Vec::new();
+            let constant = collect_add_terms(node, &mut terms)?;
+            if constant == i64::MIN {
+                return None; // `-constant` would overflow in the builder
+            }
+            let built = build_add_expr(&terms, constant);
+            (render_expr(&built) != render_expr(node)).then_some(built)
+        }
+        BinOp::Mul => {
+            if !is_mul(left) && !is_mul(right) {
+                return None;
+            }
+            let mut terms = Vec::new();
+            let constant = collect_mul_terms(node, &mut terms)?;
+            // Conservative: don't drop terms without a numeric proof.
+            if constant == 0 || (constant == 1 && terms.len() == 1) {
+                return None;
+            }
+            let built = build_mul_expr(&terms, constant);
+            (render_expr(&built) != render_expr(node)).then_some(built)
+        }
+        _ => None,
+    }
+}
+
+fn is_additive(n: &ExprNode) -> bool {
+    matches!(
+        n,
+        ExprNode::Binary {
+            op: BinOp::Add | BinOp::Sub,
+            ..
+        }
+    )
+}
+
+fn is_mul(n: &ExprNode) -> bool {
+    matches!(n, ExprNode::Binary { op: BinOp::Mul, .. })
+}
+
+/// Flatten an `+`/`-` chain: accumulate the literal constant and push every
+/// non-literal term onto `terms`. A `-` is followed only when its RHS is an
+/// integer literal (otherwise the whole node is an opaque term — Python does
+/// not negate a non-literal subtrahend here). `None` on integer overflow.
+fn collect_add_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
+    if let ExprNode::Binary { op, left, right } = node {
+        match op {
+            BinOp::Add => {
+                let l = collect_add_terms(left, terms)?;
+                let r = collect_add_terms(right, terms)?;
+                return l.checked_add(r);
+            }
+            BinOp::Sub => {
+                if let Some(rhs) = int_literal_value(right) {
+                    let l = collect_add_terms(left, terms)?;
+                    return l.checked_sub(rhs);
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(v) = int_literal_value(node) {
+        return Some(v);
+    }
+    terms.push(node.clone());
+    Some(0)
+}
+
+fn build_add_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
+    let Some((first, rest)) = terms.split_first() else {
+        return make_int_literal(constant);
+    };
+    let mut result = first.clone();
+    for term in rest {
+        result = ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(result),
+            right: Box::new(term.clone()),
+        };
+    }
+    match constant.cmp(&0) {
+        std::cmp::Ordering::Greater => ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(result),
+            right: Box::new(make_int_literal(constant)),
+        },
+        std::cmp::Ordering::Less => ExprNode::Binary {
+            op: BinOp::Sub,
+            left: Box::new(result),
+            right: Box::new(make_int_literal(-constant)),
+        },
+        std::cmp::Ordering::Equal => result,
+    }
+}
+
+/// Flatten a `*` chain: multiply the literal constants, push non-literals.
+/// `None` on integer overflow.
+fn collect_mul_terms(node: &ExprNode, terms: &mut Vec<ExprNode>) -> Option<i64> {
+    if let ExprNode::Binary {
+        op: BinOp::Mul,
+        left,
+        right,
+    } = node
+    {
+        let l = collect_mul_terms(left, terms)?;
+        let r = collect_mul_terms(right, terms)?;
+        return l.checked_mul(r);
+    }
+    if let Some(v) = int_literal_value(node) {
+        return Some(v);
+    }
+    terms.push(node.clone());
+    Some(1)
+}
+
+fn build_mul_expr(terms: &[ExprNode], constant: i64) -> ExprNode {
+    if constant == 0 {
+        return make_int_literal(0);
+    }
+    let Some((first, rest)) = terms.split_first() else {
+        return make_int_literal(constant);
+    };
+    let mut result = first.clone();
+    for term in rest {
+        result = ExprNode::Binary {
+            op: BinOp::Mul,
+            left: Box::new(result),
+            right: Box::new(term.clone()),
+        };
+    }
+    if constant != 1 {
+        result = ExprNode::Binary {
+            op: BinOp::Mul,
+            left: Box::new(result),
+            right: Box::new(make_int_literal(constant)),
+        };
+    }
+    result
 }
 
 /// Run [`simplify_node_once`] until the AST stops changing.
@@ -978,6 +1142,42 @@ mod tests {
         let (out, changed) = instcombine_expr("$x + $y", false);
         assert!(!changed);
         assert_eq!(out, "$x + $y");
+    }
+
+    #[test]
+    fn o110_reassociates_constant_chains() {
+        // Additive and multiplicative constant reassociation (O110).
+        for (input, want) in [
+            ("$a + 1 + 2", "$a + 3"),
+            ("$a * 2 * 3", "$a * 6"),
+            ("$a + 3 - 1", "$a + 2"),
+            ("$a - 1 - 2", "$a - 3"),
+            ("5 + $a - 2", "$a + 3"),
+            ("$a + $b + 1 + 2", "$a + $b + 3"),
+            ("$a + 1 - 1", "$a"),
+        ] {
+            let (out, changed) = instcombine_expr(input, false);
+            assert!(changed, "expected a rewrite for {input:?}");
+            assert_eq!(out.trim(), want, "for {input:?}");
+        }
+    }
+
+    #[test]
+    fn o110_skips_pure_reorder_and_unsafe_drops() {
+        // No additive chain to flatten → the reassociation does not fire
+        // (a bare `1 + $a` reorder is left to other passes / suppressed).
+        assert!(
+            reassociate_node(&parse_expr("1 + $a", None)).is_none(),
+            "reassociation must not fire on a non-chain reorder",
+        );
+        // `* 0` annihilation across a chain needs a numeric proof this
+        // AST-level pass cannot make, so the reassociation abstains (the
+        // result, if any, comes from the separate identity pass, not here).
+        let parsed = parse_expr("$a * 0 * 3", None);
+        assert!(
+            reassociate_node(&parsed).is_none(),
+            "reassociation must not annihilate `* 0` without a numeric proof",
+        );
     }
 
     #[test]

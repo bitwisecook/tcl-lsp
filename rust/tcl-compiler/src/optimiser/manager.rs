@@ -382,8 +382,8 @@ fn couple_const_dead_stores_in_function(
             .filter(|o| {
                 !o.hint_only
                     && is_propagation_code(&o.code)
-                    && o.span.start() >= fs as u32
-                    && o.span.start() <= fe as u32
+                    && (o.span.start() as usize) >= fs
+                    && (o.span.start() as usize) <= fe
             })
             .map(|o| consumed_var_count(o, source, var))
             .sum();
@@ -452,7 +452,10 @@ fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
     } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
         end += 2;
     }
-    tcl_lexer::Span::new(start as u32, end as u32)
+    tcl_lexer::Span::new(
+        u32::try_from(start).unwrap_or(u32::MAX),
+        u32::try_from(end).unwrap_or(u32::MAX),
+    )
 }
 
 /// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.
