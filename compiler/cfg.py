@@ -44,6 +44,7 @@ from .ir import (
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRFor,
@@ -56,6 +57,7 @@ from .ir import (
     IRStatement,
     IRSwitch,
     IRTry,
+    IRUpFrame,
     IRWhile,
 )
 
@@ -74,6 +76,131 @@ def _terminating_commands() -> frozenset[str]:
 
 
 _TERMINATING_COMMANDS = _terminating_commands()
+
+
+# --- Definite-assignment ("flow facts") over un-lowered IR scripts ------------
+#
+# Shared by the CFG builder (to promote an opaque ``switch`` whose every arm
+# exits to a terminator) and by SSA (to recover the def set an opaque switch
+# *definitely* establishes).  Lives here, at the control-flow layer, so both
+# consumers agree on one definition of "cannot complete normally" — SSA imports
+# these rather than re-deriving them.
+
+
+def _flow_facts_stmt(stmt: IRStatement) -> tuple[set[str], bool]:
+    """``(must-defines, can-complete-normally)`` for a single statement.
+
+    * assignments (``set``/``incr``/``expr``-assign) contribute their target
+      and complete;
+    * a plain ``IRCall`` contributes its synthetic ``defs`` and completes —
+      *except* a non-returning one (``error``/``throw``/``exit`` via the
+      ``terminates_block`` trait, ``break``/``continue``, or ``tailcall``),
+      which cannot complete; ``IRReturn`` and a ``return -code``/expansion
+      ``IRBarrier`` likewise cannot complete;
+    * ``IRBlock`` / ``IRUpFrame`` bodies always run, so recurse;
+    * an ``IRIf`` *with* an else, or an ``IRSwitch`` *with* a default, takes the
+      intersection over its completing branches (and is non-completing only when
+      every branch is); an else-less ``IRIf`` / default-less ``IRSwitch`` has a
+      fall-through path, so it completes assigning nothing for certain;
+    * loops (``IRFor``/``IRWhile``/``IRForeach``), ``IRCatch``/``IRTry`` and
+      everything else may not execute / always complete, so they contribute no
+      must-define and complete normally.
+    """
+    if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
+        name = _normalise_var_name(stmt.name)
+        return ({name} if name else set()), True
+    if isinstance(stmt, IRReturn):
+        return set(), False
+    if isinstance(stmt, IRBarrier):
+        if stmt.reason in ("return with options", "return with expansion"):
+            return set(), False
+        return set(), True
+    if isinstance(stmt, IRCall):
+        canon = stmt.canonical_command.lstrip(":") if stmt.canonical_command else ""
+        # ``tailcall`` always exits the proc (``TclNRTailcallObjCmd`` returns
+        # TCL_RETURN for any arg count), so it cannot complete normally.
+        non_returning = canon in _TERMINATING_COMMANDS or canon in ("break", "continue", "tailcall")
+        return set(stmt.defs), not non_returning
+    if isinstance(stmt, (IRBlock, IRUpFrame)):
+        return _flow_facts_script(stmt.body)
+    if isinstance(stmt, IRIf):
+        if stmt.else_body is None:
+            return set(), True
+        bodies = [clause.body for clause in stmt.clauses]
+        bodies.append(stmt.else_body)
+        return _intersect_completing(bodies)
+    if isinstance(stmt, IRSwitch):
+        if stmt.default_body is None:
+            return set(), True
+        bodies = [stmt.default_body]
+        bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
+        return _intersect_completing(bodies)
+    return set(), True
+
+
+def _flow_facts_script(script: IRScript) -> tuple[set[str], bool]:
+    """``(vars definitely assigned at normal completion, can-complete-normally)``.
+
+    Sound definite-assignment over an un-lowered IR script: walk the statements
+    in order accumulating must-defines; the first statement that cannot complete
+    normally makes everything after it dead and the whole script non-completing.
+    Only names guaranteed to be assigned are returned, so it never over-claims
+    (which would hide a real read-before-set).  Mirrors
+    ``definitely_assigned_in_script`` in the Rust oracle (``ssa.rs``).
+    """
+    assigned: set[str] = set()
+    for stmt in script.statements:
+        defs, completes = _flow_facts_stmt(stmt)
+        assigned |= defs
+        if not completes:
+            return assigned, False
+    return assigned, True
+
+
+def _intersect_completing(bodies: list[IRScript]) -> tuple[set[str], bool]:
+    """``(must-defines over the branches that can complete, any-completes)``.
+
+    The intersection skips any branch that cannot complete normally: such a
+    branch never reaches the control-flow merge, so by the standard
+    definite-assignment rule it vacuously defines everything (⊤, the identity
+    of intersection).  ``any-completes`` is False only when *every* branch is
+    non-completing — then the merge itself is unreachable.
+    """
+    common: set[str] | None = None
+    completes_any = False
+    for body in bodies:
+        assigned, completes = _flow_facts_script(body)
+        if not completes:
+            continue
+        completes_any = True
+        common = set(assigned) if common is None else (common & assigned)
+    return (common or set()), completes_any
+
+
+def _switch_must_defines(stmt: IRSwitch) -> set[str]:
+    """Variables an opaque ``switch`` assigns on *every* reaching path.
+
+    Empty unless the switch has a ``default`` arm (otherwise an unmatched
+    subject falls through assigning nothing).  With a default, the result is
+    the intersection of the must-define sets of the default body and of every
+    arm that has a body — a fall-through arm with no body delegates to a later
+    arm's body, which is already counted, so it contributes nothing on its own.
+    An arm that *cannot complete normally* (always ``return``s / ``error``s /
+    ``break``s / …) never reaches the code after the switch, so it is excluded
+    from the intersection.  Mirrors the exhaustive-switch rule in the Rust
+    oracle (``ssa.rs``).
+    """
+    return _flow_facts_stmt(stmt)[0]
+
+
+def _switch_completes_normally(stmt: IRSwitch) -> bool:
+    """Whether an opaque ``switch`` can reach the code after it.
+
+    False only when it has a ``default`` *and* every arm-with-a-body plus the
+    default cannot complete normally — then no path falls through, so the
+    switch is itself a terminator.
+    """
+    return _flow_facts_stmt(stmt)[1]
 
 
 def _static_var_write_defs(seg: SegmentedCommand) -> list[str]:
@@ -1165,6 +1292,29 @@ class _CFGBuilder:
 
         return end_block
 
+    def _maybe_terminate_opaque_switch(self, stmt: IRSwitch, block_name: str) -> None:
+        """Terminate *block_name* when an opaque ``switch`` can't fall through.
+
+        An opaque switch is kept as a single ``IRSwitch`` statement that
+        normally falls through to the next statement.  But when it has a
+        ``default`` arm and *every* reachable arm body (default + each arm with
+        a body) cannot complete normally — e.g. every arm ``return``s /
+        ``error``s / ``tailcall``s — no path reaches the code after the switch,
+        so the switch is itself a terminator.  Promote the block to a
+        ``CFGReturn`` so the following statements are routed to the orphan
+        unreachable block (exactly like a ``return``/``tailcall``), instead of
+        being falsely analysed as reachable.
+
+        Analysis builds only (``faithful_exceptions``); codegen leaves the
+        fall-through edge so the opaque-switch ``invokeStk`` bytecode and CFG
+        shape are unchanged.  Conservative: only fires when provably
+        non-completing, so it never hides a real read-before-set.
+        """
+        if self._faithful_exceptions and not _switch_completes_normally(stmt):
+            self._block(block_name).terminator = CFGReturn(
+                value=None, range=stmt.range, expr=None, braced=False
+            )
+
     def _lower_switch(self, stmt: IRSwitch, block_name: str) -> str | None:
         # ``-regexp`` needs a runtime regex engine pass we haven't plumbed
         # through the CFG, and ``-glob`` matching can't be expressed by the
@@ -1180,9 +1330,11 @@ class _CFGBuilder:
         # ``_emit_switch`` handles OR-matching for fallthrough groups.
         if stmt.mode in ("glob", "regexp"):
             self._block(block_name).statements.append(stmt)
+            self._maybe_terminate_opaque_switch(stmt, block_name)
             return block_name
         if any(arm.fallthrough for arm in stmt.arms) and not self._expand_fallthrough_switch:
             self._block(block_name).statements.append(stmt)
+            self._maybe_terminate_opaque_switch(stmt, block_name)
             return block_name
 
         end_block = self._new_block("switch_end")

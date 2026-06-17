@@ -2572,6 +2572,104 @@ resolves.
 
 ---
 
+### FP-RBS-15 — opaque switch whose every arm exits is itself a terminator
+
+- **Verdict:** FALSE POSITIVE (W210) — an opaque `switch` whose every reachable
+  arm `return`s / `error`s / `tailcall`s never falls through, so the code after
+  it is unreachable; the CFG modelled the switch as a fall-through statement, so
+  a read in that dead code was analysed as reachable and fired W210.
+- **Status:** FIXED. Extends FP-RBS-14 (which excludes non-completing arms from
+  the must-define) to the case where *all* arms are non-completing: the switch
+  itself becomes a terminator.
+- **Codes:** W210
+- **Corpus:** synthetic (exhaustive dispatch `switch` where every arm returns).
+
+#### Reproducer
+
+```tcl
+proc f {x} {
+    # every arm returns, so control never reaches `puts $y`:
+    # the switch is a terminator and the read is dead code.
+    switch -glob $x {
+        a* { return 1 }
+        default { return 2 }
+    }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `switch -glob $x { … }` is opaque (one `IRSwitch` statement; not lowered to
+   CFG blocks). It has a `default`, so the subject always selects some arm.
+2. `a* { return 1 }` and `default { return 2 }` — *every* reachable arm body
+   `return`s, so none can complete normally. With a `default` present there is
+   no fall-through path, so **no execution reaches `puts $y`**.
+3. `puts $y` — dead code. tclsh never evaluates it, so reading the unset `y`
+   here is not a runtime error; W210 must not fire.
+4. Pre-fix the opaque switch always fell through to the next statement, so the
+   block edged into the `puts $y` statement and W210 fired on a read that can
+   never execute.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% f abc
+1
+% f zzz
+2
+```
+
+`f` always returns from inside the switch; the `puts $y` after it never runs
+(no `can't read "y"` error). (TP controls: dropping the `default` lets an
+unmatched subject fall through to `puts $y` → W210 fires; or making one arm
+complete — `default { set z 9 }` — lets the switch fall through with `y` unset
+→ W210 fires.)
+
+#### Compiler evidence
+
+```
+--- FP-RBS-15: opaque switch whose every arm exits is itself a terminator
+regen: python -m bench.fp_snippets --id FP-RBS-15
+function ::f
+  block entry_1
+    [0] Switch  defs={}  uses={x#0}
+    term Return
+  block unreachable_2
+    term Goto
+  block exit_3
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+- **`block entry_1 … term Return`** — the opaque switch's block is now
+  terminated by a CFGReturn, so it has no fall-through successor.
+- **`block unreachable_2`** — the `puts $y` statement is routed to the orphan
+  unreachable block (exactly like code after a `return`/`tailcall`), so it is
+  not analysed as reachable.
+- **`read_before_set: (none)`** — no W210.
+
+#### Why the analyser reaches that verdict
+
+`compiler/cfg.py` `_CFGBuilder._maybe_terminate_opaque_switch`: when lowering
+an opaque (glob/regexp/fall-through) switch in an analysis build
+(`faithful_exceptions`), the block is promoted to a `CFGReturn` terminator if
+`_switch_completes_normally(stmt)` is false — i.e. it has a `default` and every
+arm-with-a-body plus the default cannot complete normally (`_flow_facts_stmt`).
+Codegen builds leave the fall-through edge, so the opaque-switch `invokeStk`
+bytecode and CFG shape are unchanged.
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_15_all_arms_return_dead_read_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_15_all_arms_error_or_tailcall_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_15_no_default_falls_through_fires` (TP
+  control — without a `default` the unmatched path reaches the read)
+- `tests/test_fp_rbs.py::test_FP_RBS_15_one_completing_arm_fires` (TP control —
+  one arm that completes lets the switch fall through with the var unset)
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in

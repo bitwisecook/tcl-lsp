@@ -1005,3 +1005,75 @@ def test_FP_RBS_14_omitting_arm_still_fires():
     assert w210, "omitting arm leaves 'y' maybe-unset; W210 must fire; got: " + ", ".join(
         f"{d.code}:{d.message}" for d in _rbs(src)
     )
+
+
+# FP-RBS-15 — opaque switch whose every arm exits is itself a terminator
+
+
+FP_RBS_15_REPRO = """\
+proc f {x} {
+    # every arm returns, so control never reaches `puts $y`:
+    # the switch is a terminator and the read is dead code.
+    switch -glob $x {
+        a* { return 1 }
+        default { return 2 }
+    }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_15_all_arms_return_dead_read_silent():
+    """FP: every arm of the (default-bearing) opaque switch returns, so the
+    switch cannot fall through -- ``puts $y`` is unreachable dead code.  The
+    switch block is promoted to a terminator, so no RBS code fires."""
+    assert _rbs(FP_RBS_15_REPRO) == [], (
+        "all-arms-return switch makes the trailing read unreachable; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_15_REPRO))
+    )
+
+
+def test_FP_RBS_15_all_arms_error_or_tailcall_silent():
+    """FP: ``error`` and ``tailcall`` arms are non-completing too, so an
+    all-exiting switch is still a terminator."""
+    src = (
+        "proc f {x} {\n"
+        "    switch -glob $x {\n"
+        "        a* { error a }\n"
+        "        b* { tailcall g }\n"
+        "        default { error d }\n"
+        "    }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    assert _rbs(src) == [], (
+        "all-arms-exit switch makes the trailing read unreachable; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_15_no_default_falls_through_fires():
+    """TP control: without a ``default`` an unmatched subject falls through to
+    ``puts $y``, so the switch is NOT a terminator and ``y`` is maybe-unset --
+    W210 must fire.  Proves the promotion requires exhaustiveness (a default)."""
+    src = "proc f {x} {\n    switch -glob $x { a* { return 1 } b* { return 2 } }\n    puts $y\n}\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "no-default switch falls through; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_15_one_completing_arm_fires():
+    """TP control: one arm that *completes* (default sets z, not y) lets the
+    switch fall through with ``y`` unset, so W210 must fire.  Proves the
+    promotion requires *every* arm to be non-completing."""
+    src = (
+        "proc f {x} {\n"
+        "    switch -glob $x { a* { return 1 } default { set z 9 } }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "completing-arm switch falls through; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )

@@ -3303,6 +3303,44 @@ register(
 )
 
 
+register(
+    "FP-RBS-15",
+    _Entry(
+        label="opaque switch whose every arm exits is itself a terminator",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "When an opaque (glob/regexp/fall-through) switch has a `default` and\n"
+            "*every* reachable arm body (default + each arm with a body) cannot\n"
+            "complete normally -- e.g. every arm `return`s / `error`s / `tailcall`s\n"
+            "-- no path falls through, so the code after the switch is unreachable.\n"
+            "Pre-fix the opaque switch always fell through to the next statement,\n"
+            "so a read there (`puts $y`) was analysed as reachable and fired a\n"
+            "false W210.  Fix (compiler/cfg.py `_maybe_terminate_opaque_switch`):\n"
+            "in analysis builds promote the block to a CFGReturn terminator when\n"
+            "`_switch_completes_normally` is false, routing the trailing statements\n"
+            "to the orphan unreachable block exactly like a `return`/`tailcall`.\n"
+            "Conservative -- fires only when provably non-completing -- and\n"
+            "faithful-only, so the opaque-switch invokeStk codegen is unchanged."
+        ),
+        source=_dedent(
+            """
+            proc f {x} {
+                # every arm returns, so control never reaches `puts $y`:
+                # the switch is a terminator and the read is dead code.
+                switch -glob $x {
+                    a* { return 1 }
+                    default { return 2 }
+                }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)
