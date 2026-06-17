@@ -717,6 +717,20 @@ mod tests {
     }
 
     #[test]
+    fn constant_loop_condition_fold_keeps_braces() {
+        // A constant `while` condition folded through O101 must not drop the
+        // opening brace of the braced condition (the CFG loop-condition span
+        // omits the closing `}`, which previously produced `while 1}`).
+        // `while {1}` is already minimal → unchanged; `while {1 < 2}` folds
+        // to `while {1}` (braces preserved), matching Python.
+        assert_eq!(optimised("while {1} { break }\n"), "while {1} { break }\n");
+        assert_eq!(
+            optimised("while {1 < 2} { break }\n"),
+            "while {1} { break }\n"
+        );
+    }
+
+    #[test]
     fn call_by_name_in_namespace_keeps_feeding_set() {
         // A `proc` declared inside a namespaced proc is registered under its
         // qualified name (`::demo::bump`); a same-namespace bare call
@@ -869,8 +883,8 @@ mod tests {
         assert!(
             never
                 .iter()
-                .any(|o| o.code == "O101" && o.replacement == "0"),
-            "never-defined `info exists` should fold to 0, got {never:?}",
+                .any(|o| o.code == "O101" && o.replacement == "{0}"),
+            "never-defined `info exists` should fold to {{0}}, got {never:?}",
         );
         let param = optimise(
             "proc f {a} { if {[info exists a]} { puts hi } }",
@@ -879,8 +893,8 @@ mod tests {
         assert!(
             param
                 .iter()
-                .any(|o| o.code == "O101" && o.replacement == "1"),
-            "parameter `info exists` should fold to 1, got {param:?}",
+                .any(|o| o.code == "O101" && o.replacement == "{1}"),
+            "parameter `info exists` should fold to {{1}}, got {param:?}",
         );
     }
 
