@@ -240,9 +240,46 @@ a computed `set x [cmd]` forwards into its single operand use even when `x`
 is also read by a trailing terminator. The inlined `[set x …]` keeps `x`
 defined for the terminator read.
 
+**Two propagation miscompiles fixed (2026-06).** Both were the same class
+— a constant inlined into a syntactic context that needs quoting:
+
+- **List constant word-split into a string command substitution.**
+  `substitute_dollar_refs` inlined a value's raw text into a `"…"` arg,
+  rejecting only `$ [ \ "` — not whitespace. A multi-word value (a list
+  literal) inside a nested `[…]` split one command argument into several:
+  `puts "r: [lsearch -exact $tokens uic]"` with
+  `set tokens {tran 1n 100n uic}` became
+  `puts "r: [lsearch -exact tran 1n 100n uic uic]"` (original prints `3`;
+  rewrite errors `bad option "tran"`). Fixed by tracking command-sub
+  nesting depth and requiring a single safe bare word at depth > 0.
+- **Whole-word `[cmd]` wrapped as a `"…"` interpolation.**
+  `visit_string_interpolation` fired on any non-braced word, wrapping a
+  free-standing `[expr {$a + $b}]` in quotes and mis-spanning it
+  (`puts "[expr {3 + 4}]"]`). Fixed by skipping whole-word command
+  substitutions there (they belong to `visit_call_cmd_subst_folds`).
+
 **Remaining follow-ups:**
 
-- The 11 remaining pre-existing over-removals.
+- The 11 pre-existing over-removals.
+- **Rust does less than Python on the core samples** (the bulk of the 37
+  remaining divergences are *not* bugs — Rust is conservative): missing
+  O117/O120 readability rewrites (`[string length $s] == 0` → `$s eq ""`,
+  `==`/`!=` → `eq`/`ne`), interprocedural constant folding of pure proc
+  calls (`deep_pipeline.tcl`), append-chain collapse, array-element
+  constant propagation (`set who $arr(user)`), more builtin folding
+  (`string toupper` / `string map` / `format` / `scan`), folding a
+  whole-word `[expr {…}]` call arg to its constant (`puts [expr {3+4}]`
+  → `puts 7`), and O110 parenthesisation canonicalisation.
+- **`expr "…"` quoted-expr over-fold** (Rust-does-more, soundness): with
+  `set a alpha; set b beta`, Rust propagates into `expr "$a == $b"` →
+  `expr "alpha == beta"` and folds it to `0`, but tclsh *errors*
+  (`invalid bareword "alpha"`). Python sidesteps this by never propagating
+  string constants into a quoted-expr context (the original "quoted-expr
+  smell"). A guard on the expr folder / quoted-expr propagation is the fix.
+- Many diverging files under `samples/diagnostics/W*` and
+  `samples/for_screenshots/*` are diagnostic/demonstration fixtures whose
+  optimiser output is incidental; check them against the
+  `_NO_PARITY_KEYS` exclusion before treating as gaps.
 
 The diagnostic-side dead-store/unused parity (W210 / W211 / W220) is closed.
 
