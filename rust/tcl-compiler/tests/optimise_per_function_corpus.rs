@@ -1,7 +1,7 @@
 //! Backlog #2 validation gate: `optimise_unit_per_function` (each function
 //! optimised in an isolated single-function `CompilationUnit` view, then merged
-//! + arbitrated) must be **byte-identical** to the whole-unit `optimise_unit`
-//! over the real-world `tmp/` corpus.
+//! and overlap-arbitrated) must be **byte-identical** to the whole-unit
+//! `optimise_unit` over the real-world `tmp/` corpus.
 //!
 //! This pins the "per-function isolation is byte-identical" property the
 //! salsa-native per-procedure optimiser memo relies on (the optimiser's only

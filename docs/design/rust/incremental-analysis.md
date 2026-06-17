@@ -676,11 +676,33 @@ O(file) lowering floor + the still-present per-proc deep-clone dominate).
       *whole-`interproc`-key* memo hits ~100 % of non-signature edits; when a
       summary does move it is **~1** procedure, so a reachable-key memo (à la
       `taint_cascade`) reuses everything except that proc's callers.
-    - **Verdict: build it.**  A whole-`interproc`-key memo already wins on the
-      common (benign) edit; the reachable-key projection is a cheap refinement for
-      summary-changing edits.  Gate the salsa wiring with `compiler_check_corpus`
-      (verifies the O127-overlap inertness) + the
-      `optimise_per_function_corpus` isolation differential (already green).
+    - **Verdict from E1–E3: build it.**  A whole-`interproc`-key memo wins on the
+      common benign edit; the reachable-key projection is a cheap refinement.
+  - **Built it — then reverted (the experiments were necessary but not
+    sufficient).**  The full salsa memo was implemented (`function_optimisations`
+    keyed on the offset-0 `Procedure` + `opt_context` with `PartialEq`
+    early-cutoff) and is **byte-identical** to whole-unit `optimise_unit` over the
+    893-file corpus (`compiler_check_corpus` green) — correctness is *proven*.
+    But benching revealed a perf **regression** E1–E3 missed: each procedure's
+    optimise runs in a single-function `CompilationUnit` view that must own a copy
+    of the whole `interproc` summary (`PassContext` takes it by value), so when
+    many procedures miss in one edit the per-proc loop is **O(file²)** in
+    `interproc` clones.  The standard bench edit (`find("\n    ")`, early in the
+    file) shifts *every* procedure and — because `function_lattice` itself
+    cache-misses on a whole-file shift in this path — all procedures miss at once,
+    pushing pki `compiler_check` from ~111 ms to ~200+ ms.  (For *localized* edits
+    the memo hits and helps: an edit near EOF recomputes ~5 of 75 procs.)
+    - **To ship it needs two more things, for a ~12 ms ceiling:** (1) make
+      `PassContext.interproc` an `Arc` so the single-function view shares it
+      instead of cloning per proc (kills the O(file²) cliff); and (2) the benefit
+      is still **capped by `function_lattice`'s hit rate** — on whole-file-shift
+      edits it misses everything, so the optimise memo can't help those either.
+      Given the ~12 ms ceiling and these two dependencies, it was **not worth
+      shipping a regression** now; reverted to whole-unit `optimise_unit`.
+    - **Kept (the durable, byte-identical artifacts):** `optimise_unit_per_function`
+      + the `optimise_per_function_corpus` isolation differential (proving the
+      isolation property a future memo builds on), the `optimise_memo_experiments`
+      harness, and `Procedure: Eq+Hash` (enables interning the offset-0 proc).
 
 ### Recommendation (for the lowering floor proper)
 
