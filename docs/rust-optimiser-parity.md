@@ -1,117 +1,119 @@
 # Rust optimiser parity snapshot
 
-A scan run under `TCL_LSP_RUST_OPTIMISER=1` against the three
-optimiser test files establishes the current parity gap between
-the Python and Rust optimiser pipelines.
+This note records the measured gap between the Python optimiser
+(`compiler.optimiser`) and the native Rust optimiser
+(`tcl-compiler::optimiser`, driven by `tcl opt`). The historical
+`TCL_LSP_RUST_OPTIMISER` opt-in flag is gone — the Rust optimiser is the
+production path now, so parity is measured by a same-entry differential
+(`tcl opt` vs `optimise_source_multipass`).
+
+## How to reproduce
 
 ```bash
-TCL_LSP_RUST_OPTIMISER=1 uv run pytest \
-  tests/test_optimiser.py \
-  tests/test_optimiser_coverage.py \
-  tests/test_optimiser_vm_equivalence.py \
-  -q --tb=no
+# Final-source differential over the sample corpus.
+python - <<'PY'
+import subprocess, glob, re
+from pathlib import Path
+from compiler.registry.runtime import configure_signatures
+configure_signatures()
+from compiler.optimiser import optimise_source_multipass
+for f in sorted(glob.glob("samples/**/*.tcl", recursive=True)):
+    py, _, _ = optimise_source_multipass(Path(f).read_text())
+    out = subprocess.run(["target/debug/tcl", "opt", f],
+                         capture_output=True, text=True).stdout
+    rust = re.split(r'\n+# -+\n', out)[0]
+    if rust.rstrip("\n") != py.rstrip("\n"):
+        print("DIVERGE", f)
+PY
 ```
 
-Result after the parity-closing work in this session:
+## Current snapshot (2026-06)
 
-```
-209 failed, 487 passed  (down from 338 / 357)
-```
+Final-source parity over the 79-file sample corpus: **37 exact / 42
+divergent**. Both pipelines already iterate to a fixpoint
+(`optimise_source_multipass` / the loop in `tcl-cli::run_opt`), so the
+remaining gap is *per-pass content*, not the loop.
 
-Total: 129 tests fixed (38% reduction from the initial snapshot).
+Divergence classes:
 
-## Parity commits landed in this strip
+| Class | Count | Meaning |
+|---|---:|---|
+| Rust keeps more lines | 28 | Rust leaves a dead store Python removes |
+| Rust removes more lines | 5 | Rust eliminates something Python keeps |
+| Reorder / same line-count | 9 | O110 reassociation, expr canonicalisation, wording |
 
-| Commit               | Area                                         | Δ tests |
-|----------------------|----------------------------------------------|--------:|
-| `C30-operand-spans`  | O102 / O103 applicable rewrites (Strip A)    | baseline |
-| `cat3`               | Span truncation fix (`full_rewrite_span`)    | -8      |
-| `cat4-cat5`          | Braced-literal guards + `call` indirection   | -4      |
-| `cat3-quoted-strings`| Composite ``"…"`` word span extension        | -14     |
-| `cat3-extended`      | `full_rewrite_span` across remaining passes  | -4      |
-| `cat2-assign-expr`   | Constant fold + instcombine on `AssignExpr`  | -25     |
-| `cat2-instcombine`   | 11 new identity / absorbing rewrites         | -22     |
-| `cat2-expr-wrapper`  | Collapse ``[expr {K}]`` when `K` is bare     | -11     |
-| `cat2-unary-self`    | Unary identity + inversion + self-compare    | -26     |
-| `cat1-cat2-propagation` | Cascade SCCP constants into `AssignExpr` exprs | -4 |
-| `cat2-ternary-demorgan` | Ternary constant fold + DeMorgan laws     | -11     |
+## Root cause of the dominant class (28 "Rust keeps more")
 
-## Remaining failure clusters (209 total)
-
-Top five categories sorted by count:
-
-| Test class                          | Fails | Nature                         |
-|-------------------------------------|------:|--------------------------------|
-| `TestOptimiser`                     |    38 | Multi-pass cascade / DSE       |
-| `TestO110InstCombine`               |    17 | Reassociation (`$a + 1 + 2`)   |
-| `TestTailCallOptimisation`          |     9 | Return-value shapes            |
-| `TestConstantVarRefPropagation`     |     9 | Cascading DSE after propagation|
-| `TestPatternMatchSimplification`    |     8 | `switch` / pattern matching    |
-
-### 1. Cascading DSE / multi-pass interaction (largest remaining gap)
-
-The Python pipeline iterates passes to fixpoint:
-propagation → folding → DCE → more propagation. Rust runs each
-pass once. A source like:
+The canonical reproducer:
 
 ```tcl
 set x 42
 puts $x
 ```
 
-emits O102 (propagate `$x → 42`) on the `puts`, but the now-dead
-`set x 42` is not removed. The Python side's `find_optimisations`
-wraps the emission in an iteration loop that re-runs SCCP / DCE
-on the rewritten IR until no new rewrites fire.
+- **Python** → `puts 42`. Its constant-propagation analysis emits the
+  propagation (O100/O102) **and**, in the same pass, the O109 dead-store
+  removal of `set x 42` — because propagating the value eliminates the
+  variable's *last* use, so the store becomes dead. Propagation and the
+  consequent DCE are **coupled** in one `find_optimisations` pass.
+- **Rust** → `set x 42` + `puts 42`. Propagation (O102) and dead-store
+  elimination are *separate* passes. The multipass's second iteration sees
+  `set x 42` with `x` now unread, but `optimiser::elimination` classifies a
+  set-once dead def as **O126** (`emit_dead_stores_and_unused`, the
+  `any_other_live` split), and **O126 is suppressed at the top level**
+  (`elimination.rs` "Top-level never emits O126"). So the store is never
+  removed.
 
-Fixing this requires implementing a fixed-point loop in
-`optimiser::manager::optimise_with_dialect` — apply the
-rewrites to a copy of the source, rebuild the CU, re-run the
-pass pipeline, repeat until no new rewrites appear (with a
-sensible iteration cap). This is the single highest-impact
-remaining change — would close `TestOptimiser::test_chained_*`,
-`TestConstantVarRefPropagation`, and several `TestPassInteractions`.
+The subtlety that makes this hard to match: Python is *also* conservative
+about top-level never-used stores —
 
-### 2. O110 reassociation (17 fails)
+```tcl
+set x 42
+puts hello      ;# x never read at all  → Python keeps `set x 42`
+```
 
-The remaining `TestO110InstCombine` failures are all
-reassociation patterns: `$a + 1 + 2` → `$a + 3`, `$a * 2 * 3`
-→ `$a * 6`, `$a + 3 - 1` → `$a + 2`. The Rust `strength_reduce_node`
-handles local identities but not constant reassociation across
-a chain of binary operators. Follow-up: implement a
-constant-coefficient reassociation pass (sort children of a
-left-associative chain into constant-subtree / variable-subtree
-and fold the constant side).
+Python emits **no** removal here. So the distinguishing factor is whether
+the store *had* a use that propagation eliminated (→ remove, O109) versus a
+store that was *never* read (→ keep at top level, O126). Rust's per-pass
+`any_other_live` classification cannot tell these apart across multipass
+iterations, because by iteration 2 both look identical (a set-once dead
+def).
 
-### 3. iRules-specific call-graph edges (7 fails)
+### Fix options (for a dedicated follow-up)
 
-`TestUnusedIruleProcs` still has 7 failures where Python sees
-transitive reachability the Rust side misses. The basic `call
-<proc>` indirection is fixed; remaining gaps involve namespace
-resolution on qualified names and `RULE_INIT`-as-library
-detection edge cases.
+1. **Couple propagation + DCE** (matches Python): when the constant-ref
+   propagation pass propagates a variable's last remaining use, also emit
+   the O109 removal of its defining `set` in the same pass. Highest
+   fidelity; localised to the propagation pass.
+2. **Carry "had-a-use" state across multipass iterations**: remember which
+   variables lost a use to propagation so iteration 2 can emit O109 (not
+   O126) and remove them at the top level. More invasive.
 
-### 4. String-interpolation edge cases (8 + 6 fails across two classes)
+Either way the top-level / global-safety guards must be preserved — a
+top-level `set g 1` read by a proc via `global g` must **not** be removed
+(verified: Python keeps it). The `globals_written_by_procs` set the
+analyser already computes for the W210 top-level suppression is the right
+input.
 
-`TestO120StringCompareEqNe` and `TestO117StrlenZeroCheck` need
-the full Python-wrapper treatment applied to
-`[string length …]` substitution detection and `==` / `!=`
-promotion in branch-condition context.
+## The other classes
 
-### 5. Spurious rewrites (varied)
-
-A handful of tests where Rust produces an optimisation Python
-doesn't — usually because Rust is missing a guard that Python
-has (cross-event variable writes, iRules event boundaries, etc.).
+- **9 reorder / same-line**: O110 constant reassociation
+  (`$a + 1 + 2` → `$a + 3`), expr canonicalisation, and DeMorgan-style
+  rewrites Rust does not yet perform. Independent of the DCE gap.
+- **5 Rust removes more**: cases where Rust over-eliminates relative to
+  Python — investigate individually; some may be Rust correctly improving
+  on Python (it is the production optimiser and intentionally diverges on a
+  few classes — see `tests/test_explorer_rust_parity.py::_NO_PARITY_KEYS`),
+  others may be a missing guard.
+- **O127 forwarding** (doc GAP-B1) remains unported.
 
 ## Status
 
-`TCL_LSP_RUST_OPTIMISER` remains **opt-in**. Flipping the default
-still requires closing ~209 tests, dominated by the cascading-loop
-issue (~60+ tests). Recommended next step: land the fixpoint
-iteration in `optimiser::manager` — a single change that unlocks
-most of the remaining cluster.
+The dead-store-coupling fix (option 1) is the single highest-impact change
+— it closes the 28-file dominant class. It is correctness-sensitive
+(removing a live store produces wrong code), so it warrants its own
+strip with the global-safety guards and a corpus + bytecode-compare gate
+re-run, not a drive-by edit.
 
-Cosmetic message wording continues to match Python byte-for-byte
-across spot checks (O100 / O101 / O102 / O103 / O104 / O110 /
-O113 / O121 / O122 / O124) — no wording-only patch is warranted.
+Diagnostic-side dead-store/unused parity (W210 / W211 / W220) is now
+closed — see the analyser changes landed alongside this note.
