@@ -219,9 +219,11 @@ pub struct InterproceduralAnalysis {
     pub methods: HashMap<String, MethodSummary>,
 }
 
-/// A command-name → `(params, param_traits)` lookup, keyed by both the
-/// qualified (`::setvar`) and bare (`setvar`) name.  Input to
-/// [`collect_call_by_name_reads`].  SYNC-JUN02d-2.
+/// A command-name → `(params, param_traits)` lookup, keyed by the bare leaf
+/// name (`bump`), the qualified name (`::demo::bump`), and the
+/// leading-colon-stripped name (`demo::bump`) so a bare call resolves to a
+/// proc declared in any namespace.  Input to [`collect_call_by_name_reads`].
+/// SYNC-JUN02d-2.
 pub type ProcIndex = HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)>;
 
 /// Build a [`ProcIndex`] from interprocedural summaries.  Mirrors
@@ -231,10 +233,13 @@ pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcInde
     let mut index = ProcIndex::new();
     for (qname, summary) in &ia.procedures {
         let entry = (summary.params.clone(), summary.param_traits.clone());
-        let bare = qname.trim_start_matches(':');
-        index.insert(qname.clone(), entry.clone());
-        if bare != qname.as_str() {
-            index.insert(bare.to_owned(), entry);
+        // Leaf name (`::demo::bump` → `bump`): a `proc` declared inside a
+        // namespaced body is registered under its qualified name, but a
+        // same-namespace bare call (`bump x`) must still resolve to it.
+        let leaf = qname.rsplit("::").next().unwrap_or(qname.as_str());
+        let lstripped = qname.trim_start_matches(':');
+        for key in [qname.as_str(), lstripped, leaf] {
+            index.entry(key.to_owned()).or_insert_with(|| entry.clone());
         }
     }
     index

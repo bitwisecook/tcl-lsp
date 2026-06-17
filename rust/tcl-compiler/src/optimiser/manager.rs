@@ -653,6 +653,24 @@ mod tests {
     }
 
     #[test]
+    fn call_by_name_in_namespace_keeps_feeding_set() {
+        // A `proc` declared inside a namespaced proc is registered under its
+        // qualified name (`::demo::bump`); a same-namespace bare call
+        // (`bump x`) must still resolve to it so the call-by-name `upvar`
+        // read keeps the feeding `set x 10` alive. Regression for an
+        // over-removal that produced a dangling `$x` reference.
+        let src = "namespace eval ::demo {\n    \
+                   proc upvarDemo {} {\n        set x 10\n        \
+                   proc bump {varName} { upvar 1 $varName v; incr v; return $v }\n        \
+                   set y [bump x]\n        return $x\n    }\n}\n";
+        assert!(
+            optimised(src).contains("set x 10"),
+            "call-by-name read must keep `set x 10`; got {:?}",
+            optimised(src),
+        );
+    }
+
+    #[test]
     fn couples_constant_propagation_with_dead_store_removal() {
         // The propagated constant leaves `set x 42` dead — it is removed.
         assert_eq!(optimised("set x 42\nputs $x\n"), "puts 42\n");
