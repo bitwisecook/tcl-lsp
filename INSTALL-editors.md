@@ -62,8 +62,9 @@ code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
 
 Configure under **Settings > Extensions > Tcl**. No Python interpreter
 is needed — the extension ships a native `tcl-lsp-server` binary for
-your platform and launches it automatically. (`tclLsp.pythonPath` is
-deprecated and ignored.)
+your platform and launches it automatically. There is no Python backend:
+to run against a local build, point `tclLsp.rustServerPath` at a
+`tcl-lsp-server` binary or `tclLsp.serverPath` at a checkout.
 
 ### VS Code-compatible editors
 
@@ -199,8 +200,9 @@ and install with the editor's own CLI.
 | **Eclipse Theia** | Extensions side panel > **Install from VSIX…** |
 
 Settings UI, keybindings, and the compiler-explorer / Tk preview
-panels behave the same as in VS Code itself. Pin the Python
-interpreter with `tclLsp.pythonPath` if `auto` picks the wrong one.
+panels behave the same as in VS Code itself. The bundled native
+`tcl-lsp-server` binary is used automatically; no Python interpreter
+is involved.
 
 ## Other LSP-capable editors
 

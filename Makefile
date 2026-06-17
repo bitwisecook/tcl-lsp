@@ -493,13 +493,24 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 	@# (compile + xvfb install + test host).  Without ``set -eu`` the
 	@# early ``exit 0`` would only end its own recipe-line shell and
 	@# make would run the next lines anyway.
+	@#
+	@# The extension is native-only (no Python fallback), so the Rust
+	@# tcl-lsp-server binary must exist before the VS Code test host starts.
+	@# Build it here (idempotent) and point the extension at it via
+	@# TCL_LSP_SERVER_BIN, rather than relying on the parallel `test-rust`
+	@# in the test-slow batch winning the race.  A pre-set TCL_LSP_SERVER_BIN
+	@# is honoured so callers can supply their own binary.
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_EXT:-}" ]; then \
 		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
 		exit 0; \
 	fi; \
+	if [ -z "$${TCL_LSP_SERVER_BIN:-}" ]; then \
+		"$(MAKE)" rust-server; \
+		export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
+	fi; \
 	"$(MAKE)" compile ensure-vscode-test-deps; \
-	echo "==> Running VS Code extension tests"; \
+	echo "==> Running VS Code extension tests (native server: $${TCL_LSP_SERVER_BIN})"; \
 	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
 		if command -v xvfb-run >/dev/null 2>&1; then \
 			echo "==> No DISPLAY detected; running VS Code tests under xvfb-run"; \
