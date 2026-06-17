@@ -61,6 +61,7 @@ from .ir import (
     IRStatement,
     IRSwitch,
     IRTry,
+    IRUpFrame,
     IRWhile,
 )
 from .var_refs import VarReferenceScanner, VarScanOptions, command_sub_write_names
@@ -140,7 +141,85 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
         is_namespace_eval = len(sa) >= 3 and sa[0] == "eval"
         if not is_namespace_eval:
             return tuple(_defs_from_ir_script(stmt.body))
+    if isinstance(stmt, IRSwitch):
+        # An opaque (glob/regexp/fall-through) switch is kept as one IRSwitch
+        # statement (cfg.py keeps its shared-body topology un-lowered), so its
+        # arm-body assignments never reach the CFG as ordinary defs.  Recover
+        # the variables it *definitely* defines: a variable is switch-defined
+        # only when EVERY execution path assigns it — there must be a
+        # ``default`` arm AND the variable must be must-defined in the default
+        # body and in every arm that has a body.  This is sound (never
+        # over-claims), so a variable assigned in the arms and read afterwards
+        # is no longer falsely flagged read-before-set (W210), while a switch
+        # that might leave it unset still reports the genuine read-before-set.
+        return tuple(sorted(_switch_must_defines(stmt)))
     return ()
+
+
+def _switch_must_defines(stmt: IRSwitch) -> set[str]:
+    """Variables an opaque ``switch`` assigns on *every* execution path.
+
+    Empty unless the switch has a ``default`` arm (otherwise an unmatched
+    subject falls through assigning nothing).  With a default, the result is
+    the intersection of the must-define sets of the default body and of every
+    arm that has a body — a fall-through arm with no body delegates to a later
+    arm's body, which is already counted, so it contributes nothing on its own.
+    Mirrors the exhaustive-switch rule in the Rust oracle (``ssa.rs``).
+    """
+    if stmt.default_body is None:
+        return set()
+    must = _definitely_assigned_in_script(stmt.default_body)
+    for arm in stmt.arms:
+        if arm.body is not None:
+            must &= _definitely_assigned_in_script(arm.body)
+        if not must:
+            break
+    return must
+
+
+def _definitely_assigned_in_script(script: IRScript) -> set[str]:
+    """Variables assigned on *every* path through *script* (must-define).
+
+    Sound all-paths analysis — only names guaranteed to be assigned no matter
+    which branch runs are returned, so it never over-claims (which would hide a
+    real read-before-set).  Mirrors ``definitely_assigned_in_script`` in the
+    Rust oracle (``ssa.rs``):
+
+    * top-level assignments (``set``/``incr``/``expr``-assign) contribute their
+      target name; a top-level ``IRCall`` contributes its synthetic ``defs``;
+    * ``IRBlock`` / ``IRUpFrame`` bodies always run, so recurse into them;
+    * an ``IRIf`` *with* an else contributes the intersection of every clause
+      body's set and the else body's set (assigned on all branches); an
+      else-less ``IRIf`` contributes nothing;
+    * a nested ``IRSwitch`` with a default applies the same exhaustive rule
+      recursively (via :func:`_switch_must_defines`);
+    * ``IRFor`` / ``IRWhile`` / ``IRForeach`` / ``IRCatch`` / ``IRTry`` and a
+      default-less ``IRSwitch`` may not execute (or may throw mid-body), so
+      they contribute nothing.
+    """
+    assigned: set[str] = set()
+    for stmt in script.statements:
+        if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
+            name = _normalise_var_name(stmt.name)
+            if name:
+                assigned.add(name)
+        elif isinstance(stmt, IRCall) and stmt.defs:
+            assigned.update(stmt.defs)
+        elif isinstance(stmt, (IRBlock, IRUpFrame)):
+            assigned |= _definitely_assigned_in_script(stmt.body)
+        elif isinstance(stmt, IRIf):
+            if stmt.else_body is not None:
+                branch_sets = [
+                    _definitely_assigned_in_script(clause.body) for clause in stmt.clauses
+                ]
+                branch_sets.append(_definitely_assigned_in_script(stmt.else_body))
+                common = branch_sets[0].copy()
+                for s in branch_sets[1:]:
+                    common &= s
+                assigned |= common
+        elif isinstance(stmt, IRSwitch):
+            assigned |= _switch_must_defines(stmt)
+    return assigned
 
 
 def _vars_in_expr(expr: ExprNode) -> set[str]:
@@ -485,6 +564,12 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                     reads_own_def.add(name)
         case IRSwitch():
             vars_found |= _switch_reads(stmt)
+            # The subject is read before any arm runs, so a subject variable
+            # that an arm also assigns (now in ``_defs`` for an exhaustive
+            # switch) must stay live — mark it reads-own-def so the final
+            # filter doesn't drop it as a switch def.  Mirrors the Rust
+            # oracle's ``uses_of`` Switch arm.
+            reads_own_def |= _vars_in_word(stmt.subject)
         case IRReturn(value=_value, expr=_expr):
             if _value is not None:
                 vars_found |= _vars_in_word(_value)
