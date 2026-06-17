@@ -187,6 +187,11 @@ pub trait StdIo {
     fn write_stdout(&self, bytes: &[u8]);
     /// Write bytes to standard error.
     fn write_stderr(&self, bytes: &[u8]);
+    /// Flush buffered standard output (`flush stdout`). Defaults to a no-op for
+    /// a host that writes synchronously (the browser console).
+    fn flush_stdout(&self) {}
+    /// Flush buffered standard error (`flush stderr`). Defaults to a no-op.
+    fn flush_stderr(&self) {}
 }
 
 /// Environment variables and the working directory (`env`, `pwd`, `cd`).

@@ -144,6 +144,14 @@ impl StdIo for NativeStdIo {
     fn write_stderr(&self, bytes: &[u8]) {
         let _ = std::io::stderr().write_all(bytes);
     }
+
+    fn flush_stdout(&self) {
+        let _ = std::io::stdout().flush();
+    }
+
+    fn flush_stderr(&self) {
+        let _ = std::io::stderr().flush();
+    }
 }
 
 /// Environment view: reads fall through to the real process environment, but
