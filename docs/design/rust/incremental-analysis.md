@@ -657,16 +657,30 @@ O(file) lowering floor + the still-present per-proc deep-clone dominate).
     iRules-only *and* whole-module** (reachability from `::when::*` handlers via
     `ctx.interproc`), so the memo must run it whole-module, not per-function (the
     tcl validation doesn't exercise it).
-  - **Open question for the salsa step — does the memo net-win?**  The optimiser
-    passes read the **whole** `interproc` summary (pure-proc resolution,
-    return-value facts), so the memo key must capture it; interning the whole
-    summary per build is `O(procs)` and a *summary* edit invalidates **all**
-    per-proc optimise memos.  For the ~12 ms `optimise_unit` costs, the
-    key-construction + coarse-invalidation overhead may approach the saving — so
-    the salsa step should first measure with a reachable-`interproc` projection
-    (à la `taint_cascade`) rather than the whole summary, and may not be worth it
-    over simply sharing the one built unit between the two diagnostics consumers
-    (already done).
+  - **Open question for the salsa step — does the memo net-win?  *Measured: yes.***
+    The optimiser passes read the **whole** `interproc` summary, so the memo key
+    must capture it; I worried interning it per build (`O(procs)`) plus the
+    coarse invalidation (any *summary* edit invalidates every per-proc optimise
+    memo) might approach the ~12 ms saving.  The
+    `optimise_memo_experiments` harness disproves that:
+    - **E1 (savings ceiling):** `optimise_unit` is **12.9 ms / 74 procs** (pki),
+      **18.9 ms / 176 procs** (parse_lemon) — ~0.1–0.2 ms per proc.  A warm
+      single-proc edit re-optimises one proc + arbitration, so the memo removes
+      essentially all of the 13–19 ms.
+    - **E3 (key cost):** serialising `interproc` into a hashable key is
+      **0.005–0.02 ms** — ~600× cheaper than the optimise it gates.  The interning
+      worry was unfounded.
+    - **E2 (hit rate):** over 5 265 per-procedure body edits across 276 corpus
+      files, a benign body edit leaves `interproc` **byte-identical 100.0 %** of
+      the time (the summary is offset-independent + structural).  So even the
+      *whole-`interproc`-key* memo hits ~100 % of non-signature edits; when a
+      summary does move it is **~1** procedure, so a reachable-key memo (à la
+      `taint_cascade`) reuses everything except that proc's callers.
+    - **Verdict: build it.**  A whole-`interproc`-key memo already wins on the
+      common (benign) edit; the reachable-key projection is a cheap refinement for
+      summary-changing edits.  Gate the salsa wiring with `compiler_check_corpus`
+      (verifies the O127-overlap inertness) + the
+      `optimise_per_function_corpus` isolation differential (already green).
 
 ### Recommendation (for the lowering floor proper)
 
