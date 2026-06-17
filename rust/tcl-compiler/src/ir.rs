@@ -556,7 +556,7 @@ impl SwitchMode {
 // Procedure and module types
 
 /// A procedure definition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Procedure {
     /// Short procedure name.
     pub name: String,
