@@ -5965,6 +5965,13 @@ file; this call falls through to the 'unknown' handler."
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
+        // W211 is a per-variable verdict ("the variable is set but never
+        // used"), not per-assignment: a variable set several times and never
+        // read fires once, at its earliest definition. Collect the earliest
+        // reportable span per variable, then emit. Mirrors Python emitting a
+        // single W211 per unused variable.
+        let mut earliest: std::collections::HashMap<String, tcl_lexer::Span> =
+            std::collections::HashMap::new();
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
@@ -5995,12 +6002,35 @@ file; this call falls through to the 'unknown' handler."
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
+            // Only pure assignments are reportable as "set but never used".
+            // A variable written by a command (`scan` / `binary scan` /
+            // `regexp -> capture`, etc.) or a barrier is a command output the
+            // user may legitimately ignore — Python's `_unused_variables`
+            // skips `IRCall` / `IRBarrier` defs (`core_analyses.py`).
+            if matches!(
+                stmt,
+                crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
+            ) {
+                continue;
+            }
             let span = stmt.span();
             if span.is_empty() {
                 continue;
             }
+            earliest
+                .entry(var.clone())
+                .and_modify(|s| {
+                    if span.start() < s.start() {
+                        *s = span;
+                    }
+                })
+                .or_insert(span);
+        }
+        let mut entries: Vec<(String, tcl_lexer::Span)> = earliest.into_iter().collect();
+        entries.sort_by_key(|(_, span)| span.start());
+        for (var, span) in entries {
             let mut message = format!("Variable '{var}' is set but never used");
-            if let Some(similar) = find_case_mismatch(var, defined_vars) {
+            if let Some(similar) = find_case_mismatch(&var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -10506,6 +10536,45 @@ mod tests {
         assert!(w211s[0].message.contains("'y'"));
         assert!(w211s[0].message.contains("set but never used"));
         assert_eq!(w211s[0].severity, Severity::Hint);
+    }
+
+    #[test]
+    fn w211_not_emitted_for_command_output_vars() {
+        // `scan` / `binary scan` / `regexp -> capture` write their targets
+        // via the command, not a pure `set` — Python excludes IRCall defs
+        // from W211, so unused command outputs do not fire it.
+        for src in [
+            "proc f {} { scan $in \"%d\" n }",
+            "proc f {} { binary scan $d cu4 b1 b2 b3 b4 }",
+            "proc f {} { regexp {(\\w+)} $s -> word }",
+        ] {
+            let mut a = Analyser::new();
+            let res = a.analyse(src, "tcl");
+            assert!(
+                !res.diagnostics.iter().any(|d| d.code == "W211"),
+                "W211 must not fire for command-output vars; got {:?} for {src:?}",
+                res.diagnostics,
+            );
+        }
+    }
+
+    #[test]
+    fn w211_fires_once_per_variable_set_twice() {
+        // A variable set twice and never read is one unused variable, reported
+        // once at the earliest definition (W220 still flags each dead store).
+        let mut a = Analyser::new();
+        let res = a.analyse("proc f {} { set x 1\nset x 2 }", "tcl");
+        let w211: Vec<_> = res
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W211")
+            .collect();
+        assert_eq!(w211.len(), 1, "expected one W211 for x; got {w211:?}");
+        assert!(
+            res.diagnostics.iter().filter(|d| d.code == "W220").count() == 2,
+            "both dead stores still fire W220; got {:?}",
+            res.diagnostics,
+        );
     }
 
     #[test]
