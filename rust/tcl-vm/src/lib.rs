@@ -29,6 +29,7 @@ mod cmd_prefix;
 mod cmd_package;
 mod cmd_regexp;
 mod cmd_string;
+mod cmd_string_is;
 mod cmd_switch;
 mod cmd_trace;
 mod command;

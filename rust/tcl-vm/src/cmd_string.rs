@@ -87,7 +87,7 @@ fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
     }
 }
 
-fn cmd_string(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"string subcommand ?arg ...?\"");
     };
@@ -162,10 +162,7 @@ fn cmd_string(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map(|v| v.to_str().to_string())
                 .collect::<String>(),
         )),
-        "is" => match rest {
-            [class, s] => ok(Value::bool(string_is(&class.to_str(), &s.to_str()))),
-            _ => err("wrong # args: should be \"string is class ?-strict? str\""),
-        },
+        "is" => crate::cmd_string_is::string_is(vm, rest),
         "replace" => string_replace(rest),
         "insert" => string_insert(rest),
         // Resolved to a valid-but-unimplemented subcommand.
@@ -354,45 +351,6 @@ fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
         rest = &rest[ch.len_utf8()..];
     }
     ok(Value::string(out))
-}
-
-fn string_is(class: &str, s: &str) -> bool {
-    if s.is_empty() {
-        return true; // Tcl: empty string is in every class (without -strict).
-    }
-    match class {
-        "integer" | "wideinteger" => s.trim().parse::<i64>().is_ok(),
-        "double" | "real" => s.trim().parse::<f64>().is_ok(),
-        "boolean" | "true" | "false" => matches!(
-            s.to_ascii_lowercase().as_str(),
-            "0" | "1" | "true" | "false" | "yes" | "no" | "on" | "off"
-        ),
-        "alpha" => s.chars().all(char::is_alphabetic),
-        "alnum" => s.chars().all(char::is_alphanumeric),
-        "digit" => s.chars().all(|c| c.is_ascii_digit()),
-        "xdigit" => s.chars().all(|c| c.is_ascii_hexdigit()),
-        "space" => s.chars().all(char::is_whitespace),
-        "upper" => s.chars().all(char::is_uppercase),
-        "lower" => s.chars().all(char::is_lowercase),
-        "punct" => s.chars().all(|c| c.is_ascii_punctuation()),
-        "ascii" => s.is_ascii(),
-        // Mirror C Tcl's `Tcl_UniCharIs*` category masks (tclUtf.c): `print` is
-        // graphic characters plus the space separators (`GRAPH_BITS|SPACE_BITS`),
-        // `graph` is the same minus space, `control` is Cc/Cf, and `wordchar` is
-        // letters/digits/connector-punctuation. Exact over the ASCII range that
-        // [`Asciify`]-style callers exercise; the std category methods are the
-        // closest stable approximation for the wider Unicode tables.
-        "print" => s.chars().all(|c| !c.is_control()),
-        "graph" => s.chars().all(|c| !c.is_control() && !c.is_whitespace()),
-        "control" => s.chars().all(char::is_control),
-        "wordchar" => s.chars().all(|c| c.is_alphanumeric() || c == '_'),
-        // `list` is valid when the string parses as a proper Tcl list (balanced
-        // braces / quotes, no trailing backslash); `dict` additionally requires
-        // an even element count.
-        "list" => tcl_syntax::list::split_list(s).is_ok(),
-        "dict" => tcl_syntax::list::split_list(s).is_ok_and(|elems| elems.len() % 2 == 0),
-        _ => false,
-    }
 }
 
 fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
