@@ -2371,6 +2371,207 @@ The `read_before_set` row pins the verdict: the `$v` read in `if_then_3` is repo
 
 ---
 
+### FP-RBS-13 — `tailcall` replaces the frame; code after it never runs
+
+- **Verdict:** FALSE POSITIVE (W210) — `tailcall` ends the proc's straight-line
+  flow, but the CFG modelled it as an ordinary fall-through call, so a variable
+  set only on the *other* branch of an `if` looked maybe-unset at a read after
+  the `if`.
+- **Status:** FIXED. Found while auditing the control-flow-terminator family
+  (sibling of the `break`/`continue` CFG-jump fix); `tailcall` was the missing
+  proc-exit terminator.
+- **Codes:** W210
+- **Corpus:** synthetic (Tcl 8.6+ `tailcall` dispatch idiom).
+
+#### Reproducer
+
+```tcl
+proc f {cond} {
+    # tailcall g replaces this frame: the `return $result` below is only
+    # reached via the else branch, where result is always set.
+    if {$cond} {
+        tailcall g
+    } else {
+        set result 1
+    }
+    return $result
+}
+```
+
+#### Per-line reasoning
+
+1. `if {$cond} { tailcall g } else { set result 1 }` — exactly one branch runs.
+2. `tailcall g` — replaces the current procedure with `g`. Control **never
+   returns** to `f`, so the `then` branch does not reach the code after the
+   `if`. The C implementation `TclNRTailcallObjCmd` (tclBasic.c) ends with
+   `return TCL_RETURN` for *any* arg count — both bare `tailcall` and
+   `tailcall command ...` exit the proc; the arg count only decides what runs
+   *after* the frame is popped.
+3. `return $result` — reachable only via the `else` branch, where `set result
+   1` ran. So `result` is **always** defined when read → no read-before-set.
+4. Pre-fix, `tailcall` was not in the `terminates_block` trait and the CFG had
+   no special handling, so the `then` block fell through to the `if` join; the
+   join's `return $result` then merged an "unset" version of `result` from the
+   `then` path → false W210.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% proc g {} { return GG }
+% f 0
+1
+% f 1
+GG
+```
+
+No `can't read "result"` error on either path. (`f 1` runs `g` after `f`'s
+frame pops; `result` is never read.) Bare `tailcall` behaves identically as a
+terminator — `proc f {} { puts before; tailcall; puts after }; f` prints only
+`before` and returns `""`.
+
+#### Compiler evidence
+
+```
+--- FP-RBS-13: tailcall with args replaces the frame — code after it never runs
+regen: python -m bench.fp_snippets --id FP-RBS-13
+function ::f
+  block entry_1
+    term Branch ExprVar(text='$cond', name='cond', start=0, end=4)
+  block if_end_2
+    term Return ${result}
+  block if_then_3
+    [0] Call cmd='tailcall'  defs={}  uses={}
+    term Return
+  block if_next_4
+    [0] AssignConst 'result' value='1'  defs={result#1}  uses={}
+    term Goto
+  block exit_5
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+- **`if_then_3 … term Return`** — the `tailcall` block is now terminated by a
+  CFGReturn, so it does **not** edge into `if_end_2`. The only predecessor of
+  `if_end_2` is `if_next_4` (the `else`), where `result#1` is defined.
+- **`read_before_set: (none)`** — no W210.
+
+#### Why the analyser reaches that verdict
+
+`compiler/cfg.py` `_CFGBuilder._lower_script`: in analysis builds
+(`faithful_exceptions`), an `IRCall` whose canonical command is `::tailcall`
+(or an `error`/`throw`/`exit` from the `terminates_block` trait) promotes the
+block to a `CFGReturn` terminator, so post-`tailcall` statements are routed to
+the orphan unreachable block exactly like `return`. Codegen builds
+(`faithful_exceptions=False`) leave the call untouched, so bytecode is
+unchanged. `tailcall` is not catchable, so it is not added to `_throw_blocks`.
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_13_tailcall_with_args_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_13_bare_tailcall_silent` (FP — bare
+  `tailcall` is also a terminator, per `TclNRTailcallObjCmd`)
+- `tests/test_fp_rbs.py::test_FP_RBS_13_non_terminating_branch_still_fires`
+  (TP control — replacing `tailcall` with a normal command restores the W210,
+  proving the suppression is specific to the terminator, not the `if`/`return`
+  shape)
+
+---
+
+### FP-RBS-14 — opaque-switch arm that can't complete normally is excluded from must-define
+
+- **Verdict:** FALSE POSITIVE (W210) — an opaque `switch`'s must-define set was
+  a plain intersection over arm bodies, so an arm that always `return`s /
+  `error`s (and therefore never reaches the code after the `switch`) wrongly
+  dropped a variable that every *reaching* arm assigns.
+- **Status:** FIXED. Refines FP-RBS (opaque-switch arm-def recovery) with the
+  standard definite-assignment rule: a branch that cannot complete normally
+  contributes ⊤ (vacuously defines everything) at the merge.
+- **Codes:** W210
+- **Corpus:** synthetic (dispatch `switch` with an early-return guard arm).
+
+#### Reproducer
+
+```tcl
+proc f {x} {
+    # the a* arm returns, so it never reaches `puts $y`; the only path that
+    # does (default) sets y -> y is definitely defined.
+    switch -glob $x {
+        a* { return 0 }
+        default { set y 2 }
+    }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `switch -glob $x { … }` — a glob switch stays *opaque* (one `IRSwitch`
+   statement; its shared-body topology is not lowered into CFG blocks), so its
+   arm-body defs are recovered by an exhaustive must-define rule rather than by
+   SSA phis.
+2. `a* { return 0 }` — this arm `return`s, so it **cannot complete normally**;
+   it never reaches `puts $y`. By definite assignment, a non-completing branch
+   is excluded from the must-define intersection at the merge.
+3. `default { set y 2 }` — the only arm that *reaches* `puts $y` assigns `y`.
+4. `puts $y` — every path that arrives here has run `set y 2`, so `y` is
+   definitely defined → no read-before-set. Pre-fix, the plain intersection
+   counted the `return`-arm's empty def set, dropping `y` → false W210.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% f abc
+0
+% f xyz
+2
+```
+
+No `can't read "y"` error: `f abc` returns from the `a*` arm before `puts $y`;
+`f xyz` takes the default (sets `y`) then prints `2`. (TP control: with the
+`a*` arm changed to `{ set z 9 }` it falls through with `y` unset, and tclsh
+errors `can't read "y": no such variable`.)
+
+#### Compiler evidence
+
+```
+--- FP-RBS-14: opaque-switch arm that cannot complete normally is excluded from must-define
+regen: python -m bench.fp_snippets --id FP-RBS-14
+function ::f
+  block entry_1
+    [0] Switch  defs={y#1}  uses={x#0}
+    [1] Call cmd='puts'  defs={}  uses={y#1}
+    term Goto
+  block exit_2
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+- **`Switch  defs={y#1}`** — the opaque switch is credited with defining `y`
+  even though the `a*` arm omits it, because that arm cannot complete normally
+  and is excluded from the must-define intersection.
+- **`puts … uses={y#1}`** resolves to the switch's def; **`read_before_set:
+  (none)`**.
+
+#### Why the analyser reaches that verdict
+
+`compiler/ssa.py`: `_switch_must_defines` intersects the must-define sets of
+the default body and every arm with a body, but `_intersect_completing` skips
+any body for which `_flow_facts_script` reports it cannot complete normally
+(`return`/`error`/`throw`/`exit`/`tailcall`/`break`/`continue`, or an
+exhaustive `if`/`switch` whose every branch cannot). The resulting set feeds
+`_defs(IRSwitch)`, so SSA versions `y` at the switch and the later read
+resolves.
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_14_returning_arm_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_14_erroring_arm_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_14_omitting_arm_still_fires` (TP control —
+  an arm that falls through without assigning `y` keeps the W210, proving the
+  exclusion is limited to non-completing arms)
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in

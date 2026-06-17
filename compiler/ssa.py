@@ -33,6 +33,7 @@ from compiler.registry.runtime import (
 from shared.naming import normalise_var_name as _normalise_var_name
 
 from .cfg import (
+    _TERMINATING_COMMANDS,
     CFGBranch,
     CFGFunction,
     CFGGoto,
@@ -157,69 +158,113 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
 
 
 def _switch_must_defines(stmt: IRSwitch) -> set[str]:
-    """Variables an opaque ``switch`` assigns on *every* execution path.
+    """Variables an opaque ``switch`` assigns on *every* reaching path.
 
     Empty unless the switch has a ``default`` arm (otherwise an unmatched
     subject falls through assigning nothing).  With a default, the result is
     the intersection of the must-define sets of the default body and of every
     arm that has a body — a fall-through arm with no body delegates to a later
     arm's body, which is already counted, so it contributes nothing on its own.
-    Mirrors the exhaustive-switch rule in the Rust oracle (``ssa.rs``).
+    An arm that *cannot complete normally* (always ``return``s / ``error``s /
+    ``break``s / …) never reaches the code after the switch, so it is excluded
+    from the intersection.  Mirrors the exhaustive-switch rule in the Rust
+    oracle (``ssa.rs``).
     """
     if stmt.default_body is None:
         return set()
-    must = _definitely_assigned_in_script(stmt.default_body)
-    for arm in stmt.arms:
-        if arm.body is not None:
-            must &= _definitely_assigned_in_script(arm.body)
-        if not must:
-            break
-    return must
+    bodies = [stmt.default_body]
+    bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
+    return _intersect_completing(bodies)[0]
 
 
-def _definitely_assigned_in_script(script: IRScript) -> set[str]:
-    """Variables assigned on *every* path through *script* (must-define).
+def _intersect_completing(bodies: list[IRScript]) -> tuple[set[str], bool]:
+    """``(must-defines over the branches that can complete, any-completes)``.
 
-    Sound all-paths analysis — only names guaranteed to be assigned no matter
-    which branch runs are returned, so it never over-claims (which would hide a
-    real read-before-set).  Mirrors ``definitely_assigned_in_script`` in the
-    Rust oracle (``ssa.rs``):
+    The intersection skips any branch that cannot complete normally: such a
+    branch never reaches the control-flow merge, so by the standard
+    definite-assignment rule it vacuously defines everything (⊤, the identity
+    of intersection).  ``any-completes`` is False only when *every* branch is
+    non-completing — then the merge itself is unreachable.
+    """
+    common: set[str] | None = None
+    completes_any = False
+    for body in bodies:
+        assigned, completes = _flow_facts_script(body)
+        if not completes:
+            continue
+        completes_any = True
+        common = set(assigned) if common is None else (common & assigned)
+    return (common or set()), completes_any
 
-    * top-level assignments (``set``/``incr``/``expr``-assign) contribute their
-      target name; a top-level ``IRCall`` contributes its synthetic ``defs``;
-    * ``IRBlock`` / ``IRUpFrame`` bodies always run, so recurse into them;
-    * an ``IRIf`` *with* an else contributes the intersection of every clause
-      body's set and the else body's set (assigned on all branches); an
-      else-less ``IRIf`` contributes nothing;
-    * a nested ``IRSwitch`` with a default applies the same exhaustive rule
-      recursively (via :func:`_switch_must_defines`);
-    * ``IRFor`` / ``IRWhile`` / ``IRForeach`` / ``IRCatch`` / ``IRTry`` and a
-      default-less ``IRSwitch`` may not execute (or may throw mid-body), so
-      they contribute nothing.
+
+def _flow_facts_script(script: IRScript) -> tuple[set[str], bool]:
+    """``(vars definitely assigned at normal completion, can-complete-normally)``.
+
+    Sound definite-assignment over an un-lowered IR script: walk the statements
+    in order accumulating must-defines; the first statement that cannot complete
+    normally makes everything after it dead and the whole script non-completing.
+    Only names guaranteed to be assigned are returned, so it never over-claims
+    (which would hide a real read-before-set).  Mirrors
+    ``definitely_assigned_in_script`` in the Rust oracle (``ssa.rs``).
     """
     assigned: set[str] = set()
     for stmt in script.statements:
-        if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
-            name = _normalise_var_name(stmt.name)
-            if name:
-                assigned.add(name)
-        elif isinstance(stmt, IRCall) and stmt.defs:
-            assigned.update(stmt.defs)
-        elif isinstance(stmt, (IRBlock, IRUpFrame)):
-            assigned |= _definitely_assigned_in_script(stmt.body)
-        elif isinstance(stmt, IRIf):
-            if stmt.else_body is not None:
-                branch_sets = [
-                    _definitely_assigned_in_script(clause.body) for clause in stmt.clauses
-                ]
-                branch_sets.append(_definitely_assigned_in_script(stmt.else_body))
-                common = branch_sets[0].copy()
-                for s in branch_sets[1:]:
-                    common &= s
-                assigned |= common
-        elif isinstance(stmt, IRSwitch):
-            assigned |= _switch_must_defines(stmt)
-    return assigned
+        defs, completes = _flow_facts_stmt(stmt)
+        assigned |= defs
+        if not completes:
+            return assigned, False
+    return assigned, True
+
+
+def _flow_facts_stmt(stmt: IRStatement) -> tuple[set[str], bool]:
+    """``(must-defines, can-complete-normally)`` for a single statement.
+
+    * assignments (``set``/``incr``/``expr``-assign) contribute their target
+      and complete;
+    * a plain ``IRCall`` contributes its synthetic ``defs`` and completes —
+      *except* a non-returning one (``error``/``throw``/``exit`` via the
+      ``terminates_block`` trait, ``break``/``continue``, or ``tailcall``),
+      which cannot complete; ``IRReturn`` and a ``return -code``/expansion
+      ``IRBarrier`` likewise cannot complete;
+    * ``IRBlock`` / ``IRUpFrame`` bodies always run, so recurse;
+    * an ``IRIf`` *with* an else, or an ``IRSwitch`` *with* a default, takes the
+      intersection over its completing branches (and is non-completing only when
+      every branch is); an else-less ``IRIf`` / default-less ``IRSwitch`` has a
+      fall-through path, so it completes assigning nothing for certain;
+    * loops (``IRFor``/``IRWhile``/``IRForeach``), ``IRCatch``/``IRTry`` and
+      everything else may not execute / always complete, so they contribute no
+      must-define and complete normally.
+    """
+    if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
+        name = _normalise_var_name(stmt.name)
+        return ({name} if name else set()), True
+    if isinstance(stmt, IRReturn):
+        return set(), False
+    if isinstance(stmt, IRBarrier):
+        if stmt.reason in ("return with options", "return with expansion"):
+            return set(), False
+        return set(), True
+    if isinstance(stmt, IRCall):
+        canon = stmt.canonical_command.lstrip(":") if stmt.canonical_command else ""
+        # ``tailcall`` always exits the proc (``TclNRTailcallObjCmd`` returns
+        # TCL_RETURN for any arg count), so it cannot complete normally.
+        non_returning = canon in _TERMINATING_COMMANDS or canon in ("break", "continue", "tailcall")
+        return set(stmt.defs), not non_returning
+    if isinstance(stmt, (IRBlock, IRUpFrame)):
+        return _flow_facts_script(stmt.body)
+    if isinstance(stmt, IRIf):
+        if stmt.else_body is None:
+            return set(), True
+        bodies = [clause.body for clause in stmt.clauses]
+        bodies.append(stmt.else_body)
+        return _intersect_completing(bodies)
+    if isinstance(stmt, IRSwitch):
+        if stmt.default_body is None:
+            return set(), True
+        bodies = [stmt.default_body]
+        bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
+        return _intersect_completing(bodies)
+    return set(), True
 
 
 def _vars_in_expr(expr: ExprNode) -> set[str]:

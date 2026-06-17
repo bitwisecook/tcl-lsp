@@ -892,3 +892,116 @@ def test_FP_callbyname_upvar_alias_still_suppresses():
         d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
     ]
     assert not diags, "upvar-aliased callee write must continue to suppress caller W211/W220"
+
+
+# FP-RBS-13 — `tailcall` replaces the frame; code after it never runs
+
+
+FP_RBS_13_REPRO = """\
+proc f {cond} {
+    # tailcall g replaces this frame: the `return $result` below is only
+    # reached via the else branch, where result is always set.
+    if {$cond} {
+        tailcall g
+    } else {
+        set result 1
+    }
+    return $result
+}
+"""
+
+
+def test_FP_RBS_13_tailcall_with_args_silent():
+    """FP: ``tailcall g`` ends the proc's straight-line flow (TclNRTailcallObjCmd
+    returns TCL_RETURN), so ``return $result`` is reached only via the else
+    branch where result is set.  No RBS code may fire."""
+    assert _rbs(FP_RBS_13_REPRO) == [], (
+        "tailcall-terminated branch must not leave 'result' read-before-set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_13_REPRO))
+    )
+
+
+def test_FP_RBS_13_bare_tailcall_silent():
+    """FP: bare ``tailcall`` (no args) is *also* a terminator -- the C
+    implementation returns TCL_RETURN for any arg count (the arg count only
+    decides what runs after the frame pops).  tclsh-verified: a bare tailcall
+    ends the proc returning ``""``.  So this shape is silent too."""
+    src = (
+        "proc f {cond} {\n"
+        "    if {$cond} { tailcall } else { set result 1 }\n"
+        "    return $result\n"
+        "}\n"
+    )
+    assert _rbs(src) == [], (
+        "bare tailcall is a terminator; 'result' must not be read-before-set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_13_non_terminating_branch_still_fires():
+    """TP control: replace ``tailcall`` with a normal (completing) command and
+    ``result`` becomes genuinely maybe-unset on the then-path, so W210 fires.
+    Proves the suppression is specific to the terminator, not the if/return
+    shape."""
+    src = (
+        "proc f {cond} {\n    if {$cond} { puts hi } else { set result 1 }\n    return $result\n}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'result'" in (d.message or "")]
+    assert w210, (
+        "non-terminating then-branch leaves 'result' maybe-unset; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+# FP-RBS-14 — opaque-switch arm that can't complete normally is excluded from must-define
+
+
+FP_RBS_14_REPRO = """\
+proc f {x} {
+    # the a* arm returns, so it never reaches `puts $y`; the only path that
+    # does (default) sets y -> y is definitely defined.
+    switch -glob $x {
+        a* { return 0 }
+        default { set y 2 }
+    }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_14_returning_arm_silent():
+    """FP: the ``a*`` arm returns, so it never reaches ``puts $y``; every path
+    that does (default) assigns ``y``.  The opaque-switch must-define excludes
+    non-completing arms, so ``y`` is definitely defined -- no W210."""
+    assert _rbs(FP_RBS_14_REPRO) == [], (
+        "returning switch arm must not drop 'y' from the must-define set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_14_REPRO))
+    )
+
+
+def test_FP_RBS_14_erroring_arm_silent():
+    """FP: an arm that always ``error``s likewise cannot complete normally and
+    is excluded from the must-define intersection."""
+    src = (
+        "proc f {x} {\n"
+        "    switch -glob $x { a* { error bad } default { set y 2 } }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    assert _rbs(src) == [], (
+        "erroring switch arm must not drop 'y' from the must-define set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_14_omitting_arm_still_fires():
+    """TP control: an arm that *completes normally* without assigning ``y``
+    (falls through) leaves ``y`` genuinely maybe-unset, so W210 must fire.
+    Proves the exclusion is limited to non-completing arms."""
+    src = (
+        "proc f {x} {\n    switch -glob $x { a* { set z 9 } default { set y 2 } }\n    puts $y\n}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "omitting arm leaves 'y' maybe-unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )

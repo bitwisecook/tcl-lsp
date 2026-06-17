@@ -3228,6 +3228,81 @@ register(
 )
 
 
+register(
+    "FP-RBS-13",
+    _Entry(
+        label="tailcall with args replaces the frame — code after it never runs",
+        proc="::f",
+        vars=("result",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`tailcall` (Tcl 8.6+) replaces the current procedure's frame:\n"
+            "control never returns to this proc, so the statement ends\n"
+            "straight-line flow exactly like `return`/`error`/`exit`.\n"
+            "`TclNRTailcallObjCmd` (tclBasic.c) always `return TCL_RETURN` -- both\n"
+            "bare `tailcall` and `tailcall command ...` exit the proc (the arg\n"
+            "count only decides what runs *after* the frame pops).  Pre-fix the\n"
+            "CFG modelled it as an ordinary fall-through call (it was NOT in the\n"
+            "`terminates_block` trait), so the `if {$cond} { tailcall g }` arm\n"
+            "flowed into the join and `return $result` saw `result` as maybe-unset\n"
+            "-> false W210.  Fix (compiler/cfg.py): in analysis builds promote any\n"
+            "`tailcall` IRCall to a CFGReturn terminator (faithful builds only, so\n"
+            "the opaque-loop codegen / bytecode is byte-identical)."
+        ),
+        source=_dedent(
+            """
+            proc f {cond} {
+                # tailcall g replaces this frame: the `return $result` below is
+                # only reached via the else branch, where result is always set.
+                if {$cond} {
+                    tailcall g
+                } else {
+                    set result 1
+                }
+                return $result
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-14",
+    _Entry(
+        label="opaque-switch arm that cannot complete normally is excluded from must-define",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "An opaque (glob/regexp/fall-through) switch definitely-defines a var\n"
+            "only when every arm that *reaches the code after the switch* assigns\n"
+            "it.  An arm that always `return`s / `error`s (cannot complete\n"
+            "normally) never reaches that code, so it must be excluded from the\n"
+            "must-define intersection — the standard definite-assignment rule.\n"
+            "Pre-fix the intersection counted such an arm's (empty) def set, so\n"
+            "`a* { return 0 } default { set y 2 }` left `y` out of the switch's\n"
+            "defs and `puts $y` falsely fired W210.  Fix (compiler/ssa.py):\n"
+            "`_flow_facts_*` track can-complete-normally and skip non-completing\n"
+            "arms in `_switch_must_defines`."
+        ),
+        source=_dedent(
+            """
+            proc f {x} {
+                # the a* arm returns, so it never reaches `puts $y`; the only
+                # path that does (default) sets y -> y is definitely defined.
+                switch -glob $x {
+                    a* { return 0 }
+                    default { set y 2 }
+                }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)

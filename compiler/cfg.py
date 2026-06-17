@@ -1068,19 +1068,29 @@ class _CFGBuilder:
                         self._faithful_exceptions
                         and isinstance(stmt, IRCall)
                         and stmt.canonical_command
-                        and stmt.canonical_command.lstrip(":") in _TERMINATING_COMMANDS
                     ):
-                        block.terminator = CFGReturn(
-                            value=None, range=stmt.range, expr=None, braced=False
-                        )
-                        # ``error`` / ``throw`` are catchable throw points; an
-                        # enclosing ``try`` sources its on-error edge from here
-                        # so the handler sees the var state *at the throw*.
-                        # ``exit`` is not catchable, so it is not a throw point.
-                        if self._throw_blocks is not None and stmt.canonical_command.lstrip(
-                            ":"
-                        ) in ("error", "throw"):
-                            self._throw_blocks.append(current)
+                        canon = stmt.canonical_command.lstrip(":")
+                        # ``tailcall`` (Tcl 8.6+) replaces the current
+                        # procedure's frame and never returns here, so it ends
+                        # straight-line flow just like ``error`` / ``exit``.
+                        # ``TclNRTailcallObjCmd`` (tclBasic.c) always
+                        # ``return TCL_RETURN`` -- both bare ``tailcall`` and
+                        # ``tailcall command ...`` exit the proc; the arg count
+                        # only decides what runs *after* the frame pops, not
+                        # whether this proc continues.  So any ``tailcall`` is a
+                        # terminator.
+                        exits_proc = canon in _TERMINATING_COMMANDS or canon == "tailcall"
+                        if exits_proc:
+                            block.terminator = CFGReturn(
+                                value=None, range=stmt.range, expr=None, braced=False
+                            )
+                            # ``error`` / ``throw`` are catchable throw points;
+                            # an enclosing ``try`` sources its on-error edge
+                            # from here so the handler sees the var state *at
+                            # the throw*.  ``exit`` / ``tailcall`` are not
+                            # catchable, so they are not throw points.
+                            if self._throw_blocks is not None and canon in ("error", "throw"):
+                                self._throw_blocks.append(current)
 
         # The script has no normal fall-through if the block control finally
         # rests in is terminated (a straight-line ``return``/``error`` as the
