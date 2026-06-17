@@ -480,6 +480,123 @@ practcl.tcl from ~1 s to low-ms).
 >   over the reachable-callee `ProcSummary`s — i.e. a `taint_cascade` query layered
 >   on `function_lattice`'s baseline taints, fed the reachable summaries as
 >   interned inputs.  Now tractable on the salsa-native graph; net-small perf.
+>   `ProcSummary` carries `HashMap`/`HashSet` fields (no `Hash`/`Eq`), so the key
+>   needs a full hashable encoding of the reachable summary set (cf. the
+>   `param_constants` encoding, but much larger) — the main cost of this item.
+
+## Scoping the per-edit lowering floor (backlog #3)
+
+The `param_constants` fold (above) made `function_lattice` engage for nearly
+every procedure, so the per-procedure *lattice compute* is now memoised and the
+per-edit cost is dominated by the **non-memoised whole-module work** in
+`build_for_inner` / `memoised_compilation_unit`.  Fresh phase-timing
+(`cargo run --release -p tcl-lsp-db --example tail_profile FILE=…`, warm DB,
+single-char body edit):
+
+| file | LOC / fns | `file_analysis_incremental` | `compiler_check` | BOTH | CU build+interproc |
+|---|---|--:|--:|--:|--:|
+| `pki.tcl` | 3.3k / 75 | ~111 ms | ~133 ms | ~150–180 ms | ~66 ms |
+| `parse_lemon.tcl` | 7.4k / 177 | ~161 ms | ~157 ms | ~223 ms | ~110 ms |
+
+Component split of the per-edit CU build (`parse_lemon`, from the prior
+proc-loop instrumentation, still representative): `lower_to_ir` **~26 ms** +
+module `build_cfg` **~10 ms** + the per-procedure clone/rebase loop **~52 ms** +
+`with_interprocedural` **~19 ms**.  The 52 ms is *not* lattice compute (memoised)
+— it is the offset-invariant plumbing run for **every** procedure every edit:
+clone the proc's offset-0 IR body + `rebase_script`, then deep-clone the
+memoised `FunctionUnit` + `rebase_function_unit` to the proc's real span
+(`lattice_rebase.rs`).  The rebase target (the offset) shifts whenever an edit
+moves a procedure, so the rebased unit can't be cached across edits.
+
+Two ways to kill it, both larger refactors.  Neither alone is a knockout — they
+attack disjoint parts of the floor.
+
+### Approach A — incremental per-item IR lowering / CFG (attacks the ~26+10 ms)
+
+Lower **per item-body**, keyed on the offset-0 body text (mirroring
+`function_lattice` for CFGs and the per-item analyser walk for diagnostics), so
+a body edit re-lowers one body and reuses the rest.  `item_tree` already gives
+the body spans; `build_cfg`'s per-proc loop already builds each CFG from one
+body, so the CFG half is nearly free to make per-item.
+
+- **Pro:** reuses the *proven* offset-0 + rebase machinery (byte-identical for
+  lattices today); does **not** touch the ~50 span-emit sites in the consumers
+  (see Approach B's surface).  Architecturally consistent with slices 2–4.
+- **Con / blocker:** lowering is **not** body-local.  `lower_to_ir_with_config`
+  runs whole-module passes whose output for one body depends on the others —
+  `specialise_factories`, `inline_uplevel_passthrough`, `extract_oo_methods_pass`,
+  and `populate_trace_facts` (scans every body for `trace add execution …`,
+  setting module-wide `traced_commands` / `has_dynamic_trace` that GVN reads).
+  So a per-body lowering memo needs the same "cross-item facts live in the
+  aggregate, fed in as an input" split the analyser walk used (Phase B/C): the
+  body memo keys on the module-wide trace/factory facts, which a signature-class
+  edit invalidates.  Tractable but non-trivial; gated by the same corpus
+  differential.
+- **Ceiling:** ~36 ms (lower+cfg).  The 52 ms rebase/clone **remains** — A does
+  not remove it.  `collect_call_site_constants` reads the module CFG, so the
+  per-proc CFGs can't simply be skipped; rework it to walk IR call statements
+  directly first (small, independent, unblocks skipping redundant CFG builds for
+  memoised procs).
+
+### Approach B — offset-aware diagnostic consumers (attacks the ~52 ms)
+
+Leave each `function_lattice` unit at **offset 0** and hand every consumer the
+proc's base byte-offset, added at span-emit time — eliminating both the
+`rebase_function_unit` walk **and** the deep-clone (consumers borrow the cached
+`Arc<FunctionUnit>` + offset).  This is the single biggest lever (~52 ms).
+
+- **Surface (from the consumer span-read audit).**  Four consumers read
+  *absolute* spans out of a unit's `cfg`/`ssa`/`sccp`:
+  - **taint** (via `with_interprocedural`) — **2 sites** (`taint.rs:1680,2313`);
+    trivially offset-at-emit.  *Best first target.*
+  - **analyser CFG/SSA tail** (`emit_cfg_ssa_diagnostics`) — **~8 sites** across
+    5 emitters (W220/W211/H300/W210/W307); moderate.
+  - **`run_all_checks`** — **~15–20 sites** across `gvn.rs` / `shimmer/span.rs` /
+    `taint.rs` / irules; one aggregator, many helpers.
+  - **`optimise_unit`** — **~25+ sites** across **9 passes**; widest.
+- **Leakage risks (a pure offset-0 unit + whole-file `source` don't mix).**
+  - `optimiser/propagation.rs` validates `source[span.start()..span.end()]`
+    against the body text (O102) — with an offset-0 span over a whole-file
+    `source` this slices the wrong bytes.  Needs offset-aware slicing (add the
+    base before indexing) — the principal correctness hazard.
+  - the analyser's W307 / `$var` branches already read the **full** `self.source`
+    (deferred to the tail in Phase C); those stay absolute and must not be
+    offset-shifted.  So the analyser becomes a **hybrid** (offset-0 unit spans +
+    absolute source scans) — workable but fiddly.
+  - sort-by-`span.start()` determinism (gvn/shimmer/optimiser) is offset-shift-
+    invariant, so *relative* ordering is safe — but a build that mixes offset-0
+    and absolute spans in one sort would corrupt it.  All-or-nothing per unit.
+- **All-consumers-or-no-win constraint.**  `file_analysis_incremental` and
+  `compiler_check_diagnostics` **share one** built `compilation_unit`.  If even
+  one consumer (the optimiser, the hard one) still needs absolute spans, the
+  shared unit must still be rebased → **no win**.  So B only pays off once
+  *every* consumer of the shared unit is offset-aware, or the shared-unit query
+  is split so the offset-aware consumers take an un-rebased unit.  A phased
+  "taint + analyser first" rollout validates the machinery but banks **zero**
+  wall-clock until the optimiser is converted too.
+
+### Recommendation
+
+Sequence by risk-adjusted value:
+
+1. **Micro-win, independent, low-risk:** rework `collect_call_site_constants` to
+   walk IR call statements instead of the module CFG, so memoised procs needn't
+   have their real-offset CFG built in `build_cfg` at all (shaves redundant work
+   from the ~10 ms, unblocks A).
+2. **Approach A** (incremental per-item lowering) next: lower risk (no consumer
+   surface), architecturally consistent, ~36 ms ceiling — but first prove the
+   body-lowering memo is byte-identical under the whole-module trace/factory/
+   uplevel passes (the cross-item-facts-as-input split).
+3. **Approach B** last and only committed-to wholesale: stage the machinery on
+   **taint** (2 sites) + the **analyser tail** (~8) behind a `SpanOffset` newtype
+   to prove byte-identity on a narrow surface, then convert `run_all_checks` and
+   finally the **optimiser** (resolving the `propagation.rs` source-slice
+   leakage) — banking the ~52 ms only when the last consumer flips.  Highest
+   value, highest risk; do not start partial expecting a wall-clock win.
+
+All steps keep the full-rebuild fallback and gate on
+`compiler_check_memo_matches_uncached_over_corpus` + `per_item_corpus` +
+`differential_incremental` + e2e (the existing byte-identity contract).
 
 ## How to run the experiments
 
