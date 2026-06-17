@@ -588,6 +588,17 @@ class _CFGBuilder:
         # throw has it set.  Nested ``try`` bodies install their own list so an
         # inner-caught throw is not attributed to the outer handler.
         self._throw_blocks: list[str] | None = None
+        # Stack of ``(break_target, continue_target)`` block names for the
+        # enclosing inlined loops.  Pushed by ``_lower_for`` / ``_lower_while``
+        # / ``_lower_foreach`` around their body lowering and consulted by
+        # ``_lower_loop_jump`` so a ``break`` / ``continue`` IRCall becomes a
+        # CFGGoto to the loop's exit / continue target instead of falling
+        # through to the next statement.  Empty on the opaque-loop
+        # (``invokeStk``) codegen path -- loops there are emitted as
+        # ``IRBarrier`` and never push a target -- so that lowering is
+        # unaffected (bytecode parity).  Loop jumps are modelled only in
+        # analysis builds (``faithful_exceptions``); see ``_lower_loop_jump``.
+        self._loop_stack: list[tuple[str, str]] = []
         self._inline_loops = inline_loops
         self._upvar_procs = upvar_procs or {}
         self._proc_params = proc_params or {}
@@ -835,6 +846,15 @@ class _CFGBuilder:
                 current = orphan
                 block = self._block(current)
 
+            # ``break`` / ``continue`` inside an inlined loop are control-flow
+            # jumps, not ordinary calls: terminate the current block with a
+            # CFGGoto to the loop's exit / continue target.  Straight-line flow
+            # stops here -- any following statements are dead and get routed to
+            # the orphan unreachable block on the next iteration, exactly like a
+            # ``return``.
+            if self._lower_loop_jump(stmt, block):
+                continue
+
             match stmt:
                 case IRIf():
                     current = self._lower_if(stmt, current)
@@ -1070,6 +1090,36 @@ class _CFGBuilder:
         self._last_terminal_block = terminal
         return current
 
+    def _lower_loop_jump(self, stmt: IRStatement, block: _MutableBlock) -> bool:
+        """Model a ``break`` / ``continue`` inside an inlined loop as a jump.
+
+        When *stmt* is a ``break`` / ``continue`` IRCall and we are inside an
+        inlined loop (``self._loop_stack`` non-empty), append it to *block* and
+        set the block's terminator to a CFGGoto targeting the enclosing loop's
+        break / continue target.  Returns True when the statement was handled
+        as a loop jump (so the caller skips normal lowering).
+
+        Only active in analysis builds (``faithful_exceptions``).  Codegen
+        builds leave ``break`` / ``continue`` as ordinary IRCalls that fall
+        through, so the emitted bytecode is unchanged.  Identified by canonical
+        command name so renamed / aliased spellings resolve through the
+        registry, consistent with the rest of ``cfg.py``.
+        """
+        if not (self._faithful_exceptions and self._loop_stack):
+            return False
+        if not isinstance(stmt, IRCall):
+            return False
+        break_target, continue_target = self._loop_stack[-1]
+        if stmt.canonical_command == "::break":
+            target = break_target
+        elif stmt.canonical_command == "::continue":
+            target = continue_target
+        else:
+            return False
+        block.statements.append(stmt)
+        block.terminator = CFGGoto(target=target, range=stmt.range)
+        return True
+
     def _lower_if(self, stmt: IRIf, block_name: str) -> str | None:
         end_block = self._new_block("if_end")
         dispatch_block = block_name
@@ -1213,7 +1263,13 @@ class _CFGBuilder:
             range=stmt.condition_range,
         )
 
-        body_tail = self._lower_script(stmt.body, body_block)
+        # ``continue`` re-checks the loop via the step/next clause; ``break``
+        # exits to the loop-exit block.
+        self._loop_stack.append((end_block, step_block))
+        try:
+            body_tail = self._lower_script(stmt.body, body_block)
+        finally:
+            self._loop_stack.pop()
         if body_tail is not None:
             self._ensure_goto(body_tail, step_block, stmt.body_range)
 
@@ -1282,7 +1338,13 @@ class _CFGBuilder:
             range=stmt.range,
         )
 
-        body_tail = self._lower_script(stmt.body, body_block)
+        # ``continue`` starts the next iteration via the header; ``break``
+        # exits to the loop-exit block.
+        self._loop_stack.append((end_block, header_block))
+        try:
+            body_tail = self._lower_script(stmt.body, body_block)
+        finally:
+            self._loop_stack.pop()
         if body_tail is not None:
             self._ensure_goto(body_tail, header_block, stmt.body_range)
 
@@ -1308,7 +1370,13 @@ class _CFGBuilder:
             range=stmt.condition_range,
         )
 
-        body_tail = self._lower_script(stmt.body, body_block)
+        # ``continue`` re-checks the condition via the header; ``break`` exits
+        # to the loop-exit block.
+        self._loop_stack.append((end_block, header_block))
+        try:
+            body_tail = self._lower_script(stmt.body, body_block)
+        finally:
+            self._loop_stack.pop()
         if body_tail is not None:
             self._ensure_goto(body_tail, header_block, stmt.body_range)
 
