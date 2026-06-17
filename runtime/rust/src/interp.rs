@@ -1167,7 +1167,7 @@ impl Interp {
     /// `argv`/…) — the cheap half of `Tcl_Init`, shared by the main interp's
     /// `init_library` and each child interpreter (`interp create`).
     pub(crate) fn set_startup_globals(&mut self) {
-        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
             if i.var_set(name, o).is_err() {
@@ -1200,7 +1200,8 @@ impl Interp {
             }
         }
         // env array from the host environment (no quoting hazards via var_set_elem).
-        for (k, v) in std::env::vars() {
+        let vars = self.host().env().vars();
+        for (k, v) in vars {
             let o = new_string(v.as_bytes());
             if self.var_set_elem(b"env", k.as_bytes(), o).is_err() {
                 drop_fresh(o);
@@ -1210,13 +1211,17 @@ impl Interp {
 
     pub fn init_library(&mut self) -> Code {
         self.set_startup_globals();
-        let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
+        let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
         let init_path = format!("{lib}/init.tcl");
-        match std::fs::read(&init_path) {
-            Ok(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
-            Err(_) => {
+        let bytes = self
+            .host()
+            .filesystem()
+            .and_then(|fs| fs.read(&init_path).ok());
+        match bytes {
+            Some(bytes) => self.eval_sourced(&bytes, init_path.as_bytes()),
+            None => {
                 let mut m = b"can't find ".to_vec();
                 m.extend_from_slice(init_path.as_bytes());
                 m.extend_from_slice(b" (set TCL_LIBRARY)");
@@ -4087,11 +4092,9 @@ impl Interp {
         const RAND_IQ: i64 = 127_773;
         const RAND_IR: i64 = 2836;
         let mut seed = self.rand_seed.get().unwrap_or_else(|| {
-            // Nondeterministic first seed, kept in [1, 2^31-2].
-            let t = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos() as i64)
-                .unwrap_or(1);
+            // Nondeterministic first seed, kept in [1, 2^31-2]. The wall clock
+            // comes from the host (so the browser/WASI hosts seed it too).
+            let t = self.host().clock().now_millis() as i64;
             let mut s = t & 0x7FFF_FFFF;
             if s == 0 || s == 0x7FFF_FFFF {
                 s ^= 123_459_876;

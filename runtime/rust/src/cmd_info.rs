@@ -207,10 +207,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 2 {
                 return wrong_args(interp, b"info nameofexecutable");
             }
-            let exe = std::env::current_exe()
-                .ok()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default();
+            let exe = interp.host().env().current_exe().unwrap_or_default();
             interp.set_result_bytes(exe.as_bytes());
             Code::Ok
         }
@@ -230,7 +227,8 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 2 {
                 return wrong_args(interp, b"info hostname");
             }
-            interp.set_result_bytes(&hostname());
+            let h = hostname(interp);
+            interp.set_result_bytes(&h);
             Code::Ok
         }
         b"errorstack" => {
@@ -271,11 +269,14 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// The host name (`info hostname`, `Tcl_GetHostName`) — best-effort from
-/// `/proc/sys/kernel/hostname`, else `/etc/hostname`, else empty.
-fn hostname() -> Vec<u8> {
+/// `/proc/sys/kernel/hostname`, else `/etc/hostname`, else empty. Read through
+/// the host filesystem (empty when the host provides none).
+fn hostname(interp: &Interp) -> Vec<u8> {
+    let host = interp.host();
+    let fs = host.filesystem();
     for path in ["/proc/sys/kernel/hostname", "/etc/hostname"] {
-        if let Ok(s) = std::fs::read_to_string(path) {
-            return s.trim().as_bytes().to_vec();
+        if let Some(bytes) = fs.and_then(|fs| fs.read(path).ok()) {
+            return String::from_utf8_lossy(&bytes).trim().as_bytes().to_vec();
         }
     }
     Vec::new()

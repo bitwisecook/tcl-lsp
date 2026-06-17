@@ -184,6 +184,12 @@ impl Env for NativeEnv {
     fn chdir(&self, path: &str) -> Result<(), HostError> {
         std::env::set_current_dir(path).map_err(|e| map_io(&e))
     }
+
+    fn current_exe(&self) -> Option<String> {
+        std::env::current_exe()
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned())
+    }
 }
 
 struct NativeFs;

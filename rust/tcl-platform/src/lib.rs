@@ -202,6 +202,12 @@ pub trait Env {
     fn cwd(&self) -> Result<String, HostError>;
     /// Change the working directory (`cd`).
     fn chdir(&self, path: &str) -> Result<(), HostError>;
+    /// The path of the running executable (`info nameofexecutable`,
+    /// `Tcl_GetNameOfExecutable`). `None` on a host with no such notion (the
+    /// browser, and WASI where there is no host-process path).
+    fn current_exe(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Stream sockets (`socket`). Conditional — absent under WASI preview 1 and in
