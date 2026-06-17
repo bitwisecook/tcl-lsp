@@ -722,7 +722,16 @@ pub fn prepare_cfg_context(
 ) -> (HashMap<String, UpvarInfo>, HashMap<String, Vec<String>>) {
     let upvar_procs = detect_upvar_procs(module);
     let mut proc_params: HashMap<String, Vec<String>> = HashMap::new();
-    for (qname, proc) in &module.procedures {
+    // Iterate procedures in a deterministic (qualified-name) order: a *short*
+    // name shared by two procedures (`::a::x` and `::b::x`) is inserted by both,
+    // so last-write-wins must be order-independent — otherwise `proc_params`
+    // (and the `CfgContext` it feeds into the `function_lattice` memo key) would
+    // depend on `HashMap` iteration order and the per-procedure lattice cache
+    // would hit or miss by random seed.  Qualified names are unique, so their
+    // entries are unaffected.
+    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(b.0));
+    for (qname, proc) in entries {
         if let Some((_, short)) = qname.rsplit_once("::")
             && !short.is_empty()
         {

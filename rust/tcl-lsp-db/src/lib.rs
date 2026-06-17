@@ -1094,6 +1094,46 @@ mod tests {
         );
     }
 
+    /// Regression (whole-file-shift determinism): a pure prepend that shifts every
+    /// procedure must leave every `function_lattice` a cache hit — reliably, not by
+    /// HashMap-seed luck.  Before `prepare_cfg_context` was made deterministic, the
+    /// memo key flaked and this could re-execute *all* procedures.  Two procedures
+    /// share the short name `x` (the collision that exposed the nondeterminism).
+    #[test]
+    fn function_lattice_reused_on_whole_file_shift() {
+        use salsa::Setter as _;
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let l = Arc::clone(&log);
+        let sink = move |ev: salsa::Event| {
+            if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                l.lock().unwrap().push(format!("{database_key:?}"));
+            }
+        };
+        let mut db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+            registries: Arc::default(),
+        };
+        let src = "namespace eval ::a { proc x {p} { set q $p; return $q } }\n\
+                   namespace eval ::b { proc x {p} { set q $p; return $q } }\n\
+                   proc top {} { set z 1 }\n";
+        let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default);
+        let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned());
+        let _ = file_analysis_incremental(&db, file, cfg);
+        log.lock().unwrap().clear();
+        // Pure whole-file shift: prepend a blank line (every proc shifts, none
+        // change).  All offset-0 lattice keys are unchanged -> all cache hits.
+        file.set_text(&mut db).to(format!("\n{src}"));
+        let _ = file_analysis_incremental(&db, file, cfg);
+        let reexec = std::mem::take(&mut *log.lock().unwrap())
+            .into_iter()
+            .filter(|s| s.contains("function_lattice"))
+            .count();
+        assert_eq!(
+            reexec, 0,
+            "whole-file shift must reuse every proc lattice (deterministic key): {reexec} re-ran"
+        );
+    }
+
     /// A length-changing body edit to one procedure shifts the others but must
     /// recompute exactly ONE `function_lattice` (the salsa-native per-procedure
     /// lattice is offset-invariant: an unedited-but-shifted body interns to the

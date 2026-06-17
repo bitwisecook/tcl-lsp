@@ -850,6 +850,27 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// Regression: a *short* procedure name shared by two procedures must resolve
+    /// in `prepare_cfg_context` deterministically (qualified-name-sorted-last
+    /// wins), not by `HashMap` iteration order — otherwise the `function_lattice`
+    /// memo key flakes and the per-procedure lattice cache hits or misses by
+    /// random seed (found via the offset-invariance experiments).
+    #[test]
+    fn prepare_cfg_context_short_name_collision_is_deterministic() {
+        let reg = registry();
+        let src = "namespace eval ::a { proc x {p1} { set q $p1 } }
+                   namespace eval ::b { proc x {p2 extra} { set q $p2 } }
+";
+        let m = lower_to_ir_with_config(src, &reg, tcl_lexer::LexerConfig::default());
+        let (_, proc_params) = crate::cfg_builder::prepare_cfg_context(&m);
+        // `::b::x` sorts after `::a::x`, so the short name `x` deterministically
+        // resolves to `::b::x`'s parameters on every run.
+        assert_eq!(
+            proc_params.get("x"),
+            Some(&vec!["p2".to_string(), "extra".to_string()]),
+        );
+    }
+
     #[test]
     fn build_for_empty_source() {
         let cu = CompilationUnit::build_for("", &registry(), false);

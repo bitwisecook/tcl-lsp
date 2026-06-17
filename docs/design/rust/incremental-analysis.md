@@ -441,6 +441,27 @@ practcl.tcl from ~1 s to low-ms).
 > being slow (`--ignored`, ~100 s).  This **unblocks extending the lattice memo**
 > (the `param_constants` win above can now land on top).
 
+> **Memo *key* determinism (fixed) — the lattice cache was flaking.**  Distinct
+> from the byte-identity fix above (which made the *output* seed-stable), the memo
+> *key* itself was nondeterministic: `function_lattice`'s `FnLatticeKey` embeds the
+> module `CfgContext` (`prepare_cfg_context`'s `upvar` + `proc_params`), and
+> `proc_params` inserted **both** the short and qualified name of every procedure
+> — so two procedures sharing a short name (`::a::x` and `::b::x`) raced on the
+> `"x"` entry with **last-write-wins by `HashMap` iteration order**.  A
+> determinism experiment (`exp_cfg_context_determinism`) showed the `proc_params`
+> checksum varying run-to-run; the db-level probe showed a whole-file-shift edit
+> re-executing **0 or all 74** pki lattices depending on seed.  Because the key
+> flaked, an edit *anywhere above a procedure* could miss the cache for **every**
+> procedure and rebuild the whole module — undermining the per-procedure memo that
+> #1 (taint cascade) and #3-B both sit on.  Fix: iterate `module.procedures` in
+> **sorted qualified-name order** in `prepare_cfg_context`, so a short-name
+> collision resolves deterministically.  Output is unchanged (the collision value
+> never affected diagnostics — pinned tests + e2e + `compiler_check_corpus` all
+> green; this is why the byte-identity gate didn't catch it), but a whole-file
+> shift now **reliably** reuses every procedure's lattice (`fn_lattice_reexec=0`
+> across runs).  Guarded by `prepare_cfg_context_short_name_collision_is_deterministic`
+> + `function_lattice_reused_on_whole_file_shift`.
+
 > **OO method-body memoisation (shipped).** Method bodies were walked *in place*
 > in pass 2 (not memoised), so a body edit re-walked every method.  They are now
 > analysed as offset-0 isolated units and grafted like procs: `DeferredBody`
