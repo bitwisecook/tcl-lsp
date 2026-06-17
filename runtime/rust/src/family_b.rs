@@ -3,14 +3,15 @@
 //! The runtime satisfies the shared state-mutation contract over its
 //! `*mut TclObj` value model, so a consumer of the `tcl-runtime-api` role
 //! traits can reach into this runtime's state with the *same* contract the
-//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. This is the runtime's first
-//! Family-B impl; further role traits (`Frames`/`Namespaces`/`Traces`/
-//! `Introspect`) follow as their handle model is reconciled with this runtime's
-//! arena/level addressing.
+//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. `VarStore` and `Introspect`
+//! are implemented; the remaining role traits (`Frames`/`Namespaces`/`Traces`)
+//! follow as their handle model is reconciled with this runtime's arena/level
+//! addressing.
 
-use tcl_runtime_api::{FrameId, VarStore};
+use tcl_runtime_api::{FrameId, Introspect, VarStore};
 
-use crate::interp::Interp;
+use crate::interp::{new_string, Interp};
+use crate::list::new_list_obj;
 use crate::obj::TclObj;
 
 /// The Family-B variable store over the active call frame.
@@ -43,6 +44,30 @@ impl VarStore for Interp {
 
     fn exists(&self, _frame: FrameId, name: &str) -> bool {
         self.var_exists(name.as_bytes())
+    }
+}
+
+/// Runtime introspection backing the `info` family (`info level`/`info level N`).
+///
+/// The handle-free role trait that fits *both* runtime models as-drafted (the
+/// reconciliation finding), so it is the first beyond `VarStore` both runtimes
+/// share. `level` is the current proc-nesting depth; `level_argv` builds a
+/// **fresh** list of the retained invoking words at an absolute level (`None`
+/// for a level with no call — the global frame). Unlike [`VarStore::get`]'s
+/// borrowed pointer, the returned `*mut TclObj` is freshly constructed (rc-0)
+/// and the caller adopts it (store via `set_result`, or `drop_fresh`), exactly
+/// as `info level N` does inline.
+impl Introspect for Interp {
+    type Value = *mut TclObj;
+
+    fn level(&self) -> usize {
+        self.frames.borrow().current_level()
+    }
+
+    fn level_argv(&self, level: usize) -> Option<*mut TclObj> {
+        let words = self.level_words(level)?;
+        let objs: Vec<*mut TclObj> = words.iter().map(|w| new_string(w)).collect();
+        Some(new_list_obj(&objs))
     }
 }
 
@@ -86,6 +111,28 @@ mod tests {
             assert!(i.unset(GLOBAL_FRAME, "x"));
             assert!(!i.exists(GLOBAL_FRAME, "x"));
             assert!(!i.unset(GLOBAL_FRAME, "x")); // already gone
+        });
+    }
+
+    #[test]
+    fn introspect_level_and_argv() {
+        leak_free(|i| {
+            // Top level: depth 0, the global frame has no invoking call.
+            assert_eq!(Introspect::level(i), 0);
+            assert!(Introspect::level_argv(i, 0).is_none());
+            // Push a proc-call frame and record its invoking words.
+            i.frames.borrow_mut().push(crate::namespace::GLOBAL);
+            i.frames
+                .borrow_mut()
+                .set_words(vec![b"p".to_vec(), b"x".to_vec()]);
+            assert_eq!(Introspect::level(i), 1);
+            // `level_argv` builds a fresh (rc-0) list; the result slot adopts it
+            // via `set_result`, so the leak gate stays balanced.
+            let argv = Introspect::level_argv(i, 1).expect("level 1 argv");
+            i.set_result(argv);
+            assert_eq!(i.result_bytes(), b"p x");
+            i.frames.borrow_mut().pop();
+            assert_eq!(Introspect::level(i), 0);
         });
     }
 }

@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use tcl_bytecode::FunctionAsm;
 use tcl_platform::Host;
-use tcl_runtime_api::{Code, CompileService, Completion, FrameId, ROOT_NS, VarStore};
+use tcl_runtime_api::{Code, CompileService, Completion, FrameId, Introspect, ROOT_NS, VarStore};
 use tcl_syntax::expr::{eval, parse_expr};
 
 use crate::command::{BuiltinFn, Command, ProcDef, register_builtins};
@@ -1138,5 +1138,49 @@ impl VarStore for Vm {
 
     fn exists(&self, _frame: FrameId, name: &str) -> bool {
         self.var_exists(name)
+    }
+}
+
+/// Runtime introspection backing the `info` family (`info level`/`info level N`).
+///
+/// Handle-free — the reconciliation finding is that `Introspect` fits *both*
+/// runtime models as-drafted (no `FrameId`/`NsId` reshape needed), so it is the
+/// first Family-B role trait both the VM and `runtime/rust` satisfy with shared
+/// semantics: [`level`](Introspect::level) is the current stack depth and
+/// [`level_argv`](Introspect::level_argv) the retained invoking words at an
+/// absolute level, `None` for a level with no call (the global frame).
+impl Introspect for Vm {
+    type Value = Value;
+
+    fn level(&self) -> usize {
+        self.current_level()
+    }
+
+    fn level_argv(&self, level: usize) -> Option<Value> {
+        self.frame_argv(level)
+            .filter(|av| !av.is_empty())
+            .map(Value::list)
+    }
+}
+
+#[cfg(test)]
+mod family_b_tests {
+    use super::*;
+
+    #[test]
+    fn introspect_level_and_argv() {
+        let mut vm = Vm::new();
+        // Top level: depth 0, the global frame has no invoking call.
+        assert_eq!(Introspect::level(&vm), 0);
+        assert!(Introspect::level_argv(&vm, 0).is_none());
+        // A proc-call frame with its invoking words.
+        vm.push_call_frame(
+            Some("p".to_string()),
+            vec![Value::string("p"), Value::string("x")],
+        );
+        assert_eq!(Introspect::level(&vm), 1);
+        assert_eq!(&*Introspect::level_argv(&vm, 1).unwrap().to_str(), "p x");
+        vm.pop_call_frame();
+        assert_eq!(Introspect::level(&vm), 0);
     }
 }
