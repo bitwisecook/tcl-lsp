@@ -22,6 +22,7 @@ pub mod helpers;
 pub mod peephole;
 pub mod statements;
 pub mod values;
+pub mod wasm;
 
 pub use backend::{Backend, BytecodeBackend};
 pub use emitter::{codegen_function, codegen_module};
@@ -34,6 +35,7 @@ pub use tcl_bytecode::{format, layout};
 
 use std::collections::HashMap;
 
+use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 // -- Emission context --
@@ -93,6 +95,12 @@ pub struct CodegenCtx<'r> {
     pub pending_join_labels: HashMap<String, String>,
     /// 1-based source line of the current statement (for `errorInfo`).
     pub current_source_line: u32,
+    /// Byte span of the source construct currently being lowered, stamped
+    /// onto every instruction [`Self::emit`] / [`Self::emit_comment`]
+    /// appends. Set at the top of each statement / terminator emission and
+    /// reset to `None` for synthetic per-block instructions, so each op's
+    /// `source_span` reflects the construct it actually came from.
+    pub current_span: Option<Span>,
     /// Command registry consulted by registry-driven codegen hooks.
     ///
     /// Threaded in by the caller so dialect-loaded specs (iRules,
@@ -133,6 +141,7 @@ impl<'r> CodegenCtx<'r> {
             proc_exit_label: None,
             pending_join_labels: HashMap::new(),
             current_source_line: 0,
+            current_span: None,
             registry,
         }
     }
@@ -140,7 +149,9 @@ impl<'r> CodegenCtx<'r> {
     /// Append an instruction, returning its index in the stream.
     pub fn emit(&mut self, op: Op, operands: Vec<Operand>) -> usize {
         let idx = self.instructions.len();
-        self.instructions.push(Instruction::new(op, operands));
+        let mut instr = Instruction::new(op, operands);
+        instr.source_span = self.current_span;
+        self.instructions.push(instr);
         idx
     }
 
@@ -149,6 +160,7 @@ impl<'r> CodegenCtx<'r> {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         comment.clone_into(&mut instr.comment);
+        instr.source_span = self.current_span;
         self.instructions.push(instr);
         idx
     }

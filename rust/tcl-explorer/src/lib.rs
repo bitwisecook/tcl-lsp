@@ -112,8 +112,12 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // iRules enable the `}{` brace-separator. `build_for` would otherwise use
     // the default Tcl-8.5+ config and mis-tokenise those dialects.
     let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    // Memory-SSA is built so the `dataflow` view can surface alias sets
+    // (upvar / global / variable / namespace upvar). Without it the
+    // `aliases` list degrades to empty.
     let unit = CompilationUnit::build_for_with_config(source, registry, false, config)
-        .with_interprocedural(registry, Some(dialect));
+        .with_interprocedural(registry, Some(dialect))
+        .with_memory_ssa();
 
     ExplorerResult {
         source: source.to_owned(),

@@ -54,6 +54,12 @@ _CORPUS: dict[str, str] = {
     "opt_deadcode": "proc f {} {\n  set unused 5\n  return 1\n}\nf",
     "shimmer_intrep": "set x [list 1 2 3]\nincr x",
     "taint_tracking": "set x [exec ls]\nset y $x",
+    # Exercises the bounds view's W233 divide-by-zero finder: `$d` is the
+    # interval/SCCP constant 0, so `1 / $d` is a provable runtime error.
+    # (Kept as a bare `expr` statement — a `return [expr …]` would also
+    # exercise return-type inference, where Rust is intentionally more
+    # precise than Python; see the `types` notes in docs.)
+    "divzero": "set d 0\nexpr {1 / $d}",
 }
 
 _DIALECT = "tcl8.6"
@@ -96,18 +102,30 @@ _NO_PARITY_KEYS = {
     # standalone liveness pass (audit action 1: surface from O109).
     "cfgPostSsa",
     "cfgPostSsaOptimised",
-    # 🐞 gap — find_interval_bounds has no execution_intent input and no
-    # divide-by-zero (W233) findings, so divzero is always [].
-    "bounds",
-    # 🏗+🐞 functions sorted (presentation); aliases limited (memory-SSA not
-    # built here).
+    # ✅ converged — `bounds` is now strict (W230/W231/W232 interval findings
+    # plus the W233 divide-by-zero finder, `interval_bounds::find_divide_by_zero`,
+    # which the explorer populates from the same SCCP-executable fixpoint).
+    # 🏗 functions sorted `::top`-first then alphabetically (matches Python),
+    # `typeInfo` projected from the type lattice, and `aliases` surfaced via
+    # memory-SSA. Remaining divergence is Rust's honest def-use representation:
+    # version-0 parameter nodes and def-use edge ordering. Kept Rust-pinned.
     "dataflow",
-    # 🐞 gap — over-reports flags for command-substitution values.
-    "renderedProperties",
-    # 🏗+🐞 range points at the sink command (honest Rust record location);
-    # proc-order not yet deterministic (gap).
+    # ✅ converged — `renderedProperties` is now strict (command-substitution
+    # values use a minimal `HAS_INTERPOLATION` baseline instead of the
+    # conservative may-mask, and `HAS_DOUBLE_ESCAPE` is detected on rendered
+    # literal words).
+    # 🏗 range points at the sink command (honest Rust record location). The
+    # proc-order non-determinism is fixed — `CompilationUnit::functions()` now
+    # yields procedures in qualified-name order — so output is reproducible;
+    # kept Rust-pinned because the sink-range location still differs by design.
     "taintWarnings",
-    # 🐞 gap — Rust GVN under-detects vs Python.
+    # 🏗 the GVN under-detection is fixed (subcommand-purity in
+    # `classify_side_effects` lets GVN see redundant `string length`/`dict get`
+    # ensemble computations it previously missed). Remaining divergence is the
+    # finding *range*: Rust records the enclosing statement span for an
+    # embedded `[…]` substitution where Python pins the command-substitution
+    # itself — a presentation difference, like the taint sink-range. Kept
+    # Rust-pinned. (Expr-statement CSE for `[expr {…}]` is still Python-only.)
     "gvn",
     # 🏗+🐞 honest Rust bytecode; label numbering differs by design, but
     # sourceLine is always 0 and Instruction carries no per-op span (gap).
@@ -229,7 +247,7 @@ def _normalise_loops(funcs: list) -> list:
     out = []
     for fn in funcs:
         fn = dict(fn)
-        fn["loops"] = sorted(fn.get("loops", []), key=lambda l: l["header"])
+        fn["loops"] = sorted(fn.get("loops", []), key=lambda loop: loop["header"])
         out.append(fn)
     return out
 

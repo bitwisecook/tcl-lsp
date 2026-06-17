@@ -2916,4 +2916,48 @@ mod tests {
         };
         assert_eq!(occ.variable_uses, vec!["x".to_string()]);
     }
+
+    /// The expression texts of every redundancy `find_redundancies_for_cu`
+    /// reports for `src` (top-level + procs).
+    fn redundancies(src: &str) -> Vec<String> {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let cu =
+            CompilationUnit::build_for(src, &registry, false).with_interprocedural(&registry, None);
+        let mut out: Vec<String> = find_redundancies_for_cu(&cu, &registry, None)
+            .into_iter()
+            .map(|r| r.expression_text)
+            .collect();
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn detects_redundant_ensemble_subcommand_cse() {
+        // `string length $a` is pure via its *subcommand* purity — the
+        // second computation is redundant. Before subcommand-aware
+        // side-effect classification this was missed (the ensemble call
+        // looked like an unknown-write).
+        assert_eq!(
+            redundancies(
+                "proc f {a} { set x [string length $a]\n set y [string length $a]\n return [expr {$x + $y}] }"
+            ),
+            vec!["string length $a".to_string()],
+        );
+        // Likewise `dict get`.
+        assert_eq!(
+            redundancies(
+                "proc f {d} { set a [dict get $d k]\n set b [dict get $d k]\n return [list $a $b] }"
+            ),
+            vec!["dict get $d k".to_string()],
+        );
+    }
+
+    #[test]
+    fn mutating_ensemble_subcommand_is_not_cse() {
+        // `dict set` mutates — never a redundant-computation candidate.
+        assert!(
+            redundancies("proc f {d} { dict set d k 1\n dict set d k 1\n return $d }").is_empty()
+        );
+    }
 }

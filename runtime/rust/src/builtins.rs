@@ -356,16 +356,17 @@ fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
 
 // -- return ----------------------------------------------------------------
 
-/// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or 0–4) to a
-/// [`Code`]; `None` for an unrecognised spelling.
+/// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or any integer)
+/// to a [`Code`]; `None` for an unrecognised spelling. A non-0..4 integer maps to
+/// [`Code::Other`] (`TclGetCompletionCodeFromObj`).
 fn parse_code(b: &[u8]) -> Option<Code> {
     match b {
-        b"ok" | b"0" => Some(Code::Ok),
-        b"error" | b"1" => Some(Code::Error),
-        b"return" | b"2" => Some(Code::Return),
-        b"break" | b"3" => Some(Code::Break),
-        b"continue" | b"4" => Some(Code::Continue),
-        _ => None,
+        b"ok" => Some(Code::Ok),
+        b"error" => Some(Code::Error),
+        b"return" => Some(Code::Return),
+        b"break" => Some(Code::Break),
+        b"continue" => Some(Code::Continue),
+        _ => crate::interp::parse_completion_int(b).map(Code::from_int),
     }
 }
 
@@ -378,6 +379,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut level: usize = 1;
     let mut errorcode: Option<Vec<u8>> = None;
     let mut errorinfo: Option<Vec<u8>> = None;
+    let mut errorstack: Option<Vec<u8>> = None;
 
     let mut i = 1;
     while i + 1 < argv.len() {
@@ -403,6 +405,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             },
             b"-errorcode" => errorcode = Some(obj_bytes(argv[i + 1])),
             b"-errorinfo" => errorinfo = Some(obj_bytes(argv[i + 1])),
+            b"-errorstack" => errorstack = Some(obj_bytes(argv[i + 1])),
             b"-options" => {
                 // Seed code/level/errorcode/errorinfo from the options dict.
                 let opts = obj_bytes(argv[i + 1]);
@@ -419,6 +422,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                             }
                             b"-errorcode" => errorcode = Some(d[j + 1].clone()),
                             b"-errorinfo" => errorinfo = Some(d[j + 1].clone()),
+                            b"-errorstack" => errorstack = Some(d[j + 1].clone()),
                             _ => {}
                         }
                         j += 2;
@@ -429,18 +433,50 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         i += 2;
     }
+    // Validate -errorcode / -errorstack (`TclMergeReturnOptions`). A malformed
+    // value errors before the return takes effect, with a specific `-errorcode`.
+    if let Some(ec) = &errorcode {
+        if crate::parse::split_list(ec).is_err() {
+            let mut m = b"bad -errorcode value: expected a list but got \"".to_vec();
+            m.extend_from_slice(ec);
+            m.push(b'"');
+            return interp.error_with_code(&m, b"TCL RESULT ILLEGAL_ERRORCODE");
+        }
+    }
+    if let Some(es) = &errorstack {
+        match crate::parse::split_list(es) {
+            Err(_) => {
+                let mut m = b"bad -errorstack value: expected a list but got \"".to_vec();
+                m.extend_from_slice(es);
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL RESULT NONLIST_ERRORSTACK");
+            }
+            Ok(parts) if parts.len() % 2 != 0 => {
+                let mut m = b"forbidden odd-sized list for -errorstack: \"".to_vec();
+                m.extend_from_slice(es);
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL RESULT ODDSIZEDLIST_ERRORSTACK");
+            }
+            Ok(_) => {}
+        }
+    }
     // The optional trailing result word.
     if i < argv.len() {
         interp.set_result(argv[i]);
     } else {
         interp.set_result_bytes(b"");
     }
-    // On an error completion, stamp the error globals (like `error`).
+    // On an error completion, populate the live exception state from the error
+    // options (`TclProcessReturn`) — *not* the `::errorInfo`/`::errorCode`
+    // globals, which are written only when the error is reported. This runs
+    // regardless of `-level`, so a deferred (`-level > 0`) error carries its
+    // info/code once the return boundary turns it into a real error.
     if code == Code::Error {
-        let info = errorinfo.unwrap_or_else(|| obj_bytes(interp.get_obj_result()));
-        let ecode = errorcode.unwrap_or_else(|| b"NONE".to_vec());
-        set_global(interp, b"::errorInfo", &info);
-        set_global(interp, b"::errorCode", &ecode);
+        interp.process_return_error(
+            errorinfo.as_deref(),
+            errorcode.as_deref(),
+            errorstack.as_deref(),
+        );
     }
     if level == 0 {
         // No unwinding: complete with `code` right here.
@@ -448,14 +484,6 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         interp.set_return_state(level, code);
         Code::Return
-    }
-}
-
-/// Set a global (`::name`) to `bytes` (for the error globals).
-fn set_global(interp: &mut Interp, name: &[u8], bytes: &[u8]) {
-    let o = obj::new_string_bytes(bytes);
-    if interp.var_set(name, o).is_err() {
-        drop_fresh(o);
     }
 }
 

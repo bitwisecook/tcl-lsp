@@ -616,13 +616,19 @@ fn scan_command() {
     out_eq("puts [scan 4 %c]\n", "52\n");
     out_eq("puts [scan \"42 7\" \"%d %d\"]\n", "42 7\n");
     out_eq("scan \"0xff\" 0x%x n\nputs $n\n", "255\n");
-    out_eq("scan \"hello 99\" {%s %d} word num\nputs \"$word $num\"\n", "hello 99\n");
+    out_eq(
+        "scan \"hello 99\" {%s %d} word num\nputs \"$word $num\"\n",
+        "hello 99\n",
+    );
     out_eq("puts [scan abc %d]\n", "{}\n");
 }
 
 #[test]
 fn string_map_nocase() {
-    out_eq("puts [string map -nocase {ok 0 error 1} {OK ERROR ok}]\n", "0 1 0\n");
+    out_eq(
+        "puts [string map -nocase {ok 0 error 1} {OK ERROR ok}]\n",
+        "0 1 0\n",
+    );
     out_eq("puts [string map {a A b B} abcab]\n", "ABcAB\n");
 }
 

@@ -1136,7 +1136,9 @@ fn classify_network_interp_sinks(
 /// `PATH_BOUNDED` colour.  The message is softened (not suppressed) for a
 /// normalised-but-unguarded path.  Mirrors
 /// `core/compiler/taint/_sinks.py::_find_destructive_file_warnings`.
-pub(crate) fn find_destructive_file_warnings(
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn find_destructive_file_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -1185,14 +1187,24 @@ pub(crate) fn find_destructive_file_warnings(
                 path_start += 1;
             }
             // One W313 per statement (first offending path variable).
-            for (name, &ver) in &ssa_stmt.uses {
-                let in_path = args
-                    .iter()
-                    .skip(path_start)
-                    .any(|a| arg_var_names(a).contains(name));
-                if !in_path {
-                    continue;
+            // Collect candidate path variables in argument (source) order:
+            // `ssa_stmt.uses` is a `HashMap`, so iterating it would pick a
+            // nondeterministic variable for a multi-path sink like
+            // `file rename $a $b` — making the warning's message (and the memo
+            // vs whole-module builds) differ run-to-run.
+            let mut seen: HashSet<String> = HashSet::new();
+            let mut ordered: Vec<String> = Vec::new();
+            for a in args.iter().skip(path_start) {
+                for name in arg_var_names_ordered(a) {
+                    if seen.insert(name.clone()) {
+                        ordered.push(name);
+                    }
                 }
+            }
+            for name in &ordered {
+                let Some(&ver) = ssa_stmt.uses.get(name) else {
+                    continue;
+                };
                 let t = taints
                     .get(&(name.clone(), ver))
                     .copied()
@@ -1249,7 +1261,15 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 /// A lightweight stand-in for `_arg_var_names`'s VAR-token scan covering
 /// the path-argument shapes W313 cares about (`$p`, `${p}`, `"$d/$f"`).
 fn arg_var_names(arg: &str) -> HashSet<String> {
-    let mut names = HashSet::new();
+    arg_var_names_ordered(arg).into_iter().collect()
+}
+
+/// Variable names referenced in `arg`, in left-to-right source order with
+/// duplicates preserved.  Callers that need a deterministic *first* variable
+/// (e.g. W313's "first offending path variable") iterate this rather than the
+/// `HashSet` from [`arg_var_names`], whose order is nondeterministic.
+fn arg_var_names_ordered(arg: &str) -> Vec<String> {
+    let mut names = Vec::new();
     let bytes = arg.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -1260,7 +1280,7 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
         if bytes.get(i + 1) == Some(&b'{')
             && let Some(rel) = arg[i + 2..].find('}')
         {
-            names.insert(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
+            names.push(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
             i = i + 2 + rel + 1;
             continue;
         }
@@ -1272,7 +1292,7 @@ fn arg_var_names(arg: &str) -> HashSet<String> {
             j += 1;
         }
         if j > start {
-            names.insert(normalise_var_name(&arg[start..j]).to_owned());
+            names.push(normalise_var_name(&arg[start..j]).to_owned());
             i = j;
         } else {
             i += 1;
@@ -1607,7 +1627,16 @@ pub fn find_taint_warnings_for_cu(
 /// one `TaintWarning`. Iterates blocks in `cfg_order` for deterministic
 /// diagnostic ordering (matching the other shimmer/taint passes).
 #[must_use]
-pub(crate) fn find_taint_warnings(
+/// Emit taint sink warnings (`T100` family) for one function.
+///
+/// This is the per-function sink scan; the whole-unit `dataflow` / `diag`
+/// aggregation calls it over the top level and every procedure unit. Mirrors
+/// the `_find_taint_sinks` half of Python's
+/// `compiler.taint.find_taint_warnings`; the other Python warning kinds
+/// (setter-constraint / uri-split / path-concat / destructive-file) are not
+/// ported yet (the documented T-code gap).
+#[allow(clippy::implicit_hasher)]
+pub fn find_taint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -1681,24 +1710,30 @@ fn emit_statement_warnings(
         _ => return,
     };
 
-    // T102: option injection — only for Call statements.
-    if let Statement::Call { args, .. } = stmt {
-        emit_option_injection(
-            command,
-            args,
-            &ssa_stmt.uses,
-            taints,
-            span,
-            registry,
-            warnings,
-        );
-    }
+    // Emission order mirrors Python `_find_taint_sinks` per statement:
+    // T103 (regexp pattern) → T106 (double-encode) → the sink loop in
+    // `_classify_sink` order (T100/output/log, then T102, then T104/T105).
+
+    // T103: tainted data in a regexp/regsub pattern position.
+    emit_regexp_pattern_warnings(
+        command,
+        call_args,
+        &ssa_stmt.uses,
+        taints,
+        span,
+        registry,
+        warnings,
+    );
+
+    // T106: re-encoding an already-encoded tainted value.
+    emit_double_encode_warnings(registry, command, &ssa_stmt.uses, taints, span, warnings);
 
     let sink_call = SinkCall {
         command,
         args: call_args,
         registry,
     };
+    // Primary sink classification (T100 code-exec / T101 + iRules output / log).
     if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
         emit_sink_warnings(
             &ssa_stmt.uses,
@@ -1710,6 +1745,22 @@ fn emit_statement_warnings(
             warnings,
         );
     }
+
+    // T102: option injection — only for Call statements, after the primary
+    // sink (Python's `_classify_sink` lists T102 after T100/output/log).
+    if let Statement::Call { args, .. } = stmt {
+        emit_option_injection(
+            command,
+            args,
+            &ssa_stmt.uses,
+            taints,
+            span,
+            registry,
+            dialect,
+            warnings,
+        );
+    }
+
     // Additional registry-driven SSRF / cross-interp sinks (T104 / T105),
     // which can co-occur with the primary classification.
     for (code, sink_label) in classify_network_interp_sinks(registry, command, call_args) {
@@ -1723,8 +1774,88 @@ fn emit_statement_warnings(
             warnings,
         );
     }
-    // T106: re-encoding an already-encoded tainted value.
-    emit_double_encode_warnings(registry, command, &ssa_stmt.uses, taints, span, warnings);
+}
+
+/// First positional (pattern) argument index of `regexp` / `regsub`,
+/// after skipping option switches (`-start` consumes a value, `--`
+/// terminates). `args` excludes the command name. Mirrors
+/// `compiler.registry.runtime.regexp_pattern_index`.
+fn regexp_pattern_index(args: &[String]) -> Option<usize> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--" {
+            i += 1;
+            break;
+        }
+        if a.starts_with('-') {
+            i += 1;
+            if a == "-start" && i < args.len() {
+                i += 1;
+            }
+            continue;
+        }
+        break;
+    }
+    (i < args.len()).then_some(i)
+}
+
+/// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
+/// the regex-pattern argument of a regex command (`regexp` / `regsub` —
+/// gated on `pattern_type == Regex`). Port of the `T103` loop in Python
+/// `_find_taint_sinks` + `_regexp_pattern_arg_index`. Suppressed when the
+/// value carries the `REGEX_LITERAL` colour (`_should_suppress_sink_warning`).
+fn emit_regexp_pattern_warnings(
+    command: &str,
+    args: &[String],
+    uses: &HashMap<String, u32>,
+    taints: &HashMap<ValueKey, TaintLattice>,
+    span: Span,
+    registry: &CommandRegistry,
+    warnings: &mut Vec<TaintWarning>,
+) {
+    let is_regex = registry
+        .get(command)
+        .is_some_and(|s| s.pattern_type == Some(tcl_registry::patterns::PatternType::Regex));
+    if !is_regex {
+        return;
+    }
+    let Some(pattern_idx) = regexp_pattern_index(args) else {
+        return;
+    };
+    let Some(arg) = args.get(pattern_idx) else {
+        return;
+    };
+    let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();
+    names.sort_unstable();
+    for var in names {
+        let Some(&ver) = uses.get(&var) else { continue };
+        if ver == 0 {
+            continue;
+        }
+        let t = taints
+            .get(&(var.clone(), ver))
+            .copied()
+            .unwrap_or(TaintLattice::clean());
+        if !t.is_tainted() {
+            continue;
+        }
+        // A literal-regex colour proves the pattern is trusted.
+        if t.colours.intersects(TaintColour::REGEX_LITERAL) {
+            continue;
+        }
+        warnings.push(TaintWarning {
+            span,
+            variable: var.clone(),
+            sink_command: command.to_owned(),
+            code: "T103".to_owned(),
+            message: format!(
+                "Tainted variable ${var} in regexp pattern position ({command}); \
+                 risk of regex injection or ReDoS"
+            ),
+            replacement: None,
+        });
+    }
 }
 
 /// Emit T100 warnings for every tainted use in an expression context.
@@ -1749,8 +1880,9 @@ fn emit_expr_warnings(
                 sink_command: "expr".to_owned(),
                 code: "T100".to_owned(),
                 message: format!(
-                    "Tainted variable ${name} used in expr; \
-                     possible code injection"
+                    "Tainted variable ${name} flows into expr operand; \
+                     numeric coercion may misinterpret value \
+                     (use Tcl numeric-validation guards)"
                 ),
                 replacement: None,
             });
@@ -2002,6 +2134,63 @@ fn emit_sink_warnings(
 /// Example: `regexp $pattern $string` where `$pattern` is tainted —
 /// if `$pattern` starts with `-`, it will be treated as a `regexp` flag
 /// rather than the pattern, producing option injection (T102).
+/// Whether `arg` could expand to a string beginning with `-` and thus be
+/// (mis)interpreted as a switch — a leading literal `-`, or a leading
+/// substitution (`$` / `[` / `{*}` expansion) whose runtime value is
+/// unknown. Any other leading literal char is a definite positional and
+/// ends option scanning. Port of Python `_arg_can_be_option`.
+fn arg_can_be_option(arg: &str) -> bool {
+    match arg.as_bytes().first() {
+        None => false,
+        Some(&c) => c == b'-' || c == b'$' || c == b'[' || arg.starts_with("{*}"),
+    }
+}
+
+/// Return the argument indexes still within Tcl's option-scanning region.
+/// Tcl scans for `-switch` args from `scan_start` until the first definite
+/// positional literal (one that cannot begin with `-`) or `--`. A literal
+/// `-option` that takes a value also consumes the following arg. Port of
+/// Python `_option_scan_region`.
+fn option_scan_region(
+    args: &[String],
+    scan_start: usize,
+    options: &[tcl_registry::hover::OptionSpec],
+) -> HashSet<usize> {
+    let mut region: HashSet<usize> = HashSet::new();
+    let mut i = scan_start;
+    let n = args.len();
+    while i < n {
+        let arg = &args[i];
+        if arg == "--" {
+            region.insert(i);
+            break;
+        }
+        if !arg_can_be_option(arg) {
+            // Definite positional literal → option scanning ends here.
+            break;
+        }
+        region.insert(i);
+        if arg.starts_with('-')
+            && options.iter().any(|o| o.takes_value && o.name == arg)
+            && i + 1 < n
+        {
+            i += 2;
+            continue;
+        }
+        i += 1;
+    }
+    region
+}
+
+/// Emit `T102` (option injection) for tainted variables that sit in an
+/// option-scanning position of a command declaring a `--` terminator.
+///
+/// Port of the `T102` half of Python `_classify_sink` + the per-var loop
+/// in `_find_taint_sinks`: the option-terminator profile
+/// (`resolve_option_terminator`) supplies the subcommand-aware command
+/// label and the scan start, `option_scan_region` filters positions, and
+/// `_should_suppress_t102` (the `T102_SAFE` colour set) mitigates.
+#[allow(clippy::too_many_arguments)]
 fn emit_option_injection(
     command: &str,
     args: &[String],
@@ -2009,59 +2198,74 @@ fn emit_option_injection(
     taints: &HashMap<ValueKey, TaintLattice>,
     span: Span,
     registry: &CommandRegistry,
+    dialect: Option<&str>,
     warnings: &mut Vec<TaintWarning>,
 ) {
-    let Some(spec) = registry.get(command) else {
+    let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(profile) =
+        registry.resolve_option_terminator(command, &args_str, dialect_to_set(dialect))
+    else {
+        // No `--` terminator declared → no option-injection sink.
         return;
     };
-    if !spec.traits.contains(Traits::WARN_WITHOUT_TERMINATOR) {
+
+    // Ensemble subcommands report a compound label ("file delete"),
+    // mirroring Python's `cmd_label`.
+    let cmd_label = match profile.subcommand {
+        Some(sub) => format!("{command} {sub}"),
+        None => command.to_owned(),
+    };
+
+    let region = option_scan_region(args, profile.scan_start, profile.options);
+    if region.is_empty() {
         return;
     }
-    // Find the position of a `--` terminator, if present.
-    let terminator_pos = args.iter().position(|a| a == "--");
+
+    // One warning per tainted variable in an in-region position. Iterate
+    // arg indexes in order (then names within an arg sorted) for a
+    // deterministic, source-ordered emission.
+    let mut ordered: Vec<usize> = region.into_iter().collect();
+    ordered.sort_unstable();
     let mut emitted: HashSet<String> = HashSet::new();
-    for (i, arg) in args.iter().enumerate() {
-        if terminator_pos.is_some_and(|tp| i >= tp) {
-            // This arg is after `--`; option injection is not possible.
-            break;
+    for i in ordered {
+        let Some(arg) = args.get(i) else { continue };
+        let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();
+        names.sort_unstable();
+        for var in names {
+            if emitted.contains(&var) {
+                continue;
+            }
+            let Some(&ver) = uses.get(&var) else { continue };
+            if ver == 0 {
+                continue;
+            }
+            let t = taints
+                .get(&(var.clone(), ver))
+                .copied()
+                .unwrap_or(TaintLattice::clean());
+            if !t.is_tainted() {
+                continue;
+            }
+            // Suppress when a mitigating colour proves the value cannot
+            // start with `-` (PATH_PREFIXED / NON_DASH_PREFIXED /
+            // IP_ADDRESS / PORT / FQDN) — the T102_SAFE set. Port of
+            // `_should_suppress_t102`.
+            if t.colours.intersects(TaintColour::T102_SAFE) {
+                continue;
+            }
+            warnings.push(TaintWarning {
+                span,
+                variable: var.clone(),
+                sink_command: cmd_label.clone(),
+                code: "T102".to_owned(),
+                message: format!(
+                    "Tainted variable ${var} in option position of '{cmd_label}' \
+                     without '--' terminator; risk of option injection"
+                ),
+                replacement: None,
+            });
+            emitted.insert(var);
         }
-        let stripped = arg.trim();
-        if !is_pure_var_ref(stripped) {
-            continue;
-        }
-        let var = normalise_var_name(stripped);
-        let Some(&ver) = uses.get(var) else { continue };
-        if ver == 0 {
-            continue;
-        }
-        let t = taints
-            .get(&(var.to_owned(), ver))
-            .copied()
-            .unwrap_or(TaintLattice::clean());
-        if !t.is_tainted() {
-            continue;
-        }
-        // Suppress when a mitigating colour proves the value cannot
-        // start with `-` (PATH_PREFIXED / NON_DASH_PREFIXED / IP_ADDRESS
-        // / PORT / FQDN) — the T102_SAFE set. Ports `_should_suppress_t102`.
-        if t.colours.intersects(TaintColour::T102_SAFE) {
-            continue;
-        }
-        if emitted.contains(var) {
-            continue;
-        }
-        warnings.push(TaintWarning {
-            span,
-            variable: var.to_owned(),
-            sink_command: command.to_owned(),
-            code: "T102".to_owned(),
-            message: format!(
-                "T102: tainted variable ${var} passed to '{command}' without \
-                 '--' option terminator; value starting with '-' causes option injection"
-            ),
-            replacement: None,
-        });
-        emitted.insert(var.to_owned());
     }
 }
 
@@ -2086,7 +2290,8 @@ fn emit_option_injection(
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
-pub(crate) fn find_setter_constraint_warnings(
+#[allow(clippy::implicit_hasher)]
+pub fn find_setter_constraint_warnings(
     registry: &CommandRegistry,
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -3331,6 +3536,75 @@ mod tests {
     }
 
     #[test]
+    fn t102_uses_ensemble_subcommand_label_and_t103_for_regexp() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // `file delete $u` → T102 labelled "file delete" (ensemble
+        // subcommand, via resolve_option_terminator). `regexp $u …` →
+        // T103 (regex injection) then T102 (regexp also takes `--`).
+        let cu = CompilationUnit::build_for(
+            "set u [gets stdin]\nfile delete $u\nregexp $u \"abc\"",
+            &registry,
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        let t102 = warnings.iter().find(|w| w.code == "T102");
+        assert!(
+            t102.is_some_and(|w| w.sink_command == "file delete"),
+            "expected a T102 with ensemble label 'file delete', got {warnings:?}",
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.code == "T103" && w.sink_command == "regexp"),
+            "expected T103 for tainted regexp pattern, got {warnings:?}",
+        );
+        // T103 must precede the regexp T102 (Python `_find_taint_sinks`
+        // emits the pattern check before the sink loop).
+        let regexp_codes: Vec<&str> = warnings
+            .iter()
+            .filter(|w| w.sink_command == "regexp")
+            .map(|w| w.code.as_str())
+            .collect();
+        assert_eq!(
+            regexp_codes,
+            vec!["T103", "T102"],
+            "regexp warnings must be ordered T103 then T102",
+        );
+    }
+
+    #[test]
+    fn t102_suppressed_after_double_dash_terminator() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // `file delete -- $u`: the `--` terminator protects the path
+        // position, so no T102 (W313 still fires elsewhere).
+        let cu =
+            CompilationUnit::build_for("set u [gets stdin]\nfile delete -- $u", &registry, false);
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some("tcl8.6"),
+        );
+        assert!(
+            warnings.iter().all(|w| w.code != "T102"),
+            "no T102 when `--` precedes the tainted path, got {warnings:?}",
+        );
+    }
+
+    #[test]
     fn irule_sinks_do_not_fire_without_dialect() {
         use crate::compilation_unit::CompilationUnit;
         let registry = CommandRegistry::build_default();
@@ -3625,6 +3899,26 @@ mod tests {
         assert!(
             plain.iter().all(|w| w.code != "IRULE3101"),
             "no IRULE3101 outside iRules, got {plain:?}",
+        );
+    }
+
+    #[test]
+    fn taint_warnings_emitted_in_deterministic_proc_order() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        // `bbb` is defined *before* `aaa` in source. Per-proc warning order
+        // must follow qualified name (aaa, then bbb) — not source order and
+        // not the (random) HashMap order — so the output is reproducible.
+        let source = "proc bbb {p} { set v [exec $p]\n eval $v }\n\
+                      proc aaa {p} { set v [exec $p]\n eval $v }\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert_eq!(warnings.len(), 2, "one eval sink per proc: {warnings:?}");
+        // `aaa` is defined later in source (larger span) yet sorts first.
+        assert!(
+            warnings[0].span.start() > warnings[1].span.start(),
+            "expected name order (aaa before bbb) regardless of source order: {warnings:?}",
         );
     }
 }

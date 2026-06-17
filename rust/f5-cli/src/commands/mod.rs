@@ -13,6 +13,7 @@ pub mod emit;
 pub mod enrich_pcapng;
 pub mod enrich_wireshark;
 pub mod explain;
+pub mod explain_flow;
 pub mod extract;
 pub mod fetch;
 pub mod graph;

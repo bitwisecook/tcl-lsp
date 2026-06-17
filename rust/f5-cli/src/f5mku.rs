@@ -220,7 +220,9 @@ fn pkcs7_unpad(data: &[u8]) -> Result<Vec<u8>, F5MkuError> {
     let pad = usize::from(pad);
     if !(1..=BLOCK_SIZE).contains(&pad)
         || data.len() < pad
-        || data[data.len() - pad..].iter().any(|&b| usize::from(b) != pad)
+        || data[data.len() - pad..]
+            .iter()
+            .any(|&b| usize::from(b) != pad)
     {
         return Err(F5MkuError(
             "invalid PKCS#7 padding (wrong master key?)".to_owned(),

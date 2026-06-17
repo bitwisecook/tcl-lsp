@@ -49,6 +49,7 @@ where
 ///
 /// Returns the intended process exit code (0 = success, 1 = semantic failure,
 /// 2 = usage/internal error) so the binary can forward it verbatim.
+#[allow(clippy::too_many_lines)] // one match arm per verb; grows with the verb set
 fn dispatch(command: &Command) -> anyhow::Result<u8> {
     match command {
         Command::Diag { input, diag } | Command::Lint { input, diag } => {
@@ -57,6 +58,27 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
         Command::Symbols { input, json } => commands::graphs::run_symbols(input, *json),
         Command::Symbolgraph { input, json } => commands::graphs::run_symbolgraph(input, *json),
+        Command::Callgraph { input, json } => commands::graphs::run_callgraph(input, *json),
+        Command::Dataflow { input, json } => commands::graphs::run_dataflow(input, *json),
+        Command::Diff {
+            left,
+            right,
+            left_source,
+            right_source,
+            dialect,
+            show,
+            json,
+            output,
+        } => commands::diff::run_diff(
+            left.as_deref(),
+            right.as_deref(),
+            left_source.as_deref(),
+            right_source.as_deref(),
+            dialect,
+            show,
+            *json,
+            output.as_deref(),
+        ),
         Command::CmdInfo {
             command,
             dialect,
@@ -109,6 +131,12 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             *isolated,
             colour,
         ),
+        Command::RegistryDump {
+            dialect,
+            all_dialects,
+            json: _,
+            output,
+        } => commands::registry::run_registry_dump(dialect, *all_dialects, output.as_deref()),
         Command::UnminifyError {
             symbol_map,
             error,

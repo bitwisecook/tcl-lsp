@@ -636,6 +636,165 @@ pub fn find_interval_bounds(
     findings
 }
 
+/// A divide-by-zero finding: a `/` or `%` whose divisor is provably the
+/// single point `[0, 0]` on the always-evaluated spine of an executable
+/// expression. Mirrors `interval_bounds.DivZeroFinding`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DivZeroFinding {
+    /// Source span of the enclosing statement / terminator.
+    pub span: Span,
+    /// The offending operator: `"/"` (divide) or `"%"` (modulo).
+    pub op: &'static str,
+}
+
+/// The expression a flat IR statement evaluates, if any. Mirrors Python's
+/// `_expr_of` (`IRAssignExpr` / `IRExprEval` / `IRReturn`).
+fn statement_expr(stmt: &Statement) -> Option<&ExprNode> {
+    match stmt {
+        Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => Some(expr),
+        Statement::Return { expr, .. } => expr.as_ref(),
+        _ => None,
+    }
+}
+
+/// Does `expr` contain a `/` or `%` operator anywhere (eager or not)?
+/// Cheap pre-scan helper; mirrors the body of Python's `_divisors` test.
+fn expr_has_divisor(expr: &ExprNode) -> bool {
+    use tcl_syntax::expr::ast::BinOp;
+    let mut found = false;
+    walk_eager(expr, &mut |e| {
+        if let ExprNode::Binary { op, .. } = e
+            && matches!(op, BinOp::Div | BinOp::Mod)
+        {
+            found = true;
+        }
+    });
+    found
+}
+
+/// Push a [`DivZeroFinding`] for each unconditionally-evaluated `/` / `%`
+/// whose divisor abstract-evaluates to exactly `[0, 0]`. Short-circuited
+/// `&&`/`||` operands and dead ternary arms are skipped by [`walk_eager`],
+/// so a guarded `1/$d` never yields a finding (mirrors Python's
+/// `_divisors` + `check`). Only owned `Copy`/`'static` data escapes the
+/// walk closure.
+fn collect_divzero(
+    expr: &ExprNode,
+    span: Span,
+    env: &HashMap<String, Interval>,
+    out: &mut Vec<DivZeroFinding>,
+) {
+    use tcl_syntax::expr::ast::BinOp;
+    walk_eager(expr, &mut |e| {
+        if let ExprNode::Binary { op, right, .. } = e {
+            let op = match op {
+                BinOp::Div => "/",
+                BinOp::Mod => "%",
+                _ => return,
+            };
+            let iv = crate::intervals::eval_expr(right, env);
+            if iv.lo == Some(0) && iv.hi == Some(0) {
+                out.push(DivZeroFinding { span, op });
+            }
+        }
+    });
+}
+
+/// Cheap pre-scan: does any reachable expression contain a `/` or `%`?
+/// Mirrors Python's `_has_division`.
+fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
+    for sb in ssa.blocks.values() {
+        for s in &sb.statements {
+            if statement_expr(&s.statement).is_some_and(expr_has_divisor) {
+                return true;
+            }
+        }
+    }
+    for block in cfg.blocks.values() {
+        let has = match &block.terminator {
+            Some(Terminator::Branch { condition, .. }) => expr_has_divisor(condition),
+            Some(Terminator::Return { expr: Some(e), .. }) => expr_has_divisor(e),
+            _ => false,
+        };
+        if has {
+            return true;
+        }
+    }
+    false
+}
+
+/// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
+///
+/// Sound: the divisor's interval (guard-narrowed at the use site) must be
+/// exactly `[0, 0]`, and the block must be SCCP-executable. Mirrors Python's
+/// `interval_bounds.find_divide_by_zero`; shares the same interval
+/// machinery (`compute_intervals` / `refine_interval` / `eval_expr`) as
+/// [`find_interval_bounds`]. Findings are returned in source-span order for
+/// deterministic output.
+#[must_use]
+#[allow(clippy::implicit_hasher)]
+pub fn find_divide_by_zero(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue>,
+    executable: &std::collections::HashSet<String>,
+) -> Vec<DivZeroFinding> {
+    if !has_division(cfg, ssa) {
+        return Vec::new();
+    }
+    let intervals = compute_intervals(cfg, ssa, values);
+    let guard_index = build_guard_index(cfg, ssa);
+
+    let env_for = |uses: &HashMap<String, Version>, bn: &str| -> HashMap<String, Interval> {
+        uses.iter()
+            .filter(|&(_, &ver)| ver > 0)
+            .map(|(name, &ver)| {
+                (
+                    name.clone(),
+                    refine_interval(&intervals, cfg, ssa, bn, name, ver, &guard_index),
+                )
+            })
+            .collect()
+    };
+
+    let mut findings: Vec<DivZeroFinding> = Vec::new();
+    for (bn, sb) in &ssa.blocks {
+        if !executable.contains(bn) {
+            continue;
+        }
+        for s in &sb.statements {
+            if let Some(expr) = statement_expr(&s.statement) {
+                let span = statement_span(&s.statement).unwrap_or_else(|| Span::new(0, 0));
+                collect_divzero(expr, span, &env_for(&s.uses, bn), &mut findings);
+            }
+        }
+        let Some(block) = cfg.blocks.get(bn) else {
+            continue;
+        };
+        match &block.terminator {
+            Some(Terminator::Branch {
+                condition,
+                span: Some(span),
+                ..
+            }) => collect_divzero(
+                condition,
+                *span,
+                &env_for(&sb.exit_versions, bn),
+                &mut findings,
+            ),
+            Some(Terminator::Return {
+                expr: Some(e),
+                span: Some(span),
+                ..
+            }) => collect_divzero(e, *span, &env_for(&sb.exit_versions, bn), &mut findings),
+            _ => {}
+        }
+    }
+    // Deterministic, source-order output (HashMap block iteration is not).
+    findings.sort_by_key(|f| (f.span.start(), f.span.end(), f.op));
+    findings
+}
+
 /// The source span of an IR statement, for anchoring a finding.  Only the flat
 /// statement shapes that appear in CFG-lowered SSA blocks carry an index access;
 /// structured statements (`If`/`For`/…) are gone by this point, so they need no
@@ -657,6 +816,42 @@ fn statement_span(stmt: &Statement) -> Option<Span> {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+
+    /// The `op` of every W233 divide-by-zero finding for `src`'s top level.
+    fn divzero(src: &str) -> Vec<&'static str> {
+        use crate::compilation_unit::CompilationUnit;
+        use tcl_registry::CommandRegistry;
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let fu = &cu.top_level;
+        super::find_divide_by_zero(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            &fu.sccp.executable_blocks,
+        )
+        .iter()
+        .map(|d| d.op)
+        .collect()
+    }
+
+    #[test]
+    fn provably_zero_divisor_fires_w233() {
+        // `$d` is the SCCP/interval constant 0 → `1 / $d` is a runtime error.
+        assert_eq!(divzero("set d 0\nset x [expr {1 / $d}]"), vec!["/"]);
+        assert_eq!(divzero("set d 0\nexpr {1 / $d}"), vec!["/"]);
+        assert_eq!(divzero("set d 0\nexpr {5 % $d}"), vec!["%"]);
+    }
+
+    #[test]
+    fn nonzero_or_guarded_divisor_is_clean() {
+        // A non-zero divisor: no finding.
+        assert!(divzero("set d 3\nset x [expr {1 / $d}]").is_empty());
+        // Guarded by `$d != 0`: SCCP marks the division block unreachable.
+        assert!(divzero("set d 0\nif {$d != 0} { expr {1 / $d} }").is_empty());
+        // No division at all.
+        assert!(divzero("set x 1\nset y 2").is_empty());
+    }
 
     fn bounds(src: &str) -> Vec<(String, String)> {
         let mut a = Analyser::new();

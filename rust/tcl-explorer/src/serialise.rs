@@ -18,7 +18,7 @@ use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
-use tcl_compiler::interval_bounds::find_interval_bounds;
+use tcl_compiler::interval_bounds::{find_divide_by_zero, find_interval_bounds};
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
@@ -825,6 +825,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
             du: &s.unit.def_use,
             sccp: Some(&s.unit.sccp),
             mem: s.unit.memory_ssa.as_ref(),
+            types: Some(&s.unit.types),
         })
         .collect();
     let graph = extract_dataflow_graph(&inputs);
@@ -972,9 +973,9 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 /// Serialise the `bounds` view: interval-driven out-of-range findings per
 /// function. Mirrors `_serialise_bounds`.
 ///
-/// `_NO_PARITY`: the Rust `find_interval_bounds` takes no `execution_intent`
-/// and emits no divide-by-zero (`W233`) findings, so `divzero` is always
-/// `[]` and the findings come from the (divergent) Rust interval analysis.
+/// Both interval-driven passes share the same SCCP-executable-block filter:
+/// `find_interval_bounds` (W230/W231/W232 out-of-range index access) and
+/// `find_divide_by_zero` (W233 provably-`[0,0]` divisor).
 #[must_use]
 pub fn serialise_bounds(result: &ExplorerResult) -> Value {
     let funcs: Vec<Value> = result
@@ -1000,7 +1001,16 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 })
             })
             .collect();
-            json!({ "name": snap.name, "findings": findings, "divzero": Vec::<Value>::new() })
+            let divzero: Vec<Value> = find_divide_by_zero(
+                &snap.unit.cfg,
+                &snap.unit.ssa,
+                &snap.unit.sccp.values,
+                &snap.unit.sccp.executable_blocks,
+            )
+            .iter()
+            .map(|d| json!({ "code": "W233", "op": d.op }))
+            .collect();
+            json!({ "name": snap.name, "findings": findings, "divzero": divzero })
         })
         .collect();
     Value::Array(funcs)

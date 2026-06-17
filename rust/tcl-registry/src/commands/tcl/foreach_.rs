@@ -35,7 +35,8 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::HAS_LOOP_BODY
             | Traits::NEVER_INLINE_BODY
-            | Traits::LOOP_LIST_HEADER,
+            | Traits::LOOP_LIST_HEADER
+            | Traits::WASM_EMITS_NOTHING,
         arity: Arity::at_least(3),
         arg_role_resolver: Some(foreach_arg_roles),
         lowering_hook: Some(crate::hooks::LoweringHookId::Foreach),

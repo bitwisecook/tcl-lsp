@@ -162,6 +162,12 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         let blk = &cfg.blocks[bname];
         ctx.place_label(bname);
 
+        // Synthetic per-block instructions (loop-result pushes, padding
+        // NOPs, startCommand boundary markers emitted before any statement)
+        // carry no direct source span; statement / terminator emission
+        // sets a real span below.
+        ctx.current_span = None;
+
         // try/finally inline compilation at try_body block.
         if let Some(info) = state.try_finally_info.get(bname).cloned() {
             ctx.emit_try_finally_inline(cfg, bname, &info.try_finally);
@@ -334,6 +340,11 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
                 ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
                 ctx.emit_stmt_with_start_cmd(stmt, None, None);
             }
+            // foreach_step/foreach_end are synthetic loop machinery with no
+            // source construct; clear the sticky statement span so they
+            // serialise as null rather than inheriting the last body
+            // statement's range.
+            ctx.current_span = None;
             ctx.emit(Op::FOREACH_STEP, vec![]);
             ctx.emit(Op::FOREACH_END, vec![]);
             continue;
@@ -685,6 +696,53 @@ mod tests {
             matches!(last, Op::DONE | Op::RETURN_IMM),
             "expected DONE or RETURN_IMM, got {last:?}"
         );
+    }
+
+    #[test]
+    fn generate_stamps_statement_source_span() {
+        // A statement with a non-trivial span: its lowered instructions
+        // (push / store) must carry that span; the synthetic trailing
+        // DONE carries none.
+        let mut cfg = CfgFunction::new("::top", "entry_0");
+        let stmt_span = Span::new(4, 10);
+        cfg.blocks
+            .get_mut("entry_0")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: stmt_span,
+                name: "x".into(),
+                value: "42".into(),
+            });
+        cfg.blocks.get_mut("entry_0").unwrap().terminator = Some(Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        });
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let asm = generate(&mut ctx, &cfg, &[]);
+
+        // The store-into-x instruction came from the AssignConst statement.
+        let store = asm
+            .instructions
+            .iter()
+            .find(|i| i.op == Op::STORE_STK)
+            .expect("store emitted");
+        assert_eq!(
+            store.source_span,
+            Some(stmt_span),
+            "statement-driven op carries its source span"
+        );
+        // The synthetic terminator (Return with no span) leaves none.
+        let done = asm
+            .instructions
+            .iter()
+            .rev()
+            .find(|i| matches!(i.op, Op::DONE | Op::RETURN_IMM))
+            .expect("terminator emitted");
+        assert_eq!(done.source_span, None, "synthetic terminator has no span");
     }
 
     #[test]

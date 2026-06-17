@@ -151,7 +151,7 @@ CASES: list[tuple[str, object, str]] = [
     ('with_partition("barename", "Common")', None, "json"),
     ('with_partition("/Common/iApps/T.app/p1", "X")', None, "json"),
     ('with_partition("/Common/web_pool", "")', None, "json"),
-    ("with_partition(42, \"Common\")", None, "json"),
+    ('with_partition(42, "Common")', None, "json"),
     # ====================== encoding ======================
     # -- base64 / base64d --
     ('base64("hello")', None, "json"),
@@ -185,7 +185,7 @@ CASES: list[tuple[str, object, str]] = [
     ("fromjson(42)", None, "json"),
     # -- sh --
     ('sh("simple")', None, "json"),
-    ("sh(\"it's a test\")", None, "json"),
+    ('sh("it\'s a test")', None, "json"),
     ('sh("a b c")', None, "json"),
     ("sh", ["a", "b c", "it's"], "json"),
     ("sh", [], "json"),

@@ -15,9 +15,10 @@
 //!    of recursing. The whole top level (incl. `namespace eval` / control-flow
 //!    bodies and the procs they contain) is walked here, so top-level variable
 //!    flow is identical to `analyse`.
-//! 2. **Body pass** — for each deferred body, `analyse_body` fills its
-//!    already-created scope *in place*, with `defer_proc_bodies = false` so
-//!    nested defs walk within their enclosing unit.
+//! 2. **Body pass** — for each deferred body (proc *and* method),
+//!    `analyse_proc_body_isolated` analyses it as an offset-0 isolated unit and
+//!    `graft_proc_body` rebases + merges the result into the shell.  Both are
+//!    memoisable, so a body edit re-analyses only that body.
 //!
 //! Splitting top-level vs body work reorders the walk-populated collections
 //! (`command_invocations`, `VarDef.references`, …) relative to `analyse`'s DFS,
@@ -36,9 +37,9 @@ use super::state::Analyser;
 use super::types::AnalysisResult;
 
 /// A proc / method body deferred by the shell pass for a second analysis pass.
-/// Its scope already exists at `scope_path` (params defined); the body pass
-/// fills it — proc bodies via an **isolated** analysis (memoisable), method
-/// bodies in place (byte-identical, not yet memoised).
+/// Its scope already exists at `scope_path` (params + instance vars defined);
+/// the body pass fills it via an **isolated** analysis (memoisable) and grafts
+/// the result back.
 #[derive(Debug, Clone)]
 pub struct DeferredBody {
     /// Body text (braces stripped), as `analyse_body` expects.
@@ -47,16 +48,23 @@ pub struct DeferredBody {
     pub body_tok: Token,
     /// Path to the already-created (empty) proc / method scope to fill.
     pub scope_path: Vec<usize>,
-    /// `true` for an OO method/constructor/destructor body (filled in place);
-    /// `false` for a `proc` body (analysed in isolation).
+    /// `true` for an OO method/constructor/destructor body (analysed in an
+    /// isolated `Method` scope with instance variables pre-bound); `false` for a
+    /// `proc` body.
     pub is_method: bool,
-    /// Lexical namespace of the proc (e.g. `"::ns"`), for reconstructing the
-    /// isolated analysis context. (Proc bodies only.)
+    /// Lexical namespace of the proc (e.g. `"::ns"`), or — for a method — the
+    /// class's **defining** namespace, used to reconstruct the isolated analysis
+    /// context.
     pub namespace: String,
-    /// The proc scope's name (as written) — used for `all_variables` keys.
+    /// The proc scope's name (as written) — or, for a method, its qualified name
+    /// (`::Class::method`) — used for `all_variables` keys and the per-item
+    /// duplicate detector.
     pub scope_name: String,
-    /// The proc's declared parameters (locals in the body). (Proc bodies only.)
+    /// The proc / method's declared parameters (locals in the body).
     pub params: Vec<crate::signature_scan::types::ParamDef>,
+    /// Class instance variables pre-bound in every method body (`variable`
+    /// declarations at class level).  Empty for proc bodies.
+    pub class_variables: Vec<String>,
 }
 
 impl Analyser {
@@ -79,11 +87,11 @@ impl Analyser {
         self.analyse_per_item_with(source, dialect, &mut body_fn)
     }
 
-    /// As [`Self::analyse_per_item`], but each *proc* body's isolated analysis
-    /// is produced by `body_fn` — letting a caller (the LSP query DB) memoise it
-    /// in salsa so a body edit recomputes only that body.  Method bodies are
-    /// filled in place.  Byte-identical to `analyse` whenever `body_fn` returns
-    /// what [`analyse_proc_body_isolated`] would.
+    /// As [`Self::analyse_per_item`], but each proc / method body's isolated
+    /// analysis is produced by `body_fn` — letting a caller (the LSP query DB)
+    /// memoise it in salsa so a body edit recomputes only that body.
+    /// Byte-identical to `analyse` whenever `body_fn` returns what
+    /// [`analyse_proc_body_isolated`] would.
     #[allow(clippy::too_many_lines)]
     pub fn analyse_per_item_with(
         &mut self,
@@ -94,6 +102,7 @@ impl Analyser {
         use std::collections::HashSet;
         use tcl_registry::CommandRegistry;
 
+        self.took_fast_path = false;
         // Recovery / stub overlays are only modelled on the full `analyse`
         // path; fall back so the per-item result can never diverge.
         if !tcl_lexer::script_is_complete(source) || source.contains("tcl-lsp: stub") {
@@ -176,82 +185,105 @@ impl Analyser {
         // qualified `$::g` reads — replayed at graft) takes the fast incremental
         // path.  Guarded by the corpus `per_item == analyse` gate + the
         // `incremental == fresh` fuzzer.
-        let structural_fallback = {
+        // A **method** defined more than once (same qualified name) still forces a
+        // fallback: method bodies fill their scope in place, so a genuine
+        // duplicate would accumulate rather than last-definition-win.  (Distinct
+        // methods now carry distinct `scope_name`s, so a multi-method class is no
+        // longer a false duplicate.)
+        let duplicate_method = !self.probe_skip_duplicate_fallback && {
             let mut seen = std::collections::HashSet::new();
-            let duplicate_top_level = deferred.iter().any(|db| {
-                !seen.insert((db.is_method, db.namespace.as_str(), db.scope_name.as_str()))
-            });
-            duplicate_top_level
-                || deferred
-                    .iter()
-                    .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text))
+            deferred
+                .iter()
+                .any(|db| db.is_method && !seen.insert(db.scope_name.as_str()))
         };
-        if structural_fallback {
+        let enclosing_fallback = !self.probe_skip_enclosing_fallback
+            && deferred
+                .iter()
+                .any(|db| !db.is_method && body_needs_enclosing_context(&db.body_text));
+        if duplicate_method || enclosing_fallback {
             return self.fresh_full_analyse(source, dialect);
         }
+        // **Proc duplicates take the fast path.**  A whole-file walk's
+        // `all_variables` for a duplicated proc is the *union* of every
+        // definition's locals, with last-definition-wins for keys shared across
+        // definitions (`define_var` overwrites on each redefinition).  The graft
+        // reproduces that with overwrite-on-collision for body-owned keys, while
+        // *param* keys keep the shell's real definition (it recorded them in pass
+        // 1, last-def-wins): the `shell_var_keys` snapshot distinguishes the two.
+        // (For a non-duplicate proc every local key is unique, so this is a plain
+        // insert — byte-identical to before.)  A body contributing *colliding*
+        // class facts (accumulation) still falls back — see `class_facts_collide`.
+        let shell_var_keys: std::collections::HashSet<String> =
+            self.result.all_variables.keys().cloned().collect();
         // Track every defined proc qualified name (top-level + nested) so a body
         // that redefines an already-defined proc forces a fallback.
         let mut defined_procs: std::collections::HashSet<String> =
             self.result.all_procs.keys().cloned().collect();
         for db in &deferred {
-            if db.is_method {
-                // Method bodies fill their scope in place (byte-identical for the
-                // walk itself).  But a method that *defines* a proc/class does so
-                // in pass-2 order, not the source order a whole-file walk uses —
-                // so a name it defines that is also defined elsewhere would win
-                // here yet lose (or accumulate differently) there.  Detect that
-                // and fall back.  Cheap: only snapshot when the body text
-                // actually defines a proc/class.
-                self.last_comment = String::new();
-                let before_classes = body_word_defines(&db.body_text, CLASS_DEFINERS)
-                    .then(|| self.result.all_classes.clone());
-                let before_procs = body_word_defines(&db.body_text, &["proc"])
-                    .then(|| self.result.all_procs.clone());
-                self.analyse_body(&db.body_text, db.body_tok, &db.scope_path);
-                // A method that defines/extends a class diverges like a
-                // class-defining proc body (accumulation order) — fall back.
-                if let Some(before) = before_classes
-                    && self
-                        .result
-                        .all_classes
-                        .iter()
-                        .any(|(k, v)| before.get(k) != Some(v))
-                {
-                    return self.fresh_full_analyse(source, dialect);
-                }
-                // A method that (re)defines a proc whose name is defined
-                // elsewhere is a duplicate at the shared `all_procs` key.
-                if let Some(before) = before_procs {
-                    let mut collision = false;
-                    for (k, v) in &self.result.all_procs {
-                        if before.get(k) != Some(v) && !defined_procs.insert(k.clone()) {
-                            collision = true;
-                            break;
-                        }
-                    }
-                    if collision {
-                        return self.fresh_full_analyse(source, dialect);
-                    }
-                }
-            } else {
-                // Proc bodies: analyse in isolation (a pure function of the
-                // body — the unit memoised by `body_fn`) and graft into shell.
-                let frag = body_fn(db);
-                if frag
-                    .result
-                    .all_procs
-                    .keys()
-                    .any(|name| !defined_procs.insert(name.clone()))
-                {
-                    return self.fresh_full_analyse(source, dialect);
-                }
-                self.graft_proc_body(db, frag);
+            // Both proc and method bodies are analysed in isolation (a pure
+            // function of the body — the unit `body_fn` memoises) and grafted into
+            // the shell.  Methods reconstruct a `Method` scope with the class's
+            // instance variables pre-bound (see `analyse_proc_body_isolated`).
+            let frag = body_fn(db);
+            // A body that defines a proc whose name is defined elsewhere is a
+            // duplicate at the shared `all_procs` key — the graft can't reproduce
+            // last-definition-wins there, so fall back.
+            if frag
+                .result
+                .all_procs
+                .keys()
+                .any(|name| !defined_procs.insert(name.clone()))
+            {
+                return self.fresh_full_analyse(source, dialect);
+            }
+            // A body that defines/extends a class whose `all_classes` entry
+            // **collides** with one already present (a *different* value) can't be
+            // reproduced by the graft's overwrite-on-key: a whole-file walk
+            // *accumulates* there (`oo::define` adds methods to the existing
+            // class).  A fresh (non-colliding) class definition stays fast.
+            if class_facts_collide(&self.result, &frag.result) {
+                return self.fresh_full_analyse(source, dialect);
+            }
+            // Object-instance tracking (W308) resolves the class at the walk
+            // point.  A proc body's creations are captured and replayed by the
+            // graft against the shell's full `all_classes` (source order →
+            // last-assignment-wins matches the whole-file walk).  A *method* body
+            // would resolve against the whole file's classes rather than analyse's
+            // DFS prefix, so its instance tracking can't be replayed faithfully —
+            // snapshot when it captured a candidate (a real `Cls new` *or* a
+            // benign `dict create`) and fall back only if the replay actually
+            // recorded an instance.
+            let inst_snapshot = (db.is_method && !frag.instances.is_empty())
+                .then(|| self.result.instance_classes.clone());
+            self.graft_proc_body(db, frag, &shell_var_keys);
+            if let Some(before) = inst_snapshot
+                && self.result.instance_classes != before
+            {
+                return self.fresh_full_analyse(source, dialect);
             }
         }
 
         // --- tail (cross-item passes; canonicalises order) ---
         self.run_diagnostic_emitters(source);
 
+        // Correctness backstop (mirrors `analyse_incremental`): a syntax error
+        // (`E…` diagnostic) means `analyse` engaged its error-*recovery* machinery
+        // (ghost-token re-lexing, recovery segmentation, body-level partial
+        // detection) that the per-item walk only partially reproduces — a
+        // locally-unbalanced `}` that `script_is_complete` still accepts is the
+        // classic case.  Re-analyse fully so the result is byte-identical to a
+        // from-scratch `analyse`.  Well-formed edits (the common case) carry no
+        // E-codes and stay on the fast path.
+        if self
+            .result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.starts_with('E'))
+        {
+            return self.fresh_full_analyse(source, dialect);
+        }
+
+        self.took_fast_path = true;
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
         result
@@ -263,7 +295,21 @@ impl Analyser {
     /// merge-or-inserted (an existing key is a param → keep its def span, add the
     /// body's reads; a new key is a body local → insert).  Order is canonicalised
     /// by the tail, so plain `extend` is fine for the rest.
-    fn graft_proc_body(&mut self, db: &DeferredBody, mut frag: BodyFragment) {
+    ///
+    /// `shell_var_keys` holds the `all_variables` keys the shell already owns
+    /// before any body is grafted (params + top-level vars).  A body re-records
+    /// its params, so those keys *merge* (keep the shell's real definition span,
+    /// add the body's references); a key the shell doesn't own is a body local,
+    /// *inserted* (overwrite-on-collision) — so a duplicate proc's locals union
+    /// across definitions with last-definition-wins for shared keys, matching the
+    /// whole-file `define_var`.  (For a non-duplicate proc every local key is
+    /// unique, so insert and merge coincide — byte-identical to before.)
+    fn graft_proc_body(
+        &mut self,
+        db: &DeferredBody,
+        mut frag: BodyFragment,
+        shell_var_keys: &std::collections::HashSet<String>,
+    ) {
         // Rebase: body facts are relative to the body content start.
         let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset);
         let line_delta = self
@@ -282,7 +328,27 @@ impl Analyser {
         let r = frag.result;
         self.result.all_procs.extend(r.all_procs);
         self.result.all_classes.extend(r.all_classes);
-        merge_scope_vars(&mut self.result.all_variables, r.all_variables);
+        for (k, v) in r.all_variables {
+            match self.result.all_variables.get_mut(&k) {
+                Some(existing) if shell_var_keys.contains(&k) => {
+                    // Param / top-level key the shell already owns: take this
+                    // body's references / warn / indices (last-definition-wins for
+                    // a duplicate proc — analyse's `define_var` resets them on each
+                    // redefinition) but keep the shell's real definition span.
+                    let def = existing.definition_span;
+                    *existing = v;
+                    existing.definition_span = def;
+                }
+                Some(existing) => {
+                    // Body-owned local already present (an earlier duplicate
+                    // definition): last-definition-wins.
+                    *existing = v;
+                }
+                None => {
+                    self.result.all_variables.insert(k, v);
+                }
+            }
+        }
         self.result.command_aliases.extend(r.command_aliases);
         self.result.instance_classes.extend(r.instance_classes);
         self.result.diagnostics.extend(r.diagnostics);
@@ -313,8 +379,51 @@ impl Analyser {
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
         // a reference on the enclosing `::g` exactly as a whole-file walk would.
+        // Replay each captured qualified read on the shell's real globals — but
+        // only when the enclosing definition **precedes this body** in source
+        // order.  A whole-file DFS walks a proc body at the proc's definition
+        // point, so a top-level `set ::ns::v` that appears *after* the proc is
+        // not yet defined when the body's `$::ns::v` read runs (no reference
+        // recorded).  The per-item shell processes every top-level `set` before
+        // any deferred body, so without this guard a later definition would
+        // spuriously absorb the read.  Gate on the body token start (the proc
+        // header precedes it, and no top-level command can fall inside the body).
+        let body_start = db.body_tok.span.start();
         for (name, span) in frag.global_reads {
-            self.record_var_read(&name, shift(span, delta), &[]);
+            let base = crate::naming::normalise_var_name(&name);
+            let visible = self
+                .result
+                .global_scope
+                .variables
+                .get(base)
+                .is_some_and(|v| v.definition_span.start() < body_start);
+            if visible {
+                self.record_var_read(&name, shift(span, delta), &[]);
+            }
+        }
+        // Re-defer the body's would-be-W002 sites with rebased spans; the tail
+        // re-applies the shadow check against the merged `all_procs`.
+        for (qname, mut diag) in frag.disabled_commands {
+            diag.span = shift(diag.span, delta);
+            self.pending_disabled_commands.push((qname, diag));
+        }
+        // Re-defer the body's source-dependent W304 sites, rebasing the token,
+        // fix, and diagnostic spans to absolute; the tail classifies each `$var`
+        // against the full file source.
+        for (mut tok, label, mut fixes, diag_span) in frag.w304 {
+            tok.span = shift(tok.span, delta);
+            for fix in &mut fixes {
+                fix.span = shift(fix.span, delta);
+            }
+            self.pending_w304
+                .push((tok, label, fixes, shift(diag_span, delta)));
+        }
+        // Replay captured instance creations against the shell's full
+        // `all_classes` (in body/source order, so last-assignment-wins matches
+        // the whole-file walk).  `instance_classes` carries no spans, so no
+        // rebasing is needed.
+        for (cmd, args) in frag.instances {
+            self.record_instance_creation(&cmd, &args);
         }
     }
 }
@@ -332,15 +441,36 @@ pub struct BodyFragment {
     /// Qualified (`::`/`static::`) reads that missed the isolated body's empty
     /// enclosing global scope; replayed on the shell's real globals at graft.
     global_reads: Vec<(String, tcl_lexer::Span)>,
+    /// W002 (disabled-in-dialect command) sites whose user-proc-shadowing
+    /// suppression depends on the file's full `all_procs` (a cross-item fact the
+    /// isolated body lacks): `(qualified call name, deferred diagnostic)`.  The
+    /// graft rebases the diagnostic span and re-defers it; the tail re-checks the
+    /// shadow against the merged `all_procs`.
+    disabled_commands: Vec<(String, super::types::Diagnostic)>,
+    /// Deferred W304 (missing `--`) sites whose `$var` classification needs the
+    /// whole-file most-recent-`set` resolution (invisible to an isolated body).
+    /// The graft rebases the token + fix + diagnostic spans; the tail classifies
+    /// them against the full source.
+    w304: Vec<(
+        tcl_lexer::Token,
+        String,
+        Vec<super::types::CodeFix>,
+        tcl_lexer::Span,
+    )>,
+    /// Captured `TclOO` instance-creation candidates (`(command, args)`); the graft
+    /// replays them against the shell's full `all_classes`.
+    instances: Vec<(String, Vec<String>)>,
 }
 
-/// Analyse one `proc` body as an isolated unit at **offset 0** — a pure
-/// function of `(body_text, namespace, scope_name, params)`, so a
-/// shifted-but-unedited proc is a cache hit (offset-invariant).  The enclosing
-/// namespace + params are reconstructed; params get a placeholder definition
-/// span (the aggregator keeps the shell's real one).  Spans/lines are relative
-/// to the body start; [`Analyser::graft_proc_body`] rebases them by the body's
-/// real position.
+/// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a
+/// pure function of `(body_text, namespace, scope_name, params, is_method,
+/// class_variables)`, so a shifted-but-unedited body is a cache hit
+/// (offset-invariant).  The enclosing namespace + params are reconstructed
+/// (a `Method` scope with instance variables pre-bound for methods, a `Proc`
+/// scope otherwise); params / instance vars get a placeholder definition span
+/// (the aggregator keeps the shell's real one).  Spans/lines are relative to the
+/// body start; [`Analyser::graft_proc_body`] rebases them by the body's real
+/// position.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
 pub fn analyse_proc_body_isolated(
@@ -372,12 +502,36 @@ pub fn analyse_proc_body_isolated(
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.
     a.capture_global_reads = Some(Vec::new());
-    let proc_path =
-        reconstruct_proc_scope(&mut a.result.global_scope, &db.namespace, &db.scope_name);
+    // Capture object-instance creations: the isolated body's `all_classes` is
+    // empty, so the class can't be resolved here — the graft replays them.
+    a.pending_instances = Some(Vec::new());
+    // A method body is analysed in a `Method` scope (so `in_method` dispatch
+    // recording fires) under the class's defining namespace, with the class
+    // instance variables pre-bound; a proc body in a `Proc` scope.
+    let kind = if db.is_method {
+        super::types::ScopeKind::Method
+    } else {
+        super::types::ScopeKind::Proc
+    };
+    let proc_path = reconstruct_proc_scope(
+        &mut a.result.global_scope,
+        &db.namespace,
+        &db.scope_name,
+        kind,
+    );
     let placeholder = tcl_lexer::Span::new(0, 0);
     let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
     for p in &db.params {
         a.define_var(&p.name, dummy, &proc_path, false, Some(placeholder));
+    }
+    // Class instance variables — visible in every method body (skip ones that a
+    // formal parameter already shadows, matching `walk_method_body`).
+    for var in &db.class_variables {
+        let base = crate::naming::normalise_var_name(var);
+        if base.is_empty() || db.params.iter().any(|p| p.name == base) {
+            continue;
+        }
+        a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
     a.analyse_body(&db.body_text, body_tok, &proc_path);
     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
@@ -391,6 +545,9 @@ pub fn analyse_proc_body_isolated(
         var_sites: a.var_command_sites,
         cmd_sites: a.cmd_command_sites,
         global_reads: a.capture_global_reads.unwrap_or_default(),
+        disabled_commands: a.pending_disabled_commands,
+        w304: a.pending_w304,
+        instances: a.pending_instances.unwrap_or_default(),
     }
 }
 
@@ -403,13 +560,35 @@ fn merge_scope_vars(
     src: std::collections::HashMap<String, super::types::VarDef>,
 ) {
     for (k, v) in src {
-        if let Some(existing) = dst.get_mut(&k) {
-            existing.references.extend(v.references);
-            existing.warn_if_unused |= v.warn_if_unused;
-            existing.array_indices.extend(v.array_indices);
-        } else {
-            dst.insert(k, v);
-        }
+        merge_one_var(dst, k, v);
+    }
+}
+
+/// Would grafting `frag`'s `all_classes` *overwrite* an entry the shell already
+/// holds with a **different** value?  That is the accumulation case a whole-file
+/// walk handles but the graft's overwrite-on-key cannot (`oo::define` adds
+/// methods to an existing class), so the caller falls back.  A *fresh*
+/// (non-colliding) class definition returns `false` and stays on the fast path.
+fn class_facts_collide(shell: &AnalysisResult, frag: &AnalysisResult) -> bool {
+    frag.all_classes
+        .iter()
+        .any(|(k, v)| shell.all_classes.get(k).is_some_and(|e| e != v))
+}
+
+/// Merge one body-derived variable into a map: an existing key keeps its
+/// definition span (the shell's real param span) and accumulates the body's
+/// references / warn flag / array indices; a new key is inserted.
+fn merge_one_var(
+    dst: &mut std::collections::HashMap<String, super::types::VarDef>,
+    k: String,
+    v: super::types::VarDef,
+) {
+    if let Some(existing) = dst.get_mut(&k) {
+        existing.references.extend(v.references);
+        existing.warn_if_unused |= v.warn_if_unused;
+        existing.array_indices.extend(v.array_indices);
+    } else {
+        dst.insert(k, v);
     }
 }
 
@@ -542,8 +721,10 @@ fn reconstruct_proc_scope(
     root: &mut super::types::Scope,
     namespace: &str,
     scope_name: &str,
+    kind: super::types::ScopeKind,
 ) -> Vec<usize> {
-    use super::types::{Scope, ScopeKind};
+    use super::types::Scope;
+    use super::types::ScopeKind;
     let comps: Vec<&str> = namespace
         .trim_start_matches(':')
         .split("::")
@@ -558,67 +739,47 @@ fn reconstruct_proc_scope(
     }
     let parent = super::scope::scope_at_mut(root, &path).expect("scope path");
     let pi = parent.children.len();
-    parent
-        .children
-        .push(Scope::new(ScopeKind::Proc, scope_name));
+    parent.children.push(Scope::new(kind, scope_name));
     path.push(pi);
     path
 }
 
-/// Class-defining / object-aliasing command heads whose facts accumulate across
-/// bodies in a whole-file walk (remove → add → re-insert) — which the per-item
-/// graft's overwrite-on-key can't reproduce.
-const CLASS_DEFINERS: &[&str] = &[
-    "oo::define",
-    "oo::objdefine",
-    "oo::class",
-    "oo::copy",
-    "itcl::class",
-];
-
-/// Word-level test: does `body_text` use any of `words` as a (whitespace- or
-/// punctuation-delimited) command word?  Used as a cheap pre-filter before the
-/// more expensive snapshot/diff that confirms what a method body actually
-/// defined.  False positives only cost a snapshot, never correctness.
-fn body_word_defines(body_text: &str, words: &[&str]) -> bool {
-    body_text
-        .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
-        .any(|w| words.contains(&w))
-}
-
-/// Does an isolated proc body interact with enclosing-scope / object state in a
-/// way the per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
-/// fallback?  True when the body:
+/// Does an isolated proc body interact with enclosing-scope state in a way the
+/// per-item graft can't reproduce byte-for-byte, forcing a full-rebuild
+/// fallback?  True when the body declares a link to a **qualified (sub-namespace)
+/// variable** — a `variable ns::name` command inside the body.
 ///
-/// * **defines or extends a class / aliased object** (`oo::class` / `oo::define`
-///   / `itcl::class` / `oo::copy`) — class facts accumulate across bodies in a
-///   whole-file walk (remove → add → re-insert), which the graft's
-///   overwrite-on-key can't reproduce; **or**
-/// * **declares or writes an enclosing-scope variable** (`variable` / `global` /
-///   `upvar` / `namespace`, or a writer command — `set`/`incr`/`lappend`/
-///   `append`/`dict`/`array` — targeting a `::`-qualified name).  Such a body's
-///   `all_variables` / global-scope effect (definition span, `warn_if_unused`,
-///   const-string-dependent diagnostics like W304) depends on enclosing context
-///   the isolated analysis can't see.
+/// Such a name resolves to a variable owned by *another* item (the
+/// `namespace eval ns { variable name … }` body), so its `all_variables` entry
+/// accumulates a definition from both this body and that namespace block.  The
+/// order-sensitive facts of the merged entry — `warn_if_unused` and the winning
+/// `definition_span` — depend on the cross-item walk order, which the whole-file
+/// DFS and the per-item shell-first walk disagree on; the graft's
+/// position-independent merge can't reproduce the DFS result.  (The visible
+/// *diagnostics* already match; only this internal book-keeping diverges, but the
+/// correctness contract is full-`AnalysisResult` byte-identity.)
 ///
-/// Qualified variable *reads* (`$::g`) are **not** listed: they are captured and
-/// replayed on the shell's globals at graft time, so they stay on the fast path.
-/// Conservative — a false positive only costs a full rebuild, never correctness.
+/// Everything else an enclosing-touching body does is reproduced on the fast
+/// path and proven byte-identical over the corpus: `global` / `upvar` / plain
+/// `variable x` declarations, qualified writes (`set ::x`), class definitions
+/// (`oo::class` / `oo::define`), and qualified reads (`$::g`, captured and
+/// replayed at graft).  Backstopped by the differential `incremental == fresh`
+/// fuzzer + this fallback — a false positive costs only a redundant rebuild.
+///
+/// Line-scoped so it doesn't trip on a plain `variable x` whose body merely also
+/// mentions a `::`-qualified name elsewhere (which would needlessly defeat the
+/// fast path on large files like `practcl.tcl`).
 fn body_needs_enclosing_context(body_text: &str) -> bool {
-    const DECLARERS: &[&str] = &["variable", "global", "upvar", "namespace"];
-    const WRITERS: &[&str] = &["set", "incr", "lappend", "append", "dict", "array"];
-    let words: Vec<&str> = body_text
-        .split(|c: char| !(c.is_alphanumeric() || c == ':' || c == '_'))
-        .filter(|w| !w.is_empty())
-        .collect();
-    for (i, &w) in words.iter().enumerate() {
-        if DECLARERS.contains(&w) || CLASS_DEFINERS.contains(&w) {
-            return true;
-        }
-        // A writer whose next word or two is a `::`-qualified target writes an
-        // enclosing-scope variable.
-        if WRITERS.contains(&w) && words[i + 1..].iter().take(2).any(|t| t.contains("::")) {
-            return true;
+    for line in body_text.lines() {
+        let mut words = line.split_whitespace();
+        while let Some(w) = words.next() {
+            // A `variable` command (anywhere on the line) with a `::`-qualified
+            // argument links to a sub-namespace variable.  Checking the rest of
+            // the line is deliberately conservative (it may include a following
+            // `;`-separated command), which only over-triggers the fallback.
+            if w == "variable" && words.clone().any(|a| a.contains("::")) {
+                return true;
+            }
         }
     }
     false
@@ -691,11 +852,62 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_top_level_proc_falls_back() {
-        // Platform-conditional redefinition: last-def-wins in a whole-file walk;
-        // the per-item path detects the duplicate and falls back, so equal.
+    fn duplicate_top_level_proc_byte_identical() {
+        // Platform-conditional redefinition: last-def-wins in a whole-file walk.
+        // The per-item path reproduces it on the fast path (the graft unions each
+        // definition's `all_variables` with last-definition-wins on shared keys).
         eq(
             "if {1} {\n  proc p {} { set file a; puts $file }\n} else {\n  proc p {} { return 2 }\n}\n",
+        );
+    }
+
+    #[test]
+    fn duplicate_proc_same_local_last_wins() {
+        // Same-named local across two definitions: `all_variables` keeps the last
+        // definition's span + references (not the first, not the union of refs).
+        eq("proc p {} { set a 1 }\nproc p {} { set a 2 }\n");
+        eq("proc p {} { set a 1; incr a }\nproc p {} { set a 2; incr a }\n");
+    }
+
+    #[test]
+    fn duplicate_proc_unique_locals_unioned() {
+        // A local defined only in an earlier definition survives (union), while a
+        // shared local is last-wins — the whole-file `define_var` semantics.
+        eq("proc p {} { set early 1 }\nproc p {} { set late 2 }\n");
+    }
+
+    #[test]
+    fn duplicate_proc_with_params() {
+        // Param references on a duplicate proc are last-definition-wins (the
+        // earlier body's reads are dropped), and the shell's real param span is
+        // kept (not the isolated body's placeholder).
+        eq("proc p {key} { return $key }\nproc p {key} { puts $key }\n");
+    }
+
+    #[test]
+    fn multi_method_class_byte_identical() {
+        // A class with several methods must NOT be treated as a set of mutual
+        // "duplicates" (the empty-scope-name bug) — it takes the fast path.
+        eq(
+            "oo::class create K {\n  method a {} { set x 1 }\n  method b {} { set y 2 }\n  method c {x} { return $x }\n}\n",
+        );
+    }
+
+    #[test]
+    fn instance_creation_in_proc_body() {
+        // An isolated proc body can't resolve the sibling class; the creation is
+        // captured and replayed at graft so `instance_classes` matches.
+        eq("oo::class create Dog {}\nproc make {} { set d [Dog new] }\n");
+        eq("oo::class create Dog {}\nproc make {} { Dog create rex }\n");
+    }
+
+    #[test]
+    fn class_extension_in_proc_falls_back() {
+        // A proc body that *extends* an existing class (oo::define adds a method)
+        // accumulates across the definition site; the per-item graft can't
+        // reproduce that, so it falls back — and stays byte-identical.
+        eq(
+            "oo::class create K { method a {} {} }\nproc ext {} { oo::define K method b {} {} }\next\n",
         );
     }
 

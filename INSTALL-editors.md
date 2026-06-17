@@ -1,9 +1,16 @@
 # Editor installation
 
-Every editor needs Python 3.10+ on the host plus the editor-specific
-artefact from [GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest).
-The `.vsix`, `.sublime-package`, and `.zip` plugins bundle the LSP
-server; the standalone editors (Neovim/Emacs/Helix) point at
+Install the editor-specific artefact from
+[GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest).
+
+**VS Code (and VS Code-compatible editors) need no Python** — the
+`.vsix` bundles a self-contained native `tcl-lsp-server` binary for
+each platform (macOS/Linux/Windows on x64 and arm64, plus Linux
+riscv64) and runs the one matching your machine.
+
+Every **other** editor still needs Python 3.10+ on the host: the
+`.sublime-package` and JetBrains `.zip` bundle the Python server, and
+the standalone editors (Neovim/Emacs/Helix) point at
 `tcl-lsp-server-<version>.pyz` instead.
 
 | Editor | Artefact | Install |
@@ -27,7 +34,9 @@ JupyterLab) point a generic LSP client at the `.pyz` server.
 
 ## Python
 
-`python3 --version` must report 3.10 or newer:
+Not required for VS Code or VS Code-compatible editors — skip this
+section if that is all you use. For every other editor, `python3
+--version` must report 3.10 or newer:
 
 ```sh
 brew install python@3.14            # macOS
@@ -51,8 +60,10 @@ or sideload the bundled `.vsix`:
 code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
 ```
 
-Configure under **Settings > Extensions > Tcl**. Pin an interpreter
-with `tclLsp.pythonPath` (default `"auto"`).
+Configure under **Settings > Extensions > Tcl**. No Python interpreter
+is needed — the extension ships a native `tcl-lsp-server` binary for
+your platform and launches it automatically. (`tclLsp.pythonPath` is
+deprecated and ignored.)
 
 ### VS Code-compatible editors
 

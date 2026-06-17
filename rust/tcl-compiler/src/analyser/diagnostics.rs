@@ -3404,13 +3404,24 @@ Consider capturing the result: catch {\u{2026}} result"
         {
             return;
         }
-        self.result.diagnostics.push(super::types::Diagnostic {
+        let diag = super::types::Diagnostic {
             code: "W002".to_string(),
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is disabled in the active dialect profile"),
             severity: Severity::Warning,
             fixes: Vec::new(),
-        });
+        };
+        // Per-item path (isolated body): the body's own `all_procs` couldn't
+        // prove a shadow, but a *sibling/enclosing* user proc still might.  That
+        // is a cross-item fact, so defer the shadow re-check to the tail (over
+        // the merged `all_procs`).  `capture_global_reads.is_some()` marks the
+        // isolated-body analysis; on the whole-file path it is `None` and W002 is
+        // emitted inline exactly as before.
+        if self.capture_global_reads.is_some() {
+            self.pending_disabled_commands.push((qualified, diag));
+        } else {
+            self.result.diagnostics.push(diag);
+        }
     }
 
     pub(super) fn emit_w001_unknown_subcommand(
@@ -3768,6 +3779,27 @@ Consider capturing the result: catch {\u{2026}} result"
     /// order-gated.  (Excluding *conditionally* defined procs would
     /// need the CFG dominator model and is deferred.)
     ///
+    /// Emit the per-item path's deferred W002 (disabled-in-dialect command)
+    /// diagnostics, re-applying the user-proc-shadowing suppression against the
+    /// merged `all_procs` (a cross-item fact unavailable to an isolated body).
+    /// No-op on the whole-file `analyse` path (W002 is emitted inline there, so
+    /// `pending_disabled_commands` is empty) — keeping the two paths
+    /// byte-identical.  The position guard (`name_span.start() < call.start()`)
+    /// matches the inline check, so a unique-named proc resolves identically
+    /// whether checked inline or here (duplicate proc names already force the
+    /// per-item path to fall back).
+    pub(super) fn flush_disabled_command_diagnostics(&mut self) {
+        let pending = std::mem::take(&mut self.pending_disabled_commands);
+        for (qualified, diag) in pending {
+            if let Some(def) = self.result.all_procs.get(&qualified)
+                && def.name_span.start() < diag.span.start()
+            {
+                continue;
+            }
+            self.result.diagnostics.push(diag);
+        }
+    }
+
     /// Idempotent: drains `pending_arity`, so a second call is a
     /// no-op.
     pub fn flush_arity_diagnostics(&mut self) {
@@ -4062,13 +4094,12 @@ Consider capturing the result: catch {\u{2026}} result"
             None => cmd_name.to_string(),
         };
 
-        let (severity, message, origin) =
-            self.classify_w304(tok, is_dynamic, looks_like_option, &command_label);
-
         // Build the code-fix span.  For ``Cmd`` (`[…]`) tokens the
         // lexer span covers ``[inner`` but excludes the closing
         // ``]``; extend by one byte when the byte after ``span.end``
         // is ``]`` so the replacement encompasses the bracket pair.
+        // (Body-local: the fix text is the argument's own source slice, so it is
+        // computable in an isolated body and rebased by the graft.)
         let (fix_span, diag_end) = self.compute_w304_fix_span(tok);
         let fix_text = format!(
             "-- {}",
@@ -4085,6 +4116,25 @@ Consider capturing the result: catch {\u{2026}} result"
         // arg's span, not the command head).
         let _ = cmd_tok;
 
+        // The `Var` dynamic-not-option branch of `classify_w304` resolves the
+        // variable against the most recent literal `set` in the *whole file*
+        // (`last_literal_set_value_for_var` scans `self.source`).  An isolated
+        // proc body's `self.source` is only the body, so an enclosing-scope set
+        // would be missed.  On the per-item path, defer that one source-dependent
+        // case to the tail (where `self.source` is the full file); every other
+        // branch is body-local and emitted inline.
+        if self.capture_global_reads.is_some()
+            && is_dynamic
+            && !looks_like_option
+            && matches!(tok.kind, tcl_lexer::TokenType::Var)
+        {
+            self.pending_w304
+                .push((tok, command_label, fixes, diag_span));
+            return;
+        }
+
+        let (severity, message, origin) =
+            self.classify_w304(tok, is_dynamic, looks_like_option, &command_label);
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "W304".to_string(),
             span: diag_span,
@@ -4094,6 +4144,30 @@ Consider capturing the result: catch {\u{2026}} result"
         });
         if let Some(origin_diag) = origin {
             self.result.diagnostics.push(origin_diag);
+        }
+    }
+
+    /// Emit the per-item path's deferred W304 diagnostics, classifying each
+    /// `$var` against the **full-file** most-recent-literal-`set` resolution
+    /// (impossible inside an isolated body, whose `self.source` is only the
+    /// body).  All inputs are absolute by the time the tail runs (the graft
+    /// rebased the token, fix, and diagnostic spans), so the result is identical
+    /// to the inline whole-file emission.  No-op on the `analyse` path
+    /// (`pending_w304` empty).
+    pub(super) fn flush_w304_diagnostics(&mut self) {
+        let pending = std::mem::take(&mut self.pending_w304);
+        for (tok, command_label, fixes, diag_span) in pending {
+            let (severity, message, origin) = self.classify_w304(tok, true, false, &command_label);
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W304".to_string(),
+                span: diag_span,
+                message,
+                severity,
+                fixes,
+            });
+            if let Some(origin_diag) = origin {
+                self.result.diagnostics.push(origin_diag);
+            }
         }
     }
 
@@ -7238,20 +7312,41 @@ file; this call falls through to the 'unknown' handler."
         // `package require` line, else the top of the file.
         let insert_offset = self.package_require_insert_offset();
 
-        let mut seen: HashSet<String> = HashSet::new();
-        let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
+        // Emit once per command name, anchored at its **source-earliest**
+        // invocation.  Selecting by position (rather than the first in
+        // `command_invocations` iteration order) makes the result independent of
+        // *how* the walk was driven — the whole-file DFS and the per-item
+        // shell+graft order record invocations in different orders, but both
+        // pick the same anchor here (the per-item path's `command_invocations`
+        // is only sorted by `canonicalize_result_order`, which runs after this
+        // emitter).  Mirrors the walk-strategy independence the tail already
+        // enforces for other order-sensitive collections.
+        let mut best: HashMap<&str, &crate::signature_scan::types::SignatureCommandInvocation> =
+            HashMap::new();
         for inv in &self.result.command_invocations {
             let Some(spec) = registry.get(&inv.name) else {
                 continue;
             };
-            let Some(pkg) = spec.required_package else {
-                continue;
-            };
-            if imported.contains(pkg) {
+            if spec.required_package.is_none() {
                 continue;
             }
-            // Emit once per command name to avoid flooding.
-            if !seen.insert(inv.name.clone()) {
+            best.entry(inv.name.as_str())
+                .and_modify(|cur| {
+                    if (inv.range.start(), inv.range.end()) < (cur.range.start(), cur.range.end()) {
+                        *cur = inv;
+                    }
+                })
+                .or_insert(inv);
+        }
+        let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
+        for inv in best.values() {
+            let spec = registry
+                .get(&inv.name)
+                .expect("invocation selected only when registry-known");
+            let pkg = spec
+                .required_package
+                .expect("invocation selected only when it requires a package");
+            if imported.contains(pkg) {
                 continue;
             }
             let fix = super::types::CodeFix {

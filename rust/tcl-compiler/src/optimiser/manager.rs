@@ -76,7 +76,61 @@ pub fn optimise_unit(
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
     ctx.registry = Some(registry);
     run_passes(&mut ctx, cu, &PassId::all());
-    select_non_overlapping(&ctx.optimisations)
+
+    // Determinism chokepoint.  Several passes iterate `HashMap`s
+    // (`cu.procedures`, def-use chains, SSA blocks), so both the emission order
+    // and the monotonic group ids vary run-to-run — and, critically, between the
+    // offset-0 per-procedure memo build and the whole-module build.  Canonicalise
+    // before overlap arbitration so the surviving set, its order, and group
+    // numbering are byte-identical given an equal `CompilationUnit` (the
+    // `compiler_check_corpus` guard's contract, and the precondition for salsa
+    // early-cutoff on [`compiler_check_diagnostics`]).
+    ctx.optimisations.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            &a.code,
+            &a.message,
+            &a.replacement,
+            a.hint_only,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                &b.code,
+                &b.message,
+                &b.replacement,
+                b.hint_only,
+            ))
+    });
+    let mut selected = select_non_overlapping(&ctx.optimisations);
+    renumber_groups(&mut selected);
+    selected
+}
+
+/// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.
+///
+/// Group ids are allocated by a monotonic counter during pass execution, so
+/// their absolute values depend on the (`HashMap`-iteration) order in which
+/// grouped rewrites were emitted.  Only the *partition* they encode is
+/// semantically meaningful (members of one group apply all-or-nothing), so
+/// remapping each distinct id to a first-appearance index makes the values
+/// deterministic while preserving the partition.  `opts` is assumed already in
+/// canonical order.
+fn renumber_groups(opts: &mut [Optimisation]) {
+    use std::collections::HashMap;
+    let mut remap: HashMap<u32, u32> = HashMap::new();
+    let mut next = 0u32;
+    for o in opts.iter_mut() {
+        if let Some(g) = o.group {
+            let new = *remap.entry(g).or_insert_with(|| {
+                let v = next;
+                next += 1;
+                v
+            });
+            o.group = Some(new);
+        }
+    }
 }
 
 /// Run every pass over `cu` and return the **O109 dead stores** the

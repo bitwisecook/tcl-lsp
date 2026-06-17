@@ -35,8 +35,13 @@
 
 use bitflags::bitflags;
 
+use tcl_registry::dialects::DialectSet;
 use tcl_registry::prelude::StorageType as RegistryStorageType;
-use tcl_registry::{CommandRegistry, Traits};
+use tcl_registry::side_effects::{
+    ConnectionSide as RegistryConnectionSide, SideEffect as RegistrySideEffect,
+    SideEffectTarget as RegistryTarget,
+};
+use tcl_registry::{CommandRegistry, CommandSpec, Traits};
 
 // ---------------------------------------------------------------------------
 // StorageType — data shape of a target
@@ -621,10 +626,17 @@ impl Default for CalleeSummary {
 /// traits consulted today are `PURE`, `PURE_EVALUATION`,
 /// `EVALUATES_CODE`, `CREATES_BARRIER`, `DEFINES_PROCEDURE`, and
 /// `DESTROYS_VARIABLE`, plus the spec-level `assigns_variable_at`
-/// field. Subcommand-form resolution, structured
-/// `side_effect_hints`, and protocol-namespace classification
-/// (`HTTP::`, `SSL::`, …) are left as follow-ups.
+/// field, and the spec's structured `side_effects` (Python's
+/// `side_effect_hints`). A `PURE` command with a mutator subcommand
+/// (`HTTP::header insert …`) is downgraded to impure and a still-pure
+/// command surfaces its hint read-only. Full arity-based form
+/// resolution and the per-subcommand protocol-namespace write modelling
+/// (`_classify_protocol_ns_command`) are left as follow-ups.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "sequential registry-trait dispatch; splitting hurts readability"
+)]
 pub fn classify_side_effects(
     registry: &CommandRegistry,
     command: &str,
@@ -653,8 +665,70 @@ pub fn classify_side_effects(
         };
     }
 
-    // Pure evaluation (expr when braced) is always pure.
-    if spec.traits.contains(Traits::PURE_EVALUATION) || spec.traits.contains(Traits::PURE) {
+    // Pure evaluation (`expr` when braced) is always pure — checked first
+    // and unconditionally, mirroring Python's `is_pure_evaluation` short-
+    // circuit (no subcommand / hint handling applies).
+    if spec.traits.contains(Traits::PURE_EVALUATION) {
+        return CommandSideEffects {
+            pure: true,
+            deterministic: true,
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Command-level `PURE` commands. Two refinements from Python's pure
+    // branch:
+    //   1. A *mutator* subcommand downgrades purity — e.g. `HTTP::header`
+    //      is `PURE` but `HTTP::header insert …` mutates header state, so
+    //      it must fall through to the structured-hints classification
+    //      below (which yields the read+write effect). Without this a
+    //      header mutation reads as pure with no effects.
+    //   2. A still-pure command may carry a *read-only* hint — `HTTP::header`
+    //      (getter) reads header state. Python returns the structured hint
+    //      with `reads=true, writes=false`; reproduce that by forcing the
+    //      spec's hints read-only.
+    if spec.traits.contains(Traits::PURE) {
+        let effective_sub = args.first().map(String::as_str);
+        let sub_is_mutator = effective_sub
+            .and_then(|s| spec.subcommand(s))
+            .is_some_and(|sc| sc.mutator);
+        if !sub_is_mutator {
+            let effects = dialect_side_effect_hints(registry, command, effective_sub, dialect)
+                .map(|hints| {
+                    hints
+                        .into_iter()
+                        .map(|mut e| {
+                            e.reads = true;
+                            e.writes = false;
+                            e
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            return CommandSideEffects {
+                effects,
+                pure: true,
+                deterministic: true,
+                dialect: dialect.map(str::to_owned),
+                ..CommandSideEffects::default()
+            };
+        }
+        // Mutator subcommand → not pure; fall through to the hints block.
+    }
+
+    // Subcommand-level purity: ensemble commands (`string`, `dict`, `array`,
+    // …) are not pure at the command level but most of their subcommands are
+    // (`string length`, `dict get`, `array names`). Mirror Python's
+    // `is_pure = is_pure(command); if not is_pure and sub_spec: is_pure =
+    // sub_spec.pure`, with a `mutator` subcommand overriding back to impure.
+    // Without this the side-effect classifier treats every ensemble call as a
+    // conservative unknown-write, which (e.g.) hides redundant `string length`
+    // computations from GVN.
+    if let Some(sub) = args.first().and_then(|a| spec.subcommand(a))
+        && sub.pure
+        && !sub.mutator
+    {
         return CommandSideEffects {
             pure: true,
             deterministic: true,
@@ -707,6 +781,20 @@ pub fn classify_side_effects(
         e.dialect = dialect.map(str::to_owned);
         return CommandSideEffects {
             effects: vec![e],
+            dialect: dialect.map(str::to_owned),
+            ..CommandSideEffects::default()
+        };
+    }
+
+    // Hints-first: consult the spec's structured `side_effects`
+    // (Python's `side_effect_hints`). Dialect-gated, subcommand hints
+    // first. e.g. `puts`/`read` declare a `FileIo` write whose coarse
+    // region is `NONE` — so a proc that only calls `puts` is impure
+    // (`writes_any`) yet has no tracked effect region, matching Python.
+    let effective_sub = args.first().map(String::as_str);
+    if let Some(effects) = dialect_side_effect_hints(registry, command, effective_sub, dialect) {
+        return CommandSideEffects {
+            effects,
             dialect: dialect.map(str::to_owned),
             ..CommandSideEffects::default()
         };
@@ -814,6 +902,159 @@ fn classify_variable_assignment(
         dialect: dialect.map(str::to_owned),
         ..CommandSideEffects::default()
     }
+}
+
+/// Translate a registry [`RegistryTarget`] into the richer
+/// compiler-side [`SideEffectTarget`]. The two enums share variant
+/// names 1:1 except for the registry-only `Process` / `ChannelIo`
+/// targets (no Python counterpart): `Process` collapses to
+/// [`SideEffectTarget::Unknown`] (its coarse region is
+/// `UNKNOWN_STATE`, matching Python's `exec` fallback) and `ChannelIo`
+/// maps to [`SideEffectTarget::FileIo`] (channel I/O is file-shaped,
+/// region `NONE`).
+// Each variant is mapped explicitly (1:1 by name, plus the two
+// registry-only fall-throughs) so the correspondence is auditable and
+// new registry targets fail to compile until mapped — keep the arms
+// even where two share a body.
+#[allow(clippy::match_same_arms)]
+fn lift_registry_target(t: RegistryTarget) -> SideEffectTarget {
+    use RegistryTarget as R;
+    match t {
+        R::Variable => SideEffectTarget::Variable,
+        R::SessionTable => SideEffectTarget::SessionTable,
+        R::PersistenceTable => SideEffectTarget::PersistenceTable,
+        R::DataGroup => SideEffectTarget::DataGroup,
+        R::HttpHeader => SideEffectTarget::HttpHeader,
+        R::HttpBody => SideEffectTarget::HttpBody,
+        R::HttpStatus => SideEffectTarget::HttpStatus,
+        R::HttpUri => SideEffectTarget::HttpUri,
+        R::HttpCookie => SideEffectTarget::HttpCookie,
+        R::HttpMethod => SideEffectTarget::HttpMethod,
+        R::Http2State => SideEffectTarget::Http2State,
+        R::ResponseCommit => SideEffectTarget::ResponseCommit,
+        R::ConnectionControl => SideEffectTarget::ConnectionControl,
+        R::TcpState => SideEffectTarget::TcpState,
+        R::SslState => SideEffectTarget::SslState,
+        R::UdpState => SideEffectTarget::UdpState,
+        R::PoolSelection => SideEffectTarget::PoolSelection,
+        R::NodeSelection => SideEffectTarget::NodeSelection,
+        R::SnatSelection => SideEffectTarget::SnatSelection,
+        R::FileIo => SideEffectTarget::FileIo,
+        R::NetworkIo => SideEffectTarget::NetworkIo,
+        R::LogIo => SideEffectTarget::LogIo,
+        R::StreamProfile => SideEffectTarget::StreamProfile,
+        R::DnsState => SideEffectTarget::DnsState,
+        R::ClassificationState => SideEffectTarget::ClassificationState,
+        R::Dosl7State => SideEffectTarget::Dosl7State,
+        R::FlowState => SideEffectTarget::FlowState,
+        R::LsnState => SideEffectTarget::LsnState,
+        R::FtpState => SideEffectTarget::FtpState,
+        R::IcapState => SideEffectTarget::IcapState,
+        R::MessageState => SideEffectTarget::MessageState,
+        R::IStats => SideEffectTarget::IStats,
+        R::ApmState => SideEffectTarget::ApmState,
+        R::AsmState => SideEffectTarget::AsmState,
+        R::BigipConfig => SideEffectTarget::BigipConfig,
+        R::ProcDefinition => SideEffectTarget::ProcDefinition,
+        R::NamespaceState => SideEffectTarget::NamespaceState,
+        R::InterpState => SideEffectTarget::InterpState,
+        // Registry-only targets with no Python / compiler counterpart.
+        R::Process => SideEffectTarget::Unknown,
+        R::ChannelIo => SideEffectTarget::FileIo,
+        R::Unknown => SideEffectTarget::Unknown,
+    }
+}
+
+/// Translate a registry [`RegistryConnectionSide`] into the compiler's
+/// [`ConnectionSide`] (1:1).
+fn lift_registry_side(s: RegistryConnectionSide) -> ConnectionSide {
+    match s {
+        RegistryConnectionSide::None => ConnectionSide::None,
+        RegistryConnectionSide::Client => ConnectionSide::Client,
+        RegistryConnectionSide::Server => ConnectionSide::Server,
+        RegistryConnectionSide::Both => ConnectionSide::Both,
+        RegistryConnectionSide::Global => ConnectionSide::Global,
+    }
+}
+
+/// Lift one registry [`RegistrySideEffect`] hint into a compiler
+/// [`SideEffect`], stamping the active `dialect` onto it (mirroring
+/// Python `side_effect_hints`, which `replace(effect, dialect=dialect)`
+/// when a dialect is supplied). The registry hint carries only
+/// `target`/`reads`/`writes`/`connection_side`; the remaining fields
+/// stay at their defaults.
+fn lift_registry_effect(e: RegistrySideEffect, dialect: Option<&str>) -> SideEffect {
+    let mut effect = SideEffect::new(lift_registry_target(e.target), e.reads, e.writes);
+    effect.connection_side = lift_registry_side(e.connection_side);
+    effect.dialect = dialect.map(str::to_owned);
+    effect
+}
+
+/// Whether `spec` is available in the (already `irules`→`f5-irules`
+/// normalised) `filter` dialect, mirroring Python
+/// `CommandRegistry.side_effect_hints`'s `spec.supports_dialect`
+/// gate. When no dialect is requested every spec qualifies; when the
+/// dialect string fails to parse to a known [`DialectSet`] (e.g. the
+/// bare `"tcl"` family alias) only universal (`dialects = None`) specs
+/// qualify — an unknown name intersects no explicit dialect set, as in
+/// Python.
+fn spec_in_dialect(spec: &CommandSpec, filter: Option<&str>) -> bool {
+    match filter {
+        None => true,
+        Some(name) => match DialectSet::parse(name) {
+            Some(set) => spec.supports_dialect(set),
+            None => spec.dialects.is_none(),
+        },
+    }
+}
+
+/// Resolve the dialect-gated structured side-effect hints for a
+/// command invocation — a focused port of Python
+/// `CommandRegistry.side_effect_hints`.
+///
+/// Iterates the command's specs newest-first (Python's
+/// `reversed(specs)`), skipping specs that don't support the active
+/// dialect. Subcommand-level hints take precedence over command-level
+/// hints. Returns `None` when no qualifying spec declares any hint
+/// (so the caller falls back to the conservative UNKNOWN write, exactly
+/// as Python's classifier does).
+fn dialect_side_effect_hints(
+    registry: &CommandRegistry,
+    command: &str,
+    subcommand: Option<&str>,
+    dialect: Option<&str>,
+) -> Option<Vec<SideEffect>> {
+    // Python: lookup_dialect = "f5-irules" if dialect == "irules" else dialect.
+    let filter = match dialect {
+        Some("irules") => Some("f5-irules"),
+        other => other,
+    };
+
+    for spec in registry.specs(command).iter().rev() {
+        if !spec_in_dialect(spec, filter) {
+            continue;
+        }
+        if let Some(sub_name) = subcommand
+            && let Some(sub) = spec.subcommands.iter().find(|s| s.name == sub_name)
+            && !sub.side_effects.is_empty()
+        {
+            return Some(
+                sub.side_effects
+                    .iter()
+                    .map(|e| lift_registry_effect(*e, dialect))
+                    .collect(),
+            );
+        }
+        if !spec.side_effects.is_empty() {
+            return Some(
+                spec.side_effects
+                    .iter()
+                    .map(|e| lift_registry_effect(*e, dialect))
+                    .collect(),
+            );
+        }
+    }
+    None
 }
 
 fn fallback_unknown_write(dialect: Option<&str>) -> CommandSideEffects {
@@ -1170,6 +1411,95 @@ mod tests {
         assert!(cse.reads_any());
         assert!(cse.writes_any());
         assert_eq!(cse.effects[0].target, SideEffectTarget::Unknown);
+    }
+
+    #[test]
+    fn classify_puts_consults_structured_side_effects() {
+        // `puts` carries no purity/assign/proc-def trait, so it used to
+        // fall through to the conservative UNKNOWN write. It now resolves
+        // via the spec's structured `side_effects` (a `FileIo` write) —
+        // impure (`writes_any`) but region-free, matching Python's
+        // `classify_side_effects("puts")` (pure=False, regions=(NONE, NONE)).
+        let registry = CommandRegistry::build_default();
+        let cse = classify_side_effects(&registry, "puts", &["hi".into()], None, None);
+        assert!(!cse.pure);
+        assert!(cse.writes_any());
+        assert!(!cse.reads_any());
+        assert_eq!(cse.effects[0].target, SideEffectTarget::FileIo);
+        // The whole point: no tracked effect region (NONE, not UNKNOWN_STATE).
+        let (r, w) = cse.to_effect_regions();
+        assert_eq!(r, EffectRegion::NONE);
+        assert_eq!(w, EffectRegion::NONE);
+    }
+
+    #[test]
+    fn pure_command_mutator_subcommand_downgrades_purity() {
+        // `HTTP::header` carries `Traits::PURE` + a structured `HttpHeader`
+        // read+write hint + `mutator` subcommands. The getter stays pure with
+        // a read-only effect; a mutator subcommand (`insert`) downgrades to
+        // impure with a read+write effect. Matches Python's pure branch
+        // (`HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
+        // HTTP_STATE) impure).
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(DialectSet::IRULES);
+
+        let getter = classify_side_effects(
+            &registry,
+            "HTTP::header",
+            &["value".into(), "Host".into()],
+            Some("f5-irules"),
+            None,
+        );
+        assert!(getter.pure, "HTTP::header getter should stay pure");
+        assert_eq!(
+            getter.to_effect_regions(),
+            (EffectRegion::HTTP_STATE, EffectRegion::NONE),
+            "pure getter reads header state, no write",
+        );
+
+        let insert = classify_side_effects(
+            &registry,
+            "HTTP::header",
+            &["insert".into(), "X-Foo".into(), "y".into()],
+            Some("f5-irules"),
+            None,
+        );
+        assert!(
+            !insert.pure,
+            "HTTP::header insert (mutator subcommand) must not be pure",
+        );
+        assert_eq!(
+            insert.to_effect_regions(),
+            (EffectRegion::HTTP_STATE, EffectRegion::HTTP_STATE),
+            "header mutation reads + writes header state",
+        );
+    }
+
+    #[test]
+    fn classify_hints_are_dialect_gated() {
+        // `log` is irules-only. Under a Tcl dialect its irules `LogIo`
+        // hint must NOT apply — the spec doesn't support `tcl8.6`, so the
+        // classifier falls back to the conservative UNKNOWN write, exactly
+        // as Python (whose `side_effect_hints` skips dialect-mismatched
+        // specs). With no dialect requested the hint applies.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_dialect(DialectSet::IRULES);
+        // Dialect-agnostic (interproc path): LogIo, region-free, impure.
+        let agnostic = classify_side_effects(&registry, "log", &["hi".into()], None, None);
+        assert!(!agnostic.pure);
+        assert_eq!(agnostic.effects[0].target, SideEffectTarget::LogIo);
+        assert_eq!(
+            agnostic.to_effect_regions(),
+            (EffectRegion::NONE, EffectRegion::NONE)
+        );
+        // Under a Tcl dialect the irules spec is gated out → UNKNOWN write.
+        let tcl = classify_side_effects(&registry, "log", &["hi".into()], Some("tcl8.6"), None);
+        assert!(!tcl.pure);
+        assert_eq!(tcl.effects[0].target, SideEffectTarget::Unknown);
+        assert_eq!(
+            tcl.to_effect_regions(),
+            (EffectRegion::UNKNOWN_STATE, EffectRegion::UNKNOWN_STATE)
+        );
     }
 
     #[test]
