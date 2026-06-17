@@ -1,0 +1,107 @@
+//! `ValueOps` for the WASM runtime — binds the portable `tcl-cmd-core` command
+//! logic to the runtime's 24-byte C-ABI `*mut TclObj` value model.
+//!
+//! This is the **opposite** value model from the bytecode VM's `Rc<Obj>`:
+//! manually refcounted raw objects over the shared linear memory. The same
+//! shared command helpers run over it unchanged — that is the entire point of
+//! the value seam. Coercion reuses `tcl_syntax::number`, so it is byte-for-byte
+//! identical to the VM's `ValueOps`.
+//!
+//! The copy-on-write asymmetry the contract is designed around is visible here:
+//! [`ValueOps::try_append_str_in_place`] performs the runtime's amortised
+//! in-place string growth when the object is an unshared plain string (the
+//! EXP-STRING decision in `cmd_string.rs`), whereas the VM always copies.
+
+use std::rc::Rc;
+
+use tcl_syntax::number::{self, Number};
+use tcl_syntax::value::{ValueError, ValueOps};
+
+use crate::interp::{obj_bytes, Interp};
+use crate::list;
+use crate::obj::{self, TclObj};
+
+impl ValueOps for Interp {
+    type Value = *mut TclObj;
+
+    fn new_str(&mut self, s: &str) -> *mut TclObj {
+        obj::new_string_bytes(s.as_bytes())
+    }
+
+    fn new_string(&mut self, s: String) -> *mut TclObj {
+        obj::new_string_bytes(s.as_bytes())
+    }
+
+    fn new_int(&mut self, n: i64) -> *mut TclObj {
+        obj::new_wide_int_obj(n)
+    }
+
+    fn new_double(&mut self, f: f64) -> *mut TclObj {
+        obj::new_double_obj(f)
+    }
+
+    fn new_bool(&mut self, b: bool) -> *mut TclObj {
+        obj::new_boolean_obj(i32::from(b))
+    }
+
+    fn new_list(&mut self, items: Vec<*mut TclObj>) -> *mut TclObj {
+        list::new_list_obj(&items)
+    }
+
+    fn as_str(&mut self, v: &*mut TclObj) -> Rc<str> {
+        Rc::from(String::from_utf8_lossy(&obj_bytes(*v)).as_ref())
+    }
+
+    fn as_int(&mut self, v: &*mut TclObj) -> Result<i64, ValueError> {
+        let bytes = obj_bytes(*v);
+        let s = String::from_utf8_lossy(&bytes);
+        match number::parse_whole(s.trim()) {
+            Some(Number::Int(n)) => Ok(n),
+            _ => Err(ValueError::NotInteger(s.into_owned())),
+        }
+    }
+
+    fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
+        let bytes = obj_bytes(*v);
+        let s = String::from_utf8_lossy(&bytes);
+        match number::parse_whole(s.trim()) {
+            Some(Number::Int(n)) => Ok(n as f64),
+            Some(Number::Double(f)) => Ok(f),
+            _ => Err(ValueError::NotDouble(s.into_owned())),
+        }
+    }
+
+    fn as_bool(&mut self, v: &*mut TclObj) -> Result<bool, ValueError> {
+        let bytes = obj_bytes(*v);
+        let s = String::from_utf8_lossy(&bytes);
+        let t = s.trim();
+        if let Some(num) = number::parse_whole(t) {
+            return Ok(match num {
+                Number::Int(n) => n != 0,
+                Number::Double(f) => f != 0.0,
+                _ => true,
+            });
+        }
+        match t.to_ascii_lowercase().as_str() {
+            "true" | "yes" | "on" => Ok(true),
+            "false" | "no" | "off" => Ok(false),
+            _ => Err(ValueError::NotBoolean(s.into_owned())),
+        }
+    }
+
+    fn list_elements(&mut self, v: &*mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
+        list::list_elements(*v)
+            .map_err(|e| ValueError::BadList(String::from_utf8_lossy(e.message()).into_owned()))
+    }
+
+    fn try_append_str_in_place(&mut self, v: &mut *mut TclObj, s: &str) -> bool {
+        // Amortised O(1) growth when the object is an unshared plain string —
+        // the EXP-STRING in-place path the VM cannot take (it always copies).
+        if obj::is_plain_string(*v) && !obj::is_shared(*v) {
+            obj::string_append_inplace(*v, s.as_bytes());
+            true
+        } else {
+            false
+        }
+    }
+}

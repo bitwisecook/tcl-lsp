@@ -88,6 +88,9 @@ pub mod parse;
 #[cfg(have_regex)]
 pub mod regex;
 pub mod subst;
+/// `ValueOps` impl binding `tcl-cmd-core`'s portable command logic to `*mut
+/// TclObj` (the value seam).
+pub mod value_ops;
 pub mod vars;
 
 #[cfg(test)]

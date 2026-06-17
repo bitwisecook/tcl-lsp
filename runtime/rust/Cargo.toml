@@ -28,6 +28,10 @@ publish = false
 [dependencies]
 tcl-lexer = { path = "../../rust/tcl-lexer" }
 tcl-syntax = { path = "../../rust/tcl-syntax" }
+# The shared portable command logic (string/… helpers over ValueOps). This
+# crate implements `ValueOps` for `*mut TclObj` (see src/value_ops.rs) and
+# adapts the helpers in its command handlers.
+tcl-cmd-core = { path = "../../rust/tcl-cmd-core" }
 
 [lib]
 name = "tcl_runtime"
