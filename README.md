@@ -17,8 +17,9 @@ The server ships as a native Rust binary (`tcl-lsp-server`) — the default,
 out-of-the-box backend — with a Python reference implementation (built on
 [pygls](https://github.com/openlawlibrary/pygls)) available as an opt-out.
 Both speak LSP over stdio, so they work with any LSP client. Set
-`TCL_LSP_SERVER_KIND=python` (or the editor's `serverKind` setting) to run the
-Python server instead.
+`TCL_LSP_SERVER_KIND=python` to run the Python server instead. (The VS Code
+extension is native-only — it always launches the bundled `tcl-lsp-server`
+binary and no longer exposes a Python backend toggle.)
 
 ## Editor support
 
