@@ -485,11 +485,11 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                     reads_own_def.add(name)
         case IRSwitch():
             vars_found |= _switch_reads(stmt)
-        case IRReturn(value=value, expr=expr):
-            if value is not None:
-                vars_found |= _vars_in_word(value)
-            if expr is not None:
-                vars_found |= _vars_in_expr(expr)
+        case IRReturn(value=_value, expr=_expr):
+            if _value is not None:
+                vars_found |= _vars_in_word(_value)
+            if _expr is not None:
+                vars_found |= _vars_in_expr(_expr)
         case IRBarrier(command=command, args=args, tokens=barrier_tokens):
             vars_found |= _vars_in_word(command)
             body_indices = _structural_body_indices(command, args, barrier_tokens)
