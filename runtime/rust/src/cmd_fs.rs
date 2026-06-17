@@ -208,21 +208,24 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"type" => {
             let p = arg(2).unwrap_or_default();
-            match std::fs::symlink_metadata(as_str(&p)) {
-                Ok(m) => {
-                    let t = m.file_type();
-                    str_result(
-                        interp,
-                        if t.is_symlink() {
-                            b"link"
-                        } else if t.is_dir() {
-                            b"directory"
-                        } else {
-                            b"file"
-                        },
-                    )
-                }
-                Err(e) => fs_error(interp, b"could not read", &p, &e),
+            let meta = interp
+                .host()
+                .filesystem()
+                .map_or(Err(HostError::NotFound), |fs| {
+                    fs.symlink_metadata(as_str(&p))
+                });
+            match meta {
+                Ok(m) => str_result(
+                    interp,
+                    if m.is_symlink {
+                        b"link"
+                    } else if m.is_dir {
+                        b"directory"
+                    } else {
+                        b"file"
+                    },
+                ),
+                Err(e) => host_fs_error(interp, b"could not read", &p, &e.reason()),
             }
         }
         other => {
@@ -269,28 +272,6 @@ fn file_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result_bytes(b"");
     Code::Ok
-}
-
-/// A `file` I/O error in Tcl's shape: `<prefix> "<path>": <reason>` (the prefix
-/// is operation-specific, e.g. `could not read` / `can't create directory`).
-fn fs_error(interp: &mut Interp, prefix: &[u8], path: &[u8], e: &std::io::Error) -> Code {
-    let mut m = prefix.to_vec();
-    m.extend_from_slice(b" \"");
-    m.extend_from_slice(path);
-    m.extend_from_slice(b"\": ");
-    m.extend_from_slice(io_error_reason(e).as_bytes());
-    interp.set_error(&m)
-}
-
-/// The POSIX-style message Tcl uses for an `errno` (the common cases).
-fn io_error_reason(e: &std::io::Error) -> &'static str {
-    use std::io::ErrorKind::*;
-    match e.kind() {
-        NotFound => "no such file or directory",
-        PermissionDenied => "permission denied",
-        AlreadyExists => "file already exists",
-        _ => "i/o error",
-    }
 }
 
 /// A `file` I/O error in Tcl's shape, with the reason already rendered from a

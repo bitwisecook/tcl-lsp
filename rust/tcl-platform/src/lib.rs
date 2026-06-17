@@ -106,13 +106,19 @@ impl core::fmt::Display for HostError {
 
 impl std::error::Error for HostError {}
 
-/// Metadata about a filesystem entry (`file stat` / `file exists` backing).
+/// Metadata about a filesystem entry (`file stat` / `file exists` / `file type`
+/// backing).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Metadata {
     /// Whether the entry is a directory.
     pub is_dir: bool,
     /// Whether the entry is a regular file.
     pub is_file: bool,
+    /// Whether the entry is itself a symbolic link. Only ever `true` from
+    /// [`Filesystem::symlink_metadata`] (the non-following stat); the following
+    /// [`Filesystem::metadata`] resolves the link, so it reports the target's
+    /// kind with `is_symlink == false`.
+    pub is_symlink: bool,
     /// Length in bytes.
     pub len: u64,
     /// Last-modified time, seconds since the Unix epoch.
@@ -136,8 +142,16 @@ pub struct ExecOutput {
 pub trait Filesystem {
     /// Whether `path` exists.
     fn exists(&self, path: &str) -> bool;
-    /// Metadata for `path` (following symlinks).
+    /// Metadata for `path`, following symlinks (so a link reports its target's
+    /// kind). Backs `file stat`/`size`/`isdirectory`/`isfile`.
     fn metadata(&self, path: &str) -> Result<Metadata, HostError>;
+    /// Metadata for `path` *without* following a final symlink (so a link
+    /// reports `is_symlink`, not its target). Backs `file type`/`lstat` and
+    /// `glob -types l`. Defaults to [`metadata`](Filesystem::metadata) for a
+    /// host with no symlink notion (e.g. a flat in-memory VFS).
+    fn symlink_metadata(&self, path: &str) -> Result<Metadata, HostError> {
+        self.metadata(path)
+    }
     /// Read an entire file.
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError>;
     /// Write (creating/truncating) an entire file.

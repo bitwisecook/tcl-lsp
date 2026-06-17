@@ -195,18 +195,12 @@ impl Filesystem for NativeFs {
 
     fn metadata(&self, path: &str) -> Result<Metadata, HostError> {
         let m = std::fs::metadata(path).map_err(|e| map_io(&e))?;
-        let mtime_secs = m
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .and_then(|d| i64::try_from(d.as_secs()).ok())
-            .unwrap_or(0);
-        Ok(Metadata {
-            is_dir: m.is_dir(),
-            is_file: m.is_file(),
-            len: m.len(),
-            mtime_secs,
-        })
+        Ok(meta_from(&m))
+    }
+
+    fn symlink_metadata(&self, path: &str) -> Result<Metadata, HostError> {
+        let m = std::fs::symlink_metadata(path).map_err(|e| map_io(&e))?;
+        Ok(meta_from(&m))
     }
 
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError> {
@@ -242,6 +236,27 @@ impl Filesystem for NativeFs {
             std::fs::remove_file(path)
         }
         .map_err(|e| map_io(&e))
+    }
+}
+
+/// Project a `std::fs::Metadata` onto the portable [`Metadata`]. `is_symlink`
+/// comes from the file type, so it is `true` only when the source was a
+/// non-following `symlink_metadata` of an actual link (a following `metadata`
+/// resolves the link and reports the target).
+fn meta_from(m: &std::fs::Metadata) -> Metadata {
+    let ft = m.file_type();
+    let mtime_secs = m
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .and_then(|d| i64::try_from(d.as_secs()).ok())
+        .unwrap_or(0);
+    Metadata {
+        is_dir: ft.is_dir(),
+        is_file: ft.is_file(),
+        is_symlink: ft.is_symlink(),
+        len: m.len(),
+        mtime_secs,
     }
 }
 
