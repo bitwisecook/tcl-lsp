@@ -50,6 +50,10 @@ pub enum Command {
     Builtin(BuiltinFn),
     /// A user procedure (dispatched by the engine, which pushes an activation).
     Proc(Rc<ProcDef>),
+    /// An `interp alias` — invoking the command evaluates these target words
+    /// (the target command plus any fixed prefix arguments) with the call's own
+    /// arguments appended.
+    Alias(Rc<Vec<Value>>),
 }
 
 /// Register the builtin set on `vm`.
@@ -57,6 +61,11 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("set", cmd_set);
     vm.register("puts", cmd_puts);
     vm.register("source", cmd_source);
+    vm.register("tcl::build-info", cmd_build_info);
+    vm.register("interp", cmd_interp);
+    vm.register("rename", cmd_rename);
+    vm.register("eval", cmd_eval);
+    vm.register("apply", cmd_apply);
     vm.register("incr", cmd_incr);
     vm.register("expr", cmd_expr);
     vm.register("proc", cmd_proc);
@@ -82,6 +91,8 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm);
+    crate::cmd_binary::register(vm);
+    crate::cmd_prefix::register(vm);
     crate::cmd_namespace::register(vm);
     crate::cmd_package::register(vm);
     crate::cmd_regexp::register(vm);
@@ -118,9 +129,175 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => return err(format!("couldn't read file \"{path}\": {e}")),
     };
-    match vm.eval_source(&contents) {
+    // Track the path so `info script` (and callers like `[file dirname [info
+    // script]]`) resolve relative to the file being sourced.
+    vm.push_script(path.to_string());
+    let result = match vm.eval_source(&contents) {
         Ok(c) => c,
         Err(e) => err(e.message),
+    };
+    vm.pop_script();
+    result
+}
+
+/// `tcl::build-info ?option?` — report build-time configuration. With no
+/// argument it returns the patchlevel/build string; with an option name it
+/// returns 1 if that build option was set, else 0. This VM is a plain release
+/// build, so every queryable flag (`debug`, `purify`, `memdebug`,
+/// `no-deprecate`, …) is absent and reports 0.
+fn cmd_build_info(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [] => ok(Value::string("9.0.0")),
+        [_option] => ok(Value::int(0)),
+        _ => err("wrong # args: should be \"tcl::build-info ?option?\""),
+    }
+}
+
+/// `eval arg ?arg ...?` — concatenate the arguments with spaces and evaluate the
+/// result as a script in the current frame.
+fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if args.is_empty() {
+        return err("wrong # args: should be \"eval arg ?arg ...?\"");
+    }
+    let script = if let [single] = args {
+        single.to_str().to_string()
+    } else {
+        args.iter()
+            .map(|v| v.to_str().to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    match vm.eval_source(&script) {
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
+/// Monotonic counter minting unique temporary command names for `apply`.
+fn fresh_apply_name() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("::tcl::apply::lambda{n}")
+}
+
+/// `apply lambda ?arg ...?` — invoke an anonymous function `{params body ?ns?}`.
+/// Implemented by binding the lambda to a temporary command and evaluating a
+/// call, so parameter binding and `return` semantics match a normal proc.
+fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((lambda, call_args)) = args.split_first() else {
+        return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
+    };
+    let parts = match lambda.as_list() {
+        Ok(p) => p,
+        Err(c) => return err(c.message),
+    };
+    if parts.len() < 2 || parts.len() > 3 {
+        return err(format!(
+            "can't interpret \"{}\" as a lambda expression",
+            lambda.to_str()
+        ));
+    }
+    let (params_vec, has_args) = match parse_params(&parts[0].to_str()) {
+        Ok(p) => p,
+        Err(e) => return err(e),
+    };
+    let body = parts[1].clone();
+    let Some(body_asm) = vm.compile_dynamic_body(&body.to_str()) else {
+        return err("apply: could not compile lambda body");
+    };
+    // The optional third element is the namespace the body runs in (default
+    // global). Strip a leading `::` to the canonical form.
+    let namespace = parts
+        .get(2)
+        .map(|v| v.to_str().trim_start_matches("::").to_string())
+        .unwrap_or_default();
+
+    let name = fresh_apply_name();
+    vm.define_proc(ProcDef {
+        name: name.clone(),
+        namespace,
+        params: params_vec,
+        has_args,
+        body: body_asm,
+        body_src: body,
+    });
+    let mut words = Vec::with_capacity(call_args.len() + 1);
+    words.push(Value::string(name.as_str()));
+    words.extend_from_slice(call_args);
+    let script = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
+    let result = vm.eval_source(&script);
+    vm.take_command(&name);
+    match result {
+        Ok(c) => c,
+        Err(e) => err(e.message),
+    }
+}
+
+/// `rename oldName newName` — rename a command, or delete it when `newName` is
+/// empty.
+fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [old, new] = args else {
+        return err("wrong # args: should be \"rename oldName newName\"");
+    };
+    let old_name = old.to_str();
+    let new_name = new.to_str();
+    // Tcl rejects a rename onto an existing command (leaving both intact), so
+    // check the destination before removing the source.
+    if !new_name.is_empty() && vm.lookup_command(&new_name).is_some() {
+        return err(format!(
+            "can't rename to \"{new_name}\": command already exists"
+        ));
+    }
+    let Some(cmd) = vm.take_command(&old_name) else {
+        return err(format!(
+            "can't rename \"{old_name}\": command doesn't exist"
+        ));
+    };
+    if !new_name.is_empty() {
+        // An unqualified target binds in the current namespace; a qualified one
+        // is used as given. `register_command` canonicalises the key.
+        let key = if new_name.contains("::") {
+            new_name.to_string()
+        } else {
+            vm.qualify_name(&new_name)
+        };
+        vm.register_command(&key, cmd);
+    }
+    ok(Value::empty())
+}
+
+/// `interp` — the subset the stdlib/test suite needs in a single-interpreter
+/// VM. Only the current interpreter (`{}` path) is modelled, so `slaves`/`exists`
+/// answer for it and the unsupported sub-interpreter operations are rejected.
+fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((sub, rest)) = args.split_first() else {
+        return err("wrong # args: should be \"interp cmd ?arg ...?\"");
+    };
+    match &*sub.to_str() {
+        // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
+        "alias" => match rest {
+            [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
+                if !src_path.to_str().is_empty() || !target_path.to_str().is_empty() {
+                    return err("only the current interpreter ({}) is supported");
+                }
+                let words: Vec<Value> = target.to_vec();
+                vm.register_command(&src_cmd.to_str(), Command::Alias(Rc::new(words)));
+                ok(src_cmd.clone())
+            }
+            _ => err(
+                "wrong # args: should be \"interp alias srcPath srcCmd targetPath targetCmd ?arg ...?\"",
+            ),
+        },
+        "exists" => match rest {
+            [] => ok(Value::int(1)),
+            [path] => ok(Value::bool(path.to_str().is_empty())),
+            _ => err("wrong # args: should be \"interp exists ?path?\""),
+        },
+        "slaves" | "children" => ok(Value::empty()),
+        other => err(format!(
+            "bad option \"{other}\": only alias, exists, and slaves are supported"
+        )),
     }
 }
 

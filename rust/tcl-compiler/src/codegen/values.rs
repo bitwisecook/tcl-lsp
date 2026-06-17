@@ -47,6 +47,24 @@ impl CodegenCtx<'_> {
         );
     }
 
+    /// Push a *verbatim* no-dedup literal — a constant-folded result (e.g.
+    /// `[list …]` / `[format …]`) that is already its own final value and must
+    /// be pushed exactly, suppressing runtime word substitution. Without the
+    /// `push_verbatim` flag a single-element fold like `[list "a b"]` → `{a b}`
+    /// is mistaken for a braced literal and the braces are stripped at runtime.
+    /// The literal bytes and disassembly comment match [`push_lit_no_dedup`], so
+    /// the only difference is the out-of-band flag.
+    pub fn push_lit_no_dedup_verbatim(&mut self, value: &str) {
+        let idx = self.literals.register(value);
+        let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
+        let pos = self.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(idx))],
+            &format!("\"{}\" #nodedup", esc(value, 40)),
+        );
+        self.instructions[pos].push_verbatim = true;
+    }
+
     /// Emit `startCommand` for non-first specialised commands.
     ///
     /// Must be paired with [`end_command`](Self::end_command) after the

@@ -13,6 +13,8 @@
 //!
 //! The built-in schemas locate the peer-IP fields within the HIGH entries.
 
+use std::collections::HashMap;
+
 // DPT (new) format
 /// `F5_DPT_V1_HDR_MAGIC`.
 pub const DPT_HDR_MAGIC: u32 = 0xF5DE_B0F5;
@@ -45,6 +47,97 @@ pub enum IpKind {
     V6,
     /// 16-byte field that may carry an IPv4-mapped / route-domain v4.
     V6OrV4Mapped,
+}
+
+impl IpKind {
+    /// Parse the `kind` string used in schema TOML (`v4` / `v6` /
+    /// `v6_or_v4mapped`).
+    fn parse(s: &str) -> Option<IpKind> {
+        match s {
+            "v4" => Some(IpKind::V4),
+            "v6" => Some(IpKind::V6),
+            "v6_or_v4mapped" => Some(IpKind::V6OrV4Mapped),
+            _ => None,
+        }
+    }
+}
+
+/// Additional trailer schemas loaded from a `--schema` TOML overlay.
+///
+/// Faithful behavioural port of the Python module-global `_LEGACY_SCHEMAS` /
+/// `_DPT_SCHEMAS` registries that [`load_schema_overlay`] mutates: entries here
+/// are consulted before the built-in schemas and override a matching built-in
+/// key, so an overlay can both add unknown `(type, version)` combinations and
+/// fix up offsets found wrong in the field.
+#[derive(Clone, Debug, Default)]
+pub struct SchemaOverlay {
+    legacy: HashMap<(u8, u8, usize), Vec<(usize, IpKind)>>,
+    dpt: HashMap<(u16, u16, u16), Vec<(usize, IpKind)>>,
+}
+
+impl SchemaOverlay {
+    /// Merge *other* into `self`; *other*'s entries override on key collision,
+    /// matching the Python registry where a later `--schema` file wins.
+    pub fn merge(&mut self, other: SchemaOverlay) {
+        self.legacy.extend(other.legacy);
+        self.dpt.extend(other.dpt);
+    }
+
+    /// Resolve the legacy IP-field layout for `(type, version, length)`,
+    /// overlay first then built-in.
+    fn legacy(&self, type_: u8, version: u8, length: usize) -> Option<Vec<(usize, IpKind)>> {
+        if let Some(fields) = self.legacy.get(&(type_, version, length)) {
+            return Some(fields.clone());
+        }
+        legacy_schema(type_, version, length)
+    }
+
+    /// Resolve the DPT IP-field layout for `(provider, type, version)`, overlay
+    /// first then built-in.
+    fn dpt(&self, provider: u16, type_: u16, version: u16) -> Option<Vec<(usize, IpKind)>> {
+        if let Some(fields) = self.dpt.get(&(provider, type_, version)) {
+            return Some(fields.clone());
+        }
+        dpt_schema(provider, type_, version)
+    }
+
+    /// A legacy `type` is recognised if it has a built-in or overlay schema.
+    /// Mirrors Python's overlay-aware known-types set.
+    fn legacy_type_known(&self, type_: u8) -> bool {
+        legacy_type_known(type_) || self.legacy.keys().any(|&(t, _, _)| t == type_)
+    }
+}
+
+/// Parse a `--schema` TOML overlay (mirrors Python `load_schema_overlay`).
+///
+/// Accepts the `[[legacy]]` / `[[dpt]]` array-of-tables format documented on
+/// the Python function, each carrying integer keys and an `ip_fields` array of
+/// inline `{ offset = N, kind = "…" }` tables. Returns the parsed overlay; the
+/// caller threads it through [`parse_trailer_with`] / the remap engine.
+///
+/// # Errors
+/// Returns a message when the TOML is malformed, a required key is missing, or
+/// an `ip_fields` `kind` is not one of `v4` / `v6` / `v6_or_v4mapped`.
+pub fn load_schema_overlay(text: &str) -> Result<SchemaOverlay, String> {
+    let doc = schema_toml::parse(text)?;
+    let mut overlay = SchemaOverlay::default();
+    for entry in &doc.legacy {
+        let type_ = entry.int_into::<u8>("type")?;
+        let version = entry.int_into::<u8>("version")?;
+        let length = entry.int_into::<usize>("length")?;
+        overlay
+            .legacy
+            .insert((type_, version, length), entry.ip_fields()?);
+    }
+    for entry in &doc.dpt {
+        let provider = entry.int_into::<u16>("provider")?;
+        let type_ = entry.int_into::<u16>("type")?;
+        let version = entry.int_into::<u16>("version")?;
+        overlay
+            .dpt
+            .insert((provider, type_, version), entry.ip_fields()?);
+    }
+    Ok(overlay)
 }
 
 /// A single IP-address field located inside a parsed TLV.
@@ -146,6 +239,13 @@ fn legacy_type_known(type_: u8) -> bool {
 /// like an F5 trailer at all (the caller should then leave them alone).
 #[must_use]
 pub fn parse_trailer(data: &[u8]) -> TrailerParse {
+    parse_trailer_with(data, &SchemaOverlay::default())
+}
+
+/// Parse `data` as an F5 Ethernet trailer, consulting *overlay* schemas before
+/// the built-ins. [`parse_trailer`] is the `overlay = default` case.
+#[must_use]
+pub fn parse_trailer_with(data: &[u8], overlay: &SchemaOverlay) -> TrailerParse {
     if data.len() < 3 {
         return TrailerParse {
             fmt: None,
@@ -155,15 +255,15 @@ pub fn parse_trailer(data: &[u8]) -> TrailerParse {
 
     // DPT format: starts with the 4-byte magic.
     if data.len() >= DPT_HDR_LEN && be_u32(data, 0) == DPT_HDR_MAGIC {
-        return parse_dpt(data);
+        return parse_dpt(data, overlay);
     }
 
     // Legacy format: first byte is a known legacy type, total entry length is
     // sane.
-    if legacy_type_known(data[0]) {
+    if overlay.legacy_type_known(data[0]) {
         let total = data[1] as usize + 2;
         if (LEGACY_MIN_SANE..=LEGACY_MAX_SANE).contains(&total) {
-            return parse_legacy(data);
+            return parse_legacy(data, overlay);
         }
     }
 
@@ -173,7 +273,7 @@ pub fn parse_trailer(data: &[u8]) -> TrailerParse {
     }
 }
 
-fn parse_legacy(data: &[u8]) -> TrailerParse {
+fn parse_legacy(data: &[u8], overlay: &SchemaOverlay) -> TrailerParse {
     let mut tlvs = Vec::new();
     let mut pos = 0usize;
     while pos + 3 <= data.len() {
@@ -181,7 +281,7 @@ fn parse_legacy(data: &[u8]) -> TrailerParse {
         let wire_length = data[pos + 1] as usize;
         let version = data[pos + 2];
         let total_length = wire_length + 2;
-        if !legacy_type_known(type_) {
+        if !overlay.legacy_type_known(type_) {
             break;
         }
         if !(LEGACY_MIN_SANE..=LEGACY_MAX_SANE).contains(&total_length) {
@@ -190,7 +290,7 @@ fn parse_legacy(data: &[u8]) -> TrailerParse {
         if pos + total_length > data.len() {
             break;
         }
-        let schema = legacy_schema(type_, version, total_length);
+        let schema = overlay.legacy(type_, version, total_length);
         let ip_fields = schema
             .as_ref()
             .map(|s| {
@@ -218,7 +318,7 @@ fn parse_legacy(data: &[u8]) -> TrailerParse {
     }
 }
 
-fn parse_dpt(data: &[u8]) -> TrailerParse {
+fn parse_dpt(data: &[u8], overlay: &SchemaOverlay) -> TrailerParse {
     let mut tlvs = Vec::new();
     if data.len() < DPT_HDR_LEN {
         return TrailerParse {
@@ -237,7 +337,7 @@ fn parse_dpt(data: &[u8]) -> TrailerParse {
         if length < DPT_TLV_HDR_LEN || pos + length > end {
             break;
         }
-        let schema = dpt_schema(provider, type_, version);
+        let schema = overlay.dpt(provider, type_, version);
         let ip_fields = schema
             .as_ref()
             .map(|s| {
@@ -302,40 +402,293 @@ pub struct SchemaSummary {
 /// (sorted, matching Python's `sorted(...)` over the schema dict keys).
 #[must_use]
 pub fn schema_summary() -> SchemaSummary {
-    // Mirror the registration order/keys of f5_trailer.py, then sort.
-    let mut legacy_keys: Vec<(u8, u8, usize, usize)> = vec![
-        (LEGACY_TYPE_HIGH, 0, 42, 2),
-        (LEGACY_TYPE_LOW, 0, 35, 0),
-        (LEGACY_TYPE_LOW, 0, 22, 0),
-        (LEGACY_TYPE_MED, 0, 8, 0),
-        (LEGACY_TYPE_MED, 0, 21, 0),
-        (LEGACY_TYPE_MED, 0, 29, 0),
-    ];
-    legacy_keys.sort_by_key(|k| (k.0, k.1, k.2));
+    schema_summary_with(&SchemaOverlay::default())
+}
 
-    let mut dpt_keys: Vec<(u16, u16, u16, usize)> = vec![(DPT_PROVIDER_NOISE, 3, 1, 2)];
+/// Like [`schema_summary`] but merging any *overlay* schemas: an overlay entry
+/// overrides a matching built-in key's field count and new keys are merged in
+/// and re-sorted, matching Python's `schema_summary()` over the post-overlay
+/// registries.
+#[must_use]
+pub fn schema_summary_with(overlay: &SchemaOverlay) -> SchemaSummary {
+    use std::collections::BTreeMap;
+
+    // BTreeMap keeps the (sorted) merge ordering Python's `sorted(items())`
+    // produces; overlay inserts override or extend the built-in keys.
+    let mut legacy: BTreeMap<(u8, u8, usize), usize> = BTreeMap::from([
+        ((LEGACY_TYPE_HIGH, 0, 42), 2),
+        ((LEGACY_TYPE_LOW, 0, 35), 0),
+        ((LEGACY_TYPE_LOW, 0, 22), 0),
+        ((LEGACY_TYPE_MED, 0, 8), 0),
+        ((LEGACY_TYPE_MED, 0, 21), 0),
+        ((LEGACY_TYPE_MED, 0, 29), 0),
+    ]);
+    for (&key, fields) in &overlay.legacy {
+        legacy.insert(key, fields.len());
+    }
+
+    let mut dpt: BTreeMap<(u16, u16, u16), usize> = BTreeMap::new();
+    dpt.insert((DPT_PROVIDER_NOISE, 3, 1), 2);
     for v in [1u16, 2, 3, 4] {
-        dpt_keys.push((DPT_PROVIDER_NOISE, 1, v, 0));
+        dpt.insert((DPT_PROVIDER_NOISE, 1, v), 0);
     }
     for v in [1u16, 4] {
-        dpt_keys.push((DPT_PROVIDER_NOISE, 2, v, 0));
+        dpt.insert((DPT_PROVIDER_NOISE, 2, v), 0);
     }
     for sub in [0u16, 1, 2, 3] {
-        dpt_keys.push((4, sub, 0, 0));
-        dpt_keys.push((4, sub, 1, 0));
+        dpt.insert((4, sub, 0), 0);
+        dpt.insert((4, sub, 1), 0);
     }
-    dpt_keys.push((5, 1, 1, 0));
-    dpt_keys.push((5, 1, 0, 0));
-    dpt_keys.sort_by_key(|k| (k.0, k.1, k.2));
+    dpt.insert((5, 1, 1), 0);
+    dpt.insert((5, 1, 0), 0);
+    for (&key, fields) in &overlay.dpt {
+        dpt.insert(key, fields.len());
+    }
 
     SchemaSummary {
-        legacy: legacy_keys
+        legacy: legacy
             .iter()
-            .map(|&(t, v, l, f)| format!("type={t} version={v} length={l} fields={f}"))
+            .map(|(&(t, v, l), &f)| format!("type={t} version={v} length={l} fields={f}"))
             .collect(),
-        dpt: dpt_keys
+        dpt: dpt
             .iter()
-            .map(|&(p, t, v, f)| format!("provider={p} type={t} version={v} fields={f}"))
+            .map(|(&(p, t, v), &f)| format!("provider={p} type={t} version={v} fields={f}"))
             .collect(),
+    }
+}
+
+/// Hand-parser for the small `--schema` TOML overlay format. The codebase
+/// keeps its config readers dependency-free (see `redact::toml_lite`); this is
+/// the schema-overlay analogue, covering integer keys and an `ip_fields` array
+/// of inline `{ offset = N, kind = "…" }` tables (which may span lines). A `#`
+/// begins a line comment.
+mod schema_toml {
+    use super::IpKind;
+    use std::collections::HashMap;
+
+    #[derive(Default)]
+    pub struct Entry {
+        ints: HashMap<String, i64>,
+        fields: Vec<(usize, String)>,
+    }
+
+    impl Entry {
+        pub fn int(&self, key: &str) -> Result<i64, String> {
+            self.ints
+                .get(key)
+                .copied()
+                .ok_or_else(|| format!("schema: entry missing `{key}`"))
+        }
+
+        /// Fetch an integer key and convert it into a narrower type, erroring
+        /// cleanly when the value is out of range.
+        pub fn int_into<T: TryFrom<i64>>(&self, key: &str) -> Result<T, String> {
+            T::try_from(self.int(key)?)
+                .map_err(|_| format!("schema: `{key}` value is out of range"))
+        }
+
+        pub fn ip_fields(&self) -> Result<Vec<(usize, IpKind)>, String> {
+            let mut out = Vec::with_capacity(self.fields.len());
+            for (offset, kind) in &self.fields {
+                let parsed = IpKind::parse(kind)
+                    .ok_or_else(|| format!("schema: unknown ip_fields kind '{kind}'"))?;
+                out.push((*offset, parsed));
+            }
+            Ok(out)
+        }
+    }
+
+    #[derive(Default)]
+    pub struct Doc {
+        pub legacy: Vec<Entry>,
+        pub dpt: Vec<Entry>,
+    }
+
+    fn strip_comment(line: &str) -> &str {
+        line.find('#').map_or(line, |i| &line[..i])
+    }
+
+    /// Collapse the document into logical lines, joining a value whose `[`
+    /// array spans multiple physical lines.
+    fn logical_lines(text: &str) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut buf = String::new();
+        let mut depth: i32 = 0;
+        for raw in text.lines() {
+            let line = strip_comment(raw);
+            if depth > 0 {
+                buf.push(' ');
+                buf.push_str(line.trim());
+            } else {
+                line.trim().clone_into(&mut buf);
+            }
+            depth += i32::try_from(line.matches('[').count()).unwrap_or(0)
+                - i32::try_from(line.matches(']').count()).unwrap_or(0);
+            if depth <= 0 {
+                if !buf.is_empty() {
+                    out.push(std::mem::take(&mut buf));
+                }
+                buf.clear();
+                depth = 0;
+            }
+        }
+        if !buf.trim().is_empty() {
+            out.push(buf.trim().to_owned());
+        }
+        out
+    }
+
+    fn parse_ip_fields(val: &str) -> Result<Vec<(usize, String)>, String> {
+        let inner = val
+            .trim()
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .ok_or_else(|| format!("schema: ip_fields must be an array: {val}"))?;
+        let mut out = Vec::new();
+        for chunk in inner.split('}') {
+            let chunk = chunk.trim().trim_start_matches(',').trim();
+            if chunk.is_empty() {
+                continue;
+            }
+            let table = chunk.trim_start_matches('{').trim();
+            let mut offset: Option<usize> = None;
+            let mut kind: Option<String> = None;
+            for kv in table.split(',') {
+                let kv = kv.trim();
+                if kv.is_empty() {
+                    continue;
+                }
+                let (k, v) = kv
+                    .split_once('=')
+                    .ok_or_else(|| format!("schema: bad ip_fields entry: {kv}"))?;
+                match k.trim() {
+                    "offset" => {
+                        offset = Some(
+                            v.trim()
+                                .parse()
+                                .map_err(|_| format!("schema: bad offset: {}", v.trim()))?,
+                        );
+                    }
+                    "kind" => kind = Some(v.trim().trim_matches('"').to_owned()),
+                    other => return Err(format!("schema: unknown ip_fields key `{other}`")),
+                }
+            }
+            out.push((
+                offset.ok_or("schema: ip_fields entry missing `offset`")?,
+                kind.ok_or("schema: ip_fields entry missing `kind`")?,
+            ));
+        }
+        Ok(out)
+    }
+
+    pub fn parse(text: &str) -> Result<Doc, String> {
+        let mut doc = Doc::default();
+        // `0 = legacy`, `1 = dpt`, `-1 = none yet`.
+        let mut section: i8 = -1;
+        let mut current: Option<Entry> = None;
+
+        let flush = |section: i8, current: &mut Option<Entry>, doc: &mut Doc| {
+            if let Some(entry) = current.take() {
+                match section {
+                    0 => doc.legacy.push(entry),
+                    1 => doc.dpt.push(entry),
+                    _ => {}
+                }
+            }
+        };
+
+        for line in logical_lines(text) {
+            if line == "[[legacy]]" {
+                flush(section, &mut current, &mut doc);
+                section = 0;
+                current = Some(Entry::default());
+                continue;
+            }
+            if line == "[[dpt]]" {
+                flush(section, &mut current, &mut doc);
+                section = 1;
+                current = Some(Entry::default());
+                continue;
+            }
+            let (key, val) = line
+                .split_once('=')
+                .ok_or_else(|| format!("schema: cannot parse line: {line}"))?;
+            let (key, val) = (key.trim(), val.trim());
+            let entry = current
+                .as_mut()
+                .ok_or_else(|| format!("schema: `{key}` outside a [[legacy]]/[[dpt]] table"))?;
+            if key == "ip_fields" {
+                entry.fields = parse_ip_fields(val)?;
+            } else {
+                let n: i64 = val
+                    .parse()
+                    .map_err(|_| format!("schema: `{key}` is not an integer: {val}"))?;
+                entry.ints.insert(key.to_owned(), n);
+            }
+        }
+        flush(section, &mut current, &mut doc);
+        Ok(doc)
+    }
+}
+
+#[cfg(test)]
+mod overlay_tests {
+    use super::{load_schema_overlay, schema_summary, schema_summary_with};
+
+    #[test]
+    fn overlay_adds_and_overrides_summary() {
+        let toml = r#"
+            # add an unknown legacy layout, override the built-in HIGH count
+            [[legacy]]
+            type = 7
+            version = 0
+            length = 50
+            ip_fields = [
+                { offset = 8,  kind = "v6_or_v4mapped" },
+                { offset = 24, kind = "v4" },
+            ]
+
+            [[dpt]]
+            provider = 9
+            type = 2
+            version = 1
+            ip_fields = [ { offset = 11, kind = "v6_or_v4mapped" } ]
+        "#;
+        let overlay = load_schema_overlay(toml).expect("overlay parses");
+        let base = schema_summary();
+        let merged = schema_summary_with(&overlay);
+        // The overlay added one legacy and one dpt entry.
+        assert_eq!(merged.legacy.len(), base.legacy.len() + 1);
+        assert_eq!(merged.dpt.len(), base.dpt.len() + 1);
+        // New entries are merged and sorted in.
+        assert!(
+            merged
+                .legacy
+                .iter()
+                .any(|l| l == "type=7 version=0 length=50 fields=2")
+        );
+        assert!(
+            merged
+                .dpt
+                .iter()
+                .any(|l| l == "provider=9 type=2 version=1 fields=1")
+        );
+    }
+
+    #[test]
+    fn overlay_rejects_bad_kind_and_missing_keys() {
+        assert!(load_schema_overlay("[[legacy]]\ntype = 1\n").is_err());
+        let bad_kind =
+            "[[dpt]]\nprovider=1\ntype=1\nversion=1\nip_fields=[{offset=0,kind=\"nope\"}]\n";
+        assert!(load_schema_overlay(bad_kind).is_err());
+    }
+
+    #[test]
+    fn empty_overlay_summary_matches_builtin() {
+        let empty = load_schema_overlay("").expect("empty parses");
+        let a = schema_summary();
+        let b = schema_summary_with(&empty);
+        assert_eq!(a.legacy, b.legacy);
+        assert_eq!(a.dpt, b.dpt);
     }
 }

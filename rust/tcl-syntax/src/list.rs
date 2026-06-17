@@ -211,15 +211,19 @@ pub fn split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
 // Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
 // ---------------------------------------------------------------------------
 
-/// How a value must be quoted to appear as one Tcl list element.
+/// How a value must be quoted to appear as one Tcl list element. Mirrors the
+/// `CONVERT_*` modes of `TclConvertElement` (tclUtil.c, COMPAT path).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Quote {
-    /// Bare — copy verbatim.
+    /// `CONVERT_NONE` — copy verbatim.
     None,
-    /// Wrap in `{...}`.
+    /// `CONVERT_BRACE` — wrap in `{...}`.
     Brace,
-    /// Backslash-escape the special bytes.
+    /// `CONVERT_ESCAPE` — backslash-escape every special byte, braces included.
     Escape,
+    /// `CONVERT_MASK` — backslash-escape special bytes but leave braces bare
+    /// (chosen when quoting is driven solely by `]` / `"`).
+    Mask,
 }
 
 /// Decide the quoting for `s` as a list element. `leading_hash_unsafe` is the
@@ -230,50 +234,97 @@ fn scan_element(s: &str, leading_hash_unsafe: bool) -> Quote {
         return Quote::Brace; // the empty element renders as `{}`.
     }
     let b = s.as_bytes();
-    let mut needs_quote = leading_hash_unsafe && b[0] == b'#';
-    let mut brace_ok = true;
+    // Ported from `TclScanElement` (tclUtil.c, `COMPAT 1` — the form Tcl 9.0
+    // actually ships). Flags:
+    //   forbid_none    ⇒ cannot copy verbatim (must brace or escape).
+    //   require_escape ⇒ cannot brace-quote (must escape every special byte).
+    //   prefer_escape  ⇒ `]` / `"` seen — prefer the brace-free escape (MASK).
+    //   prefer_brace   ⇒ `[` / `$` / `;` / space / backslash / leading char.
+    // Balanced braces alone never forbid the bare form; only a *leading* `{`/`"`
+    // (or leading `#`) and the substitution/space bytes do. *Unbalanced* braces
+    // force escaping.
+    let mut forbid_none = false;
+    let mut require_escape = false;
+    let mut prefer_escape = false;
+    let mut prefer_brace = false;
     let mut depth: i32 = 0;
+
+    if leading_hash_unsafe && b[0] == b'#' {
+        prefer_brace = true;
+    }
+    if b[0] == b'{' || b[0] == b'"' {
+        forbid_none = true;
+        prefer_brace = true;
+    }
+
     let mut i = 0;
     while i < b.len() {
         match b[i] {
-            b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | b';' | b'"' | b'$' | b'[' | b']' => {
-                needs_quote = true;
-            }
-            b'{' => {
-                needs_quote = true;
-                depth += 1;
-            }
+            b'{' => depth += 1,
             b'}' => {
-                needs_quote = true;
                 depth -= 1;
                 if depth < 0 {
-                    brace_ok = false; // unbalanced ⇒ cannot brace.
+                    require_escape = true; // unbalanced ⇒ cannot brace.
                 }
             }
+            b']' | b'"' => {
+                forbid_none = true;
+                prefer_escape = true;
+            }
+            b'[' | b'$' | b';' | b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c => {
+                // Substitution / terminator / whitespace bytes: cannot copy
+                // verbatim, and brace quoting is the preferred protection.
+                forbid_none = true;
+                prefer_brace = true;
+            }
             b'\\' => {
-                needs_quote = true;
-                // A trailing backslash, or `\<newline>`, cannot be brace-quoted.
-                if i + 1 >= b.len() || b[i + 1] == b'\n' {
-                    brace_ok = false;
+                if i + 1 >= b.len() {
+                    require_escape = true; // trailing backslash.
+                } else if b[i + 1] == b'\n' {
+                    require_escape = true; // `\<newline>` cannot be braced.
+                    i += 2;
+                    continue;
+                } else {
+                    forbid_none = true;
+                    prefer_brace = true;
+                    // `\{` / `\}` / `\\` consume the next byte so it does not
+                    // perturb the brace-nesting count.
+                    if matches!(b[i + 1], b'{' | b'}' | b'\\') {
+                        i += 2;
+                        continue;
+                    }
                 }
             }
             _ => {}
         }
         i += 1;
     }
-    if depth != 0 {
-        brace_ok = false;
+    if depth > 0 {
+        require_escape = true; // unbalanced open brace.
     }
-    if !needs_quote {
-        Quote::None
-    } else if brace_ok {
-        Quote::Brace
-    } else {
+
+    if require_escape {
         Quote::Escape
+    } else if forbid_none {
+        if prefer_escape && !prefer_brace {
+            Quote::Mask
+        } else {
+            Quote::Brace
+        }
+    } else {
+        Quote::None
     }
 }
 
 fn convert_element(s: &str, quote: Quote, leading_hash_unsafe: bool, out: &mut String) {
+    // `TclConvertElement`: a leading `#` is forced into brace quoting unless we
+    // are already in full-escape mode (where it becomes `\#`).
+    let lead_hash = leading_hash_unsafe && s.starts_with('#');
+    let quote = if lead_hash && quote != Quote::Escape {
+        Quote::Brace
+    } else {
+        quote
+    };
     match quote {
         Quote::None => out.push_str(s),
         Quote::Brace => {
@@ -281,10 +332,19 @@ fn convert_element(s: &str, quote: Quote, leading_hash_unsafe: bool, out: &mut S
             out.push_str(s);
             out.push('}');
         }
-        Quote::Escape => {
+        Quote::Escape | Quote::Mask => {
+            // MASK mode leaves balanced braces bare; ESCAPE escapes them too.
+            let escape_braces = quote == Quote::Escape;
             for (i, ch) in s.char_indices() {
                 match ch {
-                    '{' | '}' | '[' | ']' | '$' | ';' | '\\' | '"' | ' ' => {
+                    '#' if i == 0 && leading_hash_unsafe => out.push_str("\\#"),
+                    '{' | '}' => {
+                        if escape_braces {
+                            out.push('\\');
+                        }
+                        out.push(ch);
+                    }
+                    '[' | ']' | '$' | ';' | '\\' | '"' | ' ' => {
                         out.push('\\');
                         out.push(ch);
                     }
@@ -293,7 +353,6 @@ fn convert_element(s: &str, quote: Quote, leading_hash_unsafe: bool, out: &mut S
                     '\r' => out.push_str("\\r"),
                     '\x0b' => out.push_str("\\v"),
                     '\x0c' => out.push_str("\\f"),
-                    '#' if i == 0 && leading_hash_unsafe => out.push_str("\\#"),
                     _ => out.push(ch),
                 }
             }
@@ -440,6 +499,38 @@ mod tests {
             let joined = join_list(&case);
             let back = split(&joined);
             assert_eq!(back, case, "round-trip failed for {case:?} -> {joined:?}");
+        }
+    }
+
+    /// `list_element` must match C Tcl 9.0's `[list $e]` exactly (COMPAT path of
+    /// `TclScanElement`/`TclConvertElement`). Each pair is `(value, rendered)`
+    /// captured from `tclsh9.0`. The key cases: balanced braces stay bare
+    /// (`b{}`), unbalanced braces escape (`a{}}`/`c}`), `]`/`"` use brace-free
+    /// escaping (`a]b`→`a\]b`, `a"b`→`a\"b`) while `[`/`$`/`;` prefer braces
+    /// (`a[b`→`{a[b}`, `$x`→`{$x}`), and a leading `#` braces (`{#}`).
+    #[test]
+    fn list_element_matches_tcl9() {
+        for (value, want) in [
+            ("b{}", "b{}"),
+            ("a{}}", "a\\{\\}\\}"),
+            ("c}", "c\\}"),
+            ("a{b}c", "a{b}c"),
+            ("a{b", "a\\{b"),
+            ("{}", "{{}}"),
+            ("#", "{#}"),
+            ("a\\{b", "{a\\{b}"),
+            ("abc", "abc"),
+            ("$x", "{$x}"),
+            ("[x]", "{[x]}"),
+            ("hello world", "{hello world}"),
+            ("a;b", "{a;b}"),
+            ("x}y", "x\\}y"),
+            ("a}}b", "a\\}\\}b"),
+            ("a]b", "a\\]b"),
+            ("a[b", "{a[b}"),
+            ("a\"b", "a\\\"b"),
+        ] {
+            assert_eq!(list_element(value), want, "list_element({value:?})");
         }
     }
 }

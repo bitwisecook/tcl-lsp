@@ -89,6 +89,90 @@ pub fn lookup(name: &str) -> Option<&'static BuiltinSpec> {
     REGISTRY.get_or_init(build_registry).get(name)
 }
 
+/// Every registered builtin, sorted by `(category, name)`.
+#[must_use]
+pub fn all_specs() -> Vec<&'static BuiltinSpec> {
+    let mut specs: Vec<&'static BuiltinSpec> =
+        REGISTRY.get_or_init(build_registry).values().collect();
+    specs.sort_by(|a, b| a.category.cmp(b.category).then_with(|| a.name.cmp(b.name)));
+    specs
+}
+
+/// Human-readable arity, e.g. `2`, `1..3`, or `1+` (variadic).
+fn arity(spec: &BuiltinSpec) -> String {
+    match spec.max_args {
+        Some(max) if max == spec.min_args => spec.min_args.to_string(),
+        Some(max) => format!("{}..{max}", spec.min_args),
+        None => format!("{}+", spec.min_args),
+    }
+}
+
+/// Render the builtin catalogue. With `filter = Some(name)` shows the single
+/// matching builtin's metadata; otherwise lists every builtin grouped by
+/// category.
+///
+/// This is the Rust port's idiomatic equivalent of `f5 query --help-builtins`:
+/// the [`BuiltinSpec`] carries the dispatch metadata (name, category, arity,
+/// flags) but not the Python doc prose, so the catalogue surfaces what the
+/// registry actually knows and points at the reference docs for the rest.
+#[must_use]
+pub fn format_catalogue(filter: Option<&str>) -> String {
+    use std::fmt::Write as _;
+    let specs = all_specs();
+
+    if let Some(name) = filter {
+        let Some(spec) = specs.iter().find(|s| s.name == name) else {
+            return format!(
+                "f5 query: no builtin named '{name}'\n\n\
+                 Run `f5 query --help-builtins` for the full catalogue.\n"
+            );
+        };
+        let mut out = String::new();
+        let _ = writeln!(out, "{}", spec.name);
+        let _ = writeln!(out, "  category: {}", spec.category);
+        let _ = writeln!(out, "  arity:    {} arg(s)", arity(spec));
+        let mut flags: Vec<&str> = Vec::new();
+        if spec.special_form {
+            flags.push("special-form");
+        }
+        if spec.with_ctx {
+            flags.push("config-aware");
+        }
+        if spec.stream_aware {
+            flags.push("stream-aware");
+        }
+        if !flags.is_empty() {
+            let _ = writeln!(out, "  flags:    {}", flags.join(", "));
+        }
+        return out;
+    }
+
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "F5 QUERY DSL — BUILTIN FUNCTIONS ({} total)",
+        specs.len()
+    );
+    out.push('\n');
+    out.push_str(
+        "Each entry is name (arity). Arity is shown as N, MIN..MAX, or MIN+ for\n\
+         variadic. For full signatures, prose, and examples see\n\
+         docs/references/f5_query/ or run `f5 query --help-builtins NAME`.\n\n",
+    );
+    let mut current = "";
+    for spec in &specs {
+        if spec.category != current {
+            if !current.is_empty() {
+                out.push('\n');
+            }
+            let _ = writeln!(out, "[{}]", spec.category);
+            current = spec.category;
+        }
+        let _ = writeln!(out, "  {:<26} ({})", spec.name, arity(spec));
+    }
+    out
+}
+
 pub(crate) fn plain(
     name: &'static str,
     category: &'static str,
@@ -1249,5 +1333,48 @@ fn bi_abs(args: &[Value]) -> Result<Value, QueryError> {
         Value::Int(i) => Ok(Value::Int(i.abs())),
         Value::Float(f) => Ok(Value::Float(f.abs())),
         _ => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod catalogue_tests {
+    use super::{all_specs, format_catalogue, lookup};
+
+    #[test]
+    fn all_specs_sorted_and_complete() {
+        let specs = all_specs();
+        assert!(specs.len() > 100, "expected a large builtin registry");
+        // Sorted by (category, name).
+        for w in specs.windows(2) {
+            let a = (w[0].category, w[0].name);
+            let b = (w[1].category, w[1].name);
+            assert!(a <= b, "catalogue not sorted: {a:?} > {b:?}");
+        }
+        // Every listed name resolves back through `lookup`.
+        for s in &specs {
+            assert!(lookup(s.name).is_some(), "lookup failed for {}", s.name);
+        }
+    }
+
+    #[test]
+    fn catalogue_lists_categories_and_arity() {
+        let cat = format_catalogue(None);
+        assert!(cat.starts_with("F5 QUERY DSL — BUILTIN FUNCTIONS"));
+        assert!(cat.contains("[math]"));
+        assert!(cat.ends_with('\n'));
+    }
+
+    #[test]
+    fn single_builtin_lookup() {
+        let one = format_catalogue(Some("atan2"));
+        assert!(one.contains("atan2"));
+        assert!(one.contains("category: math"));
+        assert!(one.contains("arity:    2"));
+    }
+
+    #[test]
+    fn unknown_builtin_reports_cleanly() {
+        let miss = format_catalogue(Some("definitely-not-a-builtin"));
+        assert!(miss.contains("no builtin named 'definitely-not-a-builtin'"));
     }
 }

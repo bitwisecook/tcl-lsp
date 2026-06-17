@@ -14,6 +14,28 @@ use super::{CodegenCtx, Op, Operand};
 /// invokes so the peephole pass can selectively remove them.
 pub(crate) const SC_GENERIC_TAG: &str = "sc:generic";
 
+/// Whether `s` contains a `$` or `[` that is *not* backslash-escaped, i.e. a
+/// real variable / command substitution that must be resolved at runtime.
+///
+/// A word with only escaped markers (`\$`, `\[`) and other backslash escapes is
+/// a pure compile-time literal: it can be backslash-substituted and pushed
+/// directly. Without this distinction a word like `x\$y` or list-1.11's
+/// `list e\n} f\$}` would keep its backslashes (real Tcl delivers `x$y` /
+/// `list e\n} f$}`).
+pub(crate) fn has_unescaped_subst(s: &str) -> bool {
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            // A backslash escapes the next byte (`\$`, `\[`, `\\`); skip both.
+            b'\\' => i += 2,
+            b'$' | b'[' => return true,
+            _ => i += 1,
+        }
+    }
+    false
+}
+
 /// Tag appended to no-dedup literal comments.
 pub(crate) const NO_DEDUP_TAG: &str = " #nodedup";
 
@@ -103,9 +125,21 @@ impl CodegenCtx<'_> {
                 value_needs_backsubst,
                 ..
             } => {
-                let value = if *value_needs_backsubst {
+                let value = if *value_needs_backsubst
+                    && !value.contains('[')
+                    && !value.contains("${")
+                {
                     tcl_lexer::backslash_subst(value).into_owned()
                 } else {
+                    // A value carrying a `[` or `${` (an escaped `\[` / `\${` or
+                    // a real substitution) is left raw: the runtime `subst_word`
+                    // does backslash decoding plus command / variable
+                    // substitution in a single left-to-right pass. Pre-decoding
+                    // here would turn `\[` / `\${` into a bare `[` / `${` that
+                    // `subst_word` then mis-reads as a substitution start, and
+                    // would double-decode the escapes (e.g. `"x\[y z\\]"` →
+                    // `x[y z]` instead of `x[y z\]`, and `"\${x}"` → the value of
+                    // `x` instead of the literal `${x}`).
                     value.clone()
                 };
                 if needs_stk_var_ref(name, self.is_proc) {
@@ -280,7 +314,7 @@ impl CodegenCtx<'_> {
         }
         // Constant-fold [list arg1 arg2 ...]
         if let Some(folded) = super::helpers::fold_list_cmd(value) {
-            self.push_lit_no_dedup(&folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
         // Inline [list {*}$a {*}$b] → load a, load b, listConcat (C19).
@@ -293,7 +327,7 @@ impl CodegenCtx<'_> {
         }
         // Constant-fold [format "..." arg ...] (C19).
         if let Some(folded) = super::helpers::try_format_fold(value) {
-            self.push_lit_no_dedup(&folded);
+            self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
         // Constant-fold [dict create k v ...]
@@ -321,12 +355,21 @@ impl CodegenCtx<'_> {
         // normalised `${name}` but not an array element with a substituted
         // index, so decompose the word at compile time. Plain `$scalar`
         // interpolation keeps its existing (deferred-literal) lowering.
+        // Also decompose a `{…}`-wrapped value that contains a command
+        // substitution (e.g. `"{[list …]}"`): the braces are literal word
+        // content and the `[…]` must run, but pushing the value raw would let
+        // the runtime `subst_word` mistake it for a braced literal and strip the
+        // braces. A genuine braced argument never reaches here (it is emitted by
+        // the braced-word path), so decomposing is safe.
         if (value.contains('$') || value.contains('['))
             && let Some(parts) = parse_subst_template(value)
             && parts.len() > 1
-            && parts
+            && (parts
                 .iter()
                 .any(|p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()))
+                || (value.starts_with('{')
+                    && value.ends_with('}')
+                    && parts.iter().any(|p| matches!(p, SubstPart::Cmd(_)))))
         {
             for part in &parts {
                 match part {
@@ -345,6 +388,23 @@ impl CodegenCtx<'_> {
                     i32::try_from(parts.len()).expect("part count fits in i32"),
                 )],
             );
+            return;
+        }
+        // A value with backslash escapes and a *bare* `$` (e.g. `f\$}` / the
+        // `$}` in `list e\n} f\$}`) but no real `${…}` reference or `[…]`
+        // command substitution is a pure literal — the bare `$` stays literal
+        // because the codegen normalises genuine variables to `${name}`. Decode
+        // its escapes once at compile time. Without this the value is pushed raw
+        // and the runtime `subst_word` (which only decodes words carrying a real
+        // `${`/`[`) leaves the `\\` escapes intact. Values the assign path
+        // already backslash-decoded never reach here with a `$`, so there is no
+        // double decode.
+        if value.contains('\\')
+            && value.contains('$')
+            && !value.contains("${")
+            && !value.contains('[')
+        {
+            self.push_lit(&tcl_lexer::backslash_subst(value));
             return;
         }
         // Default: push as literal
@@ -431,6 +491,22 @@ impl CodegenCtx<'_> {
             });
             if braced {
                 self.push_lit_verbatim(a);
+            } else if a.contains('\\') && !has_unescaped_subst(a) {
+                // A non-braced word whose only substitution markers are
+                // backslash-escaped (`\{`, `a\{b`, `\ x`, `x\$y`). If decoding
+                // it would (re)introduce a `[` / `${` — i.e. the word carries an
+                // escaped `\[` or `\${` — leave it raw so the runtime
+                // `subst_word` decodes it in a single left-to-right pass;
+                // pre-decoding here would create a bare `[` the VM then mis-reads
+                // as a command substitution and double-decodes (`list a\[} b\]}`
+                // → `list a[} b]}`). Otherwise it is a pure compile-time literal:
+                // backslash-substitute it and push so the escapes don't reach
+                // the VM unchanged.
+                if a.contains('[') || a.contains("${") {
+                    self.push_lit(a);
+                } else {
+                    self.push_lit(&tcl_lexer::backslash_subst(a));
+                }
             } else {
                 self.emit_value_interpolated(a);
             }
