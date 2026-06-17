@@ -172,6 +172,20 @@ fn string_cat_and_trim() {
     assert_eq!(run("puts \"[string trimright abcxx x]<\"").2, "abc<\n");
 }
 
+/// `string is` classification, ported into the shared core (`string_is`).
+#[test]
+fn string_is_classes() {
+    assert_eq!(run("puts [string is alpha abc]").2, "1\n");
+    assert_eq!(run("puts [string is alpha abc1]").2, "0\n");
+    assert_eq!(run("puts [string is integer 123]").2, "1\n");
+    assert_eq!(run("puts [string is integer 12x]").2, "0\n");
+    assert_eq!(run("puts [string is double 1.5]").2, "1\n");
+    assert_eq!(run("puts [string is boolean yes]").2, "1\n");
+    assert_eq!(run("puts [string is list {a b c}]").2, "1\n");
+    // -failindex reports the first failing character.
+    assert_eq!(run("string is alpha -failindex fi abc5\nset fi").1, "3");
+}
+
 /// `format` rendering, ported into the shared core over `ValueOps`.
 #[test]
 fn format_core() {

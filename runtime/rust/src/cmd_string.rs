@@ -416,28 +416,6 @@ fn list_error_message(s: &[u8]) -> Option<Vec<u8>> {
     None
 }
 
-/// The character index at which Tcl list parsing of `text` fails, or `None` for
-/// a well-formed list. Mirrors the `STR_IS_LIST` failat loop in tclCmdMZ.c:
-/// walk element by element and, on the first error, skip leading element
-/// whitespace and report the character count up to that point.
-fn list_failat(text: &str) -> Option<i64> {
-    let bytes = text.as_bytes();
-    let mut pos = 0usize;
-    loop {
-        match tcl_syntax::list::find_element(text, pos) {
-            Ok(None) => return None,
-            Ok(Some(el)) => pos = el.next,
-            Err(_) => {
-                let mut p = pos;
-                while p < bytes.len() && tcl_syntax::list::is_list_space(bytes[p]) {
-                    p += 1;
-                }
-                return Some(text[..p].chars().count() as i64);
-            }
-        }
-    }
-}
-
 /// `list element in <kind> followed by "<fragment>" instead of space`, where the
 /// fragment runs from `p` to the next list-space (max 20 bytes, as in C).
 fn followed_by_message(kind: &[u8], s: &[u8], p: usize) -> Vec<u8> {
@@ -1274,7 +1252,9 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     let s = obj_bytes(argv[last]);
-    let (ok, fail_index) = class_check(class, &s, strict);
+    let class_str = std::str::from_utf8(class).unwrap_or("");
+    let s_str = String::from_utf8_lossy(&s);
+    let (ok, fail_index) = tcl_cmd_core::string_is::class_check(class_str, &s_str, strict);
 
     if !ok {
         if let Some(var) = failvar {
@@ -1309,186 +1289,9 @@ fn option_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
     m
 }
 
-/// Run the class membership test. Returns `(is_member, fail_index)`; the fail
-/// index (a **character** offset, or -1) is only meaningful when not a member.
-fn class_check(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
-    match class {
-        b"integer" | b"wideinteger" | b"entier" | b"double" => is_number_class(class, s, strict),
-        b"boolean" | b"true" | b"false" => is_boolean_class(class, s, strict),
-        b"list" => {
-            // `list`/`dict` ignore strictness (empty is a well-formed list). On
-            // failure the index is where list parsing broke down, not the length.
-            let Ok(text) = std::str::from_utf8(s) else {
-                return (false, 0);
-            };
-            match list_failat(text) {
-                None => (true, -1),
-                Some(idx) => (false, idx),
-            }
-        }
-        b"dict" => {
-            let Ok(text) = std::str::from_utf8(s) else {
-                return (false, 0);
-            };
-            // A list-parse failure reports its character index; a valid but
-            // odd-sized list reports -1 (C only computes a failat for parse
-            // errors, matching `string-32.9a`).
-            if let Some(idx) = list_failat(text) {
-                return (false, idx);
-            }
-            let even = tcl_syntax::list::split_list(text).is_ok_and(|l| l.len() % 2 == 0);
-            (even, -1)
-        }
-        _ => {
-            // Per-character class: first failing char index.
-            if s.is_empty() {
-                return (!strict, 0);
-            }
-            for (failat, c) in String::from_utf8_lossy(s).chars().enumerate() {
-                if !char_class_ok(class, c) {
-                    return (false, failat as i64);
-                }
-            }
-            (true, -1)
-        }
-    }
-}
-
-/// Tcl numeric whitespace (matches `tcl_syntax::number`'s internal set): space,
-/// tab, newline, VT, FF, CR. `TclParseNumber` consumes a surrounding run of it.
-#[inline]
-fn is_num_ws(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r')
-}
-
-/// `string is integer|wideinteger|entier|double`. Defers to the shared
-/// `TclParseNumber` port: surrounding whitespace is allowed, the fail index is
-/// where parsing stopped, and `wideinteger` reports -1 on a value that parses
-/// but overflows a wide.
-fn is_number_class(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
-    use tcl_syntax::number::{self, Number, ParseFlags};
-
-    if s.is_empty() {
-        return (!strict, 0);
-    }
-    let Ok(st) = std::str::from_utf8(s) else {
-        return (false, 0);
-    };
-    let is_double = class == b"double";
-    let flags = ParseFlags {
-        integer_only: !is_double,
-        ..Default::default()
-    };
-    let Some(p) = number::parse(st, flags) else {
-        return (false, 0); // no numeric prefix at all → fail at the start
-    };
-    // For the integer classes, reject the `Inf`/`NaN` alpha forms that the
-    // shared parser still classifies (C's `TCL_PARSE_INTEGER_ONLY` would not).
-    let is_int_val = matches!(p.number, Number::Int(_) | Number::Big { .. });
-    if !is_double && !is_int_val {
-        return (false, 0);
-    }
-    // `TclParseNumber`'s end-pointer consumes a trailing whitespace run.
-    let mut stop = p.end;
-    while stop < s.len() && is_num_ws(s[stop]) {
-        stop += 1;
-    }
-    if stop < s.len() {
-        // Some prefix parsed, but not the whole string. The fail index equals
-        // the byte stop (everything up to it is ASCII ws/digits, so byte == char).
-        return (false, stop as i64);
-    }
-    // The entire string is a number.
-    if class == b"wideinteger" {
-        match p.number {
-            Number::Int(_) => (true, -1),
-            _ => (false, -1), // a valid integer, but it overflows a wide
-        }
-    } else {
-        (true, -1)
-    }
-}
-
-/// `string is boolean|true|false`. A non-member fails at index 0 (the whole
-/// string is rejected as one unit).
-fn is_boolean_class(class: &[u8], s: &[u8], strict: bool) -> (bool, i64) {
-    match parse_boolean(s) {
-        Some(v) => {
-            let member = match class {
-                b"true" => v,
-                b"false" => !v,
-                _ => true,
-            };
-            (member, 0)
-        }
-        None => {
-            if strict {
-                (false, 0)
-            } else {
-                // Non-strict: empty is a member; anything else is not.
-                (s.is_empty(), 0)
-            }
-        }
-    }
-}
-
-/// `Tcl_GetBoolean`'s `ParseBoolean` (`tclObj.c`): `0`/`1`, or a case-insensitive
-/// unambiguous prefix of `true`/`false`/`yes`/`no`/`on`/`off`. Returns the
-/// boolean value, or `None` when the string is not a valid boolean.
-fn parse_boolean(s: &[u8]) -> Option<bool> {
-    let len = s.len();
-    if !(1..=5).contains(&len) {
-        return None; // "false" is the longest valid spelling
-    }
-    match s[0] {
-        b'0' => return (len == 1).then_some(false),
-        b'1' => return (len == 1).then_some(true),
-        _ => {}
-    }
-    // Lower-case, rejecting any byte outside the boolean-keyword letter set.
-    let mut lower = [0u8; 5];
-    for (i, &c) in s.iter().enumerate() {
-        let lc = c.to_ascii_lowercase();
-        if !matches!(
-            lc,
-            b'a' | b'e' | b'f' | b'l' | b'n' | b'o' | b'r' | b's' | b't' | b'u' | b'y'
-        ) {
-            return None;
-        }
-        lower[i] = lc;
-    }
-    let lc = &lower[..len];
-    // `strncmp(lc, keyword, len) == 0` ⇔ `keyword.starts_with(lc)`.
-    match lc[0] {
-        b'y' => b"yes".starts_with(lc).then_some(true),
-        b'n' => b"no".starts_with(lc).then_some(false),
-        b't' => b"true".starts_with(lc).then_some(true),
-        b'f' => b"false".starts_with(lc).then_some(false),
-        b'o' if len >= 2 && b"on".starts_with(lc) => Some(true),
-        b'o' if len >= 2 && b"off".starts_with(lc) => Some(false),
-        _ => None,
-    }
-}
-
-/// Per-character `string is` class membership.
-fn char_class_ok(class: &[u8], c: char) -> bool {
-    match class {
-        b"alnum" => c.is_alphanumeric(),
-        b"alpha" => c.is_alphabetic(),
-        b"ascii" => (c as u32) < 0x80,
-        b"control" => c.is_control(),
-        b"digit" => c.is_numeric(),
-        b"graph" => !c.is_whitespace() && !c.is_control() && (c as u32) != 0x20,
-        b"lower" => c.is_lowercase(),
-        b"print" => !c.is_control(),
-        b"punct" => c.is_ascii_punctuation(),
-        b"space" => c.is_whitespace(),
-        b"upper" => c.is_uppercase(),
-        b"wordchar" => is_word_char(c),
-        b"xdigit" => c.is_ascii_hexdigit(),
-        _ => false,
-    }
-}
+// `string is` classification now lives in the shared `tcl_cmd_core::string_is`
+// (the per-class membership + fail-index logic). `str_is` above is the thin
+// per-runtime wrapper (option parsing + `-failindex` var write) over it.
 
 /// The connector-punctuation characters (Unicode category `Pc`) — the full set,
 /// including `_`. `Tcl_UniCharIsWordChar` and `string is wordchar` treat these

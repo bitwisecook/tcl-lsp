@@ -25,5 +25,6 @@ pub mod list;
 pub mod path;
 pub mod platform;
 pub mod string;
+pub mod string_is;
 
 pub use error::CmdError;
