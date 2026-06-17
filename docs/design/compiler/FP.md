@@ -2670,6 +2670,112 @@ bytecode and CFG shape are unchanged.
 
 ---
 
+### FP-RBS-16 — phi operand on a dead loop-exit edge (`while 1` + `break`) is not read-before-set
+
+- **Verdict:** FALSE POSITIVE (W210) — a loop-exit block's phi had an operand
+  for the never-taken `cond → exit` edge of `while 1`; that operand carried the
+  variable's version-0 (unset) origin, and the read-before-set phi-undef closure
+  consumed it even though the edge is unreachable.
+- **Status:** FIXED. Same family as the terminator work (false W210 from
+  control-flow imprecision), but the gap is in the read-before-set / SCCP-edge
+  interaction rather than CFG construction.
+- **Codes:** W210
+- **Corpus:** synthetic (the `while 1 { …; break }` / `while 1 { …; if {c} break }`
+  early-exit idiom).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # while 1 runs the body >=1 time; the only exit is the break, where y is
+    # already set -> $y is always defined here.
+    while 1 { set y 1; break }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `while 1 { … }` — the condition is the constant `1`, so the loop never exits
+   via the condition; SCCP marks the `while_header → while_end` (cond-false)
+   edge non-executable.
+2. `set y 1; break` — the body runs at least once and the `break` is the loop's
+   only real exit. On that edge `y` is set.
+3. `puts $y` — `while_end` is reachable (via the `break` edge), and its phi
+   `y#2` merges the break edge (`y#1`, set) with the dead cond-exit edge
+   (`y#0`, unset). Only the break edge is live, so `y` is always defined here.
+4. Pre-fix, `_phi_can_undef` filtered unreachable predecessor *blocks*
+   (`while_header` is reachable) but not unreachable *edges*, so it consumed the
+   `y#0` operand on the dead `while_header → while_end` edge and false-fired
+   W210. (Contrast: with no `break`, `while_end` is fully unreachable and
+   correctly silent — that's why the bug only shows with a `break`.)
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% f
+1
+```
+
+No `can't read "y"` error. The realistic shape behaves the same — `proc f {} {
+while 1 { set result [compute]; if {[ok $result]} break }; return $result }`
+returns the computed value with no unset-read.
+(TP controls: `while {$n > 0} { set y 1 }` (non-constant cond, may run zero
+times) still fires W210; and a `while 1` where only *one* of two `break` paths
+sets `y` still fires.)
+
+#### Compiler evidence
+
+```
+--- FP-RBS-16: phi operand on a dead loop-exit edge (while 1 + break) is not read-before-set
+regen: python -m bench.fp_snippets --id FP-RBS-16
+function ::f
+  block entry_1
+    term Goto
+  block while_header_2
+    term Branch ExprLiteral(text='1', start=0, end=0)
+  block while_body_3
+    [0] AssignConst 'y' value='1'  defs={y#1}  uses={}
+    [1] Call cmd='break'  defs={}  uses={}
+    term Goto
+  block while_end_4
+    phi  SSAPhi(name='y', version=2, incoming={'while_header_2': 0, 'while_body_3': 1})
+    [0] Call cmd='puts'  defs={}  uses={y#2}
+    term Goto
+  block exit_5
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+- **`while_end_4` phi `y#2` incoming `{while_header_2: 0, while_body_3: 1}`** —
+  the dead cond-exit operand (`while_header_2: 0`) is present but its edge is
+  non-executable, so the read-before-set closure skips it; only the live break
+  operand (`while_body_3: 1`) remains.
+- **`read_before_set: (none)`** — no W210.
+
+#### Why the analyser reaches that verdict
+
+`compiler/core_analyses.py`: `_read_before_set` now takes the SCCP
+`executable_edges`, and its `_phi_can_undef` closure skips any phi operand whose
+`(pred, block)` edge is non-executable — the same edge filter already used by
+`_collect_used_names`. SCCP marks the `while 1` cond-false edge non-executable,
+so the version-0 operand it carries can never be read and no longer counts as a
+possible undef.
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_16_while1_break_set_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_16_while1_conditional_break_silent` (FP —
+  the realistic `while 1 { …; if {c} break }` shape)
+- `tests/test_fp_rbs.py::test_FP_RBS_16_normal_while_still_fires` (TP control —
+  a non-constant condition may run zero times, so the read is genuinely
+  maybe-unset)
+- `tests/test_fp_rbs.py::test_FP_RBS_16_partial_break_def_still_fires` (TP
+  control — when only one of two `break` paths sets the var, the live edges
+  still include an unset origin)
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in

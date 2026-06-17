@@ -3341,6 +3341,42 @@ register(
 )
 
 
+register(
+    "FP-RBS-16",
+    _Entry(
+        label="phi operand on a dead loop-exit edge (while 1 + break) is not read-before-set",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`while 1 { set y 1; break }` runs the body at least once, so on the\n"
+            "ONLY real exit (the break) `y` is set.  The `cond -> exit` edge of\n"
+            "`while 1` is never taken (SCCP marks it non-executable), but the\n"
+            "loop-exit block's phi still has an operand for it carrying the\n"
+            "version-0 (unset) origin.  Pre-fix the read-before-set phi-undef\n"
+            "closure (`_phi_can_undef`) filtered unreachable predecessor BLOCKS\n"
+            "but not unreachable predecessor EDGES, so it consumed that dead-edge\n"
+            "version-0 and false-fired W210 on `puts $y`.  Fix (compiler/\n"
+            "core_analyses.py): thread SCCP `executable_edges` into\n"
+            "`_read_before_set` and skip phi operands whose `(pred, block)` edge\n"
+            "is non-executable -- mirroring the edge filter already in\n"
+            "`_collect_used_names`.  Common in the `while 1 { ...; if {c} break }`\n"
+            "early-exit idiom."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # while 1 runs the body >=1 time; the only exit is the break,
+                # where y is already set -> $y is always defined here.
+                while 1 { set y 1; break }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)

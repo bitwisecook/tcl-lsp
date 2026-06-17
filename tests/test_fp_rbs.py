@@ -1077,3 +1077,76 @@ def test_FP_RBS_15_one_completing_arm_fires():
     assert w210, "completing-arm switch falls through; W210 must fire; got: " + ", ".join(
         f"{d.code}:{d.message}" for d in _rbs(src)
     )
+
+
+# FP-RBS-16 — phi operand on a dead loop-exit edge (`while 1` + `break`)
+
+
+FP_RBS_16_REPRO = """\
+proc f {} {
+    # while 1 runs the body >=1 time; the only exit is the break, where y is
+    # already set -> $y is always defined here.
+    while 1 { set y 1; break }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_16_while1_break_set_silent():
+    """FP: `while 1` never exits via its (constant) condition, so the only live
+    exit is the `break`, where `y` is set.  The loop-exit phi's operand on the
+    dead cond-exit edge (version-0) must not count as read-before-set."""
+    assert _rbs(FP_RBS_16_REPRO) == [], (
+        "dead cond-exit edge operand must not fire W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_16_REPRO))
+    )
+
+
+def test_FP_RBS_16_while1_conditional_break_silent():
+    """FP: the realistic `while 1 { set v ...; if {c} break }` early-exit idiom.
+    `v` is set every iteration before the conditional break, so it is defined on
+    the (only live) break exit."""
+    src = (
+        "proc f {} {\n"
+        "    while 1 {\n"
+        "        set result [compute]\n"
+        "        if {[ok $result]} break\n"
+        "    }\n"
+        "    return $result\n"
+        "}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'result'" in (d.message or "")]
+    assert not w210, (
+        "result is set before every conditional break; W210 must NOT fire; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_16_normal_while_still_fires():
+    """TP control: a NON-constant condition may run zero times, so the read
+    after the loop is genuinely maybe-unset -- W210 must fire.  Proves the
+    suppression is specific to the proven-dead exit edge."""
+    src = "proc f {n} {\n    while {$n > 0} { set y 1; incr n -1 }\n    puts $y\n}\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, (
+        "zero-iteration-possible while leaves 'y' maybe-unset; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_16_partial_break_def_still_fires():
+    """TP control: when only ONE of two break paths sets `y`, a live exit edge
+    still carries an unset origin, so W210 must fire."""
+    src = (
+        "proc f {c} {\n"
+        "    while 1 {\n"
+        "        if {$c} { set y 1; break }\n"
+        "        if {!$c} break\n"
+        "    }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "a break path that leaves 'y' unset must still fire W210; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
