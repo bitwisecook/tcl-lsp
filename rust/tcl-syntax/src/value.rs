@@ -151,6 +151,53 @@ pub trait ValueOps {
         Ok(self.new_list(items))
     }
 
+    // -- dict (a dict is an even-length list; keys compared by string rep) --
+
+    /// The dict's **canonical** ordered key/value pairs (`Tcl_DictObjFirst`
+    /// order: first-occurrence position, last value winning on a duplicate key).
+    ///
+    /// The default derives this from [`ValueOps::list_elements`] + the string
+    /// rep — correct for any value model (the VM's list-backed dict and the WASM
+    /// runtime's `TclDict`, which shimmers to a list). An impl with a native dict
+    /// rep may override for efficiency. Errors with the canonical "missing value
+    /// to go with key" when the list is odd-length.
+    #[allow(clippy::type_complexity)] // a Self-dependent (key, value) pair vec
+    fn dict_pairs(
+        &mut self,
+        v: &Self::Value,
+    ) -> Result<Vec<(Self::Value, Self::Value)>, ValueError> {
+        let elems = self.list_elements(v)?;
+        if elems.len() % 2 != 0 {
+            return Err(ValueError::BadList(
+                "missing value to go with key".to_string(),
+            ));
+        }
+        let mut keys: Vec<std::rc::Rc<str>> = Vec::new();
+        let mut pairs: Vec<(Self::Value, Self::Value)> = Vec::new();
+        for chunk in elems.chunks_exact(2) {
+            let key = self.as_str(&chunk[0]);
+            if let Some(pos) = keys.iter().position(|k| **k == *key) {
+                pairs[pos].1 = chunk[1].clone(); // last value wins, keep position
+            } else {
+                keys.push(key);
+                pairs.push((chunk[0].clone(), chunk[1].clone()));
+            }
+        }
+        Ok(pairs)
+    }
+
+    /// Build a dict value from canonical key/value pairs. The default interleaves
+    /// them into a list value (a dict *is* an even-length list); an impl with a
+    /// native dict rep may override.
+    fn new_dict(&mut self, pairs: Vec<(Self::Value, Self::Value)>) -> Self::Value {
+        let mut items = Vec::with_capacity(pairs.len() * 2);
+        for (k, v) in pairs {
+            items.push(k);
+            items.push(v);
+        }
+        self.new_list(items)
+    }
+
     // -- copy-on-write escape hatch --
 
     /// Try to append `s` to `v`'s string rep **in place** (amortised growth),

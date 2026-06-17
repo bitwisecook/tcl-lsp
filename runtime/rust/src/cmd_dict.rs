@@ -26,6 +26,20 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"dict subcommand ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
+    // Pure dict subcommands now live in the shared command core; the runtime is
+    // a thin adapter. Variable-mutating subcommands fall through to the legacy
+    // match below.
+    if let Ok(sub_str) = std::str::from_utf8(&sub) {
+        if let Some(result) = tcl_cmd_core::dict::dispatch_canon(interp, sub_str, &argv[2..]) {
+            return match result {
+                Ok(v) => {
+                    interp.set_result(v);
+                    Code::Ok
+                }
+                Err(e) => interp.set_error(e.message().as_bytes()),
+            };
+        }
+    }
     match sub.as_slice() {
         b"create" => create(interp, argv),
         b"get" => get(interp, argv),

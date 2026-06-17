@@ -159,6 +159,29 @@ fn string_cat_and_trim() {
     assert_eq!(run("puts \"[string trimright abcxx x]<\"").2, "abc<\n");
 }
 
+/// The pure `dict` family, ported into the shared core (over the default
+/// list-backed `dict_pairs`/`new_dict` seam).
+#[test]
+fn dict_core_helpers() {
+    assert_eq!(run("puts [dict get {a 1 b 2} b]").2, "2\n");
+    assert_eq!(run("puts [dict size {a 1 b 2}]").2, "2\n");
+    assert_eq!(run("puts [dict keys {a 1 b 2}]").2, "a b\n");
+    assert_eq!(run("puts [dict exists {a 1} a]").2, "1\n");
+    assert_eq!(run("puts [dict exists {a 1} z]").2, "0\n");
+    assert_eq!(run("puts [dict merge {a 1 b 2} {b 3 c 4}]").2, "a 1 b 3 c 4\n");
+    // canonicalisation (last value wins) — the VM's old non-deduping path was
+    // wrong here; the shared core corrects it.
+    assert_eq!(run("puts [dict get [dict create x 1 x 2] x]").2, "2\n");
+}
+
+/// A missing key errors faithfully.
+#[test]
+fn dict_get_missing_key_errors() {
+    let (ok, result, _out) = run("dict get {a 1} z");
+    assert!(!ok);
+    assert!(result.contains("not known in dictionary"), "got: {result}");
+}
+
 /// `string first` / `string last` (character-indexed substring search).
 #[test]
 fn string_first_last() {

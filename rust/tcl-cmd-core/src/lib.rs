@@ -17,6 +17,7 @@
 //! Module layout is **by concern**: pure value→value families flat at the top
 //! ([`string`], [`path`], …), platform-backed families under [`platform`].
 
+pub mod dict;
 pub mod error;
 pub mod index;
 pub mod list;

@@ -100,6 +100,15 @@ fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
 
 #[allow(clippy::too_many_lines)]
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
+    // Pure dict subcommands now live in the shared command core; the VM is a
+    // thin adapter. Variable-mutating subcommands fall through to the legacy
+    // arms below.
+    if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, sub, rest) {
+        return match result {
+            Ok(v) => ok(v),
+            Err(e) => err(e.into_message()),
+        };
+    }
     match sub {
         "create" => {
             if !rest.len().is_multiple_of(2) {
