@@ -1,21 +1,25 @@
 //! The greenfield WASM codegen backend — the first consumer of the [`Emit`] seam
-//! and the structured [`cfg_walk`] driver.
+//! and the structured [`structured`](crate::codegen::structured) driver.
 //!
-//! Stage 1 is the **eval-fallback tier**: every leaf command is boxed as a Tcl
+//! The current tier is **eval-fallback**: every leaf command is boxed as a Tcl
 //! string in the module's data section and evaluated by the runtime at run time
-//! (`tcl_eval`); control flow is **structured** WASM (`if`/`else`). This produces
-//! a *structurally valid* module (validated with `wasmtime validate`) against the
+//! (`tcl_eval`); control flow is **structured** WASM (`if`/`else`; `block`/`loop`
+//! with `br`/`br_if` for loops + `break`/`continue`/`return`). This produces a
+//! *structurally valid* module (validated with `wasmtime compile`) against the
 //! `"tcl"` import ABI the WASM runtime provides (values are i32 `*mut TclObj`
-//! pointers into shared linear memory). It does not yet *run* — the Rust runtime's
-//! wasm32 export surface is still the T1.1 stub (`runtime/rust/capi.rs`); the
-//! inline AOT tiers (variable slots, arithmetic, per-command hooks) and the
-//! runtime build-out are Stage 2.
+//! pointers into shared linear memory). It does not yet *run* — the Rust
+//! runtime's wasm32 export surface is still the T1.1 stub
+//! (`runtime/rust/capi.rs`); the inline AOT tiers (variable slots, arithmetic,
+//! per-command hooks) and the runtime build-out are later stages.
 
 use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
-use crate::cfg::CfgModule;
-use crate::codegen::cfg_walk;
 use crate::codegen::emit::Emit;
+use crate::codegen::structured;
+use crate::ir::Module;
+
+/// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
+const BLOCK_VOID: u8 = 0x40;
 
 /// Indices of the `"tcl"` host imports the emitted module calls.
 struct Imports {
@@ -29,12 +33,30 @@ struct Imports {
     expr_bool: u32,
 }
 
-/// Collects a function body + data section as the CFG walk drives it.
+/// One open structured loop, recording the control-frame indices a
+/// `break`/`continue`/back-edge branches to. Frame indices count from the
+/// outermost open frame (0); the relative `br` depth is derived from the
+/// current frame depth at the branch site (see [`WasmEmitter::rel_depth`]).
+struct LoopFrame {
+    /// The break-scope `block` — `br` here exits the loop.
+    break_block: u32,
+    /// The `loop` — `br` here re-tests (the back-edge target).
+    back_edge: u32,
+    /// The continue-scope `block` — `br` here runs the step then re-tests.
+    continue_block: u32,
+}
+
+/// Collects a function body + data section as the structured walk drives it.
 struct WasmEmitter {
     imports: Imports,
     body: Vec<WasmInstruction>,
     data: Vec<WasmData>,
     data_offset: i64,
+    /// Number of currently open control frames (`block`/`loop`/`if`).
+    ctrl_depth: u32,
+    /// Stack of open loops; the last is the innermost (the `break`/`continue`
+    /// target, since Tcl has no labelled break).
+    loops: Vec<LoopFrame>,
 }
 
 impl WasmEmitter {
@@ -66,6 +88,40 @@ impl WasmEmitter {
         ));
     }
 
+    /// Open a structured frame (`block`/`loop`/`if`, void type), returning its
+    /// index in the open-frame stack.
+    fn open_frame(&mut self, op: WasmOp) -> u32 {
+        self.body
+            .push(WasmInstruction::with_operands(op, vec![BLOCK_VOID]));
+        let idx = self.ctrl_depth;
+        self.ctrl_depth += 1;
+        idx
+    }
+
+    /// Close the innermost structured frame (`end`).
+    fn close_frame(&mut self) {
+        self.push(WasmOp::End);
+        self.ctrl_depth = self.ctrl_depth.saturating_sub(1);
+    }
+
+    /// The relative `br` depth from the current point to the frame at `idx`
+    /// (innermost open frame = 0).
+    fn rel_depth(&self, idx: u32) -> u32 {
+        self.ctrl_depth.saturating_sub(1).saturating_sub(idx)
+    }
+
+    fn br(&mut self, idx: u32) {
+        let d = self.rel_depth(idx);
+        self.body
+            .push(WasmInstruction::with_operands(WasmOp::Br, leb128_unsigned(u64::from(d))));
+    }
+
+    fn br_if(&mut self, idx: u32) {
+        let d = self.rel_depth(idx);
+        self.body
+            .push(WasmInstruction::with_operands(WasmOp::BrIf, leb128_unsigned(u64::from(d))));
+    }
+
     /// Box `text` as a `TclObj`, leaving its i32 pointer on the stack.
     fn box_text(&mut self, text: &str) {
         let (offset, len) = self.intern(text);
@@ -87,16 +143,82 @@ impl Emit for WasmEmitter {
         // if (tcl_expr_bool(box(cond)))   — void block type (no result)
         self.box_text(cond_text);
         self.call(self.imports.expr_bool);
-        self.body
-            .push(WasmInstruction::with_operands(WasmOp::If, vec![0x40]));
+        self.open_frame(WasmOp::If);
     }
 
     fn begin_else(&mut self) {
+        // `else` stays in the same `if` frame — no depth change.
         self.push(WasmOp::Else);
     }
 
     fn end_if(&mut self) {
-        self.push(WasmOp::End);
+        self.close_frame();
+    }
+
+    fn begin_loop(&mut self) {
+        // block (break scope) ⊃ loop (retest / back-edge). The continue scope
+        // opens in `begin_loop_body`, after the guard.
+        let break_block = self.open_frame(WasmOp::Block);
+        let back_edge = self.open_frame(WasmOp::Loop);
+        self.loops.push(LoopFrame {
+            break_block,
+            back_edge,
+            continue_block: back_edge, // provisional; set in begin_loop_body
+        });
+    }
+
+    fn loop_test(&mut self, cond_text: Option<&str>) {
+        if let Some(cond) = cond_text {
+            // if (!tcl_expr_bool(box(cond))) br <break>
+            self.box_text(cond);
+            self.call(self.imports.expr_bool);
+            self.push(WasmOp::I32Eqz);
+            if let Some(frame) = self.loops.last() {
+                let brk = frame.break_block;
+                self.br_if(brk);
+            }
+        }
+    }
+
+    fn begin_loop_body(&mut self) {
+        let continue_block = self.open_frame(WasmOp::Block);
+        if let Some(frame) = self.loops.last_mut() {
+            frame.continue_block = continue_block;
+        }
+    }
+
+    fn end_loop_body(&mut self) {
+        // Close the continue scope: a `continue` (and the body's fall-through)
+        // lands here, then runs any step and the back-edge.
+        self.close_frame();
+    }
+
+    fn end_loop(&mut self) {
+        if let Some(frame) = self.loops.last() {
+            let back_edge = frame.back_edge;
+            self.br(back_edge); // back-edge: re-test
+        }
+        self.close_frame(); // close loop
+        self.close_frame(); // close break scope
+        self.loops.pop();
+    }
+
+    fn emit_break(&mut self) {
+        if let Some(frame) = self.loops.last() {
+            let idx = frame.break_block;
+            self.br(idx);
+        }
+    }
+
+    fn emit_continue(&mut self) {
+        if let Some(frame) = self.loops.last() {
+            let idx = frame.continue_block;
+            self.br(idx);
+        }
+    }
+
+    fn emit_return(&mut self) {
+        self.push(WasmOp::Return);
     }
 }
 
@@ -104,21 +226,22 @@ fn add_tcl_import(m: &mut WasmModule, name: &str, params: &[ValType], results: &
     u32::try_from(m.add_import("tcl", name, params, results)).expect("import index fits in u32")
 }
 
-/// Lower a module's top-level script to a WASM module (Stage 1: eval-fallback +
-/// structured `if`). `source` is the original Tcl text, sliced for command text.
+/// Lower a module's top-level script to a WASM module (eval-fallback tier +
+/// structured control flow). `source` is the original Tcl text, sliced for
+/// command / expression text.
 #[must_use]
-pub fn wasm_codegen_module(cfg: &CfgModule, source: &str) -> WasmModule {
-    let mut module = WasmModule::new();
+pub fn wasm_codegen_module(module: &Module, source: &str) -> WasmModule {
+    let mut wasm = WasmModule::new();
     let imports = Imports {
         obj_new_string: add_tcl_import(
-            &mut module,
+            &mut wasm,
             "tcl_obj_new_string",
             &[ValType::I32, ValType::I32],
             &[ValType::I32],
         ),
-        eval: add_tcl_import(&mut module, "tcl_eval", &[ValType::I32], &[ValType::I32]),
-        obj_release: add_tcl_import(&mut module, "tcl_obj_release", &[ValType::I32], &[]),
-        expr_bool: add_tcl_import(&mut module, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
+        eval: add_tcl_import(&mut wasm, "tcl_eval", &[ValType::I32], &[ValType::I32]),
+        obj_release: add_tcl_import(&mut wasm, "tcl_obj_release", &[ValType::I32], &[]),
+        expr_bool: add_tcl_import(&mut wasm, "tcl_expr_bool", &[ValType::I32], &[ValType::I32]),
     };
 
     let mut emitter = WasmEmitter {
@@ -126,16 +249,18 @@ pub fn wasm_codegen_module(cfg: &CfgModule, source: &str) -> WasmModule {
         body: Vec::new(),
         data: Vec::new(),
         data_offset: 0,
+        ctrl_depth: 0,
+        loops: Vec::new(),
     };
-    cfg_walk::walk(&mut emitter, &cfg.top_level, source);
+    structured::walk(&mut emitter, &module.top_level, source);
     // The function body is an implicit block: emit its terminal `end` explicitly.
     // (Doing so unconditionally also closes any trailing structured region — a
-    // body ending in an `if`'s `end` would otherwise be mistaken by
-    // `encode_body` for the function end and left with an open frame.)
+    // body ending in a loop's `end` would otherwise be mistaken by `encode_body`
+    // for the function end and left with an open frame.)
     emitter.push(WasmOp::End);
 
-    module.data_segments = emitter.data;
-    module.functions.push(WasmFunction {
+    wasm.data_segments = emitter.data;
+    wasm.functions.push(WasmFunction {
         name: "::top".to_string(),
         params: Vec::new(),
         results: Vec::new(),
@@ -146,5 +271,5 @@ pub fn wasm_codegen_module(cfg: &CfgModule, source: &str) -> WasmModule {
         source_range: None,
         kind: "top".to_string(),
     });
-    module
+    wasm
 }

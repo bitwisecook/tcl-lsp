@@ -14,7 +14,6 @@
 //! - [`backend`] — the agnostic [`Backend`] trait + [`BytecodeBackend`]
 
 pub mod backend;
-pub mod cfg_walk;
 pub mod cmd_subst;
 pub mod control_flow;
 pub mod emit;
@@ -23,6 +22,7 @@ pub mod expressions;
 pub mod helpers;
 pub mod peephole;
 pub mod statements;
+pub mod structured;
 pub mod values;
 pub mod wasm;
 
