@@ -29,10 +29,11 @@ PY
 
 ## Current snapshot (2026-06)
 
-Final-source parity over the 79-file sample corpus: **37 exact / 42
-divergent**. Both pipelines already iterate to a fixpoint
-(`optimise_source_multipass` / the loop in `tcl-cli::run_opt`), so the
-remaining gap is *per-pass content*, not the loop.
+Final-source parity over the 79-file sample corpus: **42 exact / 37
+divergent** (was 37/42 at the start of the coupling work). Both pipelines
+already iterate to a fixpoint (`optimise_source_multipass` / the loop in
+`tcl-cli::run_opt`), so the remaining gap is *per-pass content*, not the
+loop.
 
 Divergence classes:
 
@@ -217,13 +218,31 @@ expr-simplify helpers (`NumericCtx`) into all three optimiser entry points.
 Matches Python's `_is_provably_numeric_expr_node` gate; resolves the prior
 `$a * 0 * 3` O110 divergence.
 
+**`AssignExpr`/`AssignValue` SCCP-constant coupling — done.** A computed
+`set x [expr {1+1}]` whose value SCCP proves `Const` now couple-removes
+exactly like a literal `set x 42` once its uses are propagated. The
+`couple_const_dead_stores_in_function` def gate was extended to accept
+`AssignExpr` / `AssignValue` (rendering the SCCP constant via
+`format_constant` for the substitution-metacharacter guard), and the
+removal-application loop now *supersedes* any selected rewrite fully
+contained in the deleted def line (the O101 expr-fold inside
+`set x [expr {…}]`) rather than treating it as a blocking overlap; a
+*partial* overlap still skips the removal. The investigated "quoted-expr
+smell" turned out moot — Python folds and removes `[expr "1+1"]`
+identically to `[expr {1+1}]`, so both are coupled. Verified against
+Python on the by-name-read / string-interp / brace-literal / non-const
+adversarial cases; corpus exact 41 → 42.
+
+**O127 forwarding — done.** `forward_candidate` now counts only
+non-terminator uses for the single-use gate, matching Python's def-use
+chain (which excludes `return $x` / branch-condition terminator reads), so
+a computed `set x [cmd]` forwards into its single operand use even when `x`
+is also read by a trailing terminator. The inlined `[set x …]` keeps `x`
+defined for the terminator read.
+
 **Remaining follow-ups:**
 
-- **`AssignExpr`/`AssignValue` SCCP-constant coupling** (`set x [expr
-  {1+1}]`) — low corpus value; needs a surviving-fold check to tell the
-  clean `[expr {…}]` fold from the quoted-expr `[expr "…"]` smell Python
-  preserves.
-- **O127 forwarding** and the 11 remaining pre-existing over-removals.
+- The 11 remaining pre-existing over-removals.
 
 The diagnostic-side dead-store/unused parity (W210 / W211 / W220) is closed.
 

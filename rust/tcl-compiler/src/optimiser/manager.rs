@@ -251,16 +251,29 @@ fn couple_propagated_const_dead_stores(
         couple_const_dead_stores_in_function(fu, registry, source, selected, &mut removals);
     }
 
-    // Append a removal only when its span is free of any selected rewrite —
-    // the def line is disjoint from the use propagations, but a structural
-    // rewrite (O112) could already cover it.
+    // Append each removal, reconciling it against the already-selected
+    // rewrites. The def line is disjoint from the use propagations (those land
+    // at the use sites on other lines), but a rewrite *inside* the def line —
+    // the O101 expr-fold of `set x [expr {1+1}]`, or an O100/O102 inside the
+    // RHS — is fully contained in the line being deleted, so the deletion
+    // supersedes it: drop those and emit the removal. A rewrite that only
+    // *partially* overlaps the line (a structural O112 spanning past it) is
+    // left intact and the removal skipped.
     for rem in removals {
-        let overlaps = selected.iter().any(|o| {
-            !o.hint_only && rem.span.start() < o.span.end() && o.span.start() < rem.span.end()
+        let contains = |o: &Optimisation| {
+            rem.span.start() <= o.span.start() && o.span.end() <= rem.span.end()
+        };
+        let partial_overlap = selected.iter().any(|o| {
+            !o.hint_only
+                && rem.span.start() < o.span.end()
+                && o.span.start() < rem.span.end()
+                && !contains(o)
         });
-        if !overlaps {
-            selected.push(rem);
+        if partial_overlap {
+            continue;
         }
+        selected.retain(|o| o.hint_only || !contains(o));
+        selected.push(rem);
     }
 }
 
@@ -321,17 +334,31 @@ fn couple_const_dead_stores_in_function(
         let Some(def_stmt) = def_block.statements.get(def_idx) else {
             continue;
         };
-        // The def must be a plain `set x <literal>` whose value carries no
-        // substitution metacharacters. Inlining such a value at the use sites
-        // can never change substitution/command semantics — whereas a value
-        // like `{$name [cmd]}` or a computed `[expr …]` could behave
-        // differently once inlined, so those are left to the conservative
-        // path (and to Python, which preserves them). This also keeps the
-        // removal aligned with what the propagation actually substituted.
-        let crate::ir::Statement::AssignConst { value, .. } = def_stmt else {
-            continue;
+        // The def must be a const-foldable scalar assignment whose inlined
+        // value carries no substitution metacharacters. Two shapes qualify:
+        //
+        //   * `set x <literal>` (`AssignConst`) inlines its literal verbatim.
+        //   * `set x [expr {1+1}]` (`AssignExpr` / `AssignValue`) was proven
+        //     `Const` by SCCP above, so O100 substituted the *rendered
+        //     constant* (`2`), not the original expression text. Python
+        //     removes these too once the fold + propagation land — match it.
+        //
+        // Either way reject a value bearing `$ [ ] \`: it could re-substitute
+        // differently once inlined, so those are left to the conservative path.
+        let inlined_value = match def_stmt {
+            crate::ir::Statement::AssignConst { value, .. } => value.clone(),
+            crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
+                let Some(LatticeValue::Const(c)) = fu.sccp.values.get(&chain.key) else {
+                    continue;
+                };
+                let Some(text) = super::helpers::literals::format_constant(c) else {
+                    continue;
+                };
+                text
+            }
+            _ => continue,
         };
-        if value.contains(['$', '[', ']', '\\']) {
+        if inlined_value.contains(['$', '[', ']', '\\']) {
             continue;
         }
         // Pure constant assignment — removing it loses no observable effect.
@@ -679,6 +706,33 @@ mod tests {
         assert_eq!(
             optimised("proc f {} {\n  set x 42\n  puts \"v $x\"\n}\n"),
             "proc f {} {\n  puts \"v 42\"\n}\n",
+        );
+    }
+
+    #[test]
+    fn couples_sccp_const_expr_dead_store_removal() {
+        // `set x [expr {1+1}]` folds to a constant SCCP proves; once its only
+        // use is propagated the computed def is dead — removed (matching
+        // Python). The O101 expr-fold inside the def line is superseded by the
+        // line deletion.
+        assert_eq!(optimised("set x [expr {1+1}]\nputs $x\n"), "puts 2\n");
+        // The quoted-expr form folds the same way — Python removes it too.
+        assert_eq!(optimised("set x [expr \"1+1\"]\nputs $x\n"), "puts 2\n");
+        // Inside a proc, with a string-interpolation read.
+        assert_eq!(
+            optimised("proc p {} {\n  set x [expr {1+1}]\n  puts \"v=$x\"\n}\n"),
+            "proc p {} {\n  puts \"v=2\"\n}\n",
+        );
+    }
+
+    #[test]
+    fn coupling_keeps_non_const_expr_def() {
+        // A computed assignment SCCP cannot prove constant (a runtime command)
+        // is never coupled away.
+        let kept = optimised("set x [expr {[clock seconds]}]\nputs $x\n");
+        assert!(
+            kept.contains("set x [expr"),
+            "non-const expr def must be kept; got {kept:?}",
         );
     }
 
