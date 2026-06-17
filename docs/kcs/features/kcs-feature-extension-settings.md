@@ -21,7 +21,7 @@ Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and type `Tcl:` to se
 
 | Command | What it does |
 |---------|-------------|
-| **Tcl: Restart Language Server** | Stop and restart the language server. Use when settings that are read at startup have changed (Python path, server path, log level). |
+| **Tcl: Restart Language Server** | Stop and restart the language server. Use when settings that are read at startup have changed (server path, native binary path, log level). |
 | **Tcl: Select Dialect** | Open a picker to switch between Tcl 8.4, 8.5, 8.6, 9.0, F5 iRules, F5 iApps, and EDA tool dialects. |
 | **Tcl: Export Configuration** | Write the current LSP settings to an XDG-compatible configuration file so they persist outside VS Code. |
 | **Tcl: Toggle Optimiser Suggestions** | Flip `tclLsp.optimiser.enabled` on or off. When enabled, hint-level O-code diagnostics appear in the editor. |
@@ -29,7 +29,7 @@ Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and type `Tcl:` to se
 
 ## Example
 
-After updating the `tclLsp.pythonPath` setting, the server keeps running with the old interpreter until you run **Tcl: Restart Language Server** from the Command Palette. The output channel logs the new interpreter path on restart.
+After updating the `tclLsp.rustServerPath` setting, the server keeps running with the old native binary until you run **Tcl: Restart Language Server** from the Command Palette. The output channel logs the native server path on restart.
 
 ## Related
 

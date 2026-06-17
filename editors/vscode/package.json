@@ -2952,42 +2952,19 @@
         "title": "General",
         "order": 0,
         "properties": {
-          "tclLsp.pythonPath": {
-            "scope": "machine-overridable",
-            "type": "string",
-            "default": "auto",
-            "description": "Deprecated and ignored. The extension now bundles a self-contained native language server (tcl-lsp-server) per platform and no longer requires Python. This setting has no effect.",
-            "deprecationMessage": "tclLsp.pythonPath is no longer used — the extension bundles a native server and does not require Python.",
-            "order": 0
-          },
           "tclLsp.serverPath": {
             "scope": "machine-overridable",
             "type": "string",
             "default": "",
-            "description": "Path to the tcl-lsp server directory. If empty, uses the bundled server.",
-            "order": 1
-          },
-          "tclLsp.serverKind": {
-            "scope": "machine-overridable",
-            "type": "string",
-            "default": "rust",
-            "enum": [
-              "rust",
-              "python"
-            ],
-            "enumDescriptions": [
-              "The native Rust tcl-lsp-server binary (default; falls back to the Python server if no binary is found).",
-              "The packaged Python LSP reference server."
-            ],
-            "description": "Which LSP backend to launch: the native Rust server (default) or the Python server.",
-            "order": 2
+            "description": "Path to a tcl-lsp checkout (workspace root). When set, the extension probes target/{release,debug}/ under it for a locally built tcl-lsp-server binary. If empty, uses the bundled native binary.",
+            "order": 0
           },
           "tclLsp.rustServerPath": {
             "scope": "machine-overridable",
             "type": "string",
             "default": "",
-            "description": "Path to the native Rust tcl-lsp-server binary (used when serverKind is 'rust'). If empty, probes target/{release,debug}/ under the project root.",
-            "order": 3
+            "description": "Path to the native Rust tcl-lsp-server binary. If empty, uses the bundled binary, then probes target/{release,debug}/ under the workspace root.",
+            "order": 1
           },
           "tclLsp.dialect": {
             "scope": "language-overridable",
