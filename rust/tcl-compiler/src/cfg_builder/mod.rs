@@ -1463,4 +1463,28 @@ mod tests {
             "synthetic invalidate at {s} should precede assign at {a}",
         );
     }
+
+    #[test]
+    fn try_handler_return_options_terminates() {
+        // A `try` handler ending in `return -code error …` (lowered to a
+        // "return with options" barrier) returns from the proc, so it must
+        // *terminate* its block rather than fall through to the post-`try`
+        // join. Regression for the spurious `try_handler → try_end` edge +
+        // phi (e.g. `auto_mkindex`). Analysis builds only (`build_cfg` sets
+        // `faithful_exceptions`); codegen leaves the barrier as a plain stmt.
+        let module =
+            lower_module("proc f {} { try { set a 1 } on error {} { return -code error boom } }");
+        let cfg = build_cfg(&module, false);
+        let func = cfg.procedures.get("::f").expect("::f cfg");
+        let handler = func
+            .blocks
+            .values()
+            .find(|b| b.name.starts_with("try_handler"))
+            .expect("try_handler block");
+        assert!(
+            matches!(handler.terminator, Some(Terminator::Return { .. })),
+            "return-options handler must terminate (no fall-through to try_end), got {:?}",
+            handler.terminator,
+        );
+    }
 }
