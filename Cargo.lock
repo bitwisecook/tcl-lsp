@@ -2371,6 +2371,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-compiler",
+ "tcl-platform",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",

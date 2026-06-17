@@ -13,6 +13,7 @@
 //! `docs/design/common-runtime-emitter-architecture.md`.
 
 pub mod error;
+pub mod host_native;
 pub mod value;
 mod value_ops;
 

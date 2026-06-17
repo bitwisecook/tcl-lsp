@@ -19,6 +19,7 @@
 
 pub mod error;
 pub mod path;
+pub mod platform;
 pub mod string;
 
 pub use error::CmdError;
