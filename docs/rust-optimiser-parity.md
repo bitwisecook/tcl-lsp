@@ -107,13 +107,61 @@ input.
   others may be a missing guard.
 - **O127 forwarding** (doc GAP-B1) remains unported.
 
+## Implementation design (investigated 2026-06)
+
+Mapped the Rust pipeline end to end. The pieces are in place but the
+coupling is missing:
+
+- `optimiser::manager::run_passes` runs **Propagation before Elimination**
+  over a shared `PassContext`, so ordering is already correct.
+- `PassContext` already carries `propagated_branch_uses` /
+  `propagated_expr_stmts` / `propagated_use_groups` — but they are consumed
+  **only inside `propagation.rs`** (for the O127 store-to-load path), not by
+  `elimination.rs`.
+- The **constant** path (`visit_simple_var_word` → O100) operates on a
+  name→value `constants` map, **not** version-precise SSA, so it records
+  nothing about *which* `(var, version)` uses it propagated.
+
+A `set x <const>` becomes dead exactly when O100 propagates **every** use
+of `x`. The safe rule (verified against Python's keep/remove split):
+
+> Remove the def iff SCCP says `x` is `Const`, the def is pure
+> (`assignment_safe_to_delete`), `x` has **≥ 1 use** and **all** uses are
+> `UseKind::Operand` (reuse `build_adce_consumers`'s `keep_forever` to
+> exclude Phi/Terminator), `x` is scalar, and `x` is not scope-aliased /
+> cross-event / call-by-name / present in `collect_rmw_hidden_reads`. The
+> `≥ 1 use` clause is what distinguishes `set x 42; puts $x` (remove —
+> Python emits O109) from `set x 42; puts hello` and a proc-read global
+> (keep — Python emits nothing): a zero-use top-level const is the
+> "never-used / externally-consumed" case Python deliberately preserves.
+
+### The blocking hazard — all-or-nothing grouping
+
+The O109 removal of `set x 42` **must** be emitted in the same rewrite
+**group** as the O100 rewrites of *every* use of `x`. O100 and O109 touch
+disjoint spans, so `select_non_overlapping` keeps both in the simple case —
+**but** in compound cases an O100 use-rewrite can be dropped by overlap
+arbitration (it collides with an O112/O101 replacement). If the O109
+removal survives while one O100 is dropped, the output is `puts $x` with
+`x` no longer defined — a **miscompilation**, not a missed optimisation.
+
+This is exactly what Python's `propagated_use_groups` provides. Landing the
+fix therefore requires:
+
+1. Making the O100 constant path record each propagated `(var, version)`
+   use and its rewrite's group id (version-precise, not name-keyed).
+2. Having elimination emit the O109 removal **into that group** so the
+   removal applies only if *all* the use-rewrites do.
+3. The safety guards above.
+4. Re-running the optimiser corpus differential, the full Rust suite, the
+   Python `test_optimiser*` equivalents, and the bytecode-compare gate.
+
 ## Status
 
-The dead-store-coupling fix (option 1) is the single highest-impact change
-— it closes the 28-file dominant class. It is correctness-sensitive
-(removing a live store produces wrong code), so it warrants its own
-strip with the global-safety guards and a corpus + bytecode-compare gate
-re-run, not a drive-by edit.
+This is a self-contained but **correctness-critical** strip: a missed
+group id silently miscompiles. It needs the grouping machinery in (1)–(2)
+plus the full validation in (4) — not a drive-by edit. The diagnostic-side
+dead-store/unused parity (W210 / W211 / W220) is already closed.
 
 Diagnostic-side dead-store/unused parity (W210 / W211 / W220) is now
 closed — see the analyser changes landed alongside this note.
