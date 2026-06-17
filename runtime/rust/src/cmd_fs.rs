@@ -137,7 +137,15 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(list::new_list_obj(&objs));
             Code::Ok
         }
-        b"normalize" => str_result(interp, &normalize(&arg(2).unwrap_or_default())),
+        b"normalize" => {
+            let cwd = interp
+                .host()
+                .env()
+                .cwd()
+                .unwrap_or_else(|_| String::from("/"));
+            let norm = normalize(&arg(2).unwrap_or_default(), cwd.as_bytes());
+            str_result(interp, &norm)
+        }
         b"separator" => str_result(interp, b"/"),
         b"nativename" => str_result(interp, &arg(2).unwrap_or_default()),
         b"exists" => bool_result(
@@ -366,16 +374,13 @@ fn split_path(p: &[u8]) -> Vec<Vec<u8>> {
     parts
 }
 
-/// Lexical normalize: make absolute (against `pwd`) and resolve `.`/`..` without
-/// requiring the path to exist.
-fn normalize(p: &[u8]) -> Vec<u8> {
+/// Lexical normalize: make absolute (against `cwd`) and resolve `.`/`..` without
+/// requiring the path to exist. `cwd` is the host's working directory (`pwd`).
+fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
     let mut abs: Vec<u8> = if p.starts_with(b"/") {
         p.to_vec()
     } else {
-        let mut base = std::env::current_dir()
-            .ok()
-            .and_then(|d| d.to_str().map(|s| s.as_bytes().to_vec()))
-            .unwrap_or_else(|| b"/".to_vec());
+        let mut base = cwd.to_vec();
         base.push(b'/');
         base.extend_from_slice(p);
         base
@@ -408,8 +413,9 @@ fn pwd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
         return wrong_args(interp, b"pwd");
     }
-    match std::env::current_dir() {
-        Ok(d) => str_result(interp, d.to_string_lossy().as_bytes()),
+    let cwd = interp.host().env().cwd();
+    match cwd {
+        Ok(d) => str_result(interp, d.as_bytes()),
         Err(_) => interp.set_error(b"error getting working directory name"),
     }
 }
@@ -422,7 +428,8 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .get(1)
         .map(|&a| obj_bytes(a))
         .unwrap_or_else(|| b"/".to_vec());
-    match std::env::set_current_dir(as_str(&dir)) {
+    let res = interp.host().env().chdir(as_str(&dir));
+    match res {
         Ok(()) => {
             interp.set_result_bytes(b"");
             Code::Ok
@@ -431,7 +438,7 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"couldn't change working directory to \"".to_vec();
             m.extend_from_slice(&dir);
             m.extend_from_slice(b"\": ");
-            m.extend_from_slice(io_reason(&e).as_bytes());
+            m.extend_from_slice(e.reason().as_bytes());
             interp.set_error(&m)
         }
     }

@@ -58,6 +58,13 @@ name = "tcl-core-types"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-host-native"
+version = "0.1.0"
+dependencies = [
+ "tcl-platform",
+]
+
+[[package]]
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
@@ -73,7 +80,9 @@ name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
+ "tcl-host-native",
  "tcl-lexer",
+ "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",
 ]

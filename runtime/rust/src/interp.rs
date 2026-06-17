@@ -615,6 +615,17 @@ pub struct InterpState {
     /// was non-zero; the actual removal from the parent's table is deferred until
     /// the last eval unwinds (C's deferred `Tcl_DeleteInterp`).
     pending_delete: Cell<bool>,
+    /// The capability host — the platform seam every file/`env`/`clock`/
+    /// subprocess facility is reached through (instead of direct `std::fs`/
+    /// `std::env`/`std::time`). A [`NativeHost`](tcl_host_native::NativeHost)
+    /// with the full capability set on native builds; a restricted
+    /// `WasiHost`/`BrowserHost` on the WASM targets (where `host.process()` /
+    /// `host.sockets()` report absence rather than panicking). `RefCell` so a
+    /// test (or a future safe-interp) can swap in a sandboxed host via
+    /// [`set_host`](Interp::set_host); the `Rc` makes [`host`](Interp::host)
+    /// hand out an independent handle, sidestepping the borrow conflict when a
+    /// command needs both `&mut self` (its `ValueOps`) and the host at once.
+    host: RefCell<Rc<dyn tcl_platform::Host>>,
     /// TclOO object system state (classes, objects, the method-call stack).
     pub(crate) oo: RefCell<crate::cmd_oo::OoState>,
     /// The source-location stack (`cmdFramePtr`; PC-5) — what `info frame` reads.
@@ -712,6 +723,16 @@ impl Interp {
         let result = obj::new_obj();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
+        // The default capability host. Native builds get the full-capability
+        // std-backed `NativeHost`; the wasm32 hosts (`WasiHost`/`BrowserHost`)
+        // are wired in a later Phase-D increment.
+        #[cfg(not(target_arch = "wasm32"))]
+        let host: Rc<dyn tcl_platform::Host> = Rc::new(tcl_host_native::NativeHost::new());
+        #[cfg(target_arch = "wasm32")]
+        compile_error!(
+            "wasm32 Host (WasiHost/BrowserHost) not yet wired — Phase D follow-up; \
+             native builds use tcl-host-native::NativeHost"
+        );
         let mut interp = Interp(Rc::new(InterpState {
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
@@ -732,6 +753,7 @@ impl Interp {
             is_safe: Cell::new(false),
             eval_active: Cell::new(0),
             pending_delete: Cell::new(false),
+            host: RefCell::new(host),
             oo: RefCell::new(crate::cmd_oo::OoState::default()),
             cmd_frames: RefCell::new(Vec::new()),
             arg_lines: RefCell::new(Vec::new()),
@@ -751,6 +773,24 @@ impl Interp {
         }));
         builtins::install(&mut interp);
         interp
+    }
+
+    // -- capability host ------------------------------------------------------
+
+    /// The capability host (filesystem/`env`/`clock`/subprocess seam). Returns an
+    /// independent `Rc` handle, not a borrow, so a command can hold the host
+    /// while still taking `&mut self` for its `ValueOps` (e.g. the `exec`
+    /// adapter, which needs both at once).
+    #[must_use]
+    pub(crate) fn host(&self) -> Rc<dyn tcl_platform::Host> {
+        self.0.host.borrow().clone()
+    }
+
+    /// Swap the capability host (e.g. a test installing a sandboxed,
+    /// no-subprocess host to prove the capability gate, or a safe interp taking
+    /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
+    pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
+        *self.0.host.borrow_mut() = host;
     }
 
     // -- command registry -----------------------------------------------------

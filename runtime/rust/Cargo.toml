@@ -35,6 +35,17 @@ tcl-cmd-core = { path = "../../rust/tcl-cmd-core" }
 # The Family-B interp-state contract (the role traits this runtime satisfies
 # over its `*mut TclObj` value model, alongside the bytecode VM's `Rc<Obj>`).
 tcl-runtime-api = { path = "../../rust/tcl-runtime-api" }
+# The capability seam: the `Host` trait surface (filesystem/clock/env/stdio/…)
+# this runtime reaches platform facilities through. Wasm32-clean (traits only,
+# no syscalls), so it is an unconditional dependency on every target.
+tcl-platform = { path = "../../rust/tcl-platform" }
+
+# The std-backed `NativeHost` — the full-capability `Host` for native builds.
+# It calls `std::fs`/`std::env`/`std::process`/`std::time`, so it is **not**
+# wasm32-clean and must stay off the wasm targets (which use `WasiHost`/
+# `BrowserHost` instead). Target-gated so a wasm32 build never pulls std I/O in.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tcl-host-native = { path = "../../rust/tcl-host-native" }
 
 [lib]
 name = "tcl_runtime"
