@@ -208,14 +208,17 @@ Corpus exact 37 → 41; over-removals 14 → 11.
 `+`/`-` and `*` chains (`$a + 1 + 2` → `$a + 3`, `$a * 2 * 3` → `$a * 6`),
 keeping all non-constant terms and verified byte-for-byte against Python.
 
+**Arithmetic identity/annihilator numeric guard — done.** The
+operand-dropping identities (`x * 0`, `x + 0`, `x * 1`, `x / 1`, `x % 1`,
+`x << 0`, `x ** 0,1`, bitwise `& | ^ 0`, unary `+x`) are now gated on the
+dropped operand being provably numeric, threading a per-function numeric
+name set (`numeric_var_names`, from `FunctionUnit.types`) through the
+expr-simplify helpers (`NumericCtx`) into all three optimiser entry points.
+Matches Python's `_is_provably_numeric_expr_node` gate; resolves the prior
+`$a * 0 * 3` O110 divergence.
+
 **Remaining follow-ups:**
 
-- **Unguarded `x * 0` / `x * 1` annihilator** (`reduce_arith_identity`):
-  Rust reduces `$a * 0` → `0` unconditionally, but Python keeps it when
-  `$a` is not provably numeric (`expr {$a * 0}` errors on a non-numeric
-  `$a`). This is a latent miscompile, but fixing it needs the SSA type
-  lattice's provably-numeric check, which the AST-level expr pass lacks —
-  it would have to be threaded in from the analysis layer.
 - **`AssignExpr`/`AssignValue` SCCP-constant coupling** (`set x [expr
   {1+1}]`) — low corpus value; needs a surviving-fold check to tell the
   clean `[expr {…}]` fold from the quoted-expr `[expr "…"]` smell Python
