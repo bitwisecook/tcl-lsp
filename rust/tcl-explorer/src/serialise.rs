@@ -1826,8 +1826,12 @@ mod tests {
         let result = run_pipeline("set x [expr {1 + 2}]\nputs $x", "tcl8.6");
         let opt = serialise_result(&result)["optimisedSource"].clone();
         // The constant fold changes the source, so it is a non-null string.
+        // SCCP proves `x` is `3` and its only use is propagated, so the
+        // computed def couple-removes (matching Python) — the result is
+        // `puts 3`, not `set x 3`.
         let s = opt.as_str().expect("optimised source string");
-        assert!(s.contains("set x 3"));
+        assert!(s.contains("puts 3"), "{s:?}");
+        assert!(!s.contains("set x"), "{s:?}");
     }
 
     #[test]
@@ -2225,7 +2229,10 @@ mod tests {
 
     #[test]
     fn optimisations_reports_constant_fold_with_range() {
-        let result = run_pipeline("set x [expr {1 + 2}]\nputs $x", "tcl8.6");
+        // A by-name read (`[set x]`) keeps the def alive, so the O101
+        // constant-fold survives as its own reported rewrite rather than
+        // being superseded by the dead-store coupling.
+        let result = run_pipeline("set x [expr {1 + 2}]\nputs [set x]", "tcl8.6");
         let opts = serialise_result(&result)["optimisations"].clone();
         let arr = opts.as_array().unwrap();
         assert!(!arr.is_empty(), "expected at least one optimisation");
