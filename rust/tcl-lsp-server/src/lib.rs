@@ -227,6 +227,11 @@ struct DiagInputs {
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+    /// Per-folder salsa `AnalyserConfig` handles (see
+    /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
+    /// the document's URI so folder-scoped W-code suppression reaches the
+    /// cached analysis, falling back to `db_config`.
+    folder_db_configs: Arc<Mutex<Vec<(Url, tcl_lsp_db::AnalyserConfig)>>>,
     /// Pull-diagnostic cache, updated as each push run publishes so the
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
@@ -251,7 +256,16 @@ impl DiagInputs {
             )
         };
         let file = self.db_files.lock().await.get(uri).copied();
-        let config = *self.db_config.lock().await;
+        // Prefer a folder-scoped analyser config when the document sits under a
+        // folder that overrides disabled codes / non-ASCII mode; else the
+        // process-global config.
+        let config = {
+            let folder = self.folder_db_configs.lock().await;
+            match longest_folder_match(&folder, uri) {
+                Some(cfg) => *cfg,
+                None => *self.db_config.lock().await,
+            }
+        };
         Some(DiagJob {
             text,
             dialect,
@@ -292,6 +306,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         // The worker captures the job from these before calling us; unused here.
         db_files: _,
         db_config: _,
+        folder_db_configs: _,
     } = inputs;
     let DiagJob {
         text,
@@ -525,6 +540,20 @@ pub struct Backend {
     /// longest-prefix folder's dialect when a document is
     /// opened.
     folder_dialects: Mutex<Vec<(Url, String)>>,
+    /// Per-folder editor configuration overrides (diagnostics, optimiser,
+    /// formatting, feature toggles), keyed by folder URI and resolved by
+    /// longest prefix at read time.  Populated by the per-folder
+    /// `workspace/configuration` pull.  Empty in a single-root workspace, where
+    /// every read falls back to the process-global fields below.  Mirrors the
+    /// Python `editor_config_settings_per_folder`.
+    folder_configs: Mutex<Vec<(Url, FolderConfig)>>,
+    /// Per-folder salsa `AnalyserConfig` input handles, present only for folders
+    /// that override the disabled-diagnostics set or non-ASCII mode.  The
+    /// diagnostics path resolves the handle by longest prefix so a folder's
+    /// W-code suppression reaches the cached `file_analysis` query, not just the
+    /// server-side lift.  Folders without such overrides fall back to
+    /// [`Backend::db_config`].
+    folder_db_configs: Arc<Mutex<Vec<(Url, tcl_lsp_db::AnalyserConfig)>>>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] until an editor configures it via
     /// `initializationOptions` or `workspace/didChangeConfiguration`.
@@ -575,7 +604,8 @@ pub struct Backend {
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
-    /// mode); `set_*` on `workspace/didChangeConfiguration`.
+    /// mode); `set_*` on `workspace/didChangeConfiguration`.  Used as the
+    /// fallback when no per-folder override applies to the document.
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
     /// Last-published diagnostics per open document, keyed by URI, for the
     /// pull-diagnostic path.  Written by the push pipeline and read by the
@@ -655,6 +685,39 @@ impl FeatureToggles {
     }
 }
 
+/// One workspace folder's editor configuration overrides.
+///
+/// Each field is `None` (or empty) when the folder's pulled `tclLsp` config
+/// did not set it, in which case the resolver falls back to the process-global
+/// value.  This is the Rust analogue of the Python server's
+/// `editor_config_settings_per_folder`: in a multi-root workspace each root can
+/// carry its own diagnostics, optimiser, formatting, and feature settings.
+/// Per-folder *dialect* is handled separately by [`Backend::folder_dialects`].
+#[derive(Clone, Default)]
+struct FolderConfig {
+    feature_toggles: FeatureToggles,
+    disabled_diagnostics: Option<HashSet<String>>,
+    non_ascii_mode: Option<NonAsciiMode>,
+    optimiser_enabled: Option<bool>,
+    optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
+    optimiser_code_overrides: HashMap<String, bool>,
+    line_length: Option<u32>,
+}
+
+/// Pick the value associated with the **longest** folder URI that `uri` sits
+/// under, mirroring the Python server's longest-prefix folder resolution.
+fn longest_folder_match<'a, T>(entries: &'a [(Url, T)], uri: &Url) -> Option<&'a T> {
+    let mut best: Option<&'a (Url, T)> = None;
+    for entry in entries {
+        if uri_under_folder(uri.as_str(), entry.0.as_str())
+            && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
+        {
+            best = Some(entry);
+        }
+    }
+    best.map(|(_, value)| value)
+}
+
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish_non_exhaustive()
@@ -684,6 +747,8 @@ impl Backend {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            folder_configs: Mutex::new(Vec::new()),
+            folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
@@ -1998,10 +2063,87 @@ impl Backend {
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
         self.sync_db_config().await;
+        // Per-folder editor configuration: VS Code resolves `tclLsp` settings
+        // per scope, so pull each folder's resolved config and store it for
+        // longest-prefix resolution at read time.  Mirrors the Python
+        // `editor_config_settings_per_folder`.  A single-root / no-folder
+        // session skips this — the global pull above is the whole story.
+        let folders = self.workspace_folder_urls().await;
+        if !folders.is_empty() {
+            let items: Vec<ConfigurationItem> = folders
+                .iter()
+                .map(|f| ConfigurationItem {
+                    scope_uri: Some(f.clone()),
+                    section: Some("tclLsp".to_owned()),
+                })
+                .collect();
+            if let Ok(values) = self.client.configuration(items).await {
+                let parsed: Vec<(Url, FolderConfig)> = folders
+                    .into_iter()
+                    .zip(values)
+                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
+                    .collect();
+                self.apply_folder_configs(parsed).await;
+            }
+        }
+    }
+
+    /// Store the per-folder editor configs and refresh the per-folder salsa
+    /// `AnalyserConfig` handles.  A handle is created only for a folder that
+    /// overrides the disabled-diagnostics set or non-ASCII mode (others inherit
+    /// [`Backend::db_config`]); existing handles are reused across re-pulls so
+    /// the salsa store does not accumulate dead config inputs.
+    async fn apply_folder_configs(&self, parsed: Vec<(Url, FolderConfig)>) {
+        use salsa::Setter as _;
+        {
+            let mut global_disabled: Vec<String> = self
+                .disabled_diagnostics
+                .lock()
+                .await
+                .iter()
+                .cloned()
+                .collect();
+            global_disabled.sort();
+            let global_mode = *self.non_ascii_mode.lock().await;
+            let mut db = self.db.lock().await;
+            let mut handles = self.folder_db_configs.lock().await;
+            let mut next: Vec<(Url, tcl_lsp_db::AnalyserConfig)> = Vec::new();
+            for (folder, fc) in &parsed {
+                if fc.disabled_diagnostics.is_none() && fc.non_ascii_mode.is_none() {
+                    continue;
+                }
+                let mut disabled: Vec<String> = match &fc.disabled_diagnostics {
+                    Some(d) => d.iter().cloned().collect(),
+                    None => global_disabled.clone(),
+                };
+                disabled.sort();
+                let mode = fc.non_ascii_mode.unwrap_or(global_mode);
+                if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
+                    handle.set_disabled_diagnostics(&mut *db).to(disabled);
+                    handle.set_non_ascii_mode(&mut *db).to(mode);
+                    next.push((folder.clone(), *handle));
+                } else {
+                    let handle = tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode);
+                    next.push((folder.clone(), handle));
+                }
+            }
+            *handles = next;
+        }
+        *self.folder_configs.lock().await = parsed;
     }
 
     /// Whether the named `tclLsp.features.*` provider is enabled.
-    async fn feature_enabled(&self, feature: &str) -> bool {
+    async fn feature_enabled(&self, feature: &str, uri: &Url) -> bool {
+        // A folder that explicitly sets the toggle wins for documents under it;
+        // otherwise fall back to the process-global toggle state.
+        {
+            let configs = self.folder_configs.lock().await;
+            if let Some(fc) = longest_folder_match(&configs, uri)
+                && let Some(flag) = fc.feature_toggles.set.get(feature).copied()
+            {
+                return flag;
+            }
+        }
         self.feature_toggles.lock().await.is_enabled(feature)
     }
 
@@ -2149,6 +2291,74 @@ impl Backend {
         (disabled, mode)
     }
 
+    /// Resolve the diagnostics-affecting settings for `uri`: a per-folder editor
+    /// config (longest-prefix match) overrides the process-global fields
+    /// field-by-field; unset folder fields inherit the global value.  Returns
+    /// `(disabled_diagnostics, non_ascii_mode, optimiser_enabled,
+    /// optimiser_disabled_codes)`.  In a single-root workspace (no per-folder
+    /// configs) this is exactly the global state.
+    async fn resolved_analysis_settings(
+        &self,
+        uri: &Url,
+    ) -> (HashSet<String>, NonAsciiMode, bool, HashSet<String>) {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).cloned()
+        };
+        let disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
+            Some(d) => d,
+            None => self.disabled_diagnostics.lock().await.clone(),
+        };
+        let non_ascii_mode = match folder.as_ref().and_then(|f| f.non_ascii_mode) {
+            Some(m) => m,
+            None => *self.non_ascii_mode.lock().await,
+        };
+        let optimiser_enabled = match folder.as_ref().and_then(|f| f.optimiser_enabled) {
+            Some(b) => b,
+            None => *self.optimiser_enabled.lock().await,
+        };
+        let profile = match folder.as_ref().and_then(|f| f.optimiser_profile) {
+            Some(p) => p,
+            None => *self.optimiser_profile.lock().await,
+        };
+        let mut opt_disabled: HashSet<String> =
+            tcl_compiler::optimiser::profiles::profile_to_disabled(profile)
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+        // Global per-code overrides first, then the folder's (folder wins).
+        for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
+            if *enabled {
+                opt_disabled.remove(code);
+            } else {
+                opt_disabled.insert(code.clone());
+            }
+        }
+        if let Some(f) = folder.as_ref() {
+            for (code, enabled) in &f.optimiser_code_overrides {
+                if *enabled {
+                    opt_disabled.remove(code);
+                } else {
+                    opt_disabled.insert(code.clone());
+                }
+            }
+        }
+        (disabled, non_ascii_mode, optimiser_enabled, opt_disabled)
+    }
+
+    /// Resolve the formatter line length for `uri` (per-folder override, else
+    /// the global `tclLsp.formatting.lineLength`).
+    async fn resolved_line_length(&self, uri: &Url) -> u32 {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.line_length)
+        };
+        match folder {
+            Some(len) => len,
+            None => *self.line_length.lock().await,
+        }
+    }
+
     /// Build an `Analyser` carrying the configured disabled-diagnostics
     /// set and W108 mode.
     fn configured_analyser(disabled: HashSet<String>, mode: NonAsciiMode) -> Analyser {
@@ -2183,26 +2393,10 @@ impl Backend {
     /// debounced streaming contract lands in a follow-up.
     /// Gather the document-independent handles a detached diagnostics run needs
     /// (per-edit state travels in a [`DiagJob`]).
-    async fn diag_inputs(&self, dialect: &str) -> DiagInputs {
-        let opt_disabled: HashSet<String> = {
-            let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
-                *self.optimiser_profile.lock().await,
-            )
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-            for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
-                if *enabled {
-                    set.remove(code);
-                } else {
-                    set.insert(code.clone());
-                }
-            }
-            set
-        };
-        let (disabled, non_ascii_mode) = self.analyser_config().await;
+    async fn diag_inputs(&self, uri: &Url, dialect: &str) -> DiagInputs {
+        let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
+            self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
-        let optimiser_enabled = *self.optimiser_enabled.lock().await;
         DiagInputs {
             client: self.client.clone(),
             registry,
@@ -2215,6 +2409,7 @@ impl Backend {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_config: Arc::clone(&self.db_config),
+            folder_db_configs: Arc::clone(&self.folder_db_configs),
             pull_diag_cache: Arc::clone(&self.pull_diag_cache),
         }
     }
@@ -2238,24 +2433,8 @@ impl Backend {
         dialect: String,
     ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
         let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
-        let opt_disabled: HashSet<String> = {
-            let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
-                *self.optimiser_profile.lock().await,
-            )
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-            for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
-                if *enabled {
-                    set.remove(code);
-                } else {
-                    set.insert(code.clone());
-                }
-            }
-            set
-        };
-        let (disabled, _non_ascii_mode) = self.analyser_config().await;
-        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
+            self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = {
@@ -2303,7 +2482,7 @@ impl Backend {
         _revision: u64,
         _version: Option<i32>,
     ) {
-        let inputs = self.diag_inputs(&dialect).await;
+        let inputs = self.diag_inputs(&uri, &dialect).await;
         let Some(job) = inputs.capture_job(&uri).await else {
             return;
         };
@@ -2338,7 +2517,7 @@ impl Backend {
         if !start_worker {
             return;
         }
-        let inputs = self.diag_inputs(&dialect).await;
+        let inputs = self.diag_inputs(&uri, &dialect).await;
         let slots = Arc::clone(&self.diag_slots);
         tokio::spawn(async move {
             loop {
@@ -2764,7 +2943,7 @@ impl LanguageServer for Backend {
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let config = core_formatting::FormatterConfig {
-            max_line_length: *self.line_length.lock().await as usize,
+            max_line_length: self.resolved_line_length(&params.text_document.uri).await as usize,
             ..core_formatting::FormatterConfig::default()
         };
         let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
@@ -2786,7 +2965,10 @@ impl LanguageServer for Backend {
         &self,
         params: FoldingRangeParams,
     ) -> jsonrpc::Result<Option<Vec<FoldingRange>>> {
-        if !self.feature_enabled("folding").await {
+        if !self
+            .feature_enabled("folding", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
@@ -2801,7 +2983,10 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentSymbolParams,
     ) -> jsonrpc::Result<Option<DocumentSymbolResponse>> {
-        if !self.feature_enabled("documentSymbols").await {
+        if !self
+            .feature_enabled("documentSymbols", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
@@ -2838,7 +3023,13 @@ impl LanguageServer for Backend {
         &self,
         params: CompletionParams,
     ) -> jsonrpc::Result<Option<CompletionResponse>> {
-        if !self.feature_enabled("completion").await {
+        if !self
+            .feature_enabled(
+                "completion",
+                &params.text_document_position.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document_position.text_document.uri.clone();
@@ -2891,7 +3082,13 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        if !self.feature_enabled("definition").await {
+        if !self
+            .feature_enabled(
+                "definition",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params
@@ -3051,7 +3248,13 @@ impl LanguageServer for Backend {
     }
 
     async fn references(&self, params: ReferenceParams) -> jsonrpc::Result<Option<Vec<Location>>> {
-        if !self.feature_enabled("references").await {
+        if !self
+            .feature_enabled(
+                "references",
+                &params.text_document_position.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document_position.text_document.uri.clone();
@@ -3668,7 +3871,10 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentLinkParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentLink>>> {
-        if !self.feature_enabled("documentLinks").await {
+        if !self
+            .feature_enabled("documentLinks", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
@@ -4052,7 +4258,10 @@ impl LanguageServer for Backend {
         &self,
         params: SelectionRangeParams,
     ) -> jsonrpc::Result<Option<Vec<SelectionRange>>> {
-        if !self.feature_enabled("selectionRange").await {
+        if !self
+            .feature_enabled("selectionRange", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
@@ -4293,7 +4502,13 @@ impl LanguageServer for Backend {
         &self,
         params: SignatureHelpParams,
     ) -> jsonrpc::Result<Option<SignatureHelp>> {
-        if !self.feature_enabled("signatureHelp").await {
+        if !self
+            .feature_enabled(
+                "signatureHelp",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params
@@ -4333,7 +4548,13 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
-        if !self.feature_enabled("hover").await {
+        if !self
+            .feature_enabled(
+                "hover",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params
@@ -4626,6 +4847,50 @@ fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet
         }
     }
     found.then_some(set)
+}
+
+/// Parse one folder's resolved `tclLsp` config object into a [`FolderConfig`]
+/// of overrides.  Keys absent from the object stay `None` / empty so the
+/// resolver inherits the process-global value.  Returns `None` when `cfg` is
+/// not a JSON object (the folder pull returned nothing usable).  Mirrors the
+/// key handling of [`Backend::pull_and_apply_config`]'s global pull.
+fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
+    let obj = cfg.as_object()?;
+    let mut fc = FolderConfig::default();
+    if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
+        fc.feature_toggles.apply(features);
+    }
+    if let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) {
+        if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
+            fc.optimiser_enabled = Some(b);
+        }
+        if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
+            fc.optimiser_profile =
+                Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
+        }
+        for (key, val) in opt {
+            if key == "enabled" || key == "profile" {
+                continue;
+            }
+            if let Some(b) = val.as_bool() {
+                fc.optimiser_code_overrides.insert(key.clone(), b);
+            }
+        }
+    }
+    if let Some(len) = obj
+        .get("formatting")
+        .and_then(|f| f.get("lineLength"))
+        .or_else(|| obj.get("lineLength"))
+        .and_then(serde_json::Value::as_u64)
+    {
+        fc.line_length = Some(u32::try_from(len).unwrap_or(80));
+    }
+    // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
+    // under `tclLsp`; the per-folder pull hands us the section content directly.
+    let wrapped = serde_json::json!({ "tclLsp": cfg });
+    fc.non_ascii_mode = settings_non_ascii_mode(&wrapped);
+    fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
+    Some(fc)
 }
 
 /// Apply one LSP content change to `text` (incremental document sync).
@@ -5908,6 +6173,8 @@ mod tests {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            folder_configs: Mutex::new(Vec::new()),
+            folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
@@ -6150,6 +6417,66 @@ mod tests {
                 .await
                 .iter()
                 .any(|f| f.as_str() == "file:///proj-a"),
+        );
+    }
+
+    /// A per-folder editor config overrides the process-global settings for
+    /// documents under that folder, while documents under other folders keep
+    /// the global values (longest-prefix resolution).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn per_folder_config_overrides_global_settings() {
+        let backend = test_backend();
+        let folder_a = Url::parse("file:///proj-a").unwrap();
+        let folder_b = Url::parse("file:///proj-b").unwrap();
+        let inside = Url::parse("file:///proj-a/sub/file.tcl").unwrap();
+        let outside = Url::parse("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+
+        // proj-a turns hover off and disables W100; the global state keeps both
+        // on / empty.
+        let feature_toggles = {
+            let mut t = FeatureToggles::default();
+            t.set.insert("hover".to_owned(), false);
+            t
+        };
+        let fc = FolderConfig {
+            feature_toggles,
+            disabled_diagnostics: Some(std::iter::once("W100".to_owned()).collect()),
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder_a.clone(), fc)])
+            .await;
+
+        // Feature gating resolves per folder.
+        assert!(
+            !backend.feature_enabled("hover", &inside).await,
+            "hover must be off under proj-a",
+        );
+        assert!(
+            backend.feature_enabled("hover", &outside).await,
+            "hover must stay on under proj-b (global default)",
+        );
+
+        // Disabled-diagnostics resolve per folder.
+        let (disabled_in, ..) = backend.resolved_analysis_settings(&inside).await;
+        assert!(disabled_in.contains("W100"), "proj-a disables W100");
+        let (disabled_out, ..) = backend.resolved_analysis_settings(&outside).await;
+        assert!(
+            !disabled_out.contains("W100"),
+            "proj-b inherits the empty global disabled set",
+        );
+
+        // A folder that overrides the disabled set gets its own salsa config
+        // handle, so the suppression also reaches the cached analysis.
+        assert!(
+            backend
+                .folder_db_configs
+                .lock()
+                .await
+                .iter()
+                .any(|(u, _)| u == &folder_a),
+            "proj-a must have a per-folder AnalyserConfig handle",
         );
     }
 
