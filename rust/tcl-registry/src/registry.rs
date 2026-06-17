@@ -419,6 +419,28 @@ impl CommandRegistry {
         })
     }
 
+    /// Whether `name` should appear as a notable action node in a flow
+    /// diagram ([`Traits::DIAGRAM_ACTION`]). Mirrors Python
+    /// `CommandRegistry.is_diagram_action` (`_any_spec_has(name,
+    /// "diagram_action")`): accepts both the bare (`HTTP::respond`) and the
+    /// canonical (`::HTTP::respond`) spelling — the leading `::` stamped on
+    /// `IRCall.canonical_command` by lowering is stripped to recover the
+    /// bare registration form — and reflects the dialects loaded into this
+    /// registry (the diagram-action set is part of the per-registry trait
+    /// index, so a `--dialect f5-irules` registry recognises iRules
+    /// actions).
+    #[must_use]
+    pub fn is_diagram_action(&self, name: &str) -> bool {
+        let has = |n: &str| {
+            self.by_name.get(n).is_some_and(|specs| {
+                specs
+                    .iter()
+                    .any(|s| s.traits.contains(Traits::DIAGRAM_ACTION))
+            })
+        };
+        has(name) || name.strip_prefix("::").is_some_and(has)
+    }
+
     /// Whether `name` carries the [`Traits::NOT_PROC_FACTORY`] trait —
     /// a registered command head that incidentally matches the
     /// proc-factory token shape but is not a factory wrapper.  Like
