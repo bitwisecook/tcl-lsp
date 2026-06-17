@@ -25,7 +25,8 @@ use std::path::Path;
 use tcl_bigip_io::read_path;
 use tcl_bigip_query::{QueryOptions, run_query};
 
-use super::difflib;
+use tcl_cli_support::difflib;
+
 use crate::cli::FormatArgs;
 
 /// Wrap *value* as a DSL string literal, escaping `\` and `"` — port of
@@ -140,7 +141,10 @@ pub fn run_rename(
         let to = format!("{path} (renamed)");
         let a = difflib::splitlines_keepends(&source);
         let b = difflib::splitlines_keepends(&applied.new_source);
-        let diff = difflib::unified_diff(&a, &b, &from, &to);
+        // The shared `difflib` yields the diff as a line list (each line keeps
+        // its terminator); the default unified-diff context is 3 — join the
+        // lines to reproduce the previous concatenated string.
+        let diff = difflib::unified_diff(&a, &b, &from, &to, 3).join("");
         write!(out, "{diff}")?;
     }
     Ok(0)

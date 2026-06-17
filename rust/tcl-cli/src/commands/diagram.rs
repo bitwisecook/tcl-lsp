@@ -114,7 +114,11 @@ fn is_notable_assign(value: &str) -> bool {
 /// Build an `action` flow node (shared by `IRCall` / `IRBarrier`). Mirrors the
 /// label / args construction in both `_walk_statement` action branches.
 fn action_node(display: &str, args: &[String]) -> Value {
-    let arg_strs: Vec<String> = args.iter().take(4).map(|a| truncate(a, MAX_ARG_LEN)).collect();
+    let arg_strs: Vec<String> = args
+        .iter()
+        .take(4)
+        .map(|a| truncate(a, MAX_ARG_LEN))
+        .collect();
     let arg_str = arg_strs.join(" ");
     let label = if arg_str.is_empty() {
         display.to_owned()
@@ -159,10 +163,9 @@ fn walk_statement(
                 }
                 let mut patterns = std::mem::take(&mut fallthrough_patterns);
                 patterns.push(arm.pattern.clone());
-                let body = arm
-                    .body
-                    .as_ref()
-                    .map_or_else(Vec::new, |b| walk_script(b, proc_names, depth + 1, registry));
+                let body = arm.body.as_ref().map_or_else(Vec::new, |b| {
+                    walk_script(b, proc_names, depth + 1, registry)
+                });
                 let pattern = if patterns.len() > 1 {
                     patterns.join(" | ")
                 } else {
@@ -455,7 +458,10 @@ pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     }
 
     let empty: Vec<Value> = Vec::new();
-    let events = data.get("events").and_then(Value::as_array).unwrap_or(&empty);
+    let events = data
+        .get("events")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
     let procedures = data
         .get("procedures")
         .and_then(Value::as_array)
@@ -474,7 +480,10 @@ pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
                 .get("multiplicity")
                 .and_then(Value::as_str)
                 .unwrap_or("unknown");
-            let flow_count = event.get("flow").and_then(Value::as_array).map_or(0, Vec::len);
+            let flow_count = event
+                .get("flow")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
             lines.push(format!("  {name} ({multiplicity}) nodes={flow_count}"));
         }
     }
@@ -493,7 +502,10 @@ pub fn run_diagram(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
                         .join(", ")
                 })
                 .unwrap_or_default();
-            let flow_count = proc.get("flow").and_then(Value::as_array).map_or(0, Vec::len);
+            let flow_count = proc
+                .get("flow")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
             lines.push(format!("  {name}({params}) nodes={flow_count}"));
         }
     }

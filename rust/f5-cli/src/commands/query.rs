@@ -45,7 +45,7 @@ use tcl_bigip_query::{QueryError, QueryOptions, QueryResult, output, run_query};
 
 use crate::cli::FormatArgs;
 
-use super::difflib;
+use tcl_cli_support::difflib;
 
 /// Percent-decode a URI component (the inverse of the `file_uri` encoder in
 /// `tcl-bigip-io`), so a `config_uri` round-trips back to the on-disk path.
@@ -893,7 +893,10 @@ fn emit_mutation(
         let to = format!("{path_str} (modified)");
         let a = difflib::splitlines_keepends(&applied.original);
         let b = difflib::splitlines_keepends(&applied.new_source);
-        let diff = difflib::unified_diff(&a, &b, &from, &to);
+        // The shared `difflib` yields the diff as a line list (each line keeps
+        // its terminator); the default unified-diff context is 3 — join the
+        // lines to reproduce the previous concatenated string.
+        let diff = difflib::unified_diff(&a, &b, &from, &to, 3).join("");
         write!(out, "{diff}")?;
     }
     if !any_changed {

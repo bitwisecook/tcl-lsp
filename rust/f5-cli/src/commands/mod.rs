@@ -8,7 +8,6 @@
 pub mod cleanup;
 pub mod convert;
 pub mod diff;
-pub mod difflib;
 pub mod emit;
 pub mod enrich_pcapng;
 pub mod enrich_wireshark;
