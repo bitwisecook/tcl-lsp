@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use std::rc::Rc;
 
 use tcl_bytecode::FunctionAsm;
+use tcl_platform::Host;
 use tcl_runtime_api::{Code, CompileService, Completion, FrameId, ROOT_NS, VarStore};
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -13,6 +14,7 @@ use crate::command::{BuiltinFn, Command, ProcDef, register_builtins};
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
+use crate::host_native::NativeHost;
 use crate::value::Value;
 
 /// Build an `OK` completion (empty options dict).
@@ -92,6 +94,12 @@ pub struct Vm {
     /// Stack of file paths currently being evaluated by `source`. The top is
     /// what `info script` returns; empty when not inside a `source`.
     script_stack: Vec<String>,
+    /// The host environment: the capability seam (`tcl-platform`) through which
+    /// every command reaches the filesystem, clock, env, stdio, subprocess, and
+    /// sockets. The bytecode VM is a native target, so this defaults to a
+    /// full-capability [`NativeHost`]; [`Vm::set_host`] swaps it (e.g. for a
+    /// sandboxed, WASM-posture host in capability tests).
+    host: Box<dyn Host>,
 }
 
 /// A single registered variable trace.
@@ -129,6 +137,7 @@ impl Vm {
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
+            host: Box::new(NativeHost::new()),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -168,6 +177,17 @@ impl Vm {
     /// Inject the compiler used for runtime `eval` / command substitution.
     pub fn set_compiler(&mut self, compiler: Box<dyn CompileService>) {
         self.compiler = Some(compiler);
+    }
+
+    /// The host environment (capability seam) backing the platform commands.
+    pub(crate) fn host(&self) -> &dyn Host {
+        &*self.host
+    }
+
+    /// Swap the host environment — e.g. a [`NativeHost::sandboxed`] to exercise
+    /// the WASM-posture "unsupported" paths natively.
+    pub fn set_host(&mut self, host: Box<dyn Host>) {
+        self.host = host;
     }
 
     pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {

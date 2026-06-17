@@ -18,20 +18,21 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("glob", cmd_glob);
 }
 
-fn cmd_pwd(_vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
-    match std::env::current_dir() {
-        Ok(p) => ok(Value::string(p.to_string_lossy().into_owned())),
+fn cmd_pwd(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+    match vm.host().env().cwd() {
+        Ok(p) => ok(Value::string(p)),
         Err(e) => err(format!("error getting working directory name: {e}")),
     }
 }
 
-fn cmd_cd(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_cd(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let env = vm.host().env();
     let dir = match args {
-        [] => std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
+        [] => env.get("HOME").unwrap_or_else(|| "/".to_string()),
         [d] => d.to_str().to_string(),
         _ => return err("wrong # args: should be \"cd ?dirName?\""),
     };
-    match std::env::set_current_dir(&dir) {
+    match env.chdir(&dir) {
         Ok(()) => ok(Value::empty()),
         Err(e) => err(format!(
             "couldn't change working directory to \"{dir}\": {e}"
