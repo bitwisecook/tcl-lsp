@@ -68,7 +68,7 @@ fn is_getter_form(args: &[String]) -> bool {
 }
 
 /// Format the IRULE3102 message for `cmd`.
-fn format_message(cmd: &str) -> String {
+pub(crate) fn format_message(cmd: &str) -> String {
     format!(
         "Use '{cmd} -normalized' for canonicalized request data; \
          non-normalized values may allow URL evasion patterns."
@@ -77,7 +77,11 @@ fn format_message(cmd: &str) -> String {
 
 /// Return `true` when `cmd` is one of the commands that carry the
 /// `-normalized` option and `args` misses it in a getter form.
-fn is_unnormalised_getter(registry: &CommandRegistry, cmd: &str, args: &[String]) -> bool {
+pub(crate) fn is_unnormalised_getter(
+    registry: &CommandRegistry,
+    cmd: &str,
+    args: &[String],
+) -> bool {
     if !supports_normalized_flag(registry, cmd) {
         return false;
     }

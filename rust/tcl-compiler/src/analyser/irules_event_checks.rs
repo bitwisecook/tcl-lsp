@@ -15,6 +15,7 @@
 //! - **IRULE1003** (WARNING): deprecated iRules event.
 //! - **IRULE1004** (HINT): `when` block missing explicit `priority`.
 //! - **IRULE2003** (ERROR): unsafe iRules command (context escalation).
+//! - **IRULE3102** (WARNING): `HTTP::path`/`uri`/`query` getter without `-normalized`.
 //! - **IRULE2101** (HINT): heavy `regexp` in a hot event.
 //! - **IRULE4001** (WARNING): write to `static::` outside `RULE_INIT`.
 //! - **IRULE4003** (HINT): variable scoping concern across events.
@@ -130,6 +131,7 @@ impl Analyser {
         self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens);
         self.emit_irule1004_when_missing_priority(cmd_name, args, cmd_tok);
         self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
+        self.emit_irule3102_unnormalised_getter(cmd_name, args, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
         self.emit_irule5001_ungated_log(cmd_name, cmd_tok, event_ref);
         self.emit_irule4001_static_write(cmd_name, args, cmd_tok, event_ref);
@@ -270,6 +272,35 @@ impl Analyser {
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is unsafe in iRules and may allow context escalation"),
             severity: Severity::Error,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **IRULE3102.** `HTTP::path` / `HTTP::uri` / `HTTP::query` getter
+    /// used without `-normalized`.  Analyser-level per-command check
+    /// mirroring `analyser/checks/_domain.py::check_irules_unnormalized_http_getter`
+    /// — fires in `tcl diag` and the LSP exactly as Python's `analyse`
+    /// does (the flow-path getter scan in `irules_checks.rs` is the
+    /// separate PyO3-bridge surface).  Reuses the shared getter-form
+    /// predicate so the trigger stays single-sourced.
+    fn emit_irule3102_unnormalised_getter(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        cmd_tok: Token,
+    ) {
+        let fires = self
+            .registry
+            .as_ref()
+            .is_some_and(|r| crate::irules_checks::is_unnormalised_getter(r, cmd_name, args));
+        if !fires {
+            return;
+        }
+        self.result.diagnostics.push(Diagnostic {
+            code: "IRULE3102".to_string(),
+            span: cmd_tok.span,
+            message: crate::irules_checks::format_message(cmd_name),
+            severity: Severity::Warning,
             fixes: Vec::new(),
         });
     }
@@ -844,6 +875,27 @@ mod tests {
     #[test]
     fn irule1002_quiet_for_known_event() {
         assert!(!has("when HTTP_REQUEST { set x 1 }", "IRULE1002"));
+    }
+
+    #[test]
+    fn irule3102_fires_for_unnormalised_getter() {
+        assert!(has("when HTTP_REQUEST { set u [HTTP::uri] }", "IRULE3102"));
+    }
+
+    #[test]
+    fn irule3102_quiet_with_normalized_flag() {
+        assert!(!has(
+            "when HTTP_REQUEST { set u [HTTP::uri -normalized] }",
+            "IRULE3102"
+        ));
+    }
+
+    #[test]
+    fn irule3102_fires_for_getter_nested_in_argument() {
+        assert!(has(
+            "when HTTP_REQUEST { HTTP::respond 200 content [HTTP::query] }",
+            "IRULE3102"
+        ));
     }
 
     #[test]
