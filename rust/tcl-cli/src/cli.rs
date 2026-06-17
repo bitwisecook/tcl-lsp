@@ -224,7 +224,7 @@ pub enum Command {
         #[arg(value_name = "QUERY")]
         query: Vec<String>,
         /// Filter help matches by dialect context.
-        #[arg(long, default_value = "tcl8.6", value_name = "DIALECT")]
+        #[arg(long, default_value = "all", value_name = "DIALECT")]
         dialect: String,
         /// Maximum number of help search matches.
         #[arg(long, default_value_t = 20, value_name = "N")]

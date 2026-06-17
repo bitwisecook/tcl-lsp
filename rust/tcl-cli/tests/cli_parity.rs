@@ -447,6 +447,33 @@ fn diagram_json_matches_python() {
     );
 }
 
+// `help` (`docs`) searches the bundled KCS help database — an FTS5 index built
+// at compile time by `build.rs` (a port of `scripts/build/kcs_db.py`) from the
+// committed `docs/kcs/features/*.md`, then embedded via `include_bytes!`. The
+// query layer (`search_help` / `list_features`) ports `shared/help/kcs_db.py`
+// over `rusqlite`'s bundled SQLite (FTS5). Byte-parity includes the BM25 `rank`
+// floats in `--json` (the bundled SQLite reproduces Python's ranks) and the
+// `ensure_ascii` escaping. Goldens derive from the same markdown, so they track
+// `docs/kcs` — regenerate with `python -m tooling.tcl.main help …` when the
+// feature notes change.
+#[test]
+fn help_search_text_matches_python() {
+    assert_matches_golden(&["help", "taint"], "help-taint.golden");
+}
+
+#[test]
+fn help_search_json_matches_python() {
+    assert_matches_golden(&["help", "taint", "--json"], "help-taint.json.golden");
+}
+
+#[test]
+fn help_catalogue_dialect_matches_python() {
+    assert_matches_golden(
+        &["help", "--dialect", "f5-irules"],
+        "help-catalogue-irules.golden",
+    );
+}
+
 // `registry-dump` is wired onto the Rust command-registry snapshot
 // (`tcl_registry::command_snapshot`, a faithful port of Python
 // `command_registry_snapshot`). Whole-dialect byte-parity is gated by

@@ -161,6 +161,13 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             tui,
             colour,
         } => commands::explore::run_explore(input, show, *json, *text, *tui, colour),
+        Command::Help {
+            query,
+            dialect,
+            limit,
+            json,
+            output,
+        } => commands::help::run_help(query, dialect, *limit, *json, output.as_deref()),
         // Verbs not yet ported fall through to a clear not-implemented error.
         other => {
             let verb = other.verb_name();

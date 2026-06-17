@@ -9,6 +9,7 @@ pub mod diagram;
 pub mod diff;
 pub mod explore;
 pub mod graphs;
+pub mod help;
 pub mod highlight;
 pub mod lookup;
 pub mod registry;
