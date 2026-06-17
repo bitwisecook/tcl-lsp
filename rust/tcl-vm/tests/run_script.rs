@@ -96,3 +96,30 @@ fn string_and_numeric_compare() {
     assert!(ok);
     assert_eq!(result, "1");
 }
+
+/// The `string` subcommands ported into the shared `tcl-cmd-core` (driven over
+/// the VM's `ValueOps`) behave identically end-to-end.
+#[test]
+fn string_core_helpers() {
+    assert_eq!(run("puts [string length hello]").2, "5\n");
+    assert_eq!(run("puts [string index hello 1]").2, "e\n");
+    assert_eq!(run("puts [string range hello 1 3]").2, "ell\n");
+    assert_eq!(run("puts [string reverse hello]").2, "olleh\n");
+    assert_eq!(run("puts [string repeat ab 3]").2, "ababab\n");
+    // end-relative and arithmetic index forms resolve in the shared core.
+    assert_eq!(run("puts [string index hello end]").2, "o\n");
+    assert_eq!(run("puts [string index hello 1+1]").2, "l\n");
+    assert_eq!(run("puts [string range hello 1 end-1]").2, "ell\n");
+    // count <= 0 yields empty; an out-of-range index yields empty.
+    assert_eq!(run("puts \"[string repeat ab 0]<\"").2, "<\n");
+    assert_eq!(run("puts \"[string index hello 99]<\"").2, "<\n");
+}
+
+/// A non-integer `string repeat` count produces the canonical coercion error,
+/// surfaced through `tcl-cmd-core`'s `CmdError` from `ValueError`.
+#[test]
+fn string_repeat_bad_count_errors() {
+    let (ok, result, _out) = run("string repeat ab x");
+    assert!(!ok);
+    assert_eq!(result, "expected integer but got \"x\"");
+}

@@ -93,19 +93,19 @@ pub fn to_lower<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
     ops.new_string(out)
 }
 
-/// Dispatch a `string` subcommand to a ported helper. `args` is the argument
-/// vector **after** the command name (`args[0]` is the subcommand).
+/// Dispatch a `string` subcommand whose name `sub` is **already canonical** (the
+/// runtime has resolved any unique-prefix abbreviation), with `rest` being the
+/// arguments after the subcommand.
 ///
 /// Returns `Some(result)` when the subcommand is handled here, or `None` when it
 /// is not yet ported — letting a migrating runtime fall back to its legacy
 /// implementation. The `Some(Err(..))` case is a genuine command error (arity,
 /// bad index, …).
-pub fn dispatch<O: ValueOps>(
+pub fn dispatch_canon<O: ValueOps>(
     ops: &mut O,
-    args: &[O::Value],
+    sub: &str,
+    rest: &[O::Value],
 ) -> Option<Result<O::Value, CmdError>> {
-    let sub = ops.as_str(args.first()?).to_string();
-    let rest = &args[1..];
     let arity = |n: usize, usage: &str| -> Option<Result<O::Value, CmdError>> {
         if rest.len() == n {
             None
@@ -113,38 +113,33 @@ pub fn dispatch<O: ValueOps>(
             Some(Err(CmdError::wrong_args(usage)))
         }
     };
-    match sub.as_str() {
-        "length" => match arity(1, "string length string") {
-            Some(e) => Some(e),
-            None => Some(Ok(length(ops, &rest[0]))),
-        },
-        "index" => match arity(2, "string index string charIndex") {
-            Some(e) => Some(e),
-            None => Some(index(ops, &rest[0], &rest[1])),
-        },
-        "range" => match arity(3, "string range string first last") {
-            Some(e) => Some(e),
-            None => Some(range(ops, &rest[0], &rest[1], &rest[2])),
-        },
-        "reverse" => match arity(1, "string reverse string") {
-            Some(e) => Some(e),
-            None => Some(Ok(reverse(ops, &rest[0]))),
-        },
-        "repeat" => match arity(2, "string repeat string count") {
-            Some(e) => Some(e),
-            None => Some(repeat(ops, &rest[0], &rest[1])),
-        },
-        "toupper" => match arity(1, "string toupper string ?first? ?last?") {
-            Some(e) => Some(e),
-            None => Some(Ok(to_upper(ops, &rest[0]))),
-        },
-        "tolower" => match arity(1, "string tolower string ?first? ?last?") {
-            Some(e) => Some(e),
-            None => Some(Ok(to_lower(ops, &rest[0]))),
-        },
+    match sub {
+        "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
+        "index" => arity(2, "string index string charIndex")
+            .or_else(|| Some(index(ops, &rest[0], &rest[1]))),
+        "range" => arity(3, "string range string first last")
+            .or_else(|| Some(range(ops, &rest[0], &rest[1], &rest[2]))),
+        "reverse" => {
+            arity(1, "string reverse string").or_else(|| Some(Ok(reverse(ops, &rest[0]))))
+        }
+        "repeat" => arity(2, "string repeat string count")
+            .or_else(|| Some(repeat(ops, &rest[0], &rest[1]))),
         // Not yet ported into the core — caller falls back to its legacy path.
+        // (`toupper`/`tolower`/`totitle` need the optional `?first? ?last?` range
+        // form before they can move here without a regression.)
         _ => None,
     }
+}
+
+/// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
+/// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
+/// pre-resolve abbreviations; exact subcommand names only.
+pub fn dispatch<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Option<Result<O::Value, CmdError>> {
+    let sub = ops.as_str(args.first()?).to_string();
+    dispatch_canon(ops, &sub, &args[1..])
 }
 
 /// Parse a Tcl string index (`Tcl_GetIntForIndex`): `integer`, `integer±integer`,

@@ -14,6 +14,7 @@
 
 pub mod error;
 pub mod value;
+mod value_ops;
 
 mod cmd_array;
 mod cmd_binary;

@@ -2369,6 +2369,7 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "tcl-bytecode",
+ "tcl-cmd-core",
  "tcl-compiler",
  "tcl-registry",
  "tcl-runtime-api",

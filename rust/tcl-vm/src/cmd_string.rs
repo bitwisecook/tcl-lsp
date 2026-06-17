@@ -131,13 +131,16 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => return err(e),
     };
+    // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
+    // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
+    // `Completion`. Not-yet-ported subcommands fall through to the legacy arms.
+    if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
+        return match result {
+            Ok(v) => ok(v),
+            Err(e) => err(e.into_message()),
+        };
+    }
     match canon {
-        "length" => match rest {
-            [s] => ok(Value::int(ilen(s.to_str().chars().count()))),
-            _ => err("wrong # args: should be \"string length string\""),
-        },
-        "index" => string_index(rest),
-        "range" => string_range(rest),
         "equal" => str_compare(rest, true),
         "compare" => str_compare(rest, false),
         "match" => string_match(rest),
@@ -146,20 +149,9 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "tolower" => case_convert(rest, "tolower"),
         "toupper" => case_convert(rest, "toupper"),
         "totitle" => case_convert(rest, "totitle"),
-        "reverse" => map_str(rest, |s| s.chars().rev().collect()),
         "trim" => trim_str(rest, "trim", true, true),
         "trimleft" => trim_str(rest, "trimleft", true, false),
         "trimright" => trim_str(rest, "trimright", false, true),
-        "repeat" => match rest {
-            [s, n] => match n.as_int() {
-                Ok(c) if c >= 0 => ok(Value::string(
-                    s.to_str().repeat(usize::try_from(c).unwrap_or(0)),
-                )),
-                Ok(_) => ok(Value::empty()),
-                Err(e) => err(e.message),
-            },
-            _ => err("wrong # args: should be \"string repeat string count\""),
-        },
         "map" => match rest {
             [pairs, s] => string_map(pairs, &s.to_str(), false),
             [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(pairs, &s.to_str(), true),
@@ -177,46 +169,6 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // Resolved to a valid-but-unimplemented subcommand.
         other => err(format!("string {other} is not yet implemented in this VM")),
     }
-}
-
-/// `string index string charIndex` — the character at `charIndex`, or empty.
-fn string_index(rest: &[Value]) -> Completion<Value> {
-    let [s, i] = rest else {
-        return err("wrong # args: should be \"string index string charIndex\"");
-    };
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let Some(idx) = resolve_index(&i.to_str(), chars.len()) else {
-        return bad_index(&i.to_str());
-    };
-    match usize::try_from(idx).ok().and_then(|x| chars.get(x)) {
-        Some(c) => ok(Value::string(c.to_string())),
-        None => ok(Value::empty()),
-    }
-}
-
-/// `string range string first last` — the substring `first..=last` (clamped).
-fn string_range(rest: &[Value]) -> Completion<Value> {
-    let [s, first, last] = rest else {
-        return err("wrong # args: should be \"string range string first last\"");
-    };
-    let chars: Vec<char> = s.to_str().chars().collect();
-    let len = chars.len();
-    let Some(lo) = resolve_index(&first.to_str(), len) else {
-        return bad_index(&first.to_str());
-    };
-    let Some(hi) = resolve_index(&last.to_str(), len) else {
-        return bad_index(&last.to_str());
-    };
-    let lo = lo.max(0);
-    let lo = usize::try_from(lo).unwrap_or(0);
-    if hi < 0 || lo >= len {
-        return ok(Value::empty());
-    }
-    let hi = usize::try_from(hi).unwrap_or(0).min(len - 1);
-    if lo > hi {
-        return ok(Value::empty());
-    }
-    ok(Value::string(chars[lo..=hi].iter().collect::<String>()))
 }
 
 /// `string replace string first last ?newstring?` — remove chars first..last
@@ -493,13 +445,6 @@ fn str_compare(rest: &[Value], equal: bool) -> Completion<Value> {
             std::cmp::Ordering::Equal => 0,
             std::cmp::Ordering::Greater => 1,
         }))
-    }
-}
-
-fn map_str(rest: &[Value], f: impl Fn(&str) -> String) -> Completion<Value> {
-    match rest {
-        [s] => ok(Value::string(f(&s.to_str()))),
-        _ => err("wrong # args: should be \"string <op> string\""),
     }
 }
 
