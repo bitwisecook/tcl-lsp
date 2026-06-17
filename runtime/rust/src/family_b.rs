@@ -16,14 +16,14 @@ use crate::obj::TclObj;
 
 /// The Family-B variable store over the active call frame.
 ///
-/// Matching the bytecode VM's impl, `FrameId` is not yet honoured — both
-/// runtimes resolve against the *current* frame today (frame-addressed access
-/// is future work, gated on reconciling this runtime's logical-level addressing
-/// with the VM's `Vec`-index frames). The refcount contract mirrors the
-/// runtime's internal accessors: [`get`](VarStore::get) returns a **borrowed**
-/// pointer (the variable table keeps its reference — the caller must not
-/// release it), and [`set`](VarStore::set) has the table take its own `+1` on
-/// the value.
+/// `FrameId` is **not yet honoured here** — this runtime still resolves against
+/// the *current* frame. (The bytecode VM now honours it via its `locate_from`
+/// start-level; doing the same here needs `vars.rs`'s `resolve`, which hardcodes
+/// `current_level`, to take an explicit start level — the next increment.) The
+/// refcount contract mirrors the runtime's internal accessors:
+/// [`get`](VarStore::get) returns a **borrowed** pointer (the variable table
+/// keeps its reference — the caller must not release it), and
+/// [`set`](VarStore::set) has the table take its own `+1` on the value.
 impl VarStore for Interp {
     type Value = *mut TclObj;
 

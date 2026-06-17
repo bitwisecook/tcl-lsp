@@ -858,6 +858,75 @@ impl Vm {
             .is_some_and(|f| matches!(f.locals.get(&nm), Some(Local::Scalar(_))))
     }
 
+    // -- frame-addressed storage (the `VarStore` `FrameId`-honouring path) ------
+    //
+    // These resolve `name` starting from an *explicit* frame (following links),
+    // touching only storage: no current-eval-context namespace fallback and no
+    // trace firing (both are current-frame concerns). The `VarStore` impl uses
+    // them only for a non-current `FrameId`; a `FrameId` equal to the current
+    // frame delegates to the full inherent accessors above, so the common case
+    // keeps its exact behaviour (fallback + traces).
+
+    /// Frame-addressed scalar read (the storage half of [`get_var`](Self::get_var)).
+    pub(crate) fn get_var_from(&self, start: usize, name: &str) -> Option<Value> {
+        let (lvl, nm) = self.locate_from(name, start);
+        if let Some((base, key)) = elem_ref(&nm) {
+            let (blvl, bnm) = self.locate_from(base, lvl);
+            return match self.frames.get(blvl)?.locals.get(&bnm) {
+                Some(Local::Array(m)) => m.get(key).cloned(),
+                _ => None,
+            };
+        }
+        match self.frames.get(lvl)?.locals.get(&nm) {
+            Some(Local::Scalar(v)) => Some(v.clone()),
+            _ => None,
+        }
+    }
+
+    /// Frame-addressed scalar write (the storage half of
+    /// [`write_scalar_raw`](Self::write_scalar_raw)).
+    pub(crate) fn write_scalar_from(&mut self, start: usize, name: &str, value: Value) {
+        let (lvl, nm) = self.locate_from(name, start);
+        if let Some((base, key)) = elem_ref(&nm) {
+            let key = key.to_owned();
+            let (blvl, bnm) = self.locate_from(base, lvl);
+            if let Some(f) = self.frames.get_mut(blvl) {
+                match f.locals.get_mut(&bnm) {
+                    Some(Local::Array(m)) => {
+                        m.insert(key, value);
+                    }
+                    Some(_) => {}
+                    None => {
+                        let mut m = BTreeMap::new();
+                        m.insert(key, value);
+                        f.locals.insert(bnm, Local::Array(m));
+                    }
+                }
+            }
+            return;
+        }
+        if let Some(f) = self.frames.get_mut(lvl) {
+            f.locals.insert(nm, Local::Scalar(value));
+        }
+    }
+
+    /// Frame-addressed scalar existence (the storage half of
+    /// [`var_exists`](Self::var_exists)).
+    pub(crate) fn exists_from(&self, start: usize, name: &str) -> bool {
+        let (lvl, nm) = self.locate_from(name, start);
+        self.frames
+            .get(lvl)
+            .is_some_and(|f| matches!(f.locals.get(&nm), Some(Local::Scalar(_))))
+    }
+
+    /// Frame-addressed unset (storage only — no unset-trace firing).
+    pub(crate) fn unset_from(&mut self, start: usize, name: &str) -> bool {
+        let (lvl, nm) = self.locate_from(name, start);
+        self.frames
+            .get_mut(lvl)
+            .is_some_and(|f| f.locals.remove(&nm).is_some())
+    }
+
     /// Whether a scalar or array variable named `name` exists (`info exists`).
     pub(crate) fn has_var(&self, name: &str) -> bool {
         let (lvl, nm) = self.locate(name);
@@ -1120,24 +1189,43 @@ impl Default for Vm {
 }
 
 /// The Family-B variable store over the call-frame stack. `FrameId` is the
-/// absolute level; `get`/`set` follow links exactly like the by-name accessors.
+/// absolute frame level (`GLOBAL_FRAME` = 0); access resolves from that frame,
+/// following links. A `FrameId` naming the *current* frame delegates to the full
+/// by-name accessors (namespace fallback + traces); any other frame uses the
+/// frame-addressed storage helpers (no current-eval-context fallback/traces).
 impl VarStore for Vm {
     type Value = Value;
 
-    fn get(&self, _frame: FrameId, name: &str) -> Option<Value> {
-        self.get_var(name)
+    fn get(&self, frame: FrameId, name: &str) -> Option<Value> {
+        if frame.0 == self.current_level() {
+            self.get_var(name)
+        } else {
+            self.get_var_from(frame.0, name)
+        }
     }
 
-    fn set(&mut self, _frame: FrameId, name: &str, value: Value) {
-        let _ = self.set_var(name, value);
+    fn set(&mut self, frame: FrameId, name: &str, value: Value) {
+        if frame.0 == self.current_level() {
+            let _ = self.set_var(name, value);
+        } else {
+            self.write_scalar_from(frame.0, name, value);
+        }
     }
 
-    fn unset(&mut self, _frame: FrameId, name: &str) -> bool {
-        self.unset_var(name)
+    fn unset(&mut self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.current_level() {
+            self.unset_var(name)
+        } else {
+            self.unset_from(frame.0, name)
+        }
     }
 
-    fn exists(&self, _frame: FrameId, name: &str) -> bool {
-        self.var_exists(name)
+    fn exists(&self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.current_level() {
+            self.var_exists(name)
+        } else {
+            self.exists_from(frame.0, name)
+        }
     }
 }
 
@@ -1166,6 +1254,7 @@ impl Introspect for Vm {
 #[cfg(test)]
 mod family_b_tests {
     use super::*;
+    use tcl_runtime_api::GLOBAL_FRAME;
 
     #[test]
     fn introspect_level_and_argv() {
@@ -1182,5 +1271,34 @@ mod family_b_tests {
         assert_eq!(&*Introspect::level_argv(&vm, 1).unwrap().to_str(), "p x");
         vm.pop_call_frame();
         assert_eq!(Introspect::level(&vm), 0);
+    }
+
+    #[test]
+    fn varstore_honours_frame_id() {
+        let mut vm = Vm::new();
+        // Write into the global frame while it is current.
+        vm.set(GLOBAL_FRAME, "g", Value::string("global"));
+        // Enter a proc-call frame; the global var is not in it.
+        vm.push_call_frame(Some("p".to_string()), vec![Value::string("p")]);
+        let here = FrameId(vm.current_level());
+        assert_ne!(here, GLOBAL_FRAME);
+        vm.set(here, "loc", Value::string("local"));
+        // FrameId is honoured: each frame sees only its own var.
+        assert_eq!(
+            vm.get(GLOBAL_FRAME, "g").map(|v| v.to_str().to_string()),
+            Some("global".to_string())
+        );
+        assert!(vm.get(here, "g").is_none());
+        assert!(vm.exists(here, "loc"));
+        assert!(!vm.exists(GLOBAL_FRAME, "loc"));
+        // Reach back into the global frame from the child frame.
+        vm.set(GLOBAL_FRAME, "g2", Value::string("two"));
+        vm.pop_call_frame();
+        assert_eq!(
+            vm.get(GLOBAL_FRAME, "g2").map(|v| v.to_str().to_string()),
+            Some("two".to_string())
+        );
+        assert!(vm.unset(GLOBAL_FRAME, "g2"));
+        assert!(!vm.exists(GLOBAL_FRAME, "g2"));
     }
 }
