@@ -52,6 +52,7 @@ def _rust_backed_parse_apl(source: str):
     except Exception:  # noqa: BLE001 — never let the Rust path break parsing.
         return None
 
+
 # Data model
 
 

@@ -324,9 +324,9 @@ impl CodegenCtx<'_> {
         if (value.contains('$') || value.contains('['))
             && let Some(parts) = parse_subst_template(value)
             && parts.len() > 1
-            && parts.iter().any(
-                |p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()),
-            )
+            && parts
+                .iter()
+                .any(|p| matches!(p, SubstPart::Var(n) if split_array_ref(n).is_some()))
         {
             for part in &parts {
                 match part {

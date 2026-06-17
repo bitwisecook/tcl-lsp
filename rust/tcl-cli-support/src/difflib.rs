@@ -310,13 +310,7 @@ fn format_range_unified(start: usize, stop: usize) -> String {
 /// [`splitlines_keepends`] preserved), mirroring `CPython`'s generator so a
 /// caller can `rstrip` and count lines exactly.
 #[must_use]
-pub fn unified_diff(
-    a: &[&str],
-    b: &[&str],
-    fromfile: &str,
-    tofile: &str,
-    n: usize,
-) -> Vec<String> {
+pub fn unified_diff(a: &[&str], b: &[&str], fromfile: &str, tofile: &str, n: usize) -> Vec<String> {
     let lineterm = "\n";
     let sm = SequenceMatcher::new(a, b);
     let mut out: Vec<String> = Vec::new();

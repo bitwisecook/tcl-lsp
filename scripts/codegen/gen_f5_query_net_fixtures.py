@@ -69,7 +69,7 @@ QUERIES: list[str] = [
     'ip("192.168.9.0/24", "notanip")',
     'ip("10.0.0.0/24", "2001:db8::1")',
     'ip("2001:db8::/64", "10.0.0.1")',
-    'ip(42)',
+    "ip(42)",
     # ip_translate
     'ip_translate("10.0.0.0/8", "2001:db8::/32", "10.1.2.3")',
     'ip_translate("192.168.50.0/24", "2001:db8:50::/64", "192.168.50.10")',
@@ -102,7 +102,7 @@ QUERIES: list[str] = [
     'with_route_domain("/Common/10.0.0.1:80", 7)',
     'with_route_domain("/Common/10.0.0.1%5:80", "")',
     'with_route_domain("10.0.0.1:80", "9")',
-    "with_route_domain(\"10.0.0.1\", 3)",
+    'with_route_domain("10.0.0.1", 3)',
     'with_route_domain("10.0.0.1", true)',
     # in_cidr
     'in_cidr("10.0.0.5", "10.0.0.0/8")',

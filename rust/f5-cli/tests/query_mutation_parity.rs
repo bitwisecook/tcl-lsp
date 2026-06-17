@@ -335,11 +335,7 @@ fn cross_file_edit_targets_named_source() {
         .to_string_lossy()
         .into_owned();
     let out = run_query(
-        &[
-            r#"$xfb.ltm.pool[].monitor = "/Common/tcp""#,
-            &xfa,
-            &xfb,
-        ],
+        &[r#"$xfb.ltm.pool[].monitor = "/Common/tcp""#, &xfa, &xfb],
         &[0],
     );
     assert_eq!(

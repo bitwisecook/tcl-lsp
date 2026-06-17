@@ -103,7 +103,7 @@ CASES: list[tuple[str, object, str]] = [
     ('.name + "!"', OBJ, "json"),
     ('"n=" + (.port | tostring)', OBJ, "json"),
     (".port > 50", OBJ, "json"),
-    (".port == 80 and .name == \"web\"", OBJ, "json"),
+    ('.port == 80 and .name == "web"', OBJ, "json"),
     ("not", True, "json"),
     ("-.port", OBJ, "json"),
     ("[1,2,3] - [2]", None, "json"),
@@ -142,7 +142,7 @@ CASES: list[tuple[str, object, str]] = [
     ("[leaf_paths]", {"a": 1, "b": [2, 3]}, "json"),
     ('getpath(["nested", "x"])', OBJ, "json"),
     ('setpath(["port"]; 0)'.replace(";", ","), OBJ, "json"),
-    ('del(.port)'.replace("del(.port)", 'del(["port"])'), OBJ, "json"),
+    ("del(.port)".replace("del(.port)", 'del(["port"])'), OBJ, "json"),
     # walk / recurse
     ('walk(if type == "string" then ascii_upcase else . end)', OBJ, "json"),
     ("[recurse]", {"a": {"b": 1}}, "json"),
@@ -169,7 +169,7 @@ CASES: list[tuple[str, object, str]] = [
     ("INDEX(.name)", PEOPLE, "json"),
     # let binding
     (". as $x | $x.port", OBJ, "json"),
-    (".tags[] as $t | $t + \"!\"", OBJ, "json"),
+    ('.tags[] as $t | $t + "!"', OBJ, "json"),
     # combinations
     ("combinations", [[1, 2], ["a", "b"]], "json"),
     # raw / auto output modes
@@ -201,7 +201,7 @@ CASES: list[tuple[str, object, str]] = [
     ("keys", 5, "json"),
     ("length", 5, "json"),
     ("nope(.)", OBJ, "json"),
-    ('.missing', OBJ, "json"),
+    (".missing", OBJ, "json"),
     ("1 / 0", None, "json"),
 ]
 

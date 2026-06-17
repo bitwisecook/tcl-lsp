@@ -56,7 +56,11 @@ pub(crate) fn require_probes(name: &str, enabled: bool) -> Result<(), QueryError
 /// Produces the same dict keys / values `cryptography`'s `x509_parse` emits.
 /// Raises [`QueryError::Builtin`] for input that doesn't decode as a cert,
 /// reproducing the Python `not a PEM certificate (...)` wording shape.
-pub(crate) fn x509_parse(pem: &str) -> Result<Value, QueryError> {
+///
+/// Public so the CLI's `ucs_cert` reader (which reads a PEM out of a UCS in a
+/// higher layer) can produce the same `x509_parse`-shaped value the builtin
+/// returns.
+pub fn x509_parse(pem: &str) -> Result<Value, QueryError> {
     let der = match x509_parser::pem::parse_x509_pem(pem.as_bytes()) {
         Ok((_, pem)) => pem.contents,
         Err(e) => {

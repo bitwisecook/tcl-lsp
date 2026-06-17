@@ -109,10 +109,7 @@ fn synth_rule_config(name: &str, full_path: &str, source: &str) -> BigipConfig {
 /// Read each path's rules / synthesise a single-rule body, plus inline
 /// `--source` snippets. Mirrors `load_irule_inputs`, returning the inputs
 /// alongside the origin-keyed configs + post-decode sources.
-fn load_irule_inputs(
-    paths: &[String],
-    inline_sources: &[String],
-) -> Result<LoadedIrules, String> {
+fn load_irule_inputs(paths: &[String], inline_sources: &[String]) -> Result<LoadedIrules, String> {
     let mut inputs: Vec<IruleInput> = Vec::new();
     let mut configs: Vec<(String, BigipConfig)> = Vec::new();
     let mut sources: Vec<(String, String)> = Vec::new();
@@ -261,7 +258,11 @@ fn pathlib_str(s: &str) -> String {
         .filter(|seg| !seg.is_empty() && *seg != ".")
         .collect();
     if parts.is_empty() {
-        return if absolute { "/".to_owned() } else { ".".to_owned() };
+        return if absolute {
+            "/".to_owned()
+        } else {
+            ".".to_owned()
+        };
     }
     let joined = parts.join("/");
     if absolute {
@@ -589,8 +590,16 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
         let _ = write!(out, "  \"event\": {}", json_string(&info.event));
         let _ = write!(out, ",\n  \"known\": {}", info.known);
         let _ = write!(out, ",\n  \"deprecated\": {}", info.deprecated);
-        let _ = write!(out, ",\n  \"multiplicity\": {}", json_string(info.multiplicity));
-        let _ = write!(out, ",\n  \"description\": {}", json_string(&info.description));
+        let _ = write!(
+            out,
+            ",\n  \"multiplicity\": {}",
+            json_string(info.multiplicity)
+        );
+        let _ = write!(
+            out,
+            ",\n  \"description\": {}",
+            json_string(&info.description)
+        );
         let _ = write!(out, ",\n  \"side\": {}", json_string(info.side));
         out.push_str(",\n  \"transport\": ");
         match &info.transport {
@@ -599,7 +608,11 @@ fn run_event_info(event: &str, json: bool, output: &str) -> Result<u8, u8> {
         }
         out.push_str(",\n  \"impliedProfiles\": ");
         push_json_string_array(&mut out, info.implied_profiles.iter().copied());
-        let _ = write!(out, ",\n  \"validCommandCount\": {}", info.valid_command_count());
+        let _ = write!(
+            out,
+            ",\n  \"validCommandCount\": {}",
+            info.valid_command_count()
+        );
         out.push_str(",\n  \"validCommands\": ");
         push_json_string_array(&mut out, info.valid_commands.iter().map(String::as_str));
         out.push_str("\n}");
@@ -753,8 +766,7 @@ fn run_irule_context(
     let mut registry = tcl_registry::registry::CommandRegistry::build_default();
     registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
 
-    let filter: std::collections::HashSet<&str> =
-        rule_filter.iter().map(String::as_str).collect();
+    let filter: std::collections::HashSet<&str> = rule_filter.iter().map(String::as_str).collect();
     let transitive = !no_transitive;
 
     // (rule_full_path, bundle) per rule, in config-then-source order.
@@ -920,9 +932,8 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
     registry.load_dialect(tcl_registry::dialects::DialectSet::IRULES);
 
     // `\bwhen\s+<EVENT>\s*\{`, case-insensitive (mirrors the Python regex).
-    let block_re =
-        regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
-            .map_err(|_| 2u8)?;
+    let block_re = regex::Regex::new(&format!(r"(?i)\bwhen\s+{}\s*\{{", regex::escape(event)))
+        .map_err(|_| 2u8)?;
 
     let mut traces: Vec<Trace> = Vec::new();
     for entry in &loaded.inputs {
@@ -972,7 +983,11 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
                 lines.push(format!("    {cmd}"));
             }
             for r in &t.references {
-                let marker = if r.resolved_path.is_some() { "✓" } else { "✗" };
+                let marker = if r.resolved_path.is_some() {
+                    "✓"
+                } else {
+                    "✗"
+                };
                 let target = r.resolved_path.as_ref().unwrap_or(&r.name);
                 lines.push(format!("    {marker} {}: {target}", r.kind));
             }
@@ -1012,7 +1027,11 @@ fn trace_json(event: &str, traces: &[Trace]) -> String {
                 let _ = writeln!(out, "          \"kind\": {},", json_string(r.kind));
                 let _ = writeln!(out, "          \"name\": {},", json_string(&r.name));
                 let _ = writeln!(out, "          \"command\": {},", json_string(&r.command));
-                let _ = writeln!(out, "          \"resolved\": {},", r.resolved_path.is_some());
+                let _ = writeln!(
+                    out,
+                    "          \"resolved\": {},",
+                    r.resolved_path.is_some()
+                );
                 out.push_str("          \"resolvedPath\": ");
                 match &r.resolved_path {
                     Some(p) => out.push_str(&json_string(p)),

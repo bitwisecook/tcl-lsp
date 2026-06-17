@@ -253,3 +253,58 @@ dpt:
 ";
     assert_eq!(r.stdout, expected);
 }
+
+#[test]
+fn list_schemas_with_overlay_byte_identical() {
+    // A `--schema` overlay adds an unknown legacy layout + a new DPT provider
+    // and overrides a built-in field count; `--list-schemas` reflects the
+    // merged, re-sorted registry. Map/input/output are unused on this path.
+    let scratch = ScratchDir::new();
+    let dummy = scratch.path().join("unused");
+    let overlay = fixture("pcap-remap-schema-overlay.toml");
+    let r = run(&[
+        dummy.as_os_str(),
+        dummy.as_os_str(),
+        dummy.as_os_str(),
+        std::ffi::OsStr::new("--list-schemas"),
+        std::ffi::OsStr::new("--schema"),
+        overlay.as_os_str(),
+    ]);
+    assert_eq!(r.code, 0, "stderr: {}", r.stderr);
+    assert_eq!(
+        r.stdout.into_bytes(),
+        read_fixture("pcap-remap-list-schemas-overlay.golden"),
+        "list-schemas-with-overlay must match the Python golden"
+    );
+}
+
+#[test]
+fn overlay_makes_unknown_trailer_known() {
+    // Without a schema the unknown DPT TLV (type=3 version=99) errors under the
+    // default policy; a `--schema` overlay teaching its layout makes the remap
+    // succeed (0 unknown TLVs) instead of bailing.
+    let scratch = ScratchDir::new();
+    let overlay_path = scratch.path().join("fix.toml");
+    std::fs::write(
+        &overlay_path,
+        "[[dpt]]\nprovider = 1\ntype = 3\nversion = 99\nip_fields = [ { offset = 8, kind = \"v4\" } ]\n",
+    )
+    .expect("write overlay");
+    let map = fixture("pcap-remap.map.toml");
+    let input = fixture("pcap-remap-unknown.pcap");
+    let output = scratch.path().join("out.pcap");
+    let r = run(&[
+        map.as_os_str(),
+        input.as_os_str(),
+        output.as_os_str(),
+        std::ffi::OsStr::new("--schema"),
+        overlay_path.as_os_str(),
+    ]);
+    assert_eq!(r.code, 0, "stderr: {}", r.stderr);
+    assert!(
+        r.stderr.contains("0 unknown"),
+        "overlay should make the TLV schema-known, got: {}",
+        r.stderr
+    );
+    assert!(output.is_file(), "output should be written");
+}

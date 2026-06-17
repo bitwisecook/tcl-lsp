@@ -19,9 +19,7 @@
 
 use std::path::Path;
 
-use tcl_registry::snapshot::{
-    event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot,
-};
+use tcl_registry::snapshot::{event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot};
 
 /// Run the `registry-dump` verb for `section`, writing to `output`
 /// (`None` = stdout).

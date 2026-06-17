@@ -277,7 +277,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             on_unknown,
             schema,
             list_schemas,
-        } => commands::pcap_remap::run_pcap_remap(
+        } => Ok(commands::pcap_remap::run_pcap_remap(
             map_file,
             input,
             output,
@@ -285,6 +285,29 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             on_unknown,
             schema,
             *list_schemas,
+        )),
+        Command::ExplainFlow {
+            pcap,
+            paths,
+            tshark,
+            keylog,
+            tshark_filter,
+            simulate,
+            no_event_bodies,
+            max_event_lines,
+            json,
+            output,
+        } => commands::explain_flow::run_explain_flow(
+            pcap,
+            paths,
+            *tshark,
+            keylog.as_deref(),
+            tshark_filter.as_deref(),
+            *simulate,
+            *no_event_bodies,
+            *max_event_lines,
+            *json,
+            output.as_deref(),
         ),
         Command::EnrichPcapng {
             config,
@@ -392,12 +415,6 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             clap_complete::generate(*shell, &mut cmd, "f5-query", &mut std::io::stdout());
             Ok(0)
         }
-        // Verbs not yet ported (the BIG-IP engines land in later phases) fall
-        // through to a clear not-implemented error.
-        other => {
-            let verb = other.verb_name();
-            anyhow::bail!("`f5 {verb}` is not yet implemented in the Rust port");
-        }
     }
 }
 
@@ -409,7 +426,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
 /// Returns `Ok(Some(code))` when a help action fired (so the caller exits with
 /// `code`), `Ok(None)` when no help flag was set, or an error for the deferred
 /// builtins-prose surfaces (`--help-builtins` / `--help-manual`).
-fn dispatch_query_help(command: &Command) -> anyhow::Result<Option<u8>> {
+fn dispatch_query_help(command: &Command) -> Option<u8> {
     let Command::Query {
         help_dsl,
         help_builtins,
@@ -427,11 +444,11 @@ fn dispatch_query_help(command: &Command) -> anyhow::Result<Option<u8>> {
     // no user-plugin scan in the Rust port).
     if *help_renderers {
         print!("{}", commands::query::help_renderers_text());
-        return Ok(Some(0));
+        return Some(0);
     }
     if *help_inputs {
         print!("{}", commands::query::help_inputs_text());
-        return Ok(Some(0));
+        return Some(0);
     }
 
     // `--help-dsl` prints the static grammar reference (ported byte-for-byte
@@ -439,27 +456,31 @@ fn dispatch_query_help(command: &Command) -> anyhow::Result<Option<u8>> {
     // (from `dialects/f5/query/examples.py`).
     if *help_dsl {
         print!("{}", tcl_bigip_query::grammar::format_grammar());
-        return Ok(Some(0));
+        return Some(0);
     }
     if *help_examples {
         print!("{}", tcl_bigip_query::examples::format_examples());
-        return Ok(Some(0));
+        return Some(0);
     }
 
-    // `--help-builtins` and `--help-manual` are deferred: both depend on the
-    // per-function prose catalogue (`format_builtins`), which the Rust
-    // `BuiltinSpec` intentionally omits, so byte-parity output is out of scope.
-    if help_builtins.is_some() {
-        anyhow::bail!("`f5 query --help-builtins` is not yet ported in the Rust port");
+    // `--help-builtins [NAME]` and `--help-manual` are idiomatic Rust surfaces
+    // rather than byte-for-byte ports: the Rust `BuiltinSpec` omits the Python
+    // doc prose, so the catalogue is generated from the registry metadata
+    // (name / category / arity / flags). `--help-manual` composes grammar +
+    // builtins + cookbook.
+    if let Some(name) = help_builtins {
+        print!(
+            "{}",
+            tcl_bigip_query::builtins::format_catalogue(name.as_deref())
+        );
+        return Some(0);
     }
     if *help_manual {
-        anyhow::bail!(
-            "`f5 query --help-manual` is not yet ported in the Rust port \
-             (the builtins prose catalogue it embeds is out of scope)"
-        );
+        print!("{}", tcl_bigip_query::manual::format_manual());
+        return Some(0);
     }
 
-    Ok(None)
+    None
 }
 
 fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
@@ -497,7 +518,7 @@ fn dispatch_query(command: &Command) -> anyhow::Result<u8> {
 
     // Help actions short-circuit before any expression / input is required,
     // mirroring argparse's custom actions that `parser.exit()` immediately.
-    if let Some(code) = dispatch_query_help(command)? {
+    if let Some(code) = dispatch_query_help(command) {
         return Ok(code);
     }
 

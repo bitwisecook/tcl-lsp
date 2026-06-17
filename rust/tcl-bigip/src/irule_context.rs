@@ -521,10 +521,14 @@ pub fn build_irule_context(
 
     if transitive {
         // Pool members → nodes; pool monitor → monitor object.
-        let referenced_pools: Vec<BigipPool> = pools.entries.iter().map(|(_, p)| p.clone()).collect();
+        let referenced_pools: Vec<BigipPool> =
+            pools.entries.iter().map(|(_, p)| p.clone()).collect();
         for pool in &referenced_pools {
             for member in member_iter(pool) {
-                let node_name = member.name.rsplit_once(':').map_or(member.name.as_str(), |(n, _)| n);
+                let node_name = member
+                    .name
+                    .rsplit_once(':')
+                    .map_or(member.name.as_str(), |(n, _)| n);
                 if let Some(i) = resolve_in(node_name, &view.nodes, view.default_partition) {
                     let (path, obj) = view.nodes[i];
                     nodes.insert(path.to_owned(), obj.clone());
@@ -699,11 +703,19 @@ fn bundle_to_json(bundle: &IruleContextBundle) -> Json {
         ),
         (
             "dataGroups".to_owned(),
-            arr(bundle.data_groups.iter().map(summarise_data_group).collect()),
+            arr(bundle
+                .data_groups
+                .iter()
+                .map(summarise_data_group)
+                .collect()),
         ),
         (
             "persistence".to_owned(),
-            arr(bundle.persistence.iter().map(summarise_persistence).collect()),
+            arr(bundle
+                .persistence
+                .iter()
+                .map(summarise_persistence)
+                .collect()),
         ),
         (
             "snatPools".to_owned(),
@@ -776,11 +788,17 @@ pub fn bundles_to_json(bundles: &[IruleContextBundle]) -> String {
 fn render_pool_text(pool: &BigipPool) -> String {
     let mut lines = vec![format!("ltm pool {} {{", pool.full_path)];
     if !pool.load_balancing_mode.is_empty() {
-        lines.push(format!("    load-balancing-mode {}", pool.load_balancing_mode));
+        lines.push(format!(
+            "    load-balancing-mode {}",
+            pool.load_balancing_mode
+        ));
     }
-    if pool.members.items.iter().any(|item| {
-        matches!(item.value, crate::value::ListItemValue::PoolMember(_))
-    }) {
+    if pool
+        .members
+        .items
+        .iter()
+        .any(|item| matches!(item.value, crate::value::ListItemValue::PoolMember(_)))
+    {
         lines.push("    members {".to_owned());
         for m in member_iter(pool) {
             lines.push(format!("        {} {{", m.name));
@@ -859,7 +877,10 @@ fn render_monitor_text(m: &BigipMonitor) -> String {
 }
 
 fn render_node_text(n: &BigipNode) -> String {
-    let addr = n.address.as_ref().map_or(String::new(), ToString::to_string);
+    let addr = n
+        .address
+        .as_ref()
+        .map_or(String::new(), ToString::to_string);
     format!("ltm node {} {{ address {addr} }}\n", n.full_path)
 }
 
@@ -992,7 +1013,8 @@ pub fn context_bundle_to_text(bundle: &IruleContextBundle) -> String {
             .rules
             .iter()
             .map(|r| {
-                let fallback = format!("ltm rule {} {{\n{}\n}}\n", r.full_path, r.source.trim_end());
+                let fallback =
+                    format!("ltm rule {} {{\n{}\n}}\n", r.full_path, r.source.trim_end());
                 (
                     r.full_path.clone(),
                     render_object_text(bundle, &r.full_path, fallback),

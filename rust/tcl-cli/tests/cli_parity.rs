@@ -227,8 +227,8 @@ fn diff_ast_json_matches_python() {
     ))
     .expect("utf8 stdout");
     let normalised = actual.replace(fx.to_string_lossy().as_ref(), "__FIXTURES__");
-    let expected =
-        std::fs::read_to_string(fx.join("diff.ast.json.golden")).expect("read diff.ast.json.golden");
+    let expected = std::fs::read_to_string(fx.join("diff.ast.json.golden"))
+        .expect("read diff.ast.json.golden");
     assert_eq!(normalised, expected);
 }
 
@@ -245,7 +245,13 @@ fn diff_ir_text_matches_python() {
     let fx = fixtures_dir();
     let actual = run_tcl_in(
         &fx,
-        &["diff", "diff-ir-left.tcl", "diff-ir-right.tcl", "--show", "ir"],
+        &[
+            "diff",
+            "diff-ir-left.tcl",
+            "diff-ir-right.tcl",
+            "--show",
+            "ir",
+        ],
     );
     let expected = std::fs::read(fx.join("diff.ir.golden")).expect("read diff.ir.golden");
     assert_eq!(
