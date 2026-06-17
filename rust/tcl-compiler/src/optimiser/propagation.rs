@@ -51,7 +51,7 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{CommandTokens, Script, Statement};
 use crate::naming::normalise_var_name;
 
-use super::helpers::expr_simplify::try_unwrap_expr_in_expr;
+use super::helpers::expr_simplify::{NumericCtx, numeric_var_names, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
 use super::helpers::spans::{full_quoted_string_span, full_word_span};
 use super::{Optimisation, PassContext};
@@ -600,7 +600,8 @@ fn run_function(
     // map that survives only when every tracked version of the
     // variable collapses to the same single constant value.
     let constants = sccp_constants_for(fu);
-    walk_script(ctx, cu, script, &constants);
+    let numeric = numeric_var_names(fu);
+    walk_script(ctx, cu, script, &constants, Some(&numeric));
 }
 
 fn walk_script(
@@ -608,9 +609,10 @@ fn walk_script(
     cu: &CompilationUnit,
     script: &Script,
     constants: &std::collections::HashMap<String, String>,
+    numeric: NumericCtx<'_>,
 ) {
     for stmt in &script.statements {
-        walk_statement(ctx, cu, stmt, constants);
+        walk_statement(ctx, cu, stmt, constants, numeric);
     }
 }
 
@@ -619,6 +621,7 @@ fn walk_statement(
     cu: &CompilationUnit,
     stmt: &Statement,
     constants: &std::collections::HashMap<String, String>,
+    numeric: NumericCtx<'_>,
 ) {
     match stmt {
         Statement::Call {
@@ -672,40 +675,40 @@ fn walk_statement(
             );
         }
         Statement::AssignExpr { span, name, expr } => {
-            try_substitute_assign_expr(ctx, *span, name, expr, constants);
+            try_substitute_assign_expr(ctx, *span, name, expr, constants, numeric);
         }
         Statement::If {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, cu, &c.body, constants);
+                walk_script(ctx, cu, &c.body, constants, numeric);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, cu, b, constants);
+                walk_script(ctx, cu, b, constants, numeric);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, cu, init, constants);
-            walk_script(ctx, cu, next, constants);
-            walk_script(ctx, cu, body, constants);
+            walk_script(ctx, cu, init, constants, numeric);
+            walk_script(ctx, cu, next, constants, numeric);
+            walk_script(ctx, cu, body, constants, numeric);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants),
+        | Statement::Foreach { body, .. } => walk_script(ctx, cu, body, constants, numeric),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, cu, body, constants);
+            walk_script(ctx, cu, body, constants, numeric);
             for h in handlers {
-                walk_script(ctx, cu, &h.body, constants);
+                walk_script(ctx, cu, &h.body, constants, numeric);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, cu, fb, constants);
+                walk_script(ctx, cu, fb, constants, numeric);
             }
         }
         Statement::Switch {
@@ -713,11 +716,11 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, cu, b, constants);
+                    walk_script(ctx, cu, b, constants, numeric);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, cu, b, constants);
+                walk_script(ctx, cu, b, constants, numeric);
             }
         }
         _ => {}
@@ -899,9 +902,10 @@ fn try_substitute_assign_expr(
     name: &str,
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
+    numeric: NumericCtx<'_>,
 ) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, instcombine_expr, substitute_expr_constants,
+        expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants,
     };
     use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr;
@@ -944,7 +948,7 @@ fn try_substitute_assign_expr(
     // Not fully constant; try one pass of instcombine on the
     // substituted expression to pick up identity simplifications
     // (e.g. ``$a + 0`` after ``$a`` folds to ``3``).
-    let (simplified, _changed) = instcombine_expr(&result.text, false);
+    let (simplified, _changed) = instcombine_expr_typed(&result.text, false, numeric);
     let final_text = if simplified.trim().is_empty() {
         result.text.clone()
     } else {
