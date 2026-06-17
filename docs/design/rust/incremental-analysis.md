@@ -645,6 +645,28 @@ O(file) lowering floor + the still-present per-proc deep-clone dominate).
     ~12 ms `optimise_unit` spends — gate with `compiler_check_corpus` (fast, the
     O127-overlap inertness assumption is exactly what it verifies).  Sequence it
     after the deep-clone removal.
+  - **Isolation seam shipped + validated.**  `optimise_unit_per_function`
+    optimises each `::top`/procedure in an isolated single-function view and
+    merges + arbitrates; a new `optimise_per_function_corpus` differential proves
+    it byte-identical to `optimise_unit` over the corpus.  Finding: a fresh
+    `PassContext` restarts `next_group` at 0, so two functions' rewrite groups
+    both come out `0` and are **conflated** on merge — fixed by remapping each
+    run's group ids into a globally-unique range before merging (the final
+    `renumber_groups` then re-canonicalises identically, since the canonical id
+    depends only on the partition + sorted order).  **`unused_procs` (O124) is
+    iRules-only *and* whole-module** (reachability from `::when::*` handlers via
+    `ctx.interproc`), so the memo must run it whole-module, not per-function (the
+    tcl validation doesn't exercise it).
+  - **Open question for the salsa step — does the memo net-win?**  The optimiser
+    passes read the **whole** `interproc` summary (pure-proc resolution,
+    return-value facts), so the memo key must capture it; interning the whole
+    summary per build is `O(procs)` and a *summary* edit invalidates **all**
+    per-proc optimise memos.  For the ~12 ms `optimise_unit` costs, the
+    key-construction + coarse-invalidation overhead may approach the saving — so
+    the salsa step should first measure with a reachable-`interproc` projection
+    (à la `taint_cascade`) rather than the whole summary, and may not be worth it
+    over simply sharing the one built unit between the two diagnostics consumers
+    (already done).
 
 ### Recommendation (for the lowering floor proper)
 
