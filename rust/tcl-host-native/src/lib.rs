@@ -251,10 +251,20 @@ fn meta_from(m: &std::fs::Metadata) -> Metadata {
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .and_then(|d| i64::try_from(d.as_secs()).ok())
         .unwrap_or(0);
+    // Executability from the Unix mode bits; elsewhere (no Unix perms) we cannot
+    // tell, so assume yes rather than hiding a runnable file.
+    #[cfg(unix)]
+    let executable = {
+        use std::os::unix::fs::PermissionsExt;
+        m.permissions().mode() & 0o111 != 0
+    };
+    #[cfg(not(unix))]
+    let executable = true;
     Metadata {
         is_dir: ft.is_dir(),
         is_file: ft.is_file(),
         is_symlink: ft.is_symlink(),
+        executable,
         len: m.len(),
         mtime_secs,
     }

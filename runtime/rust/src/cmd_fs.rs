@@ -1,7 +1,10 @@
 //! Filesystem commands (M2 / L2) — `source`, `file`, `glob`, `pwd`, `cd`.
 //!
-//! The "VFS" is the host filesystem via `std::fs`/`std::env` for the native /
-//! `wasm32-wasip1` build (a non-WASI shim can swap in later). C refs:
+//! All filesystem and working-directory access goes through the capability host
+//! ([`Interp::host`](crate::interp::Interp)) — the [`tcl_platform`]
+//! `Filesystem`/`Env` traits — rather than direct `std::fs`/`std::env`. A native
+//! build gets the std-backed `NativeHost`; the WASM targets get a restricted
+//! host (a no-VFS browser answers `false`/"unsupported"). C refs:
 //! `tclIOUtil.c`/`tclFileName.c` (`source`/`glob`), `tclFCmd.c`/`tclFileName.c`
 //! (`file`). Toward loading the real `init.tcl`/`tcltest.tcl` (the M2 gate).
 //!
@@ -9,7 +12,7 @@
 //! WASI. See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use tcl_platform::HostError;
+use tcl_platform::{Filesystem, HostError};
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::list;
@@ -508,8 +511,13 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     let base = directory.clone();
     let mut hits: Vec<Vec<u8>> = Vec::new();
+    // The host filesystem drives directory listing + the `-types` stats. An
+    // independent `Rc` handle (`host`) keeps the borrow off `interp`, which the
+    // result/error tail still needs mutably.
+    let host = interp.host();
+    let fs = host.filesystem();
     for pat in &patterns {
-        glob_one(base.as_deref(), pat, tails, &types, &mut hits);
+        glob_one(fs, base.as_deref(), pat, tails, &types, &mut hits);
     }
     hits.sort();
     hits.dedup();
@@ -530,8 +538,10 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Match one glob pattern against the filesystem, pushing results (full paths,
-/// or just the tail when `tails`) onto `hits`.
+/// or just the tail when `tails`) onto `hits`. `fs` is the host filesystem
+/// (`None` ⇒ no VFS ⇒ no matches).
 fn glob_one(
+    fs: Option<&dyn Filesystem>,
     directory: Option<&[u8]>,
     pattern: &[u8],
     tails: bool,
@@ -550,12 +560,13 @@ fn glob_one(
         .split(|&c| c == b'/')
         .filter(|s| !s.is_empty())
         .collect();
-    walk(&start, &abs_prefix, &segs, 0, types, hits);
+    walk(fs, &start, &abs_prefix, &segs, 0, types, hits);
 }
 
 /// Recursively match path segments `segs[idx..]` under `dir`, accumulating the
 /// display path (`prefix`).
 fn walk(
+    fs: Option<&dyn Filesystem>,
     dir: &[u8],
     prefix: &[u8],
     segs: &[&[u8]],
@@ -571,12 +582,10 @@ fn walk(
     }
     let seg = segs[idx];
     let last = idx + 1 == segs.len();
-    let Ok(entries) = std::fs::read_dir(as_str(dir)) else {
+    let Some(names) = fs.and_then(|fs| fs.read_dir(as_str(dir)).ok()) else {
         return;
     };
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
+    for name in names {
         let name_b = name.as_bytes();
         if !glob_seg_match(seg, name_b) {
             continue;
@@ -586,63 +595,51 @@ fn walk(
             child_prefix.push(b'/');
         }
         child_prefix.extend_from_slice(name_b);
+        // Full path of the entry (for the `-types` stat and for recursion).
+        let mut child_path = dir.to_vec();
+        if child_path.last() != Some(&b'/') {
+            child_path.push(b'/');
+        }
+        child_path.extend_from_slice(name_b);
         if last {
             // `-types`: keep only entries that satisfy every requested test.
-            if !entry_matches_types(&entry, types) {
+            if !entry_matches_types(fs, &child_path, types) {
                 continue;
             }
             hits.push(child_prefix);
         } else {
-            let mut child_dir = dir.to_vec();
-            child_dir.push(b'/');
-            child_dir.extend_from_slice(name_b);
-            walk(&child_dir, &child_prefix, segs, idx + 1, types, hits);
+            walk(fs, &child_path, &child_prefix, segs, idx + 1, types, hits);
         }
     }
 }
 
-/// Whether a directory entry satisfies every `-types` specifier. An empty list
-/// matches everything. Recognised: file-kind `d f l p s b c` and permission
-/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`; the rarely-used
-/// `{macintosh …}` forms are not modelled). A name passes only if it matches
-/// every requested test — both any file-kind tests and the permission tests.
-fn entry_matches_types(entry: &std::fs::DirEntry, types: &[u8]) -> bool {
+/// Whether the entry at `path` satisfies every `-types` specifier. An empty list
+/// matches everything. Recognised portably: file-kind `d f l` and permission
+/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`). A name passes only if it
+/// matches every requested test.
+///
+/// The Unix special-device kinds `p s b c` (fifo/socket/block/char) are **not**
+/// expressible through the portable [`Filesystem`] seam — a WASI/browser host
+/// has none — so they never match here (the maturity-asymmetry tax: the prior
+/// native-only path could match them via `std::os::unix`). `r`/`w` stay
+/// best-effort `true`; `x` reads the host's executable bit.
+fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -> bool {
     if types.is_empty() {
         return true;
     }
     // `symlink_metadata` so `l` (and the kind tests) see the link itself, like C.
-    let Ok(meta) = entry.path().symlink_metadata() else {
+    let Some(meta) = fs.and_then(|fs| fs.symlink_metadata(as_str(path)).ok()) else {
         return false;
     };
-    let ft = meta.file_type();
     for &t in types {
         let ok = match t {
-            b'd' => ft.is_dir(),
-            b'f' => ft.is_file(),
-            b'l' => ft.is_symlink(),
+            b'd' => meta.is_dir,
+            b'f' => meta.is_file,
+            b'l' => meta.is_symlink,
             b'r' | b'w' => true, // permission probes — best-effort (assume yes)
-            b'x' => {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    meta.permissions().mode() & 0o111 != 0
-                }
-                #[cfg(not(unix))]
-                {
-                    true
-                }
-            }
-            #[cfg(unix)]
-            b'p' | b's' | b'b' | b'c' => {
-                use std::os::unix::fs::FileTypeExt;
-                match t {
-                    b'p' => ft.is_fifo(),
-                    b's' => ft.is_socket(),
-                    b'b' => ft.is_block_device(),
-                    _ => ft.is_char_device(),
-                }
-            }
-            _ => true, // unknown specifier: don't exclude
+            b'x' => meta.executable,
+            b'p' | b's' | b'b' | b'c' => false, // special devices: not portable
+            _ => true,                          // unknown specifier: don't exclude
         };
         if !ok {
             return false;

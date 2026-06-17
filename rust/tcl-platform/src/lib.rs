@@ -108,6 +108,9 @@ impl std::error::Error for HostError {}
 
 /// Metadata about a filesystem entry (`file stat` / `file exists` / `file type`
 /// backing).
+// A handful of independent kind/permission flags mirroring `stat`; an enum would
+// fight the fact that they are orthogonal queries (`file type` vs `-types x`).
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Metadata {
     /// Whether the entry is a directory.
@@ -119,6 +122,10 @@ pub struct Metadata {
     /// [`Filesystem::metadata`] resolves the link, so it reports the target's
     /// kind with `is_symlink == false`.
     pub is_symlink: bool,
+    /// Whether the entry is executable (`file executable`, `glob -types x`).
+    /// Best-effort: a native host reads the Unix execute bits; a restricted host
+    /// (WASI, browser) that cannot tell may report `false` or `true` uniformly.
+    pub executable: bool,
     /// Length in bytes.
     pub len: u64,
     /// Last-modified time, seconds since the Unix epoch.
