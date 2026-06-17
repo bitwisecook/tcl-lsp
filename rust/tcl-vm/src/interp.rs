@@ -98,8 +98,10 @@ pub struct Vm {
     /// every command reaches the filesystem, clock, env, stdio, subprocess, and
     /// sockets. The bytecode VM is a native target, so this defaults to a
     /// full-capability [`NativeHost`]; [`Vm::set_host`] swaps it (e.g. for a
-    /// sandboxed, WASM-posture host in capability tests).
-    host: Box<dyn Host>,
+    /// sandboxed, WASM-posture host in capability tests). An `Rc` (not `Box`) so
+    /// a command can clone a handle and pass `&dyn Host` *alongside* a `&mut Vm`
+    /// borrow (the VM is itself the `ValueOps` a shared helper takes).
+    host: Rc<dyn Host>,
 }
 
 /// A single registered variable trace.
@@ -137,7 +139,7 @@ impl Vm {
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
-            host: Box::new(NativeHost::new()),
+            host: Rc::new(NativeHost::new()),
         };
         register_builtins(&mut vm);
         vm.bootstrap_globals();
@@ -184,9 +186,15 @@ impl Vm {
         &*self.host
     }
 
+    /// A cloned handle to the host, so a command can hold `&dyn Host` while also
+    /// taking `&mut self` as the `ValueOps` a shared `tcl-cmd-core` helper needs.
+    pub(crate) fn host_rc(&self) -> Rc<dyn Host> {
+        Rc::clone(&self.host)
+    }
+
     /// Swap the host environment — e.g. a [`NativeHost::sandboxed`] to exercise
     /// the WASM-posture "unsupported" paths natively.
-    pub fn set_host(&mut self, host: Box<dyn Host>) {
+    pub fn set_host(&mut self, host: Rc<dyn Host>) {
         self.host = host;
     }
 

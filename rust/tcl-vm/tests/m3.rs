@@ -51,6 +51,33 @@ fn out_eq(src: &str, expected: &str) {
     assert_eq!(out, expected, "for script:\n{src}");
 }
 
+/// The `exec` command, end-to-end through the bytecode pipeline, on both host
+/// postures — the capability model proven at the command level (the helper-level
+/// proof lives in `capability.rs`).
+#[test]
+fn exec_command_capability() {
+    // Native host (the VM's default): `exec` runs a real subprocess.
+    out_eq("puts [exec echo hello]\n", "hello\n");
+
+    // Sandboxed host — subprocess capability off, the posture every WASM/WASI
+    // host has. `exec` yields the faithful "unsupported" error, not a panic.
+    let buf = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_host(Rc::new(tcl_vm::host_native::NativeHost::sandboxed()));
+    let registry = CommandRegistry::build_default();
+    let ir = lower_to_ir("exec echo hello", &registry);
+    let cfg = build_cfg(&ir, false);
+    let asm = codegen_module(&cfg, &ir, &registry);
+    let c = vm.run_module(&asm);
+    assert!(!c.code.is_ok(), "sandboxed exec should error, got ok");
+    assert!(
+        c.result.to_str().contains("no subprocess support"),
+        "expected the faithful unsupported error, got: {}",
+        c.result.to_str()
+    );
+}
+
 #[test]
 fn list_basics() {
     out_eq("set l [list 1 2 3]\nputs [llength $l]\n", "3\n");

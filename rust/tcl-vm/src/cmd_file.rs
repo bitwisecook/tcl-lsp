@@ -1,8 +1,11 @@
-//! Filesystem commands: `pwd`, `cd`, `file`, `glob`.
+//! Platform commands: `pwd`, `cd`, `file`, `glob`, `exec`.
 //!
 //! Path manipulation subcommands (`join`/`dirname`/`tail`/…) are pure string
-//! operations; the query/mutation subcommands (`exists`/`mtime`/`mkdir`/…) and
-//! `pwd`/`cd`/`glob` touch the real filesystem (POSIX layout — the test host).
+//! operations; the query/mutation subcommands (`exists`/`mtime`/`mkdir`/…),
+//! `pwd`/`cd`/`glob`, and `exec` reach the host through the [`tcl_platform`]
+//! capability seam ([`Vm::host`](crate::interp::Vm)) — the filesystem/env on a
+//! [`NativeHost`](crate::host_native::NativeHost), subprocess via
+//! `host.process()` (absent → the faithful "unsupported" error).
 
 use std::path::{Path, PathBuf};
 
@@ -17,6 +20,21 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("cd", cmd_cd);
     vm.register("file", cmd_file);
     vm.register("glob", cmd_glob);
+    vm.register("exec", cmd_exec);
+}
+
+/// `exec arg ?arg ...?` — run a subprocess via the shared
+/// [`tcl_cmd_core::platform::exec`] body over `host.process()`. On a host
+/// without subprocess support (every WASM target, a sandbox) it yields the
+/// faithful "unsupported" Tcl error rather than running — the capability model
+/// in action. The host handle is cloned (`host_rc`) so it can be passed
+/// alongside the `&mut Vm` the shared helper takes as its `ValueOps`.
+fn cmd_exec(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let host = vm.host_rc();
+    match tcl_cmd_core::platform::exec(vm, &*host, args) {
+        Ok(v) => ok(v),
+        Err(e) => err(e.into_message()),
+    }
 }
 
 fn cmd_pwd(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
