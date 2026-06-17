@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::f5_trailer::{
-    DPT_TLV_HDR_LEN, IpKind, TrailerFmt, classify_v6_or_v4mapped, parse_trailer,
+    DPT_TLV_HDR_LEN, IpKind, SchemaOverlay, TrailerFmt, classify_v6_or_v4mapped, parse_trailer_with,
 };
 use crate::pcapng;
 use crate::redact::{RedactionMap, apply_map, map_address, unmap_address};
@@ -649,12 +649,13 @@ fn rewrite_trailer(
     rm: &mut RedactionMap,
     reverse: bool,
     unknown_policy: UnknownPolicy,
+    overlay: &SchemaOverlay,
 ) -> Result<(usize, usize, usize, usize), PcapError> {
     if trailer_off >= packet.len() {
         return Ok((0, 0, 0, 0));
     }
     let trailer_bytes = packet[trailer_off..].to_vec();
-    let parse = parse_trailer(&trailer_bytes);
+    let parse = parse_trailer_with(&trailer_bytes, overlay);
     let Some(fmt) = parse.fmt else {
         return Ok((0, 0, 0, 0));
     };
@@ -757,6 +758,7 @@ fn rewrite_one_packet(
     rm: &mut RedactionMap,
     reverse: bool,
     unknown_policy: UnknownPolicy,
+    overlay: &SchemaOverlay,
 ) -> Result<PerPacketCounts, PcapError> {
     let mut counts = PerPacketCounts::default();
 
@@ -784,7 +786,7 @@ fn rewrite_one_packet(
     let mut trailer_changed = 0usize;
     if trailer_off > 0 && trailer_off < packet.len() {
         let (tc, total, rew, unk) =
-            rewrite_trailer(packet, trailer_off, rm, reverse, unknown_policy)?;
+            rewrite_trailer(packet, trailer_off, rm, reverse, unknown_policy, overlay)?;
         trailer_changed = tc;
         counts.tlvs_total = total;
         counts.tlvs_rewritten = rew;
@@ -819,13 +821,35 @@ pub fn remap_pcap(
     reverse: bool,
     unknown_policy: UnknownPolicy,
 ) -> Result<(Vec<u8>, PcapRemapResult), PcapError> {
+    remap_pcap_with(
+        input,
+        rm,
+        reverse,
+        unknown_policy,
+        &SchemaOverlay::default(),
+    )
+}
+
+/// Like [`remap_pcap`] but consulting *overlay* trailer schemas (from a
+/// `--schema` TOML) before the built-ins. [`remap_pcap`] is the
+/// `overlay = default` case.
+///
+/// # Errors
+/// Same as [`remap_pcap`].
+pub fn remap_pcap_with(
+    input: &[u8],
+    rm: &mut RedactionMap,
+    reverse: bool,
+    unknown_policy: UnknownPolicy,
+    overlay: &SchemaOverlay,
+) -> Result<(Vec<u8>, PcapRemapResult), PcapError> {
     if input.len() < 4 {
         return Err(PcapError::Value("pcap: file too short".to_owned()));
     }
     if pcapng::is_pcapng_magic(&input[..4]) {
-        return remap_pcapng(input, rm, reverse, unknown_policy);
+        return remap_pcapng(input, rm, reverse, unknown_policy, overlay);
     }
-    remap_libpcap(input, rm, reverse, unknown_policy)
+    remap_libpcap(input, rm, reverse, unknown_policy, overlay)
 }
 
 fn remap_libpcap(
@@ -833,6 +857,7 @@ fn remap_libpcap(
     rm: &mut RedactionMap,
     reverse: bool,
     unknown_policy: UnknownPolicy,
+    overlay: &SchemaOverlay,
 ) -> Result<(Vec<u8>, PcapRemapResult), PcapError> {
     if input.len() < 24 {
         return Err(PcapError::Value(
@@ -874,7 +899,8 @@ fn remap_libpcap(
         }
         result.packets_total += 1;
         let mut packet = input[body_start..body_start + incl_len].to_vec();
-        let counts = rewrite_one_packet(&mut packet, linktype, rm, reverse, unknown_policy)?;
+        let counts =
+            rewrite_one_packet(&mut packet, linktype, rm, reverse, unknown_policy, overlay)?;
         if counts.rewrote_anything {
             result.packets_rewritten += 1;
         }
@@ -896,6 +922,7 @@ fn remap_pcapng(
     rm: &mut RedactionMap,
     reverse: bool,
     unknown_policy: UnknownPolicy,
+    overlay: &SchemaOverlay,
 ) -> Result<(Vec<u8>, PcapRemapResult), PcapError> {
     let mut blocks = pcapng::read_blocks(input).map_err(PcapError::Value)?;
     let mut result = PcapRemapResult::default();
@@ -916,7 +943,8 @@ fn remap_pcapng(
             }
             let linktype = interface_linktypes[iface_idx];
             let mut packet = block.packet_data.take().unwrap();
-            let counts = rewrite_one_packet(&mut packet, linktype, rm, reverse, unknown_policy)?;
+            let counts =
+                rewrite_one_packet(&mut packet, linktype, rm, reverse, unknown_policy, overlay)?;
             if counts.rewrote_anything {
                 result.packets_rewritten += 1;
             }

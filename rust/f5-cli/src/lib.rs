@@ -277,7 +277,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             on_unknown,
             schema,
             list_schemas,
-        } => commands::pcap_remap::run_pcap_remap(
+        } => Ok(commands::pcap_remap::run_pcap_remap(
             map_file,
             input,
             output,
@@ -285,7 +285,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             on_unknown,
             schema,
             *list_schemas,
-        ),
+        )),
         Command::ExplainFlow {
             pcap,
             paths,
