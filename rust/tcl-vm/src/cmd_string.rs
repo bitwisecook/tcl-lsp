@@ -111,9 +111,9 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "toupper" => case_convert(rest, "toupper"),
         "totitle" => case_convert(rest, "totitle"),
         "reverse" => map_str(rest, |s| s.chars().rev().collect()),
-        "trim" => trim_str(rest, true, true),
-        "trimleft" => trim_str(rest, true, false),
-        "trimright" => trim_str(rest, false, true),
+        "trim" => trim_str(rest, "trim", true, true),
+        "trimleft" => trim_str(rest, "trimleft", true, false),
+        "trimright" => trim_str(rest, "trimright", false, true),
         "repeat" => match rest {
             [s, n] => match n.as_int() {
                 Ok(c) if c >= 0 => ok(Value::string(
@@ -154,10 +154,10 @@ fn string_index(rest: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"string index string charIndex\"");
     };
     let chars: Vec<char> = s.to_str().chars().collect();
-    match resolve_index(&i.to_str(), chars.len())
-        .and_then(|x| usize::try_from(x).ok())
-        .and_then(|x| chars.get(x))
-    {
+    let Some(idx) = resolve_index(&i.to_str(), chars.len()) else {
+        return bad_index(&i.to_str());
+    };
+    match usize::try_from(idx).ok().and_then(|x| chars.get(x)) {
         Some(c) => ok(Value::string(c.to_string())),
         None => ok(Value::empty()),
     }
@@ -193,8 +193,13 @@ fn string_replace(rest: &[Value]) -> Completion<Value> {
     let (s, first, last) = (&rest[0], &rest[1], &rest[2]);
     let chars: Vec<char> = s.to_str().chars().collect();
     let len = chars.len();
-    let lo = resolve_index(&first.to_str(), len).unwrap_or(0).max(0);
-    let hi = resolve_index(&last.to_str(), len).unwrap_or(-1);
+    let Some(lo) = resolve_index(&first.to_str(), len) else {
+        return bad_index(&first.to_str());
+    };
+    let Some(hi) = resolve_index(&last.to_str(), len) else {
+        return bad_index(&last.to_str());
+    };
+    let lo = lo.max(0);
     let lo_u = usize::try_from(lo).unwrap_or(0);
     if hi < 0 || lo_u >= len || hi < lo {
         return ok(Value::string(s.to_str().to_string()));
@@ -449,11 +454,11 @@ fn map_str(rest: &[Value], f: impl Fn(&str) -> String) -> Completion<Value> {
     }
 }
 
-fn trim_str(rest: &[Value], left: bool, right: bool) -> Completion<Value> {
+fn trim_str(rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Value> {
     let (s, chars) = match rest {
         [s] => (s.to_str(), None),
         [s, c] => (s.to_str(), Some(c.to_str())),
-        _ => return err("wrong # args: should be \"string trim string ?chars?\""),
+        _ => return err(format!("wrong # args: should be \"string {op} string ?chars?\"")),
     };
     let set: Vec<char> = chars
         .as_deref()

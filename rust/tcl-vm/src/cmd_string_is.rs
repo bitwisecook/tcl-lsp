@@ -86,7 +86,11 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             break;
         }
     }
-    if rest.len() - i != 1 {
+    if rest.len() - i > 1 {
+        // Too many arguments — Tcl uses the generic "class" form here.
+        return err(WRONG);
+    }
+    if rest.len() - i < 1 {
         return err(format!(
             "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
         ));
