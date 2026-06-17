@@ -519,19 +519,25 @@ impl CfgBuilder {
             }
         }
 
-        // No fall-through when the main path terminated (a trailing orphan
-        // holding dead code is unreachable, not a fall-through edge) or the
-        // final block is itself terminated.  When there is no fall-through,
-        // record the terminating block so `lower_try` can source an on-error
-        // edge from a body that ended without an explicit `error`/`throw`.
-        // Mirrors Python's `_last_terminal_block`.
-        if main_terminated || self.block_mut(&current).terminator.is_some() {
-            self.last_terminal_block = Some(current);
-            None
+        // Always return the block control finally rests in — mirroring
+        // Python's `_lower_script` (`return current`), which returns the block
+        // even when it is terminated by a straight-line `return`/`error`.
+        // `build_function` then appends a synthetic (unreachable) `exit` block
+        // via `ensure_goto` (a no-op on the already-terminated block), matching
+        // the Python CFG's trailing exit.  Termination is tracked separately in
+        // `last_terminal_block` (Python's `_last_terminal_block`) so `lower_try`
+        // can source an on-error edge from a body that ended without an explicit
+        // `error`/`throw`.  Nested control-flow lowerings still signal "no
+        // continuation" by returning `None` (propagated through this loop's
+        // `?` / explicit-`None` arms), exactly as Python returns `None` after a
+        // nested `_lower_if`/`_lower_for` yields `None`.
+        let terminated = main_terminated || self.block_mut(&current).terminator.is_some();
+        self.last_terminal_block = if terminated {
+            Some(current.clone())
         } else {
-            self.last_terminal_block = None;
-            Some(current)
-        }
+            None
+        };
+        Some(current)
     }
 
     /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
