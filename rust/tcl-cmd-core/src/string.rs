@@ -136,6 +136,68 @@ pub fn trim<O: ValueOps>(
     ops.new_string(trimmed.to_string())
 }
 
+/// `string first needleString haystackString ?startIndex?` — the character index
+/// of the first occurrence of `needle` at or after `start` (default 0), or -1.
+pub fn first<O: ValueOps>(
+    ops: &mut O,
+    needle: &O::Value,
+    haystack: &O::Value,
+    start: Option<&O::Value>,
+) -> Result<O::Value, CmdError> {
+    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
+    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    let start = match start {
+        None => 0,
+        Some(s) => usize::try_from(index::resolve(&ops.as_str(s), hay.len())?.max(0)).unwrap_or(0),
+    };
+    if needle.is_empty() {
+        return Ok(ops.new_int(-1));
+    }
+    let mut idx: i64 = -1;
+    if needle.len() <= hay.len() {
+        for i in start..=hay.len() - needle.len() {
+            if hay[i..i + needle.len()] == needle[..] {
+                idx = i64::try_from(i).unwrap_or(i64::MAX);
+                break;
+            }
+        }
+    }
+    Ok(ops.new_int(idx))
+}
+
+/// `string last needleString haystackString ?lastIndex?` — the character index of
+/// the last occurrence ending at or before `lastIndex` (default end), or -1.
+pub fn last<O: ValueOps>(
+    ops: &mut O,
+    needle: &O::Value,
+    haystack: &O::Value,
+    last_index: Option<&O::Value>,
+) -> Result<O::Value, CmdError> {
+    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
+    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    let last: i64 = match last_index {
+        None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
+        Some(s) => index::resolve(&ops.as_str(s), hay.len())?,
+    };
+    if needle.is_empty() || last < 0 {
+        return Ok(ops.new_int(-1));
+    }
+    let last = usize::try_from(last)
+        .unwrap_or(0)
+        .min(hay.len().saturating_sub(1));
+    let mut idx: i64 = -1;
+    if last + 1 >= needle.len() {
+        let hi = last + 1 - needle.len();
+        for i in (0..=hi).rev() {
+            if hay[i..i + needle.len()] == needle[..] {
+                idx = i64::try_from(i).unwrap_or(i64::MAX);
+                break;
+            }
+        }
+    }
+    Ok(ops.new_int(idx))
+}
+
 /// Arity-check (`string ?chars?`) wrapper shared by the three `trim` arms.
 fn trim_dispatch<O: ValueOps>(
     ops: &mut O,
@@ -183,6 +245,20 @@ pub fn dispatch_canon<O: ValueOps>(
         "repeat" => arity(2, "string repeat string count")
             .or_else(|| Some(repeat(ops, &rest[0], &rest[1]))),
         "cat" => Some(Ok(cat(ops, rest))),
+        "first" => match rest {
+            [n, h] => Some(first(ops, n, h, None)),
+            [n, h, s] => Some(first(ops, n, h, Some(s))),
+            _ => Some(Err(CmdError::wrong_args(
+                "string first needleString haystackString ?startIndex?",
+            ))),
+        },
+        "last" => match rest {
+            [n, h] => Some(last(ops, n, h, None)),
+            [n, h, s] => Some(last(ops, n, h, Some(s))),
+            _ => Some(Err(CmdError::wrong_args(
+                "string last needleString haystackString ?lastIndex?",
+            ))),
+        },
         "trim" => Some(trim_dispatch(ops, rest, "string trim string ?chars?", true, true)),
         "trimleft" => Some(trim_dispatch(
             ops,

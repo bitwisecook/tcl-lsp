@@ -158,3 +158,12 @@ fn string_cat_and_trim() {
     assert_eq!(run("puts \"[string trimleft xxabc x]<\"").2, "abc<\n");
     assert_eq!(run("puts \"[string trimright abcxx x]<\"").2, "abc<\n");
 }
+
+/// `string first` / `string last` (character-indexed substring search).
+#[test]
+fn string_first_last() {
+    assert_eq!(run("puts [string first bc abcbc]").2, "1\n");
+    assert_eq!(run("puts [string first bc abcbc 2]").2, "3\n");
+    assert_eq!(run("puts [string last bc abcbc]").2, "3\n");
+    assert_eq!(run("puts [string first zz abc]").2, "-1\n");
+}
