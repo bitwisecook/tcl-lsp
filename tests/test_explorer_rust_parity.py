@@ -247,7 +247,7 @@ def _normalise_loops(funcs: list) -> list:
     out = []
     for fn in funcs:
         fn = dict(fn)
-        fn["loops"] = sorted(fn.get("loops", []), key=lambda l: l["header"])
+        fn["loops"] = sorted(fn.get("loops", []), key=lambda lp: lp["header"])
         out.append(fn)
     return out
 

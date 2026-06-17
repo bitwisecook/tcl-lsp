@@ -182,8 +182,10 @@ def main() -> None:
     (_OUT_DIR / "mod.rs").write_text("\n".join(mod) + "\n")
 
     total_props = sum(len(s.properties) for s in specs)
-    print(f"generated {len(specs)} specs across {len(letters)} buckets "
-          f"({total_props} top-level properties)")
+    print(
+        f"generated {len(specs)} specs across {len(letters)} buckets "
+        f"({total_props} top-level properties)"
+    )
 
 
 if __name__ == "__main__":
