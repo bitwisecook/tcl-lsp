@@ -203,13 +203,26 @@ def). Two pre-existing correctness bugs were fixed in the same strip:
 
 Corpus exact 37 → 41; over-removals 14 → 11.
 
-**Remaining follow-ups:** `AssignExpr`/`AssignValue` SCCP-constants whose
-*folded* value is a simple literal (`set x [expr {1+1}]`) — present in the
-corpus only as proc-call assignments, so low value; it needs a
-surviving-fold check to distinguish the clean `[expr {…}]` fold from the
-quoted-expr `[expr "…"]` smell Python preserves. Then O110 reassociation
-and O127 forwarding. The diagnostic-side dead-store/unused parity (W210 /
-W211 / W220) is already closed.
+**O110 constant reassociation — done.** `reassociate_node`
+(`optimiser::helpers::expr_simplify`) combines literal constants across
+`+`/`-` and `*` chains (`$a + 1 + 2` → `$a + 3`, `$a * 2 * 3` → `$a * 6`),
+keeping all non-constant terms and verified byte-for-byte against Python.
+
+**Remaining follow-ups:**
+
+- **Unguarded `x * 0` / `x * 1` annihilator** (`reduce_arith_identity`):
+  Rust reduces `$a * 0` → `0` unconditionally, but Python keeps it when
+  `$a` is not provably numeric (`expr {$a * 0}` errors on a non-numeric
+  `$a`). This is a latent miscompile, but fixing it needs the SSA type
+  lattice's provably-numeric check, which the AST-level expr pass lacks —
+  it would have to be threaded in from the analysis layer.
+- **`AssignExpr`/`AssignValue` SCCP-constant coupling** (`set x [expr
+  {1+1}]`) — low corpus value; needs a surviving-fold check to tell the
+  clean `[expr {…}]` fold from the quoted-expr `[expr "…"]` smell Python
+  preserves.
+- **O127 forwarding** and the 11 remaining pre-existing over-removals.
+
+The diagnostic-side dead-store/unused parity (W210 / W211 / W220) is closed.
 
 Diagnostic-side dead-store/unused parity (W210 / W211 / W220) is now
 closed — see the analyser changes landed alongside this note.
