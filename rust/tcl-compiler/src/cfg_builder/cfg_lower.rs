@@ -321,6 +321,7 @@ impl CfgBuilder {
     /// recorded in [`crate::cfg::Function::switch_dispatches`] so codegen
     /// emits a generic `switch` invoke instead of walking the chain
     /// (matching tclsh's un-compiled approach for those modes).
+    #[allow(clippy::too_many_lines)]
     pub(super) fn lower_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Switch {
             span,
@@ -335,6 +336,21 @@ impl CfgBuilder {
         else {
             unreachable!("lower_switch called with non-Switch");
         };
+
+        // Glob/regexp switches, and exact switches with any fall-through arm,
+        // are kept *opaque* — a single `Statement::Switch` in the current block,
+        // no expanded arm blocks. Their shared-body / OR-matching topology can't
+        // be expressed as structured control flow, and tclsh 9.0 invokes them
+        // generically rather than compiling a jump table; codegen emits a
+        // generic `switch` invoke for the opaque statement. Mirrors the Python
+        // CFG builder (`compiler/cfg.py` ~L1121-1126, `expand_fallthrough_switch`
+        // defaulting off). SSA reads of the subject + arm/default bodies are
+        // recovered by `ssa::uses_of`'s `Statement::Switch` arm (Python's
+        // `_switch_reads`); the switch contributes no defs (Python's `_defs`).
+        if *mode != SwitchMode::Exact || arms.iter().any(|arm| arm.fallthrough) {
+            self.block_mut(block_name).statements.push(stmt.clone());
+            return block_name.to_owned();
+        }
 
         let end_block = self.new_block("switch_end");
         let default_block = self.new_block("switch_default");
@@ -845,45 +861,48 @@ mod tests {
     }
 
     #[test]
-    fn switch_glob_creates_branches() {
+    fn switch_glob_stays_opaque() {
+        // Glob/regexp switches are kept opaque (a single `Statement::Switch` in
+        // the block, no expanded arm blocks / branches) — mirroring the Python
+        // CFG builder. Codegen emits a generic `switch` invoke for them.
         let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Glob), true);
-        // No barrier — the entry dispatches via a Branch like exact mode.
         let entry = &func.blocks[&func.entry];
+        assert_eq!(entry.statements.len(), 1, "opaque switch is one statement");
         assert!(
-            !entry
-                .statements
-                .iter()
-                .any(|s| matches!(s, Statement::Barrier { .. })),
-            "glob switch should no longer lower to a barrier"
+            matches!(entry.statements[0], Statement::Switch { .. }),
+            "glob switch should stay an opaque Statement::Switch"
         );
-        assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
-        // The dispatch is recorded for the codegen invoke fallback.
-        let sd = func
-            .switch_dispatches
-            .get(&func.entry)
-            .expect("glob dispatch should be recorded");
-        assert_eq!(sd.mode, SwitchMode::Glob);
-        assert_eq!(sd.raw_args, vec!["$x", "a*", "{puts $y}"]);
-        // Member blocks (arm body / dispatch / default) are recorded so
-        // codegen can skip them, but the join block is not a member.
-        assert!(!sd.member_blocks.contains(&sd.end_block));
-        assert!(!sd.member_blocks.contains(&func.entry));
-        assert!(!sd.member_blocks.is_empty());
+        // The block falls through (no branch dispatch); `build_function` adds a
+        // goto to the synthetic trailing exit block.
+        assert!(
+            matches!(entry.terminator, Some(Terminator::Goto { .. })),
+            "opaque switch block falls through via a goto, not a branch dispatch"
+        );
+        assert!(
+            func.switch_dispatches.is_empty(),
+            "opaque switches record no dispatch (codegen emits from the statement)"
+        );
+        // Only the entry + the synthetic trailing exit block exist.
+        assert_eq!(func.blocks.len(), 2);
     }
 
     #[test]
-    fn switch_regexp_creates_branches() {
+    fn switch_regexp_stays_opaque() {
         let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Regexp), true);
         let entry = &func.blocks[&func.entry];
-        assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
-        let sd = func
-            .switch_dispatches
-            .get(&func.entry)
-            .expect("regexp dispatch should be recorded");
-        assert_eq!(sd.mode, SwitchMode::Regexp);
-        // Exact switches are never recorded (they keep the real jump table).
+        assert!(matches!(entry.statements[0], Statement::Switch { .. }));
+        assert!(matches!(entry.terminator, Some(Terminator::Goto { .. })));
+        assert!(func.switch_dispatches.is_empty());
+        // Exact switches without fall-through keep the real expanded jump table.
         let exact = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Exact), true);
         assert!(exact.switch_dispatches.is_empty());
+        assert!(
+            matches!(
+                exact.blocks[&exact.entry].terminator,
+                Some(Terminator::Branch { .. })
+            ),
+            "exact non-fall-through switch still expands to a branch dispatch"
+        );
     }
 
     #[test]

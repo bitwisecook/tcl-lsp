@@ -617,6 +617,7 @@ pub(crate) fn structural_body_indices(
 ///
 /// Returns sorted variable names, excluding variables that are defined
 /// by this statement (unless they exhibit read-before-write semantics).
+#[allow(clippy::too_many_lines)]
 pub fn uses_of(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
@@ -737,9 +738,27 @@ pub fn uses_of(
             }
         }
 
-        // Structured IR statements (If, For, While, etc.) are not
-        // present in CFG blocks — they're flattened by the CFG builder
-        // before SSA construction.
+        // A non-lowered (glob/regexp/fall-through) `switch` is kept opaque as a
+        // single `Statement::Switch` in the block. Recover the subject + arm /
+        // default body reads so a variable read only as the subject or only
+        // inside an arm body isn't reported unused. Mirrors Python `_switch_reads`.
+        Statement::Switch {
+            subject,
+            arms,
+            default_body,
+            ..
+        } => {
+            vars_found.extend(switch_reads(
+                subject,
+                arms,
+                default_body.as_ref(),
+                scanner,
+                registry,
+            ));
+        }
+
+        // Other structured IR statements (If, For, While, …) are flattened by
+        // the CFG builder before SSA construction, so they never reach here.
         _ => {}
     }
 
@@ -754,6 +773,210 @@ pub fn uses_of(
         .into_iter()
         .filter(|v| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
         .collect()
+}
+
+/// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
+/// arm) `switch` kept opaque in a CFG block: the subject word, every arm
+/// pattern, and the *free* reads of each arm/default body. Mirrors Python's
+/// `_switch_reads`.
+fn switch_reads(
+    subject: &str,
+    arms: &[crate::ir::SwitchArm],
+    default_body: Option<&crate::ir::Script>,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads = scanner.scan_word(subject, registry);
+    for arm in arms {
+        reads.extend(scanner.scan_word(&arm.pattern, registry));
+        if let Some(body) = &arm.body {
+            reads.extend(free_reads_in_script(body, scanner, registry));
+        }
+    }
+    if let Some(db) = default_body {
+        reads.extend(free_reads_in_script(db, scanner, registry));
+    }
+    reads
+}
+
+/// Reads a collapsed body consumes from the *outer* scope: its reads minus its
+/// own defs (so arm-local temporaries — `set tmp 1; puts $tmp` — aren't seen as
+/// outer reads). The def set is completed with the `for`-init/next and
+/// if/while/for condition command-sub defs that `defs_from_ir_script` omits.
+/// Mirrors Python's `_free_reads_in_ir_script`.
+fn free_reads_in_script(
+    script: &crate::ir::Script,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut defs: HashSet<String> = crate::ir_helpers::defs_from_ir_script(script)
+        .into_iter()
+        .collect();
+    defs.extend(collapsed_extra_defs(script, registry));
+    reads_in_script(script, scanner, registry)
+        .into_iter()
+        .filter(|v| !defs.contains(v))
+        .collect()
+}
+
+/// Recursively collect variable reads from an un-lowered IR script. Mirrors
+/// Python's `_reads_in_ir_script`.
+fn reads_in_script(
+    script: &crate::ir::Script,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads = BTreeSet::new();
+    for stmt in &script.statements {
+        reads.extend(reads_in_stmt(stmt, scanner, registry));
+    }
+    reads
+}
+
+/// Variable reads of a single statement, recursing into nested bodies. Leaf
+/// reads come from [`uses_of`] (which resolves a nested `Statement::Switch` via
+/// [`switch_reads`]); structured statements are walked here because they are
+/// not lowered inside an opaque switch arm. Mirrors Python's `_reads_in_ir_stmt`.
+fn reads_in_stmt(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads: BTreeSet<String> = uses_of(stmt, scanner, registry).into_iter().collect();
+    match stmt {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            for clause in clauses {
+                reads.extend(vars_in_expr(&clause.condition));
+                reads.extend(reads_in_script(&clause.body, scanner, registry));
+            }
+            if let Some(eb) = else_body {
+                reads.extend(reads_in_script(eb, scanner, registry));
+            }
+        }
+        Statement::While {
+            condition, body, ..
+        } => {
+            reads.extend(vars_in_expr(condition));
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::For {
+            init,
+            condition,
+            next,
+            body,
+            ..
+        } => {
+            reads.extend(reads_in_script(init, scanner, registry));
+            reads.extend(vars_in_expr(condition));
+            reads.extend(reads_in_script(next, scanner, registry));
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::Foreach {
+            iterators, body, ..
+        } => {
+            for it in iterators {
+                reads.extend(scanner.scan_word(&it.list_arg, registry));
+            }
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::Catch { body, .. } => {
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            reads.extend(reads_in_script(body, scanner, registry));
+            for handler in handlers {
+                reads.extend(reads_in_script(&handler.body, scanner, registry));
+            }
+            if let Some(fb) = finally_body {
+                reads.extend(reads_in_script(fb, scanner, registry));
+            }
+        }
+        _ => {}
+    }
+    reads
+}
+
+/// `for`-init/next clause defs and if/while/for condition command-sub defs
+/// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
+/// recurse — recovered for the collapsed-body read subtraction only. Mirrors
+/// Python's `_collapsed_extra_defs`.
+fn collapsed_extra_defs(script: &crate::ir::Script, registry: &CommandRegistry) -> BTreeSet<String> {
+    use crate::ir_helpers::{defs_from_expr, defs_from_ir_script};
+    let mut extra = BTreeSet::new();
+    for stmt in &script.statements {
+        match stmt {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for clause in clauses {
+                    extra.extend(defs_from_expr(&clause.condition, registry));
+                    extra.extend(collapsed_extra_defs(&clause.body, registry));
+                }
+                if let Some(eb) = else_body {
+                    extra.extend(collapsed_extra_defs(eb, registry));
+                }
+            }
+            Statement::While {
+                condition, body, ..
+            } => {
+                extra.extend(defs_from_expr(condition, registry));
+                extra.extend(collapsed_extra_defs(body, registry));
+            }
+            Statement::For {
+                init,
+                condition,
+                next,
+                body,
+                ..
+            } => {
+                extra.extend(defs_from_ir_script(init));
+                extra.extend(defs_from_ir_script(next));
+                extra.extend(defs_from_expr(condition, registry));
+                extra.extend(collapsed_extra_defs(init, registry));
+                extra.extend(collapsed_extra_defs(next, registry));
+                extra.extend(collapsed_extra_defs(body, registry));
+            }
+            Statement::Foreach { body, .. }
+            | Statement::Catch { body, .. } => {
+                extra.extend(collapsed_extra_defs(body, registry));
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                extra.extend(collapsed_extra_defs(body, registry));
+                for handler in handlers {
+                    extra.extend(collapsed_extra_defs(&handler.body, registry));
+                }
+                if let Some(fb) = finally_body {
+                    extra.extend(collapsed_extra_defs(fb, registry));
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for arm in arms {
+                    if let Some(body) = &arm.body {
+                        extra.extend(collapsed_extra_defs(body, registry));
+                    }
+                }
+                if let Some(db) = default_body {
+                    extra.extend(collapsed_extra_defs(db, registry));
+                }
+            }
+            _ => {}
+        }
+    }
+    extra
 }
 
 /// Build SSA with dominator-based phi placement and renaming.

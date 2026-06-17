@@ -246,6 +246,15 @@ impl CodegenCtx<'_> {
                 }
             }
 
+            // Opaque (glob/regexp/fall-through) switch: the CFG builder keeps
+            // it as a single statement rather than expanding arm blocks, so
+            // emit a generic `switch` invoke — tclsh 9.0's un-compiled approach
+            // for these modes. Mirrors Python's `IRSwitch` codegen
+            // (`_emit_call("switch", raw_args)`).
+            Statement::Switch { raw_args, .. } => {
+                self.emit_call_stmt("switch", raw_args, None, used_generic_invoke);
+            }
+
             Statement::Return { value, .. } => {
                 let val = value.as_deref().unwrap_or("");
                 self.emit_value_interpolated(val);
