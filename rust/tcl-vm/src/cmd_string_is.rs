@@ -111,7 +111,11 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// for the "valid list but wrong shape" cases, e.g. an odd-length dict).
 fn class_check(class: &str, chars: &[char], strict: bool) -> (bool, i64) {
     if chars.is_empty() {
-        // The empty string is in every class unless `-strict`.
+        // The empty string is the valid empty list/dict even under `-strict`;
+        // for the other classes `-strict` rejects it.
+        if matches!(class, "list" | "dict") {
+            return (true, -1);
+        }
         return (!strict, 0);
     }
     match class {

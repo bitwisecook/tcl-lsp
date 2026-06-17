@@ -466,16 +466,26 @@ fn map_str(rest: &[Value], f: impl Fn(&str) -> String) -> Completion<Value> {
     }
 }
 
+/// The default `string trim` set — every Unicode space character plus NUL
+/// (`tclDefaultTrimSet`, TIP #413).
+const DEFAULT_TRIM_SET: &[char] = &[
+    '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', ' ', '\u{00}', '\u{85}', '\u{a0}', '\u{1680}',
+    '\u{180e}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
+    '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{200b}', '\u{2028}', '\u{2029}', '\u{202f}',
+    '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
+];
+
 fn trim_str(rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Value> {
     let (s, chars) = match rest {
         [s] => (s.to_str(), None),
         [s, c] => (s.to_str(), Some(c.to_str())),
         _ => return err(format!("wrong # args: should be \"string {op} string ?chars?\"")),
     };
-    let set: Vec<char> = chars
-        .as_deref()
-        .map_or_else(|| vec![' ', '\t', '\n', '\r'], |c| c.chars().collect());
-    let pred = |c: char| set.contains(&c);
+    let custom: Option<Vec<char>> = chars.as_deref().map(|c| c.chars().collect());
+    let pred = |c: char| match &custom {
+        Some(set) => set.contains(&c),
+        None => DEFAULT_TRIM_SET.contains(&c),
+    };
     let trimmed = match (left, right) {
         (true, true) => s.trim_matches(pred),
         (true, false) => s.trim_start_matches(pred),
