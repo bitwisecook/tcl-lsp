@@ -78,6 +78,7 @@ pub mod dict;
 pub mod ensemble;
 #[cfg(have_tommath)]
 pub mod expr;
+pub mod family_b;
 pub mod frame;
 pub mod interp;
 pub mod list;

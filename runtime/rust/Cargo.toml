@@ -32,6 +32,9 @@ tcl-syntax = { path = "../../rust/tcl-syntax" }
 # crate implements `ValueOps` for `*mut TclObj` (see src/value_ops.rs) and
 # adapts the helpers in its command handlers.
 tcl-cmd-core = { path = "../../rust/tcl-cmd-core" }
+# The Family-B interp-state contract (the role traits this runtime satisfies
+# over its `*mut TclObj` value model, alongside the bytecode VM's `Rc<Obj>`).
+tcl-runtime-api = { path = "../../rust/tcl-runtime-api" }
 
 [lib]
 name = "tcl_runtime"
