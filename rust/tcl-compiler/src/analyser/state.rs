@@ -230,6 +230,15 @@ pub struct Analyser {
     /// of recursing into it immediately.  Set only for the shell pass; the
     /// per-body passes run with it `false` so nested defs walk in place.
     pub defer_proc_bodies: bool,
+    /// When `true`, [`Self::define_var`] skips the W215 unreachable-name check.
+    /// Set only while the per-item path re-binds a deferred body's *parameters*
+    /// / instance variables into its isolated scope — a structural rebind so
+    /// body references resolve. The shell walk (`handle_proc`) already emitted
+    /// W215 for those declarations, byte-identically to the full `analyse`
+    /// path, so the isolated rebind must stay diagnostic-free or the per-item
+    /// result gains a spurious duplicate (the synthetic rebind token would also
+    /// flip the `braced` reachability heuristic). See `analyse_proc_body_isolated`.
+    pub(super) suppress_w215: bool,
     /// Bodies deferred by the shell walk (see [`Self::defer_proc_bodies`]),
     /// each analysed in a second pass that fills its already-created scope.
     pub(super) deferred_bodies: Vec<super::per_item::DeferredBody>,
@@ -383,6 +392,7 @@ impl Analyser {
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
             defer_proc_bodies: false,
+            suppress_w215: false,
             deferred_bodies: Vec::new(),
             cu_override: None,
             capture_global_reads: None,

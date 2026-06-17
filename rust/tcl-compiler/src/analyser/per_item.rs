@@ -521,6 +521,14 @@ pub fn analyse_proc_body_isolated(
     );
     let placeholder = tcl_lexer::Span::new(0, 0);
     let dummy = Token::new(tcl_lexer::TokenType::Str, placeholder);
+    // Re-binding params / instance variables into the isolated scope is purely
+    // structural (so body references resolve). The shell walk already emitted
+    // W215 for these declarations byte-identically to the full `analyse` path,
+    // and the synthetic `dummy` token's kind would otherwise flip the W215
+    // `braced` reachability heuristic — so suppress W215 across the rebind to
+    // avoid a spurious duplicate. The body walk below re-enables it so genuine
+    // in-body declarations are still checked.
+    a.suppress_w215 = true;
     for p in &db.params {
         a.define_var(&p.name, dummy, &proc_path, false, Some(placeholder));
     }
@@ -533,6 +541,7 @@ pub fn analyse_proc_body_isolated(
         }
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
+    a.suppress_w215 = false;
     a.analyse_body(&db.body_text, body_tok, &proc_path);
     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
         .expect("reconstructed proc scope")
@@ -916,5 +925,19 @@ mod tests {
         // Lazy-init: the inner `proc p` redefines the outer; nested-redefinition
         // detection forces a fallback so the result matches a whole-file walk.
         eq("proc p {a} { proc p {a} { return $a }\n p $a }\n");
+    }
+
+    #[test]
+    fn param_list_with_backslash_continuation_no_spurious_w215() {
+        // A param list split across lines by `\<newline>` (collapsed to a space
+        // even inside braces) leaves the last param on the first line ending in a
+        // raw backslash in `parse_param_list`'s naive scan. The isolated body
+        // re-binds params with a synthetic `Str` token, which would flip W215's
+        // `braced` reachability heuristic and emit a spurious warning the full
+        // `analyse` path never produces. The shell walk already emits W215 for
+        // the declaration, so the isolated rebind must stay diagnostic-free.
+        eq("proc foo {a b staticsok\\\n    c d} {\n  set x 1\n}\n");
+        // Method form (instance vars + params rebind under the same suppression).
+        eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");
     }
 }
