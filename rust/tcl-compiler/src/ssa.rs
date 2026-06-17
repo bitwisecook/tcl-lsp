@@ -469,26 +469,22 @@ pub(crate) fn compute_phi_vars(
     registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<String>> {
     let reachable = func.reachable_blocks();
+    let (nonlocal_names, all_defsites) = nonlocal_names_and_defsites(func, &reachable, registry);
 
-    // Collect definition sites for each variable.
-    let mut defsites: HashMap<String, HashSet<String>> = HashMap::new();
-    for name in &reachable {
-        if let Some(block) = func.blocks.get(name) {
-            for stmt in &block.statements {
-                for var in defs_of_with_registry(stmt, Some(registry)) {
-                    defsites.entry(var).or_default().insert(name.clone());
-                }
-            }
-        }
-    }
-
-    // Place phis using iterated dominance frontier.
+    // Semi-pruned SSA (Briggs et al. 1998): place phis only for *non-local*
+    // (upward-exposed-use) names. A phi for a purely-local name has no reader,
+    // so dropping it removes only dead phis (~40% of minimal-SSA phis) without
+    // changing any use/value/liveness/diagnostic result — and it is what the
+    // Python builder does, so the SSA versioning matches. Mirrors `_phi_vars`.
     let mut phi: HashMap<String, HashSet<String>> = HashMap::new();
     for name in func.blocks.keys() {
         phi.insert(name.clone(), HashSet::new());
     }
 
-    for (var, sites) in &defsites {
+    for (var, sites) in &all_defsites {
+        if !nonlocal_names.contains(var) {
+            continue;
+        }
         let mut work: Vec<String> = sites.iter().cloned().collect();
         work.sort();
         let mut has_phi: HashSet<String> = HashSet::new();
@@ -505,6 +501,74 @@ pub(crate) fn compute_phi_vars(
         }
     }
     phi
+}
+
+/// Semi-pruned SSA support: the *non-local* names (upward-exposed uses) and
+/// every variable's def-site blocks, in one pass.
+///
+/// A variable is *non-local* if some block reads it before (re)defining it in
+/// that block — the read could observe a value flowing in from a predecessor,
+/// so a phi at a merge is meaningful. A name only ever read after its in-block
+/// definition (or never read) needs no phi. `defsites` is unfiltered (all
+/// defined names); the caller restricts phi placement to the non-local names.
+/// Mirrors Python's `_nonlocal_names_and_defsites`.
+fn nonlocal_names_and_defsites(
+    func: &cfg::Function,
+    reachable: &HashSet<String>,
+    registry: &CommandRegistry,
+) -> (HashSet<String>, HashMap<String, HashSet<String>>) {
+    let mut scanner = VarReferenceScanner::new(VarScanOptions {
+        include_var_read_roles: true,
+        recurse_cmd_substitutions: true,
+        include_reads_before_write: false,
+    });
+    let mut nonlocal_names: HashSet<String> = HashSet::new();
+    let mut defsites: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for bn in reachable {
+        let Some(block) = func.blocks.get(bn) else {
+            continue;
+        };
+        let mut defined_here: HashSet<String> = HashSet::new();
+        for stmt in &block.statements {
+            for u in uses_of(stmt, &mut scanner, registry) {
+                if !defined_here.contains(&u) {
+                    nonlocal_names.insert(u);
+                }
+            }
+            for var in defs_of_with_registry(stmt, Some(registry)) {
+                defsites.entry(var.clone()).or_default().insert(bn.clone());
+                defined_here.insert(var);
+            }
+        }
+        match &block.terminator {
+            Some(cfg::Terminator::Branch { condition, .. }) => {
+                for u in vars_in_expr(condition) {
+                    if !defined_here.contains(&u) {
+                        nonlocal_names.insert(u);
+                    }
+                }
+            }
+            Some(cfg::Terminator::Return { value, expr, .. }) => {
+                if let Some(v) = value {
+                    for u in scanner.scan_word(v, registry) {
+                        if !defined_here.contains(&u) {
+                            nonlocal_names.insert(u);
+                        }
+                    }
+                }
+                if let Some(e) = expr {
+                    for u in vars_in_expr(e) {
+                        if !defined_here.contains(&u) {
+                            nonlocal_names.insert(u);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    (nonlocal_names, defsites)
 }
 
 // Variable-use extraction
@@ -1974,10 +2038,30 @@ mod tests {
                 name: "x".into(),
                 value: "2".into(),
             });
+        // Read `x` after the join so it is upward-exposed at `end` — under
+        // semi-pruned SSA a phi is placed only for a name with a downstream
+        // reader (a dead phi for an unread merge is correctly dropped).
+        func.blocks
+            .get_mut("end")
+            .unwrap()
+            .statements
+            .push(Statement::Call {
+                span: Span::new(30, 38),
+                command: "puts".into(),
+                canonical_command: None,
+                args: vec!["$x".into()],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
 
         let ssa = build_ssa(&func, &reg);
 
-        // x is defined in both then and else, so end block should have a phi for x.
+        // x is defined in both then and else and read at end, so the end block
+        // should have a phi for x.
         let end_block = &ssa.blocks["end"];
         assert!(
             end_block.phis.iter().any(|phi| phi.name == "x"),
