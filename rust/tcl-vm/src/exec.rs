@@ -135,6 +135,44 @@ fn pop(f: &mut Frame) -> Value {
     f.stack.pop().unwrap_or_else(Value::empty)
 }
 
+/// Whether `s` can be safely wrapped in `{…}`: braces are balanced (ignoring
+/// `\{`/`\}`) and it does not end in an escaping backslash.
+fn brace_safe(s: &str) -> bool {
+    let b = s.as_bytes();
+    let mut depth: i32 = 0;
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'\\' if i + 1 < b.len() => {
+                i += 2;
+                continue;
+            }
+            b'\\' => return false, // trailing lone backslash
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    depth == 0
+}
+
+/// Quote a word for re-parsing in a *script* context: brace-wrap when safe
+/// (preserving a `\<newline>` continuation for the target to collapse),
+/// otherwise fall back to canonical list-element quoting.
+fn quote_for_script(s: &str) -> String {
+    if brace_safe(s) {
+        format!("{{{s}}}")
+    } else {
+        tcl_syntax::list::list_element(s)
+    }
+}
+
 fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
@@ -1130,10 +1168,18 @@ impl Vm {
             Some(Command::Alias(target)) => {
                 // Evaluate `target prefix… args…` as a command so the alias
                 // works even when the target is a compiled control command
-                // (`try`, `if`, …) that has no runtime builtin.
+                // (`try`, `if`, …) that has no runtime builtin. Each word is
+                // quoted for a *script* context: a brace-safe word is wrapped in
+                // braces so a body containing a `\<newline>` line continuation is
+                // re-parsed (and the continuation collapsed) by the target's own
+                // script parsing rather than corrupted by data-style escaping.
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
-                let script = tcl_syntax::list::join_list(argv.iter().map(Value::to_str));
+                let script = argv
+                    .iter()
+                    .map(|v| quote_for_script(&v.to_str()))
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 match self.eval_source(&script) {
                     Ok(res) if res.code.is_ok() => {
                         f.stack.push(res.result);

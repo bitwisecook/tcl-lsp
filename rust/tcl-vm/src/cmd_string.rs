@@ -189,8 +189,9 @@ fn string_range(rest: &[Value]) -> Completion<Value> {
 }
 
 /// `string replace string first last ?newstring?` — remove chars first..last
-/// (inclusive), optionally inserting newstring. Out-of-range or first>last
-/// leaves the string unchanged.
+/// (inclusive), optionally inserting newstring. Mirrors `StringRplcCmd`
+/// (tclCmdMZ.c): an empty/inverted range leaves the string unchanged, but an
+/// empty *original* string is replaceable (so `string replace {} -1 0 A` → A).
 fn string_replace(rest: &[Value]) -> Completion<Value> {
     if rest.len() < 3 || rest.len() > 4 {
         return err("wrong # args: should be \"string replace string first last ?string?\"");
@@ -198,23 +199,25 @@ fn string_replace(rest: &[Value]) -> Completion<Value> {
     let (s, first, last) = (&rest[0], &rest[1], &rest[2]);
     let chars: Vec<char> = s.to_str().chars().collect();
     let len = chars.len();
-    let Some(lo) = resolve_index(&first.to_str(), len) else {
+    let end = isize::try_from(len).unwrap_or(isize::MAX) - 1;
+    let Some(first) = resolve_index(&first.to_str(), len) else {
         return bad_index(&first.to_str());
     };
-    let Some(hi) = resolve_index(&last.to_str(), len) else {
+    let Some(last) = resolve_index(&last.to_str(), len) else {
         return bad_index(&last.to_str());
     };
-    let lo = lo.max(0);
-    let lo_u = usize::try_from(lo).unwrap_or(0);
-    if hi < 0 || lo_u >= len || hi < lo {
+    if last < 0 || first > end || last < first {
         return ok(Value::string(s.to_str().to_string()));
     }
-    let hi_u = usize::try_from(hi).unwrap_or(0).min(len - 1);
-    let mut out: String = chars[..lo_u].iter().collect();
+    let first = first.max(0);
+    let last = last.min(end);
+    let lo = usize::try_from(first).unwrap_or(0);
+    let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
+    let mut out: String = chars[..lo].iter().collect();
     if let [_, _, _, repl] = rest {
         out.push_str(&repl.to_str());
     }
-    out.extend(chars[hi_u + 1..].iter());
+    out.extend(chars[hi_excl..].iter());
     ok(Value::string(out))
 }
 
