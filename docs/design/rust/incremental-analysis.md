@@ -396,8 +396,14 @@ practcl.tcl from ~1 s to low-ms).
 >     procedures; re-landed on top of that fix (#616, see "Memo byte-identity
 >     (fixed)").
 > - **`practcl.tcl`** still falls back on a genuine twice-defined method-style
->   definer and is OO-heavy, so it needs that architectural step before it leaves
->   the full-rebuild path.
+>   definer and is OO-heavy.  **This is the per-item *analyser walk*'s fallback**
+>   (`body_needs_enclosing_context` / duplicate-definition detection), *not* the
+>   per-edit CU lowering cost — so backlog #3 Approach B (offset-aware CU
+>   consumers) does **not** move it off the full-rebuild path.  Backlog #4 needs
+>   either the duplicate-method-definer grafting (the analyser-walk analog of the
+>   shipped duplicate-*proc* grafting: union the two definitions'
+>   locals/method-facts with last-definition-wins, replayed at graft) or the
+>   incremental-lowering work of Approach A — a separate effort from this slice.
 
 > **Memo byte-identity (fixed).**  The salsa-native lattice graph (#604) promises
 > that the memoised `build_for_memoized` (offset-0 per-procedure `function_lattice`
@@ -588,7 +594,39 @@ proc's base byte-offset, added at span-emit time — eliminating both the
   "taint + analyser first" rollout validates the machinery but banks **zero**
   wall-clock until the optimiser is converted too.
 
-### Recommendation
+### Approach B — shipped (offset-aware consumers, rebase walk removed)
+
+The memoised build no longer rebases each procedure's unit to its real position.
+`FunctionUnit` carries a `base_offset`; the memoised arm leaves the unit at
+offset 0 and sets `base_offset = body_offset`, and every diagnostic consumer adds
+it at emit time (`abs_span` / `abs_pos`).  `rebase_function_unit` (the O(unit)
+per-procedure span walk) is **deleted**.  The conversion followed the
+span-provenance rule above (only `fu.cfg`/`ssa`/`sccp`-sourced spans shift;
+`cu.ir_module`-walking optimiser passes are untouched), and is gated by a new
+`file_analysis_corpus` differential (`file_analysis_incremental` vs `analyse`
+over 893 files, the analyser-tail analog of `compiler_check_corpus`) **plus**
+`compiler_check_corpus` — both byte-identical — and e2e.  Measured: pki
+`compiler_check` per edit ~133 → ~111 ms; the aggregate BOTH win is smaller (the
+O(file) lowering floor + the still-present per-proc deep-clone dominate).
+
+**Two follow-ups remain to fully bank the lever:**
+
+- *Eliminate the per-proc deep-clone.*  `build_for_inner` still
+  `(*function_lattice).clone()`s each unit before setting `base_offset`.  Storing
+  `Arc<FunctionUnit>` in `cu.procedures` (offset-0, shared straight from
+  `function_lattice`) + a per-proc offset would drop the clone too — but it
+  ripples through every `cu.procedures` / `cu.function()` / `cu.functions()`
+  accessor, so it is its own change.
+- *Backlog #2 (per-function `optimise_unit` memo) is unblocked but **not** trivial.*
+  The optimiser is now offset-aware (its prerequisite), but its passes are **not
+  cleanly per-function**: O127 reads `ctx.optimisations` from *earlier passes and
+  other functions* (the `rewritten` overlap snapshot), the IR-walking passes span
+  the whole module, and group-id allocation + overlap arbitration are whole-unit.
+  A per-function optimisation memo must first hoist that cross-function state out
+  of the per-function pass body — a real refactor for the ~12 ms `optimise_unit`
+  costs, so lower priority than the deep-clone removal.
+
+### Recommendation (for the lowering floor proper)
 
 Sequence by risk-adjusted value:
 
