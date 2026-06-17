@@ -4,11 +4,12 @@
 //! Port of `compute_explain_flow` / `_run_explain_flow`
 //! (`dialects/f5/bigip/explain_flow.py`, `tooling/f5/verbs/explain_flow.py`).
 //!
-//! This increment lands the always-available built-in walker path: flow
+//! Covers the always-available built-in walker (static) path end to end: flow
 //! extraction (`tcl_bigip::flow`), session pairing, virtual-server matching,
-//! the reset-cause narrative, and the report formatter. The matched-session
-//! detail (profile chain, iRule event chain, LTM policy trace) and the
-//! `--tshark` / `--simulate` / `--json` paths land in following increments.
+//! the matched-session detail (profile chain, iRule event chain, LTM policy
+//! trace via `tcl_bigip::policy_eval`, resolved plan), the reset-cause
+//! narrative, and both the text and `--json` report renderers. The `--tshark`
+//! enrichment and `--simulate` (iRule VM) paths remain deferred.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -16,7 +17,8 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 use regex::Regex;
-use tcl_bigip::flow::{Connection, Session, extract_flows, pair_sessions};
+use serde_json::{Map, Value};
+use tcl_bigip::flow::{Connection, Flow, Session, extract_flows, pair_sessions};
 use tcl_bigip::model::{
     BigipPolicy, BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType,
 };
@@ -75,8 +77,7 @@ type EventAnnotation = (String, String, Vec<Annotation>);
 struct SessionExplain {
     session: Option<SessionHolder>,
     matched_vs: String,
-    /// Partition short-name; surfaced by the `--json` output increment.
-    #[allow(dead_code)]
+    /// Partition short-name (rendered in the `--json` output).
     matched_partition: String,
     profile_chain: Vec<String>,
     pool_selected: String,
@@ -101,12 +102,15 @@ impl SessionExplain {
     }
 }
 
-/// The whole-report result of [`compute_explain_flow`]. The richer fields
-/// carried by `ExplainFlowReport` in the reference (`pcap_path`, per-session
-/// list, tshark/keylog flags) join when the `--json` output increment lands.
+/// The whole-report result of [`compute_explain_flow`]. The `used_tshark` /
+/// `keylog_path` / `tshark_filter` fields are fixed for the static built-in
+/// walker path (the tshark path is a later increment).
 struct ExplainFlowReport {
+    pcap_path: String,
+    flow_count: usize,
+    session_count: usize,
     matched_count: usize,
-    text_report: String,
+    sessions: Vec<SessionExplain>,
 }
 
 /// Parse a VS destination string like `/Common/10.0.0.1:443` or `/p/[::1]:80`,
@@ -682,7 +686,9 @@ fn compute_explain_flow(
     .expect("static destination regex");
 
     let flows = extract_flows(pcap_bytes)?;
+    let flow_count = flows.len();
     let mut sessions = pair_sessions(&flows);
+    let session_count = sessions.len();
 
     // Sort: paired (front+back) first, then by descending front packet count.
     sessions.sort_by(|a, b| {
@@ -853,10 +859,12 @@ fn compute_explain_flow(
         });
     }
 
-    let text = format_report(pcap_display, &session_explains);
     Ok(ExplainFlowReport {
+        pcap_path: pcap_display.to_owned(),
+        flow_count,
+        session_count,
         matched_count: matched,
-        text_report: text,
+        sessions: session_explains,
     })
 }
 
@@ -1163,6 +1171,278 @@ fn py_repr(s: &str) -> String {
     out
 }
 
+/// Build an insertion-ordered JSON object (relies on the `serde_json`
+/// `preserve_order` feature so keys serialise in the order Python emits them).
+fn obj(pairs: Vec<(&str, Value)>) -> Value {
+    let mut map = Map::new();
+    for (k, v) in pairs {
+        map.insert(k.to_owned(), v);
+    }
+    Value::Object(map)
+}
+
+fn str_array(items: &[String]) -> Value {
+    Value::Array(items.iter().map(|s| Value::String(s.clone())).collect())
+}
+
+fn headers_value(headers: &[(String, String)]) -> Value {
+    let mut map = Map::new();
+    for (k, v) in headers {
+        map.insert(k.clone(), Value::String(v.clone()));
+    }
+    Value::Object(map)
+}
+
+/// Faithful port of `_flow_to_dict`.
+fn flow_to_value(f: &Flow) -> Value {
+    obj(vec![
+        ("src_ip", Value::String(f.src_ip.clone())),
+        ("src_port", Value::from(f.src_port)),
+        ("dst_ip", Value::String(f.dst_ip.clone())),
+        ("dst_port", Value::from(f.dst_port)),
+        ("proto", Value::String(f.proto_name())),
+        ("packets", Value::from(f.packets)),
+        ("bytes", Value::from(f.bytes_total)),
+        ("tcp_syn", Value::Bool(f.tcp_syn)),
+        ("tcp_synack", Value::Bool(f.tcp_synack)),
+        ("tcp_fin", Value::Bool(f.tcp_fin)),
+        ("tcp_rst", Value::Bool(f.tcp_rst)),
+        ("tcp_rst_count", Value::from(f.tcp_rst_count)),
+        ("tcp_rst_after_bytes", Value::from(f.tcp_rst_after_bytes)),
+        ("tls_clienthello", Value::Bool(f.tls_clienthello)),
+        ("tls_sni", Value::String(f.tls_sni.clone())),
+        ("tls_version", Value::String(f.tls_version.clone())),
+        (
+            "tls_chosen_version",
+            Value::String(f.tls_chosen_version.clone()),
+        ),
+        (
+            "tls_chosen_cipher",
+            Value::String(f.tls_chosen_cipher.clone()),
+        ),
+        ("tls_alpn", Value::String(f.tls_alpn.clone())),
+        ("tls_alert_seen", Value::Bool(f.tls_alert_seen)),
+        ("tls_alert_desc", Value::String(f.tls_alert_desc.clone())),
+        ("http_method", Value::String(f.http_method.clone())),
+        ("http_host", Value::String(f.http_host.clone())),
+        ("http_uri", Value::String(f.http_uri.clone())),
+        ("http_response_seen", Value::Bool(f.http_response_seen)),
+        ("http_path", Value::String(f.http_path.clone())),
+        ("http_query", Value::String(f.http_query.clone())),
+        (
+            "http_request_version",
+            Value::String(f.http_request_version.clone()),
+        ),
+        ("http_user_agent", Value::String(f.http_user_agent.clone())),
+        ("http_cookie", Value::String(f.http_cookie.clone())),
+        ("http_referer", Value::String(f.http_referer.clone())),
+        (
+            "http_request_content_type",
+            Value::String(f.http_request_content_type.clone()),
+        ),
+        (
+            "http_request_content_length",
+            Value::String(f.http_request_content_length.clone()),
+        ),
+        (
+            "http_request_headers",
+            headers_value(&f.http_request_headers),
+        ),
+        (
+            "http_response_code",
+            Value::String(f.http_response_code.clone()),
+        ),
+        (
+            "http_response_phrase",
+            Value::String(f.http_response_phrase.clone()),
+        ),
+        (
+            "http_response_content_type",
+            Value::String(f.http_response_content_type.clone()),
+        ),
+        (
+            "http_response_content_length",
+            Value::String(f.http_response_content_length.clone()),
+        ),
+        (
+            "http_response_headers",
+            headers_value(&f.http_response_headers),
+        ),
+        (
+            "tls_cert_subject",
+            Value::String(f.tls_cert_subject.clone()),
+        ),
+        ("tls_cert_issuer", Value::String(f.tls_cert_issuer.clone())),
+        (
+            "tls_supported_groups",
+            Value::String(f.tls_supported_groups.clone()),
+        ),
+        (
+            "tls_signature_algos",
+            Value::String(f.tls_signature_algos.clone()),
+        ),
+        ("f5_reset_causes", str_array(&f.f5_reset_causes)),
+        ("peer_remote_ip", Value::String(f.peer_remote_ip.clone())),
+        ("peer_remote_port", Value::from(f.peer_remote_port)),
+        ("peer_local_ip", Value::String(f.peer_local_ip.clone())),
+        ("peer_local_port", Value::from(f.peer_local_port)),
+    ])
+}
+
+/// Faithful port of `_conn_to_dict` (`None` → JSON null).
+fn conn_to_value(conn: Option<&Connection>) -> Value {
+    match conn {
+        None => Value::Null,
+        Some(c) => obj(vec![
+            ("client", flow_to_value(&c.client)),
+            (
+                "server",
+                c.server.as_ref().map_or(Value::Null, flow_to_value),
+            ),
+        ]),
+    }
+}
+
+/// Faithful port of `_policy_decision_to_dict`.
+fn policy_decision_to_value(pd: &PolicyDecision) -> Value {
+    let rules: Vec<Value> = pd
+        .rules
+        .iter()
+        .map(|rd| {
+            let conditions: Vec<Value> = rd
+                .conditions
+                .iter()
+                .map(|ct| {
+                    obj(vec![
+                        ("operand", Value::String(ct.operand.clone())),
+                        ("selector", Value::String(ct.selector.clone())),
+                        ("operator", Value::String(ct.operator.clone())),
+                        ("expected", str_array(&ct.expected)),
+                        ("actual", Value::String(ct.actual.clone())),
+                        ("matched", Value::Bool(ct.matched)),
+                        ("name", Value::String(ct.name.clone())),
+                        ("negate", Value::Bool(ct.negate)),
+                        ("event", Value::String(ct.event.clone())),
+                        ("note", Value::String(ct.note.clone())),
+                    ])
+                })
+                .collect();
+            let actions: Vec<Value> = rd
+                .actions
+                .iter()
+                .map(|at| {
+                    obj(vec![
+                        ("target", Value::String(at.target.clone())),
+                        ("verb", Value::String(at.verb.clone())),
+                        ("value", Value::String(at.value.clone())),
+                    ])
+                })
+                .collect();
+            obj(vec![
+                ("rule", Value::String(rd.rule.clone())),
+                ("ordinal", Value::from(rd.ordinal)),
+                ("matched", Value::Bool(rd.matched)),
+                ("fired", Value::Bool(rd.fired)),
+                ("conditions", Value::Array(conditions)),
+                ("actions", Value::Array(actions)),
+            ])
+        })
+        .collect();
+    obj(vec![
+        ("policy", Value::String(pd.policy.clone())),
+        ("strategy", Value::String(pd.strategy.clone())),
+        ("rules", Value::Array(rules)),
+    ])
+}
+
+/// Faithful port of the per-session entry in `report_to_dict`.
+fn session_to_value(se: &SessionExplain) -> Value {
+    let s = se.session();
+    let session = obj(vec![
+        ("front", conn_to_value(Some(&s.front))),
+        ("back", conn_to_value(s.back.as_ref())),
+    ]);
+    let event_blocks: Vec<Value> = se
+        .event_blocks
+        .iter()
+        .map(|(rule, event, body)| {
+            obj(vec![
+                ("rule", Value::String(rule.clone())),
+                ("event", Value::String(event.clone())),
+                ("body", Value::String(body.clone())),
+            ])
+        })
+        .collect();
+    let event_annotations: Vec<Value> = se
+        .event_annotations
+        .iter()
+        .map(|(rule, event, anns)| {
+            let annotations: Vec<Value> = anns
+                .iter()
+                .map(|(line, cmd, value)| {
+                    obj(vec![
+                        ("line", Value::String(line.clone())),
+                        ("command", Value::String(cmd.clone())),
+                        ("value", Value::String(value.clone())),
+                    ])
+                })
+                .collect();
+            obj(vec![
+                ("rule", Value::String(rule.clone())),
+                ("event", Value::String(event.clone())),
+                ("annotations", Value::Array(annotations)),
+            ])
+        })
+        .collect();
+    let policy_decisions: Vec<Value> = se
+        .policy_decisions
+        .iter()
+        .map(policy_decision_to_value)
+        .collect();
+    obj(vec![
+        ("session", session),
+        ("matched_vs", Value::String(se.matched_vs.clone())),
+        ("partition", Value::String(se.matched_partition.clone())),
+        ("profile_chain", str_array(&se.profile_chain)),
+        ("pool_selected", Value::String(se.pool_selected.clone())),
+        ("snat_observed", Value::String(se.snat_observed.clone())),
+        ("event_sequence", str_array(&se.event_sequence)),
+        ("event_blocks", Value::Array(event_blocks)),
+        ("event_annotations", Value::Array(event_annotations)),
+        ("ltm_policies", str_array(&se.ltm_policies)),
+        ("policy_decisions", Value::Array(policy_decisions)),
+        ("apm_profile", Value::String(se.apm_profile.clone())),
+        ("gtm_wide_ips", str_array(&se.gtm_wide_ips)),
+        ("explain_text", Value::String(se.explain_text.clone())),
+        ("reset_analysis", Value::String(se.reset_analysis.clone())),
+        // Static path: no simulator, so the simulated_* fields stay empty.
+        ("simulated_pool", Value::String(String::new())),
+        ("simulated_node", Value::String(String::new())),
+        ("simulated_response_committed", Value::Bool(false)),
+        ("simulated_logs", Value::Array(Vec::new())),
+        ("simulated_decisions", Value::Array(Vec::new())),
+        ("simulation_error", Value::String(String::new())),
+    ])
+}
+
+/// Faithful port of `report_to_dict`, serialised like `json.dumps(indent=2)`.
+fn report_to_json(report: &ExplainFlowReport) -> Result<String, String> {
+    let sessions: Vec<Value> = report.sessions.iter().map(session_to_value).collect();
+    let value = obj(vec![
+        ("pcap_path", Value::String(report.pcap_path.clone())),
+        ("flow_count", Value::from(report.flow_count)),
+        ("session_count", Value::from(report.session_count)),
+        ("matched_count", Value::from(report.matched_count)),
+        // Static built-in walker path: tshark is never used here.
+        ("used_tshark", Value::Bool(false)),
+        ("keylog_path", Value::String(String::new())),
+        ("tshark_filter", Value::String(String::new())),
+        ("sessions", Value::Array(sessions)),
+    ]);
+    let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    Ok(format!("{}\n", tcl_cli_support::ensure_ascii(&pretty)))
+}
+
 /// Entry point for `f5 explain-flow` (built-in walker / static path).
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub fn run_explain_flow(
@@ -1182,9 +1462,6 @@ pub fn run_explain_flow(
     }
     if simulate {
         anyhow::bail!("`f5 explain-flow --simulate` is not yet implemented in the Rust port");
-    }
-    if json {
-        anyhow::bail!("`f5 explain-flow --json` is not yet implemented in the Rust port");
     }
     let use_tshark = tshark || keylog.is_some() || tshark_filter.is_some();
     if use_tshark {
@@ -1214,8 +1491,14 @@ pub fn run_explain_flow(
     )
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+    let rendered = if json {
+        report_to_json(&report).map_err(|e| anyhow::anyhow!("{e}"))?
+    } else {
+        format_report(&report.pcap_path, &report.sessions)
+    };
+
     let target = OutputTarget::from_arg(output);
-    write_text_output(&target, &report.text_report)?;
+    write_text_output(&target, &rendered)?;
 
     Ok(u8::from(report.matched_count == 0))
 }

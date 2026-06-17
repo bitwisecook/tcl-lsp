@@ -26,17 +26,22 @@ fn golden(name: &str) -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|e| panic!("read golden {}: {e}", path.display()))
 }
 
-/// Run `f5-query explain-flow <pcap> <conf>` from the fixtures dir, returning
-/// `(stdout, exit_code)`.
-fn run_explain_flow(pcap: &str, conf: &str) -> (Vec<u8>, i32) {
+/// Run `f5-query explain-flow <pcap> <conf> [extra…]` from the fixtures dir,
+/// returning `(stdout, exit_code)`.
+fn run_with(pcap: &str, conf: &str, extra: &[&str]) -> (Vec<u8>, i32) {
     let out = Command::new(env!("CARGO_BIN_EXE_f5-query"))
         .current_dir(fixtures_dir())
         .arg("explain-flow")
         .arg(pcap)
         .arg(conf)
+        .args(extra)
         .output()
         .expect("run f5-query explain-flow");
     (out.stdout, out.status.code().unwrap_or(-1))
+}
+
+fn run_explain_flow(pcap: &str, conf: &str) -> (Vec<u8>, i32) {
+    run_with(pcap, conf, &[])
 }
 
 fn assert_unmatched_parity(pcap: &str) {
@@ -111,4 +116,36 @@ fn matched_virtual_with_irule_events_matches_golden() {
         "matched explain-flow with iRule events must match the Python golden"
     );
     assert_eq!(code, 0, "exit code for a matched capture");
+}
+
+#[test]
+fn json_output_matches_golden() {
+    // `--json` mirrors `report_to_dict` serialised like `json.dumps(indent=2)`:
+    // the full per-flow dicts, the event/annotation/policy structures, and the
+    // empty `simulated_*` fields. Covered for an iRule-event capture, a
+    // policy-bearing capture, and an unmatched multi-flow capture.
+    for (pcap, conf, golden_name) in [
+        (
+            "explain-flow-matched.pcap",
+            "explain-flow-rich.conf",
+            "explain-flow-rich.json.golden",
+        ),
+        (
+            "explain-flow-matched.pcap",
+            "explain-flow-policy.conf",
+            "explain-flow-policy.json.golden",
+        ),
+        (
+            "pcap-remap-sample.pcap",
+            "explain-flow-sample.conf",
+            "explain-flow-unmatched.json.golden",
+        ),
+    ] {
+        let (stdout, _code) = run_with(pcap, conf, &["--json"]);
+        assert_eq!(
+            stdout,
+            golden(golden_name),
+            "explain-flow --json for {conf} must match the Python golden"
+        );
+    }
 }
