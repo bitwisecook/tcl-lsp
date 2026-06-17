@@ -149,6 +149,52 @@ pub fn try_fold_expr(expr: &str, dialect: Option<&str>) -> Option<String> {
     Some(rendered)
 }
 
+/// Fold `expr` to a literal under a set of known constant variable values.
+///
+/// `constants` maps variable names (no `$`) to their literal text. `braced`
+/// distinguishes the substitution model of the enclosing `expr` argument:
+///
+/// * **braced** (`expr {$a == $b}`) — `expr` resolves the `$var` references
+///   itself, so a string-valued constant is a valid string operand; every
+///   constant is bound.
+/// * **quoted / bare** (`expr "$a == $b"`, `expr $a==$b`) — Tcl substitutes
+///   the variable *values* textually before parsing, so a non-numeric value
+///   becomes an invalid bareword (a runtime error). Only numeric constants
+///   are bound; a string-valued var is left unbound and the fold bails,
+///   matching the SCCP `[expr …]` fold (`sccp::env_from_uses_numeric`).
+///
+/// Returns the folded literal, or `None` when the expression still depends
+/// on an unresolved operand / command substitution.
+#[must_use]
+pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
+    expr: &str,
+    constants: &std::collections::HashMap<String, String, S>,
+    braced: bool,
+    dialect: Option<&str>,
+) -> Option<String> {
+    use crate::tcl_expr_eval::EnvValue;
+    let trimmed = expr.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let node = parse_expr(trimmed, dialect);
+    if matches!(node, ExprNode::Raw { .. }) {
+        return None;
+    }
+    let mut env = Env::new();
+    for (name, value) in constants {
+        if braced || is_numeric_string(value) {
+            env.insert(name.clone(), EnvValue::Str(value.clone()));
+        }
+    }
+    let value = eval_tcl_expr(&node, &env)?;
+    let rendered = format_tcl_value(value);
+    if rendered == trimmed {
+        return None;
+    }
+    Some(rendered)
+}
+
 // ---------------------------------------------------------------------------
 // Landed: try_unwrap_expr_in_expr (O115 — redundant nested expr)
 // ---------------------------------------------------------------------------

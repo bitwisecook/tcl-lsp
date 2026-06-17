@@ -116,10 +116,18 @@ pub fn optimise_unit(
     selected
 }
 
-/// Whether `code` is a constant-propagation / fold rewrite that can consume a
-/// `$var` reference (so removing the now-unread `set` is safe).
+/// Whether `code` is a *direct* constant-propagation rewrite — a `$var`
+/// substituted by its value (O100) or forwarded from its reaching def (O102).
+///
+/// Deliberately excludes the expr / proc *folds* (O101 / O103): those consume
+/// a `$var` inside a `[expr …]` / `[proc …]` that collapses to a literal,
+/// which makes the feeding def merely *unused* rather than *propagated*. At
+/// the top level Python keeps such a def (the conservative O126 "maybe a
+/// global" case — `set a 3; puts [expr {$a + 1}]` keeps `set a 3`), and inside
+/// a proc the ordinary dead-store pass removes it. Counting the fold here
+/// would wrongly couple-remove the top-level def.
 fn is_propagation_code(code: &str) -> bool {
-    matches!(code, "O100" | "O101" | "O102" | "O103")
+    matches!(code, "O100" | "O102")
 }
 
 /// How many `$var` / `${var}` references `opt` consumed — present in its

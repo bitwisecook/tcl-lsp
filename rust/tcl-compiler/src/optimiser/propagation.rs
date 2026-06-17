@@ -997,6 +997,7 @@ fn o115_redundant_nested_expr(word: &str) -> Option<String> {
 /// [`try_fold_static_proc_call`], which stays hint-only because
 /// folding `::answer` as a statement would turn the discarded
 /// call into a bare `42` (invalid as a command name).
+#[allow(clippy::too_many_lines)]
 fn visit_call_cmd_subst_folds(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
@@ -1034,13 +1035,28 @@ fn visit_call_cmd_subst_folds(
         {
             let mut parts = inner.splitn(2, char::is_whitespace);
             if parts.next() == Some("expr") {
-                let body = parts.next().unwrap_or("").trim();
-                let body = body
-                    .strip_prefix('{')
-                    .and_then(|b| b.strip_suffix('}'))
-                    .unwrap_or(body);
-                if let Some(folded) =
-                    super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
+                let raw_body = parts.next().unwrap_or("").trim();
+                // A *braced* `[expr {…}]` uses value-substitution semantics, so
+                // fold it under the known constants — `puts [expr {$a + $b}]`
+                // with `$a`/`$b` proven constant collapses to its value (the
+                // SCCP `[expr …]` fold doesn't reach a Call-argument position).
+                // A quoted / bare `expr "…"` substitutes the variable values
+                // textually before parsing; Python is conservative there and
+                // never folds it, so keep the historical literal-only fold (no
+                // constants env) to preserve parity.
+                let folded = if let Some(braced_body) =
+                    raw_body.strip_prefix('{').and_then(|b| b.strip_suffix('}'))
+                {
+                    super::helpers::expr_simplify::try_fold_expr_with_constants(
+                        braced_body,
+                        constants,
+                        true,
+                        ctx.dialect,
+                    )
+                } else {
+                    super::helpers::expr_simplify::try_fold_expr(raw_body, ctx.dialect)
+                };
+                if let Some(folded) = folded
                     && !folded.contains(['$', '['])
                 {
                     ctx.report(Optimisation::new(
@@ -1945,6 +1961,28 @@ mod tests {
             opts.iter()
                 .any(|o| o.code == "O100" && o.replacement.contains("42")),
             "expected O100 inlining count into interpolation, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn braced_expr_cmd_sub_arg_folds_under_constants() {
+        // `puts [expr {$a + $b}]` with a, b proven constant folds the braced
+        // expr in the call-argument position to its value.
+        let opts = run_pass("set a 3\nset b 4\nputs [expr {$a + $b}]");
+        assert!(
+            opts.iter().any(|o| o.code == "O101" && o.replacement == "7"),
+            "expected O101 folding [expr {{$a + $b}}] to 7, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn quoted_expr_cmd_sub_arg_not_folded_under_constants() {
+        // `puts [expr "$a + $b"]` is the quoted form — Python is conservative
+        // and never folds it (textual substitution), so neither do we.
+        let opts = run_pass("set a 3\nset b 4\nputs [expr \"$a + $b\"]");
+        assert!(
+            opts.iter().all(|o| !(o.code == "O101" && o.replacement == "7")),
+            "quoted expr must not fold under constants, got {opts:?}",
         );
     }
 
