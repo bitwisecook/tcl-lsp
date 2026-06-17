@@ -85,6 +85,39 @@ use super::state::Analyser;
 use super::types::Severity;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
 
+/// Collect the bracketed text of every `[…]` command-substitution node in
+/// an `expr` AST (recursing operands but stopping at the substitution
+/// boundary, like Python's `command_texts_in_expr_node`). Used to recover
+/// variable reads hidden inside `if`/`while` conditions and `expr` values.
+fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
+    match node {
+        ExprNode::Command { text, .. } => out.push(text.clone()),
+        ExprNode::Binary { left, right, .. } => {
+            collect_expr_command_texts(left, out);
+            collect_expr_command_texts(right, out);
+        }
+        ExprNode::Unary { operand, .. } => collect_expr_command_texts(operand, out),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            collect_expr_command_texts(condition, out);
+            collect_expr_command_texts(true_branch, out);
+            collect_expr_command_texts(false_branch, out);
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                collect_expr_command_texts(arg, out);
+            }
+        }
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Raw { .. } => {}
+    }
+}
+
 /// Built-in `expr` math functions — mirrors
 /// `compiler/parsing/expr_lexer.py::BUILTIN_MATH_FUNCTIONS`.  Used by the
 /// W117 stub-shadow check.
@@ -5738,6 +5771,56 @@ file; this call falls through to the 'unknown' handler."
     ///    other side-effecting writes shouldn't be flagged
     ///    because removing the assignment would also drop the
     ///    side effect.
+    /// Variable names read inside positions the version-precise SSA `used`
+    /// set can't see — `[…]` command substitutions in command arguments,
+    /// `expr` values, and `if`/`while`/`for` branch conditions. A write to
+    /// such a name is not a dead store even when its SSA version looks
+    /// unused. Mirrors Python's `_extra_local_reads` (`expr_sub_reads`) used
+    /// by `_dead_stores`.
+    fn substitution_hidden_reads(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+    ) -> HashSet<String> {
+        use crate::var_refs::{VarReferenceScanner, VarScanOptions};
+        let mut out = HashSet::new();
+        let Some(registry) = self.registry.as_ref() else {
+            return out;
+        };
+        // Command-argument + AssignValue substitutions (deep RMW scan minus
+        // shallow), already factored out for the optimiser's elimination pass.
+        out.extend(crate::optimiser::elimination::collect_rmw_hidden_reads(
+            fu, registry,
+        ));
+        // Branch conditions and expr-valued statements carry their `[…]` in an
+        // `ExprNode`, not a word. Walk the AST for `Command` nodes (bracketed
+        // substitution text) and scan each — their inner reads are invisible to
+        // the version-precise `used` set, so they keep every write alive. A
+        // bare `$x` in `if {$x}` is already a version-precise condition use, so
+        // it is not collected here.
+        let mut deep = VarReferenceScanner::new(VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: true,
+        });
+        let mut cmd_texts: Vec<String> = Vec::new();
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                if let crate::ir::Statement::AssignExpr { expr, .. }
+                | crate::ir::Statement::ExprEval { expr, .. } = stmt
+                {
+                    collect_expr_command_texts(expr, &mut cmd_texts);
+                }
+            }
+            if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
+                collect_expr_command_texts(condition, &mut cmd_texts);
+            }
+        }
+        for text in &cmd_texts {
+            out.extend(deep.scan_word(text, registry));
+        }
+        out
+    }
+
     fn emit_dead_store_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
@@ -5749,6 +5832,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::ir::Statement;
         use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
+        let hidden_reads = self.substitution_hidden_reads(fu);
         // Phase 8 place-model precision: array-element / dict-path writes the
         // name-level SSA mis-folds but that a read actually observes.
         let place_suppressed = self.place_suppressed_dead_stores(fu);
@@ -5756,7 +5840,14 @@ file; this call falls through to the 'unknown' handler."
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
             }
-            let (var, version) = &chain.key;
+            let (var, _version) = &chain.key;
+            // A name read inside a command substitution / expr / branch
+            // condition the version-precise `used` set can't see keeps every
+            // write of it alive (`set i 0` before `[incr i $j]`). Suppress at
+            // name level, mirroring Python's `expr_sub_reads` gate.
+            if hidden_reads.contains(var) {
+                continue;
+            }
             // Globals (``::``-prefixed) are externally consumed
             // — Python `_dead_stores` skips them.
             if var.starts_with("::") {
@@ -5780,19 +5871,13 @@ file; this call falls through to the 'unknown' handler."
             if !fu.sccp.executable_blocks.contains(&chain.definition.block) {
                 continue;
             }
-            // ``any_other_live`` — another SSA version of this
-            // variable has live uses, so this assignment is
-            // overwritten.  When no other version is live, the
-            // variable is truly unused — that's W211, handled
-            // separately.
-            let any_other_live = fu
-                .def_use
-                .chains
-                .iter()
-                .any(|(k, c)| k.0 == *var && k.1 != *version && !c.is_dead());
-            if !any_other_live {
-                continue;
-            }
+            // A dead assignment is W220 whether or not the variable is also
+            // unused overall: Python reports both the assignment-level dead
+            // store (W220) and, when the variable is never read at all, the
+            // variable-level unused hint (W211) — they are distinct
+            // diagnostics with distinct fixes (drop this assignment vs. drop
+            // the variable). Mirrors `core_analyses.py::_dead_stores`, which
+            // fires on any dead store regardless of other live versions.
             let Some(block) = fu.cfg.blocks.get(&chain.definition.block) else {
                 continue;
             };
@@ -10005,16 +10090,59 @@ mod tests {
     }
 
     #[test]
-    fn emit_cfg_ssa_diagnostics_no_w220_on_simple_assignment() {
-        // ``set x 1`` — single assignment, no overwrite, no
-        // W220.  Smoke test that pipeline runs without
-        // emitting spurious W codes for clean code.
+    fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
+        // ``set x 1`` set once and never read is a dead store: Python
+        // reports both W220 (this assignment is dead) and W211 (the variable
+        // is unused). A single assignment that *is* read fires neither.
         let mut a = Analyser::new();
-        a.emit_cfg_ssa_diagnostics("set x 1");
+        a.emit_cfg_ssa_diagnostics("proc foo {} { set x 1 }");
         assert!(
-            !a.result.diagnostics.iter().any(|d| d.code == "W220"),
-            "W220 must not fire on a single assignment; got {:?}",
+            a.result.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 expected for a dead set-once store; got {:?}",
             a.result.diagnostics,
+        );
+
+        let mut b = Analyser::new();
+        b.emit_cfg_ssa_diagnostics("proc foo {} { set x 1\nreturn $x }");
+        assert!(
+            !b.result.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 must not fire when the assignment is read; got {:?}",
+            b.result.diagnostics,
+        );
+    }
+
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads() {
+        // A variable read only inside a command substitution the
+        // version-precise SSA can't see — a branch condition, an `expr`
+        // value, or a read-modify-write buried in a `[…]` — is not a dead
+        // store. Mirrors Python's `expr_sub_reads` gate.
+        // Uses the full `analyse` entry so the command registry (which the
+        // hidden-read recovery consults) is populated.
+        for src in [
+            // read in an `if` condition substitution
+            "proc f {} { set x 1\nif {[string length $x]} { puts hi } }",
+            // read in an expr value substitution
+            "proc f {} { set x 1\nset y [expr {[string length $x]}]\nreturn $y }",
+            // read-modify-write buried in a substitution keeps the feed alive
+            "proc f {} { set i 0\nforeach j {1 2 3} { lappend r [incr i $j] }\nreturn $r }",
+        ] {
+            let mut a = Analyser::new();
+            let res = a.analyse(src, "tcl");
+            assert!(
+                !res.diagnostics.iter().any(|d| d.code == "W220"),
+                "W220 must not fire for a substitution-hidden read; got {:?} for {src:?}",
+                res.diagnostics,
+            );
+        }
+        // Control: a normal later read does not hide anything, so an earlier
+        // overwritten store is still a dead store.
+        let mut a = Analyser::new();
+        let res = a.analyse("proc f {} { set x 1\nset x 2\nputs $x }", "tcl");
+        assert!(
+            res.diagnostics.iter().any(|d| d.code == "W220"),
+            "W220 must still fire for a genuine overwrite; got {:?}",
+            res.diagnostics,
         );
     }
 
