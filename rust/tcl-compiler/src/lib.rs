@@ -129,6 +129,7 @@ pub mod ssa;
 pub mod static_loops;
 pub mod subst_nocommands;
 pub mod taint;
+pub mod taint_interproc;
 pub mod tcl_expr_eval;
 pub mod text;
 pub mod type_infer;
