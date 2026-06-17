@@ -10,10 +10,16 @@
 - **Unified secret input.** The UCS passphrase and auth-credential prompts now
   share a single resolver — explicit value, file, environment variable, or a
   secure `getpass` prompt — with consistent TTY detection and cancellation.
-- **Node.js baseline raised to 24+** (CI pinned to match) alongside a refresh
-  of the Python dev and VS Code npm dependencies.
+- **Node.js baseline raised to 24+** (CI pinned to match) alongside a full
+  dependency refresh across the Python, VS Code/npm, Gradle, and
+  GitHub-Actions ecosystems.
 - **npm CLI pinned to v12 via Corepack** in CI and local development for
   reproducible builds.
+- **VS Code engine requirement corrected to 1.95+.** The extension uses the
+  `ChatRequest.model` API finalised in VS Code 1.95, so the previously
+  declared `^1.93.0` minimum could not actually run it; the manifest now
+  states the true floor (and pins `@types/vscode` to it so the minimum stays
+  honest at compile time).
 
 ## Bug Fixes
 
@@ -35,6 +41,12 @@
 - **Release/capture script paths fixed.** Repo-root path bugs left by the
   `scripts/` reorganisation are corrected, including the Sublime publish path
   that failed the v1.11.0 release.
+
+## Security
+
+- **`form-data` bumped to 4.0.6** in the VS Code extension toolchain,
+  resolving the CRLF-injection advisory GHSA-hmw2-7cc7-3qxx (unescaped
+  multipart field names / filenames).
 
 # v1.11.0
 
