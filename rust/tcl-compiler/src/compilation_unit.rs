@@ -133,6 +133,18 @@ pub struct FunctionUnit {
     pub rendered_props: HashMap<ValueKey, RenderedValueProps>,
     /// Optional memory-SSA annotations (populated on demand).
     pub memory_ssa: Option<MemorySSAFunction>,
+    /// Byte offset to add to this unit's (otherwise relative) spans to recover
+    /// **absolute** source positions (Approach B — offset-aware consumers).
+    ///
+    /// `0` for a unit built directly at its real source position (the top level
+    /// and the uncached `build_for_with_config` path).  For a memoised procedure
+    /// the unit is built at **offset 0** (a shifted-but-unchanged body interns to
+    /// the same `function_lattice` key) and this carries the procedure's real body
+    /// offset, so consumers recover absolute spans with [`Self::abs_span`] /
+    /// [`Self::abs_pos`] instead of the build rebasing every span.  Span-free
+    /// lattices (`types`/`taints`/`rendered_props`/`def_use`, keyed by
+    /// `ValueKey`) are unaffected.
+    pub base_offset: i64,
 }
 
 impl FunctionUnit {
@@ -203,6 +215,35 @@ impl FunctionUnit {
             taints,
             rendered_props,
             memory_ssa: None,
+            base_offset: 0,
+        }
+    }
+
+    /// Recover the absolute span of `span` (a span carried by this unit's
+    /// `cfg`/`ssa`/`sccp`) by adding [`Self::base_offset`].  A no-op when the
+    /// unit was built at its real position (`base_offset == 0`); the
+    /// offset-aware seam for the memoised (offset-0) path.
+    #[must_use]
+    pub fn abs_span(&self, span: tcl_lexer::Span) -> tcl_lexer::Span {
+        if self.base_offset == 0 {
+            return span;
+        }
+        let s = (i64::from(span.start()) + self.base_offset).max(0);
+        let e = (i64::from(span.end()) + self.base_offset).max(0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        tcl_lexer::Span::new(s as u32, e as u32)
+    }
+
+    /// Recover the absolute byte position of `pos` by adding
+    /// [`Self::base_offset`] (see [`Self::abs_span`]).
+    #[must_use]
+    pub fn abs_pos(&self, pos: u32) -> u32 {
+        if self.base_offset == 0 {
+            return pos;
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            (i64::from(pos) + self.base_offset).max(0) as u32
         }
     }
 
