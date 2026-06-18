@@ -184,6 +184,19 @@ fn namespace_current_which_shared_core() {
     assert_eq!(run("namespace which -command no_such_cmd_xyz").1, "");
 }
 
+/// `file dirname`/`tail`/`extension`/`rootname` run through the shared
+/// `/`-based byte path core (platform-independent), replacing the VM's old
+/// `std::path::Path` versions.
+#[test]
+fn file_path_ops_shared_core() {
+    assert_eq!(run("file tail /a/b/c").1, "c");
+    assert_eq!(run("file dirname /a/b/c").1, "/a/b");
+    assert_eq!(run("file extension a/b.txt").1, ".txt");
+    assert_eq!(run("file rootname a/b.txt").1, "a/b");
+    assert_eq!(run("file tail /a/b/").1, "b"); // trailing slash ignored
+    assert_eq!(run("file dirname foo").1, ".");
+}
+
 #[test]
 fn set_expr_puts() {
     let (ok, _result, out) = run("set x 5\nputs [expr {$x * 2}]\n");

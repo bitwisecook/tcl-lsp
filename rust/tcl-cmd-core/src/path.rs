@@ -1,34 +1,44 @@
 //! Pure path-string helpers (`file tail`/`dirname`/`extension`/`rootname`).
 //!
-//! These are P0 — pure character manipulation, no host access — so they take and
-//! return plain `&str`/`String` and need neither [`ValueOps`] nor a [`Host`].
-//! The actual filesystem touches (`file exists`, `glob`, `open`) live in
-//! [`crate::platform`]. Semantics follow `tclsh`'s `tclFileName.c`; the exact
-//! edge cases are pinned against the C Tcl 9 suite as the family fills in.
+//! Byte→byte operations on `/`-separated paths. Tcl uses `/` as the separator on
+//! every platform, so these are deliberately platform-independent (the VM
+//! previously used `std::path::Path`, whose separators are OS-dependent). Pure —
+//! no [`ValueOps`], no host — so each runtime hands in the path bytes and builds
+//! its own result from the returned slice. Semantics follow `tclsh`'s
+//! `tclFileName.c`.
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
-//! [`Host`]: tcl_platform::Host
 
-/// `file tail path` — the last component (everything after the final `/`).
+/// Trim trailing `/` separators, keeping at least one byte (`///` → `/`), so a
+/// trailing slash is never treated as a component.
+fn trim_trailing(p: &[u8]) -> &[u8] {
+    let mut end = p.len();
+    while end > 1 && p[end - 1] == b'/' {
+        end -= 1;
+    }
+    &p[..end]
+}
+
+/// `file tail path` — the last `/`-separated component (trailing slashes ignored,
+/// so `/a/b/` → `b`).
 #[must_use]
-pub fn tail(path: &str) -> &str {
-    match path.rfind('/') {
-        Some(i) => &path[i + 1..],
-        None => path,
+pub fn tail(path: &[u8]) -> &[u8] {
+    let p = trim_trailing(path);
+    match p.iter().rposition(|&c| c == b'/') {
+        Some(i) => &p[i + 1..],
+        None => p,
     }
 }
 
-/// `file dirname path` — everything before the last component. Mirrors `tclsh`:
-/// no slash → `.`; a leading-slash-only parent → `/`; trailing slashes are not
-/// treated as a component.
+/// `file dirname path` — everything before the last component: no slash → `.`;
+/// the filesystem root's parent → `/`; a trailing slash is not a component.
 #[must_use]
-pub fn dirname(path: &str) -> String {
-    let trimmed = path.trim_end_matches('/');
-    match trimmed.rfind('/') {
-        // Parent is the filesystem root.
-        Some(0) => "/".to_string(),
-        Some(i) => trimmed[..i].to_string(),
-        None => ".".to_string(),
+pub fn dirname(path: &[u8]) -> &[u8] {
+    let p = trim_trailing(path);
+    match p.iter().rposition(|&c| c == b'/') {
+        Some(0) => b"/",
+        Some(i) => &p[..i],
+        None => b".",
     }
 }
 
@@ -36,23 +46,19 @@ pub fn dirname(path: &str) -> String {
 /// the dot), or `""` when the tail has no interior dot. A leading-dot tail
 /// (`.bashrc`) has no extension, matching `tclsh`.
 #[must_use]
-pub fn extension(path: &str) -> &str {
+pub fn extension(path: &[u8]) -> &[u8] {
     let t = tail(path);
-    match t.rfind('.') {
-        Some(0) | None => "",
-        Some(i) => &t[i..],
+    match t.iter().rposition(|&c| c == b'.') {
+        Some(i) if i > 0 => &t[i..],
+        _ => b"",
     }
 }
 
-/// `file rootname path` — `path` with [`extension`] removed.
+/// `file rootname path` — `path` with its [`extension`] removed.
 #[must_use]
-pub fn rootname(path: &str) -> String {
+pub fn rootname(path: &[u8]) -> &[u8] {
     let ext = extension(path);
-    if ext.is_empty() {
-        path.to_string()
-    } else {
-        path[..path.len() - ext.len()].to_string()
-    }
+    &path[..path.len() - ext.len()]
 }
 
 #[cfg(test)]
@@ -61,25 +67,28 @@ mod tests {
 
     #[test]
     fn tail_cases() {
-        assert_eq!(tail("/a/b/c"), "c");
-        assert_eq!(tail("foo"), "foo");
-        assert_eq!(tail("a/b.txt"), "b.txt");
+        assert_eq!(tail(b"/a/b/c"), b"c");
+        assert_eq!(tail(b"foo"), b"foo");
+        assert_eq!(tail(b"a/b.txt"), b"b.txt");
+        // Trailing slashes are ignored (the old str helper wrongly returned "").
+        assert_eq!(tail(b"/a/b/"), b"b");
     }
 
     #[test]
     fn dirname_cases() {
-        assert_eq!(dirname("/a/b/c"), "/a/b");
-        assert_eq!(dirname("/foo"), "/");
-        assert_eq!(dirname("foo"), ".");
-        assert_eq!(dirname("a/b"), "a");
+        assert_eq!(dirname(b"/a/b/c"), b"/a/b");
+        assert_eq!(dirname(b"/foo"), b"/");
+        assert_eq!(dirname(b"foo"), b".");
+        assert_eq!(dirname(b"a/b"), b"a");
+        assert_eq!(dirname(b"/a/b/"), b"/a");
     }
 
     #[test]
     fn extension_and_rootname() {
-        assert_eq!(extension("a/b.txt"), ".txt");
-        assert_eq!(extension(".bashrc"), "");
-        assert_eq!(extension("noext"), "");
-        assert_eq!(rootname("a/b.txt"), "a/b");
-        assert_eq!(rootname("noext"), "noext");
+        assert_eq!(extension(b"a/b.txt"), b".txt");
+        assert_eq!(extension(b".bashrc"), b"");
+        assert_eq!(extension(b"noext"), b"");
+        assert_eq!(rootname(b"a/b.txt"), b"a/b");
+        assert_eq!(rootname(b"noext"), b"noext");
     }
 }

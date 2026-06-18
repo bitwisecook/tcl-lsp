@@ -121,10 +121,23 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let arg = |n: usize| argv.get(n).map(|&a| obj_bytes(a));
     match sub.as_slice() {
-        b"dirname" => str_result(interp, &dirname(&arg(2).unwrap_or_default())),
-        b"tail" => str_result(interp, &tail(&arg(2).unwrap_or_default())),
-        b"rootname" => str_result(interp, &rootname(&arg(2).unwrap_or_default())),
-        b"extension" => str_result(interp, &extension(&arg(2).unwrap_or_default())),
+        // The pure `/`-based path text ops are the shared `tcl_cmd_core::path` core.
+        b"dirname" => str_result(
+            interp,
+            tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
+        ),
+        b"tail" => str_result(
+            interp,
+            tcl_cmd_core::path::tail(&arg(2).unwrap_or_default()),
+        ),
+        b"rootname" => str_result(
+            interp,
+            tcl_cmd_core::path::rootname(&arg(2).unwrap_or_default()),
+        ),
+        b"extension" => str_result(
+            interp,
+            tcl_cmd_core::path::extension(&arg(2).unwrap_or_default()),
+        ),
         b"join" => {
             let parts: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
             str_result(interp, &join(&parts))
@@ -324,36 +337,6 @@ fn trim_trailing(p: &[u8]) -> &[u8] {
         end -= 1;
     }
     &p[..end]
-}
-
-fn dirname(p: &[u8]) -> Vec<u8> {
-    let p = trim_trailing(p);
-    match p.iter().rposition(|&c| c == b'/') {
-        None => b".".to_vec(),
-        Some(0) => b"/".to_vec(),
-        Some(i) => p[..i].to_vec(),
-    }
-}
-
-fn tail(p: &[u8]) -> Vec<u8> {
-    let p = trim_trailing(p);
-    match p.iter().rposition(|&c| c == b'/') {
-        None => p.to_vec(),
-        Some(i) => p[i + 1..].to_vec(),
-    }
-}
-
-fn extension(p: &[u8]) -> Vec<u8> {
-    let t = tail(p);
-    match t.iter().rposition(|&c| c == b'.') {
-        Some(i) if i > 0 => t[i..].to_vec(),
-        _ => Vec::new(),
-    }
-}
-
-fn rootname(p: &[u8]) -> Vec<u8> {
-    let ext = extension(p);
-    p[..p.len() - ext.len()].to_vec()
 }
 
 fn join(parts: &[Vec<u8>]) -> Vec<u8> {

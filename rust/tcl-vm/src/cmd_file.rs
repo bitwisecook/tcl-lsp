@@ -59,6 +59,12 @@ fn cmd_cd(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// Wrap a `tcl_cmd_core::path` op's byte-slice result as a `Value`. Paths come
+/// from `Value`s (UTF-8), and the `/`/`.`-split slice stays valid UTF-8.
+fn path_str(bytes: &[u8]) -> Completion<Value> {
+    ok(Value::string(std::str::from_utf8(bytes).unwrap_or("")))
+}
+
 #[allow(clippy::too_many_lines)]
 fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
@@ -68,24 +74,22 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match &*sub.to_str() {
         // -- pure path manipulation --
         "join" => ok(Value::string(file_join(rest))),
+        // The `/`-based path text ops are the shared `tcl_cmd_core::path` core
+        // (platform-independent, unlike the VM's old `std::path::Path` versions).
         "dirname" => match rest {
-            [p] => ok(Value::string(dirname(&s(p)))),
+            [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file dirname name\""),
         },
         "tail" => match rest {
-            [p] => ok(Value::string(tail(&s(p)))),
+            [p] => path_str(tcl_cmd_core::path::tail(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file tail name\""),
         },
         "extension" => match rest {
-            [p] => ok(Value::string(extension(&s(p)))),
+            [p] => path_str(tcl_cmd_core::path::extension(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file extension name\""),
         },
         "rootname" => match rest {
-            [p] => {
-                let t = s(p);
-                let ext = extension(&t);
-                ok(Value::string(t[..t.len() - ext.len()].to_string()))
-            }
+            [p] => path_str(tcl_cmd_core::path::rootname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file rootname name\""),
         },
         "split" => match rest {
@@ -212,33 +216,6 @@ fn file_join(parts: &[Value]) -> String {
         }
     }
     buf.to_string_lossy().into_owned()
-}
-
-fn dirname(p: &str) -> String {
-    Path::new(p).parent().map_or_else(
-        || ".".to_string(),
-        |d| {
-            let s = d.to_string_lossy();
-            if s.is_empty() {
-                ".".to_string()
-            } else {
-                s.into_owned()
-            }
-        },
-    )
-}
-
-fn tail(p: &str) -> String {
-    Path::new(p)
-        .file_name()
-        .map_or_else(|| p.to_string(), |n| n.to_string_lossy().into_owned())
-}
-
-fn extension(p: &str) -> String {
-    let t = tail(p);
-    t.rfind('.')
-        .filter(|&i| i > 0)
-        .map_or_else(String::new, |i| t[i..].to_string())
 }
 
 fn split_path(p: &str) -> Vec<String> {
