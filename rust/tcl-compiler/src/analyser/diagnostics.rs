@@ -5964,10 +5964,13 @@ file; this call falls through to the 'unknown' handler."
             )) {
                 continue;
             }
-            let span = fu.abs_span(stmt.span());
-            if span.is_empty() {
+            let cmd_span = fu.abs_span(stmt.span());
+            if cmd_span.is_empty() {
                 continue;
             }
+            // Anchor at the variable name (Python narrows the command range
+            // to the assignment target), not the command-start column.
+            let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             let mut message = format!("Assignment to '{var}' is never read");
             if let Some(similar) = find_case_mismatch(var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
@@ -5980,6 +5983,40 @@ file; this call falls through to the 'unknown' handler."
                 fixes: Vec::new(),
             });
         }
+    }
+
+    /// Narrow a whole-command span to its assignment-target token (the
+    /// second word, `argv[1]`), returning that token's absolute span — or
+    /// `None` when it can't be located, so callers fall back to the command
+    /// span.  Mirrors Python's `narrow_to_variable(kind="assigned_name")`:
+    /// W211 / W220 anchor at the variable-name column, not the command
+    /// start.  Re-lexes the command's own source slice (token-based, like
+    /// Python's `segment_commands`) and takes the first non-separator word
+    /// after the command name.
+    fn narrow_to_assigned_name(&self, stmt_span: tcl_lexer::Span) -> Option<tcl_lexer::Span> {
+        let base = stmt_span.start();
+        let slice = source_slice(&self.source, stmt_span)?;
+        let toks = tcl_lexer::Lexer::with_source_map(
+            tcl_lexer::SourceMap::new(&slice),
+            self.lexer_config(),
+        )
+        .tokenise_all()
+        .ok()?;
+        let name = toks
+            .iter()
+            .filter(|t| {
+                !matches!(
+                    t.kind,
+                    tcl_lexer::TokenType::Sep
+                        | tcl_lexer::TokenType::Eol
+                        | tcl_lexer::TokenType::Comment
+                )
+            })
+            .nth(1)?;
+        Some(tcl_lexer::Span::new(
+            name.span.start() + base,
+            name.span.end() + base,
+        ))
     }
 
     /// W211 — unused-variable hint.
@@ -6062,10 +6099,13 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             // Approach B: CFG span is relative to the unit's `base_offset`.
-            let span = fu.abs_span(stmt.span());
-            if span.is_empty() {
+            let cmd_span = fu.abs_span(stmt.span());
+            if cmd_span.is_empty() {
                 continue;
             }
+            // Anchor at the variable name (Python narrows the command range
+            // to the assignment target), not the command-start column.
+            let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             earliest
                 .entry(var.clone())
                 .and_modify(|s| {
