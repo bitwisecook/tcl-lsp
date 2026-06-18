@@ -2678,6 +2678,14 @@ bytecode and CFG shape are unchanged.
   all-`break` switch jumps to the loop exit instead, so it is NOT promoted to a
   `CFGReturn` that would wrongly make the post-loop read unreachable — a
   Codex-review soundness fix.)
+- `tests/test_fp_rbs.py::test_FP_RBS_15_while1_break_in_opaque_switch_exits_loop`
+  (TP — a `while 1` whose only exit is a `break` inside an opaque switch is no
+  longer seen as infinite: `_lower_opaque_switch` wires the switch block to the
+  enclosing loop's break/continue targets (`_escaping_loop_jumps`), so the
+  post-loop read is reachable and fires W210.)
+- `tests/test_fp_rbs.py::test_FP_RBS_15_continue_in_opaque_switch_loop_silent`
+  (FP control — the modelled continue edge must not introduce a false W210 when
+  the var is set before the switch on every iteration.)
 
 ---
 

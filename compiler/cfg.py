@@ -235,6 +235,56 @@ def _switch_proc_exits(stmt: IRSwitch) -> bool:
     return _flow_facts_stmt(stmt)[1] == _COMPLETE_PROC_EXIT
 
 
+def _escaping_loop_jumps(script: IRScript) -> tuple[bool, bool]:
+    """``(can_break, can_continue)`` for ``break``/``continue`` that escape
+    *script* to an enclosing loop.
+
+    Recurses into ``if``/``switch``/``IRBlock`` bodies (which don't capture a
+    loop jump) but NOT into nested loops (``for``/``while``/``foreach``) or
+    ``catch``/``try`` — those capture their own ``break``/``continue`` (tclsh:
+    ``catch {break}`` yields code 3 and does not propagate), so a jump inside
+    them does not escape to *this* loop.
+    """
+    can_break = can_continue = False
+    for stmt in script.statements:
+        if isinstance(stmt, IRCall):
+            canon = stmt.canonical_command.lstrip(":") if stmt.canonical_command else ""
+            if canon == "break":
+                can_break = True
+            elif canon == "continue":
+                can_continue = True
+        elif isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                b, c = _escaping_loop_jumps(clause.body)
+                can_break |= b
+                can_continue |= c
+            if stmt.else_body is not None:
+                b, c = _escaping_loop_jumps(stmt.else_body)
+                can_break |= b
+                can_continue |= c
+        elif isinstance(stmt, IRSwitch):
+            b, c = _switch_escaping_jumps(stmt)
+            can_break |= b
+            can_continue |= c
+        elif isinstance(stmt, (IRBlock, IRUpFrame)):
+            b, c = _escaping_loop_jumps(stmt.body)
+            can_break |= b
+            can_continue |= c
+    return can_break, can_continue
+
+
+def _switch_escaping_jumps(stmt: IRSwitch) -> tuple[bool, bool]:
+    """``(can_break, can_continue)`` over all bodies of an opaque ``switch``."""
+    can_break = can_continue = False
+    bodies = [stmt.default_body] if stmt.default_body is not None else []
+    bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
+    for body in bodies:
+        b, c = _escaping_loop_jumps(body)
+        can_break |= b
+        can_continue |= c
+    return can_break, can_continue
+
+
 # --- Guaranteed-iteration loops ----------------------------------------------
 #
 # A loop whose body provably runs at least once does not skip its body, so a
@@ -1422,30 +1472,97 @@ class _CFGBuilder:
 
         return end_block
 
-    def _maybe_terminate_opaque_switch(self, stmt: IRSwitch, block_name: str) -> None:
-        """Terminate *block_name* when an opaque ``switch`` exits the procedure.
+    def _lower_opaque_switch(self, stmt: IRSwitch, block_name: str) -> str:
+        """Append an opaque ``switch`` to *block_name* and model how it leaves.
 
-        An opaque switch is kept as a single ``IRSwitch`` statement that
-        normally falls through to the next statement.  But when it has a
-        ``default`` arm and *every* reachable arm body exits the *procedure*
-        (``return`` / ``error`` / ``exit`` / ``tailcall``), no path reaches the
-        code after the switch, so the switch is itself a procedure terminator —
-        promote the block to a ``CFGReturn`` so the following statements are
-        routed to the orphan unreachable block, exactly like a ``return``.
+        An opaque (glob/regexp/fall-through) switch is kept as a single
+        ``IRSwitch`` statement whose arm bodies are not lowered into the CFG, so
+        its internal control flow is otherwise invisible.  In analysis builds we
+        recover the ways it can leave the block:
 
-        Only proc-exit arms qualify: a switch whose arms ``break``/``continue``
-        jumps to an enclosing-loop target (reaching the code after the loop),
-        NOT the procedure exit, so it must not be promoted to a ``CFGReturn``.
+        * every arm exits the *procedure* → promote the block to ``CFGReturn``
+          (so the following statements are unreachable, like a ``return``);
+        * an arm ``break``s/``continue``s to an enclosing loop → wire explicit
+          edges from this block to that loop's break / continue target, so a
+          loop whose only exit is such a jump is not seen as infinite and the
+          post-loop read is correctly reachable (and maybe-unset);
+        * otherwise it just falls through to the next statement.
 
-        Analysis builds only (``faithful_exceptions``); codegen leaves the
-        fall-through edge so the opaque-switch ``invokeStk`` bytecode and CFG
-        shape are unchanged.  Conservative: only fires when the switch provably
-        exits the proc on every path, so it never hides a real read-before-set.
+        Codegen builds (``faithful_exceptions`` off) leave the plain
+        fall-through so the opaque-switch ``invokeStk`` bytecode / CFG shape are
+        unchanged.  Returns the block subsequent statements continue in.
         """
-        if self._faithful_exceptions and _switch_proc_exits(stmt):
+        self._block(block_name).statements.append(stmt)
+        if not self._faithful_exceptions:
+            return block_name
+        completion = _flow_facts_stmt(stmt)[1]
+        if completion == _COMPLETE_PROC_EXIT:
             self._block(block_name).terminator = CFGReturn(
                 value=None, range=stmt.range, expr=None, braced=False
             )
+            return block_name
+        if self._loop_stack:
+            can_break, can_continue = _switch_escaping_jumps(stmt)
+            if can_break or can_continue:
+                return self._wire_opaque_switch_jumps(
+                    stmt, block_name, completion, can_break, can_continue
+                )
+        return block_name
+
+    def _wire_opaque_switch_jumps(
+        self,
+        stmt: IRSwitch,
+        block_name: str,
+        completion: int,
+        can_break: bool,
+        can_continue: bool,
+    ) -> str:
+        """Wire an opaque switch block to its enclosing loop's jump targets.
+
+        The switch can leave via the fall-through successor (only when it can
+        still complete normally), the loop's break target, and/or the loop's
+        continue target.  Build a non-deterministic dispatch over those targets
+        (we can't tell which arm runs), and return the block subsequent
+        statements continue in: the fall-through continuation when one exists,
+        else an unreachable orphan (every path jumped, so following code is
+        dead).
+        """
+        break_target, continue_target = self._loop_stack[-1]
+        targets: list[str] = []
+        continuation: str | None = None
+        if completion == _COMPLETE_NORMAL:
+            continuation = self._new_block("switch_cont")
+            targets.append(continuation)
+        if can_break:
+            targets.append(break_target)
+        if can_continue:
+            targets.append(continue_target)
+        self._branch_to_any(block_name, targets, stmt.range)
+        return continuation if continuation is not None else self._new_block("switch_jump_dead")
+
+    def _branch_to_any(self, block_name: str, targets: list[str], r: Range | None) -> None:
+        """Terminate *block_name* so control can reach any of *targets*.
+
+        One target → a ``CFGGoto``; more → a chain of opaque ``CFGBranch``es
+        through synthetic dispatch blocks (the choice is non-deterministic — an
+        opaque switch hides which arm runs).
+        """
+        if not targets:
+            return
+        if len(targets) == 1:
+            self._block(block_name).terminator = CFGGoto(target=targets[0], range=r)
+            return
+        opaque = ExprRaw(text="<switch_jump>")
+        current = block_name
+        for i in range(len(targets) - 1):
+            false_target = targets[-1] if i == len(targets) - 2 else self._new_block("switch_jump")
+            self._block(current).terminator = CFGBranch(
+                condition=opaque,
+                true_target=targets[i],
+                false_target=false_target,
+                range=r,
+            )
+            current = false_target
 
     def _lower_switch(self, stmt: IRSwitch, block_name: str) -> str | None:
         # ``-regexp`` needs a runtime regex engine pass we haven't plumbed
@@ -1461,13 +1578,9 @@ class _CFGBuilder:
         # be lowered to valid WASM structured control flow in general;
         # ``_emit_switch`` handles OR-matching for fallthrough groups.
         if stmt.mode in ("glob", "regexp"):
-            self._block(block_name).statements.append(stmt)
-            self._maybe_terminate_opaque_switch(stmt, block_name)
-            return block_name
+            return self._lower_opaque_switch(stmt, block_name)
         if any(arm.fallthrough for arm in stmt.arms) and not self._expand_fallthrough_switch:
-            self._block(block_name).statements.append(stmt)
-            self._maybe_terminate_opaque_switch(stmt, block_name)
-            return block_name
+            return self._lower_opaque_switch(stmt, block_name)
 
         end_block = self._new_block("switch_end")
         default_block = self._new_block("switch_default")

@@ -1317,3 +1317,27 @@ def test_FP_RBS_18_incr_in_init_invalidates_const():
     assert w210, "incr-in-init must invalidate the const; W210 must fire; got: " + ", ".join(
         f"{d.code}:{d.message}" for d in _rbs(src)
     )
+
+
+def test_FP_RBS_15_while1_break_in_opaque_switch_exits_loop():
+    """TP (Codex P1 / C3, fully fixed): a `while 1` whose only exit is a `break`
+    inside an opaque switch is NOT infinite — the opaque-switch break edge to
+    the loop exit is now modelled, so the post-loop read is reachable and the
+    unset var fires W210.  tclsh errors here ('can't read y')."""
+    src = "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, (
+        "break-in-opaque-switch must make the while-1 exit reachable; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_15_continue_in_opaque_switch_loop_silent():
+    """FP control: a benign opaque-switch `continue` arm (the var is set before
+    the switch on every iteration of a guaranteed loop) must stay silent — the
+    modelled continue edge must not introduce a false W210."""
+    src = "proc f {} { foreach x {1 2 3} { set y 1; switch -glob $x {a* {continue} default {}} }; puts $y }\n"
+    assert _rbs(src) == [], (
+        "var set before an opaque-switch continue arm stays defined; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
