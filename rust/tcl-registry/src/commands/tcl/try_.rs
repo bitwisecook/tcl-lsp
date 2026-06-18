@@ -15,20 +15,31 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Dynamic arg role resolver for `try`/`on`/`trap`/`finally`.
+///
+/// The structural keyword words (`on`/`trap`/`finally`) carry
+/// `ArgRole::Keyword` so the semantic-token layer highlights them as
+/// keywords rather than strings (mirrors Python's `_try_arg_roles`).
 fn try_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     if !args.is_empty() {
         roles.push((0, ArgRole::Body));
     }
     let mut i: usize = 1;
+    let push_keyword = |roles: &mut Vec<(u8, ArgRole)>, index: usize| {
+        if let Ok(idx) = u8::try_from(index) {
+            roles.push((idx, ArgRole::Keyword));
+        }
+    };
     while i < args.len() {
         let kw = args[i];
         if kw == "finally" && i + 1 < args.len() {
+            push_keyword(&mut roles, i);
             if let Ok(idx) = u8::try_from(i + 1) {
                 roles.push((idx, ArgRole::Body));
             }
             i += 2;
         } else if (kw == "on" || kw == "trap") && i + 3 < args.len() {
+            push_keyword(&mut roles, i);
             if let Ok(idx) = u8::try_from(i + 3) {
                 roles.push((idx, ArgRole::Body));
             }

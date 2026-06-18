@@ -1076,6 +1076,27 @@ mod tests {
     }
 
     #[test]
+    fn if_marks_structural_keywords() {
+        let reg = CommandRegistry::build_default();
+        let args = ["1", "then", "{a}", "elseif", "2", "then", "{b}", "else", "{c}"];
+        let kw = reg.arg_indices_for_role("if", &args, ArgRole::Keyword);
+        // then@1, elseif@3, then@5, else@7
+        assert_eq!(kw, vec![1, 3, 5, 7], "{kw:?}");
+        // The bodies and exprs still resolve too.
+        let bodies = reg.arg_indices_for_role("if", &args, ArgRole::Body);
+        assert!(bodies.contains(&2) && bodies.contains(&6) && bodies.contains(&8));
+    }
+
+    #[test]
+    fn try_marks_structural_keywords() {
+        let reg = CommandRegistry::build_default();
+        let args = ["{body}", "on", "error", "{e}", "{h}", "finally", "{f}"];
+        let kw = reg.arg_indices_for_role("try", &args, ArgRole::Keyword);
+        // on@1, finally@5
+        assert_eq!(kw, vec![1, 5], "{kw:?}");
+    }
+
+    #[test]
     fn commands_with_trait_query() {
         let reg = CommandRegistry::build_default();
         let control_flow = reg.commands_with_trait(Traits::CONTROL_FLOW);

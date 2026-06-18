@@ -39,4 +39,12 @@ pub enum ArgRole {
     Channel,
     /// List/string index expression.
     Index,
+    /// A structural keyword word — `if`'s `then`/`elseif`/`else`,
+    /// `try`'s `on`/`trap`/`finally`. These sit at argument positions
+    /// (not the command-name slot), so the semantic-token layer marks
+    /// them with this role to highlight them as keywords rather than
+    /// strings. Mirrors Python's `ArgRole.KEYWORD`. Adding `Keyword`
+    /// to a position that previously had no role is inert for every
+    /// other role consumer — they filter by the roles they care about.
+    Keyword,
 }

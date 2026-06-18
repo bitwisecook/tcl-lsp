@@ -18,7 +18,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///
 /// Walks the argument list recognising `then`, `elseif`, `else`
 /// keywords and classifying each positional argument as either
-/// `Expr` (conditions) or `Body` (scripts).
+/// `Expr` (conditions) or `Body` (scripts). The structural keyword
+/// words themselves (`then`/`elseif`/`else`) carry `ArgRole::Keyword`
+/// so the semantic-token layer highlights them as keywords rather
+/// than strings (mirrors Python's `_if_arg_roles`).
 fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     let mut i: usize = 0;
@@ -37,6 +40,7 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
     // Optional 'then'
     if i < n && args[i] == "then" {
+        push_role(&mut roles, i, ArgRole::Keyword);
         i += 1;
     }
     // First body
@@ -48,12 +52,14 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     while i < n {
         let kw = args[i];
         if kw == "elseif" {
+            push_role(&mut roles, i, ArgRole::Keyword);
             i += 1;
             if i < n {
                 push_role(&mut roles, i, ArgRole::Expr);
                 i += 1;
             }
             if i < n && args[i] == "then" {
+                push_role(&mut roles, i, ArgRole::Keyword);
                 i += 1;
             }
             if i < n {
@@ -63,6 +69,7 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
             continue;
         }
         if kw == "else" {
+            push_role(&mut roles, i, ArgRole::Keyword);
             if i + 1 < n {
                 push_role(&mut roles, i + 1, ArgRole::Body);
             }
