@@ -202,6 +202,59 @@ class TestCoreTokens:
         assert any(t["type"] == "variable" for t in tokens)
 
 
+def _covered(source: str, tok: dict) -> str:
+    """The source text a decoded token covers (single-line tokens only)."""
+    line = source.split("\n")[tok["line"]]
+    return line[tok["char"] : tok["char"] + tok["length"]]
+
+
+class TestStructuralKeywords:
+    """``else``/``elseif`` and ``try``'s ``on``/``trap``/``finally`` are
+    structural keywords that sit at *argument* positions, not the command-name
+    slot — so they used to render as strings.  PR #643 (issue #637) marks them
+    ``ArgRole.KEYWORD`` and emits keyword semantic tokens; a bareword built-in
+    used as a plain argument stays a string.  These pin that contract through
+    the packaged server (the Rust port must match), porting the unit cases in
+    ``tests/test_semantic_tokens.py``.
+    """
+
+    def _keyword_words(self, lsp_server, legend, uri, source):
+        return {
+            _covered(source, t) for t in _typed(lsp_server, legend, uri) if t["type"] == "keyword"
+        }
+
+    def test_if_else_elseif_are_keywords(self, lsp_server, uri_factory, legend):
+        source = "if 1 {\n puts a\n} elseif 2 {\n puts b\n} else {\n puts c\n}\n"
+        uri = _open(lsp_server, uri_factory, source)
+        words = self._keyword_words(lsp_server, legend, uri, source)
+        assert {"if", "elseif", "else"} <= words, words
+
+    def test_try_on_finally_are_keywords(self, lsp_server, uri_factory, legend):
+        source = "try {\n set x 1\n} on error {e} {\n puts $e\n} finally {\n puts d\n}\n"
+        uri = _open(lsp_server, uri_factory, source)
+        words = self._keyword_words(lsp_server, legend, uri, source)
+        assert {"try", "on", "finally"} <= words, words
+
+    def test_builtin_name_as_bareword_arg_is_string(self, lsp_server, uri_factory, legend):
+        # ``proc`` here is a plain dict value, not the command-definition
+        # keyword — it must stay a string (the bareword-builtin glitch #637).
+        source = 'dict set frame proc "asasdas asd"\n'
+        uri = _open(lsp_server, uri_factory, source)
+        proc_tok = next(t for t in _typed(lsp_server, legend, uri) if _covered(source, t) == "proc")
+        assert proc_tok["type"] == "string", proc_tok
+
+    def test_quoted_structural_keyword_offsets_past_quote(self, lsp_server, uri_factory, legend):
+        # A quoted ``"else"`` is an ESC-token word whose start sits on the
+        # opening quote; PR #643 emits the keyword from the content base so the
+        # range covers ``else``, not ``"els``.
+        source = 'if 0 {} "else" {puts ok}\n'
+        uri = _open(lsp_server, uri_factory, source)
+        kw = next(
+            t for t in _typed(lsp_server, legend, uri) if t["type"] == "keyword" and t["char"] >= 8
+        )
+        assert _covered(source, kw) == "else", (kw, _covered(source, kw))
+
+
 _RE_TYPES = {
     "regexp",
     "regexpAnchor",

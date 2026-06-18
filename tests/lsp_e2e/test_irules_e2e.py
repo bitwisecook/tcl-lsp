@@ -607,3 +607,25 @@ class TestIrulesTaintDiagnostics:
             language_id="tcl-irule",
         )
         assert "IRULE3102" not in _irules_codes(diags), _irules_codes(diags)
+
+
+class TestIrulesWhenBodyAnalysed:
+    """Dialect-gated ``when`` body recursion (PR #640), iRules side.
+
+    Under ``f5-irules`` ``when`` IS a recognised builtin whose braced argument
+    is a handler *script*, so its body is analysed and a read-before-set inside
+    it fires W210.  This is the positive counterpart to
+    ``test_when_body_not_analysed_under_plain_tcl`` in ``test_diagnostics_e2e``
+    — the same source stays opaque (no W210) under plain Tcl.
+    """
+
+    def test_when_body_is_analysed_under_irules(self, lsp_server_irules, uri_factory):
+        uri = uri_factory("irule")
+        diags = lsp_server_irules.open_ready(
+            uri,
+            "when HTTP_REQUEST {\n    set y $undefvar\n}\n",
+            language_id="tcl-irule",
+        )
+        # The W210 on the never-set ``undefvar`` read proves the braced body was
+        # recursed into as a script (under plain Tcl it would be opaque data).
+        assert "W210" in _irules_codes(diags), _irules_codes(diags)
