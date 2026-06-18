@@ -59,6 +59,53 @@ use tcl_lexer::LineIndex;
 use crate::definition::LspRange;
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 
+/// Byte spans of every call site the namespace-aware proc resolver
+/// attributes to `proc_def` (whose `all_procs` map key is `qname`),
+/// excluding the declaration.
+///
+/// This is the matching core shared by [`references`] (the peek / Find
+/// All References) and the code-lens reference count, so the two can never
+/// disagree (issue #637 / PR #644).  It takes the resolved `proc_def`
+/// directly — no cursor, no `LineIndex`, no proc-table rescan — so a
+/// caller iterating every proc (the code-lens provider) doesn't pay that
+/// per-proc overhead (PR #646 review).
+#[must_use]
+pub(crate) fn proc_reference_spans(
+    analysis: &AnalysisResult,
+    qname: &str,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+) -> Vec<tcl_lexer::Span> {
+    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
+    let target_q = proc_def.qualified_name.trim_start_matches("::");
+    // The proc's own namespace (`a::helper` → `a`; top-level → ``).
+    let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
+    let mut spans = Vec::new();
+    for inv in &analysis.command_invocations {
+        let resolved_norm = inv
+            .resolved_qualified_name
+            .as_deref()
+            .map(|r| r.trim_start_matches("::"));
+        // An *unqualified* call counts when it resolves to this proc, or —
+        // since the analyser resolves a namespace-internal call to the
+        // global guess (`::helper`) — when it sits in this proc's own
+        // namespace.  Keeps `helper` inside `namespace eval b` from
+        // referencing `a::helper`.  Comparisons ignore the leading `::`.
+        let call_ns =
+            crate::definition::innermost_namespace_at(&analysis.global_scope, inv.range.start());
+        let simple_ok = inv.name == proc_def.name
+            && resolved_norm.is_none_or(|r| r == target_q || r == proc_def.name)
+            && call_ns == target_ns;
+        if simple_ok
+            || inv.name == proc_def.qualified_name
+            || inv.name == qname_no_prefix
+            || resolved_norm == Some(target_q)
+        {
+            spans.push(inv.range);
+        }
+    }
+    spans
+}
+
 /// Compute the locations of every reference to the symbol at
 /// the cursor.
 ///
@@ -155,34 +202,8 @@ pub fn references(
         if include_declaration {
             out.push(span_to_range(source, &line_index, proc_def.name_span));
         }
-        let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
-        let target_q = proc_def.qualified_name.trim_start_matches("::");
-        // The proc's own namespace (`a::helper` → `a`; top-level → ``).
-        let target_ns = target_q.rsplit_once("::").map_or("", |(ns, _)| ns);
-        for inv in &analysis.command_invocations {
-            let resolved_norm = inv
-                .resolved_qualified_name
-                .as_deref()
-                .map(|r| r.trim_start_matches("::"));
-            // An *unqualified* call counts when it resolves to this proc, or —
-            // since the analyser resolves a namespace-internal call to the
-            // global guess (`::helper`) — when it sits in this proc's own
-            // namespace.  Keeps `helper` inside `namespace eval b` from
-            // referencing `a::helper`.  Comparisons ignore the leading `::`.
-            let call_ns = crate::definition::innermost_namespace_at(
-                &analysis.global_scope,
-                inv.range.start(),
-            );
-            let simple_ok = inv.name == proc_def.name
-                && resolved_norm.is_none_or(|r| r == target_q || r == proc_def.name)
-                && call_ns == target_ns;
-            if simple_ok
-                || inv.name == proc_def.qualified_name
-                || inv.name == qname_no_prefix
-                || resolved_norm == Some(target_q)
-            {
-                out.push(span_to_range(source, &line_index, inv.range));
-            }
+        for span in proc_reference_spans(analysis, qname, proc_def) {
+            out.push(span_to_range(source, &line_index, span));
         }
         dedup_ranges(&mut out);
         return out;

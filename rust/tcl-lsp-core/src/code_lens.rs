@@ -77,23 +77,16 @@ pub fn code_lenses(
     let line_index = LineIndex::new(source);
     let mut lenses: Vec<CodeLens> = Vec::new();
 
-    for proc_def in analysis.all_procs.values() {
-        // Derive the local count from the *same* reference resolution that
-        // backs the peek (Find All References), so the lens title and the
-        // peek can never drift (issue #637 / PR #644).  The earlier
-        // name-only tally could disagree with the namespace-aware resolver
-        // (e.g. a same-named proc in another namespace).  Position the
-        // resolver at the proc's name span and exclude the declaration.
-        let name_pos = line_index.position_at_utf16(proc_def.name_span.start(), source);
-        let mut count = crate::references::references(
-            source,
-            dialect,
-            name_pos.line,
-            name_pos.character,
-            analysis,
-            false,
-        )
-        .len();
+    for (qname, proc_def) in &analysis.all_procs {
+        // Derive the local count from the *same* matching the peek (Find All
+        // References) uses, so the lens title and the peek can never drift
+        // (issue #637 / PR #644).  The earlier name-only tally could disagree
+        // with the namespace-aware resolver (e.g. a same-named proc in
+        // another namespace).  `proc_reference_spans` takes the resolved
+        // proc directly, so iterating every proc here doesn't rebuild a
+        // `LineIndex` or rescan the proc table per definition (PR #646
+        // review).
+        let mut count = crate::references::proc_reference_spans(analysis, qname, proc_def).len();
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&proc_def.name, &proc_def.qualified_name, current_uri)

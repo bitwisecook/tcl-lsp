@@ -647,9 +647,10 @@ impl FeatureToggles {
         "signatureHelp",
         "workspaceSymbols",
         // Inlay hints split into two independently-toggled families
-        // (PR #643): inferred-type hints and parameter-name hints.  The
-        // retired `inlayHints` key is still accepted on input as a
-        // backward-compatible alias for `inlayTypeHints` (see `apply`).
+        // (PR #643): inferred-type hints and parameter-name hints.  Both
+        // default **off** (see `DEFAULT_OFF`).  The retired `inlayHints`
+        // key is accepted on input as an alias for `inlayParameterHints`
+        // — the family the Rust provider actually implements (see `apply`).
         "inlayTypeHints",
         "inlayParameterHints",
         "callHierarchy",
@@ -663,10 +664,28 @@ impl FeatureToggles {
         "linkedEditingRange",
     ];
 
-    /// Whether `feature` is enabled — explicitly-set value, else
-    /// the default-on fallback.
+    /// camelCase feature keys that default **off** (opt-in) rather than
+    /// on.  `getEffectiveConfig` (`resolved_map`) and `is_enabled` must
+    /// report these as disabled until an editor sets them, so the
+    /// reported state matches the inlay handler's default-off gate
+    /// (otherwise an exported `config.ini` would claim the hints are on
+    /// and re-importing it would enable them).
+    const DEFAULT_OFF: &'static [&'static str] = &["inlayTypeHints", "inlayParameterHints"];
+
+    /// The default fallback for `feature` when no editor has set it:
+    /// `false` for the opt-in [`Self::DEFAULT_OFF`] keys, `true`
+    /// otherwise.
+    fn default_enabled(feature: &str) -> bool {
+        !Self::DEFAULT_OFF.contains(&feature)
+    }
+
+    /// Whether `feature` is enabled — explicitly-set value, else the
+    /// per-feature default ([`Self::default_enabled`]).
     fn is_enabled(&self, feature: &str) -> bool {
-        self.set.get(feature).copied().unwrap_or(true)
+        self.set
+            .get(feature)
+            .copied()
+            .unwrap_or_else(|| Self::default_enabled(feature))
     }
 
     /// Like [`Self::is_enabled`] but with a default-**off** fallback, for
@@ -679,13 +698,17 @@ impl FeatureToggles {
     /// Merge an editor-supplied `features` object, setting only the
     /// keys it carries (absent keys keep their last-applied value).
     ///
-    /// The retired `inlayHints` key is a backward-compatible alias for
-    /// `inlayTypeHints` (it enables the useful variable-type hints, not
-    /// the verbose parameter-name hints; PR #643).  It is applied first
-    /// so an explicit new `inlayTypeHints` in the same object wins.
+    /// The retired `inlayHints` key is a backward-compatible alias.  The
+    /// Rust provider implements only parameter-name hints and gates
+    /// requests on `inlayParameterHints`, so the legacy key maps to that
+    /// family — keeping the existing editor setting
+    /// (`tclLsp.features.inlayHints`, still the only inlay key the
+    /// packaged VS Code extension sends on this branch) working instead of
+    /// silently producing no hints.  Applied first so an explicit new
+    /// `inlayParameterHints` in the same object wins.
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
         if let Some(flag) = features.get("inlayHints").and_then(serde_json::Value::as_bool) {
-            self.set.insert("inlayTypeHints".to_owned(), flag);
+            self.set.insert("inlayParameterHints".to_owned(), flag);
         }
         for (key, value) in features {
             if key == "inlayHints" {
@@ -2194,12 +2217,11 @@ impl Backend {
     /// Inlay hints are opt-in and default **off**, matching the Python
     /// server's default-off contract (PR #643).  The Rust provider emits
     /// only parameter-name hints (`InlayHintKind::Parameter`), so this gates
-    /// on the `inlayParameterHints` family.  The retired `inlayHints` key is
-    /// already normalised to `inlayTypeHints` on input (see
-    /// [`FeatureToggles::apply`]) and so does not enable the verbose
-    /// parameter hints — consistent with the Python alias semantics.
-    /// Resolves per folder like [`Self::feature_enabled`] so a folder-scoped
-    /// opt-in works in a multi-root workspace.
+    /// on the `inlayParameterHints` family — which the retired `inlayHints`
+    /// key is normalised to on input (see [`FeatureToggles::apply`]), so the
+    /// existing editor setting keeps producing hints.  Resolves per folder
+    /// like [`Self::feature_enabled`] so a folder-scoped opt-in works in a
+    /// multi-root workspace.
     async fn inlay_parameter_hints_enabled(&self, uri: &Url) -> bool {
         {
             let configs = self.folder_configs.lock().await;
@@ -5820,15 +5842,33 @@ mod tests {
     }
 
     #[test]
-    fn legacy_inlay_hints_key_maps_to_type_hints_only() {
-        // The retired `inlayHints` key keeps an existing opt-in working by
-        // enabling the variable-type hints; the verbose parameter-name hints
-        // stay at their default (PR #643).
-        let mut toggles = FeatureToggles::default();
-        toggles.apply(serde_json::json!({"inlayHints": false}).as_object().unwrap());
+    fn inlay_keys_default_off() {
+        // The opt-in inlay families default off, so `getEffectiveConfig`
+        // reports them disabled until an editor sets them (matching the
+        // handler's default-off gate; PR #646 review).
+        let toggles = FeatureToggles::default();
         assert!(!toggles.is_enabled("inlayTypeHints"));
-        // The legacy alias does not touch the parameter-hint family.
+        assert!(!toggles.is_enabled("inlayParameterHints"));
+        let map = toggles.resolved_map();
+        assert_eq!(map.get("inlayTypeHints").and_then(serde_json::Value::as_bool), Some(false));
+        assert_eq!(
+            map.get("inlayParameterHints").and_then(serde_json::Value::as_bool),
+            Some(false),
+        );
+    }
+
+    #[test]
+    fn legacy_inlay_hints_key_maps_to_implemented_parameter_family() {
+        // The Rust provider implements only parameter-name hints and gates
+        // on `inlayParameterHints`, so the retired `inlayHints` key maps to
+        // that family — keeping the existing editor setting functional
+        // rather than enabling an unimplemented type-hint family (PR #646
+        // review).
+        let mut toggles = FeatureToggles::default();
+        toggles.apply(serde_json::json!({"inlayHints": true}).as_object().unwrap());
         assert!(toggles.is_enabled("inlayParameterHints"));
+        // It does not touch the (unimplemented) type-hint family.
+        assert!(!toggles.is_enabled("inlayTypeHints"));
     }
 
     #[test]
@@ -5836,11 +5876,11 @@ mod tests {
         // When a config carries both, the explicit new key takes precedence.
         let mut toggles = FeatureToggles::default();
         toggles.apply(
-            serde_json::json!({"inlayHints": true, "inlayTypeHints": false})
+            serde_json::json!({"inlayHints": true, "inlayParameterHints": false})
                 .as_object()
                 .unwrap(),
         );
-        assert!(!toggles.is_enabled("inlayTypeHints"));
+        assert!(!toggles.is_enabled("inlayParameterHints"));
     }
 
     #[test]
@@ -5848,11 +5888,14 @@ mod tests {
         let mut toggles = FeatureToggles::default();
         toggles.apply(serde_json::json!({"hover": false}).as_object().unwrap());
         let map = toggles.resolved_map();
-        // Every advertised key is present and boolean.
+        // Every advertised key is present and boolean.  Default-on keys
+        // report `true` (except the one we disabled); the opt-in
+        // `DEFAULT_OFF` inlay keys report `false`.
         for key in FeatureToggles::KEYS {
+            let expected = *key != "hover" && !FeatureToggles::DEFAULT_OFF.contains(key);
             assert_eq!(
                 map.get(*key).and_then(serde_json::Value::as_bool),
-                Some(*key != "hover"),
+                Some(expected),
                 "feature {key}"
             );
         }
