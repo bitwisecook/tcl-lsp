@@ -77,8 +77,23 @@ pub fn code_lenses(
     let line_index = LineIndex::new(source);
     let mut lenses: Vec<CodeLens> = Vec::new();
 
-    for (qname, proc_def) in &analysis.all_procs {
-        let mut count = count_references(qname, proc_def, analysis);
+    for proc_def in analysis.all_procs.values() {
+        // Derive the local count from the *same* reference resolution that
+        // backs the peek (Find All References), so the lens title and the
+        // peek can never drift (issue #637 / PR #644).  The earlier
+        // name-only tally could disagree with the namespace-aware resolver
+        // (e.g. a same-named proc in another namespace).  Position the
+        // resolver at the proc's name span and exclude the declaration.
+        let name_pos = line_index.position_at_utf16(proc_def.name_span.start(), source);
+        let mut count = crate::references::references(
+            source,
+            dialect,
+            name_pos.line,
+            name_pos.character,
+            analysis,
+            false,
+        )
+        .len();
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&proc_def.name, &proc_def.qualified_name, current_uri)
@@ -263,36 +278,6 @@ fn reference_count_title(count: usize) -> String {
         1 => "1 reference".to_string(),
         n => format!("{n} references"),
     }
-}
-
-/// Count the call sites in the analysis that target the given
-/// proc.  Mirrors the matching logic in
-/// [`crate::references`] / [`crate::call_hierarchy`].
-fn count_references(
-    qname: &str,
-    proc_def: &tcl_compiler::analyser::ProcDef,
-    analysis: &AnalysisResult,
-) -> usize {
-    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
-    analysis
-        .command_invocations
-        .iter()
-        .filter(|inv| {
-            inv.name == proc_def.name
-                || inv.name == proc_def.qualified_name
-                || inv.name == qname_no_prefix
-                || inv
-                    .resolved_qualified_name
-                    .as_deref()
-                    .is_some_and(|r| r == proc_def.qualified_name)
-        })
-        // Exclude the proc's own declaration site so a proc
-        // with no callers shows `0 references`, not `1`.
-        .filter(|inv| {
-            !(inv.range.start() <= proc_def.name_span.start()
-                && proc_def.name_span.end() <= inv.range.end())
-        })
-        .count()
 }
 
 /// Count invocations targeting the given class — `ClassName
@@ -503,5 +488,104 @@ mod tests {
             .find(|l| l.range.start_line == 0)
             .expect("helper lens");
         assert_eq!(helper.command_title, "1 reference", "{lenses:?}");
+    }
+
+    // -- issue #637 / PR #644: lens count must equal the reference list -----
+
+    /// Parse a `"N reference(s)"` title back into its integer count.
+    fn title_count(title: &str) -> usize {
+        title
+            .split_once(' ')
+            .and_then(|(n, _)| n.parse().ok())
+            .unwrap_or_else(|| panic!("unparseable lens title: {title:?}"))
+    }
+
+    /// The lens count for the proc at `name_line` must equal the number of
+    /// call sites `references` (the peek / Find All References) resolves
+    /// with `include_declaration = false`.
+    fn assert_lens_matches_references(src: &str, name_line: u32) {
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lens = lenses
+            .iter()
+            .find(|l| l.range.start_line == name_line)
+            .unwrap_or_else(|| panic!("no lens on line {name_line}: {lenses:?}"));
+        let refs = crate::references::references(
+            src,
+            "tcl8.6",
+            lens.range.start_line,
+            lens.range.start_character,
+            &analysis,
+            false,
+        );
+        assert_eq!(
+            title_count(&lens.command_title),
+            refs.len(),
+            "lens {:?} disagrees with references {:?} for source {src:?}",
+            lens.command_title,
+            refs,
+        );
+    }
+
+    #[test]
+    fn lens_count_matches_references_forward_ref() {
+        // Headline #637 symptom: a call *before* the definition. The
+        // name-only resolved-name tally reported 0 here; the lens must
+        // agree with the resolver, which finds the forward call.
+        let src = "foo\nproc foo {} {}\n";
+        assert_lens_matches_references(src, 1);
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let foo = lenses
+            .iter()
+            .find(|l| l.range.start_line == 1)
+            .expect("foo lens");
+        assert_eq!(foo.command_title, "1 reference", "{lenses:?}");
+    }
+
+    #[test]
+    fn lens_count_matches_references_after_def() {
+        assert_lens_matches_references("proc foo {} {}\nfoo\n", 0);
+    }
+
+    #[test]
+    fn lens_count_matches_references_qualified_call() {
+        assert_lens_matches_references("proc foo {} {}\n::foo\n", 0);
+    }
+
+    #[test]
+    fn lens_count_matches_references_ns_qualified_call() {
+        assert_lens_matches_references(
+            "namespace eval ns { proc foo {} {} }\nns::foo\n",
+            0,
+        );
+    }
+
+    #[test]
+    fn lens_count_matches_references_call_inside_body() {
+        assert_lens_matches_references("proc foo {} {}\nproc bar {} { foo }\n", 0);
+    }
+
+    #[test]
+    fn lens_count_matches_references_cmd_substitution() {
+        assert_lens_matches_references("proc foo {} {}\nset x [foo]\n", 0);
+    }
+
+    #[test]
+    fn lens_count_matches_references_unused_proc() {
+        assert_lens_matches_references("proc foo {} {}\n", 0);
+    }
+
+    #[test]
+    fn lens_count_matches_references_same_name_other_namespace() {
+        // The namespace-aware resolver must not count a same-named proc
+        // call from a different namespace; the lens count follows it so the
+        // two can never drift (the precise divergence #644 guards against).
+        let src = concat!(
+            "namespace eval a { proc helper {} {} }\n",
+            "namespace eval b { proc helper {} {} ; helper }\n",
+        );
+        assert_lens_matches_references(src, 0); // a::helper
+        assert_lens_matches_references(src, 1); // b::helper
     }
 }
