@@ -180,6 +180,10 @@ struct DiagJob {
 #[derive(Clone)]
 struct PullDiagEntry {
     result_id: String,
+    /// The document revision the cached diagnostics were computed for.  The
+    /// pull handler compares it against the live document so a cache entry from
+    /// an older edit is recomputed rather than served as current.
+    revision: u64,
     diagnostics: Vec<tower_lsp::lsp_types::Diagnostic>,
 }
 
@@ -460,6 +464,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
                 uri.clone(),
                 PullDiagEntry {
                     result_id: next_pull_diag_result_id(),
+                    revision,
                     diagnostics: diags.clone(),
                 },
             );
@@ -2148,10 +2153,20 @@ impl Backend {
     }
 
     /// Whether opt-in format-on-save (`tclLsp.features.willSaveWaitUntil`)
-    /// is enabled.  Unlike the default-on feature toggles, this one defaults
-    /// **off** to match the Python server, so it cannot reuse
-    /// [`Self::feature_enabled`] (whose absent-key fallback is `true`).
-    async fn will_save_format_enabled(&self) -> bool {
+    /// is enabled for the document at `uri`.  Resolves per folder like
+    /// [`Self::feature_enabled`] so a folder-scoped opt-in works in a
+    /// multi-root workspace, but — unlike the default-on feature toggles — it
+    /// defaults **off** to match the Python server, so it cannot reuse
+    /// `feature_enabled` (whose absent-key fallback is `true`).
+    async fn will_save_format_enabled(&self, uri: &Url) -> bool {
+        {
+            let configs = self.folder_configs.lock().await;
+            if let Some(fc) = longest_folder_match(&configs, uri)
+                && let Some(flag) = fc.feature_toggles.set.get("willSaveWaitUntil").copied()
+            {
+                return flag;
+            }
+        }
         self.feature_toggles
             .lock()
             .await
@@ -2935,7 +2950,10 @@ impl LanguageServer for Backend {
         // The capability is advertised unconditionally; the runtime guard
         // here returns no edits when the toggle is unset, matching the
         // repo's "always register, guard in the body" feature pattern.
-        if !self.will_save_format_enabled().await {
+        if !self
+            .will_save_format_enabled(&params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
@@ -3609,11 +3627,27 @@ impl LanguageServer for Backend {
         // diagnostic to the LSP wire shape.
         let uri = params.text_document.uri.clone();
         let previous = params.previous_result_id;
-        // Serve from the push-maintained cache when present: pull then mirrors
-        // the exact set the editor last received via `publish_diagnostics`, and
-        // an unchanged document is answered with a cheap `Unchanged` report
-        // (no diagnostics re-sent).  Mirrors the Python `on_document_diagnostic`.
-        if let Some(entry) = self.pull_diag_cache.lock().await.get(&uri).cloned() {
+        // Read the live document first so a cache entry from an older edit is
+        // never served as current: a pull arriving between `did_change` and the
+        // debounced worker's refresh must recompute, not return stale (or worse,
+        // `Unchanged`) diagnostics for the edited buffer.
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(empty_diagnostic_report());
+        };
+        // BIG-IP config text carries no general Tcl diagnostics — the
+        // analyser never runs on it (#571), so the pull report is empty
+        // too (matching the push path in `publish_analyser_diagnostics`).
+        if Self::is_bigip_dialect(&doc.dialect) {
+            return Ok(empty_diagnostic_report());
+        }
+        // Serve from the push-maintained cache only when it matches the live
+        // document revision: pull then mirrors the exact set the editor last
+        // received via `publish_diagnostics`, and an unchanged document is
+        // answered with a cheap `Unchanged` report (no diagnostics re-sent).
+        // Mirrors the Python `on_document_diagnostic`.
+        if let Some(entry) = self.pull_diag_cache.lock().await.get(&uri).cloned()
+            && entry.revision == doc.revision
+        {
             if previous.as_deref() == Some(entry.result_id.as_str()) {
                 return Ok(DocumentDiagnosticReportResult::Report(
                     DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
@@ -3634,20 +3668,12 @@ impl LanguageServer for Backend {
                 }),
             ));
         }
-        // Cache miss — a pull arrived before the first push settled (or push is
-        // disabled).  Compute the full set on demand, prime the cache, return it.
-        let Some(doc) = self.read_document(&uri).await else {
-            return Ok(empty_diagnostic_report());
-        };
-        // BIG-IP config text carries no general Tcl diagnostics — the
-        // analyser never runs on it (#571), so the pull report is empty
-        // too (matching the push path in `publish_analyser_diagnostics`).
-        if Self::is_bigip_dialect(&doc.dialect) {
-            return Ok(empty_diagnostic_report());
-        }
-        // Mirror the push path's full set (analyser + compiler/optimiser +
-        // source-style) so pull-mode editors don't lose the compiler /
-        // optimiser / style warnings.
+        // Cache miss or stale (a pull arrived before the push settled, or push
+        // is disabled).  Compute the full set on demand, prime the cache with
+        // the revision it was computed for, and return it.  Mirror the push
+        // path's full set (analyser + compiler/optimiser + source-style) so
+        // pull-mode editors don't lose the compiler / optimiser / style
+        // warnings.
         let items = self
             .full_diagnostics_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -3656,6 +3682,7 @@ impl LanguageServer for Backend {
             uri.clone(),
             PullDiagEntry {
                 result_id: result_id.clone(),
+                revision: doc.revision,
                 diagnostics: items.clone(),
             },
         );
@@ -6477,6 +6504,100 @@ mod tests {
                 .iter()
                 .any(|(u, _)| u == &folder_a),
             "proj-a must have a per-folder AnalyserConfig handle",
+        );
+    }
+
+    /// A pull arriving after an edit (revision bumped) but before the debounced
+    /// worker refreshes the cache must recompute, not serve the stale cached
+    /// report — and must not answer `Unchanged` even when the client echoes the
+    /// stale `result_id`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pull_diagnostic_recomputes_after_edit_bumps_revision() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///pull-stale.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        let first = backend
+            .diagnostic(doc_diag_params(&uri, None))
+            .await
+            .unwrap();
+        let stale_id = match first {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => {
+                full.full_document_diagnostic_report.result_id.unwrap()
+            }
+            other => panic!("expected Full, got {other:?}"),
+        };
+
+        // Simulate `did_change`: bump the revision (and text) without running
+        // the worker, so the cache entry is now for an older revision.
+        {
+            let mut docs = backend.documents.lock().await;
+            let doc = docs.get_mut(&uri).unwrap();
+            doc.text = "set x 2\n".to_owned();
+            doc.bump_revision(1);
+        }
+
+        let second = backend
+            .diagnostic(doc_diag_params(&uri, Some(&stale_id)))
+            .await
+            .unwrap();
+        match second {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => {
+                assert_ne!(
+                    full.full_document_diagnostic_report.result_id,
+                    Some(stale_id),
+                    "a stale result_id must not be reused after an edit",
+                );
+            }
+            other => panic!("an edited buffer must recompute, not serve Unchanged: {other:?}"),
+        }
+    }
+
+    /// Format-on-save honours a folder-scoped opt-in: a document under a folder
+    /// that turns on `willSaveWaitUntil` formats, while documents outside it
+    /// stay inert under the (off) global default.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn will_save_format_respects_per_folder_opt_in() {
+        let backend = test_backend();
+        let folder = Url::parse("file:///proj-a").unwrap();
+        let inside = Url::parse("file:///proj-a/file.tcl").unwrap();
+        let outside = Url::parse("file:///other/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        register(&backend, &inside, "set    x     1\n").await;
+        register(&backend, &outside, "set    x     1\n").await;
+
+        // Global toggle stays off; only proj-a opts in.
+        let feature_toggles = {
+            let mut t = FeatureToggles::default();
+            t.set.insert("willSaveWaitUntil".to_owned(), true);
+            t
+        };
+        let fc = FolderConfig {
+            feature_toggles,
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder.clone(), fc)])
+            .await;
+
+        let params = |uri: &Url| WillSaveTextDocumentParams {
+            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            reason: tower_lsp::lsp_types::TextDocumentSaveReason::MANUAL,
+        };
+        assert!(
+            backend
+                .will_save_wait_until(params(&inside))
+                .await
+                .unwrap()
+                .is_some_and(|edits| !edits.is_empty()),
+            "a folder-scoped opt-in must format on save",
+        );
+        assert!(
+            backend
+                .will_save_wait_until(params(&outside))
+                .await
+                .unwrap()
+                .is_none(),
+            "outside the opted-in folder, save stays inert under the global default",
         );
     }
 
