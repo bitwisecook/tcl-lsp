@@ -835,7 +835,7 @@ class LspServerClient:
             # opted into the features the schema leaves off (linked editing
             # inherits ``editor.linkedEditing``, off in VS Code) so those
             # providers are exercised in e2e; a dedicated fixture can pass a
-            # richer dict (e.g. ``features.inlayHints``).  Every other section
+            # richer dict (e.g. ``features.inlayTypeHints``).  Every other section
             # falls back to ``null`` (server defaults).
             result: Any = [
                 self._tcllsp_config if (item or {}).get("section") == "tclLsp" else None

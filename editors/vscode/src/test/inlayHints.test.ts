@@ -10,8 +10,8 @@ suite("Inlay Hints", () => {
 
     const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(100, 0));
 
-    // By default inlayHints is disabled, but the provider should still be
-    // registered and return gracefully.
+    // By default both inlay families are disabled, but the provider should
+    // still be registered and return gracefully.
     const hints = (await vscode.commands.executeCommand(
       "vscode.executeInlayHintProvider",
       docUri,
@@ -26,11 +26,11 @@ suite("Inlay Hints", () => {
 
   test("inlay hints appear when feature is enabled", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const original = config.get<boolean>("inlayHints", false);
+    const original = config.get<boolean>("inlayTypeHints", false);
 
     try {
-      // Enable inlay hints
-      await config.update("inlayHints", true, vscode.ConfigurationTarget.Global);
+      // Enable inferred-type inlay hints
+      await config.update("inlayTypeHints", true, vscode.ConfigurationTarget.Global);
 
       // Use an untitled document to avoid leaking state.
       const doc = await vscode.workspace.openTextDocument({
@@ -65,16 +65,16 @@ suite("Inlay Hints", () => {
         }
       }
     } finally {
-      await config.update("inlayHints", original, vscode.ConfigurationTarget.Global);
+      await config.update("inlayTypeHints", original, vscode.ConfigurationTarget.Global);
     }
   });
 
   test("single positional binds the required slot, not the optional one (issue #510)", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");
-    const original = config.get<boolean>("inlayHints", false);
+    const original = config.get<boolean>("inlayParameterHints", false);
 
     try {
-      await config.update("inlayHints", true, vscode.ConfigurationTarget.Global);
+      await config.update("inlayParameterHints", true, vscode.ConfigurationTarget.Global);
 
       // `puts ?-nonewline? ?channelId? string` — one positional argument binds
       // to the required trailing `string`, never the leading optional
@@ -137,7 +137,7 @@ suite("Inlay Hints", () => {
         `documentation placeholders must not be labelled, got ${JSON.stringify(line1)}`,
       );
     } finally {
-      await config.update("inlayHints", original, vscode.ConfigurationTarget.Global);
+      await config.update("inlayParameterHints", original, vscode.ConfigurationTarget.Global);
     }
   });
 });

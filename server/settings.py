@@ -147,7 +147,14 @@ _FEATURE_TOGGLE_KEYS = {
     "rename": "rename_enabled",
     "signatureHelp": "signature_help_enabled",
     "workspaceSymbols": "workspace_symbols_enabled",
-    "inlayHints": "inlay_hints_enabled",
+    # Legacy alias: the retired ``inlayHints`` key maps to type hints only, so
+    # an existing explicit opt-in keeps showing the useful variable-type hints
+    # after the rename (the verbose parameter-name hints stay off).  Listed
+    # before ``inlayTypeHints`` so an explicit new key, applied afterwards,
+    # always wins when a config carries both.
+    "inlayHints": "inlay_type_hints_enabled",
+    "inlayTypeHints": "inlay_type_hints_enabled",
+    "inlayParameterHints": "inlay_parameter_hints_enabled",
     "callHierarchy": "call_hierarchy_enabled",
     "documentLinks": "document_links_enabled",
     "selectionRange": "selection_range_enabled",

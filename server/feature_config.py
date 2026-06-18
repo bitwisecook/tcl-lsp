@@ -26,7 +26,14 @@ class FeatureConfig:
     rename_enabled: bool = True
     signature_help_enabled: bool = True
     workspace_symbols_enabled: bool = True
-    inlay_hints_enabled: bool = False
+    # Inlay hints are split into two independently-toggled families, both
+    # off by default.  Type hints annotate variables (and format-string
+    # specifiers) with their inferred type — broadly useful.  Parameter
+    # hints label each positional call argument with the proc/method
+    # parameter name it binds to (``NAME:``, ``PROC_SCRIPT:``, …) — verbose
+    # and less likely to assist, so opt-in separately.
+    inlay_type_hints_enabled: bool = False
+    inlay_parameter_hints_enabled: bool = False
     call_hierarchy_enabled: bool = True
     document_links_enabled: bool = True
     selection_range_enabled: bool = True

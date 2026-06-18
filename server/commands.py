@@ -391,7 +391,7 @@ def on_get_effective_config(uri: str = "") -> dict:
 
     ``features`` mirrors the ``[features]`` INI / ``tclLsp.features.*``
     editor namespace and is keyed by the camelCase setting name
-    (``hover``, ``selectionRange``, ``inlayHints``, …).  Tests can poll
+    (``hover``, ``selectionRange``, ``inlayTypeHints``, …).  Tests can poll
     this command after a ``tclLsp.features.X = false`` config change to
     confirm the server has applied the toggle, rather than sleeping on
     wall-clock time.

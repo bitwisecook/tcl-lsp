@@ -74,7 +74,7 @@ class TestFormatting:
 
 class TestInlayHints:
     def test_provider_responds_with_a_list(self, lsp_server, uri_factory):
-        # Inlay hints are gated off by default (``inlay_hints_enabled``); the
+        # Inlay hints are gated off by default (both inlay toggles); the
         # provider must still answer with a well-formed (here empty) list, never
         # an error.  This pins the default-off contract the Rust port must match.
         uri = uri_factory()
