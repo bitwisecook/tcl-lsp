@@ -3277,14 +3277,15 @@ register(
         notes=(
             "An opaque (glob/regexp/fall-through) switch definitely-defines a var\n"
             "only when every arm that *reaches the code after the switch* assigns\n"
-            "it.  An arm that always `return`s / `error`s (cannot complete\n"
-            "normally) never reaches that code, so it must be excluded from the\n"
+            "it.  An arm that exits the PROCEDURE (`return`/`error`/`exit`/\n"
+            "`tailcall`) never reaches that code, so it is excluded from the\n"
             "must-define intersection — the standard definite-assignment rule.\n"
-            "Pre-fix the intersection counted such an arm's (empty) def set, so\n"
-            "`a* { return 0 } default { set y 2 }` left `y` out of the switch's\n"
-            "defs and `puts $y` falsely fired W210.  Fix (compiler/ssa.py):\n"
-            "`_flow_facts_*` track can-complete-normally and skip non-completing\n"
-            "arms in `_switch_must_defines`."
+            "(A `break`/`continue` arm is a loop jump, NOT a proc exit: it still\n"
+            "reaches the code after the enclosing loop, so it is KEPT — see the\n"
+            "FP-RBS-14 break TP control.)  Pre-fix the intersection counted the\n"
+            "proc-exit arm's (empty) def set, so `a* { return 0 } default { set y\n"
+            "2 }` left `y` out of the switch's defs and `puts $y` falsely fired\n"
+            "W210.  Fix (compiler/cfg.py `_flow_facts_*`/`_switch_must_defines`)."
         ),
         source=_dedent(
             """

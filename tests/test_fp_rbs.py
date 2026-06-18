@@ -1264,3 +1264,56 @@ def test_FP_RBS_18_break_before_set_still_fires():
     assert w210, "break-before-set exits with 'y' unset; W210 must fire; got: " + ", ".join(
         f"{d.code}:{d.message}" for d in _rbs(src)
     )
+
+
+# Soundness regressions from the Codex review of PR #634 — break/continue arms
+# escape an opaque switch (loop-jump, not proc-exit), and stale for-init consts.
+
+
+def test_FP_RBS_14_break_arm_escaping_loop_still_fires():
+    """TP (Codex P1): an opaque-switch arm that `break`s does NOT define the
+    other arm's var on the path that escapes the enclosing loop, so the var is
+    maybe-unset after the loop.  `break`/`continue` are loop-jumps, not
+    proc-exits, so they must NOT be excluded from the switch must-define.
+    tclsh errors here -> W210 must fire."""
+    src = (
+        "proc f {} { foreach x {a} { switch -glob $x {a* {break} default {set y 1}} }; puts $y }\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "break-arm escaping the loop leaves 'y' unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_15_all_break_switch_not_a_proc_terminator():
+    """TP (Codex P1): a switch whose arms all `break` jumps to the loop exit,
+    NOT the procedure return — it must not be promoted to a CFGReturn (which
+    would make the post-loop read unreachable).  tclsh errors -> W210 fires."""
+    src = "proc f {x} { foreach i {1 2 3} { switch -glob $x {a* {break} default {break}} }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "all-break switch is a loop jump, not a return; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_18_stale_const_init_still_fires():
+    """TP (Codex P1): when the for-init writes a var with a constant and then a
+    non-constant (`set i 0; set i $n`), the stale constant must be invalidated —
+    the loop may run zero times, so a body-only var is maybe-unset.  W210 must
+    fire."""
+    src = "proc f {n} { for {set i 0; set i $n} {$i < 3} {incr i} { set y $i }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, (
+        "stale-const for-init must not be treated as guaranteed; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_18_incr_in_init_invalidates_const():
+    """TP (Codex P1, variant): `for {set i 0; incr i 5} {$i < 3} ...` may run
+    zero times (i becomes 5); the const binding must be invalidated."""
+    src = "proc f {} { for {set i 0; incr i 5} {$i < 3} {incr i} { set y $i }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "incr-in-init must invalidate the const; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )

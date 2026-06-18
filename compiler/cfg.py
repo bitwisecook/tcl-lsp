@@ -81,126 +81,158 @@ _TERMINATING_COMMANDS = _terminating_commands()
 # --- Definite-assignment ("flow facts") over un-lowered IR scripts ------------
 #
 # Shared by the CFG builder (to promote an opaque ``switch`` whose every arm
-# exits to a terminator) and by SSA (to recover the def set an opaque switch
+# exits the *procedure*) and by SSA (to recover the def set an opaque switch
 # *definitely* establishes).  Lives here, at the control-flow layer, so both
-# consumers agree on one definition of "cannot complete normally" — SSA imports
-# these rather than re-deriving them.
+# consumers agree on one model.
+#
+# Each statement/script is classified by how it leaves: it can complete NORMALly
+# (fall through to the next statement), exit the procedure (PROC_EXIT —
+# ``return``/``error``/``throw``/``exit``/``tailcall``), or jump within an
+# enclosing loop (LOOP_JUMP — ``break``/``continue``).  The distinction matters
+# for an *opaque* switch (whose arm bodies are not lowered into the CFG, so
+# their loop-jump edges are invisible): a PROC_EXIT arm reaches no later code at
+# all, but a LOOP_JUMP arm still reaches the code after the enclosing loop
+# *without* the other arms' definitions — so it must NOT be treated as vacuous
+# when recovering the switch's defs, and an all-LOOP_JUMP switch is NOT a
+# procedure terminator.
+_COMPLETE_NORMAL = 0  # falls through to the next statement
+_COMPLETE_LOOP_JUMP = 1  # break / continue — leaves to an enclosing-loop target
+_COMPLETE_PROC_EXIT = 2  # return / error / throw / exit / tailcall
 
 
-def _flow_facts_stmt(stmt: IRStatement) -> tuple[set[str], bool]:
-    """``(must-defines, can-complete-normally)`` for a single statement.
+def _flow_facts_stmt(stmt: IRStatement) -> tuple[set[str], int]:
+    """``(must-defines, completion)`` for a single statement.
 
-    * assignments (``set``/``incr``/``expr``-assign) contribute their target
-      and complete;
-    * a plain ``IRCall`` contributes its synthetic ``defs`` and completes —
-      *except* a non-returning one (``error``/``throw``/``exit`` via the
-      ``terminates_block`` trait, ``break``/``continue``, or ``tailcall``),
-      which cannot complete; ``IRReturn`` and a ``return -code``/expansion
-      ``IRBarrier`` likewise cannot complete;
+    ``completion`` is one of ``_COMPLETE_NORMAL`` / ``_COMPLETE_LOOP_JUMP`` /
+    ``_COMPLETE_PROC_EXIT``.
+
+    * assignments (``set``/``incr``/``expr``-assign) contribute their target and
+      complete normally; a plain ``IRCall`` contributes its synthetic ``defs``
+      and completes normally — *except* ``error``/``throw``/``exit`` (the
+      ``terminates_block`` trait) and ``tailcall``, which PROC_EXIT, and
+      ``break``/``continue``, which LOOP_JUMP.  ``IRReturn`` and a
+      ``return -code``/expansion ``IRBarrier`` PROC_EXIT;
     * ``IRBlock`` / ``IRUpFrame`` bodies always run, so recurse;
-    * an ``IRIf`` *with* an else, or an ``IRSwitch`` *with* a default, takes the
-      intersection over its completing branches (and is non-completing only when
-      every branch is); an else-less ``IRIf`` / default-less ``IRSwitch`` has a
-      fall-through path, so it completes assigning nothing for certain;
-    * loops (``IRFor``/``IRWhile``/``IRForeach``), ``IRCatch``/``IRTry`` and
-      everything else may not execute / always complete, so they contribute no
+    * an ``IRIf`` *with* an else, or an ``IRSwitch`` *with* a default, combine
+      their branches via :func:`_intersect_completing`; an else-less ``IRIf`` /
+      default-less ``IRSwitch`` has a fall-through path, so it completes normally
+      assigning nothing for certain;
+    * loops, ``IRCatch``/``IRTry`` and everything else may not execute / always
+      complete (``catch`` even swallows ``break``), so they contribute no
       must-define and complete normally.
     """
     if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
         name = _normalise_var_name(stmt.name)
-        return ({name} if name else set()), True
+        return ({name} if name else set()), _COMPLETE_NORMAL
     if isinstance(stmt, IRReturn):
-        return set(), False
+        return set(), _COMPLETE_PROC_EXIT
     if isinstance(stmt, IRBarrier):
         if stmt.reason in ("return with options", "return with expansion"):
-            return set(), False
-        return set(), True
+            return set(), _COMPLETE_PROC_EXIT
+        return set(), _COMPLETE_NORMAL
     if isinstance(stmt, IRCall):
         canon = stmt.canonical_command.lstrip(":") if stmt.canonical_command else ""
+        if canon in ("break", "continue"):
+            # A loop jump leaves to the enclosing loop's target — it still
+            # reaches the code after that loop, just without later defs.
+            return set(stmt.defs), _COMPLETE_LOOP_JUMP
         # ``tailcall`` always exits the proc (``TclNRTailcallObjCmd`` returns
-        # TCL_RETURN for any arg count), so it cannot complete normally.
-        non_returning = canon in _TERMINATING_COMMANDS or canon in ("break", "continue", "tailcall")
-        return set(stmt.defs), not non_returning
+        # TCL_RETURN for any arg count).
+        if canon in _TERMINATING_COMMANDS or canon == "tailcall":
+            return set(stmt.defs), _COMPLETE_PROC_EXIT
+        return set(stmt.defs), _COMPLETE_NORMAL
     if isinstance(stmt, (IRBlock, IRUpFrame)):
         return _flow_facts_script(stmt.body)
     if isinstance(stmt, IRIf):
         if stmt.else_body is None:
-            return set(), True
+            return set(), _COMPLETE_NORMAL
         bodies = [clause.body for clause in stmt.clauses]
         bodies.append(stmt.else_body)
         return _intersect_completing(bodies)
     if isinstance(stmt, IRSwitch):
         if stmt.default_body is None:
-            return set(), True
+            return set(), _COMPLETE_NORMAL
         bodies = [stmt.default_body]
         bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
         return _intersect_completing(bodies)
-    return set(), True
+    return set(), _COMPLETE_NORMAL
 
 
-def _flow_facts_script(script: IRScript) -> tuple[set[str], bool]:
-    """``(vars definitely assigned at normal completion, can-complete-normally)``.
+def _flow_facts_script(script: IRScript) -> tuple[set[str], int]:
+    """``(vars definitely assigned, completion)`` for an un-lowered IR script.
 
-    Sound definite-assignment over an un-lowered IR script: walk the statements
-    in order accumulating must-defines; the first statement that cannot complete
-    normally makes everything after it dead and the whole script non-completing.
-    Only names guaranteed to be assigned are returned, so it never over-claims
-    (which would hide a real read-before-set).  Mirrors
-    ``definitely_assigned_in_script`` in the Rust oracle (``ssa.rs``).
+    Walk statements in order accumulating must-defines; the first statement that
+    does not complete normally makes the rest dead and gives the script that
+    statement's completion (PROC_EXIT or LOOP_JUMP), with the must-defines being
+    those accumulated up to (and including) it.  Only names guaranteed to be
+    assigned are returned, so it never over-claims.
     """
     assigned: set[str] = set()
     for stmt in script.statements:
-        defs, completes = _flow_facts_stmt(stmt)
+        defs, completion = _flow_facts_stmt(stmt)
         assigned |= defs
-        if not completes:
-            return assigned, False
-    return assigned, True
+        if completion != _COMPLETE_NORMAL:
+            return assigned, completion
+    return assigned, _COMPLETE_NORMAL
 
 
-def _intersect_completing(bodies: list[IRScript]) -> tuple[set[str], bool]:
-    """``(must-defines over the branches that can complete, any-completes)``.
+def _intersect_completing(bodies: list[IRScript]) -> tuple[set[str], int]:
+    """Combine branch bodies into ``(must-defines, completion)``.
 
-    The intersection skips any branch that cannot complete normally: such a
-    branch never reaches the control-flow merge, so by the standard
-    definite-assignment rule it vacuously defines everything (⊤, the identity
-    of intersection).  ``any-completes`` is False only when *every* branch is
-    non-completing — then the merge itself is unreachable.
+    A PROC_EXIT branch reaches no code after the construct, so it is vacuous
+    (⊤) and excluded from the must-define intersection.  A NORMAL or LOOP_JUMP
+    branch *does* reach later code (the fall-through successor, or — for a
+    loop jump — the code after the enclosing loop), so its must-defines (those
+    established before it leaves) ARE intersected: this keeps the result sound
+    when a ``break``/``continue`` arm escapes an opaque switch without the other
+    arms' defs.  The combined completion is NORMAL if any branch falls through,
+    else LOOP_JUMP if any jumps, else PROC_EXIT (every branch exits the proc).
     """
     common: set[str] | None = None
-    completes_any = False
+    any_normal = False
+    any_loop_jump = False
     for body in bodies:
-        assigned, completes = _flow_facts_script(body)
-        if not completes:
+        assigned, completion = _flow_facts_script(body)
+        if completion == _COMPLETE_PROC_EXIT:
             continue
-        completes_any = True
+        if completion == _COMPLETE_NORMAL:
+            any_normal = True
+        else:
+            any_loop_jump = True
         common = set(assigned) if common is None else (common & assigned)
-    return (common or set()), completes_any
+    if any_normal:
+        combined = _COMPLETE_NORMAL
+    elif any_loop_jump:
+        combined = _COMPLETE_LOOP_JUMP
+    else:
+        combined = _COMPLETE_PROC_EXIT
+    return (common or set()), combined
 
 
 def _switch_must_defines(stmt: IRSwitch) -> set[str]:
-    """Variables an opaque ``switch`` assigns on *every* reaching path.
+    """Variables an opaque ``switch`` assigns on *every* non-proc-exit path.
 
     Empty unless the switch has a ``default`` arm (otherwise an unmatched
-    subject falls through assigning nothing).  With a default, the result is
-    the intersection of the must-define sets of the default body and of every
-    arm that has a body — a fall-through arm with no body delegates to a later
-    arm's body, which is already counted, so it contributes nothing on its own.
-    An arm that *cannot complete normally* (always ``return``s / ``error``s /
-    ``break``s / …) never reaches the code after the switch, so it is excluded
-    from the intersection.  Mirrors the exhaustive-switch rule in the Rust
-    oracle (``ssa.rs``).
+    subject falls through assigning nothing).  Intersection over the default and
+    every arm-with-a-body, excluding only arms that exit the procedure (which
+    reach no later code).  A ``break``/``continue`` arm is *kept* (with the defs
+    it makes before jumping), because it still reaches the code after the
+    enclosing loop — so an arm that breaks without assigning ``y`` correctly
+    drops ``y`` from the set rather than letting it be claimed defined.
     """
     return _flow_facts_stmt(stmt)[0]
 
 
-def _switch_completes_normally(stmt: IRSwitch) -> bool:
-    """Whether an opaque ``switch`` can reach the code after it.
+def _switch_proc_exits(stmt: IRSwitch) -> bool:
+    """Whether an opaque ``switch`` exits the *procedure* on every path.
 
-    False only when it has a ``default`` *and* every arm-with-a-body plus the
-    default cannot complete normally — then no path falls through, so the
-    switch is itself a terminator.
+    True only when it has a ``default`` *and* every arm-with-a-body plus the
+    default exits the proc (``return``/``error``/``exit``/``tailcall``, possibly
+    nested).  A switch whose arms ``break``/``continue`` is NOT a proc
+    terminator — it jumps to an enclosing-loop target — so it must not be
+    promoted to a ``CFGReturn``.
     """
-    return _flow_facts_stmt(stmt)[1]
+    return _flow_facts_stmt(stmt)[1] == _COMPLETE_PROC_EXIT
 
 
 # --- Guaranteed-iteration loops ----------------------------------------------
@@ -255,15 +287,32 @@ def _coerce_scalar(text: str) -> int | float | str:
             return text
 
 
+def _init_written_names(stmt: IRStatement) -> set[str] | None:
+    """Names a non-``IRAssignConst`` init statement may write.
+
+    ``None`` means "can't tell" — the caller then drops *all* constant bindings
+    (a write it can't characterise might clobber any of them).
+    """
+    if isinstance(stmt, (IRAssignValue, IRAssignExpr, IRIncr)):
+        name = _normalise_var_name(stmt.name)
+        return {name} if name else set()
+    if isinstance(stmt, IRCall):
+        return set(stmt.defs)
+    return None
+
+
 def _for_runs_at_least_once(stmt: IRFor) -> bool:
     """True when a ``for`` loop's condition is statically true on entry.
 
     Evaluates the condition against the constant bindings the init clause
     establishes (``for {set i 0} {$i < 3} …`` → ``i = 0`` → ``0 < 3`` is true),
-    which proves the first iteration always runs.  Conservative: a non-constant
-    init binding, or a condition referencing a variable the init does not bind
-    to a constant (or a command-substitution condition), leaves the evaluation
-    unknown (``None``) → not guaranteed.
+    which proves the first iteration always runs.  Init statements are processed
+    in order: an ``IRAssignConst`` (re)binds a constant, but any *other* write
+    *invalidates* that variable's binding — so ``for {set i 0; set i $n} …`` and
+    ``for {set i 0; incr i 5} …`` leave ``i`` unknown rather than stale-constant
+    ``0`` (both may iterate zero times).  Conservative: a condition referencing
+    an unbound variable (or a command-substitution condition) evaluates to
+    ``None`` → not guaranteed.
     """
     from .tcl_expr_eval import eval_tcl_expr
 
@@ -273,6 +322,13 @@ def _for_runs_at_least_once(stmt: IRFor) -> bool:
             name = _normalise_var_name(s.name)
             if name:
                 env[name] = _coerce_scalar(s.value)
+            continue
+        written = _init_written_names(s)
+        if written is None:
+            env.clear()  # unknown write — every prior constant is now suspect
+        else:
+            for name in written:
+                env.pop(name, None)
     val = eval_tcl_expr(stmt.condition, env)
     return val is not None and bool(val)
 
@@ -1367,24 +1423,26 @@ class _CFGBuilder:
         return end_block
 
     def _maybe_terminate_opaque_switch(self, stmt: IRSwitch, block_name: str) -> None:
-        """Terminate *block_name* when an opaque ``switch`` can't fall through.
+        """Terminate *block_name* when an opaque ``switch`` exits the procedure.
 
         An opaque switch is kept as a single ``IRSwitch`` statement that
         normally falls through to the next statement.  But when it has a
-        ``default`` arm and *every* reachable arm body (default + each arm with
-        a body) cannot complete normally — e.g. every arm ``return``s /
-        ``error``s / ``tailcall``s — no path reaches the code after the switch,
-        so the switch is itself a terminator.  Promote the block to a
-        ``CFGReturn`` so the following statements are routed to the orphan
-        unreachable block (exactly like a ``return``/``tailcall``), instead of
-        being falsely analysed as reachable.
+        ``default`` arm and *every* reachable arm body exits the *procedure*
+        (``return`` / ``error`` / ``exit`` / ``tailcall``), no path reaches the
+        code after the switch, so the switch is itself a procedure terminator —
+        promote the block to a ``CFGReturn`` so the following statements are
+        routed to the orphan unreachable block, exactly like a ``return``.
+
+        Only proc-exit arms qualify: a switch whose arms ``break``/``continue``
+        jumps to an enclosing-loop target (reaching the code after the loop),
+        NOT the procedure exit, so it must not be promoted to a ``CFGReturn``.
 
         Analysis builds only (``faithful_exceptions``); codegen leaves the
         fall-through edge so the opaque-switch ``invokeStk`` bytecode and CFG
-        shape are unchanged.  Conservative: only fires when provably
-        non-completing, so it never hides a real read-before-set.
+        shape are unchanged.  Conservative: only fires when the switch provably
+        exits the proc on every path, so it never hides a real read-before-set.
         """
-        if self._faithful_exceptions and not _switch_completes_normally(stmt):
+        if self._faithful_exceptions and _switch_proc_exits(stmt):
             self._block(block_name).terminator = CFGReturn(
                 value=None, range=stmt.range, expr=None, braced=False
             )

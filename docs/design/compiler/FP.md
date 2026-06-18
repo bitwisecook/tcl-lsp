@@ -2569,6 +2569,12 @@ resolves.
 - `tests/test_fp_rbs.py::test_FP_RBS_14_omitting_arm_still_fires` (TP control —
   an arm that falls through without assigning `y` keeps the W210, proving the
   exclusion is limited to non-completing arms)
+- `tests/test_fp_rbs.py::test_FP_RBS_14_break_arm_escaping_loop_still_fires`
+  (TP control — only *procedure*-exit arms (`return`/`error`/`exit`/`tailcall`)
+  are excluded.  A `break`/`continue` arm is a *loop jump*: it still reaches the
+  code after the enclosing loop *without* the other arms' defs, so it is kept in
+  the intersection.  `foreach x {a} { switch {a* {break} default {set y 1}} };
+  puts $y` errors in tclsh and must fire W210 — a Codex-review soundness fix.)
 
 ---
 
@@ -2667,6 +2673,11 @@ bytecode and CFG shape are unchanged.
   control — without a `default` the unmatched path reaches the read)
 - `tests/test_fp_rbs.py::test_FP_RBS_15_one_completing_arm_fires` (TP control —
   one arm that completes lets the switch fall through with the var unset)
+- `tests/test_fp_rbs.py::test_FP_RBS_15_all_break_switch_not_a_proc_terminator`
+  (TP control — promotion requires every arm to exit the *procedure*; an
+  all-`break` switch jumps to the loop exit instead, so it is NOT promoted to a
+  `CFGReturn` that would wrongly make the post-loop read unreachable — a
+  Codex-review soundness fix.)
 
 ---
 
@@ -2977,6 +2988,11 @@ keep the original header/body/step shape, so bytecode is unchanged.
 - `tests/test_fp_rbs.py::test_FP_RBS_18_false_on_entry_still_fires` (TP control)
 - `tests/test_fp_rbs.py::test_FP_RBS_18_unknown_bound_still_fires` (TP control)
 - `tests/test_fp_rbs.py::test_FP_RBS_18_break_before_set_still_fires` (TP control)
+- `tests/test_fp_rbs.py::test_FP_RBS_18_stale_const_init_still_fires` (TP control
+  — a later non-constant init write (`set i 0; set i $n`) invalidates the stale
+  constant, so the loop is not treated as guaranteed; a Codex-review fix.)
+- `tests/test_fp_rbs.py::test_FP_RBS_18_incr_in_init_invalidates_const` (TP
+  control — `incr` in init likewise invalidates the constant binding.)
 
 ---
 
