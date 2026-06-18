@@ -6019,6 +6019,35 @@ file; this call falls through to the 'unknown' handler."
         ))
     }
 
+    /// Narrow a whole-command span to the `$var` read token for *var*,
+    /// returning that token's absolute span — or `None` when no matching
+    /// top-level `Var` token is found (e.g. the read is nested inside a
+    /// quoted/compound word, where the caller falls back to the command
+    /// span).  Mirrors Python's `narrow_to_variable(kind="read_var")`: W210
+    /// anchors at the variable read, not the command-start column.
+    fn narrow_to_read_var(&self, stmt_span: tcl_lexer::Span, var: &str) -> Option<tcl_lexer::Span> {
+        // De-sigil + drop any array-index suffix so `$a(k)` / `${a}` / `$a`
+        // all compare equal to the chain's scalar/element base name.
+        fn base(text: &str) -> &str {
+            let inner = text.strip_prefix("${").map_or_else(
+                || text.strip_prefix('$').unwrap_or(text),
+                |i| i.strip_suffix('}').unwrap_or(i),
+            );
+            inner.split('(').next().unwrap_or(inner)
+        }
+        let target = base(var);
+        let start = stmt_span.start();
+        let slice = source_slice(&self.source, stmt_span)?;
+        let sm = tcl_lexer::SourceMap::new(&slice);
+        let toks =
+            tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(&slice), self.lexer_config())
+                .tokenise_all()
+                .ok()?;
+        toks.iter()
+            .find(|t| t.kind == tcl_lexer::TokenType::Var && base(sm.token_text(**t)) == target)
+            .map(|t| tcl_lexer::Span::new(t.span.start() + start, t.span.end() + start))
+    }
+
     /// W211 — unused-variable hint.
     ///
     /// Mirrors `_emit_unused_variable_diagnostics` in
@@ -6574,14 +6603,18 @@ file; this call falls through to the 'unknown' handler."
                 if use_site_safe_initialises(stmt_opt, var) {
                     continue;
                 }
+                // Anchor at the `$var` read token (Python narrows to
+                // `read_var`); fall back to the command span when the read
+                // is nested inside a quoted/compound word.
+                let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
                 w210_min
                     .entry(var.clone())
                     .and_modify(|s| {
-                        if span.start() < s.start() {
-                            *s = span;
+                        if read_span.start() < s.start() {
+                            *s = read_span;
                         }
                     })
-                    .or_insert(span);
+                    .or_insert(read_span);
             }
         }
 
