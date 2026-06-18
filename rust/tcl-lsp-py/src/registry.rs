@@ -126,6 +126,7 @@ pub fn registry_arg_indices_for_role(name: &str, args: Vec<String>, role: &str) 
         "pattern" => ArgRole::Pattern,
         "channel" => ArgRole::Channel,
         "index" => ArgRole::Index,
+        "keyword" => ArgRole::Keyword,
         _ => return Vec::new(),
     };
     let args_ref: Vec<&str> = args.iter().map(String::as_str).collect();

@@ -646,7 +646,12 @@ impl FeatureToggles {
         "rename",
         "signatureHelp",
         "workspaceSymbols",
-        "inlayHints",
+        // Inlay hints split into two independently-toggled families
+        // (PR #643): inferred-type hints and parameter-name hints.  The
+        // retired `inlayHints` key is still accepted on input as a
+        // backward-compatible alias for `inlayTypeHints` (see `apply`).
+        "inlayTypeHints",
+        "inlayParameterHints",
         "callHierarchy",
         "documentLinks",
         "selectionRange",
@@ -673,8 +678,19 @@ impl FeatureToggles {
 
     /// Merge an editor-supplied `features` object, setting only the
     /// keys it carries (absent keys keep their last-applied value).
+    ///
+    /// The retired `inlayHints` key is a backward-compatible alias for
+    /// `inlayTypeHints` (it enables the useful variable-type hints, not
+    /// the verbose parameter-name hints; PR #643).  It is applied first
+    /// so an explicit new `inlayTypeHints` in the same object wins.
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
+        if let Some(flag) = features.get("inlayHints").and_then(serde_json::Value::as_bool) {
+            self.set.insert("inlayTypeHints".to_owned(), flag);
+        }
         for (key, value) in features {
+            if key == "inlayHints" {
+                continue;
+            }
             if let Some(flag) = value.as_bool() {
                 self.set.insert(key.clone(), flag);
             }
@@ -5768,6 +5784,30 @@ mod tests {
         toggles.apply(serde_json::json!({"hover": true}).as_object().unwrap());
         assert!(toggles.is_enabled("hover"));
         assert!(!toggles.is_enabled("folding"));
+    }
+
+    #[test]
+    fn legacy_inlay_hints_key_maps_to_type_hints_only() {
+        // The retired `inlayHints` key keeps an existing opt-in working by
+        // enabling the variable-type hints; the verbose parameter-name hints
+        // stay at their default (PR #643).
+        let mut toggles = FeatureToggles::default();
+        toggles.apply(serde_json::json!({"inlayHints": false}).as_object().unwrap());
+        assert!(!toggles.is_enabled("inlayTypeHints"));
+        // The legacy alias does not touch the parameter-hint family.
+        assert!(toggles.is_enabled("inlayParameterHints"));
+    }
+
+    #[test]
+    fn explicit_new_inlay_key_wins_over_legacy_alias() {
+        // When a config carries both, the explicit new key takes precedence.
+        let mut toggles = FeatureToggles::default();
+        toggles.apply(
+            serde_json::json!({"inlayHints": true, "inlayTypeHints": false})
+                .as_object()
+                .unwrap(),
+        );
+        assert!(!toggles.is_enabled("inlayTypeHints"));
     }
 
     #[test]

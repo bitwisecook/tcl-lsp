@@ -367,6 +367,11 @@ enum ArgOverride {
     /// elements recursed as scripts.  Mirrors
     /// `_collect.py::_collect_switch_case_bodies`.
     SwitchRegexpCaseList,
+    /// A structural keyword word at an argument position (`if`'s
+    /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
+    /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
+    /// string.  Mirrors `_collect.py`'s KEYWORD-role branch.
+    KeywordArg,
 }
 
 /// The inner content (delimiters stripped via `content_offset`) of a
@@ -653,6 +658,22 @@ fn special_arg_kinds(
             {
                 overrides.entry(tok.span.start()).or_insert(ov);
             }
+        }
+    }
+
+    // Structural keyword words (`if`'s then/elseif/else, `try`'s
+    // on/trap/finally) sit at argument positions, not the command-name
+    // slot, so the default classifier would render them as strings.  The
+    // registry's `Keyword` role marks them; highlight as keywords.  Unlike
+    // body/expr these are bare (`Esc`) or quoted (`Str`) literal words, so
+    // no `Str`-only guard.
+    for i in registry.arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword) {
+        if let Some(tok) = seg.argv.get(i + 1)
+            && matches!(tok.kind, TokenType::Esc | TokenType::Str)
+        {
+            overrides
+                .entry(tok.span.start())
+                .or_insert(ArgOverride::KeywordArg);
         }
     }
 
@@ -1641,6 +1662,9 @@ fn collect_script(
                         depth + 1,
                     );
                 }
+                Some(ArgOverride::KeywordArg) => {
+                    push_keyword_arg(line_index, full_source, *tok, entries);
+                }
                 None => {
                     if matches!(tok.kind, TokenType::Cmd) {
                         // Command substitution `[…]` — recurse into the inner
@@ -2088,6 +2112,23 @@ fn push_token(
     }
     let len_utf16 = utf16_len(text);
     entries.push((pos.line, pos.character, len_utf16, kind, modifiers));
+}
+
+/// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s
+/// on/trap/finally) as a `Keyword` token.  Offsets past any leading
+/// delimiter so a quoted `"else"` — whose span starts on the opening
+/// quote — marks `else` rather than `"els`, and trims the matching
+/// trailing delimiter.  Mirrors Python's `token_content_base` use in
+/// the KEYWORD-role branch.
+fn push_keyword_arg(line_index: &LineIndex, source: &str, tok: Token, entries: &mut Vec<Entry>) {
+    if let Some((cstart, inner)) = subspec_content(source, tok) {
+        let content = inner.trim_end_matches(['"', '}']);
+        if !content.is_empty() {
+            push_subtoken(source, line_index, cstart, content, TokenKind::Keyword, entries);
+            return;
+        }
+    }
+    push_token(line_index, source, tok, TokenKind::Keyword, 0, entries);
 }
 
 /// Encode entries into the LSP packed integer stream:
@@ -2667,6 +2708,83 @@ mod tests {
         // First token's type index should be 0 (Keyword) for `if`.
         // The encoded data: [deltaLine, deltaCol, length, type, modifiers].
         assert_eq!(s.data[3], TokenKind::Keyword as u32, "{:?}", s.data);
+    }
+
+    /// Decode the packed stream into `(line, col, len, kind)` tuples plus
+    /// the covered source word (ASCII sources only — byte == utf16).
+    fn decode_words(src: &str, registry: &CommandRegistry) -> Vec<(u32, u32, u32, u32, String)> {
+        let st = full(src, "tcl", registry);
+        let lines: Vec<&str> = src.split('\n').collect();
+        let mut line = 0u32;
+        let mut col = 0u32;
+        let mut out = Vec::new();
+        for c in st.data.chunks(5) {
+            let (dl, dc, len, kind) = (c[0], c[1], c[2], c[3]);
+            if dl > 0 {
+                line += dl;
+                col = dc;
+            } else {
+                col += dc;
+            }
+            let word = lines
+                .get(line as usize)
+                .and_then(|l| l.get(col as usize..(col + len) as usize))
+                .unwrap_or("")
+                .to_string();
+            out.push((line, col, len, kind, word));
+        }
+        out
+    }
+
+    fn keyword_words(src: &str, registry: &CommandRegistry) -> std::collections::HashSet<String> {
+        decode_words(src, registry)
+            .into_iter()
+            .filter(|(_, _, _, kind, _)| *kind == TokenKind::Keyword as u32)
+            .map(|(_, _, _, _, word)| word)
+            .collect()
+    }
+
+    #[test]
+    fn if_else_elseif_are_keywords() {
+        // else/elseif structural keywords highlight like `if` (issue #637).
+        let src = "if 1 {\n puts a\n} elseif 2 {\n puts b\n} else {\n puts c\n}";
+        let kw = keyword_words(src, &reg());
+        for expected in ["if", "elseif", "else"] {
+            assert!(kw.contains(expected), "missing {expected:?} in {kw:?}");
+        }
+    }
+
+    #[test]
+    fn try_on_finally_are_keywords() {
+        // try's on/trap/finally structural keywords highlight as keywords.
+        let src = "try {\n set x 1\n} on error {e} {\n puts $e\n} finally {\n puts d\n}";
+        let kw = keyword_words(src, &reg());
+        for expected in ["try", "on", "finally"] {
+            assert!(kw.contains(expected), "missing {expected:?} in {kw:?}");
+        }
+    }
+
+    #[test]
+    fn builtin_name_as_bareword_arg_is_string() {
+        // A builtin name used as a plain dict value stays a string, not a
+        // keyword — the KEYWORD role is position-aware (if/try only).
+        let src = "dict set frame proc \"asasdas asd\"";
+        let proc = decode_words(src, &reg())
+            .into_iter()
+            .find(|(_, _, _, _, word)| word == "proc")
+            .expect("a `proc` token");
+        assert_eq!(proc.3, TokenKind::String as u32, "{proc:?}");
+    }
+
+    #[test]
+    fn quoted_structural_keyword_offsets_past_quote() {
+        // A quoted `"else"` keyword marks `else`, not `"els` (PR #643).
+        let src = "if 0 {} \"else\" {puts ok}";
+        let kw = decode_words(src, &reg())
+            .into_iter()
+            .find(|(_, col, _, kind, _)| *kind == TokenKind::Keyword as u32 && *col >= 8)
+            .expect("a keyword token past the first word");
+        assert_eq!(kw.4, "else", "{kw:?}");
     }
 
     #[test]
