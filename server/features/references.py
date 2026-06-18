@@ -18,12 +18,23 @@ def find_proc_call_sites(name: str, qualified_name: str, analysis: AnalysisResul
     """Find all locations where a proc is called."""
     qualified_no_prefix = qualified_name[2:] if qualified_name.startswith("::") else qualified_name
     call_forms = {name, qualified_name, qualified_no_prefix}
+    # A bare simple name is ambiguous when several procs share it (e.g.
+    # ``::a::foo`` and ``::b::foo``). An *unresolved* call written as the bare
+    # ``foo`` cannot be attributed to a specific one without the call site's
+    # namespace, so crediting it to every same-named proc would show a phantom
+    # reference on the unrelated proc (PR #644 review). Drop such bare matches;
+    # resolved calls and qualified call forms (``a::foo``) stay precise.
+    simple_name_is_ambiguous = "::" not in name and (
+        sum(1 for proc in analysis.all_procs.values() if proc.name == name) > 1
+    )
     locations: list[Range] = []
     seen: set[tuple[int, int, int, int]] = set()
     for invocation in analysis.command_invocations:
         resolved_name = invocation.resolved_qualified_name
         if resolved_name is not None:
             matches_target = resolved_name == qualified_name
+        elif simple_name_is_ambiguous and invocation.name == name:
+            matches_target = False
         else:
             matches_target = invocation.name in call_forms
         if matches_target:

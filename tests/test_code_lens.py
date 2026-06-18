@@ -244,6 +244,35 @@ class TestCountMatchesReferences:
         assert resolved.command is not None
         assert resolved.command.title == "1 reference"
 
+    def test_ambiguous_simple_name_not_double_counted(self):
+        """An unresolved bare call must not credit every same-named proc.
+
+        With ``::a::foo`` and ``::b::foo`` both defined and a forward (so
+        unresolved) bare ``foo`` call, the call cannot be attributed to a
+        specific proc without the call site's namespace. Crediting it to both
+        showed a phantom "1 reference" on the unrelated proc (PR #644 review).
+        The count and the peek must agree, and neither may invent a reference.
+        """
+        source = (
+            "namespace eval a {\n"
+            "    foo\n"
+            "    proc foo {} {}\n"
+            "}\n"
+            "namespace eval b {\n"
+            "    proc foo {} {}\n"
+            "}\n"
+        )
+        analysis = analyse(source)
+        ws = _FakeWorkspaceIndex(_resolved_counts(analysis))
+        finder = self._finder(analysis)
+        for lens in get_code_lenses(source, TEST_URI, analysis):
+            resolved = resolve_code_lens(lens, ws, finder)
+            assert resolved.command is not None
+            # Neither lens may claim the ambiguous unresolved call.
+            assert resolved.command.title == "0 references"
+            assert resolved.command.arguments is not None
+            assert resolved.command.arguments[2] == []
+
 
 def _resolved_counts(analysis) -> dict[str, int]:
     """Mirror ``WorkspaceIndex.proc_usage_counts`` for a single analysis."""
