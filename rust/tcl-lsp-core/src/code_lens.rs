@@ -588,4 +588,28 @@ mod tests {
         assert_lens_matches_references(src, 0); // a::helper
         assert_lens_matches_references(src, 1); // b::helper
     }
+
+    #[test]
+    fn lens_does_not_credit_ambiguous_forward_ref_to_other_namespace() {
+        // PR #644 review (Codex P2): a forward `foo` call inside namespace
+        // `a`, with both `::a::foo` and `::b::foo` defined, must be credited
+        // only to `::a::foo`.  A tail-name resolver would attribute the
+        // unresolved call to *both* procs, falsely showing `1 reference`
+        // above `::b::foo`.  The namespace-aware resolver the lens count is
+        // derived from scopes the call to its own namespace.
+        let src = concat!(
+            "namespace eval a { foo ; proc foo {} {} }\n",
+            "namespace eval b { proc foo {} {} }\n",
+        );
+        let analysis = analyse(src);
+        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let by_qname = |q: &str| {
+            lenses
+                .iter()
+                .find(|l| l.qname == q)
+                .unwrap_or_else(|| panic!("no lens for {q}: {lenses:?}"))
+        };
+        assert_eq!(by_qname("::a::foo").command_title, "1 reference", "{lenses:?}");
+        assert_eq!(by_qname("::b::foo").command_title, "0 references", "{lenses:?}");
+    }
 }
