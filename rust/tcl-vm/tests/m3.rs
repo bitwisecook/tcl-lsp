@@ -12,6 +12,8 @@ use tcl_vm::{CompileError, CompileService, Vm};
 
 struct Svc(CommandRegistry);
 impl CompileService for Svc {
+    type Module = tcl_bytecode::ModuleAsm;
+
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let ir = lower_to_ir(src, &self.0);
         let cfg = build_cfg_codegen(&ir, false);

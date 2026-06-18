@@ -13,14 +13,13 @@
 //!
 //! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
 
-use tcl_bytecode::ModuleAsm;
-
 // The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
 // and the opaque arena handles) lives in the dependency-free `tcl-core-types`
-// leaf crate, so pure command logic (`tcl-cmd-core`) can name a completion code
-// without transitively depending on `tcl-bytecode` (pulled in below for
-// `CompileService`). Re-exported here so existing `tcl_runtime_api::{Code,
-// Completion, NsId, …}` consumers are unaffected.
+// leaf crate. This crate's own only dependency is that leaf — the concrete
+// bytecode artifact is kept out of [`CompileService`] (an associated `Module`
+// type) precisely so a shared command-core crate (`tcl-cmd-core`) can depend on
+// these role traits without pulling in `tcl-bytecode`. Re-exported here so
+// existing `tcl_runtime_api::{Code, Completion, NsId, …}` consumers are unaffected.
 pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
@@ -31,7 +30,7 @@ pub use tcl_core_types::{
 #[derive(Debug, Clone)]
 pub struct CompileError(pub String);
 
-/// Compiles a Tcl source string to bytecode at runtime.
+/// Compiles a Tcl source string to a runtime-executable module at runtime.
 ///
 /// `eval`/`uplevel`/dynamic command names compile a string while the program
 /// runs, so a VM that supports them needs a compiler available during
@@ -39,9 +38,16 @@ pub struct CompileError(pub String);
 /// compiler-optional: the embedder wires a real (`tcl-compiler`-backed)
 /// implementation; a program that never hits `eval` can use a stub. Mirrors C
 /// Tcl always carrying its bytecode compiler.
+///
+/// The produced module is an associated type (e.g. the VM sets it to
+/// `tcl_bytecode::ModuleAsm`) so this contract crate stays free of any concrete
+/// bytecode dependency — see the crate-level note.
 pub trait CompileService {
-    /// Compile `src` to a [`ModuleAsm`], or report why it could not.
-    fn compile(&self, src: &str) -> Result<ModuleAsm, CompileError>;
+    /// The runtime-executable artifact produced (the bytecode VM's `ModuleAsm`).
+    type Module;
+
+    /// Compile `src` to a [`Module`](Self::Module), or report why it could not.
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError>;
 }
 
 // -- Family-B role traits --

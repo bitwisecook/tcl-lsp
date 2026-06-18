@@ -38,14 +38,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tcl-bytecode"
-version = "0.1.0"
-dependencies = [
- "tcl-lexer",
- "tcl-syntax",
-]
-
-[[package]]
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
@@ -91,7 +83,6 @@ dependencies = [
 name = "tcl-runtime-api"
 version = "0.1.0"
 dependencies = [
- "tcl-bytecode",
  "tcl-core-types",
 ]
 

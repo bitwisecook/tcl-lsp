@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::{self, Write};
 use std::rc::Rc;
 
-use tcl_bytecode::FunctionAsm;
+use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_platform::Host;
 use tcl_runtime_api::{
     Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
@@ -100,7 +100,7 @@ pub struct Vm {
     /// unqualified names are proc locals.
     ns_script_frames: Vec<usize>,
     out: Box<dyn Write>,
-    compiler: Option<Box<dyn CompileService>>,
+    compiler: Option<Box<dyn CompileService<Module = ModuleAsm>>>,
     /// Open I/O channels (file handles), keyed by channel id (`file3`, …). The
     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
     /// special-case those names.
@@ -205,7 +205,7 @@ impl Vm {
     }
 
     /// Inject the compiler used for runtime `eval` / command substitution.
-    pub fn set_compiler(&mut self, compiler: Box<dyn CompileService>) {
+    pub fn set_compiler(&mut self, compiler: Box<dyn CompileService<Module = ModuleAsm>>) {
         self.compiler = Some(compiler);
     }
 

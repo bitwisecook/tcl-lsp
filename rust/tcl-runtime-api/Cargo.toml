@@ -16,7 +16,6 @@ authors.workspace = true
 description = "Family-B runtime-state contract (Code/Completion, handles, role traits, CompileService) for Tcl runtimes"
 
 [dependencies]
-tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-core-types = { path = "../tcl-core-types" }
 
 [lints]
