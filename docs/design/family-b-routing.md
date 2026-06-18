@@ -89,6 +89,22 @@ Shared in `tcl-cmd-core`:
   conflict. `lseq` is `i64`-based on both runtimes (C's `assignNumber` rejects
   `TCL_NUMBER_BIG`), so the shared `Num` carries a fixed `i64`/`f64` pair. This
   lifted the VM from **no `lseq` at all** to the full command.
+- `regex::{regexp, regsub}` — the `regexp`/`regsub` **command plumbing** (option
+  parsing, the match/advance loop, `-indices`/`-inline`/`-start`/`-all` handling,
+  submatch-variable assignment, the `regsub` substitution-spec expansion, and the
+  match-count semantics) over a new `RegexEngine` **provider trait** + `ValueOps`.
+  This is the explicit *engine-divergence* share: the contract (compile / `nsub` /
+  codepoint-offset `exec`) is identical, the **engine is not** — `runtime/rust`
+  drives the real linked Tcl ARE engine (byte-for-byte tclsh), the VM drives the
+  Rust `regex` crate (approximate; full ARE like `\m`/`\M`/`[[:<:]]` out of scope).
+  The seam is **character**-offset based (Tcl's index model), so the VM's crate
+  engine translates byte↔char behind it (`captures_at` for context-correct `^`/`\b`
+  at resumed offsets — the `notbol` hint is then unneeded). The var writes (match
+  vars / result var, with the const check) stay per-adapter (Family-B). The pure
+  `decode_utf8` moved here as the canonical copy (the runtime's `regex.rs` re-exports
+  it). This lifted the VM substantially: it gained `-indices`/`-start`, the full
+  option set, char-correct offsets, the tclsh error messages, and the
+  vars-untouched-on-no-match rule it was getting wrong.
 - `var::append_bytes` / `var::lappend_value` — the COW-aware *value computation*
   for `append`/`lappend`, over two new `ValueOps` rungs: a **byte-exact** seam
   (`as_bytes`/`new_bytes` + `try_append_bytes_in_place`) so `append` never routes
@@ -126,6 +142,7 @@ core unified both to the correct behaviour):
 | `lsort` (VM modes) | `-dictionary` fell back to a byte compare, `-integer`/`-real` both used a `double` compare, and `-nocase` was absent; routing the shared `sort` core gave the VM the correct modes (numeric dictionary order, exact integer vs real, case folding, and mode-aware `-unique`). |
 | `mathop` (VM) | the VM had no `::tcl::mathop::*` at all; sharing the fold/chain core over `ExprOps` added the full operator set (verified against tclsh). |
 | `lseq` (VM) | the VM had no `lseq` at all; sharing the decode-key + precision-matched generation over `ValueOps` (with an `eval_expr` edge for expression-valued args) added every form — ranges, `by`/`count`/`to`/`..`, double precision (`lseq 0 0.5 by 0.1` → `0.0 0.1 0.2 0.3 0.4 0.5`), expression arguments — verified against tclsh 9.0. |
+| `regexp`/`regsub` (VM) | the VM's `regex`-crate version lacked `-indices`/`-start`, used **byte** offsets (wrong for non-ASCII), **set match vars to empty on a failed match** (tclsh leaves them untouched), reported `couldn't compile…` (tclsh: `cannot compile…`), and had a wrong/short bad-option message. Routing the shared plumbing over the `RegexEngine` seam fixed all of these while keeping the crate engine — verified against tclsh 9.0. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.
@@ -181,6 +198,15 @@ early by `append`.
   write trace that runs on a mutating append — is covered; the exact count is
   not. The matching read-trace on the no-argument read forms is likewise not
   fired (the runtime's `var_get` doesn't). Recorded as an accepted simplification.
+- `regexp`/`regsub` engine divergence is deliberate (the shared layer is the
+  *plumbing*, not the engine): (a) the VM's `regex` crate is not full ARE, so
+  ARE-only syntax (`\m`/`\M`/`[[:<:]]`, some back-reference forms) compiles on the
+  runtime but errors on the VM; (b) the runtime's engine driving *slices*
+  `text[offset..]` (+ `REG_NOTBOL`) rather than tclsh's whole-string+offset, so a
+  **truly-empty** pattern at end-of-string diverges (`regsub -all {} abc X` →
+  `XaXbXcX` vs tclsh's `XaXbXc`) — a pre-existing low-level quirk, not introduced
+  by the share; (c) `regexp -about` and `regsub -command` are `not yet supported`
+  on both (the latter invokes a proc — Family-B). Recorded, not fixed.
 
 ## 5. Recommended next steps (each its own decision)
 

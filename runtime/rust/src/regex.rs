@@ -160,54 +160,8 @@ fn error_detail(code: c_int) -> Vec<u8> {
     buf[..end].to_vec()
 }
 
-/// Decode UTF-8 `bytes` into codepoints plus a parallel byte-offset table.
-/// The returned `offsets` has length `codepoints.len() + 1`: `offsets[i]` is
-/// the byte index where codepoint `i` starts, and the final entry is
-/// `bytes.len()` — so a character range `[so, eo)` slices the original bytes as
-/// `bytes[offsets[so]..offsets[eo]]`. Invalid sequences decode to U+FFFD,
-/// matching the C shim's `Tcl_UniCharToUtfDString`.
-pub fn decode_utf8(bytes: &[u8]) -> (Vec<i32>, Vec<usize>) {
-    let mut cps = Vec::with_capacity(bytes.len());
-    let mut offs = Vec::with_capacity(bytes.len() + 1);
-    let mut i = 0;
-    while i < bytes.len() {
-        offs.push(i);
-        let b0 = bytes[i];
-        let (cp, n) = if b0 < 0x80 {
-            (b0 as u32, 1)
-        } else if b0 & 0xE0 == 0xC0 {
-            (u32::from(b0 & 0x1F), 2)
-        } else if b0 & 0xF0 == 0xE0 {
-            (u32::from(b0 & 0x0F), 3)
-        } else if b0 & 0xF8 == 0xF0 {
-            (u32::from(b0 & 0x07), 4)
-        } else {
-            (0xFFFD, 1)
-        };
-        let mut cp = cp;
-        let mut taken = 1;
-        if n > 1 && i + n <= bytes.len() {
-            let mut ok = true;
-            for j in 1..n {
-                let b = bytes[i + j];
-                if b & 0xC0 != 0x80 {
-                    ok = false;
-                    break;
-                }
-                cp = (cp << 6) | u32::from(b & 0x3F);
-                taken += 1;
-            }
-            if !ok || taken != n {
-                cp = 0xFFFD;
-                taken = 1;
-            }
-        } else if n > 1 {
-            cp = 0xFFFD;
-            taken = 1;
-        }
-        cps.push(cp as i32);
-        i += taken;
-    }
-    offs.push(bytes.len());
-    (cps, offs)
-}
+/// Decode UTF-8 `bytes` into codepoints plus a parallel byte-offset table —
+/// the canonical implementation now lives in [`tcl_cmd_core::regex`] (shared
+/// with the bytecode VM's regex plumbing); this is a re-export so the engine's
+/// internal use and `cmd_list`/`cmd_switch` keep the `crate::regex` path.
+pub use tcl_cmd_core::regex::decode_utf8;

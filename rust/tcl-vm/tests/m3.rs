@@ -332,6 +332,38 @@ fn regexp_regsub() {
     );
 }
 
+/// Features the VM gained by sharing `tcl_cmd_core::regex`'s plumbing (it had
+/// only `-nocase`/`-all`/`-inline`/`-line` before). Pinned against tclsh 9.0.
+#[test]
+fn regexp_shared_features() {
+    // `-indices` reports char-offset {start end} pairs.
+    assert_eq!(run("regexp -indices {bc} abcd m; set m").1, "1 2");
+    // `-start` resumes the search at a char offset.
+    assert_eq!(run("regexp -start 3 {a} {a a a}").1, "1");
+    assert_eq!(run("regsub -start 2 -all {a} aaaa X").1, "aaXX");
+    // `-inline -all` with submatches flattens whole+subs per match.
+    assert_eq!(
+        run("regexp -inline -all {(\\d)(\\d)} 1234").1,
+        "12 1 2 34 3 4"
+    );
+    // A failed match leaves the match variables untouched (was: set to empty).
+    assert_eq!(run("set m PRESET; regexp {z} abc m; set m").1, "PRESET");
+    // The tclsh compile-error prefix (was: "couldn't compile…").
+    let (ok, msg, _) = run("regexp {a(} b");
+    assert!(!ok);
+    assert!(
+        msg.starts_with("cannot compile regular expression pattern"),
+        "got: {msg}"
+    );
+    // The per-command bad-option message.
+    let (ok, msg, _) = run("regexp -bogus {a} b");
+    assert!(!ok);
+    assert!(
+        msg.starts_with("bad option \"-bogus\": must be -all, -about"),
+        "got: {msg}"
+    );
+}
+
 #[test]
 fn file_path_ops() {
     out_eq("puts [file join /a b c]\n", "/a/b/c\n");

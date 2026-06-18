@@ -1,19 +1,27 @@
-//! `regexp` / `regsub` — Tcl ARE matching/substitution, on the real Tcl 9
-//! Henry-Spencer engine (linked via `build.rs`, gated `have_regex`).
+//! `regexp` / `regsub` — a thin adapter over the shared
+//! [`tcl_cmd_core::regex`] plumbing, driving it with the **real Tcl 9
+//! Henry-Spencer ARE engine** (linked via `build.rs`, gated `have_regex`).
 //!
-//! Semantics mirror `tmp/tcl9.0.3/generic/tclCmdMZ.c` (`Tcl_RegexpObjCmd` /
-//! `Tcl_RegsubObjCmd`); the engine driving (UTF-8 → codepoints, offset
-//! advancing, `REG_NOTBOL`) lives in [`crate::regex`]. The Zig runtime
-//! (`runtime/zig/valtypes/tcl_regex.zig`) is the behavioural oracle. This is
-//! the M3 regex wall in `docs/design/runtime/tcltest-bringup.md`.
+//! The command logic — option parsing, the match/advance loop, `-indices`/
+//! `-inline`/`-start`/`-all` handling, submatch-variable assignment, and the
+//! `regsub` substitution-spec expansion — lives once in `tcl-cmd-core`; this
+//! file supplies the engine ([`AreEngine`], a `RegexEngine` over
+//! [`crate::regex`]) and the two per-runtime edges that stay Family-B state:
+//! the match-variable / result-variable writes (with the const-variable check
+//! and refcount discipline) and the result protocol.
+//!
+//! The Zig runtime (`runtime/zig/valtypes/tcl_regex.zig`) and tclsh 9.0 are the
+//! behavioural oracles. This is the M3 regex wall in
+//! `docs/design/runtime/tcltest-bringup.md`.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_string_bytes, new_wide_int_obj, TclObj};
-use crate::regex::{
-    decode_utf8, Regex, NO_MATCH, REG_EXPANDED, REG_ICASE, REG_NEWLINE, REG_NLANCH, REG_NLSTOP,
+use crate::regex::{Regex, REG_EXPANDED, REG_ICASE, REG_NLANCH, REG_NLSTOP};
+use tcl_cmd_core::regex::{
+    self as core_re, RegMatch, RegexEngine, RegexFlags, RegexpResult, RegsubResult,
 };
 
 /// Register `regexp` and `regsub`.
@@ -22,474 +30,111 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"regsub", regsub_cmd);
 }
 
-fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
-    let mut m = b"wrong # args: should be \"".to_vec();
-    m.extend_from_slice(usage);
-    m.push(b'"');
-    interp.set_error(&m)
-}
+/// The real Tcl 9 ARE engine, presented as the shared plumbing's
+/// [`RegexEngine`] provider. Maps the engine-neutral [`RegexFlags`] onto the
+/// engine's compile flags and bridges its codepoint-native [`crate::regex`]
+/// match vector to the core's [`RegMatch`].
+struct AreEngine;
 
-/// The compile flags shared by both commands' option sets (`-nocase`,
-/// `-expanded`, `-line`/`-linestop`/`-lineanchor`).
-#[derive(Default)]
-struct Common {
-    all: bool,
-    cflags: i32,
-    start: Option<Vec<u8>>,
-}
+impl RegexEngine for AreEngine {
+    type Regex = Regex;
 
-/// Try to consume one shared option `name` (already known to start with `-`).
-/// Returns `Some(Ok(consumed_extra))` where `consumed_extra` is whether it ate
-/// the following argument (`-start`), `Some(Err)` on a malformed `-start`, or
-/// `None` if `name` isn't one of the shared options.
-fn shared_option(c: &mut Common, name: &[u8], next: Option<&[u8]>) -> Option<Result<bool, ()>> {
-    match name {
-        b"-all" => {
-            c.all = true;
-            Some(Ok(false))
+    fn compile(pattern: &[u8], flags: RegexFlags) -> Result<Regex, Vec<u8>> {
+        let mut cflags = 0i32;
+        if flags.nocase {
+            cflags |= REG_ICASE;
         }
-        b"-nocase" => {
-            c.cflags |= REG_ICASE;
-            Some(Ok(false))
+        if flags.expanded {
+            cflags |= REG_EXPANDED;
         }
-        b"-expanded" => {
-            c.cflags |= REG_EXPANDED;
-            Some(Ok(false))
+        if flags.linestop {
+            cflags |= REG_NLSTOP;
         }
-        b"-line" => {
-            c.cflags |= REG_NEWLINE;
-            Some(Ok(false))
+        if flags.lineanchor {
+            cflags |= REG_NLANCH;
         }
-        b"-linestop" => {
-            c.cflags |= REG_NLSTOP;
-            Some(Ok(false))
-        }
-        b"-lineanchor" => {
-            c.cflags |= REG_NLANCH;
-            Some(Ok(false))
-        }
-        b"-start" => match next {
-            Some(v) => {
-                c.start = Some(v.to_vec());
-                Some(Ok(true))
-            }
-            None => Some(Err(())),
-        },
-        _ => None,
+        Regex::compile(pattern, cflags)
+    }
+
+    fn nsub(re: &Regex) -> usize {
+        re.nsub()
+    }
+
+    fn exec(re: &mut Regex, cps: &[i32], offset: usize, notbol: bool) -> Option<Vec<RegMatch>> {
+        re.exec(cps, offset, notbol).map(|v| {
+            v.iter()
+                .map(|m| RegMatch { so: m.so, eo: m.eo })
+                .collect()
+        })
     }
 }
-
-/// Resolve a `-start` index spec (integer / `end` / `end±N`) against the
-/// character length, clamped to `0` (Tcl resets negatives to the start).
-fn resolve_start(spec: &[u8], char_len: usize) -> usize {
-    let len = char_len as isize;
-    let idx = if spec == b"end" {
-        len - 1
-    } else if let Some(rest) = spec.strip_prefix(b"end") {
-        match rest.first() {
-            Some(b'-') => parse_isize(&rest[1..]).map_or(0, |n| len - 1 - n),
-            Some(b'+') => parse_isize(&rest[1..]).map_or(0, |n| len - 1 + n),
-            _ => 0,
-        }
-    } else {
-        parse_isize(spec).unwrap_or(0)
-    };
-    if idx < 0 {
-        0
-    } else {
-        idx as usize
-    }
-}
-
-fn parse_isize(b: &[u8]) -> Option<isize> {
-    core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
-}
-
-/// Compile, mapping a bad pattern to the Tcl error result.
-fn compile(interp: &mut Interp, pattern: &[u8], cflags: i32) -> Option<Regex> {
-    match Regex::compile(pattern, cflags) {
-        Ok(re) => Some(re),
-        Err(detail) => {
-            let mut m = b"cannot compile regular expression pattern: ".to_vec();
-            m.extend_from_slice(&detail);
-            interp.set_error(&m);
-            None
-        }
-    }
-}
-
-/// Tcl's per-iteration `eflags` rule: `REG_NOTBOL` unless `offset` is the very
-/// start or follows a newline (so `^` behaves correctly in `-line` mode and at
-/// resumed offsets).
-fn notbol_at(cps: &[i32], offset: usize) -> bool {
-    if offset == 0 {
-        false
-    } else if offset > cps.len() {
-        true
-    } else {
-        cps[offset - 1] != ('\n' as i32)
-    }
-}
-
-// -- regexp ----------------------------------------------------------------
 
 fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?";
-    let mut c = Common::default();
-    let mut indices = false;
-    let mut inline = false;
-    let mut about = false;
-
-    // Option scan: stops at the first non-`-` word or after `--`.
-    let mut i = 1;
-    while i < argv.len() {
-        let name = obj_bytes(argv[i]);
-        if name.first() != Some(&b'-') {
-            break;
+    let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
+    match core_re::regexp::<Interp, AreEngine>(interp, &refs) {
+        Ok(RegexpResult::Inline(v)) => {
+            interp.set_result(v);
+            Code::Ok
         }
-        if name == b"--" {
-            i += 1;
-            break;
-        }
-        let next = argv.get(i + 1).map(|&o| obj_bytes(o));
-        match shared_option(&mut c, &name, next.as_deref()) {
-            Some(Ok(ate)) => {
-                i += 1 + usize::from(ate);
-                continue;
-            }
-            Some(Err(())) => {
-                // `-start` with no argument: Tcl falls through and treats it as
-                // end-of-options.
-                i += 1;
-                break;
-            }
-            None => {}
-        }
-        match name.as_slice() {
-            b"-indices" => indices = true,
-            b"-inline" => inline = true,
-            b"-about" => about = true,
-            _ => return bad_option(interp, &name),
-        }
-        i += 1;
-    }
-
-    if about {
-        return interp.set_error(b"regexp -about is not yet supported");
-    }
-    let rest = &argv[i..];
-    if rest.len() < 2 {
-        return wrong_args(interp, USAGE);
-    }
-    if inline && rest.len() > 2 {
-        interp.set_error(b"regexp match variables not allowed when using -inline");
-        return Code::Error;
-    }
-
-    let pattern = obj_bytes(rest[0]);
-    let (cps, byteoff) = decode_utf8(&obj_bytes(rest[1]));
-    let str_bytes = obj_bytes(rest[1]);
-    let char_len = cps.len();
-    let match_vars: Vec<Vec<u8>> = rest[2..].iter().map(|&o| obj_bytes(o)).collect();
-
-    let mut re = match compile(interp, &pattern, c.cflags) {
-        Some(re) => re,
-        None => return Code::Error,
-    };
-    let nsubs = re.nsub();
-
-    let mut offset = match &c.start {
-        Some(spec) => resolve_start(spec, char_len),
-        None => 0,
-    };
-
-    // Tcl's `all` doubles as flag + counter: starts 1 if `-all`, else 0.
-    let mut all_count: i64 = if c.all { 1 } else { 0 };
-    let mut inline_items: Vec<*mut TclObj> = Vec::new();
-
-    loop {
-        let notbol = notbol_at(&cps, offset);
-        let matches = match re.exec(&cps, offset, notbol) {
-            Some(m) => m,
-            None => {
-                if all_count <= 1 {
-                    // First time through with no match.
-                    if inline {
-                        interp.set_result(crate::list::new_list_obj(&[]));
-                    } else {
-                        set_int(interp, 0);
+        Ok(RegexpResult::Count { assign, count }) => {
+            if let Some(pairs) = assign {
+                let mut it = pairs.into_iter();
+                while let Some((name, val)) = it.next() {
+                    if interp.var_set(&name, val).is_err() {
+                        // `var_set` does not consume on error; drop this value
+                        // and every still-unconsumed one to stay leak-free.
+                        drop_fresh(val);
+                        for (_, v) in it {
+                            drop_fresh(v);
+                        }
+                        return interp.set_error(b"couldn't set match variable");
                     }
-                    return Code::Ok;
                 }
-                break;
             }
-        };
-
-        let nitems = if inline { nsubs + 1 } else { match_vars.len() };
-        for (k, item) in (0..nitems)
-            .map(|k| build_match_item(&matches, k, nsubs, indices, &str_bytes, &byteoff))
-            .enumerate()
-        {
-            if inline {
-                inline_items.push(item);
-            } else if interp.var_set(&match_vars[k], item).is_err() {
-                drop_fresh(item);
-                return interp.set_error(b"couldn't set match variable");
-            }
+            set_int(interp, count);
+            Code::Ok
         }
-
-        if !c.all {
-            break;
-        }
-        let m0 = matches[0];
-        offset = m0.eo;
-        if m0.eo == m0.so {
-            offset += 1; // zero-length match: always advance to avoid looping
-        }
-        all_count += 1;
-        if offset >= char_len {
-            break;
-        }
-    }
-
-    if inline {
-        interp.set_result(crate::list::new_list_obj(&inline_items));
-    } else {
-        set_int(interp, if all_count > 0 { all_count - 1 } else { 1 });
-    }
-    Code::Ok
-}
-
-/// Build the value for submatch `k`: an `{start end}` index pair (`-indices`)
-/// or the matched substring (default). A non-participating or empty group
-/// yields `{-1 -1}` / the empty string, per `Tcl_RegexpObjCmd`.
-fn build_match_item(
-    matches: &[crate::regex::RegMatch],
-    k: usize,
-    nsubs: usize,
-    indices: bool,
-    str_bytes: &[u8],
-    byteoff: &[usize],
-) -> *mut TclObj {
-    let m = if k <= nsubs {
-        matches.get(k).copied()
-    } else {
-        None
-    };
-    if indices {
-        let (start, end): (i64, i64) = match m {
-            Some(rm) if rm.so != NO_MATCH => (rm.so as i64, rm.eo as i64 - 1),
-            _ => (-1, -1),
-        };
-        let a = new_wide_int_obj(start);
-        let b = new_wide_int_obj(end);
-        crate::list::new_list_obj(&[a, b])
-    } else {
-        match m {
-            Some(rm) if rm.so != NO_MATCH && rm.eo > 0 => {
-                new_string_bytes(&str_bytes[byteoff[rm.so]..byteoff[rm.eo]])
-            }
-            _ => new_string_bytes(b""),
-        }
+        Err(e) => interp.set_error(&e.0),
     }
 }
-
-// -- regsub ----------------------------------------------------------------
 
 fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"regsub ?-option ...? exp string subSpec ?varName?";
-    let mut c = Common::default();
-
-    let mut i = 1;
-    while i < argv.len() {
-        let name = obj_bytes(argv[i]);
-        if name.first() != Some(&b'-') {
-            break;
-        }
-        if name == b"--" {
-            i += 1;
-            break;
-        }
-        let next = argv.get(i + 1).map(|&o| obj_bytes(o));
-        match shared_option(&mut c, &name, next.as_deref()) {
-            Some(Ok(ate)) => {
-                i += 1 + usize::from(ate);
-                continue;
-            }
-            Some(Err(())) => {
-                i += 1;
-                break;
-            }
-            None => {}
-        }
-        match name.as_slice() {
-            b"-command" => return interp.set_error(b"regsub -command is not yet supported"),
-            _ => return bad_option(interp, &name),
-        }
-    }
-
-    let rest = &argv[i..];
-    if rest.len() < 3 || rest.len() > 4 {
-        return wrong_args(interp, USAGE);
-    }
-    let pattern = obj_bytes(rest[0]);
-    let str_bytes = obj_bytes(rest[1]);
-    let subspec = obj_bytes(rest[2]);
-    let var_name: Option<Vec<u8>> = rest.get(3).map(|&o| obj_bytes(o));
-
-    let (cps, byteoff) = decode_utf8(&str_bytes);
-    let char_len = cps.len();
-
-    let mut re = match compile(interp, &pattern, c.cflags) {
-        Some(re) => re,
-        None => return Code::Error,
-    };
-    let nsubs = re.nsub();
-
-    let mut offset = match &c.start {
-        Some(spec) => resolve_start(spec, char_len),
-        None => 0,
+    let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
+    let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
+    let RegsubResult { text, count, var } = match core_re::regsub::<AreEngine>(&refs) {
+        Ok(r) => r,
+        Err(e) => return interp.set_error(&e.0),
     };
 
-    let mut result: Vec<u8> = Vec::new();
-    let mut num_matches: i64 = 0;
-
-    while offset <= char_len {
-        let notbol = offset > 0 && cps[offset - 1] != ('\n' as i32);
-        let matches = match re.exec(&cps, offset, notbol) {
-            Some(m) => m,
-            None => break,
-        };
-        if num_matches == 0 && offset > 0 {
-            // Copy the skipped prefix when a -start offset was given.
-            result.extend_from_slice(&str_bytes[..byteoff[offset]]);
-        }
-        num_matches += 1;
-
-        let m0 = matches[0];
-        // Text before this match.
-        result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[m0.so]]);
-        // The substitution spec, with &/\\N expanded.
-        apply_subspec(&mut result, &subspec, &matches, nsubs, &str_bytes, &byteoff);
-
-        // Advance, always consuming at least one char on an empty match.
-        if m0.eo == offset {
-            if offset < char_len {
-                result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[offset + 1]]);
-            }
-            offset += 1;
-        } else {
-            offset = m0.eo;
-            if m0.so == m0.eo {
-                if offset < char_len {
-                    result.extend_from_slice(&str_bytes[byteoff[offset]..byteoff[offset + 1]]);
-                }
-                offset += 1;
-            }
-        }
-        if !c.all {
-            break;
-        }
-    }
-
-    // Tail after the last match (or the whole string on no match).
-    let final_bytes = if num_matches == 0 {
-        str_bytes.clone()
-    } else {
-        if offset < char_len {
-            result.extend_from_slice(&str_bytes[byteoff[offset]..]);
-        }
-        result
-    };
-
-    match var_name {
+    match var {
         Some(name) => {
             // A constant target is rejected with the standard message (a write
             // trace / array mismatch is reported by `var_error`).
             if let Some(c) = interp.const_write_check(&name) {
                 return c;
             }
-            let o = new_string_bytes(&final_bytes);
+            let o = new_string_bytes(&text);
             match interp.var_set(&name, o) {
-                Ok(()) => set_int(interp, num_matches),
+                Ok(()) => {
+                    set_int(interp, count);
+                    Code::Ok
+                }
                 Err(e) => {
                     drop_fresh(o);
-                    return crate::builtins::var_error(interp, &name, e);
+                    crate::builtins::var_error(interp, &name, e)
                 }
             }
         }
-        None => interp.set_result(new_string_bytes(&final_bytes)),
+        None => {
+            interp.set_result(new_string_bytes(&text));
+            Code::Ok
+        }
     }
-    Code::Ok
 }
-
-/// Expand a `regsub` substitution spec into `out`: `&` / `\0` → whole match,
-/// `\N` → capture group N, `\\` → `\`, `\&` → `&`; any other run is copied
-/// verbatim. Mirrors the `wsubspec` scan in `Tcl_RegsubObjCmd`.
-fn apply_subspec(
-    out: &mut Vec<u8>,
-    sub: &[u8],
-    matches: &[crate::regex::RegMatch],
-    nsubs: usize,
-    str_bytes: &[u8],
-    byteoff: &[usize],
-) {
-    let mut k = 0;
-    let mut run = 0; // start of the current verbatim run
-    while k < sub.len() {
-        let ch = sub[k];
-        let idx: usize;
-        if ch == b'&' {
-            idx = 0;
-        } else if ch == b'\\' {
-            match sub.get(k + 1) {
-                Some(&d) if d.is_ascii_digit() => idx = (d - b'0') as usize,
-                Some(&d) if d == b'\\' || d == b'&' => {
-                    // Literal `\` or `&`: flush the run, emit the bare char.
-                    out.extend_from_slice(&sub[run..k]);
-                    out.push(d);
-                    k += 2;
-                    run = k;
-                    continue;
-                }
-                _ => {
-                    // Backslash before any other char: keep both verbatim.
-                    k += 1;
-                    continue;
-                }
-            }
-        } else {
-            k += 1;
-            continue;
-        }
-        // Reached for `&` or `\N`: flush the verbatim run, then the group.
-        out.extend_from_slice(&sub[run..k]);
-        if idx <= nsubs {
-            if let Some(rm) = matches.get(idx) {
-                if rm.so != NO_MATCH {
-                    out.extend_from_slice(&str_bytes[byteoff[rm.so]..byteoff[rm.eo]]);
-                }
-            }
-        }
-        k += if ch == b'\\' { 2 } else { 1 };
-        run = k;
-    }
-    out.extend_from_slice(&sub[run..]);
-}
-
-// -- helpers ---------------------------------------------------------------
 
 fn set_int(interp: &mut Interp, n: i64) {
     interp.set_result(new_wide_int_obj(n));
-}
-
-fn bad_option(interp: &mut Interp, name: &[u8]) -> Code {
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(
-        b"\": must be -all, -nocase, -expanded, -line, -linestop, -lineanchor, -start, or --",
-    );
-    interp.set_error(&m)
 }
 
 #[cfg(test)]
@@ -548,6 +193,16 @@ mod tests {
     }
 
     #[test]
+    fn regexp_nomatch_leaves_vars_untouched() {
+        // tclsh: a failed match does not modify the match variables.
+        leak_free(|i| {
+            ok(i, b"set m PRESET");
+            assert_eq!(ok(i, b"regexp {z} abc m"), b"0");
+            assert_eq!(ok(i, b"set m"), b"PRESET");
+        });
+    }
+
+    #[test]
     fn regsub_basic_all_and_backrefs() {
         leak_free(|i| {
             assert_eq!(ok(i, b"regsub {b} abc X"), b"aXc");
@@ -565,6 +220,17 @@ mod tests {
             assert_eq!(ok(i, b"set out"), b"b_n_n_");
             // no match leaves the string unchanged.
             assert_eq!(ok(i, b"regsub {z} abc X"), b"abc");
+            // anchor edge: `^` matches once at the start (notbol suppresses it
+            // at resumed offsets), per tclsh.
+            assert_eq!(ok(i, b"regsub -all {^} abc >"), b">abc");
+        });
+    }
+
+    #[test]
+    fn start_option() {
+        leak_free(|i| {
+            assert_eq!(ok(i, b"regexp -start 3 {a} {a a a}"), b"1");
+            assert_eq!(ok(i, b"regsub -start 2 -all {a} aaaa X"), b"aaXX");
         });
     }
 
