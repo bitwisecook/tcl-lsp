@@ -147,6 +147,130 @@ def _parse_literal(text: str) -> TclValue | None:
         return None
 
 
+def _leading_zero_is_octal(dialect: str | None) -> bool | None:
+    """Whether *dialect* reads a bare leading-zero integer as octal.
+
+    Only Tcl 9.x dropped the rule (TIP 472); everything else — including the
+    F5/EDA dialects, which are 8.x-based — keeps octal-by-leading-zero.
+    ``None`` (unknown dialect) leaves the reading undecided.  Mirrors the Rust
+    analyser's ``leading_zero_is_octal``.
+    """
+    if dialect is None:
+        return None
+    return not dialect.startswith("tcl9")
+
+
+def _is_bare_leading_zero(text: str) -> bool:
+    """``[+-]?0DDD…`` — a bare decimal-shaped integer with a redundant leading
+    zero, whose octal-vs-decimal reading is dialect-dependent (octal in Tcl
+    8.x, decimal in 9.0 per TIP 472)."""
+    digits = text[1:] if text[:1] in "+-" else text
+    return len(digits) > 1 and digits[0] == "0" and digits.isdigit()
+
+
+def _parse_octal_literal(text: str) -> int | None:
+    """Parse *text* as a Tcl 8.x octal integer (``010`` → 8); ``None`` when it
+    is not valid octal (``08``/``09`` — which Tcl then treats as a string)."""
+    neg = False
+    digits = text
+    if digits[:1] == "-":
+        neg, digits = True, digits[1:]
+    elif digits[:1] == "+":
+        digits = digits[1:]
+    try:
+        v = int(digits, 8)
+    except (ValueError, TypeError):
+        return None
+    return -v if neg else v
+
+
+def _strict_number(text: str) -> int | float | None:
+    """Parse *text* as a Tcl number with the *strict* grammar used by ``==`` /
+    ``!=``: decimal / ``0x`` / ``0o`` / ``0b`` integers and floats
+    (``Inf``/``NaN`` included), but **no** boolean-word coercion
+    (``true``/``yes``/… are *not* numbers for comparison — ``expr {"true" ==
+    "1"}`` is 0).  Deliberately stricter than :func:`_parse_literal`, which
+    coerces boolean words.  ``int(t, 0)`` also rejects redundant-leading-zero
+    decimals (``08``/``010``); those are routed through the dialect octal rule
+    by the caller.
+    """
+    t = text.strip()
+    if not t:
+        return None
+    try:
+        return int(t, 0)
+    except (ValueError, TypeError):
+        pass
+    try:
+        return float(t)
+    except (ValueError, TypeError):
+        return None
+
+
+# Sentinels for ``==``/``!=`` operand classification (mirrors the Rust
+# analyser's ``Operand::{Num,Str,Ambiguous}``).
+_OPERAND_STR = object()
+_OPERAND_AMBIGUOUS = object()
+
+
+def _classify_eq_operand(text: str, octal: bool | None) -> int | float | object:
+    """Classify a ``==``/``!=`` operand as a number, a string, or ambiguous,
+    applying the dialect's leading-zero rule.
+
+    Returns the numeric value when *text* is a Tcl number, :data:`_OPERAND_STR`
+    for a plain string, or :data:`_OPERAND_AMBIGUOUS` when a bare leading-zero
+    operand's octal-vs-decimal reading is undecidable (unknown dialect).
+    Mirrors the Rust analyser's ``classify_operand``: under 8.x a valid octal
+    (``010`` → 8) is a number and an invalid one (``08``) is a string; under
+    9.0 leading zeros are decimal.
+    """
+    s = text.strip()
+    if _is_bare_leading_zero(s):
+        if octal is None:
+            return _OPERAND_AMBIGUOUS
+        if octal:
+            v = _parse_octal_literal(s)
+            return v if v is not None else _OPERAND_STR
+        # tcl9: leading zeros are decimal — the strict grammar reads them.
+    v = _strict_number(s)
+    return v if v is not None else _OPERAND_STR
+
+
+def _eval_eq_ne(
+    op: BinOp,
+    left: ExprNode,
+    right: ExprNode,
+    env: dict[str, int | float | str],
+) -> TclValue | None:
+    """Fold ``==`` / ``!=`` with Tcl's polymorphic comparison: numeric when
+    *both* operands are numbers, string otherwise — so a constant condition
+    like ``$x == "foo"`` folds for I230, while ``"true" == "1"`` correctly
+    compares as strings (→ 0).  Dialect-aware for the 8.x-octal vs 9.0-decimal
+    leading-zero rule.  Mirrors the Rust analyser's
+    ``compare_numeric``/``classify_operand``.
+    """
+    ls = _eval_as_string(left, env)
+    if ls is None:
+        return None
+    rs = _eval_as_string(right, env)
+    if rs is None:
+        return None
+    octal = _leading_zero_is_octal(active_dialect())
+    lo = _classify_eq_operand(ls, octal)
+    ro = _classify_eq_operand(rs, octal)
+    if lo is _OPERAND_AMBIGUOUS or ro is _OPERAND_AMBIGUOUS:
+        return None
+    lo_num = lo is not _OPERAND_STR
+    ro_num = ro is not _OPERAND_STR
+    if lo_num and ro_num:
+        equal = lo == ro  # numeric comparison (Python int/float ==)
+    else:
+        equal = ls == rs  # string comparison
+    if op is BinOp.NE:
+        equal = not equal
+    return 1 if equal else 0
+
+
 def _resolve_var(
     name: str,
     env: dict[str, int | float | str],
@@ -282,6 +406,13 @@ def _eval_binary(
         if rs is None:
             return None
         return _apply_string_compare(op, ls, rs)
+
+    # ``==`` / ``!=`` are polymorphic (numeric when both operands are numbers,
+    # string otherwise) and dialect-aware (8.x octal vs 9.0 decimal leading
+    # zeros).  Handle them in a dedicated helper so a constant condition like
+    # ``$x == "foo"`` folds for I230 without a dialect-dependent wrong answer.
+    if op in (BinOp.EQ, BinOp.NE):
+        return _eval_eq_ne(op, left, right, env)
 
     # All other operators evaluate both sides
     lv = _eval(left, env)
