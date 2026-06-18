@@ -8903,12 +8903,17 @@ file; this call falls through to the 'unknown' handler."
                 } else {
                     continue;
                 };
+                // Message mirrors Python's `check_dialect_invalid_option`
+                // exactly: `Option 'X' on 'cmd'[ sub] is not available in the
+                // active dialect (D).`
+                let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: "W004".to_string(),
                     span,
                     message: format!(
-                        "Option '{}' on command '{}' is not available in dialect '{}'.",
-                        arg, cmd_name, self.dialect
+                        "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
+in the active dialect ({}).",
+                        self.dialect
                     ),
                     severity: Severity::Warning,
                     fixes: Vec::new(),
