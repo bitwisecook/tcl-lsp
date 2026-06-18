@@ -463,6 +463,9 @@ class LspServerClient:
             "textDocument/codeLens", {"textDocument": {"uri": uri}}, timeout=timeout
         )
 
+    def code_lens_resolve(self, lens: dict, *, timeout: float = 30.0) -> Any:
+        return self.request("codeLens/resolve", lens, timeout=timeout)
+
     def inlay_hints(
         self, uri: str, start: tuple[int, int], end: tuple[int, int], *, timeout: float = 30.0
     ) -> Any:

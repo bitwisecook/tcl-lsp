@@ -31,6 +31,49 @@ class TestCodeLens:
         lsp_server.open_ready(uri, "set x 1\nputs $x\n")
         assert (lsp_server.code_lens(uri) or []) == []
 
+    @staticmethod
+    def _resolve_for_qname(lsp_server, uri, lenses, qname):
+        lens = next(lens for lens in lenses if (lens.get("data") or {}).get("qname") == qname)
+        return lsp_server.code_lens_resolve(lens)
+
+    def test_count_matches_reference_list_for_forward_call(self, lsp_server, uri_factory):
+        """The resolved lens count equals the reference list — issue #637.
+
+        A call written before the proc's definition resolves to ``None`` at
+        analysis time, so the old count path reported "0 references" while
+        Find All References listed the call. The resolved title must match.
+        """
+        # A workspace-unique proc name keeps the workspace-wide count isolated
+        # from other documents the shared server session has indexed.
+        uri = uri_factory()
+        lsp_server.open_ready(uri, "fwd637\nproc fwd637 {} { return }\n")
+        lenses = lsp_server.code_lens(uri) or []
+        resolved = self._resolve_for_qname(lsp_server, uri, lenses, "::fwd637")
+        assert resolved["command"]["title"] == "1 reference"
+        # The reference list at the proc name (declaration excluded) agrees.
+        refs = lsp_server.references(uri, 1, 5, include_declaration=False) or []
+        assert len(refs) == 1
+        assert resolved["command"]["title"].startswith(str(len(refs)))
+
+    def test_unresolved_call_scoped_to_namespace(self, lsp_server, uri_factory):
+        """An unresolved bare call is credited to the proc Tcl picks — PR #644.
+
+        With ``::a::foo`` and ``::b::foo`` both defined and a forward ``foo``
+        call inside namespace ``a``, the call belongs to ``::a::foo`` (1) and
+        ``::b::foo`` must stay at 0 rather than showing a phantom reference.
+        """
+        uri = uri_factory()
+        lsp_server.open_ready(
+            uri,
+            "namespace eval nsa644 {\n    dup644\n    proc dup644 {} {}\n}\n"
+            "namespace eval nsb644 {\n    proc dup644 {} {}\n}\n",
+        )
+        lenses = lsp_server.code_lens(uri) or []
+        a = self._resolve_for_qname(lsp_server, uri, lenses, "::nsa644::dup644")
+        b = self._resolve_for_qname(lsp_server, uri, lenses, "::nsb644::dup644")
+        assert a["command"]["title"] == "1 reference"
+        assert b["command"]["title"] == "0 references"
+
 
 class TestDocumentLinks:
     def test_source_command_is_linked(self, lsp_server, uri_factory):

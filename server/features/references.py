@@ -14,29 +14,47 @@ from .symbol_resolution import find_scope_at_line, find_var_at_position, find_wo
 # Short names: r = Range.
 
 
+def _bare_call_target(name: str, call_ns: str, proc_qnames: frozenset[str]) -> str | None:
+    """Resolve an unqualified call the way Tcl would — current namespace then global.
+
+    *call_ns* is the ``::``-qualified namespace the call sits in. Returns the
+    qualified name of the proc the bare ``name`` resolves to, or ``None`` when
+    no such proc exists. Mirrors command lookup: a name is sought in the
+    enclosing namespace first, then falls back to the global namespace.
+    """
+    if call_ns and call_ns != "::":
+        candidate = f"{call_ns}::{name}"
+        if candidate in proc_qnames:
+            return candidate
+    candidate = f"::{name}"
+    return candidate if candidate in proc_qnames else None
+
+
 def find_proc_call_sites(name: str, qualified_name: str, analysis: AnalysisResult) -> list[Range]:
     """Find all locations where a proc is called."""
     qualified_no_prefix = qualified_name[2:] if qualified_name.startswith("::") else qualified_name
     call_forms = {name, qualified_name, qualified_no_prefix}
-    # A bare simple name is ambiguous when several procs share it (e.g.
-    # ``::a::foo`` and ``::b::foo``). An *unresolved* call written as the bare
-    # ``foo`` cannot be attributed to a specific one without the call site's
-    # namespace, so crediting it to every same-named proc would show a phantom
-    # reference on the unrelated proc (PR #644 review). Drop such bare matches;
-    # resolved calls and qualified call forms (``a::foo``) stay precise.
-    simple_name_is_ambiguous = "::" not in name and (
-        sum(1 for proc in analysis.all_procs.values() if proc.name == name) > 1
-    )
+    proc_qnames = frozenset(analysis.all_procs)
     locations: list[Range] = []
     seen: set[tuple[int, int, int, int]] = set()
     for invocation in analysis.command_invocations:
         resolved_name = invocation.resolved_qualified_name
         if resolved_name is not None:
             matches_target = resolved_name == qualified_name
-        elif simple_name_is_ambiguous and invocation.name == name:
-            matches_target = False
-        else:
+        elif "::" in invocation.name:
+            # Qualified but unresolved (forward / cross-file): the written form
+            # already names the namespace, so match it exactly.
             matches_target = invocation.name in call_forms
+        else:
+            # Bare unresolved call: resolve it now against the full proc set the
+            # way Tcl would (current namespace, then global), so a forward call
+            # is credited only to the proc it actually targets — not to every
+            # same-named proc in other namespaces (#644). Without the call
+            # site's namespace, fall back to treating it as global.
+            call_ns = invocation.enclosing_namespace or "::"
+            matches_target = (
+                _bare_call_target(invocation.name, call_ns, proc_qnames) == qualified_name
+            )
         if matches_target:
             key = (
                 invocation.range.start.line,
