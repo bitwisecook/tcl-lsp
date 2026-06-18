@@ -55,6 +55,20 @@ clears.
 
 **Do NOT** suppress Rust's I230 for `==` — Rust is correct here.
 
+**Status (2026-06-18):** implemented in **PR #640** (Python `tcl_expr_eval.py`).
+But Codex review on #640 (and a tclsh check) found *both* sides over-coerced:
+the numeric-vs-string decision must follow Tcl's equality conversion rules, not
+a general literal parser. **Boolean words are not numbers for `==`** (tclsh:
+`expr {"true" == "1"}` → 0, a string compare; `expr {"true" + 0}` errors), and
+leading-zero `08` is **dialect-dependent** (`"08" == "8"` → 0 in tcl8.x as an
+invalid octal, → 1 in tcl9.0 as decimal). The Rust side is now fixed to use a
+strict number grammar (no boolean coercion) in `compare_numeric`
+(`tcl_expr_eval.rs`), so `"true"=="1"`→0 / `"5"=="5.0"`→1 / `"foo"=="bar"`→0
+match tclsh. The Python #640 fix needs the same strict eligibility (Codex P2 on
+`tcl_expr_eval.py`). The `08` dialect nuance is a **coordinated residual on both
+engines** (the Rust const-folder is dialect-unaware and still folds `08` as
+decimal).
+
 ---
 
 ## 2. iRules `when` body recursed under a non-iRules dialect
