@@ -1,0 +1,239 @@
+//! Build the embedded KCS help database from the committed
+//! `docs/kcs/features/kcs-feature-*.md` sources.
+//!
+//! Faithful port of `scripts/build/kcs_db.py` (the `kcs_features` FTS5 table +
+//! `feature_tags` table; screenshots are omitted — the `tcl help` verb's
+//! `search_help` / `list_features` never touch them). The result is written to
+//! `$OUT_DIR/kcs_help.db` and embedded by `commands::help` via `include_bytes!`,
+//! so the binary carries the index with no committed blob and no Python at
+//! build time. Indexing the same column values with the same `porter unicode61`
+//! tokenizer reproduces Python's BM25 ranks byte-for-byte.
+
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+
+use regex::RegexBuilder;
+use rusqlite::Connection;
+
+/// Editors driven by the LSP server (port of `LSP_EDITOR_TAGS`).
+const LSP_EDITOR_TAGS: [&str; 7] = [
+    "vs-code",
+    "zed",
+    "jetbrains",
+    "neovim",
+    "helix",
+    "emacs",
+    "sublime-text",
+];
+
+fn main() {
+    let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    // rust/tcl-cli -> rust -> repo root.
+    let repo_root = manifest
+        .parent()
+        .and_then(Path::parent)
+        .expect("repo root")
+        .to_path_buf();
+    let features_dir = repo_root.join("docs/kcs/features");
+    let out_db = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR")).join("kcs_help.db");
+
+    println!("cargo:rerun-if-changed={}", features_dir.display());
+
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(&features_dir)
+        .unwrap_or_else(|e| panic!("read {}: {e}", features_dir.display()))
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension().and_then(|e| e.to_str()) == Some("md")
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("kcs-feature-"))
+        })
+        .collect();
+    paths.sort();
+    for path in &paths {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+
+    build_database(&paths, &out_db);
+}
+
+/// Normalise one raw `Applies to` token (port of `_normalise_tag`):
+/// `"-".join(raw.strip().lower().split())`.
+fn normalise_tag(raw: &str) -> String {
+    raw.to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+/// Parse a `## Applies to` line into the normalised tag set (port of
+/// `parse_applies_to`), expanding the `all editors` shorthand.
+fn parse_applies_to(text: &str) -> BTreeSet<String> {
+    let mut parts: BTreeSet<String> = text
+        .split(',')
+        .filter(|p| !p.trim().is_empty())
+        .map(normalise_tag)
+        .collect();
+    if parts.remove("all-editors") {
+        for tag in LSP_EDITOR_TAGS {
+            parts.insert(tag.to_owned());
+        }
+    }
+    parts
+}
+
+/// Map a tag set to its grouping category (port of `applies_to_category`).
+fn applies_to_category(tags: &BTreeSet<String>) -> &'static str {
+    let lsp_editor_count = LSP_EDITOR_TAGS
+        .iter()
+        .filter(|t| tags.contains(**t))
+        .count();
+    let has_lsp = lsp_editor_count >= 2;
+    let has_copilot_chat = tags.contains("copilot-chat");
+    let has_claude_skill = tags.contains("claude-skill");
+    let has_mcp = tags.contains("mcp");
+    let has_vscode_only = tags.contains("vs-code") && lsp_editor_count < 2;
+
+    if has_lsp {
+        if has_mcp || has_claude_skill {
+            "LSP + AI Features"
+        } else {
+            "LSP Features (all editors)"
+        }
+    } else if has_copilot_chat {
+        "VS Code AI Chat"
+    } else if has_claude_skill {
+        "Claude Code Skills"
+    } else if has_mcp {
+        "MCP Tools"
+    } else if has_vscode_only {
+        "VS Code Commands"
+    } else {
+        "Other"
+    }
+}
+
+/// A parsed KCS feature note: the title `name` plus each `## Section` body keyed
+/// by its normalised heading.
+struct Feature {
+    file: String,
+    name: String,
+    sections: std::collections::HashMap<String, String>,
+}
+
+impl Feature {
+    fn section(&self, key: &str) -> &str {
+        self.sections.get(key).map_or("", String::as_str)
+    }
+}
+
+/// Parse one KCS feature markdown file (port of `_parse_kcs_feature`). Returns
+/// `None` when the title line is missing.
+fn parse_feature(path: &Path) -> Option<Feature> {
+    let content = std::fs::read_to_string(path).ok()?;
+
+    let title_re = RegexBuilder::new(r"^#\s+KCS:\s+feature\s+—\s+(.+)$")
+        .multi_line(true)
+        .build()
+        .expect("title regex");
+    let name = title_re
+        .captures(&content)?
+        .get(1)?
+        .as_str()
+        .trim()
+        .to_owned();
+
+    let section_re = RegexBuilder::new(r"^##\s+")
+        .multi_line(true)
+        .build()
+        .expect("section regex");
+    let mut sections = std::collections::HashMap::new();
+    for section in section_re.split(&content).skip(1) {
+        let section = section.trim();
+        let (heading, body) = section.split_once('\n').unwrap_or((section, ""));
+        let key = heading.trim().to_lowercase().replace([' ', '/', '-'], "_");
+        sections.insert(key, body.trim().to_owned());
+    }
+
+    Some(Feature {
+        file: path.file_name()?.to_str()?.to_owned(),
+        name,
+        sections,
+    })
+}
+
+/// Build the `SQLite` database (port of `build_database`, minus screenshots).
+fn build_database(paths: &[PathBuf], out_db: &Path) {
+    let _ = std::fs::remove_file(out_db);
+    let conn = Connection::open(out_db).expect("open kcs_help.db");
+
+    conn.execute_batch(
+        "CREATE VIRTUAL TABLE kcs_features USING fts5(
+            name, summary, category, how_to_use, content, file,
+            tokenize='porter unicode61'
+        );
+        CREATE TABLE feature_tags (
+            file TEXT NOT NULL,
+            tag  TEXT NOT NULL,
+            PRIMARY KEY (file, tag)
+        );
+        CREATE INDEX idx_feature_tags_tag ON feature_tags (tag);",
+    )
+    .expect("create schema");
+
+    let type_re = RegexBuilder::new(r"^kcs-(issue|qa|howto|feature)-")
+        .build()
+        .expect("type regex");
+
+    for path in paths {
+        let Some(feature) = parse_feature(path) else {
+            continue;
+        };
+
+        let mut tags = parse_applies_to(feature.section("applies_to"));
+        if let Some(caps) = type_re.captures(&feature.file) {
+            tags.insert(caps.get(1).expect("type group").as_str().to_owned());
+        }
+        let category = applies_to_category(&tags);
+
+        // content = join of how_to_use / example / examples (present, non-empty).
+        let content = ["how_to_use", "example", "examples"]
+            .iter()
+            .map(|k| feature.section(k))
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        conn.execute(
+            "INSERT INTO kcs_features (name, summary, category, how_to_use, content, file)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                feature.name,
+                feature.section("summary"),
+                category,
+                feature.section("how_to_use"),
+                content,
+                feature.file,
+            ],
+        )
+        .expect("insert feature");
+
+        for tag in &tags {
+            conn.execute(
+                "INSERT OR IGNORE INTO feature_tags (file, tag) VALUES (?1, ?2)",
+                rusqlite::params![feature.file, tag],
+            )
+            .expect("insert tag");
+        }
+    }
+
+    // Merge FTS index segments (matches the Python builder; query results are
+    // unaffected, but keeps the index layout consistent).
+    conn.execute(
+        "INSERT INTO kcs_features(kcs_features) VALUES('optimize')",
+        [],
+    )
+    .expect("optimize fts");
+    conn.close().expect("close db");
+}

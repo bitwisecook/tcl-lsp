@@ -56,6 +56,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             commands::diag::run_diag(input, diag)
         }
         Command::Validate { input, diag } => commands::diag::run_validate(input, diag),
+        Command::Diagram { input, json } => commands::diagram::run_diagram(input, *json),
         Command::Symbols { input, json } => commands::graphs::run_symbols(input, *json),
         Command::Symbolgraph { input, json } => commands::graphs::run_symbolgraph(input, *json),
         Command::Callgraph { input, json } => commands::graphs::run_callgraph(input, *json),
@@ -160,6 +161,13 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             tui,
             colour,
         } => commands::explore::run_explore(input, show, *json, *text, *tui, colour),
+        Command::Help {
+            query,
+            dialect,
+            limit,
+            json,
+            output,
+        } => commands::help::run_help(query, dialect, *limit, *json, output.as_deref()),
         // Verbs not yet ported fall through to a clear not-implemented error.
         other => {
             let verb = other.verb_name();

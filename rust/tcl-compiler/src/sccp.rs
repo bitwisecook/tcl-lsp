@@ -25,7 +25,7 @@ use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, ValueKey};
-use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr};
+use crate::tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, eval_tcl_expr_with_octal};
 
 // ---------------------------------------------------------------------------
 // Public aliases (C25a)
@@ -220,11 +220,19 @@ pub struct SccpResult {
 /// - Branch decisions are resolved via [`evaluate_branch`] below,
 ///   which consults the lattice environment and then the C22
 ///   evaluator.
+///
+/// `octal` controls how a bare leading-zero string literal (`"08"`,
+/// `"010"`) is interpreted when folding `==` / `!=`: `Some(true)` for the
+/// tcl8.x octal rule (`"08"` is an invalid octal → string, `"010"` → 8),
+/// `Some(false)` for the tcl9.0 decimal rule (`"08"` → 8, `"010"` → 10),
+/// and `None` to decline folding such ambiguous operands (the safe default
+/// for callers without dialect context).
 #[must_use]
 pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     param_constants: Option<&HashMap<ValueKey, LatticeValue>>,
+    octal: Option<bool>,
 ) -> SccpResult {
     let preds = compute_predecessors(cfg);
     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
@@ -324,6 +332,7 @@ pub fn sccp(
                 &values,
                 &mut executable_blocks,
                 &mut executable_edges,
+                octal,
             ) {
                 changed = true;
             }
@@ -331,7 +340,7 @@ pub fn sccp(
     }
 
     let constant_branches =
-        collect_constant_branches(cfg, ssa, &values, &executable_blocks, &order);
+        collect_constant_branches(cfg, ssa, &values, &executable_blocks, &order, octal);
 
     SccpResult {
         values,
@@ -400,6 +409,7 @@ fn sccp_process_terminator(
     values: &HashMap<ValueKey, LatticeValue>,
     executable_blocks: &mut HashSet<String>,
     executable_edges: &mut HashSet<(String, String)>,
+    octal: Option<bool>,
 ) -> bool {
     let mut changed = false;
     let Some(block) = cfg.blocks.get(bn) else {
@@ -428,7 +438,7 @@ fn sccp_process_terminator(
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 return changed;
             };
-            let decision = evaluate_branch(ssa_block, condition, values);
+            let decision = evaluate_branch(ssa_block, condition, values, octal);
             let targets: Vec<&str> = match decision {
                 Some(true) => vec![true_target.as_str()],
                 Some(false) => vec![false_target.as_str()],
@@ -473,6 +483,7 @@ fn collect_constant_branches(
     values: &HashMap<ValueKey, LatticeValue>,
     executable_blocks: &HashSet<String>,
     order: &[String],
+    octal: Option<bool>,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
     for bn in order {
@@ -495,7 +506,7 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = evaluate_branch(ssa_block, condition, values);
+        let decision = evaluate_branch(ssa_block, condition, values, octal);
         let cond_text = crate::expr_ast::expr_text(condition);
         match decision {
             Some(true) => constant_branches.push(ConstantBranch {
@@ -767,6 +778,7 @@ pub fn evaluate_branch(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
+    octal: Option<bool>,
 ) -> Option<bool> {
     let mut env = env_from_uses(&ssa_block.exit_versions, values);
     // A parameter read in a branch condition without a local redefinition
@@ -783,7 +795,7 @@ pub fn evaluate_branch(
             env.insert(name, const_to_env_value(c));
         }
     }
-    let v = eval_tcl_expr(condition, &env)?;
+    let v = eval_tcl_expr_with_octal(condition, &env, octal)?;
     Some(v.is_truthy())
 }
 
@@ -1113,12 +1125,27 @@ fn strip_one_level(text: &str) -> &str {
 
 /// Parse a literal text as a [`ConstValue`]. Matches Python's
 /// `_parse_literal_value`: prefers integer, then string fallback.
+///
+/// Only collapses to [`ConstValue::Int`] when the canonical integer text
+/// round-trips (`str(int(s)) == s`).  A leading-zero literal such as `"08"` or
+/// `"010"` parses as 8 / 10 but does *not* round-trip, so it is kept as a
+/// string — preserving the identity SCCP needs to compare it correctly under
+/// each dialect's leading-zero rule (octal in tcl8.x, decimal in tcl9.0).
+/// Likewise `"+5"` / `"-0"` are kept as strings (they don't round-trip).
 #[must_use]
 pub fn parse_literal_value(text: &str) -> ConstValue {
-    if let Ok(i) = text.parse::<i64>() {
+    let stripped = text.trim();
+    // Decimal integer grammar `[+-]?[0-9]+` (matches Python's `DECIMAL_INT_RE`).
+    let digits = stripped.strip_prefix(['+', '-']).unwrap_or(stripped);
+    let is_decimal_int =
+        !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+    if is_decimal_int
+        && let Ok(i) = stripped.parse::<i64>()
+        && i.to_string() == stripped
+    {
         return ConstValue::Int(i);
     }
-    ConstValue::String(text.to_owned())
+    ConstValue::String(stripped.to_owned())
 }
 
 #[cfg(test)]
@@ -1328,7 +1355,7 @@ mod tests {
         };
         ssa.blocks.insert("entry".into(), ssa_entry);
 
-        let r = sccp(&f, &ssa, None);
+        let r = sccp(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains("entry"));
         assert_eq!(
             r.values.get(&("x".to_string(), 1)),
@@ -1367,7 +1394,7 @@ mod tests {
         ssa.blocks.insert("t".into(), empty_ssa_block("t"));
         ssa.blocks.insert("e".into(), empty_ssa_block("e"));
 
-        let r = sccp(&f, &ssa, None);
+        let r = sccp(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains("t"));
         assert!(!r.executable_blocks.contains("e"));
         assert_eq!(r.constant_branches.len(), 1);
@@ -1407,7 +1434,7 @@ mod tests {
         ssa.blocks.insert("t".into(), empty_ssa_block("t"));
         ssa.blocks.insert("e".into(), empty_ssa_block("e"));
 
-        let r = sccp(&f, &ssa, None);
+        let r = sccp(&f, &ssa, None, None);
         assert!(!r.executable_blocks.contains("t"));
         assert!(r.executable_blocks.contains("e"));
     }
@@ -1449,7 +1476,7 @@ mod tests {
         ssa.blocks.insert("t".into(), empty_ssa_block("t"));
         ssa.blocks.insert("e".into(), empty_ssa_block("e"));
 
-        let r = sccp(&f, &ssa, None);
+        let r = sccp(&f, &ssa, None, None);
         assert!(r.executable_blocks.contains("t"));
         assert!(r.executable_blocks.contains("e"));
         assert!(r.constant_branches.is_empty());
@@ -1958,10 +1985,18 @@ mod tests {
     #[test]
     fn parse_literal_value_prefers_int() {
         assert_eq!(parse_literal_value("42"), ConstValue::Int(42));
+        assert_eq!(parse_literal_value("-5"), ConstValue::Int(-5));
+        assert_eq!(parse_literal_value("0"), ConstValue::Int(0));
         assert_eq!(
             parse_literal_value("hello"),
             ConstValue::String("hello".into())
         );
+        // Leading-zero and non-canonical integer forms do not round-trip, so
+        // they stay strings (lets SCCP apply the per-dialect leading-zero rule).
+        assert_eq!(parse_literal_value("08"), ConstValue::String("08".into()));
+        assert_eq!(parse_literal_value("010"), ConstValue::String("010".into()));
+        assert_eq!(parse_literal_value("+5"), ConstValue::String("+5".into()));
+        assert_eq!(parse_literal_value("-0"), ConstValue::String("-0".into()));
     }
 
     #[test]

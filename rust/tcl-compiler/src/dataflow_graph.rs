@@ -550,7 +550,7 @@ mod tests {
         ssa.blocks.insert("entry".into(), entry);
 
         let du = build_def_use_chains(&ssa, Some(&cfg));
-        let sccp_result = sccp(&cfg, &ssa, None);
+        let sccp_result = sccp(&cfg, &ssa, None, None);
         let g = extract_function_dataflow("::top", &ssa, &du, Some(&sccp_result), None, None);
 
         assert_eq!(g.function_name, "::top");

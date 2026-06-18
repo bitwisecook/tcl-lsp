@@ -892,3 +892,452 @@ def test_FP_callbyname_upvar_alias_still_suppresses():
         d for d in get_diagnostics(src) if d.code in ("W211", "W220") and "'x'" in (d.message or "")
     ]
     assert not diags, "upvar-aliased callee write must continue to suppress caller W211/W220"
+
+
+# FP-RBS-13 — `tailcall` replaces the frame; code after it never runs
+
+
+FP_RBS_13_REPRO = """\
+proc f {cond} {
+    # tailcall g replaces this frame: the `return $result` below is only
+    # reached via the else branch, where result is always set.
+    if {$cond} {
+        tailcall g
+    } else {
+        set result 1
+    }
+    return $result
+}
+"""
+
+
+def test_FP_RBS_13_tailcall_with_args_silent():
+    """FP: ``tailcall g`` ends the proc's straight-line flow (TclNRTailcallObjCmd
+    returns TCL_RETURN), so ``return $result`` is reached only via the else
+    branch where result is set.  No RBS code may fire."""
+    assert _rbs(FP_RBS_13_REPRO) == [], (
+        "tailcall-terminated branch must not leave 'result' read-before-set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_13_REPRO))
+    )
+
+
+def test_FP_RBS_13_bare_tailcall_silent():
+    """FP: bare ``tailcall`` (no args) is *also* a terminator -- the C
+    implementation returns TCL_RETURN for any arg count (the arg count only
+    decides what runs after the frame pops).  tclsh-verified: a bare tailcall
+    ends the proc returning ``""``.  So this shape is silent too."""
+    src = (
+        "proc f {cond} {\n"
+        "    if {$cond} { tailcall } else { set result 1 }\n"
+        "    return $result\n"
+        "}\n"
+    )
+    assert _rbs(src) == [], (
+        "bare tailcall is a terminator; 'result' must not be read-before-set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_13_non_terminating_branch_still_fires():
+    """TP control: replace ``tailcall`` with a normal (completing) command and
+    ``result`` becomes genuinely maybe-unset on the then-path, so W210 fires.
+    Proves the suppression is specific to the terminator, not the if/return
+    shape."""
+    src = (
+        "proc f {cond} {\n    if {$cond} { puts hi } else { set result 1 }\n    return $result\n}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'result'" in (d.message or "")]
+    assert w210, (
+        "non-terminating then-branch leaves 'result' maybe-unset; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+# FP-RBS-14 — opaque-switch arm that can't complete normally is excluded from must-define
+
+
+FP_RBS_14_REPRO = """\
+proc f {x} {
+    # the a* arm returns, so it never reaches `puts $y`; the only path that
+    # does (default) sets y -> y is definitely defined.
+    switch -glob $x {
+        a* { return 0 }
+        default { set y 2 }
+    }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_14_returning_arm_silent():
+    """FP: the ``a*`` arm returns, so it never reaches ``puts $y``; every path
+    that does (default) assigns ``y``.  The opaque-switch must-define excludes
+    non-completing arms, so ``y`` is definitely defined -- no W210."""
+    assert _rbs(FP_RBS_14_REPRO) == [], (
+        "returning switch arm must not drop 'y' from the must-define set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_14_REPRO))
+    )
+
+
+def test_FP_RBS_14_erroring_arm_silent():
+    """FP: an arm that always ``error``s likewise cannot complete normally and
+    is excluded from the must-define intersection."""
+    src = (
+        "proc f {x} {\n"
+        "    switch -glob $x { a* { error bad } default { set y 2 } }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    assert _rbs(src) == [], (
+        "erroring switch arm must not drop 'y' from the must-define set; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_14_omitting_arm_still_fires():
+    """TP control: an arm that *completes normally* without assigning ``y``
+    (falls through) leaves ``y`` genuinely maybe-unset, so W210 must fire.
+    Proves the exclusion is limited to non-completing arms."""
+    src = (
+        "proc f {x} {\n    switch -glob $x { a* { set z 9 } default { set y 2 } }\n    puts $y\n}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "omitting arm leaves 'y' maybe-unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# FP-RBS-15 — opaque switch whose every arm exits is itself a terminator
+
+
+FP_RBS_15_REPRO = """\
+proc f {x} {
+    # every arm returns, so control never reaches `puts $y`:
+    # the switch is a terminator and the read is dead code.
+    switch -glob $x {
+        a* { return 1 }
+        default { return 2 }
+    }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_15_all_arms_return_dead_read_silent():
+    """FP: every arm of the (default-bearing) opaque switch returns, so the
+    switch cannot fall through -- ``puts $y`` is unreachable dead code.  The
+    switch block is promoted to a terminator, so no RBS code fires."""
+    assert _rbs(FP_RBS_15_REPRO) == [], (
+        "all-arms-return switch makes the trailing read unreachable; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_15_REPRO))
+    )
+
+
+def test_FP_RBS_15_all_arms_error_or_tailcall_silent():
+    """FP: ``error`` and ``tailcall`` arms are non-completing too, so an
+    all-exiting switch is still a terminator."""
+    src = (
+        "proc f {x} {\n"
+        "    switch -glob $x {\n"
+        "        a* { error a }\n"
+        "        b* { tailcall g }\n"
+        "        default { error d }\n"
+        "    }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    assert _rbs(src) == [], (
+        "all-arms-exit switch makes the trailing read unreachable; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_15_no_default_falls_through_fires():
+    """TP control: without a ``default`` an unmatched subject falls through to
+    ``puts $y``, so the switch is NOT a terminator and ``y`` is maybe-unset --
+    W210 must fire.  Proves the promotion requires exhaustiveness (a default)."""
+    src = "proc f {x} {\n    switch -glob $x { a* { return 1 } b* { return 2 } }\n    puts $y\n}\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "no-default switch falls through; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_15_one_completing_arm_fires():
+    """TP control: one arm that *completes* (default sets z, not y) lets the
+    switch fall through with ``y`` unset, so W210 must fire.  Proves the
+    promotion requires *every* arm to be non-completing."""
+    src = (
+        "proc f {x} {\n"
+        "    switch -glob $x { a* { return 1 } default { set z 9 } }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "completing-arm switch falls through; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# FP-RBS-16 — phi operand on a dead loop-exit edge (`while 1` + `break`)
+
+
+FP_RBS_16_REPRO = """\
+proc f {} {
+    # while 1 runs the body >=1 time; the only exit is the break, where y is
+    # already set -> $y is always defined here.
+    while 1 { set y 1; break }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_16_while1_break_set_silent():
+    """FP: `while 1` never exits via its (constant) condition, so the only live
+    exit is the `break`, where `y` is set.  The loop-exit phi's operand on the
+    dead cond-exit edge (version-0) must not count as read-before-set."""
+    assert _rbs(FP_RBS_16_REPRO) == [], (
+        "dead cond-exit edge operand must not fire W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_16_REPRO))
+    )
+
+
+def test_FP_RBS_16_while1_conditional_break_silent():
+    """FP: the realistic `while 1 { set v ...; if {c} break }` early-exit idiom.
+    `v` is set every iteration before the conditional break, so it is defined on
+    the (only live) break exit."""
+    src = (
+        "proc f {} {\n"
+        "    while 1 {\n"
+        "        set result [compute]\n"
+        "        if {[ok $result]} break\n"
+        "    }\n"
+        "    return $result\n"
+        "}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'result'" in (d.message or "")]
+    assert not w210, (
+        "result is set before every conditional break; W210 must NOT fire; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_16_normal_while_still_fires():
+    """TP control: a NON-constant condition may run zero times, so the read
+    after the loop is genuinely maybe-unset -- W210 must fire.  Proves the
+    suppression is specific to the proven-dead exit edge."""
+    src = "proc f {n} {\n    while {$n > 0} { set y 1; incr n -1 }\n    puts $y\n}\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, (
+        "zero-iteration-possible while leaves 'y' maybe-unset; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_16_partial_break_def_still_fires():
+    """TP control: when only ONE of two break paths sets `y`, a live exit edge
+    still carries an unset origin, so W210 must fire."""
+    src = (
+        "proc f {c} {\n"
+        "    while 1 {\n"
+        "        if {$c} { set y 1; break }\n"
+        "        if {!$c} break\n"
+        "    }\n"
+        "    puts $y\n"
+        "}\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "a break path that leaves 'y' unset must still fire W210; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# FP-RBS-17 — foreach over a non-empty literal runs its body at least once
+
+
+FP_RBS_17_REPRO = """\
+proc f {} {
+    # the list is a non-empty literal, so the body runs >=1 time and y is set
+    # before puts reads it.
+    foreach x {1 2 3} { set y $x }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_17_foreach_literal_silent():
+    """FP: foreach over a non-empty literal list always runs the body, so the
+    body-assigned 'y' is defined after the loop -- no W210."""
+    assert _rbs(FP_RBS_17_REPRO) == [], (
+        "non-empty-literal foreach defines 'y'; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_17_REPRO))
+    )
+
+
+def test_FP_RBS_17_loop_var_after_foreach_silent():
+    """FP: the loop variable is set on every iteration, so it is defined after
+    a non-empty-literal foreach."""
+    src = "proc f {} { foreach x {a b c} { } ; puts $x }\n"
+    assert _rbs(src) == [], (
+        "loop var defined after non-empty foreach; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_17_empty_literal_still_fires():
+    """TP control: foreach over an empty literal never runs the body, so 'y'
+    is genuinely unset -- W210 must fire."""
+    src = "proc f {} { foreach x {} { set y $x } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "empty-list foreach leaves 'y' unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_17_dynamic_list_still_fires():
+    """TP control: a foreach over a $var list may be empty, so the read after
+    is maybe-unset -- W210 must fire."""
+    src = "proc f {items} { foreach x $items { set y $x } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "dynamic-list foreach may be empty; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_17_continue_before_set_still_fires():
+    """TP control: a `continue` before the def can skip it on the last
+    iteration, so 'y' may be unset -- the rotation keeps `continue` a real
+    edge, so W210 must still fire.  tclsh-verified: this errors."""
+    src = "proc f {} { foreach x {1} { if {$x==1} continue; set y $x } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "continue-before-set may skip 'y'; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# FP-RBS-18 — for whose condition is true on entry runs its body at least once
+
+
+FP_RBS_18_REPRO = """\
+proc f {} {
+    # 0 < 3 is true on entry, so the body runs >=1 time and y is set.
+    for {set i 0} {$i < 3} {incr i} { set y $i }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_18_for_true_on_entry_silent():
+    """FP: a for whose condition is true on entry runs the body at least once,
+    so the body-assigned 'y' is defined after the loop -- no W210."""
+    assert _rbs(FP_RBS_18_REPRO) == [], (
+        "for true-on-entry defines 'y'; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_18_REPRO))
+    )
+
+
+def test_FP_RBS_18_false_on_entry_still_fires():
+    """TP control: a for whose condition is false on entry runs zero times, so
+    'y' is unset -- W210 must fire."""
+    src = "proc f {} { for {set i 5} {$i < 3} {incr i} { set y $i } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "false-on-entry for runs zero times; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_18_unknown_bound_still_fires():
+    """TP control: a for with an unknown (parameter) bound may run zero times,
+    so the read after is maybe-unset -- W210 must fire."""
+    src = "proc f {n} { for {set i 0} {$i < $n} {incr i} { set y $i } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "unknown-bound for may run zero times; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_18_break_before_set_still_fires():
+    """TP control: a `break` before the def exits with 'y' unset -- the
+    rotation keeps `break` a real edge, so W210 must still fire."""
+    src = "proc f {} { for {set i 0} {$i < 3} {incr i} { if {$i==0} break; set y $i } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "break-before-set exits with 'y' unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# Soundness regressions from the Codex review of PR #634 — break/continue arms
+# escape an opaque switch (loop-jump, not proc-exit), and stale for-init consts.
+
+
+def test_FP_RBS_14_break_arm_escaping_loop_still_fires():
+    """TP (Codex P1): an opaque-switch arm that `break`s does NOT define the
+    other arm's var on the path that escapes the enclosing loop, so the var is
+    maybe-unset after the loop.  `break`/`continue` are loop-jumps, not
+    proc-exits, so they must NOT be excluded from the switch must-define.
+    tclsh errors here -> W210 must fire."""
+    src = (
+        "proc f {} { foreach x {a} { switch -glob $x {a* {break} default {set y 1}} }; puts $y }\n"
+    )
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "break-arm escaping the loop leaves 'y' unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_15_all_break_switch_not_a_proc_terminator():
+    """TP (Codex P1): a switch whose arms all `break` jumps to the loop exit,
+    NOT the procedure return — it must not be promoted to a CFGReturn (which
+    would make the post-loop read unreachable).  tclsh errors -> W210 fires."""
+    src = "proc f {x} { foreach i {1 2 3} { switch -glob $x {a* {break} default {break}} }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "all-break switch is a loop jump, not a return; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_18_stale_const_init_still_fires():
+    """TP (Codex P1): when the for-init writes a var with a constant and then a
+    non-constant (`set i 0; set i $n`), the stale constant must be invalidated —
+    the loop may run zero times, so a body-only var is maybe-unset.  W210 must
+    fire."""
+    src = "proc f {n} { for {set i 0; set i $n} {$i < 3} {incr i} { set y $i }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, (
+        "stale-const for-init must not be treated as guaranteed; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_18_incr_in_init_invalidates_const():
+    """TP (Codex P1, variant): `for {set i 0; incr i 5} {$i < 3} ...` may run
+    zero times (i becomes 5); the const binding must be invalidated."""
+    src = "proc f {} { for {set i 0; incr i 5} {$i < 3} {incr i} { set y $i }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "incr-in-init must invalidate the const; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_15_while1_break_in_opaque_switch_exits_loop():
+    """TP (Codex P1 / C3, fully fixed): a `while 1` whose only exit is a `break`
+    inside an opaque switch is NOT infinite — the opaque-switch break edge to
+    the loop exit is now modelled, so the post-loop read is reachable and the
+    unset var fires W210.  tclsh errors here ('can't read y')."""
+    src = "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, (
+        "break-in-opaque-switch must make the while-1 exit reachable; W210 must fire; got: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_15_continue_in_opaque_switch_loop_silent():
+    """FP control: a benign opaque-switch `continue` arm (the var is set before
+    the switch on every iteration of a guaranteed loop) must stay silent — the
+    modelled continue edge must not introduce a false W210."""
+    src = "proc f {} { foreach x {1 2 3} { set y 1; switch -glob $x {a* {continue} default {}} }; puts $y }\n"
+    assert _rbs(src) == [], (
+        "var set before an opaque-switch continue arm stays defined; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )

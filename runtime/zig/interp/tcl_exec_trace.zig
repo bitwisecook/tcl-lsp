@@ -55,6 +55,27 @@ pub var step_depth: u32 = 0;
 // fire traces.
 pub var suppress: u32 = 0;
 
+// Command-trace re-entrancy guard.  Reference Tcl marks a command
+// trace as in-progress while its callback runs and skips it if the
+// callback triggers the same operation on the same command again
+// (``CallCommandTraces`` / the ``TCL_TRACE_*_IN_PROGRESS`` flags).
+// Without this, a rename trace whose callback renames the very command
+// being renamed (``rename $old other`` — trace-20.10) re-fires forever
+// and exhausts the stack.  The registry uses swap-removal so entry
+// indices are not stable across a callback that mutates the table;
+// guard by ``(bucket, op)`` identity instead, on a small fixed stack.
+const CmdFireFrame = struct { bucket: u32, op: u32 };
+var cmd_fire_active: [64]CmdFireFrame = undefined;
+var cmd_fire_depth: u32 = 0;
+
+fn cmd_fire_is_active(bucket: u32, op: u32) bool {
+    var i: u32 = 0;
+    while (i < cmd_fire_depth) : (i += 1) {
+        if (cmd_fire_active[i].bucket == bucket and cmd_fire_active[i].op == op) return true;
+    }
+    return false;
+}
+
 /// True (1) when the interp is fully *quiescent* w.r.t. tracing: no
 /// execution / command / step trace is registered (``any_traces`` counts
 /// all of them, including command rename/delete), no step context is
@@ -279,6 +300,17 @@ pub fn fire_command(bucket: u32, op: u32, old_name: i32, new_name: i32) void {
         OP_CMD_RENAME => "rename",
         else => return,
     };
+    // Already firing this (bucket, op): a callback re-triggered the same
+    // operation on the same command (e.g. a rename trace whose body
+    // renames the command again — trace-20.10).  Reference Tcl skips the
+    // in-progress trace rather than re-firing it; do the same so the
+    // re-triggered operation proceeds without recursing forever.
+    if (cmd_fire_is_active(bucket, op)) return;
+    if (cmd_fire_depth >= cmd_fire_active.len) return;
+    cmd_fire_active[cmd_fire_depth] = .{ .bucket = bucket, .op = op };
+    cmd_fire_depth += 1;
+    defer cmd_fire_depth -= 1;
+
     const old_s = obj_ensure_string(old_name);
     var new_ptr: u32 = 0;
     var new_len: u32 = 0;

@@ -414,6 +414,70 @@ fn dataflow_json_matches_python() {
     );
 }
 
+// `diagram` ports `tooling/diagram/extract.py` (`extract_diagram_data`) over
+// the lowered IR — now byte-parity since lowering/IR reached parity. The only
+// registry dependency is the `DIAGRAM_ACTION` trait
+// (`CommandRegistry::is_diagram_action`). The fixture is an f5-irules script
+// exercising the faithful subset: multiple `when` events (canonical firing
+// order + priority + multiplicity), `switch` with a fall-through arm, an
+// `if`/`else` with conditions and notable (`[` command-substitution) assigns,
+// `foreach`, `catch`, `try`/`on error`/`finally`, action commands (`pool`,
+// `node`, `HTTP::respond`, `log`, …), a `proc` call, and a regular procedure.
+#[test]
+fn diagram_text_matches_python() {
+    let input = fixtures_dir().join("diagram.irule");
+    assert_matches_golden(
+        &["diagram", "--dialect", "f5-irules", input.to_str().unwrap()],
+        "diagram.golden",
+    );
+}
+
+#[test]
+fn diagram_json_matches_python() {
+    let input = fixtures_dir().join("diagram.irule");
+    assert_matches_golden(
+        &[
+            "diagram",
+            "--dialect",
+            "f5-irules",
+            "--json",
+            input.to_str().unwrap(),
+        ],
+        "diagram.json.golden",
+    );
+}
+
+// `help` (`docs`) searches the bundled KCS help database — an FTS5 index built
+// at compile time by `build.rs` (a port of `scripts/build/kcs_db.py`) from the
+// committed `docs/kcs/features/*.md`, then embedded via `include_bytes!`. The
+// query layer (`search_help` / `list_features`) ports `shared/help/kcs_db.py`
+// over `rusqlite`'s bundled SQLite (FTS5). The result codes, content, ordering
+// and `ensure_ascii` escaping match Python byte-for-byte. The one field that is
+// NOT cross-environment-stable is the raw BM25 `rank` float in `--json`: it is
+// computed by whatever SQLite version is linked (Python links the host's;
+// rusqlite bundles its own), and the two diverge in the low-order digits on
+// some corpora. So the json golden is captured from the Rust binary under test
+// (not Python); the text + catalogue goldens still track Python exactly. All
+// three derive from `docs/kcs`, so regenerate when the feature notes change
+// (json from `tcl help … --json`, text from either).
+#[test]
+fn help_search_text_matches_python() {
+    assert_matches_golden(&["help", "taint"], "help-taint.golden");
+}
+
+#[test]
+fn help_search_json_matches_python() {
+    assert_matches_golden(&["help", "taint", "--json"], "help-taint.json.golden");
+}
+
+#[test]
+fn help_catalogue_dialect_matches_python() {
+    assert_matches_golden(
+        &["help", "--dialect", "f5-irules"],
+        "help-catalogue-irules.golden",
+    );
+}
+
 // `registry-dump` is wired onto the Rust command-registry snapshot
 // (`tcl_registry::command_snapshot`, a faithful port of Python
 // `command_registry_snapshot`). Whole-dialect byte-parity is gated by

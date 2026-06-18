@@ -700,6 +700,17 @@ class LspServerClient:
         before = self.effective_config(settle_uri, timeout=timeout)
         before_features = before.get("features")
         before_optimiser = before.get("optimiser_enabled")
+
+        # Defined outside the ``finally`` below (rather than inside it) so its
+        # ``return``s belong unambiguously to this predicate and never read as
+        # control flow escaping the finally (CodeQL py/exit-from-finally).
+        def _restored(c: dict) -> bool:
+            if isinstance(before_features, dict) and c.get("features") != before_features:
+                return False
+            if "optimiser" in config and c.get("optimiser_enabled") != before_optimiser:
+                return False
+            return True
+
         self.apply_configuration(config, settle=settle, settle_uri=settle_uri, timeout=timeout)
         try:
             yield self
@@ -716,13 +727,6 @@ class LspServerClient:
                 undo["features"] = dict(before_features)
             if "optimiser" in config and isinstance(before_optimiser, bool):
                 undo["optimiser"] = {"enabled": before_optimiser}
-
-            def _restored(c: dict) -> bool:
-                if isinstance(before_features, dict) and c.get("features") != before_features:
-                    return False
-                if "optimiser" in config and c.get("optimiser_enabled") != before_optimiser:
-                    return False
-                return True
 
             restored = self.apply_configuration(
                 undo, settle=_restored, settle_uri=settle_uri, timeout=timeout

@@ -770,6 +770,7 @@ fn evaluate_proc_with_constants(
     callee: &FunctionUnit,
     params: &[String],
     args: &[ConstValue],
+    octal: Option<bool>,
 ) -> Option<ConstValue> {
     if params.len() != args.len() {
         return None;
@@ -779,7 +780,7 @@ fn evaluate_proc_with_constants(
     for (p, a) in params.iter().zip(args.iter()) {
         seed.insert((p.clone(), 0), LatticeValue::Const(a.clone()));
     }
-    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed));
+    let result = crate::sccp::sccp(&callee.cfg, &callee.ssa, Some(&seed), octal);
     resolve_return_constant(callee, &result)
 }
 
@@ -1326,7 +1327,12 @@ fn visit_call_cmd_subst_folds(
         } else if summary.pure
             && let Some(callee) = cu.procedures.get(&qname)
             && let Some(args) = parse_static_call_args(inner, 1, constants)
-            && let Some(cv) = evaluate_proc_with_constants(callee, &summary.params, &args)
+            && let Some(cv) = evaluate_proc_with_constants(
+                callee,
+                &summary.params,
+                &args,
+                ctx.dialect.map(crate::tcl_expr_eval::leading_zero_is_octal),
+            )
         {
             // Argument-sensitive: re-run SCCP on the pure callee with the
             // call's constant arguments bound and fold the constant return

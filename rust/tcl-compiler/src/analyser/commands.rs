@@ -280,6 +280,15 @@ impl Analyser {
             // command.
             self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
 
+            // Run the per-command syntactic + EXPR checks on commands nested
+            // inside a ``[…]`` substitution of a *braced expression*
+            // argument (`if { [matchclass …] }`, `while { [done $x] }`).
+            // The bare-`Cmd` walk above never enters a braced `Str` expr
+            // arg, so those substitution commands would otherwise escape
+            // every per-command check (IRULE2001/2002, W100, …).  Mirrors
+            // main's ``_recurse_expression_subcommands``.
+            self.run_nested_expr_diagnostics(cmd_name, args, arg_tokens, scope_path);
+
             // **C41d3.** Record variable-as-command and
             // command-substitution-as-command call sites so the
             // post-walk W307 / W308 emitters can resolve them.
@@ -489,6 +498,9 @@ impl Analyser {
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
         // IRULE2002: deprecated iRules command (f5-irules only).
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
+        // IRULE2001: deprecated `matchclass` (f5-irules only).  Python
+        // fires this alongside IRULE2002 at the same command-head span.
+        self.emit_irule2001_matchclass(cmd_name, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
         self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok);
@@ -552,25 +564,21 @@ impl Analyser {
         self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
 
         // Special-case ``expr ...``: when the user wrote multiple
-        // arguments (``expr 1 + 2`` instead of the more common
-        // ``expr {1 + 2}``), Python anchors the diagnostic at
-        // the full argument token range and parses the source
-        // slice — substituted arg values strip ``"..."`` quote
-        // delimiters, so joining ``args`` would lose the
-        // ``ExprString`` literals.  Falls back to the joined arg
-        // text when the source slice is out of bounds.
+        // arguments (``expr $a == "x"`` instead of the more common
+        // ``expr {$a eq "x"}``), Python anchors W110 / W003 at the full
+        // argument token range and parses ``" ".join(args)`` — the
+        // *substituted* word values, with quote delimiters already
+        // stripped by Tcl's word splitting.  So ``expr $a == "x"`` parses
+        // as ``$a == x`` where ``x`` is a bareword, not an ``ExprString``,
+        // and W110 (string ``==``) does NOT fire — matching what `expr`
+        // actually receives at runtime.  (The earlier source-slice text
+        // kept the quotes and over-fired W110 vs Python.)
         if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
             let span = tcl_lexer::Span::new(
                 arg_tokens[0].span.start(),
                 arg_tokens[arg_tokens.len() - 1].span.end(),
             );
-            let start = span.start() as usize;
-            let end = span.end() as usize;
-            let expr_text = if end <= self.source.len() && start <= end {
-                self.source[start..end].to_string()
-            } else {
-                args.join(" ")
-            };
+            let expr_text = args.join(" ");
             self.emit_w110_string_eq_ne(&expr_text, span);
             self.emit_w003_dialect_invalid_expr_operator(&expr_text, span);
             return;
@@ -608,6 +616,15 @@ impl Analyser {
             return;
         };
         let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
+        // Body-role resolution stays dialect-scoped *deliberately*: a command
+        // that owns a body only in another dialect (e.g. the iRules-only
+        // `when`) is, under a plain-tcl dialect, an unknown user command whose
+        // braced `{...}` is an ordinary string argument — not a script. So we
+        // do NOT recurse into it (and do not fire W123/W002 on its contents).
+        // Python applies the iRules `when` BODY role even under tcl8.6, which
+        // leaks iRules semantics into non-iRules analysis; that divergence is
+        // intentional (Rust is the more-correct side). Analyse iRules under
+        // the f5-irules dialect, where `when` is a real body-owning command.
         let body_indices = registry.arg_indices_for_role(
             cmd_name,
             &body_args,
@@ -773,36 +790,152 @@ impl Analyser {
         {
             let sm = SourceMap::new(&self.source);
             for arg_tok in arg_tokens_in {
-                if arg_tok.kind != TokenType::Cmd {
+                let start = arg_tok.span.start() as usize;
+                let end = arg_tok.span.end() as usize;
+                if start > self.source.len() || end > self.source.len() || start > end {
                     continue;
                 }
-                for frag in self.cmd_fragments(*arg_tok, config) {
-                    collect_substitution_segments(
-                        &sm,
-                        self.registry.as_ref(),
-                        frag,
-                        config,
-                        &mut nested,
-                    );
+                match arg_tok.kind {
+                    TokenType::Cmd => {
+                        for frag in self.cmd_fragments(*arg_tok, config) {
+                            collect_substitution_segments(
+                                &sm,
+                                self.registry.as_ref(),
+                                frag,
+                                config,
+                                &mut nested,
+                            );
+                        }
+                    }
+                    // A quoted / bareword / compound word (`Esc`) may carry
+                    // live `[...]` substitutions (`log "got [HTTP::uri]"`).
+                    // The bare-`Cmd` walk never enters it, so its substitution
+                    // commands escape every per-command check (IRULE3102, W123,
+                    // …).  A braced `Str` data word's `[...]` is literal and is
+                    // skipped; braced *expr* args are covered by
+                    // `run_nested_expr_diagnostics`.  Mirrors Python's
+                    // `_recurse_nested_commands` descending nested `Cmd` tokens
+                    // inside quoted words.
+                    TokenType::Esc => {
+                        let arg_src = &self.source[start..end];
+                        if !arg_src.contains('[') {
+                            continue;
+                        }
+                        for (off, inner) in top_level_cmd_subst_regions(arg_src) {
+                            let off = u32::try_from(off)
+                                .expect("byte offset fits in u32 for in-memory source");
+                            let base = arg_tok.span.start() + off;
+                            for seg in crate::segmenter::segment_commands_with_offset_and_config(
+                                inner, base, config,
+                            ) {
+                                collect_segment_recursive(
+                                    &sm,
+                                    self.registry.as_ref(),
+                                    seg,
+                                    config,
+                                    &mut nested,
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
         for seg in nested {
-            if seg.texts.is_empty() || seg.argv.is_empty() {
-                continue;
-            }
-            let cmd_name = seg.texts[0].clone();
-            let cmd_tok = seg.argv[0];
-            let args = seg.texts.get(1..).unwrap_or(&[]);
-            let arg_tokens = seg.argv.get(1..).unwrap_or(&[]);
-            let arg_single = seg.single_token_word.get(1..).unwrap_or(&[]);
-            // `emit_arity_diagnostics` expects the expand array parallel to
-            // the *full* argv (head at index 0), matching `process_command`.
-            let arg_expand = seg.expand_word.as_deref().unwrap_or(&[]);
-            self.emit_dispatch_site_diagnostics(
-                &cmd_name, args, arg_tokens, arg_single, arg_expand, cmd_tok, scope_path,
-            );
+            self.dispatch_nested_segment(&seg, scope_path);
         }
+    }
+
+    /// Run the per-command syntactic dispatch on every command nested in a
+    /// ``[…]`` substitution that appears inside a *braced expression*
+    /// argument (`if { [acl_ok] } …`, `while { [done $x] } …`).  Such an
+    /// argument is a `Str` (braced) token, so it is opaque to
+    /// [`Self::run_nested_command_diagnostics`] (which only descends bare
+    /// `Cmd` argument tokens) — yet the expression's `[…]` substitutions
+    /// are live commands the main walk never reaches.  Mirrors main's
+    /// ``_recurse_expression_subcommands`` re-running ``run_all_checks`` on
+    /// each substitution command found inside an EXPR-role argument.
+    fn run_nested_expr_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        let expr_indices: Vec<usize> = match self.registry.as_ref() {
+            Some(r) => {
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
+            }
+            None => return,
+        };
+        if expr_indices.is_empty() {
+            return;
+        }
+        let config = self.lexer_config();
+        let mut nested: Vec<SegmentedCommand> = Vec::new();
+        {
+            let sm = SourceMap::new(&self.source);
+            for idx in expr_indices {
+                // Only a *braced* expr arg is opaque to the bare-`Cmd` walk;
+                // an unbraced `[…]` expr arg is itself a `Cmd` token already
+                // descended by `run_nested_command_diagnostics`.
+                let Some(tok) = arg_tokens.get(idx) else {
+                    continue;
+                };
+                if tok.kind != TokenType::Str {
+                    continue;
+                }
+                // Re-lex the braced expression as a script: its operands
+                // (`$x`, `+`, literals) are not commands, but each `[…]`
+                // substitution still tokenises as a `Cmd` to descend.
+                let descended = descend_token(&sm, *tok, config);
+                for seg in segments_from_tree(descended.tree(), &sm) {
+                    for inner in &seg.all_tokens {
+                        if inner.kind == TokenType::Cmd {
+                            collect_substitution_segments(
+                                &sm,
+                                self.registry.as_ref(),
+                                *inner,
+                                config,
+                                &mut nested,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        for seg in nested {
+            self.dispatch_nested_segment(&seg, scope_path);
+        }
+    }
+
+    /// Run the full per-command diagnostic dispatch on one command
+    /// descended from a ``[…]`` substitution: the syntactic emitters
+    /// ([`Self::emit_dispatch_site_diagnostics`]) plus the EXPR-argument
+    /// walk ([`Self::dispatch_expr_arguments`], which hosts W100 / W110 /
+    /// W114 / W003).  The main walk runs both on a top-level command but
+    /// only the syntactic half had been reaching substitution commands, so
+    /// an unbraced `expr` inside `[…]` (`set y [expr $a + $b]`) escaped
+    /// W100.  Mirrors main feeding nested commands through the same
+    /// ``run_all_checks`` entry point as top-level ones.
+    fn dispatch_nested_segment(&mut self, seg: &SegmentedCommand, scope_path: &[usize]) {
+        if seg.texts.is_empty() || seg.argv.is_empty() {
+            return;
+        }
+        let cmd_name = seg.texts[0].clone();
+        let cmd_tok = seg.argv[0];
+        let args = seg.texts.get(1..).unwrap_or(&[]);
+        let arg_tokens = seg.argv.get(1..).unwrap_or(&[]);
+        let arg_single = seg.single_token_word.get(1..).unwrap_or(&[]);
+        // `emit_arity_diagnostics` expects the expand array parallel to
+        // the *full* argv (head at index 0), matching `process_command`.
+        let arg_expand = seg.expand_word.as_deref().unwrap_or(&[]);
+        self.emit_dispatch_site_diagnostics(
+            &cmd_name, args, arg_tokens, arg_single, arg_expand, cmd_tok, scope_path,
+        );
+        self.dispatch_expr_arguments(&cmd_name, args, arg_tokens);
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)
@@ -1258,6 +1391,58 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
     }
     i += 1; // the `string` argument
     if i == args.len() - 1 { Some(i) } else { None }
+}
+
+/// Top-level ``[...]`` command-substitution regions in `text`, as
+/// `(inner_byte_offset, inner_text)` — the script *inside* the brackets and
+/// the offset of its first byte within `text`.  ``\\[`` / ``\\]`` escapes are
+/// honoured.  Only the *outermost* substitutions are returned; the caller's
+/// segment recursion descends any nested `[...]`.  Used to reach `[...]`
+/// embedded in a quoted / bareword word argument (`log "got [HTTP::uri]"`),
+/// which the bare-`Cmd`-token walk misses.
+///
+/// Braces are **not** treated as opaque here: this only runs on `Esc` words
+/// (quoted / bareword / compound).  A braced *word* is a `Str` token (handled
+/// elsewhere and excluded by the caller); inside a quoted or bareword context
+/// `{` / `}` are ordinary characters that do *not* suppress substitution, so
+/// `log "got { [HTTP::uri] }"` still executes — and must still be scanned
+/// (Codex review, PR #639).
+fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'[' => {
+                let inner_start = i + 1;
+                let mut depth = 1i32;
+                let mut j = inner_start;
+                while j < bytes.len() && depth > 0 {
+                    match bytes[j] {
+                        b'[' => depth += 1,
+                        b']' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        b'\\' if j + 1 < bytes.len() => j += 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                if depth == 0 && j <= bytes.len() {
+                    out.push((inner_start, &text[inner_start..j]));
+                    i = j + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            _ => i += 1,
+        }
+    }
+    out
 }
 
 /// Walk `text` looking for ``[cmd args...]`` command

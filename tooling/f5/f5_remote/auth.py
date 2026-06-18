@@ -11,11 +11,12 @@ Resolution order (highest priority first):
 
 from __future__ import annotations
 
-import getpass
 import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from .secret_input import resolve_secret
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -122,11 +123,14 @@ def resolve_credentials(
 
     resolved_password = password or pick("password", "F5_PASSWORD", None)
     if not resolved_password:
-        if not interactive:
-            raise ValueError("no password configured (set --password or F5_PASSWORD)")
-        resolved_password = getpass.getpass(f"Password for {resolved_user}@{resolved_host}: ")
+        # Explicit / env / hosts.toml are exhausted; offer a secure prompt
+        # through the shared resolver (which gets the tty detection right).
+        resolved_password = resolve_secret(
+            allow_prompt=interactive,
+            prompt=f"Password for {resolved_user}@{resolved_host}: ",
+        )
         if not resolved_password:
-            raise ValueError("password is required")
+            raise ValueError("no password configured (set --password or F5_PASSWORD)")
 
     # CLI port overrides take precedence; only fall back to env / config if
     # the caller didn't pass an explicit value.

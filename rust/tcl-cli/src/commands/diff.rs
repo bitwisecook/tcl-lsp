@@ -1,12 +1,20 @@
 //! Diff verb: compare two sources at the AST / IR / CFG layers.
 //!
-//! Port of `tooling/tcl/verbs/diff.py`. The **AST layer** is ported to
-//! byte-parity: it segments each side (`tcl-compiler` segmenter), serialises
-//! the command list to canonical JSON (`sort_keys`), and emits a
-//! `difflib.unified_diff`-faithful diff (`tcl_cli_support::difflib`). The IR
-//! and CFG layers depend on the IR/SSA serialiser (`tooling/cli/serialise.py`,
-//! the `tcl-cli-serialise` foundation) and are not ported yet — requesting
-//! them is a clear "not yet implemented" error.
+//! Port of `tooling/tcl/verbs/diff.py`. All three layers are ported and
+//! byte-parity (modulo a residual CFG/SSA construction gap on complex
+//! scripts, tracked in `docs/rust-cli-port.md`):
+//!
+//! - **AST** — segments each side (`tcl-compiler` segmenter) and serialises
+//!   the command list to canonical JSON (`sort_keys`).
+//! - **IR** — Python reads `serialise_result(compiled)["ir"]`; the native
+//!   `tcl-explorer` `serialise::serialise_ir` reproduces that view, so the
+//!   diff calls it directly rather than carrying a second IR serialiser.
+//! - **CFG** — `{preSsa, postSsa}` from the explorer's `serialise_result`
+//!   `cfgPreSsa`/`cfgPostSsa` views, after the CFG/SSA engine-parity work.
+//!
+//! Every layer renders through the shared `value_to_json` →
+//! `snapshot::Json::dumps_indent2` adapter and a
+//! `difflib.unified_diff`-faithful diff (`tcl_cli_support::difflib`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -27,11 +35,8 @@ use tcl_registry::snapshot::Json;
 const CONTEXT: usize = 3;
 
 /// Expand / validate the `--show` layer list (port of `_parse_diff_layers`).
-/// `all` expands to the **implemented** layers (`ast`, `ir`); `cfg` is omitted
-/// until its serialiser lands, so the default (`--show all`) and a bare
-/// `tcl diff LEFT RIGHT` work rather than erroring on the unported layer. An
-/// explicit `--show cfg` is still accepted and produces the clear
-/// "not yet implemented" error from `layer_payload`. Duplicates are dropped,
+/// All three layers (`ast`, `ir`, `cfg`) are ported, so `all` expands to the
+/// full set — mirroring Python's `_DIFF_LAYERS`. Duplicates are dropped,
 /// preserving order.
 fn parse_layers(show: &[String]) -> anyhow::Result<Vec<&'static str>> {
     const KNOWN: [&str; 3] = ["ast", "ir", "cfg"];
@@ -190,11 +195,13 @@ fn layer_payload(
     match layer {
         "ast" => Ok(serialise_command_ast(src, registry, line_index)),
         "ir" => {
+            // Python's diff reads `serialise_result(compiled)["ir"]`; the
+            // native `tcl-explorer` serialiser reproduces that view, so reuse
+            // it (through the shared `value_to_json` adapter) rather than
+            // carrying a second IR serialiser.
             let cu = CompilationUnit::build_for(src, registry, false);
-            Ok(
-                crate::commands::serialise::serialise_ir(&cu.ir_module, line_index, src)
-                    .dumps_indent2(),
-            )
+            let ir = tcl_explorer::serialise::serialise_ir(&cu.ir_module, line_index, src);
+            Ok(value_to_json(&ir).dumps_indent2())
         }
         "cfg" => Ok(cfg_layer_payload(src, dialect)),
         other => anyhow::bail!("unknown diff layer: {other} (expected ast,ir,cfg)"),

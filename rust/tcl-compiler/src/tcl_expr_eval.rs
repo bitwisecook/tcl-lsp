@@ -99,10 +99,53 @@ const MAX_EXPONENT: i64 = (1 << 28) - 1;
 /// [`FoldOps`]. A `None` result means "can't fold".
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
-    let mut ops = FoldOps { env };
+    eval_with_octal(node, env, None)
+}
+
+/// Like [`eval_tcl_expr`] but resolves the *dialect* so a leading-zero decimal
+/// (`08`, `010`) is classified correctly in `==`/`!=`/`<`/… comparisons:
+/// octal in Tcl 8.x (`08`/`09` invalid → string; `010` → 8), decimal in
+/// Tcl 9.0 (`08` → 8, `010` → 10). All non-9.x dialects (tcl8.4/8.5/8.6,
+/// f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, EDA) use the 8.x octal rule.
+#[must_use]
+pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Option<TclValue> {
+    eval_with_octal(node, env, Some(leading_zero_is_octal(dialect)))
+}
+
+/// Like [`eval_tcl_expr`] but takes the leading-zero octal policy directly:
+/// `Some(true)` = tcl8.x octal rule, `Some(false)` = tcl9.0 decimal rule,
+/// `None` = decline to fold dialect-ambiguous leading-zero operands. Callers
+/// that hold a `CommandRegistry` rather than a dialect string derive the flag
+/// via `CommandRegistry::leading_zero_is_octal`.
+#[must_use]
+pub fn eval_tcl_expr_with_octal(node: &ExprNode, env: &Env, octal: Option<bool>) -> Option<TclValue> {
+    eval_with_octal(node, env, octal)
+}
+
+/// Whether the dialect reads a bare leading-zero integer as octal. Only Tcl
+/// 9.x dropped the rule (TIP 472), so everything else — including the F5 and
+/// EDA dialects, which are 8.x-based — keeps octal-by-leading-zero.
+#[must_use]
+pub fn leading_zero_is_octal(dialect: &str) -> bool {
+    !dialect.starts_with("tcl9")
+}
+
+fn eval_with_octal(node: &ExprNode, env: &Env, octal: Option<bool>) -> Option<TclValue> {
+    let mut ops = FoldOps {
+        env,
+        ambiguous: false,
+        octal,
+    };
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
-    tcl_syntax::expr::eval(node, &mut ops).ok()?.to_number()
+    let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
+    if ops.ambiguous {
+        // A comparison hit a leading-zero operand whose octal-vs-decimal
+        // reading is dialect-dependent and the dialect is unknown — decline
+        // to fold rather than pick one.
+        return None;
+    }
+    result.to_number()
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +193,67 @@ impl FoldValue {
 /// `env`, `[cmd]`/`Raw` are opaque.
 struct FoldOps<'a> {
     env: &'a Env,
+    /// Set when a comparison operand is a leading-zero integer whose
+    /// octal-vs-decimal reading is dialect-dependent AND [`Self::octal`] is
+    /// unknown (`None`): the comparison result would depend on the dialect, so
+    /// [`eval_tcl_expr`] declines to fold rather than risk a false
+    /// I230 unreachable-branch.
+    ambiguous: bool,
+    /// How a bare leading-zero integer (`08`, `010`) is read in `==`/`!=`/`<`/…
+    /// numeric eligibility: `Some(true)` = octal (Tcl 8.x — `08`/`09` invalid →
+    /// string, `010` → 8), `Some(false)` = decimal (Tcl 9.0 — `08` → 8,
+    /// `010` → 10), `None` = dialect unknown → decline (see [`Self::ambiguous`]).
+    octal: Option<bool>,
+}
+
+/// A comparison operand's numeric classification under the active dialect.
+enum Operand {
+    /// A definite number (used for a numeric comparison).
+    Num(TclValue),
+    /// Not a number in this dialect (used for a string comparison).
+    Str,
+    /// A leading-zero integer whose reading is dialect-dependent and the
+    /// dialect is unknown — the whole fold must be declined.
+    Ambiguous,
+}
+
+/// Classify a comparison operand as [`Operand::Num`] / [`Operand::Str`] /
+/// [`Operand::Ambiguous`], applying the dialect's leading-zero rule.
+fn classify_operand(value: &FoldValue, octal: Option<bool>) -> Operand {
+    let s = match value {
+        FoldValue::Int(_) | FoldValue::Float(_) => return Operand::Num(value.to_number().unwrap()),
+        FoldValue::Str(s) => s.as_str(),
+    };
+    if is_bare_leading_zero(s) {
+        return match octal {
+            None => Operand::Ambiguous,
+            // 8.x octal: a valid octal (`010`) is a number; an invalid one
+            // (`08`/`09`) is not — Tcl treats it as a string.
+            Some(true) => parse_octal_literal(s).map_or(Operand::Str, Operand::Num),
+            // 9.0 decimal: the shared number grammar already reads it as decimal.
+            Some(false) => strict_number(value).map_or(Operand::Str, Operand::Num),
+        };
+    }
+    strict_number(value).map_or(Operand::Str, Operand::Num)
+}
+
+/// Whether `s` is a bare leading-zero integer (`08`, `-010`) — the only
+/// dialect-dependent number form. Excludes `0` alone, `0x`/`0o`/`0b` prefixes
+/// (a non-digit follows the `0`), and floats (`0.5`).
+fn is_bare_leading_zero(s: &str) -> bool {
+    let digits = s.strip_prefix(['+', '-']).unwrap_or(s);
+    digits.len() > 1 && digits.starts_with('0') && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Parse a Tcl 8.x octal integer (`010` → 8, `-077` → -63). Returns `None`
+/// for an invalid octal (`08`/`09`), which Tcl 8.x treats as a string.
+fn parse_octal_literal(s: &str) -> Option<TclValue> {
+    let (neg, digits) = match s.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, s.strip_prefix('+').unwrap_or(s)),
+    };
+    let v = i64::from_str_radix(digits, 8).ok()?;
+    Some(TclValue::Int(if neg { -v } else { v }))
 }
 
 impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
@@ -224,7 +328,29 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         left: &FoldValue,
         right: &FoldValue,
     ) -> Option<std::cmp::Ordering> {
-        Some(numeric_cmp(left.to_number()?, right.to_number()?))
+        // `==` / `!=` / `<` / … are polymorphic: Tcl compares numerically only
+        // when *both* operands are valid numbers, otherwise as strings. The
+        // *strict* number grammar (no boolean words — `parse_literal` would
+        // coerce `true`/`yes`/… to `1`/`0`, but Tcl does NOT treat them as
+        // numbers for comparison: `expr {"true" == "1"}` → 0 string compare,
+        // `expr {"true" + 0}` errors) is applied via `classify_operand`, which
+        // also resolves the dialect's leading-zero rule (`08` octal in 8.x,
+        // decimal in 9.0). Returning `None` falls the shared evaluator back to
+        // `compare_string`, matching Tcl. A leading-zero operand under an
+        // unknown dialect is `Ambiguous` → mark the fold unreliable so
+        // `eval_tcl_expr` declines entirely rather than pick a dialect.
+        let (lo, ro) = (
+            classify_operand(left, self.octal),
+            classify_operand(right, self.octal),
+        );
+        if matches!(lo, Operand::Ambiguous) || matches!(ro, Operand::Ambiguous) {
+            self.ambiguous = true;
+            return None;
+        }
+        match (lo, ro) {
+            (Operand::Num(a), Operand::Num(b)) => Some(numeric_cmp(a, b)),
+            _ => None,
+        }
     }
     fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
         left.to_string_val().cmp(&right.to_string_val())
@@ -302,6 +428,26 @@ pub fn parse_literal(text: &str) -> Option<TclValue> {
         Number::Double(d) => Some(TclValue::Float(d)),
         Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
         Number::Big { .. } => None,
+    }
+}
+
+/// Parse a *strict* Tcl number — the number grammar only, **without** the
+/// boolean-word coercion [`parse_literal`] adds. Used for the polymorphic
+/// comparison operators, whose numeric-vs-string decision follows Tcl's number
+/// rules: `true`/`yes`/`off`/… are strings, not numbers. (Leading-zero octal
+/// like `08` is still accepted as the shared grammar parses it; its
+/// dialect-dependent invalidity in tcl8.x is a separate, dialect-aware concern.)
+fn strict_number(value: &FoldValue) -> Option<TclValue> {
+    use tcl_syntax::number::Number;
+    match value {
+        FoldValue::Int(i) => Some(TclValue::Int(*i)),
+        FoldValue::Float(f) => Some(TclValue::Float(*f)),
+        FoldValue::Str(s) => match tcl_syntax::number::parse_whole(s)? {
+            Number::Int(v) => Some(TclValue::Int(v)),
+            Number::Double(d) => Some(TclValue::Float(d)),
+            Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
+            Number::Big { .. } => None,
+        },
     }
 }
 
@@ -643,6 +789,66 @@ mod tests {
     fn literal_float() {
         assert_eq!(eval_str("1.5"), Some(TclValue::Float(1.5)));
         assert_eq!(eval_str("2e3"), Some(TclValue::Float(2000.0)));
+    }
+
+    #[test]
+    fn polymorphic_equality_uses_strict_numbers() {
+        // `==` / `!=` compare numerically only when *both* operands are valid
+        // Tcl numbers; otherwise as strings. Boolean words are NOT numbers for
+        // comparison (tclsh: `expr {"true" == "1"}` → 0), so the comparison
+        // must fall back to a string compare rather than coercing `true`→1.
+        assert_eq!(eval_str(r#""true" == "1""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_str(r#""yes" == "1""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_str(r#""true" != "1""#), Some(TclValue::Int(1)));
+        // Genuine numbers still compare numerically (incl. mixed int/float and
+        // hex), and non-numeric strings string-compare.
+        assert_eq!(eval_str(r#""5" == "5.0""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""0x10" == "16""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""foo" == "foo""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""foo" == "bar""#), Some(TclValue::Int(0)));
+    }
+
+    #[test]
+    fn dialect_ambiguous_operand_declines_to_fold() {
+        // A leading-zero decimal is octal in tcl8.x but decimal in tcl9.0, so
+        // its numeric-vs-string comparison is dialect-dependent — the
+        // const-folder declines rather than risk a wrong answer (false I230).
+        assert_eq!(eval_str(r#""08" == "8""#), None);
+        assert_eq!(eval_str(r#""010" == "8""#), None);
+        assert_eq!(eval_str(r#""8" != "08""#), None);
+        // But unambiguous numbers and non-numbers still fold.
+        assert_eq!(eval_str(r#""0" == "0""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""0x10" == "16""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""08" == "foo""#), None); // 08 still ambiguous
+    }
+
+    #[test]
+    fn dialect_aware_leading_zero_folds_per_dialect() {
+        let eval_d = |expr: &str, dialect: &str| {
+            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+        };
+        // tcl8.x octal: `08`/`09` are *invalid* octal → treated as strings, so
+        // `"08" == "8"` is a string compare → 0. `010` is valid octal (8), so
+        // `"010" == "8"` compares numerically → 1.
+        for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules", "f5-iapps"] {
+            assert_eq!(eval_d(r#""08" == "8""#, d), Some(TclValue::Int(0)), "{d}");
+            assert_eq!(eval_d(r#""010" == "8""#, d), Some(TclValue::Int(1)), "{d}");
+            assert_eq!(eval_d(r#""08" != "8""#, d), Some(TclValue::Int(1)), "{d}");
+        }
+        // tcl9.0 decimal (TIP 472): `08` → 8, `010` → 10, both numeric compares.
+        assert_eq!(eval_d(r#""08" == "8""#, "tcl9.0"), Some(TclValue::Int(1)));
+        assert_eq!(eval_d(r#""010" == "8""#, "tcl9.0"), Some(TclValue::Int(0)));
+        assert_eq!(eval_d(r#""010" == "10""#, "tcl9.0"), Some(TclValue::Int(1)));
+    }
+
+    #[test]
+    fn leading_zero_is_octal_only_excludes_tcl9() {
+        assert!(leading_zero_is_octal("tcl8.4"));
+        assert!(leading_zero_is_octal("tcl8.5"));
+        assert!(leading_zero_is_octal("tcl8.6"));
+        assert!(leading_zero_is_octal("f5-irules"));
+        assert!(leading_zero_is_octal("f5-iapps"));
+        assert!(!leading_zero_is_octal("tcl9.0"));
     }
 
     #[test]

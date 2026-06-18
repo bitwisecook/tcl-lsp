@@ -1,0 +1,6 @@
+when HTTP_REQUEST {
+  log local0. "uri is [HTTP::uri]"
+  log local0. "braced { [HTTP::uri] } still substitutes"
+  set h [HTTP::host]
+  log local0. "host=$h"
+}

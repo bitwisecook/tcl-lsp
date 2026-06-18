@@ -3482,8 +3482,14 @@ Consider capturing the result: catch {\u{2026}} result"
         }
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
         // EXISTS in the active dialect → fine.  UNKNOWN everywhere → W123's
-        // concern.  Only DISALLOWED (exists in some dialect, not this one) fires.
-        if registry.get_for_dialect(bare, dialect).is_some() || registry.get(bare).is_none() {
+        // concern.  Only DISALLOWED (exists in some dialect, not this one)
+        // fires.  Existence must be checked *dialect-agnostically*: the
+        // analyser registry only loads the active dialect, so `get(bare)`
+        // misses an iRules command like `when`/`log`/`session` under
+        // tcl8.6 — Python sees it via the global `get_any`, so use the
+        // dialect-independent `known_in_any_dialect` to match.
+        if registry.get_for_dialect(bare, dialect).is_some() || !registry.known_in_any_dialect(bare)
+        {
             return;
         }
         // An earlier *unconditional* user proc with this name shadows the
@@ -4137,9 +4143,17 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         }
 
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // Resolve the option-terminator profile *dialect-agnostically*:
+        // Python's `check_missing_option_terminator` calls
+        // `REGISTRY.resolve_option_terminator(cmd_name, args)` with no
+        // dialect, so W304 still fires on a command that the active dialect
+        // disables (e.g. `exec` / `glob` under f5-irules, which also draw
+        // W002 / W123).  Passing the dialect here would over-filter via
+        // `get_for_dialect` and silently drop those W304s.
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(profile) = registry.resolve_option_terminator(cmd_name, &arg_strs, dialect) else {
+        let Some(profile) =
+            registry.resolve_option_terminator(cmd_name, &arg_strs, DialectSet::empty())
+        else {
             return;
         };
 
@@ -5130,6 +5144,31 @@ matching time on crafted input."
         });
     }
 
+    /// **IRULE2001.** Warn that `matchclass` is deprecated — use
+    /// `class match` instead.  Only fires under the `f5-irules` dialect.
+    /// Python fires this *alongside* IRULE2002 at the same span (the
+    /// command head): `matchclass` carries both a `deprecated_replacement`
+    /// (→ IRULE2002) and the dedicated `check_matchclass` rule (→
+    /// IRULE2001).  Mirrors `irules_checks.py::check_matchclass`.
+    pub(super) fn emit_irule2001_matchclass(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        if self.dialect != "f5-irules" || cmd_name != "matchclass" {
+            return;
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "IRULE2001".to_string(),
+            span: cmd_tok.span,
+            message: "'matchclass' is deprecated since BIG-IP v10. \
+Use 'class match <item> <operator> <class>' instead."
+                .to_string(),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
     /// **W310.** Emit "hardcoded credential" for a literal secret value.
     /// Mirrors both strategies of
     /// `_security.py:507-573::check_hardcoded_credentials` (one diagnostic
@@ -5952,10 +5991,13 @@ file; this call falls through to the 'unknown' handler."
             )) {
                 continue;
             }
-            let span = fu.abs_span(stmt.span());
-            if span.is_empty() {
+            let cmd_span = fu.abs_span(stmt.span());
+            if cmd_span.is_empty() {
                 continue;
             }
+            // Anchor at the variable name (Python narrows the command range
+            // to the assignment target), not the command-start column.
+            let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             let mut message = format!("Assignment to '{var}' is never read");
             if let Some(similar) = find_case_mismatch(var, defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
@@ -5968,6 +6010,69 @@ file; this call falls through to the 'unknown' handler."
                 fixes: Vec::new(),
             });
         }
+    }
+
+    /// Narrow a whole-command span to its assignment-target token (the
+    /// second word, `argv[1]`), returning that token's absolute span — or
+    /// `None` when it can't be located, so callers fall back to the command
+    /// span.  Mirrors Python's `narrow_to_variable(kind="assigned_name")`:
+    /// W211 / W220 anchor at the variable-name column, not the command
+    /// start.  Re-lexes the command's own source slice (token-based, like
+    /// Python's `segment_commands`) and takes the first non-separator word
+    /// after the command name.
+    fn narrow_to_assigned_name(&self, stmt_span: tcl_lexer::Span) -> Option<tcl_lexer::Span> {
+        let base = stmt_span.start();
+        let slice = source_slice(&self.source, stmt_span)?;
+        let toks = tcl_lexer::Lexer::with_source_map(
+            tcl_lexer::SourceMap::new(&slice),
+            self.lexer_config(),
+        )
+        .tokenise_all()
+        .ok()?;
+        let name = toks
+            .iter()
+            .filter(|t| {
+                !matches!(
+                    t.kind,
+                    tcl_lexer::TokenType::Sep
+                        | tcl_lexer::TokenType::Eol
+                        | tcl_lexer::TokenType::Comment
+                )
+            })
+            .nth(1)?;
+        Some(tcl_lexer::Span::new(
+            name.span.start() + base,
+            name.span.end() + base,
+        ))
+    }
+
+    /// Narrow a whole-command span to the `$var` read token for *var*,
+    /// returning that token's absolute span — or `None` when no matching
+    /// top-level `Var` token is found (e.g. the read is nested inside a
+    /// quoted/compound word, where the caller falls back to the command
+    /// span).  Mirrors Python's `narrow_to_variable(kind="read_var")`: W210
+    /// anchors at the variable read, not the command-start column.
+    fn narrow_to_read_var(&self, stmt_span: tcl_lexer::Span, var: &str) -> Option<tcl_lexer::Span> {
+        // De-sigil + drop any array-index suffix so `$a(k)` / `${a}` / `$a`
+        // all compare equal to the chain's scalar/element base name.
+        fn base(text: &str) -> &str {
+            let inner = text.strip_prefix("${").map_or_else(
+                || text.strip_prefix('$').unwrap_or(text),
+                |i| i.strip_suffix('}').unwrap_or(i),
+            );
+            inner.split('(').next().unwrap_or(inner)
+        }
+        let target = base(var);
+        let start = stmt_span.start();
+        let slice = source_slice(&self.source, stmt_span)?;
+        let sm = tcl_lexer::SourceMap::new(&slice);
+        let toks =
+            tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(&slice), self.lexer_config())
+                .tokenise_all()
+                .ok()?;
+        toks.iter()
+            .find(|t| t.kind == tcl_lexer::TokenType::Var && base(sm.token_text(**t)) == target)
+            .map(|t| tcl_lexer::Span::new(t.span.start() + start, t.span.end() + start))
     }
 
     /// W211 — unused-variable hint.
@@ -6050,10 +6155,13 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             }
             // Approach B: CFG span is relative to the unit's `base_offset`.
-            let span = fu.abs_span(stmt.span());
-            if span.is_empty() {
+            let cmd_span = fu.abs_span(stmt.span());
+            if cmd_span.is_empty() {
                 continue;
             }
+            // Anchor at the variable name (Python narrows the command range
+            // to the assignment target), not the command-start column.
+            let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
             earliest
                 .entry(var.clone())
                 .and_modify(|s| {
@@ -6398,6 +6506,15 @@ file; this call falls through to the 'unknown' handler."
         // X]` guards the false arm.
         let exists_guards = collect_existence_guards(fu);
 
+        // W210 fires **once per variable**, at the earliest read-before-set
+        // — Python iterates `analysis.read_before_set`, which carries one
+        // entry per variable, not one per read. The def-use walk below
+        // visits *every* version-0 use, so record the earliest passing span
+        // per variable here and emit after the walk (W213, a distinct code,
+        // stays inline).
+        let mut w210_min: std::collections::HashMap<String, tcl_lexer::Span> =
+            std::collections::HashMap::new();
+
         for chain in fu.def_use.chains.values() {
             // Version-0 synthetic defs are the undef origin; an
             // `unset`-killed real version, and a phi version that can reach
@@ -6513,18 +6630,35 @@ file; this call falls through to the 'unknown' handler."
                 if use_site_safe_initialises(stmt_opt, var) {
                     continue;
                 }
-                let mut message = format!("Variable '{var}' is read before it is set");
-                if let Some(similar) = find_case_mismatch(var, defined_vars) {
-                    let _ = write!(message, "; did you mean '{similar}'?");
-                }
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W210".to_string(),
-                    span,
-                    message,
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                // Anchor at the `$var` read token (Python narrows to
+                // `read_var`); fall back to the command span when the read
+                // is nested inside a quoted/compound word.
+                let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
+                w210_min
+                    .entry(var.clone())
+                    .and_modify(|s| {
+                        if read_span.start() < s.start() {
+                            *s = read_span;
+                        }
+                    })
+                    .or_insert(read_span);
             }
+        }
+
+        let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
+        entries.sort_by_key(|(_, s)| s.start());
+        for (var, span) in entries {
+            let mut message = format!("Variable '{var}' is read before it is set");
+            if let Some(similar) = find_case_mismatch(&var, defined_vars) {
+                let _ = write!(message, "; did you mean '{similar}'?");
+            }
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W210".to_string(),
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
         }
     }
 
@@ -7467,8 +7601,23 @@ file; this call falls through to the 'unknown' handler."
             }
         }
 
-        let registry_names: HashSet<String> =
-            registry.command_names().map(str::to_string).collect();
+        // Mirror Python's `REGISTRY.command_names(dialect)`: only commands
+        // *enabled in the active dialect* count as "known" for W123.  The
+        // Rust registry's `command_names()` returns every loaded spec —
+        // including base tcl commands like `exec`/`glob` that `build_default`
+        // loads but the active dialect (e.g. f5-irules) disables — so filter
+        // by dialect support.  Without this, `exec`/`glob` under f5-irules
+        // would draw W002 (disabled) but not the W123 (unknown-in-dialect)
+        // Python also emits.  Base commands valid everywhere (`set`/`if`,
+        // `dialects: None`) still pass `get_for_dialect`, so they are not
+        // spuriously flagged.
+        let active_dialect =
+            tcl_registry::prelude::DialectSet::parse(&self.dialect).unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        let registry_names: HashSet<String> = registry
+            .command_names()
+            .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
+            .map(str::to_string)
+            .collect();
         // **C41 follow-up.** Inline ``# tcl-lsp: stub NAME ...``
         // declarations contribute to the candidate set and the
         // suppression set so users who declared a stub for a
@@ -8783,12 +8932,17 @@ file; this call falls through to the 'unknown' handler."
                 } else {
                     continue;
                 };
+                // Message mirrors Python's `check_dialect_invalid_option`
+                // exactly: `Option 'X' on 'cmd'[ sub] is not available in the
+                // active dialect (D).`
+                let sub_suffix = sub_match.map_or(String::new(), |s| format!(" {}", s.name));
                 self.result.diagnostics.push(super::types::Diagnostic {
                     code: "W004".to_string(),
                     span,
                     message: format!(
-                        "Option '{}' on command '{}' is not available in dialect '{}'.",
-                        arg, cmd_name, self.dialect
+                        "Option '{arg}' on '{cmd_name}'{sub_suffix} is not available \
+in the active dialect ({}).",
+                        self.dialect
                     ),
                     severity: Severity::Warning,
                     fixes: Vec::new(),

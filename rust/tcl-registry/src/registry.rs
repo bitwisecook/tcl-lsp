@@ -5,6 +5,8 @@
 //! queries.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::sync::OnceLock;
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
@@ -108,6 +110,38 @@ pub struct CommandRegistry {
     loaded_dialects: DialectSet,
 }
 
+/// The set of command names registered by *every* dialect, built once and
+/// cached.  Backs [`CommandRegistry::known_in_any_dialect`] — the
+/// dialect-agnostic existence check Python gets for free from its global
+/// `specs_by_name`.  Built from the same spec functions [`CommandRegistry::build_default`]
+/// and [`CommandRegistry::load_dialect`] draw from, so it stays in lock-step
+/// with the registry's command universe.
+fn all_dialect_command_names() -> &'static HashSet<&'static str> {
+    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut set: HashSet<&'static str> = HashSet::new();
+        let mut add = |specs: Vec<CommandSpec>| {
+            for spec in specs {
+                set.insert(spec.name);
+            }
+        };
+        add(crate::commands::tcl::tcl_command_specs());
+        add(crate::commands::stdlib::stdlib_command_specs());
+        add(crate::commands::tcllib::tcllib_command_specs());
+        add(crate::commands::tk::tk_command_specs());
+        add(crate::commands::irules::irules_command_specs());
+        add(crate::commands::iapps::iapps_command_specs());
+        add(crate::commands::expect::expect_command_specs());
+        add(crate::commands::sdc_base::sdc_base_command_specs());
+        add(crate::commands::eda_synopsys::eda_synopsys_command_specs());
+        add(crate::commands::eda_cadence::eda_cadence_command_specs());
+        add(crate::commands::eda_xilinx::eda_xilinx_command_specs());
+        add(crate::commands::eda_quartus::eda_quartus_command_specs());
+        add(crate::commands::eda_mentor::eda_mentor_command_specs());
+        set
+    })
+}
+
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
@@ -186,12 +220,49 @@ impl CommandRegistry {
         self.load_dialect(DialectSet::IRULES);
     }
 
+    /// Whether this registry's dialect reads a bare leading-zero integer
+    /// (`08`, `010`) as **octal**.
+    ///
+    /// Tcl 9.0 dropped the leading-zero octal rule (TIP 472): `08` parses as
+    /// decimal 8 and `010` as decimal 10. Every earlier Tcl (8.4/8.5/8.6) and
+    /// every 8.x-derived dialect (f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, the EDA
+    /// dialects) keeps the octal rule, where `08`/`09` are *invalid* octal
+    /// (treated as a string in `==`/`!=`) and `010` is 8.
+    ///
+    /// The per-dialect registry built by `registry_for_dialect` records its
+    /// Tcl version via [`Self::load_dialect`], so the only registry whose
+    /// `loaded_dialects` carries [`DialectSet::TCL90`] is the tcl9.0 one; every
+    /// other dialect (including the F5/EDA registries, which never load a Tcl
+    /// version bit) reads leading zeros as octal.
+    #[must_use]
+    pub fn leading_zero_is_octal(&self) -> bool {
+        !self.loaded_dialects.contains(DialectSet::TCL90)
+    }
+
     /// Insert a command spec into the registry.
     pub fn insert(&mut self, spec: CommandSpec) {
         self.by_name
             .entry(spec.name.to_owned())
             .or_default()
             .push(spec);
+    }
+
+    /// Whether `name` exists as a command in *any* dialect, independent of
+    /// which dialects this registry instance loaded.
+    ///
+    /// Mirrors Python's `CommandRegistry.get_any` over the global
+    /// `specs_by_name` (every dialect's specs are registered at import).
+    /// Like [`Self::taint_source`], this is deliberately dialect-agnostic:
+    /// an iRules command such as `when` is "known" even when analysing a
+    /// `tcl8.6` document whose registry never loaded the iRules specs — the
+    /// W002 disabled-in-dialect check needs to distinguish "exists, but not
+    /// in this dialect" (→ DISALLOWED) from "exists nowhere" (→ W123's
+    /// concern).  A leading `::` falls back to the bare name, matching
+    /// [`Self::get`].
+    #[must_use]
+    pub fn known_in_any_dialect(&self, name: &str) -> bool {
+        let bare = name.strip_prefix("::").unwrap_or(name);
+        all_dialect_command_names().contains(bare)
     }
 
     /// Look up a command spec by name (dialect-agnostic).
@@ -417,6 +488,28 @@ impl CommandRegistry {
                 .iter()
                 .any(|s| s.traits.contains(Traits::IRULES_TOP_LEVEL_ONLY))
         })
+    }
+
+    /// Whether `name` should appear as a notable action node in a flow
+    /// diagram ([`Traits::DIAGRAM_ACTION`]). Mirrors Python
+    /// `CommandRegistry.is_diagram_action` (`_any_spec_has(name,
+    /// "diagram_action")`): accepts both the bare (`HTTP::respond`) and the
+    /// canonical (`::HTTP::respond`) spelling — the leading `::` stamped on
+    /// `IRCall.canonical_command` by lowering is stripped to recover the
+    /// bare registration form — and reflects the dialects loaded into this
+    /// registry (the diagram-action set is part of the per-registry trait
+    /// index, so a `--dialect f5-irules` registry recognises iRules
+    /// actions).
+    #[must_use]
+    pub fn is_diagram_action(&self, name: &str) -> bool {
+        let has = |n: &str| {
+            self.by_name.get(n).is_some_and(|specs| {
+                specs
+                    .iter()
+                    .any(|s| s.traits.contains(Traits::DIAGRAM_ACTION))
+            })
+        };
+        has(name) || name.strip_prefix("::").is_some_and(has)
     }
 
     /// Whether `name` carries the [`Traits::NOT_PROC_FACTORY`] trait —
@@ -798,6 +891,30 @@ mod tests {
         assert!(reg.get("for").is_some());
         assert!(reg.get("set").is_some());
         assert!(reg.get("nonexistent_command").is_none());
+    }
+
+    #[test]
+    fn leading_zero_is_octal_tracks_tcl_version() {
+        use crate::dialects::DialectSet;
+        // Plain default registry (no Tcl version bit) defaults to octal.
+        assert!(CommandRegistry::build_default().leading_zero_is_octal());
+        // tcl9.0 (TIP 472) reads leading zeros as decimal; everything else
+        // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
+        let octal_cases = [
+            DialectSet::TCL84,
+            DialectSet::TCL85,
+            DialectSet::TCL86,
+            DialectSet::IRULES,
+            DialectSet::IAPPS,
+        ];
+        for d in octal_cases {
+            let mut reg = CommandRegistry::build_default();
+            reg.load_dialect(d);
+            assert!(reg.leading_zero_is_octal(), "{d:?} should be octal");
+        }
+        let mut reg90 = CommandRegistry::build_default();
+        reg90.load_dialect(DialectSet::TCL90);
+        assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
     }
 
     #[test]

@@ -24,6 +24,8 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+# Bundled SQLite (with FTS5) for the `help` verb's embedded KCS database.
+rusqlite = { version = "0.32", features = ["bundled"] }
 ratatui = { version = "0.29", optional = true }
 crossterm = { version = "0.28", optional = true }
 
@@ -31,6 +33,12 @@ crossterm = { version = "0.28", optional = true }
 # The interactive `tcl explore --tui` shell. Off by default so the lean CLI
 # build doesn't pull the terminal-UI stack (mirrors Python's optional Textual).
 tui = ["dep:ratatui", "dep:crossterm"]
+
+[build-dependencies]
+# Build the embedded KCS help database (FTS5) from the committed
+# docs/kcs/features/*.md at compile time — port of scripts/build/kcs_db.py.
+rusqlite = { version = "0.32", features = ["bundled"] }
+regex = "1"
 
 [lints]
 workspace = true
