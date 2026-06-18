@@ -236,13 +236,17 @@ pub enum Command {
     },
 
     /// Reduce a diagnostic to a minimal reproducer for bug reports.
+    ///
+    /// The diagnostic CODE is the **last** positional argument, with any
+    /// inputs before it — `tcl minimize script.tcl W220`. This mirrors the
+    /// Python verb's argparse layout (`inputs` as `nargs="*"` followed by a
+    /// required `code`), which clap cannot express as two separate positionals
+    /// (a required positional may not follow a variadic one), so CODE is split
+    /// off the trailing input in the handler.
     #[command(visible_aliases = ["minimise", "repro"])]
     Minimize {
         #[command(flatten)]
         input: InputArgs,
-        /// Diagnostic code to reproduce (for example: E101).
-        #[arg(value_name = "CODE")]
-        code: String,
         /// Do not rename identifiers in the reproducer.
         #[arg(long = "no-rename")]
         no_rename: bool,

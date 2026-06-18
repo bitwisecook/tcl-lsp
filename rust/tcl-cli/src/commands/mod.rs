@@ -12,6 +12,7 @@ pub mod graphs;
 pub mod help;
 pub mod highlight;
 pub mod lookup;
+pub mod minimize;
 pub mod misc;
 pub mod registry;
 pub mod transform;

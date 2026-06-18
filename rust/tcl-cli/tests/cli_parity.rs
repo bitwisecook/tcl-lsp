@@ -644,3 +644,116 @@ fn find_legacy_empty_json_matches_python() {
         "find-legacy-empty.json.golden",
     );
 }
+
+// `minimize` (`server/features/minimize.py` engine + `tooling/tcl/verbs/
+// minimize.py` verb) delta-debugs the input down to the smallest snippet that
+// still fires CODE, then verify-gated-renames identifiers to short `a b c …`
+// names. The diagnostic CODE is the trailing positional (argparse parity). The
+// engine is membership-only ("does CODE fire?"), so the analyser's accepted
+// diagnostic-ordering divergence is irrelevant. These tcl goldens reduce to a
+// single well-formed line whose analysis matches Python exactly, so they are
+// byte-identical to the Python CLI (verified at capture time) even though they
+// are captured from the Rust binary per the project guardrail. NB: ddmin can
+// also explore *brace-unbalanced* reductions, on which the Rust and Python
+// analysers legitimately differ (e.g. Rust fires IRULE2001 on a lone
+// `if {[matchclass …]} {` whose `if` body is unterminated, where Python's
+// segmentation does not descend); the reduced output still reproduces CODE
+// (the verb's invariant), so the divergence is in *how far* ddmin reduces, not
+// correctness — see the `minimize_reduced_output_still_fires` property test and
+// docs/rust-cli-port.md. The fixtures stay on well-formed-reducing tcl to keep
+// the goldens Python-faithful.
+#[test]
+fn minimize_w100_text_matches_python() {
+    let input = fixtures_dir().join("minimize.tcl");
+    assert_matches_golden(
+        &["minimize", input.to_str().unwrap(), "W100"],
+        "minimize.w100.golden",
+    );
+}
+
+#[test]
+fn minimize_w100_json_matches_python() {
+    let input = fixtures_dir().join("minimize.tcl");
+    assert_matches_golden(
+        &["minimize", input.to_str().unwrap(), "W100", "--json"],
+        "minimize.w100.json.golden",
+    );
+}
+
+#[test]
+fn minimize_w100_norename_matches_python() {
+    let input = fixtures_dir().join("minimize.tcl");
+    assert_matches_golden(
+        &["minimize", input.to_str().unwrap(), "W100", "--no-rename"],
+        "minimize.w100-norename.golden",
+    );
+}
+
+#[test]
+fn minimize_w211_text_matches_python() {
+    let input = fixtures_dir().join("minimize.tcl");
+    assert_matches_golden(
+        &["minimize", input.to_str().unwrap(), "W211"],
+        "minimize.w211.golden",
+    );
+}
+
+// When CODE fires on no input, the verb prints `CODE does not fire on any
+// input.` to stderr and exits 1 (ports the Python `print(..., file=sys.stderr)`
+// + `return 1`).
+#[test]
+fn minimize_missing_code_errors() {
+    let input = fixtures_dir().join("minimize.tcl");
+    let output = Command::new(env!("CARGO_BIN_EXE_tcl"))
+        .args(["minimize", input.to_str().unwrap(), "ZZZ999"])
+        .output()
+        .expect("failed to spawn tcl binary");
+    assert_eq!(output.status.code(), Some(1), "exit code");
+    assert!(output.stdout.is_empty(), "no stdout on the no-fire path");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "ZZZ999 does not fire on any input.\n",
+    );
+}
+
+// Property test (the task's explicit requirement): the reduced reproducer must
+// still fire CODE. We assert it two ways — the verb's own `reproduces` flag in
+// the JSON, and independently by re-running `tcl diag` on the reduced source
+// and confirming CODE is present. This is the invariant that makes a minimised
+// snippet a valid bug-report repro regardless of how far ddmin reduced.
+#[test]
+fn minimize_reduced_output_still_fires() {
+    let input = fixtures_dir().join("minimize.tcl");
+    let out = run_tcl(&["minimize", input.to_str().unwrap(), "W100", "--json"]);
+    let value: serde_json::Value =
+        serde_json::from_slice(&out).expect("minimize --json must emit valid JSON");
+    let items = value.as_array().expect("top-level array");
+    assert!(!items.is_empty(), "W100 fires, so there is a result");
+    for item in items {
+        assert_eq!(
+            item["reproduces"],
+            serde_json::Value::Bool(true),
+            "the verb reports the reduction reproduces"
+        );
+        let reduced = item["source"].as_str().expect("source string");
+        // Independently confirm the analyser still fires W100 on the reduced
+        // snippet via `tcl diag --json`. `diag` exits 1 when it finds a
+        // problem-severity diagnostic (W100 is an error), so we read its stdout
+        // directly rather than through the success-asserting `run_tcl`.
+        let diag = Command::new(env!("CARGO_BIN_EXE_tcl"))
+            .args(["diag", "--source", reduced, "--json"])
+            .output()
+            .expect("failed to spawn tcl binary")
+            .stdout;
+        let report: serde_json::Value =
+            serde_json::from_slice(&diag).expect("diag --json must emit valid JSON");
+        let fires = report
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|f| f["diagnostics"].as_array())
+            .flatten()
+            .any(|d| d["code"] == serde_json::Value::String("W100".to_owned()));
+        assert!(fires, "reduced source {reduced:?} must still fire W100");
+    }
+}
