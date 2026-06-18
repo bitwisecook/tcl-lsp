@@ -1,4 +1,7 @@
-//! M3 end-to-end: arrays, list/string/dict builtins, and `info`.
+//! End-to-end coverage of the builtin command library: list/string/dict/array,
+//! namespace, `info`, regexp/regsub, expr, binary/scan, channels, traces, and
+//! friends — each compiled as real Tcl via `tcl-compiler` and run through
+//! `tcl-vm`, asserting observable behaviour.
 
 use std::cell::RefCell;
 use std::io::Write;

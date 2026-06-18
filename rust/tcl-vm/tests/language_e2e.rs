@@ -1,4 +1,5 @@
-//! M2 end-to-end: procs, control flow, catch/return/error, switch, scoping.
+//! End-to-end language semantics: procs, control flow, catch/return/error,
+//! switch, and scoping (`global`/`upvar`/local isolation).
 //! Compiles real Tcl via `tcl-compiler` (dev-dep) and runs it through `tcl-vm`.
 
 use std::cell::RefCell;
