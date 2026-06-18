@@ -564,25 +564,21 @@ impl Analyser {
         self.emit_w100_unbraced_expr(cmd_name, args, arg_tokens);
 
         // Special-case ``expr ...``: when the user wrote multiple
-        // arguments (``expr 1 + 2`` instead of the more common
-        // ``expr {1 + 2}``), Python anchors the diagnostic at
-        // the full argument token range and parses the source
-        // slice — substituted arg values strip ``"..."`` quote
-        // delimiters, so joining ``args`` would lose the
-        // ``ExprString`` literals.  Falls back to the joined arg
-        // text when the source slice is out of bounds.
+        // arguments (``expr $a == "x"`` instead of the more common
+        // ``expr {$a eq "x"}``), Python anchors W110 / W003 at the full
+        // argument token range and parses ``" ".join(args)`` — the
+        // *substituted* word values, with quote delimiters already
+        // stripped by Tcl's word splitting.  So ``expr $a == "x"`` parses
+        // as ``$a == x`` where ``x`` is a bareword, not an ``ExprString``,
+        // and W110 (string ``==``) does NOT fire — matching what `expr`
+        // actually receives at runtime.  (The earlier source-slice text
+        // kept the quotes and over-fired W110 vs Python.)
         if cmd_name == "expr" && args.len() > 1 && !arg_tokens.is_empty() {
             let span = tcl_lexer::Span::new(
                 arg_tokens[0].span.start(),
                 arg_tokens[arg_tokens.len() - 1].span.end(),
             );
-            let start = span.start() as usize;
-            let end = span.end() as usize;
-            let expr_text = if end <= self.source.len() && start <= end {
-                self.source[start..end].to_string()
-            } else {
-                args.join(" ")
-            };
+            let expr_text = args.join(" ");
             self.emit_w110_string_eq_ne(&expr_text, span);
             self.emit_w003_dialect_invalid_expr_operator(&expr_text, span);
             return;

@@ -2681,13 +2681,22 @@ mod tests {
 
     #[test]
     fn analyse_w110_fires_on_multi_arg_expr_command() {
-        // ``expr $x == "foo"`` (no braces, multiple argv slots) —
-        // matches Python's ``expr_text = " ".join(args)`` special
-        // case.
+        // ``expr $x == "foo"`` (no braces, multiple argv slots): Python
+        // parses ``" ".join(args)`` — the *substituted* word values, whose
+        // quote delimiters Tcl's word splitting already stripped — so the
+        // expression is ``$x == foo`` with ``foo`` a bareword, not an
+        // ``ExprString``.  W110 (string ``==``) therefore does NOT fire on
+        // the unbraced form (only W100 does); it fires on the *braced*
+        // ``expr {$x == "foo"}`` where the string literal survives.
         let mut a = Analyser::new();
         let r = a.analyse("expr $x == \"foo\"\n", "tcl");
-        let w110: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
-        assert_eq!(w110.len(), 1, "got {:?}", r.diagnostics);
+        let unbraced: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert!(unbraced.is_empty(), "unbraced expr must not fire W110, got {:?}", r.diagnostics);
+
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse("set z [expr {$x == \"foo\"}]\n", "tcl");
+        let braced: Vec<_> = r2.diagnostics.iter().filter(|d| d.code == "W110").collect();
+        assert_eq!(braced.len(), 1, "braced expr must fire W110, got {:?}", r2.diagnostics);
     }
 
     #[test]
