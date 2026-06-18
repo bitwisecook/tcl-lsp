@@ -250,6 +250,11 @@ class CommandInvocation:
     name: str
     range: Range
     resolved_qualified_name: str | None = None
+    # The ``::``-qualified namespace the call sits in (e.g. ``::`` or
+    # ``::a``). Lets reference resolution scope an *unresolved* bare call
+    # (a forward or cross-file reference) to the proc Tcl would pick —
+    # current namespace, then global — instead of every same-named proc.
+    enclosing_namespace: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

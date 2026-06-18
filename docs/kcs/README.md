@@ -45,6 +45,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   (`dict set frame proc "…"`) breaks the closing-brace colour.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
+- [kcs-issue-code-lens-zero-references.md](kcs-issue-code-lens-zero-references.md)
+  — the reference-count lens reads "0 references" above a proc that
+  **Find All References** clearly shows is used (issue #637).
 - [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)
   — `expr {1 / 0}` returns 0 in compiled WASM instead of raising
   `divide by zero`.

@@ -217,6 +217,7 @@ def _merge_shifted_result(
                 name=ci.name,
                 range=_shift_range(ci.range, base_line, base_char, base_offset),
                 resolved_qualified_name=ci.resolved_qualified_name,
+                enclosing_namespace=ci.enclosing_namespace,
             )
         )
 
