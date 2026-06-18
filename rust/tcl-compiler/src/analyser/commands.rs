@@ -790,17 +790,55 @@ impl Analyser {
         {
             let sm = SourceMap::new(&self.source);
             for arg_tok in arg_tokens_in {
-                if arg_tok.kind != TokenType::Cmd {
+                let start = arg_tok.span.start() as usize;
+                let end = arg_tok.span.end() as usize;
+                if start > self.source.len() || end > self.source.len() || start > end {
                     continue;
                 }
-                for frag in self.cmd_fragments(*arg_tok, config) {
-                    collect_substitution_segments(
-                        &sm,
-                        self.registry.as_ref(),
-                        frag,
-                        config,
-                        &mut nested,
-                    );
+                match arg_tok.kind {
+                    TokenType::Cmd => {
+                        for frag in self.cmd_fragments(*arg_tok, config) {
+                            collect_substitution_segments(
+                                &sm,
+                                self.registry.as_ref(),
+                                frag,
+                                config,
+                                &mut nested,
+                            );
+                        }
+                    }
+                    // A quoted / bareword / compound word (`Esc`) may carry
+                    // live `[...]` substitutions (`log "got [HTTP::uri]"`).
+                    // The bare-`Cmd` walk never enters it, so its substitution
+                    // commands escape every per-command check (IRULE3102, W123,
+                    // …).  A braced `Str` data word's `[...]` is literal and is
+                    // skipped; braced *expr* args are covered by
+                    // `run_nested_expr_diagnostics`.  Mirrors Python's
+                    // `_recurse_nested_commands` descending nested `Cmd` tokens
+                    // inside quoted words.
+                    TokenType::Esc => {
+                        let arg_src = &self.source[start..end];
+                        if !arg_src.contains('[') {
+                            continue;
+                        }
+                        for (off, inner) in top_level_cmd_subst_regions(arg_src) {
+                            let off = u32::try_from(off)
+                                .expect("byte offset fits in u32 for in-memory source");
+                            let base = arg_tok.span.start() + off;
+                            for seg in crate::segmenter::segment_commands_with_offset_and_config(
+                                inner, base, config,
+                            ) {
+                                collect_segment_recursive(
+                                    &sm,
+                                    self.registry.as_ref(),
+                                    seg,
+                                    config,
+                                    &mut nested,
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -1353,6 +1391,65 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
     }
     i += 1; // the `string` argument
     if i == args.len() - 1 { Some(i) } else { None }
+}
+
+/// Top-level ``[...]`` command-substitution regions in `text`, as
+/// `(inner_byte_offset, inner_text)` — the script *inside* the brackets and
+/// the offset of its first byte within `text`.  Braced regions are skipped
+/// opaquely and ``\\[`` / ``\\]`` escapes are honoured, matching
+/// [`scan_nested_command_heads`].  Only the *outermost* substitutions are
+/// returned; the caller's segment recursion descends any nested `[...]`.
+/// Used to reach `[...]` embedded in a quoted / bareword word argument
+/// (`log "got [HTTP::uri]"`), which the bare-`Cmd`-token walk misses.
+fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => {
+                let mut depth = 1i32;
+                i += 1;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\\' if i + 1 < bytes.len() => i += 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+            }
+            b'[' => {
+                let inner_start = i + 1;
+                let mut depth = 1i32;
+                let mut j = inner_start;
+                while j < bytes.len() && depth > 0 {
+                    match bytes[j] {
+                        b'[' => depth += 1,
+                        b']' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        b'\\' if j + 1 < bytes.len() => j += 1,
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                if depth == 0 && j <= bytes.len() {
+                    out.push((inner_start, &text[inner_start..j]));
+                    i = j + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            _ => i += 1,
+        }
+    }
+    out
 }
 
 /// Walk `text` looking for ``[cmd args...]`` command
