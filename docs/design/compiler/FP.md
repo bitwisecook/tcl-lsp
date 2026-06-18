@@ -2584,6 +2584,75 @@ opaque-switch `invokeStk` bytecode and CFG shape are unchanged.
 
 ---
 
+### FP-RBS-16 — phi operand on a dead loop-exit edge (`while 1` + `break`) is not read-before-set
+
+- **Verdict:** FALSE POSITIVE (W210) — a loop-exit block's phi had an operand
+  for the never-taken `cond → exit` edge of `while 1`; that operand carried the
+  variable's version-0 (unset) origin, and the read-before-set phi-undef closure
+  consumed it even though the edge is unreachable.
+- **Status:** FIXED (Rust port). Same family as the terminator work (false W210
+  from control-flow imprecision), but the gap is in the read-before-set /
+  SCCP-edge interaction rather than CFG construction. Ported from the Python
+  builder (commit `9f725e46`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (the `while 1 { …; break }` / `while 1 { …; if {c} break }`
+  early-exit idiom).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # while 1 runs the body >=1 time; the only exit is the break, where y is
+    # already set -> $y is always defined here.
+    while 1 { set y 1; break }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `while 1 { … }` — the condition is the constant `1`, so the loop never exits
+   via the condition; SCCP marks the `while_header → while_end` (cond-false)
+   edge non-executable.
+2. `set y 1; break` — the body runs at least once and the `break` is the loop's
+   only real exit. On that edge `y` is set.
+3. `puts $y` — `while_end` is reachable (via the `break` edge), and its phi
+   `y#2` merges the break edge (`y#1`, set) with the dead cond-exit edge
+   (`y#0`, unset). Only the break edge is live, so `y` is always defined here.
+4. Pre-fix, `phi_can_undef` filtered unreachable predecessor *blocks*
+   (`while_header` is reachable) but not unreachable *edges*, so it consumed the
+   `y#0` operand on the dead `while_header → while_end` edge and false-fired
+   W210. (Contrast: with no `break`, `while_end` is fully unreachable and
+   correctly silent — that's why the bug only shows with a `break`.)
+
+#### tclsh ground truth (9.0.3)
+
+`f` → `1`. No `can't read "y"` error. The realistic shape behaves the same —
+`proc f {} { while 1 { set r [compute]; if {[ok $r]} break }; return $r }`
+returns the computed value with no unset-read. TP controls: `while {$n > 0} {
+set y 1 }` (non-constant cond, may run zero times) still fires W210; and a
+`while 1` where only one of two `break` paths sets `y` still fires.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/analyser/diagnostics.rs`: `build_phi_undef_index` now also
+records each phi's defining block (`PhiBlockMap`), and `phi_can_undef` takes the
+SCCP `executable_edges` (`fu.sccp.executable_edges`) and skips any phi operand
+whose `(pred, phi_block)` edge is non-executable — the same edge filter the
+SCCP-reachability passes already use. SCCP marks the `while 1` cond-false edge
+non-executable, so the version-0 operand it carries can never be read and no
+longer counts as a possible undef. The filter is applied only when SCCP edge
+info is available (a non-empty set), so registry-less test paths are unaffected.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set`
+  (FP: `while 1` set+break silent; FP: `while 1` compute/if-break silent; TP
+  control: non-constant condition still fires; TP control: partial-def break
+  path still fires).
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in

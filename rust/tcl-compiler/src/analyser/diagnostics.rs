@@ -1287,8 +1287,10 @@ fn phi_can_undef(
     name: &str,
     version: crate::ssa::Version,
     phi_def: &std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>,
+    phi_block: &std::collections::HashMap<(String, crate::ssa::Version), String>,
     killed: &HashSet<(String, crate::ssa::Version)>,
     considered: &HashSet<String>,
+    executable_edges: &HashSet<(String, String)>,
     exists_guards: &[(String, String)],
     ssa: &crate::ssa::SsaFunction,
     seen: &mut HashSet<(String, crate::ssa::Version)>,
@@ -1310,10 +1312,25 @@ fn phi_can_undef(
         // Concrete (non-phi) definition reached this version — safe.
         return false;
     };
+    // The block this phi lives in — the destination of each incoming edge.
+    let this_block = phi_block.get(&key).map(String::as_str);
     seen.insert(key.clone());
     let mut result = false;
     for (pred, &incoming_ver) in &phi.incoming {
         if !considered.contains(pred) {
+            continue;
+        }
+        // A phi has one operand per predecessor *edge*; an operand arriving on
+        // a non-executable edge (SCCP proved the edge dead — e.g. the
+        // `cond → exit` edge of `while 1`, which a `break` makes the loop's
+        // only real exit) can never actually be read, so its version-0 origin
+        // must not count as a possible undef.  Mirrors the FP-RBS-16 edge
+        // filter (`_read_before_set` in `compiler/core_analyses.py`); only
+        // applied when SCCP edge info is available (a non-empty set).
+        if let Some(blk) = this_block
+            && !executable_edges.is_empty()
+            && !executable_edges.contains(&(pred.clone(), blk.to_owned()))
+        {
             continue;
         }
         // A dominating existence guard proves the variable is defined at
@@ -1329,8 +1346,10 @@ fn phi_can_undef(
             name,
             incoming_ver,
             phi_def,
+            phi_block,
             killed,
             considered,
+            executable_edges,
             exists_guards,
             ssa,
             seen,
@@ -1346,17 +1365,22 @@ fn phi_can_undef(
 /// `(name, version) → Phi` index used by [`phi_can_undef`].
 type PhiDefMap = std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>;
 
-/// Build the `(name, version) → Phi` index and the set of `unset`-killed
-/// versions for [`phi_can_undef`], restricted to `considered` (executable)
-/// blocks.  Mirrors the `phi_def` / `killed_versions` setup in
-/// `compiler/core_analyses.py::_read_before_set`.
+/// `(name, version) → defining block` index, so [`phi_can_undef`] can test
+/// each incoming `(pred, phi_block)` edge against the SCCP-executable edge set.
+type PhiBlockMap = std::collections::HashMap<(String, crate::ssa::Version), String>;
+
+/// Build the `(name, version) → Phi` index, the `(name, version) → block`
+/// index, and the set of `unset`-killed versions for [`phi_can_undef`],
+/// restricted to `considered` (executable) blocks.  Mirrors the `phi_def` /
+/// `killed_versions` setup in `compiler/core_analyses.py::_read_before_set`.
 fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<String>,
-) -> (PhiDefMap, HashSet<(String, crate::ssa::Version)>) {
+) -> (PhiDefMap, PhiBlockMap, HashSet<(String, crate::ssa::Version)>) {
     use crate::ir::Statement;
     let mut phi_def: std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi> =
         std::collections::HashMap::new();
+    let mut phi_block: PhiBlockMap = std::collections::HashMap::new();
     let mut killed: HashSet<(String, crate::ssa::Version)> = HashSet::new();
     for bn in considered {
         let Some(sblock) = ssa.blocks.get(bn) else {
@@ -1364,6 +1388,7 @@ fn build_phi_undef_index(
         };
         for phi in &sblock.phis {
             phi_def.insert((phi.name.clone(), phi.version), phi.clone());
+            phi_block.insert((phi.name.clone(), phi.version), bn.clone());
         }
         for s in &sblock.statements {
             let Statement::Call {
@@ -1387,7 +1412,7 @@ fn build_phi_undef_index(
             }
         }
     }
-    (phi_def, killed)
+    (phi_def, phi_block, killed)
 }
 
 /// True when an expression operand is provably the integer zero: a literal
@@ -1720,7 +1745,7 @@ fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
 ) -> UndefSuppression {
-    let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
@@ -1732,8 +1757,10 @@ fn build_undef_suppression(
             &key.0,
             key.1,
             &phi_def,
+            &phi_block,
             &killed,
             considered,
+            &fu.sccp.executable_edges,
             &exists_guards,
             &fu.ssa,
             &mut seen,
@@ -6525,7 +6552,7 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+        let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
 
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
@@ -6589,8 +6616,10 @@ file; this call falls through to the 'unknown' handler."
                     &name,
                     ver,
                     &phi_def,
+                    &phi_block,
                     &killed,
                     considered,
+                    &fu.sccp.executable_edges,
                     exists_guards,
                     &fu.ssa,
                     &mut seen,
@@ -10906,6 +10935,46 @@ mod tests {
                 "y",
             ),
             "one completing arm lets the switch fall through (W210 expected on y)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set() {
+        // FP-RBS-16: a `while 1` loop-exit phi has an operand on the never-taken
+        // `cond -> exit` edge carrying the var's version-0 (unset) origin. SCCP
+        // marks that edge non-executable; the read-before-set phi-undef closure
+        // must skip operands on dead predecessor edges, not just dead blocks.
+
+        // FP: `while 1 { set y 1; break }` — only live exit is the break (y set).
+        assert!(
+            !w210_fires_for("proc f {} { while 1 { set y 1; break }\n puts $y }", "y"),
+            "while 1 set+break: y set on the only live exit edge (no W210)",
+        );
+
+        // FP: the realistic `while 1 { ...; if {c} break }` early-exit idiom.
+        assert!(
+            !w210_fires_for(
+                "proc compute {} {return 7}\nproc ok {a} {return 1}\nproc f {} { while 1 { set r [compute]; if {[ok $r]} break }\n return $r }",
+                "r",
+            ),
+            "while 1 compute/if-break: r set before the only live exit (no W210)",
+        );
+
+        // TP control: a non-constant condition may run the body zero times, so
+        // the cond-exit edge IS live and y is genuinely maybe-unset.
+        assert!(
+            w210_fires_for("proc f {n} { while {$n>0} { set y 1 }\n puts $y }", "y"),
+            "non-constant while condition may run zero times (W210 expected on y)",
+        );
+
+        // TP control: only one of two break paths sets y, so the exit merges a
+        // genuine unset version on a live edge.
+        assert!(
+            w210_fires_for(
+                "proc f {c} { while 1 { if {$c} { set y 1; break } else break }\n puts $y }",
+                "y",
+            ),
+            "partial-def break path leaves y maybe-unset (W210 expected on y)",
         );
     }
 
