@@ -1069,103 +1069,20 @@ enum SortMode {
 
 /// Parse a Tcl integer (decimal, or `0x`/`0o`/`0b` radix, optional sign) into an
 /// `i128` for `-integer` sort keys. `None` if not an integer.
+/// Parse a Tcl integer for `-integer` sort/search keys (shared core).
 fn parse_wide(b: &[u8]) -> Option<i128> {
-    let s = core::str::from_utf8(b).ok()?.trim();
-    let (neg, body) = match s.strip_prefix('-') {
-        Some(r) => (true, r),
-        None => (false, s.strip_prefix('+').unwrap_or(s)),
-    };
-    if body.is_empty() {
-        return None;
-    }
-    let v: i128 = if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
-        i128::from_str_radix(h, 16).ok()?
-    } else if let Some(o) = body.strip_prefix("0o").or_else(|| body.strip_prefix("0O")) {
-        i128::from_str_radix(o, 8).ok()?
-    } else if let Some(bb) = body.strip_prefix("0b").or_else(|| body.strip_prefix("0B")) {
-        i128::from_str_radix(bb, 2).ok()?
-    } else {
-        body.parse::<i128>().ok()?
-    };
-    Some(if neg { -v } else { v })
+    tcl_cmd_core::sort::parse_wide(b)
 }
 
-/// Parse a Tcl floating-point value for `-real` sort keys.
+/// Parse a Tcl floating-point value for `-real` sort keys (shared core).
 fn parse_real(b: &[u8]) -> Option<f64> {
-    core::str::from_utf8(b).ok()?.trim().parse::<f64>().ok()
+    tcl_cmd_core::sort::parse_real(b)
 }
 
-/// Dictionary comparison (`lsort -dictionary`): case-insensitive, with embedded
-/// decimal runs compared as numbers; a run with more leading zeros sorts later
-/// only as a secondary tiebreak. Ported from C's `DictionaryCompare`.
+/// Dictionary comparison (`lsort -dictionary`) — the shared `DictionaryCompare`
+/// port (`tcl_cmd_core::sort`).
 fn dictionary_compare(left: &[u8], right: &[u8]) -> core::cmp::Ordering {
-    use core::cmp::Ordering;
-    let (mut li, mut ri) = (0usize, 0usize);
-    let mut secondary: i64 = 0;
-    loop {
-        let l_is_digit = left.get(li).is_some_and(u8::is_ascii_digit);
-        let r_is_digit = right.get(ri).is_some_and(u8::is_ascii_digit);
-        if l_is_digit && r_is_digit {
-            // Skip and tally leading zeros (more zeros → later, as a secondary).
-            let mut zeros: i64 = 0;
-            while left.get(li) == Some(&b'0') && left.get(li + 1).is_some_and(u8::is_ascii_digit) {
-                li += 1;
-                zeros += 1;
-            }
-            while right.get(ri) == Some(&b'0') && right.get(ri + 1).is_some_and(u8::is_ascii_digit)
-            {
-                ri += 1;
-                zeros -= 1;
-            }
-            if secondary == 0 {
-                secondary = zeros;
-            }
-            // Compare the digit runs by length, then by value.
-            let mut diff: i64 = 0;
-            loop {
-                if diff == 0 {
-                    diff = left.get(li).map_or(0, |&c| c as i64)
-                        - right.get(ri).map_or(0, |&c| c as i64);
-                }
-                li += 1;
-                ri += 1;
-                let ld = left.get(li).is_some_and(u8::is_ascii_digit);
-                let rd = right.get(ri).is_some_and(u8::is_ascii_digit);
-                if !rd {
-                    if ld {
-                        return Ordering::Greater;
-                    }
-                    if diff != 0 {
-                        return diff.cmp(&0);
-                    }
-                    break;
-                } else if !ld {
-                    return Ordering::Less;
-                }
-            }
-            continue;
-        }
-        match (left.get(li).copied(), right.get(ri).copied()) {
-            (Some(l), Some(r)) => {
-                let (ll, rl) = (l.to_ascii_lowercase(), r.to_ascii_lowercase());
-                if ll != rl {
-                    return ll.cmp(&rl);
-                }
-                if secondary == 0 && l != r {
-                    secondary = (l as i64) - (r as i64);
-                }
-                li += 1;
-                ri += 1;
-            }
-            (l, r) => {
-                let diff = l.map_or(0i64, |c| c as i64) - r.map_or(0i64, |c| c as i64);
-                if diff != 0 {
-                    return diff.cmp(&0);
-                }
-                return secondary.cmp(&0);
-            }
-        }
-    }
+    tcl_cmd_core::sort::dictionary_compare(left, right)
 }
 
 /// Compare two sort-key objects under a non-command `mode`.

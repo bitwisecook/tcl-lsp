@@ -58,6 +58,11 @@ Shared in `tcl-cmd-core`:
   `command_name`/`find_command`).
 - `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
   (platform-independent), replacing the VM's old `std::path::Path` versions.
+- `sort::{key_compare, dictionary_compare, parse_wide, parse_real}` — the
+  `lsort`/`lsearch` comparison modes (`-ascii`/`-dictionary`/`-integer`/`-real`,
+  `-nocase`), pure `&[u8] → Ordering`. The runtime's `lsort`/`lsearch` delegate
+  here; the subtle `DictionaryCompare` port now lives once. `-command` (proc
+  callback) and `-index` stay per-adapter.
 - `binary::{hex,base64,uu}_{encode,decode}` + `format`/`scan` — value-model-free
   `&[u8]` codecs and the pack/unpack grammars. Each adapter bridges its value to
   bytes (the runtime's raw `obj_bytes`, the VM's byte-array `U+00xx` convention),
@@ -101,6 +106,7 @@ core unified both to the correct behaviour):
 | `append`/`lappend` (in-place trace) | the runtime's in-place path skipped the store and so fired **no** write trace; now always stores → the trace fires once |
 | `lappend` (no-value validate) | the runtime returned a malformed value unchanged; now validates it as a list and errors (`unmatched open brace in list`, tclsh) |
 | `binary` (subcommands) | the VM lacked `encode`/`decode` and most `format`/`scan` codes (no floats/64-bit), and its bad-subcommand error said "must be format or scan"; routing gave it the full set + the tclsh message. The runtime's `base64` decode also gained its missing `TCL BINARY DECODE INVALID` errorCode. |
+| `lsort` (VM modes) | `-dictionary` fell back to a byte compare, `-integer`/`-real` both used a `double` compare, and `-nocase` was absent; routing the shared `sort` core gave the VM the correct modes (numeric dictionary order, exact integer vs real, case folding, and mode-aware `-unique`). |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

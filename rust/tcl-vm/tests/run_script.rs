@@ -343,6 +343,22 @@ fn binary_format_scan_shared() {
     assert_eq!(run("binary scan abcd a2a2 x y").1, "2");
 }
 
+/// `lsort` comparison modes routed through the shared `tcl_cmd_core::sort` core,
+/// lifting the VM from its old crude subset: `-dictionary` (was a plain byte
+/// compare), the `-integer`-vs-`-real` distinction (both were double), and
+/// `-nocase`. Pinned against tclsh 9.0.
+#[test]
+fn lsort_shared_comparison() {
+    assert_eq!(run("lsort -dictionary {x10 x9 x100}").1, "x9 x10 x100");
+    assert_eq!(run("lsort -integer {10 9 100 2}").1, "2 9 10 100");
+    assert_eq!(run("lsort -real {1.5 1.25 10.0}").1, "1.25 1.5 10.0");
+    assert_eq!(run("lsort -nocase {B a C b}").1, "a B b C");
+    // -unique removes elements equal under the mode (1 and 01 for -integer).
+    assert_eq!(run("lsort -integer -unique {1 01 1 2}").1, "1 2");
+    // plain ascii is unchanged (lexical, so x10 < x100 < x9).
+    assert_eq!(run("lsort {x10 x9 x100}").1, "x10 x100 x9");
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");

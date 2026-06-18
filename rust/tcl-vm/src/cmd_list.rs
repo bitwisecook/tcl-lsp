@@ -196,32 +196,27 @@ fn cmd_lsearch(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_lsort(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let mut integer = false;
+    use tcl_cmd_core::sort::SortMode;
+    let mut mode = SortMode::Ascii;
+    let mut nocase = false;
     let mut decreasing = false;
     let mut unique = false;
     let mut rest = args;
     while let Some(first) = rest.first() {
         match &*first.to_str() {
-            "-integer" | "-real" => {
-                integer = true;
-                rest = &rest[1..];
-            }
-            "-ascii" | "-dictionary" => rest = &rest[1..],
-            "-decreasing" => {
-                decreasing = true;
-                rest = &rest[1..];
-            }
-            "-increasing" => {
-                decreasing = false;
-                rest = &rest[1..];
-            }
-            "-unique" => {
-                unique = true;
-                rest = &rest[1..];
-            }
-            s if s.starts_with('-') => rest = &rest[1..],
+            "-ascii" => mode = SortMode::Ascii,
+            "-dictionary" => mode = SortMode::Dictionary,
+            "-integer" => mode = SortMode::Integer,
+            "-real" => mode = SortMode::Real,
+            "-nocase" => nocase = true,
+            "-decreasing" => decreasing = true,
+            "-increasing" => decreasing = false,
+            "-unique" => unique = true,
+            // `-index`/`-command`/`-stride` aren't supported here yet (skipped).
+            s if s.starts_with('-') => {}
             _ => break,
         }
+        rest = &rest[1..];
     }
     let [list] = rest else {
         return err("wrong # args: should be \"lsort ?options? list\"");
@@ -230,19 +225,20 @@ fn cmd_lsort(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(i) => (*i).clone(),
         Err(c) => return c,
     };
+    // The comparison modes (incl. the subtle dictionary order, and the
+    // integer-vs-real distinction the VM previously collapsed) are the shared
+    // `tcl_cmd_core::sort` core.
+    let cmp = |a: &Value, b: &Value| {
+        tcl_cmd_core::sort::key_compare(mode, nocase, a.to_str().as_bytes(), b.to_str().as_bytes())
+    };
     items.sort_by(|a, b| {
-        let ord = if integer {
-            a.as_double()
-                .unwrap_or(0.0)
-                .partial_cmp(&b.as_double().unwrap_or(0.0))
-                .unwrap_or(Ordering::Equal)
-        } else {
-            (*a.to_str()).cmp(&b.to_str())
-        };
+        let ord = cmp(a, b);
         if decreasing { ord.reverse() } else { ord }
     });
     if unique {
-        items.dedup_by(|a, b| *a.to_str() == *b.to_str());
+        // `-unique` removes elements equal *under the sort mode* (e.g. `1`/`01`
+        // for `-integer`), not just byte-equal ones.
+        items.dedup_by(|a, b| cmp(a, b) == Ordering::Equal);
     }
     ok(Value::list(items))
 }
