@@ -87,15 +87,24 @@ pub trait Commands {
     /// The runtime's value type.
     type Value;
 
-    /// Dispatch a command by (already-resolved) name with its argv.
+    /// Dispatch a command by name with its argv, resolving the name in the
+    /// current context.
     fn dispatch(&mut self, name: &str, argv: &[Self::Value]) -> Completion<Self::Value>;
+
+    /// Dispatch a command already resolved to a [`CommandId`] (by
+    /// [`Namespaces::find_command`]) with its argv — the resolve-then-invoke
+    /// pairing (mirrors Tcl's `Tcl_GetCommandFromObj` + `Tcl_NRCallObjProc`). A
+    /// stale or fabricated id yields an error completion. This is what makes a
+    /// `CommandId` *do* something: resolve once via `find_command`, invoke here.
+    fn dispatch_id(&mut self, cmd: CommandId, argv: &[Self::Value]) -> Completion<Self::Value>;
 }
 
 /// The namespace tree and name resolution. Mirrors `runtime/zig`'s `tcl_ns.zig`
 /// / `runtime/rust`'s `namespace.rs`. (Contract surface; impls land in M2+.)
 pub trait Namespaces {
     /// Resolve `name` (qualified or unqualified) from context `cxt` to the
-    /// command it names, following the `cxt → namespace path → root` order.
+    /// command it names, following the `cxt → namespace path → root` order. The
+    /// returned handle is invoked via [`Commands::dispatch_id`].
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId>;
     /// The current namespace.
     fn current(&self) -> NsId;

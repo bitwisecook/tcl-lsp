@@ -546,6 +546,15 @@ impl core::ops::Deref for Interp {
 /// across a sub-eval** — so re-entrancy (proc recursion, cross-interp calls)
 /// re-borrows freshly instead of aliasing. The command resolver returns *cloned*
 /// `Command` handles precisely so dispatch holds no table borrow.
+/// The command-identity arena backing `Namespaces::find_command` /
+/// `Commands::dispatch_id`: a bijection between a command's FQN and a dense raw
+/// `CommandId` (the index into `fqns`). Minted on first `find_command`.
+#[derive(Default)]
+struct CmdArena {
+    ids: std::collections::HashMap<Vec<u8>, u32>,
+    fqns: Vec<Vec<u8>>,
+}
+
 pub struct InterpState {
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
@@ -694,12 +703,12 @@ pub struct InterpState {
     /// since the chain is then consumed.
     during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
-    /// Command-FQN → dense raw `CommandId` arena for `Namespaces::find_command`.
-    /// Interior-mutable because that method is `&self` but mints a handle on first
-    /// sight; `family_b.rs` wraps the raw id in the contract's `CommandId`. The
-    /// handle is produced for command *identity* only — nothing dispatches by it
-    /// yet (dispatch is by name), so no reverse map is kept.
-    cmd_intern: RefCell<std::collections::HashMap<Vec<u8>, u32>>,
+    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
+    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
+    /// `&self` but mints a handle on first sight; `family_b.rs` wraps the raw id
+    /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
+    /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
+    cmd_arena: RefCell<CmdArena>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -776,7 +785,7 @@ impl Interp {
             reset_error_stack: Cell::new(true),
             during: Cell::new(None),
             result: Cell::new(result),
-            cmd_intern: RefCell::new(std::collections::HashMap::new()),
+            cmd_arena: RefCell::new(CmdArena::default()),
         }));
         builtins::install(&mut interp);
         interp
@@ -2619,13 +2628,14 @@ impl Interp {
 
     /// Intern a command's fully-qualified name to a stable, dense raw
     /// `CommandId`, minting one on first sight. Backs `Namespaces::find_command`.
-    pub(crate) fn intern_cmd(&self, fqn: &[u8]) -> u32 {
-        let mut m = self.cmd_intern.borrow_mut();
-        if let Some(&id) = m.get(fqn) {
+    fn intern_cmd(&self, fqn: &[u8]) -> u32 {
+        let mut a = self.cmd_arena.borrow_mut();
+        if let Some(&id) = a.ids.get(fqn) {
             return id;
         }
-        let id = u32::try_from(m.len()).expect("command count fits u32");
-        m.insert(fqn.to_vec(), id);
+        let id = u32::try_from(a.fqns.len()).expect("command count fits u32");
+        a.fqns.push(fqn.to_vec());
+        a.ids.insert(fqn.to_vec(), id);
         id
     }
 
@@ -2636,6 +2646,12 @@ impl Interp {
     pub(crate) fn find_command_id(&self, cxt: NsId, name: &[u8]) -> Option<u32> {
         let fqn = self.namespaces.borrow().resolve_fqn(cxt, name)?;
         Some(self.intern_cmd(&fqn))
+    }
+
+    /// The FQN an interned raw `CommandId` was minted from, or `None` for a
+    /// fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse step.
+    pub(crate) fn command_fqn(&self, id: u32) -> Option<Vec<u8>> {
+        self.cmd_arena.borrow().fqns.get(id as usize).cloned()
     }
 
     /// Raise an error with result `msg` and return [`Code::Error`] — the generic

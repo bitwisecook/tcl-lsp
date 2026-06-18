@@ -5,11 +5,11 @@
 //! traits can reach into this runtime's state with the *same* contract the
 //! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. All six role traits —
 //! `VarStore`, `Introspect`, `Commands`, `Traces`, `Frames`, `Namespaces` — are
-//! implemented here. (`Namespaces::find_command` mints a `CommandId` for command
-//! identity; nothing dispatches by that handle yet — an open contract question.)
+//! implemented here. `Namespaces::find_command` mints a `CommandId` that
+//! `Commands::dispatch_id` invokes (the resolve-then-invoke pairing).
 
 use tcl_runtime_api::{
-    CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, Traces,
+    Code, CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, Traces,
     VarStore,
 };
 
@@ -107,7 +107,8 @@ fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
     }
 }
 
-/// Command dispatch: resolve `name` and run it with `argv` to a [`Completion`].
+/// Run `name` + `argv` through the inherent dispatch and snapshot a [`Completion`]
+/// — the shared body of [`Commands::dispatch`]/[`Commands::dispatch_id`].
 ///
 /// The runtime is natively a `Code`-plus-`set_result` machine, so this bridges
 /// to the `Completion` ABI: it builds the name-included argv the inherent
@@ -119,34 +120,64 @@ fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
 /// adopts them and must release each (`decr_ref_count` / `drop_fresh`) when
 /// done — the `*mut TclObj` analogue of the VM completion's owned `Rc`s.
 /// `options` is an empty placeholder, mirroring the VM's `Value::empty()`.
+fn dispatch_named(
+    interp: &mut Interp,
+    name: &[u8],
+    argv: &[*mut TclObj],
+) -> Completion<*mut TclObj> {
+    let name_obj = new_string(name);
+    let mut full: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
+    full.push(name_obj);
+    full.extend_from_slice(argv);
+    // An owning +1 on each word for the call's duration, released after (the
+    // `dispatch_list_obj` discipline). The fresh `name_obj` (rc 0) is freed by its
+    // release unless dispatch retained it; the caller's `argv` (rc >= 1) are
+    // returned to their prior count untouched.
+    for &w in &full {
+        unsafe { obj::incr_ref_count(w) };
+    }
+    let code = Interp::dispatch(interp, &full); // the inherent dispatch, not the trait method
+    for &w in &full {
+        unsafe { obj::decr_ref_count(w) };
+    }
+    // The completion owns +1 on result and options (the caller adopts both).
+    let result = interp.result_obj();
+    let options = new_string(b"");
+    unsafe {
+        obj::incr_ref_count(result);
+        obj::incr_ref_count(options);
+    }
+    Completion::new(api_code(code), result, options)
+}
+
+/// The error completion for a fabricated/stale `CommandId` (rc-balanced like a
+/// real one: `result`/`options` each `+1`).
+fn invalid_command_id() -> Completion<*mut TclObj> {
+    let result = new_string(b"invalid command id");
+    let options = new_string(b"");
+    unsafe {
+        obj::incr_ref_count(result);
+        obj::incr_ref_count(options);
+    }
+    Completion::new(Code::Error, result, options)
+}
+
+/// Command dispatch by name ([`dispatch`](Commands::dispatch)) or by a resolved
+/// [`CommandId`] ([`dispatch_id`](Commands::dispatch_id), which reverses the id
+/// to its FQN and invokes that) — the resolve-then-invoke pairing with
+/// [`Namespaces::find_command`].
 impl Commands for Interp {
     type Value = *mut TclObj;
 
     fn dispatch(&mut self, name: &str, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
-        // The runtime's dispatch takes a name-included argv.
-        let name_obj = new_string(name.as_bytes());
-        let mut full: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
-        full.push(name_obj);
-        full.extend_from_slice(argv);
-        // An owning +1 on each word for the call's duration, released after (the
-        // `dispatch_list_obj` discipline). The fresh `name_obj` (rc 0) is freed by
-        // its release unless dispatch retained it; the caller's `argv` (rc >= 1)
-        // are returned to their prior count untouched.
-        for &w in &full {
-            unsafe { obj::incr_ref_count(w) };
+        dispatch_named(self, name.as_bytes(), argv)
+    }
+
+    fn dispatch_id(&mut self, cmd: CommandId, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
+        match self.command_fqn(cmd.0) {
+            Some(fqn) => dispatch_named(self, &fqn, argv),
+            None => invalid_command_id(),
         }
-        let code = Interp::dispatch(self, &full); // the inherent dispatch, not this trait method
-        for &w in &full {
-            unsafe { obj::decr_ref_count(w) };
-        }
-        // The completion owns +1 on result and options (the caller adopts both).
-        let result = self.result_obj();
-        let options = new_string(b"");
-        unsafe {
-            obj::incr_ref_count(result);
-            obj::incr_ref_count(options);
-        }
-        Completion::new(api_code(code), result, options)
     }
 }
 
@@ -410,6 +441,33 @@ mod tests {
             assert_ne!(a, c);
             // An unknown command resolves to nothing.
             assert!(Namespaces::find_command(i, ROOT_NS, "no_such_command").is_none());
+        });
+    }
+
+    #[test]
+    fn commands_dispatch_id_composes() {
+        leak_free(|i| {
+            // Resolve a command to a handle, then invoke it *by that handle* —
+            // the find_command -> dispatch_id composition.
+            let id = Namespaces::find_command(i, ROOT_NS, "list").expect("list resolves");
+            let arg = new_string(b"x");
+            unsafe { obj::incr_ref_count(arg) };
+            let c = Commands::dispatch_id(i, id, &[arg]);
+            assert_eq!(c.code, Code::Ok);
+            assert_eq!(obj_bytes(c.result), b"x");
+            unsafe {
+                obj::decr_ref_count(c.result);
+                obj::decr_ref_count(c.options);
+                obj::decr_ref_count(arg);
+            }
+            // A fabricated id yields an error completion (no such command).
+            let c = Commands::dispatch_id(i, CommandId(9999), &[]);
+            assert_eq!(c.code, Code::Error);
+            assert_eq!(obj_bytes(c.result), b"invalid command id");
+            unsafe {
+                obj::decr_ref_count(c.result);
+                obj::decr_ref_count(c.options);
+            }
         });
     }
 }

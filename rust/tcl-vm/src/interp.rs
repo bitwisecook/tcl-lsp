@@ -78,11 +78,12 @@ pub struct Vm {
     /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
     ns_arena: Vec<String>,
     ns_intern: HashMap<String, NsId>,
-    /// Command-FQN → dense raw `CommandId` arena for `Namespaces::find_command`.
-    /// Interior-mutable because that method is `&self` but mints a handle on first
-    /// sight. The handle identifies a command; nothing dispatches by it yet
-    /// (dispatch is by name), so no reverse map is kept.
-    cmd_intern: RefCell<HashMap<String, u32>>,
+    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
+    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
+    /// `&self` but mints a handle on first sight. Bidirectional: `find_command`
+    /// interns an absolute FQN, `dispatch_id` reverses the id to that FQN and
+    /// invokes it.
+    cmd_arena: RefCell<CmdArena>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
@@ -119,6 +120,15 @@ pub struct Vm {
     host: Rc<dyn Host>,
 }
 
+/// The command-identity arena backing `Namespaces::find_command` /
+/// `Commands::dispatch_id`: a bijection between a command's absolute FQN and a
+/// dense raw `CommandId` (the index into `fqns`). Minted on first `find_command`.
+#[derive(Default)]
+struct CmdArena {
+    ids: HashMap<String, u32>,
+    fqns: Vec<String>,
+}
+
 /// A single registered variable trace.
 #[derive(Clone)]
 struct VarTrace {
@@ -147,7 +157,7 @@ impl Vm {
             ns_exports: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
-            cmd_intern: RefCell::new(HashMap::new()),
+            cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
@@ -310,16 +320,23 @@ impl Vm {
         self.commands.contains_key(name).then(|| name.to_string())
     }
 
-    /// Intern a command key to a stable, dense raw `CommandId`, minting one on
-    /// first sight. Backs `Namespaces::find_command`.
+    /// Intern an absolute command FQN to a stable, dense raw `CommandId`, minting
+    /// one on first sight. Backs `Namespaces::find_command`.
     fn intern_cmd(&self, fqn: &str) -> u32 {
-        let mut m = self.cmd_intern.borrow_mut();
-        if let Some(&id) = m.get(fqn) {
+        let mut a = self.cmd_arena.borrow_mut();
+        if let Some(&id) = a.ids.get(fqn) {
             return id;
         }
-        let id = u32::try_from(m.len()).expect("command count fits u32");
-        m.insert(fqn.to_string(), id);
+        let id = u32::try_from(a.fqns.len()).expect("command count fits u32");
+        a.fqns.push(fqn.to_string());
+        a.ids.insert(fqn.to_string(), id);
         id
+    }
+
+    /// The absolute FQN an interned raw `CommandId` was minted from, or `None`
+    /// for a fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse.
+    fn command_fqn(&self, id: u32) -> Option<String> {
+        self.cmd_arena.borrow().fqns.get(id as usize).cloned()
     }
 
     /// Push a namespace onto the resolution stack (created if new).
@@ -1336,6 +1353,15 @@ impl Commands for Vm {
     fn dispatch(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         self.invoke_command(name, argv)
     }
+
+    fn dispatch_id(&mut self, cmd: CommandId, argv: &[Value]) -> Completion<Value> {
+        // Reverse the handle to its absolute FQN, then invoke that — the
+        // resolve-then-invoke pairing with `Namespaces::find_command`.
+        match self.command_fqn(cmd.0) {
+            Some(fqn) => self.invoke_command(&fqn, argv),
+            None => err("invalid command id"),
+        }
+    }
 }
 
 /// Variable traces: fire `var`'s `op` (`read`/`write`/`unset`) traces, aborting
@@ -1396,8 +1422,10 @@ impl Frames for Vm {
 impl Namespaces for Vm {
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
         let cxt_name = self.ns_name(cxt);
-        let fqn = self.resolve_command_fqn(&cxt_name, name)?;
-        Some(CommandId(self.intern_cmd(&fqn)))
+        // Intern the *absolute* FQN (the `commands` key is unrooted) so
+        // `dispatch_id` can re-dispatch it unambiguously regardless of context.
+        let key = self.resolve_command_fqn(&cxt_name, name)?;
+        Some(CommandId(self.intern_cmd(&format!("::{key}"))))
     }
 
     fn current(&self) -> NsId {
@@ -1519,5 +1547,20 @@ mod family_b_tests {
         assert_eq!(Namespaces::current(&vm), foo);
         Frames::pop(&mut vm);
         assert_eq!(Namespaces::current(&vm), ROOT_NS);
+    }
+
+    #[test]
+    fn commands_dispatch_id_composes() {
+        let mut vm = Vm::new();
+        // Resolve a command to a handle, then invoke it *by that handle* — the
+        // find_command -> dispatch_id composition.
+        let id = Namespaces::find_command(&vm, ROOT_NS, "list").expect("list resolves");
+        let c = vm.dispatch_id(id, &[Value::string("a"), Value::string("b")]);
+        assert_eq!(c.code, Code::Ok);
+        assert_eq!(&*c.result.to_str(), "a b");
+        // A fabricated id yields an error completion (no such command).
+        let c = vm.dispatch_id(CommandId(9999), &[]);
+        assert_eq!(c.code, Code::Error);
+        assert_eq!(&*c.result.to_str(), "invalid command id");
     }
 }
