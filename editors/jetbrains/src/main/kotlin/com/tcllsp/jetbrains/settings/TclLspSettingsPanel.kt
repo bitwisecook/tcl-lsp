@@ -38,7 +38,8 @@ class TclLspSettingsPanel {
     private val featureRename = JBCheckBox("Rename symbol")
     private val featureSignatureHelp = JBCheckBox("Signature help")
     private val featureWorkspaceSymbols = JBCheckBox("Workspace symbols")
-    private val featureInlayHints = JBCheckBox("Inlay hints")
+    private val featureInlayTypeHints = JBCheckBox("Inlay type hints")
+    private val featureInlayParameterHints = JBCheckBox("Inlay parameter-name hints")
     private val featureCallHierarchy = JBCheckBox("Call hierarchy")
     private val featureDocumentLinks = JBCheckBox("Document links")
     private val featureSelectionRange = JBCheckBox("Selection range")
@@ -287,7 +288,8 @@ class TclLspSettingsPanel {
                 featureHover, featureCompletion, featureDiagnostics,
                 featureSemanticTokens, featureCodeActions, featureDefinition, featureReferences,
                 featureDocumentSymbols, featureFolding, featureRename, featureSignatureHelp,
-                featureWorkspaceSymbols, featureInlayHints, featureCallHierarchy,
+                featureWorkspaceSymbols, featureInlayTypeHints, featureInlayParameterHints,
+                featureCallHierarchy,
                 featureDocumentLinks, featureSelectionRange,
                 featureDocumentHighlight, featureCodeLens, featureWorkspaceFileOps,
                 featurePullDiagnostics, featureProgress,
@@ -484,7 +486,8 @@ class TclLspSettingsPanel {
             featureRename.isSelected != s.featureRename ||
             featureSignatureHelp.isSelected != s.featureSignatureHelp ||
             featureWorkspaceSymbols.isSelected != s.featureWorkspaceSymbols ||
-            featureInlayHints.isSelected != s.featureInlayHints ||
+            featureInlayTypeHints.isSelected != s.featureInlayTypeHints ||
+            featureInlayParameterHints.isSelected != s.featureInlayParameterHints ||
             featureCallHierarchy.isSelected != s.featureCallHierarchy ||
             featureDocumentLinks.isSelected != s.featureDocumentLinks ||
             featureSelectionRange.isSelected != s.featureSelectionRange ||
@@ -708,7 +711,8 @@ class TclLspSettingsPanel {
         s.featureRename = featureRename.isSelected
         s.featureSignatureHelp = featureSignatureHelp.isSelected
         s.featureWorkspaceSymbols = featureWorkspaceSymbols.isSelected
-        s.featureInlayHints = featureInlayHints.isSelected
+        s.featureInlayTypeHints = featureInlayTypeHints.isSelected
+        s.featureInlayParameterHints = featureInlayParameterHints.isSelected
         s.featureCallHierarchy = featureCallHierarchy.isSelected
         s.featureDocumentLinks = featureDocumentLinks.isSelected
         s.featureSelectionRange = featureSelectionRange.isSelected
@@ -949,7 +953,8 @@ class TclLspSettingsPanel {
         featureRename.isSelected = s.featureRename
         featureSignatureHelp.isSelected = s.featureSignatureHelp
         featureWorkspaceSymbols.isSelected = s.featureWorkspaceSymbols
-        featureInlayHints.isSelected = s.featureInlayHints
+        featureInlayTypeHints.isSelected = s.featureInlayTypeHints
+        featureInlayParameterHints.isSelected = s.featureInlayParameterHints
         featureCallHierarchy.isSelected = s.featureCallHierarchy
         featureDocumentLinks.isSelected = s.featureDocumentLinks
         featureSelectionRange.isSelected = s.featureSelectionRange

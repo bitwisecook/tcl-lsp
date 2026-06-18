@@ -87,6 +87,35 @@ class TestSemanticTokens:
         tokens = _decode_tokens(semantic_tokens_full("proc foo {x} {}"))
         assert tokens[0]["type"] == "keyword"  # 'proc'
 
+    def test_if_else_elseif_are_keywords(self):
+        """else/elseif structural keywords highlight like if (issue #637)."""
+        source = "if 1 {\n puts a\n} elseif 2 {\n puts b\n} else {\n puts c\n}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        keyword_words = {
+            source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
+            for t in tokens
+            if t["type"] == "keyword"
+        }
+        assert {"if", "elseif", "else"} <= keyword_words, keyword_words
+
+    def test_try_on_finally_are_keywords(self):
+        """try's on/trap/finally structural keywords highlight as keywords."""
+        source = "try {\n set x 1\n} on error {e} {\n puts $e\n} finally {\n puts d\n}"
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        keyword_words = {
+            source.split("\n")[t["line"]][t["char"] : t["char"] + t["length"]]
+            for t in tokens
+            if t["type"] == "keyword"
+        }
+        assert {"try", "on", "finally"} <= keyword_words, keyword_words
+
+    def test_builtin_name_as_bareword_arg_is_string(self):
+        """A builtin name used as a plain dict value stays a string, not a keyword."""
+        source = 'dict set frame proc "asasdas asd"'
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        proc_tok = next(t for t in tokens if source[t["char"] : t["char"] + t["length"]] == "proc")
+        assert proc_tok["type"] == "string"
+
     def test_user_command_as_function(self):
         tokens = _decode_tokens(semantic_tokens_full("mycommand arg1"))
         assert tokens[0]["type"] == "function"  # unknown command = function

@@ -619,10 +619,18 @@ def _collect_tokens(
             _varname_indices,
             _varread_indices,
             pattern_indices,
+            keyword_indices,
         ) = arg_indices_for_roles(
             cmd_name,
             argv_texts[1:],
-            (ArgRole.BODY, ArgRole.EXPR, ArgRole.VAR_WRITE, ArgRole.VAR_READ, ArgRole.PATTERN),
+            (
+                ArgRole.BODY,
+                ArgRole.EXPR,
+                ArgRole.VAR_WRITE,
+                ArgRole.VAR_READ,
+                ArgRole.PATTERN,
+                ArgRole.KEYWORD,
+            ),
         )
         varname_indices = _varname_indices | _varread_indices
         param_arg_idx = _proc_param_list_arg_index(cmd_name, argv_texts)
@@ -674,6 +682,7 @@ def _collect_tokens(
             is_varname = (arg_idx - 1) in varname_indices and arg_idx > 0
             is_pattern = (arg_idx - 1) in pattern_indices and arg_idx > 0
             is_option = (arg_idx - 1) in option_indices and arg_idx > 0
+            is_keyword_arg = (arg_idx - 1) in keyword_indices and arg_idx > 0
 
             if tok.type is TokenType.CMD:
                 # Always recurse into command substitutions
@@ -895,6 +904,19 @@ def _collect_tokens(
                     start=tok.start,
                     text=tok.text,
                     type_idx=_TYPE_INDEX["event"],
+                )
+                continue
+
+            # Structural keyword words (if's else/elseif/then, try's
+            # on/trap/finally) sit at argument positions, not the command-name
+            # slot, so the default classifier would render them as strings.
+            # The registry's KEYWORD role marks them; highlight as keywords.
+            if is_keyword_arg and tok.type is TokenType.ESC:
+                _append_text_token(
+                    tokens,
+                    start=tok.start,
+                    text=tok.text,
+                    type_idx=_TYPE_INDEX["keyword"],
                 )
                 continue
 
