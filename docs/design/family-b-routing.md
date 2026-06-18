@@ -111,11 +111,17 @@ commands.
     `try_list_append_in_place` would be new) plus a `(value, needs_store)` return
     so the adapter knows whether the variable was mutated in place.
 
-  - *Write-trace semantics already diverge.* C's `Tcl_AppendObjCmd`/`LappendObjCmd`
-    fire write traces per value (`TclPtrSetVarIdx`); the runtime's in-place path
-    skips `var_set` and so fires **no** write trace, while its copy/new path fires
-    once. Any sharing that changes the store decision also changes which traces
-    fire — a behaviour change that must be reconciled against C deliberately.
+  - *Write-trace semantics already diverge — sharing would be a behaviour
+    change.* C's `Tcl_AppendObjCmd` fires a write trace **per value**, while
+    `Tcl_LappendObjCmd` appends all at once and fires it **once**; crucially both
+    **always store back** (`TclPtrSetVarIdx`) — the unshared case modifies in place
+    *and still* stores, so the write trace fires. The runtime's in-place path skips
+    `var_set` entirely and so fires **no** write trace (a latent bug vs C), while
+    its copy/new path fires once. A C-faithful shared core would "always store"
+    (firing the trace, fixing the bug) — but that is a behaviour change to verify
+    against `tclsh`, alongside the matching read-trace-once that the runtime's
+    `var_get`-based read also currently skips. Worth doing as a deliberate
+    C-reconciliation, not folded silently into a dedup.
 
   Net: every sharing path either regresses correctness (lossy bytes), regresses
   performance (O(n²)), or only breaks even on dedup while adding a new value-seam
