@@ -170,3 +170,71 @@ class TestInlayHintOptionalPositionals:
         assert "list:" in names, names
         assert "pattern:" in names, names
         assert not any(n in ("options:", "switches:") for n in names), names
+
+
+class TestInlayToggleIndependenceE2E:
+    """The single ``inlayHints`` toggle was split into two independent options,
+    both off by default (PR #643): ``inlayTypeHints`` (inferred variable types /
+    format specifiers) and ``inlayParameterHints`` (the verbose proc/method
+    parameter-name labels).  Enabling one must not turn on the other.
+
+    These drive the *shared* server through ``config_session`` (which settles on
+    the resolved config and restores it afterwards), so the default-off contract
+    the other suites rely on is left untouched.
+    """
+
+    def test_parameter_hints_only_produce_labels_no_type_hints(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        with lsp_server.config_session(
+            {"features": {"inlayTypeHints": False, "inlayParameterHints": True}},
+            settle=lambda c: (
+                c["features"].get("inlayParameterHints") is True
+                and c["features"].get("inlayTypeHints") is False
+            ),
+            settle_uri=uri,
+        ):
+            lsp_server.open_ready(uri, "puts hello\n")
+            hints = lsp_server.inlay_hints(uri, (0, 0), (1, 0)) or []
+            # ``puts hello`` yields the ``string:`` parameter label …
+            assert any(h.get("kind") == 2 for h in hints), hints  # Parameter
+            # … and no Type-kind hints, since parameter hints are independent.
+            assert all(h.get("kind") != 1 for h in hints), hints  # Type
+
+    def test_type_hints_only_emit_no_parameter_labels(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        with lsp_server.config_session(
+            {"features": {"inlayTypeHints": True, "inlayParameterHints": False}},
+            settle=lambda c: (
+                c["features"].get("inlayTypeHints") is True
+                and c["features"].get("inlayParameterHints") is False
+            ),
+            settle_uri=uri,
+        ):
+            lsp_server.open_ready(uri, "puts hello\n")
+            hints = lsp_server.inlay_hints(uri, (0, 0), (1, 0)) or []
+            # Type hints on, parameter hints off: the ``string:`` label must
+            # never appear even though the call site would carry one.
+            assert all(h.get("kind") != 2 for h in hints), hints  # no Parameter
+
+
+class TestInlayLegacyAliasE2E:
+    """The retired ``features.inlayHints`` key is accepted as a backward-
+    compatible alias that enables *type* hints only — parameter hints stay off
+    (PR #643), so an existing explicit opt-in keeps working after the rename.
+    """
+
+    def test_legacy_inlay_hints_alias_enables_type_only(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        with lsp_server.config_session(
+            {"features": {"inlayHints": True}},
+            settle=lambda c: c["features"].get("inlayTypeHints") is True,
+            settle_uri=uri,
+        ):
+            eff = lsp_server.effective_config(uri)
+            # The alias resolves to type hints; parameter hints remain off.
+            assert eff["features"].get("inlayTypeHints") is True, eff["features"]
+            assert eff["features"].get("inlayParameterHints") is False, eff["features"]
+            # Behaviourally, the verbose parameter labels never appear.
+            lsp_server.open_ready(uri, "puts hello\n")
+            hints = lsp_server.inlay_hints(uri, (0, 0), (1, 0)) or []
+            assert all(h.get("kind") != 2 for h in hints), hints  # no Parameter

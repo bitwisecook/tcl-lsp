@@ -304,6 +304,186 @@ class TestDollarBeforeCloseQuoteW306:
         assert "W306" in _codes(lsp_server.open_ready(uri, 'regexp -- "^foo$bar" $text\n'))
 
 
+class TestControlFlowRBSFamilyE2E:
+    """W210 read-before-set, control-flow modelling family (PR #634).
+
+    PR #634 fixed a family of false W210s rooted in imprecise control-flow
+    modelling: loop bodies that provably run at least once, branches ended by a
+    terminator (``tailcall``), and opaque ``switch`` arms that cannot complete
+    normally.  The in-process precision battery is ``tests/test_fp_rbs.py``
+    (locked to real tclsh 9.0.3); these certify a representative slice reaches
+    the wire through the *server* pipeline, each as a matched
+    must-stay-silent / must-fire pair so a blanket suppression can't pass.
+    """
+
+    # -- tailcall ends straight-line flow (FP-RBS-13) ---------------------- #
+
+    def test_tailcall_terminated_branch_silent(self, lsp_server, uri_factory):
+        # ``tailcall g`` returns from the proc, so ``return $result`` is reached
+        # only via the else branch where ``result`` is set.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc f {cond} {
+                if {$cond} {
+                    tailcall g
+                } else {
+                    set result 1
+                }
+                return $result
+            }
+        """)
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_non_terminating_branch_still_fires(self, lsp_server, uri_factory):
+        # Replace the tailcall with a completing command → ``result`` is
+        # maybe-unset on the then-path, so W210 must fire.
+        uri = uri_factory()
+        src = textwrap.dedent("""\
+            proc f {cond} {
+                if {$cond} {
+                    puts hi
+                } else {
+                    set result 1
+                }
+                return $result
+            }
+        """)
+        diags = lsp_server.open_ready(uri, src)
+        assert "W210" in _codes(diags), _codes(diags)
+
+    # -- non-empty-literal foreach runs its body (FP-RBS-17) --------------- #
+
+    def test_foreach_non_empty_literal_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = "proc f {} {\n    foreach x {1 2 3} { set y $x }\n    puts $y\n}\n"
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_foreach_empty_literal_still_fires(self, lsp_server, uri_factory):
+        # An empty literal never runs the body → ``y`` is unset.
+        uri = uri_factory()
+        src = "proc f {} {\n    foreach x {} { set y $x }\n    puts $y\n}\n"
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+    # -- for whose condition is true on entry runs its body (FP-RBS-18) ---- #
+
+    def test_for_true_on_entry_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = "proc f {} {\n    for {set i 0} {$i < 3} {incr i} { set y $i }\n    puts $y\n}\n"
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_for_false_on_entry_still_fires(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = "proc f {} {\n    for {set i 5} {$i < 3} {incr i} { set y $i }\n    puts $y\n}\n"
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+    # -- while 1 only exits via break, where the var is set (FP-RBS-16) ---- #
+
+    def test_while1_break_set_silent(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        src = "proc f {} {\n    while 1 { set y 1; break }\n    puts $y\n}\n"
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_normal_while_still_fires(self, lsp_server, uri_factory):
+        # A non-constant condition may run zero times → maybe-unset read.
+        uri = uri_factory()
+        src = "proc f {n} {\n    while {$n > 0} { set y 1; incr n -1 }\n    puts $y\n}\n"
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+    # -- opaque switch whose every arm exits is a terminator (FP-RBS-15) --- #
+
+    def test_all_arms_return_makes_trailing_read_unreachable(self, lsp_server, uri_factory):
+        # Every arm returns, so ``puts $y`` is unreachable dead code → no W210.
+        uri = uri_factory()
+        src = (
+            "proc f {x} {\n"
+            "    switch -glob -- $x { a* { return 1 } default { return 2 } }\n"
+            "    puts $y\n"
+            "}\n"
+        )
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_no_default_switch_falls_through_fires(self, lsp_server, uri_factory):
+        # Without a ``default`` an unmatched subject falls through to the read,
+        # so the switch is not a terminator and ``y`` is maybe-unset.
+        uri = uri_factory()
+        src = (
+            "proc f {x} {\n"
+            "    switch -glob -- $x { a* { return 1 } b* { return 2 } }\n"
+            "    puts $y\n"
+            "}\n"
+        )
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+    # -- opaque switch must-define excludes non-completing arms (FP-RBS-14) - #
+
+    def test_returning_arm_excluded_from_must_define(self, lsp_server, uri_factory):
+        # The ``a*`` arm returns before reaching ``puts $y``; the only path that
+        # does (default) sets ``y`` → definitely defined, no W210.
+        uri = uri_factory()
+        src = (
+            "proc f {x} {\n"
+            "    switch -glob -- $x { a* { return 0 } default { set y 2 } }\n"
+            "    puts $y\n"
+            "}\n"
+        )
+        assert "W210" not in _codes(lsp_server.open_ready(uri, src))
+
+    def test_break_arm_escaping_loop_still_fires(self, lsp_server, uri_factory):
+        # Codex regression on #634: ``break``/``continue`` are loop-jumps, not
+        # proc-exits, so a break arm does NOT define the other arm's var on the
+        # path that escapes the loop — ``y`` is maybe-unset, W210 must fire.
+        uri = uri_factory()
+        src = (
+            "proc f {} {\n"
+            "    foreach x {a} { switch -glob -- $x { a* { break } default { set y 1 } } }\n"
+            "    puts $y\n"
+            "}\n"
+        )
+        assert "W210" in _codes(lsp_server.open_ready(uri, src))
+
+
+class TestWhenBodyDialectGatingE2E:
+    """``when`` is an iRules-only builtin (PR #640).
+
+    Under plain Tcl it is an unknown would-be user command whose braced argument
+    is opaque *data*, not a handler script — so its body must not be analysed:
+    no W123 on a body command, no spurious W210 read-before-set.  (The iRules
+    side, where the body IS analysed, lives in ``test_irules_e2e.py``.)
+    """
+
+    def test_when_body_not_analysed_under_plain_tcl(self, lsp_server, uri_factory):
+        uri = uri_factory()
+        diags = lsp_server.open_ready(uri, "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n")
+        # ``when`` itself is unknown under Tcl, but the opaque body must not be
+        # recursed into: no W123 naming the body command, no W210 on its var.
+        body_w123 = [
+            d
+            for d in diags
+            if str(d.get("code")) == "W123" and "boguscmd" in (d.get("message") or "")
+        ]
+        assert body_w123 == [], diags
+        assert "W210" not in _codes(diags), _codes(diags)
+
+
+class TestConstantStringConditionFoldE2E:
+    """I230 (always-true/false condition; alternate branch unreachable) now
+    folds ``==``/``!=`` on string operands, matching Tcl's polymorphic compare
+    (``expr {"foo" == "foo"}`` -> 1) — previously only the ``eq``/``ne``
+    spelling folded (PR #640)."""
+
+    def test_double_equals_string_condition_folds(self, lsp_server, uri_factory):
+        for op in ("==", "eq"):
+            uri = uri_factory()
+            src = f'set x foo\nif {{$x {op} "foo"}} {{ puts hi }}\n'
+            assert "I230" in _codes(lsp_server.open_ready(uri, src)), op
+
+    def test_bang_equals_string_condition_folds(self, lsp_server, uri_factory):
+        for op in ("!=", "ne"):
+            uri = uri_factory()
+            src = f'set x foo\nif {{$x {op} "foo"}} {{ puts hi }}\n'
+            assert "I230" in _codes(lsp_server.open_ready(uri, src)), op
+
+
 class TestDiagnosticsTrackEdits:
     def test_fixing_the_source_clears_the_diagnostic(self, lsp_server, uri_factory):
         uri = uri_factory()
