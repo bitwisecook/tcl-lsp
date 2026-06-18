@@ -642,6 +642,42 @@ fn namespace_introspection() {
 }
 
 #[test]
+fn info_vars_locals_globals() {
+    // Variable listing routes through the shared cores. Pinned against tclsh 9.0
+    // (C `InfoVarsCmd`/`InfoLocalsCmd`/`InfoGlobalsCmd`).
+    let setup = "namespace eval foo { variable a 1; variable b 2 }\n\
+                 namespace eval foo::sub { variable deep 9 }\nset gx 10\n";
+    // In a proc: `info locals` is the genuine locals only; `info vars` also lists
+    // the linked namespace variable (by its local alias `a`).
+    out_eq(
+        &format!(
+            "{setup}proc p {{}} {{ set loc 5; variable ::foo::a; \
+             puts \"[lsort [info locals]]|[lsort [info vars]]\" }}\np\n"
+        ),
+        "loc|a loc\n",
+    );
+    // `info globals` lists the global namespace's vars only — not `foo::a`.
+    out_eq(
+        &format!("{setup}puts [lsearch -exact [info globals] foo::a]\n"),
+        "-1\n",
+    );
+    out_eq(
+        &format!("{setup}puts [expr {{[lsearch -exact [info globals] gx] >= 0}}]\n"),
+        "1\n",
+    );
+    // A qualified `info vars` lists that namespace, re-qualified, direct members.
+    out_eq(
+        &format!("{setup}puts [lsort [info vars ::foo::*]]\n"),
+        "::foo::a ::foo::b\n",
+    );
+    // At namespace scope, `info vars` lists the namespace's own variables.
+    out_eq(
+        &format!("{setup}namespace eval foo {{ puts [lsort [info vars]] }}\n"),
+        "a b\n",
+    );
+}
+
+#[test]
 fn info_commands_procs_namespaced() {
     // `info commands`/`procs` route through the shared namespace-aware core. The
     // expectations are pinned against tclsh 9.0 (see C `InfoCommandsCmd`/

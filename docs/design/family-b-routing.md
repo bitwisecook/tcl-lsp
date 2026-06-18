@@ -16,9 +16,9 @@ them, so a consumer generic over the traits drives either runtime:
 | Trait | Surface |
 |-------|---------|
 | `VarStore` | `get`/`set`/`unset`/`exists` + the explicit array-element pairs `get_elem`/`set_elem`/`unset_elem`/`exists_elem`, addressed by `FrameId` |
-| `Frames` | `push(NsId)`/`pop`/`current`/`link` (the `upvar` install) |
+| `Frames` | `push(NsId)`/`pop`/`current`/`link` (the `upvar` install), plus active-frame variable enumeration `in_proc()`/`var_names(include_links)` |
 | `Commands` | `dispatch(name, argv)` and `dispatch_id(CommandId, argv)` — the resolve-then-invoke pair with `find_command` |
-| `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>`, tree nav `find_namespace`/`parent`/`children`, and command enumeration `commands_in(NsId)`/`procs_in(NsId)` |
+| `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>`, tree nav `find_namespace`/`parent`/`children`, and member enumeration `commands_in(NsId)`/`procs_in(NsId)`/`vars_in(NsId)` |
 | `Traces` | `fire(var, op)` (read/write/unset; read/write errors abort) |
 | `Introspect` | `level()`, `level_argv(n)` |
 | `Procs` | `proc_info(name) -> Option<ProcInfo>` (a proc's body + formals, for `info body`/`args`/`default`) |
@@ -79,9 +79,25 @@ Shared in `tcl-cmd-core`:
   flat "all command keys" listing (which leaked namespaced names into the global
   scope and mishandled `::ns::*` patterns) to the correct behaviour, and **fixed a
   runtime bug** (`info procs` in a namespace wrongly merged global procs). The
-  variable-listing subcommands (`info vars`/`locals`/`globals`/`consts`) stay
-  per-adapter — the VM has no namespace variables (its vars are frame locals), so
-  there is nothing to share against yet.
+  variable-listing subcommands stay per-adapter for now (see `info::{vars,…}`).
+- `info::{vars, locals, globals}` — the variable-listing subcommands, over a new
+  `Namespaces::vars_in` (a namespace's variables, the variable analogue of
+  `commands_in`) plus two active-frame `Frames` rungs (`in_proc()` and
+  `var_names(include_links)`). `info vars` is the context-sensitive one (C's
+  `InfoVarsCmd`): a qualified pattern lists that namespace re-qualified (the same
+  `qualified_listing` helper commands/procs use); unqualified **in a proc** lists
+  the frame's own variables — locals *and* `upvar`/`global`/`variable` links by
+  alias (`var_names(true)`); unqualified **at namespace scope** lists the current
+  namespace's variables. `info locals` is the frame's genuine locals only
+  (`var_names(false)`); `info globals` is the global namespace's variables
+  (`vars_in(ROOT)`), with the Bug 1057461 leading-`::` pattern strip in the core.
+  This resolved the "VM has no namespace variables" block: the VM *does* store
+  them — in the global frame keyed by qualified name (`foo::v`), exactly as it
+  keys commands — so `vars_in` is the same direct-membership prefix test as
+  `commands_in`, and the frame rungs read the active frame's table. Routing split
+  `info vars` from `info locals` on the VM (it had aliased them, so `info vars` in
+  a proc dropped its links) and gave `info globals` the global-only filter.
+  `info consts` (TIP 677) stays per-adapter — the VM has no `const`.
 - `array::dispatch` — the `array` **read-side** (`exists`/`size`/`names`/`get`)
   + `unset`, over `VarStore` + `Frames` + `ValueOps`. This is the first stateful
   *command* family shared over the interp-state seam (the `info`/`namespace`
@@ -236,6 +252,7 @@ core unified both to the correct behaviour):
 | `namespace children`/`parent` (VM) | `namespace children` ignored its `?pattern?` argument (returned all children), and `parent`/`children` on a non-existent namespace returned a computed/empty result; routing the shared core over the `Namespaces` nav rungs gave `children` the (target-qualified) glob filter and made both error `namespace "X" not found` (tclsh). |
 | `info commands`/`procs` (VM) | the VM listed *all* command-map keys flat, so `info commands` at global leaked namespaced names (`foo::bar`) and `info commands ::ns::*` matched nothing (the leading `::` never matched an unrooted key); routing the namespace-aware core fixed both (global scope excludes namespaced names; qualified patterns list + re-qualify the target namespace) — verified against tclsh 9.0. |
 | `info procs` (runtime) | inside a namespace, `info procs` merged the global namespace's procs (old `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace only (`info commands` is the one that merges global). The shared core's global-merge asymmetry fixed it. |
+| `info vars`/`globals` (VM) | the VM aliased `info vars` to `info locals` (both listed the frame's non-link locals), so `info vars` in a proc **dropped its `upvar`/`global`/`variable` links** and ignored namespace scope; and `info globals` listed *all* global-frame keys, leaking namespaced variables (`foo::v`). Routing the shared cores over `vars_in` + the frame rungs gave `info vars` its links + namespace-scope behaviour and `info globals` the global-only filter — verified against tclsh 9.0. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.
@@ -284,14 +301,15 @@ early by `append`.
   (`*_from`/`*_at`) is still scalar-only on the VM and ignored by the runtime
   (the element accessors take `FrameId` but use the active frame). No current
   consumer needs cross-frame element access.
-- The enumeration surface is **command-complete but variable-partial**:
-  `VarStore::array_keys` lists an array's element keys, and `Namespaces::commands_in`/
-  `procs_in` list a namespace's commands/procs (backing `info commands`/`procs`),
-  but there is still no **variable** listing rung — `info vars`/`locals`/`globals`/
-  `consts` stay per-adapter. The block is structural, not missing surface: the VM
-  has no namespace variables (its vars are frame locals), so a shared
-  namespace-aware variable listing has nothing to share against on the VM until its
-  variable model grows namespace tables.
+- The enumeration surface is now **complete** for the shared listing subcommands:
+  `VarStore::array_keys` (array elements), `Namespaces::commands_in`/`procs_in`/
+  `vars_in` (a namespace's commands/procs/variables), and the active-frame
+  `Frames::var_names`/`in_proc` (frame locals + links). These back `info
+  commands`/`procs`/`vars`/`locals`/`globals` and `array names`. The only listing
+  left per-adapter is `info consts` (TIP 677, runtime-only — the VM has no
+  `const`). The VM's namespace variables turned out to be stored (flat, in the
+  global frame keyed by qualified name), so the rungs read them directly — no
+  variable-storage rework was needed.
 - `append`/`lappend` fire the write trace **once** over the whole operation, not
   per value (C's `append` fires per value). The user-visible common case — a
   write trace that runs on a mutating append — is covered; the exact count is
@@ -320,7 +338,7 @@ early by `append`.
    biggest single dedup left (Track B).
 3. `lset`/`linsert`-into-var can reuse the `try_list_append_in_place` pattern
    (a list in-place *replace* seam) if those are to share.
-4. ✅ *Done (commands)* — the command-enumeration rungs (`Namespaces::commands_in`/
-   `procs_in`) backing `info commands`/`procs`. The remaining listing gap is
-   **variable** enumeration (`info vars`/`locals`/`globals`), blocked on the VM
-   growing namespace variables (it has only frame locals today).
+4. ✅ *Done* — the listing-enumeration surface: `Namespaces::commands_in`/
+   `procs_in`/`vars_in` and the active-frame `Frames::var_names`/`in_proc`, backing
+   `info commands`/`procs`/`vars`/`locals`/`globals`. Only `info consts` (TIP 677)
+   stays per-adapter (the VM has no `const`).

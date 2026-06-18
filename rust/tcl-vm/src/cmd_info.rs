@@ -6,22 +6,12 @@
 //! painful when that metadata was missing.
 
 use tcl_runtime_api::Completion;
-use tcl_syntax::glob::string_match;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
-}
-
-/// `info complete`: whether `script` has no unbalanced `{}`/`[]`/`"` and does
-/// not end in a line continuation — i.e. it is a syntactically complete command.
-/// Filter + sort names by an optional glob pattern.
-fn filtered(mut names: Vec<String>, pat: Option<&str>) -> Value {
-    names.retain(|n| pat.is_none_or(|p| string_match(p, n)));
-    names.sort();
-    Value::list(names.into_iter().map(Value::string).collect())
 }
 
 #[allow(clippy::too_many_lines)]
@@ -60,14 +50,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // patterns + global-scope visibility (it previously listed all keys flat).
         "commands" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), false)),
         "procs" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), true)),
-        "vars" | "locals" => ok(filtered(
-            vm.local_scalar_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
-        "globals" => ok(filtered(
-            vm.global_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
+        // vars/locals/globals route through the shared variable-listing cores
+        // (namespace-aware over `Namespaces::vars_in` + the active-frame
+        // `Frames::var_names`/`in_proc`). This split `vars` from `locals` (the VM
+        // previously aliased them, so `info vars` in a proc dropped its links) and
+        // gave `info globals` the global-namespace-only filter.
+        "vars" => ok(tcl_cmd_core::info::vars(vm, rest.first())),
+        "locals" => ok(tcl_cmd_core::info::locals(vm, rest.first())),
+        "globals" => ok(tcl_cmd_core::info::globals(vm, rest.first())),
         // body/args/default route through the shared `info` core over the `Procs`
         // role trait; the var-write for `default` stays here (it is trace-aware).
         "body" => match rest {

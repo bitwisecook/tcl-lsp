@@ -291,6 +291,23 @@ impl Frames for Interp {
         };
         self.make_upvar(target, local.as_bytes());
     }
+
+    fn in_proc(&self) -> bool {
+        self.frames.borrow().in_proc()
+    }
+
+    fn var_names(&self, include_links: bool) -> Vec<String> {
+        let frames = self.frames.borrow();
+        let names = if include_links {
+            frames.local_names()
+        } else {
+            frames.local_names_no_links()
+        };
+        names
+            .iter()
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect()
+    }
 }
 
 /// Namespace name resolution. `NsId` is native (the contract's `u32` newtype
@@ -357,6 +374,14 @@ impl Namespaces for Interp {
     fn procs_in(&self, ns: NsId) -> Vec<String> {
         self.namespaces()
             .proc_names(ns.0 as usize)
+            .iter()
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect()
+    }
+
+    fn vars_in(&self, ns: NsId) -> Vec<String> {
+        self.namespaces()
+            .var_names(ns.0 as usize)
             .iter()
             .map(|s| String::from_utf8_lossy(s).into_owned())
             .collect()

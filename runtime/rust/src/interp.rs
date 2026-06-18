@@ -2380,12 +2380,6 @@ impl Interp {
         }
     }
 
-    /// `info locals` — the active frame's local variable names (links such as
-    /// `global`/`variable`/`upvar` and auto-linked instance vars are excluded).
-    pub(crate) fn local_var_names(&self) -> Vec<Vec<u8>> {
-        self.frames.borrow().local_names_no_links()
-    }
-
     /// `info consts` — the `const` scalar names visible in the current scope.
     /// Filters the visible variables by constness (following links), so an OO
     /// instance variable linked to a `const` namespace variable is included.
@@ -2413,11 +2407,6 @@ impl Interp {
             }
             None => Vec::new(),
         }
-    }
-
-    /// `info globals` — the global namespace's variable names.
-    pub(crate) fn global_var_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces.borrow().var_names(GLOBAL)
     }
 
     /// The canonical fully-qualified prefix (ending in `::`) of the namespace a
@@ -2456,26 +2445,6 @@ impl Interp {
         match target {
             Some(id) => {
                 let mut v: Vec<Vec<u8>> = ns.command_names(id).iter().map(|s| s.to_vec()).collect();
-                v.sort();
-                v
-            }
-            None => Vec::new(),
-        }
-    }
-
-    /// Variable names in the namespace named `qualifier` (`info vars
-    /// ::ns::pattern`), or empty if it does not exist. An empty qualifier (a
-    /// leading `::pattern`) addresses the global namespace.
-    pub(crate) fn vars_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v = ns.var_names(id);
                 v.sort();
                 v
             }

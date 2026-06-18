@@ -7,7 +7,7 @@
 //! Family-B role trait. Both runtimes (`tcl-vm`, `runtime/rust`) satisfy the
 //! bound and wrap the `Result<V, CmdError>` in their own command ABI.
 
-use tcl_runtime_api::{Frames, Introspect, Namespaces, Procs, ROOT_NS, VarStore};
+use tcl_runtime_api::{Frames, Introspect, Namespaces, NsId, Procs, ROOT_NS, VarStore};
 use tcl_syntax::glob::string_match;
 use tcl_syntax::value::ValueOps;
 
@@ -214,61 +214,144 @@ where
 {
     let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
     let cur = Namespaces::current(ops);
-    let names: Vec<String> =
-        if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier) {
-            // Qualified: a single target namespace, re-qualified, no global merge.
-            let target = if prefix.is_empty() {
-                Some(ROOT_NS)
+    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier) {
+        qualified_listing(ops, prefix, tail, cur, |o, id| {
+            if procs_only {
+                o.procs_in(id)
             } else {
-                ops.find_namespace(cur, prefix)
-            };
-            if let Some(id) = target {
-                let mut raw = members_in(ops, id, procs_only);
-                raw.sort();
-                let canon = ops.name(id); // "::" for root, "::foo" otherwise
-                let qual = if id == ROOT_NS {
-                    canon
-                } else {
-                    format!("{canon}::")
-                };
-                raw.into_iter()
-                    .filter(|n| string_match(tail, n))
-                    .map(|n| format!("{qual}{n}"))
-                    .collect()
-            } else {
-                Vec::new()
+                o.commands_in(id)
             }
+        })
+    } else {
+        let mut v = if procs_only {
+            ops.procs_in(cur)
         } else {
-            // Unqualified: the current namespace's members, glob-filtered.
-            let mut v = members_in(ops, cur, procs_only);
-            // `info commands` (not `info procs`) also sees the global commands.
-            if !procs_only && cur != ROOT_NS {
-                v.extend(members_in(ops, ROOT_NS, false));
-            }
-            v.sort();
-            v.dedup();
-            if let Some(p) = pat.as_deref() {
-                v.retain(|n| string_match(p, n));
-            }
-            v
+            ops.commands_in(cur)
         };
+        // `info commands` (not `info procs`) also sees the global commands.
+        if !procs_only && cur != ROOT_NS {
+            v.extend(ops.commands_in(ROOT_NS));
+        }
+        finish_unqualified(v, pat.as_deref())
+    };
+    build_name_list(ops, names)
+}
+
+/// `info vars ?pattern?` — the variables visible in the current context (C's
+/// `InfoVarsCmd`):
+///
+/// - A **namespace-qualified** `pattern` lists that namespace's variables,
+///   re-qualified absolute (exactly as [`command_list`] does for commands).
+/// - **In a procedure**, an unqualified pattern lists the frame's own variables —
+///   genuine locals *and* `upvar`/`global`/`variable` links (by their local name).
+/// - **At namespace/global scope**, it lists the current namespace's variables.
+pub fn vars<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+where
+    O: ValueOps<Value = V> + Namespaces + Frames,
+{
+    let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
+    let cur = Namespaces::current(ops);
+    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier) {
+        qualified_listing(ops, prefix, tail, cur, Namespaces::vars_in)
+    } else if Frames::in_proc(ops) {
+        finish_unqualified(ops.var_names(true), pat.as_deref())
+    } else {
+        finish_unqualified(ops.vars_in(cur), pat.as_deref())
+    };
+    build_name_list(ops, names)
+}
+
+/// `info locals ?pattern?` — the genuine local variables (no `upvar`/`global`/
+/// `variable` links) of the current procedure frame; empty outside a proc.
+pub fn locals<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+where
+    O: ValueOps<Value = V> + Frames,
+{
+    let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
+    let names = finish_unqualified(ops.var_names(false), pat.as_deref());
+    build_name_list(ops, names)
+}
+
+/// `info globals ?pattern?` — the variables of the global namespace. A
+/// `::`-prefixed pattern matches global variables written absolute (Bug 1057461:
+/// strip *all* leading colons, so `::x`/`:::x` match `x`, but a lone `:x` does not).
+pub fn globals<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+where
+    O: ValueOps<Value = V> + Namespaces,
+{
+    let pat: Option<String> = pattern.map(|p| {
+        let s = ops.as_str(p);
+        if s.starts_with("::") {
+            s.trim_start_matches(':').to_string()
+        } else {
+            s.to_string()
+        }
+    });
+    let names = finish_unqualified(ops.vars_in(ROOT_NS), pat.as_deref());
+    build_name_list(ops, names)
+}
+
+/// The qualified-pattern listing path shared by `info commands`/`procs`/`vars`:
+/// resolve `prefix` (relative to `cur`, or the global root if empty) to a
+/// namespace, enumerate its members via `enumerate`, re-qualify each to an
+/// absolute name, and glob-filter by `tail`. An unknown namespace → empty.
+fn qualified_listing<O, F>(
+    ops: &O,
+    prefix: &str,
+    tail: &str,
+    cur: NsId,
+    enumerate: F,
+) -> Vec<String>
+where
+    O: Namespaces,
+    F: Fn(&O, NsId) -> Vec<String>,
+{
+    let target = if prefix.is_empty() {
+        Some(ROOT_NS)
+    } else {
+        ops.find_namespace(cur, prefix)
+    };
+    let Some(id) = target else {
+        return Vec::new();
+    };
+    let mut raw = enumerate(ops, id);
+    raw.sort();
+    let canon = ops.name(id); // "::" for root, "::foo" otherwise
+    let qual = if id == ROOT_NS {
+        canon
+    } else {
+        format!("{canon}::")
+    };
+    raw.into_iter()
+        .filter(|n| string_match(tail, n))
+        .map(|n| format!("{qual}{n}"))
+        .collect()
+}
+
+/// Sort, dedupe, and glob-filter `names` by `pat` — the unqualified-listing tail
+/// shared by the `info` listing cores. Sorting is deterministic (unlike C's hash
+/// order — matching both runtimes' prior behaviour).
+fn finish_unqualified(mut names: Vec<String>, pat: Option<&str>) -> Vec<String> {
+    names.sort();
+    names.dedup();
+    if let Some(p) = pat {
+        names.retain(|n| string_match(p, n));
+    }
+    names
+}
+
+/// Build a Tcl list value from `names` (each a fresh string value) — the result
+/// of every `info` listing core.
+fn build_name_list<O, V>(ops: &mut O, names: Vec<String>) -> V
+where
+    O: ValueOps<Value = V>,
+{
     let vals: Vec<V> = names.into_iter().map(|n| ops.new_string(n)).collect();
     ops.new_list(vals)
 }
 
-/// The direct members (commands, or just procs) of namespace `id`, as
-/// unqualified tail names — the `Namespaces` enumeration rung, dispatched by
-/// `procs_only`.
-fn members_in<O: Namespaces>(ops: &O, id: tcl_runtime_api::NsId, procs_only: bool) -> Vec<String> {
-    if procs_only {
-        ops.procs_in(id)
-    } else {
-        ops.commands_in(id)
-    }
-}
-
-/// Split a command-list pattern on its **last** `::` into `(ns_prefix, tail_glob)`,
-/// or `None` when the pattern is unqualified. An empty prefix (a leading `::pat`)
+/// Split a listing pattern on its **last** `::` into `(ns_prefix, tail_glob)`, or
+/// `None` when the pattern is unqualified. An empty prefix (a leading `::pat`)
 /// denotes the global namespace. Matches C's `TclGetNamespaceForQualName` split
 /// on colon runs (`foo:::bar` → prefix `foo:`, tail `bar`, like the runtime's
 /// `rposition` of `::`).

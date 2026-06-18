@@ -106,6 +106,19 @@ pub trait Frames {
     /// Install a link (`upvar`/`global`/`variable`) in `here` to `target`'s
     /// variable `target_name`.
     fn link(&mut self, here: FrameId, target: FrameId, local: &str, target_name: &str);
+
+    // -- active-frame variable enumeration (backs the *frame-local* half of `info
+    // vars`/`info locals`, the namespace-free counterpart to `Namespaces::vars_in`).
+
+    /// Whether the active frame is a **procedure** activation (vs the global or a
+    /// `namespace eval` frame) — `info vars` lists the frame's own variables in a
+    /// proc, the current namespace's variables otherwise (C's `InfoVarsCmd`).
+    fn in_proc(&self) -> bool;
+    /// The variable names of the **active** frame. Genuine locals (scalars,
+    /// arrays) are always included; `upvar`/`global`/`variable` **links** are
+    /// included iff `include_links` — `info vars` lists links (by their local
+    /// alias), `info locals` does not.
+    fn var_names(&self, include_links: bool) -> Vec<String>;
 }
 
 /// The command table and dispatch: builtins, procs, aliases, imports,
@@ -167,6 +180,11 @@ pub trait Namespaces {
     /// The unqualified names of **user procedures** defined directly in `ns` (the
     /// `TclIsProc` subset of [`commands_in`](Self::commands_in)); backs `info procs`.
     fn procs_in(&self, ns: NsId) -> Vec<String>;
+    /// The unqualified names of **variables** defined directly in `ns` (a walk of
+    /// `Namespace.varTable`); backs `info vars ::ns::*` and `info globals` (the
+    /// global namespace's variables). The variable analogue of
+    /// [`commands_in`](Self::commands_in).
+    fn vars_in(&self, ns: NsId) -> Vec<String>;
 }
 
 /// Variable traces (read/write/unset). Mirrors `runtime/zig`'s

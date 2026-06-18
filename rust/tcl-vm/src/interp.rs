@@ -738,22 +738,34 @@ impl Vm {
         self.frames.get(level).map(|f| f.call_argv.clone())
     }
 
-    /// Scalar variable names visible in the current frame (`info vars`/`locals`).
-    pub(crate) fn local_scalar_names(&self) -> Vec<String> {
+    /// The variable names of the current (active) frame — the `Frames::var_names`
+    /// enumeration. Genuine locals (scalars, arrays) always; `upvar`/`global`/
+    /// `variable` links iff `include_links` (`info vars` lists links by their
+    /// local alias, `info locals` does not).
+    pub(crate) fn frame_var_names(&self, include_links: bool) -> Vec<String> {
         self.frames.last().map_or_else(Vec::new, |f| {
             f.locals
                 .iter()
-                .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+                .filter(|(_, l)| include_links || matches!(l, Local::Scalar(_) | Local::Array(_)))
                 .map(|(n, _)| n.clone())
                 .collect()
         })
     }
 
-    /// Global variable names (`info globals`).
-    pub(crate) fn global_names(&self) -> Vec<String> {
-        self.frames
-            .first()
-            .map_or_else(Vec::new, |f| f.locals.keys().cloned().collect())
+    /// The variables defined **directly** in namespace `canonical` (unrooted; `""`
+    /// = global) — the `Namespaces::vars_in` enumeration. Namespace variables live
+    /// in the global frame keyed by their qualified name (`foo::v`), so this is the
+    /// variable analogue of [`names_directly_in`](Self::names_directly_in): the
+    /// global frame's genuine variables (scalars/arrays, not links) whose key is a
+    /// direct member of `canonical`.
+    pub(crate) fn vars_directly_in(&self, canonical: &str) -> Vec<String> {
+        self.frames.first().map_or_else(Vec::new, |f| {
+            f.locals
+                .iter()
+                .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+                .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
+                .collect()
+        })
     }
 
     /// Set a local directly in the current frame (proc argument binding).
@@ -1457,6 +1469,16 @@ impl Frames for Vm {
         );
         self.add_link(local, target.0, target_name);
     }
+
+    fn in_proc(&self) -> bool {
+        // A proc activation carries its name; the global (0) and `namespace eval`
+        // frames do not (the latter runs in the current frame, pushing no frame).
+        self.frames.last().is_some_and(|f| f.proc_name.is_some())
+    }
+
+    fn var_names(&self, include_links: bool) -> Vec<String> {
+        self.frame_var_names(include_links)
+    }
 }
 
 /// Namespace name resolution over the VM's String-based namespace model, bridged
@@ -1540,6 +1562,10 @@ impl Namespaces for Vm {
 
     fn procs_in(&self, ns: NsId) -> Vec<String> {
         self.names_directly_in(&self.ns_name(ns), true)
+    }
+
+    fn vars_in(&self, ns: NsId) -> Vec<String> {
+        self.vars_directly_in(&self.ns_name(ns))
     }
 }
 

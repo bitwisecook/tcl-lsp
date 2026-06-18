@@ -88,37 +88,13 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // only, while `info commands` does merge global.
         b"commands" => info_command_list(interp, argv, b"info commands ?pattern?", false),
         b"procs" => info_command_list(interp, argv, b"info procs ?pattern?", true),
-        b"vars" => set_list_qualified(
-            interp,
-            argv,
-            b"info vars ?pattern?",
-            Interp::vars_in_namespace,
-            Interp::visible_var_names,
-        ),
-        b"globals" => {
-            if argv.len() > 3 {
-                return wrong_args(interp, b"info globals ?pattern?");
-            }
-            // Strip leading global-namespace qualifiers (Bug 1057461): only when
-            // the pattern starts with `::` — then drop *all* leading colons, so
-            // `::x`/`:::x` match global `x` but a lone `:x` does not.
-            let pattern = argv.get(2).map(|&a| obj_bytes(a)).map(|p| {
-                if p.starts_with(b"::") {
-                    let n = p.iter().position(|&c| c != b':').unwrap_or(p.len());
-                    p[n..].to_vec()
-                } else {
-                    p
-                }
-            });
-            let list = interp.global_var_names();
-            set_filtered(interp, list, pattern.as_deref())
-        }
-        b"locals" => set_list(
-            interp,
-            argv,
-            b"info locals ?pattern?",
-            Interp::local_var_names,
-        ),
+        // vars/locals/globals route through the shared variable-listing cores
+        // (namespace-aware over `Namespaces::vars_in` + the active-frame
+        // `Frames::var_names`/`in_proc`); `globals` owns the Bug 1057461 leading-
+        // `::` strip in the core.
+        b"vars" => info_var_list(interp, argv, b"info vars ?pattern?", VarList::Vars),
+        b"globals" => info_var_list(interp, argv, b"info globals ?pattern?", VarList::Globals),
+        b"locals" => info_var_list(interp, argv, b"info locals ?pattern?", VarList::Locals),
         b"level" => info_level(interp, argv),
         b"frame" => info_frame(interp, argv),
         b"coroutine" => {
@@ -307,21 +283,6 @@ fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>
     Code::Ok
 }
 
-/// `info <sub> ?pattern?` over a name producer.
-fn set_list(
-    interp: &mut Interp,
-    argv: &[*mut TclObj],
-    usage: &[u8],
-    names: fn(&Interp) -> Vec<Vec<u8>>,
-) -> Code {
-    if argv.len() > 3 {
-        return wrong_args(interp, usage);
-    }
-    let pattern = argv.get(2).map(|&a| obj_bytes(a));
-    let list = names(interp);
-    set_filtered(interp, list, pattern.as_deref())
-}
-
 /// `info commands|procs|vars ?pattern?` — a namespace-qualified pattern
 /// (`::ns::glob`) lists the matching names *in that namespace* (re-qualified);
 /// an unqualified pattern filters the names visible from the current scope.
@@ -383,6 +344,35 @@ fn info_command_list(
         return wrong_args(interp, usage);
     }
     let result = tcl_cmd_core::info::command_list(interp, argv.get(2), procs_only);
+    interp.set_result(result);
+    Code::Ok
+}
+
+/// Which variable-listing core `info_var_list` dispatches to.
+enum VarList {
+    /// `info vars` — current context (frame locals in a proc, else namespace vars).
+    Vars,
+    /// `info locals` — the current proc frame's genuine locals.
+    Locals,
+    /// `info globals` — the global namespace's variables.
+    Globals,
+}
+
+/// `info vars`/`locals`/`globals` — the shared variable-listing cores (over
+/// `Namespaces::vars_in` + the active-frame `Frames` rungs). The whole
+/// context/namespace/link logic lives in the core; this adapter only checks
+/// arity and maps the result. (`consts` stays on [`set_list_qualified`] — TIP 677
+/// is runtime-only.)
+fn info_var_list(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], which: VarList) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, usage);
+    }
+    let pattern = argv.get(2);
+    let result = match which {
+        VarList::Vars => tcl_cmd_core::info::vars(interp, pattern),
+        VarList::Locals => tcl_cmd_core::info::locals(interp, pattern),
+        VarList::Globals => tcl_cmd_core::info::globals(interp, pattern),
+    };
     interp.set_result(result);
     Code::Ok
 }
@@ -728,6 +718,35 @@ mod tests {
             assert_eq!(run(i, b"info procs greet"), b"greet");
             assert_eq!(run(i, b"info procs nosuch*"), b"");
             i.eval_str(b"unset d");
+        });
+    }
+
+    #[test]
+    fn info_vars_locals_globals() {
+        leak_free(|i| {
+            run(
+                i,
+                b"namespace eval foo { variable a 1; variable b 2 }\nset gx 10",
+            );
+            // In a proc: `info locals` is the genuine locals; `info vars` also
+            // lists the linked namespace var by its local alias.
+            run(
+                i,
+                b"proc p {} { set loc 5; variable ::foo::a; \
+                  set ::out \"[lsort [info locals]]|[lsort [info vars]]\" }",
+            );
+            run(i, b"p");
+            assert_eq!(run(i, b"set ::out"), b"loc|a loc");
+            // `info globals` lists global-namespace vars only (not `foo::a`).
+            assert_eq!(run(i, b"lsearch -exact [info globals] foo::a"), b"-1");
+            assert_eq!(
+                run(i, b"expr {[lsearch -exact [info globals] gx] >= 0}"),
+                b"1"
+            );
+            // A qualified `info vars` lists that namespace re-qualified.
+            assert_eq!(run(i, b"lsort [info vars ::foo::*]"), b"::foo::a ::foo::b");
+            // At namespace scope, `info vars` lists the namespace's own vars.
+            assert_eq!(run(i, b"namespace eval foo { lsort [info vars] }"), b"a b");
         });
     }
 
