@@ -597,6 +597,26 @@ fn variable_traces() {
         "trace add variable x write cb\nputs [trace info variable x]\n",
         "{write cb}\n",
     );
+    // Op validation + the type error now route through the shared catalogue
+    // (the VM previously accepted any op word, and used the wrong type error).
+    let (ok, msg, _) = run("trace add variable v bogus {}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad operation \"bogus\": must be array, read, unset, or write"
+    );
+    let (ok, msg, _) = run("trace add variable v {} {}");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad operation list \"\": must be one or more of array, read, unset, or write"
+    );
+    let (ok, msg, _) = run("trace add bogus n o c");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad option \"bogus\": must be execution, command, or variable"
+    );
 }
 
 #[test]

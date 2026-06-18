@@ -159,6 +159,21 @@ Shared in `tcl-cmd-core`:
   value→value function; the adapter only maps the result/error. The `-index` path
   resolution moved to the shared `index::{resolve_opt, encodable}`. This lifted
   the VM from a `-exact`/`-glob`-only stub to the full command.
+- `trace::{parse_ops, bad_type_error}` — the `trace` **argument decoding**: the
+  op-list parser (split + per-type validation of `read`/`write`/`unset`/`array`,
+  `rename`/`delete`, `enter`/`leave`/`enterstep`/`leavestep`) and the `bad type` /
+  `bad operation` catalogue. `trace` is heavily stateful (each runtime owns its
+  trace tables and the firing wired into variable/command/execution access), so
+  only the decoding is shared; the runtime folds the canonical op names into its
+  bitset, the VM keeps the name list. This fixed two VM bugs: it did **no** op
+  validation (`trace add variable v bogus cmd` was silently accepted) and used the
+  wrong type error (`bad type "X": must be command, execution, or variable` vs C's
+  `bad option "X": must be execution, command, or variable`). The trace *engines*
+  (the VM fires variable traces only; the runtime fires all three) stay
+  per-adapter. (`catch` was assessed and **kept per-adapter**: its body eval +
+  completion→`(code,result,options)` mapping and the `-errorcode`/`-errorinfo`/
+  `-errorstack`/`-during` options dict are built from each runtime's own error
+  accumulator, with almost no representation-independent logic to share.)
 - `switch::{parse_options, select}` — the `switch` **decision** logic: the option
   table (`-exact`/`-glob`/`-regexp`/`-nocase`/`-indexvar`/`-matchvar`/`--`, with
   the prefix-matching + the error catalogue), and the value/pattern selection
@@ -270,6 +285,7 @@ core unified both to the correct behaviour):
 | `namespace children`/`parent` (VM) | `namespace children` ignored its `?pattern?` argument (returned all children), and `parent`/`children` on a non-existent namespace returned a computed/empty result; routing the shared core over the `Namespaces` nav rungs gave `children` the (target-qualified) glob filter and made both error `namespace "X" not found` (tclsh). |
 | `info commands`/`procs` (VM) | the VM listed *all* command-map keys flat, so `info commands` at global leaked namespaced names (`foo::bar`) and `info commands ::ns::*` matched nothing (the leading `::` never matched an unrooted key); routing the namespace-aware core fixed both (global scope excludes namespaced names; qualified patterns list + re-qualify the target namespace) — verified against tclsh 9.0. |
 | `info procs` (runtime) | inside a namespace, `info procs` merged the global namespace's procs (old `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace only (`info commands` is the one that merges global). The shared core's global-merge asymmetry fixed it. |
+| `trace` (VM) | the VM did **no** op-list validation (`trace add variable v bogus cmd` was silently accepted) and reported the wrong trace-type error (`bad type "X": must be command, execution, or variable`). Sharing the `trace::parse_ops`/`bad_type_error` catalogue gave it the per-type op validation and C's `bad option "X": must be execution, command, or variable` — verified vs tclsh 9.0. |
 | `switch` (VM) | the VM's `switch` only did exact/glob: `-regexp` fell back to exact (no engine), `default` matched in **any** position (not just last), and `-matchvar`/`-indexvar` were absent. Sharing the selection core gave it real regexp matching (via the `regex` crate engine), the correct final-pattern-only `default`, and the TIP #75 side-channel — verified vs tclsh 9.0. |
 | `info vars`/`globals` (VM) | the VM aliased `info vars` to `info locals` (both listed the frame's non-link locals), so `info vars` in a proc **dropped its `upvar`/`global`/`variable` links** and ignored namespace scope; and `info globals` listed *all* global-frame keys, leaking namespaced variables (`foo::v`). Routing the shared cores over `vars_in` + the frame rungs gave `info vars` its links + namespace-scope behaviour and `info globals` the global-only filter — verified against tclsh 9.0. |
 

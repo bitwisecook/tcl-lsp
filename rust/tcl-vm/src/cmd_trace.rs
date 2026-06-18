@@ -8,8 +8,8 @@
 //!
 //! Command and execution traces are accepted but not yet fired.
 
+use tcl_cmd_core::trace as core_trace;
 use tcl_runtime_api::Completion;
-use tcl_syntax::list::split_list;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -36,11 +36,13 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// Parse an ops word (`{read write}`) into a normalised list of op names.
+/// Parse + validate a variable-trace ops word (`{read write}`) into op names, via
+/// the shared core (this also gained the missing op validation — the VM used to
+/// accept `trace add variable v bogus cmd`).
 fn parse_ops(spec: &str) -> Result<Vec<String>, Completion<Value>> {
-    split_list(spec)
-        .map(|ops| ops.iter().map(ToString::to_string).collect())
-        .map_err(|e| err(e.message().to_string()))
+    core_trace::parse_ops(spec.as_bytes(), core_trace::TraceKind::Variable)
+        .map(|ops| ops.iter().map(|o| (*o).to_string()).collect())
+        .map_err(|e| err(e.into_message()))
 }
 
 fn trace_add(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -61,9 +63,7 @@ fn trace_add(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         },
         // Command / execution traces: accepted, not yet fired.
         "command" | "execution" => ok(Value::empty()),
-        other => err(format!(
-            "bad type \"{other}\": must be command, execution, or variable"
-        )),
+        other => err(core_trace::bad_type_error(other).into_message()),
     }
 }
 
@@ -84,9 +84,7 @@ fn trace_remove(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"trace remove variable name ops command\""),
         },
         "command" | "execution" => ok(Value::empty()),
-        other => err(format!(
-            "bad type \"{other}\": must be command, execution, or variable"
-        )),
+        other => err(core_trace::bad_type_error(other).into_message()),
     }
 }
 
@@ -97,9 +95,7 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match &*kind.to_str() {
         "variable" => trace_info_variable(vm, args),
         "command" | "execution" => ok(Value::list(Vec::new())),
-        other => err(format!(
-            "bad type \"{other}\": must be command, execution, or variable"
-        )),
+        other => err(core_trace::bad_type_error(other).into_message()),
     }
 }
 

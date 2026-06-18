@@ -23,6 +23,8 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::trace as core_trace;
+
 use crate::frame::split_array_ref;
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::namespace::NsId;
@@ -192,7 +194,11 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 b"variable" => trace_var_add_remove(interp, argv, is_add),
                 b"command" => cmd_trace_add_remove(interp, argv, is_add, ops::CMD_ANY),
                 b"execution" => cmd_trace_add_remove(interp, argv, is_add, ops::EXEC_ANY),
-                other => bad_option(interp, other, b"execution, command, or variable"),
+                other => interp.set_error(
+                    core_trace::bad_type_error(&String::from_utf8_lossy(other))
+                        .message()
+                        .as_bytes(),
+                ),
             }
         }
         b"info" => {
@@ -203,7 +209,11 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 b"variable" => trace_var_info(interp, argv),
                 b"command" => cmd_trace_info(interp, argv, ops::CMD_ANY),
                 b"execution" => cmd_trace_info(interp, argv, ops::EXEC_ANY),
-                other => bad_option(interp, other, b"execution, command, or variable"),
+                other => interp.set_error(
+                    core_trace::bad_type_error(&String::from_utf8_lossy(other))
+                        .message()
+                        .as_bytes(),
+                ),
             }
         }
         other => bad_option(interp, other, b"add, info, or remove"),
@@ -212,61 +222,33 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- command / execution traces -------------------------------------------
 
-/// Parse an execution-trace op list into a [`ops`] bitset, with C's verbatim
-/// `bad operation list ""` / `bad operation "X"` messages.
+/// Parse an execution-trace op list into a [`ops`] bitset, via the shared core
+/// (split + validation + the catalogue) then folding the canonical names to bits.
 fn parse_exec_ops(interp: &mut Interp, spec: &[u8]) -> Result<u8, Code> {
-    parse_cmd_or_exec_ops(
-        interp,
-        spec,
-        b"enter, leave, enterstep, or leavestep",
-        |o| match o {
-            b"enter" => Some(ops::ENTER),
-            b"leave" => Some(ops::LEAVE),
-            b"enterstep" => Some(ops::ENTERSTEP),
-            b"leavestep" => Some(ops::LEAVESTEP),
-            _ => None,
-        },
-    )
+    let names = core_trace::parse_ops(spec, core_trace::TraceKind::Execution)
+        .map_err(|e| interp.set_error(e.message().as_bytes()))?;
+    Ok(names.iter().fold(0u8, |acc, o| {
+        acc | match *o {
+            "enter" => ops::ENTER,
+            "leave" => ops::LEAVE,
+            "enterstep" => ops::ENTERSTEP,
+            "leavestep" => ops::LEAVESTEP,
+            _ => 0,
+        }
+    }))
 }
 
 /// Parse a command-trace op list (`rename`/`delete`) into a [`ops`] bitset.
 fn parse_cmd_ops(interp: &mut Interp, spec: &[u8]) -> Result<u8, Code> {
-    parse_cmd_or_exec_ops(interp, spec, b"delete or rename", |o| match o {
-        b"rename" => Some(ops::RENAME),
-        b"delete" => Some(ops::DELETE),
-        _ => None,
-    })
-}
-
-fn parse_cmd_or_exec_ops(
-    interp: &mut Interp,
-    spec: &[u8],
-    must_be: &[u8],
-    classify: impl Fn(&[u8]) -> Option<u8>,
-) -> Result<u8, Code> {
-    let list = match crate::parse::split_list(spec) {
-        Ok(l) => l,
-        Err(e) => return Err(interp.set_error(e.message())),
-    };
-    if list.is_empty() {
-        let mut m = b"bad operation list \"\": must be one or more of ".to_vec();
-        m.extend_from_slice(must_be);
-        return Err(interp.set_error(&m));
-    }
-    let mut flags = 0u8;
-    for o in &list {
-        match classify(o) {
-            Some(bit) => flags |= bit,
-            None => {
-                let mut m = b"bad operation \"".to_vec();
-                m.extend_from_slice(o);
-                m.extend_from_slice(b"\": must be ");
-                m.extend_from_slice(must_be);
-                return Err(interp.set_error(&m));
-            }
+    let names = core_trace::parse_ops(spec, core_trace::TraceKind::Command)
+        .map_err(|e| interp.set_error(e.message().as_bytes()))?;
+    Ok(names.iter().fold(0u8, |acc, o| {
+        acc | match *o {
+            "rename" => ops::RENAME,
+            "delete" => ops::DELETE,
+            _ => 0,
         }
-    }
-    Ok(flags)
+    }))
 }
 
 /// `trace add|remove command|execution name opList command`. `category` is
@@ -378,26 +360,13 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
     Code::Ok
 }
 
-/// Parse and validate an ops list (`{read write unset array}`).
+/// Parse and validate a variable-trace ops list (`{read write unset array}`),
+/// via the shared core (the op catalogue lives once in `tcl-cmd-core::trace`).
 fn parse_ops(interp: &mut Interp, spec: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
-    let ops = match crate::parse::split_list(spec) {
-        Ok(o) => o,
-        Err(e) => return Err(interp.set_error(e.message())),
-    };
-    if ops.is_empty() {
-        return Err(interp.set_error(
-            b"bad operation list \"\": must be one or more of array, read, unset, or write",
-        ));
+    match core_trace::parse_ops(spec, core_trace::TraceKind::Variable) {
+        Ok(ops) => Ok(ops.iter().map(|o| o.as_bytes().to_vec()).collect()),
+        Err(e) => Err(interp.set_error(e.message().as_bytes())),
     }
-    for o in &ops {
-        if !matches!(o.as_slice(), b"read" | b"write" | b"unset" | b"array") {
-            let mut m = b"bad operation \"".to_vec();
-            m.extend_from_slice(o);
-            m.extend_from_slice(b"\": must be array, read, unset, or write");
-            return Err(interp.set_error(&m));
-        }
-    }
-    Ok(ops)
 }
 
 // -- variable traces -------------------------------------------------------
