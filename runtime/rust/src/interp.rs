@@ -705,7 +705,7 @@ pub struct InterpState {
     result: Cell<*mut TclObj>,
     /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
     /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
-    /// `&self` but mints a handle on first sight; `family_b.rs` wraps the raw id
+    /// `&self` but mints a handle on first sight; `state_traits.rs` wraps the raw id
     /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
     /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
     cmd_arena: RefCell<CmdArena>,
@@ -1851,7 +1851,7 @@ impl Interp {
 
     /// Fire `var`'s `op` traces; on a read/write callback error return the
     /// access-aborting message, already wrapped as `can't read/set "var": <msg>`
-    /// (`TclCallVarTraces`), else `None`. The `Traces::fire` engine (`family_b.rs`)
+    /// (`TclCallVarTraces`), else `None`. The `Traces::fire` engine (`state_traits.rs`)
     /// — it keeps the trace internals (the firing guard, `pending_err`, the
     /// per-op wrapping) here; `unset`/`array` callback errors do not abort, so
     /// they yield `None`.
@@ -2616,7 +2616,7 @@ impl Interp {
 
     /// The current result **object** — a borrowed pointer (the interp keeps its
     /// reference; the caller must not release it without first taking its own
-    /// `+1`). Backs `Commands::dispatch`'s completion capture in `family_b.rs`.
+    /// `+1`). Backs `Commands::dispatch`'s completion capture in `state_traits.rs`.
     pub(crate) fn result_obj(&self) -> *mut TclObj {
         self.result.get()
     }
@@ -2637,7 +2637,7 @@ impl Interp {
     /// Resolve `name` from namespace context `cxt` (through the namespace tree to
     /// the root) to its command's FQN, then intern that to a stable raw
     /// `CommandId`. `None` if it resolves to no command. The `Namespaces::find_command`
-    /// engine (`family_b.rs`), keeping the namespace-table access here.
+    /// engine (`state_traits.rs`), keeping the namespace-table access here.
     pub(crate) fn find_command_id(&self, cxt: NsId, name: &[u8]) -> Option<u32> {
         let fqn = self.namespaces.borrow().resolve_fqn(cxt, name)?;
         Some(self.intern_cmd(&fqn))
@@ -2650,7 +2650,7 @@ impl Interp {
     }
 
     /// The fully-qualified name of namespace `ns` (`"::"` for the root). Backs
-    /// `Namespaces::name` (`family_b.rs`), keeping the namespace-table access here.
+    /// `Namespaces::name` (`state_traits.rs`), keeping the namespace-table access here.
     pub(crate) fn ns_qualified_name(&self, ns: NsId) -> Vec<u8> {
         self.namespaces.borrow().qualified_name(ns)
     }

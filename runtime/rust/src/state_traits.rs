@@ -1,4 +1,4 @@
-//! Family-B interp-state trait impls (`tcl-runtime-api`).
+//! The runtime's impls of the `tcl-runtime-api` interp-state role traits.
 //!
 //! The runtime satisfies the shared state-mutation contract over its
 //! `*mut TclObj` value model, so a consumer of the `tcl-runtime-api` role
