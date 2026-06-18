@@ -296,11 +296,13 @@ class TestO120CornerCases:
         """)
         _assert_equiv(source)
         opt_source, rewrites = optimise_source(source)
-        # SCCP may fold [string trim " true "] → "true" at analysis time,
-        # which enables branch folding (if {1}) instead of just the O120
-        # == → eq rewrite.  Both are valid optimizations.
-        assert ('$a eq "true"' in opt_source) or ("if {1}" in opt_source)
-        assert any(r.code in ("O120", "O100", "O101", "O109") for r in rewrites)
+        # SCCP folds [string trim " true "] → "true", so `$a == "true"` is the
+        # string compare "true" == "true" → true (both operands non-numeric),
+        # and the branch constant-folds to the then-arm.  The O120 == → eq
+        # rewrite and the if {1} intermediate are equivalent earlier stops on
+        # the same path; accept the fully-folded result too.
+        assert "puts yes" in opt_source and "puts no" not in opt_source
+        assert any(r.code in ("O120", "O100", "O101", "O109", "O112") for r in rewrites)
 
     def test_var_vs_var_known_string_types_rewritten(self):
         source = textwrap.dedent("""\
@@ -314,9 +316,11 @@ class TestO120CornerCases:
         """)
         _assert_equiv(source)
         opt_source, rewrites = optimise_source(source)
-        # SCCP may fold both string trims to "foo", enabling branch folding.
-        assert ("$a eq $b" in opt_source) or ("if {1}" in opt_source)
-        assert any(r.code in ("O120", "O101", "O109") for r in rewrites)
+        # SCCP folds both string trims to "foo", so `$a == $b` is the string
+        # compare "foo" == "foo" → true (both operands non-numeric), and the
+        # branch constant-folds to the then-arm.
+        assert "puts equal" in opt_source and "puts notequal" not in opt_source
+        assert any(r.code in ("O120", "O101", "O109", "O112") for r in rewrites)
 
     def test_mixed_compare_rewrites_only_string_compare(self):
         source = textwrap.dedent("""\

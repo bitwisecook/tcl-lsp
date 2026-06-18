@@ -1269,13 +1269,24 @@ class TestPolymorphicEqualityFolding:
         assert _eval('$x == "foo"', {"x": "bar"}) == 0
         assert _eval('$x != "foo"', {"x": "bar"}) == 1
 
-    def test_both_numeric_uses_numeric_comparison(self):
-        # When both operands are numbers, ``==`` compares numerically — so
-        # "5" and "5.0" are *equal* (unlike the string-only ``eq``).
+    def test_both_numeric_literals_use_numeric_comparison(self):
+        # When both operands are plainly numeric, ``==`` compares numerically.
         assert _eval("5 == 5") == 1
-        assert _eval('5 == "5.0"') == 1
-        assert _eval('$x == "5.0"', {"x": 5}) == 1
         assert _eval("5 != 6") == 1
+        assert _eval("5 == 5.0") == 1  # int vs float literal — both numbers
+
+    def test_dialect_ambiguous_operands_do_not_fold(self):
+        # Folding to a string compare is only safe when both operands are
+        # definitely non-numeric.  A numeric-looking string operand makes the
+        # numeric-vs-string outcome dialect-dependent, so we decline to fold
+        # rather than risk a wrong answer (a false I230).  Mirrors Codex review
+        # on PR #640: `"true" == "1"` and `"08" == "8"` are 0 under Tcl 8.6.
+        assert _eval('"true" == "1"') is None
+        assert _eval('"08" == "8"') is None
+        assert _eval('1 == "true"') is None
+        assert _eval('5 == "5.0"') is None
+        # Boolean words are not numbers for ==, so two of them fold as strings.
+        assert _eval('"true" == "true"') == 1
 
     def test_non_constant_operand_does_not_fold(self):
         # An unbound variable leaves the comparison unevaluable.

@@ -147,6 +147,37 @@ def _parse_literal(text: str) -> TclValue | None:
         return None
 
 
+def _is_non_numeric_string(text: str) -> bool:
+    """True when *text* cannot be a Tcl number in *any* dialect.
+
+    Used by the ``==``/``!=`` constant folder to decide it is safe to compare
+    two operands purely as strings: if either could parse as a number under
+    some dialect (decimal, leading-zero octal/decimal, ``0x``/``0o``/``0b``,
+    float, ``Inf``/``NaN``) the numeric-vs-string result would be
+    dialect-dependent, so the caller declines to fold.  Boolean words
+    (``true``/``yes``/…) are *not* numbers for ``==``/``!=`` and so count as
+    non-numeric strings.  Deliberately stricter than :func:`_parse_literal`,
+    which coerces boolean words and leading-zero decimals to integers.
+    """
+    t = text.strip()
+    if not t:
+        return True
+    # ``int(t, 0)`` accepts decimal without leading zeros plus ``0x``/``0o``/
+    # ``0b``; ``int(t, 10)`` additionally accepts leading-zero decimals (octal
+    # in 8.x, decimal in 9.0 — dialect-dependent, hence "looks numeric").
+    for base in (0, 10):
+        try:
+            int(t, base)
+            return False
+        except (ValueError, TypeError):
+            pass
+    try:
+        float(t)
+        return False
+    except (ValueError, TypeError):
+        return True
+
+
 def _resolve_var(
     name: str,
     env: dict[str, int | float | str],
@@ -283,23 +314,31 @@ def _eval_binary(
             return None
         return _apply_string_compare(op, ls, rs)
 
-    # ``==`` / ``!=`` follow Tcl's polymorphic comparison: if *both* operands
-    # are numeric, compare numerically; otherwise compare as strings (so
-    # ``"foo" == "foo"`` folds to 1 rather than bailing out).  Extract string
-    # operands first, then promote to numbers only when both parse.
+    # ``==`` / ``!=`` follow Tcl's polymorphic comparison: numeric when *both*
+    # operands are numbers, string otherwise.  The numeric case is covered by
+    # the generic ``_eval`` path (numeric literals / numeric-valued vars); here
+    # we add the *string* case the old code missed (``"foo" == "foo"`` never
+    # folded).  Fold to a string comparison only when both operands are
+    # definitively non-numeric, so the result is dialect-independent.  If
+    # either operand merely *looks* numeric — a boolean word, or a leading-zero
+    # decimal that is octal in 8.x but decimal in 9.0 — the numeric-vs-string
+    # outcome depends on the dialect's equality-conversion rules, so we decline
+    # to fold rather than risk a wrong answer (a false I230 unreachable-branch).
     if op in (BinOp.EQ, BinOp.NE):
+        lv = _eval(left, env)
+        rv = _eval(right, env)
+        if lv is not None and rv is not None:
+            return _apply_binary(op, lv, rv)
         ls = _eval_as_string(left, env)
         if ls is None:
             return None
         rs = _eval_as_string(right, env)
         if rs is None:
             return None
-        ln = _parse_literal(ls)
-        rn = _parse_literal(rs)
-        if ln is not None and rn is not None:
-            return _apply_binary(op, ln, rn)
-        str_op = BinOp.STR_EQ if op is BinOp.EQ else BinOp.STR_NE
-        return _apply_string_compare(str_op, ls, rs)
+        if _is_non_numeric_string(ls) and _is_non_numeric_string(rs):
+            str_op = BinOp.STR_EQ if op is BinOp.EQ else BinOp.STR_NE
+            return _apply_string_compare(str_op, ls, rs)
+        return None
 
     # All other operators evaluate both sides
     lv = _eval(left, env)

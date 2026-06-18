@@ -17,7 +17,7 @@ from compiler.registry.runtime import (
     SubcommandSig,
     arg_indices_for_role,
     body_arg_implicit_args_for_command,
-    command_enabled_in_active_dialect,
+    command_is_disabled_in_active_dialect,
     iter_body_arguments,
 )
 from shared.ranges import range_from_token
@@ -520,15 +520,16 @@ class _AnalyserCommandsMixin(_Base):
         is_conditional = cmd_name in ("if", "try")
         if is_conditional:
             self._conditional_depth += 1
-        # A command's BODY arg-role only applies when the command is actually
-        # enabled in the active dialect.  ``when`` is an iRules-only builtin:
-        # under plain Tcl it is an unknown would-be user command whose braced
-        # argument is opaque data, not a handler script — recursing into it
-        # produces spurious findings (W123/W210) on what Tcl never parses as
-        # a script.  Aliases resolve to a real (enabled) target, so gating on
-        # ``role_cmd`` is correct.
+        # A foreign-dialect builtin's BODY arg-role must not be applied.
+        # ``when`` is an iRules-only builtin: under plain Tcl it is an unknown
+        # would-be user command whose braced argument is opaque data, not a
+        # handler script — recursing into it produces spurious findings
+        # (W123/W210) on what Tcl never parses as a script.  Only *disabled*
+        # builtins are skipped; commands unknown in every dialect (user procs,
+        # TclOO method/constructor bodies, recovery artefacts) still recurse.
+        # Aliases resolve to a real target, so gating on ``role_cmd`` is right.
         body_implicit_args = body_arg_implicit_args_for_command(role_cmd, role_args)
-        if command_enabled_in_active_dialect(role_cmd):
+        if not command_is_disabled_in_active_dialect(role_cmd):
             for body in iter_body_arguments(role_cmd, role_args, arg_tokens, prepend_n=prepend_n):
                 self._analyse_body(
                     body.text,

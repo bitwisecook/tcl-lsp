@@ -1612,6 +1612,28 @@ def command_enabled_in_active_dialect(command: str) -> bool:
     return status in (DialectStatus.EXISTS, DialectStatus.DEPRECATED)
 
 
+def command_is_disabled_in_active_dialect(command: str) -> bool:
+    """True iff *command* is a builtin in *some* dialect but disabled in the
+    active one (:attr:`DialectStatus.DISALLOWED`) — e.g. the iRules ``when``
+    under plain Tcl.
+
+    Such a call's registry arg-roles (BODY/EXPR/…) describe a builtin the
+    active dialect does not provide, so they must not be applied: its braced
+    argument is opaque data, not a script.  Crucially this is *narrower* than
+    "not enabled": a command unknown in every dialect (``NOT_EXISTS`` — a user
+    proc, a TclOO ``method``/``constructor`` body whose role comes from
+    OO special-casing, or a recovery artefact) is **not** disabled and must
+    still have its roles applied / body recursed.  Stubs are available by
+    definition, so a stubbed command is never "disabled".
+    """
+    if not command:
+        return False
+    lookup = command.lstrip(":")
+    if command_is_stubbed(lookup):
+        return False
+    return REGISTRY.command_status(lookup, _dialect_var.get()) is DialectStatus.DISALLOWED
+
+
 def is_loop_command(command: str, args: list[str]) -> bool:
     """Return ``True`` when *command* has a loop-body signature.
 

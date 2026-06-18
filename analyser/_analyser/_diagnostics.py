@@ -180,17 +180,27 @@ class _AnalyserDiagsMixin(_Base):
         # W121: a call to a command renamed/deleted away earlier in the file.
         self._emit_renamed_command_diagnostics(cu)
         conn = cu.connection_scope
-        # ``::when::*`` procedures are synthesised from ``when EVENT { body }``
-        # calls.  ``when`` is an iRules-only builtin, so under a non-iRules
-        # dialect it is an unknown would-be user command whose braced argument
-        # is opaque data, not a handler script — the body is still lowered (the
-        # diagram extractor relies on it) but must not be analysed for
-        # diagnostics (no spurious W210 read-before-set, etc.).
+        # Synthesised ``when EVENT { body }`` handlers are lifted into
+        # ``::when::*`` procedures.  ``when`` is an iRules-only builtin, so
+        # under a non-iRules dialect it is an unknown would-be user command
+        # whose braced argument is opaque data, not a handler script — the body
+        # is still lowered (the diagram extractor relies on it) but must not be
+        # analysed for diagnostics (no spurious W210 read-before-set, etc.).
+        # Only the *synthesised* handlers are skipped: a real user proc that
+        # merely lives in the ``::when`` namespace (``proc ::when::helper {} …``)
+        # carries a ``body_source`` (the literal proc body), whereas synthetic
+        # ``when`` handlers leave it ``None`` — so it distinguishes the two.
         when_enabled = command_enabled_in_active_dialect("when")
         for qname, fu in cu.procedures.items():
             if fu.complexity_guarded:
                 continue  # deep analysis skipped for pathologically large bodies
-            if not when_enabled and qname.startswith("::when::"):
+            ir_proc = ir_module.procedures.get(qname)
+            if (
+                not when_enabled
+                and qname.startswith("::when::")
+                and ir_proc is not None
+                and ir_proc.body_source is None
+            ):
                 continue
             cross_vars: frozenset[str] = frozenset()
             if conn is not None and qname.startswith("::when::"):
@@ -202,7 +212,6 @@ class _AnalyserDiagsMixin(_Base):
                 ssa=fu.ssa,
             )
             self._emit_interval_bounds_diagnostics(fu.cfg, fu.ssa, fu.analysis, fu.execution_intent)
-            ir_proc = ir_module.procedures.get(qname)
             if ir_proc is not None:
                 self._emit_unused_param_diagnostics(ir_proc, fu.analysis)
             # IRULE4005: racy static:: cross-event flow

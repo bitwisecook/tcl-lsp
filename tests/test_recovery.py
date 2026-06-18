@@ -10,14 +10,31 @@ Tests the centralised error recovery architecture:
 
 from __future__ import annotations
 
+import pytest
+
 from analyser import analyse
 from compiler.parsing.lexer import TclLexer
 from compiler.parsing.recovery import (
     compute_virtual_insertions,
     segment_with_recovery,
 )
+from compiler.registry.dialect import dialect_scope
 from server.features import semantic_tokens_full
 from shared.tokens import TokenType
+
+
+@pytest.fixture
+def irules_dialect():
+    """Analyse this test's iRules snippet under the f5-irules dialect.
+
+    These recovery tests wrap their input in a ``when EVENT { … }`` handler;
+    ``when`` is an iRules-only builtin, so only under f5-irules is its body a
+    script the analyser recurses into (collecting the inner commands the
+    assertions inspect).  Under a non-iRules dialect the braced body is opaque
+    data — correct, but not what these tests exercise.
+    """
+    with dialect_scope("f5-irules"):
+        yield
 
 
 class TestVirtualTokenLexer:
@@ -108,7 +125,7 @@ class TestComputeVirtualInsertions:
 class TestE201CommentBreak:
     """E201: unterminated [ where # comment signals the break point."""
 
-    def test_comment_break_tight_diagnostic(self):
+    def test_comment_break_tight_diagnostic(self, irules_dialect):
         """E201 diagnostic range covers only the incomplete line, not the comment."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -146,7 +163,7 @@ class TestE201CommentBreak:
         assert fixes[0].new_text == "]"
         assert "comment" in fixes[0].description.lower()
 
-    def test_comment_break_switch_body_analysed(self):
+    def test_comment_break_switch_body_analysed(self, irules_dialect):
         """After E201 comment-break recovery, subsequent switch body is analysed."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -334,7 +351,7 @@ class TestE201CommandBreak:
 class TestE201BraceBreak:
     """E201: unterminated [ where { signals the break point (existing behaviour)."""
 
-    def test_brace_break_basic(self):
+    def test_brace_break_basic(self, irules_dialect):
         """{ inside [ prevents ] from being found — produces E201."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -350,7 +367,7 @@ class TestE201BraceBreak:
         assert len(e201) >= 1
         assert e201[0].message == "missing close-bracket"
 
-    def test_brace_break_codefix(self):
+    def test_brace_break_codefix(self, irules_dialect):
         """E201 CodeFix inserts ] before the {."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -503,7 +520,7 @@ class TestE202UnterminatedQuote:
         assert len(commands) >= 2
         assert commands[1].name == "set"
 
-    def test_quote_recovery_analyser_integration(self):
+    def test_quote_recovery_analyser_integration(self, irules_dialect):
         """After E202 recovery, analyser sees subsequent commands."""
         source = 'when RULE_INIT {\nset totp_key "\nswitch $var {\n    default { set y 1 }\n}\n}'
         result = analyse(source)
