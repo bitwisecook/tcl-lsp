@@ -37,6 +37,7 @@ pub mod scan;
 pub mod sort;
 pub mod string;
 pub mod string_is;
+pub mod switch;
 pub mod var;
 
 pub use error::CmdError;

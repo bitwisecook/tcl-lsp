@@ -642,6 +642,42 @@ fn namespace_introspection() {
 }
 
 #[test]
+fn switch_shared_core() {
+    // Option parsing + pattern selection route through the shared core. Exact
+    // switches are codegen-inlined (the `JUMP_TABLE` path), so the core is
+    // exercised via `-glob`/`-regexp` and the error/option cases. Pinned vs tclsh.
+    out_eq(
+        "puts [switch -glob ab { a {expr 1} ab {expr 2} default {expr 9} }]\n",
+        "2\n",
+    );
+    out_eq("puts [switch -nocase -glob ABC { ab* {expr 7} }]\n", "7\n");
+    // `-` fall-through.
+    out_eq(
+        "puts [switch -glob x { a - b {expr 3} x {expr 4} }]\n",
+        "4\n",
+    );
+    // `-regexp` now matches through the engine (previously fell back to exact).
+    out_eq("puts [switch -regexp aXb { {a(.)b} {expr 11} }]\n", "11\n");
+    // TIP #75 -matchvar/-indexvar.
+    out_eq(
+        "switch -regexp -matchvar mv -indexvar iv aXb { {a(.)b} {} }\n\
+         puts \"$mv|$iv\"\n",
+        "aXb X|{0 2} {1 1}\n",
+    );
+    // `default` is only a wildcard as the *last* pattern; elsewhere it is a
+    // literal pattern (so value "q" matches the `q` arm, returning 6).
+    out_eq(
+        "puts [switch -glob q { default {expr 5} q {expr 6} }]\n",
+        "6\n",
+    );
+    // No match → empty string.
+    out_eq("puts <[switch -glob zz { a {expr 1} }]>\n", "<>\n");
+    // (Option-error cases route through the codegen's inline switch, not the
+    // runtime `cmd_switch`, so they are pinned via the tree-walking runtime,
+    // which always calls the shared core — see `runtime/rust` switch tests.)
+}
+
+#[test]
 fn info_vars_locals_globals() {
     // Variable listing routes through the shared cores. Pinned against tclsh 9.0
     // (C `InfoVarsCmd`/`InfoLocalsCmd`/`InfoGlobalsCmd`).
