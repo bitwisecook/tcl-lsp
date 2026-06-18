@@ -1395,31 +1395,24 @@ fn switch_list_body_index(args: &[&str]) -> Option<usize> {
 
 /// Top-level ``[...]`` command-substitution regions in `text`, as
 /// `(inner_byte_offset, inner_text)` — the script *inside* the brackets and
-/// the offset of its first byte within `text`.  Braced regions are skipped
-/// opaquely and ``\\[`` / ``\\]`` escapes are honoured, matching
-/// [`scan_nested_command_heads`].  Only the *outermost* substitutions are
-/// returned; the caller's segment recursion descends any nested `[...]`.
-/// Used to reach `[...]` embedded in a quoted / bareword word argument
-/// (`log "got [HTTP::uri]"`), which the bare-`Cmd`-token walk misses.
+/// the offset of its first byte within `text`.  ``\\[`` / ``\\]`` escapes are
+/// honoured.  Only the *outermost* substitutions are returned; the caller's
+/// segment recursion descends any nested `[...]`.  Used to reach `[...]`
+/// embedded in a quoted / bareword word argument (`log "got [HTTP::uri]"`),
+/// which the bare-`Cmd`-token walk misses.
+///
+/// Braces are **not** treated as opaque here: this only runs on `Esc` words
+/// (quoted / bareword / compound).  A braced *word* is a `Str` token (handled
+/// elsewhere and excluded by the caller); inside a quoted or bareword context
+/// `{` / `}` are ordinary characters that do *not* suppress substitution, so
+/// `log "got { [HTTP::uri] }"` still executes — and must still be scanned
+/// (Codex review, PR #639).
 fn top_level_cmd_subst_regions(text: &str) -> Vec<(usize, &str)> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
-            b'{' => {
-                let mut depth = 1i32;
-                i += 1;
-                while i < bytes.len() && depth > 0 {
-                    match bytes[i] {
-                        b'{' => depth += 1,
-                        b'}' => depth -= 1,
-                        b'\\' if i + 1 < bytes.len() => i += 1,
-                        _ => {}
-                    }
-                    i += 1;
-                }
-            }
             b'[' => {
                 let inner_start = i + 1;
                 let mut depth = 1i32;

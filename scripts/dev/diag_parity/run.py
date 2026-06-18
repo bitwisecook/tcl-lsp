@@ -88,12 +88,19 @@ def _parse_report(stdout: str) -> list[Diag] | None:
     return diags
 
 
-def _run(cmd: list[str], env: dict[str, str] | None = None) -> list[Diag] | None:
+# A run either parsed cleanly (`diags`) or failed (`diags is None`, with the
+# captured `stderr` / `returncode` explaining why). A failed run is a real
+# problem — a crashing engine must never be silently skipped (it would let a
+# regression masquerade as "no divergences"), so callers treat it as an error.
+RunResult = tuple[list[Diag] | None, str, int]
+
+
+def _run(cmd: list[str], env: dict[str, str] | None = None) -> RunResult:
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=str(REPO))
-    return _parse_report(proc.stdout)
+    return _parse_report(proc.stdout), proc.stderr, proc.returncode
 
 
-def run_python(path: Path, dialect: str) -> list[Diag] | None:
+def run_python(path: Path, dialect: str) -> RunResult:
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     py = str(VENV_PY) if VENV_PY.exists() else sys.executable
     return _run(
@@ -102,7 +109,7 @@ def run_python(path: Path, dialect: str) -> list[Diag] | None:
     )
 
 
-def run_rust(path: Path, dialect: str) -> list[Diag] | None:
+def run_rust(path: Path, dialect: str) -> RunResult:
     return _run([str(RUST_BIN), "diag", "--dialect", dialect, str(path), "--json"])
 
 
@@ -217,7 +224,7 @@ def main() -> int:
     table: collections.Counter[tuple[str, str]] = collections.Counter()
     detail_log: list[dict] = []
     per_file: list[dict] = []
-    skipped = 0
+    failures: list[dict] = []
 
     for path in files:
         # Match the dialect to the file type. An `.irule` is iRules source, so
@@ -231,10 +238,34 @@ def main() -> int:
         else:
             file_dialects = dialects
         for dialect in file_dialects:
-            py = run_python(path, dialect)
-            rust = run_rust(path, dialect)
+            py, py_err, py_rc = run_python(path, dialect)
+            rust, rust_err, rust_rc = run_rust(path, dialect)
+            # A non-JSON result means the engine crashed or errored. Never
+            # silently skip it: a crashing analyser would otherwise yield a
+            # false-green report. Record the failing engine's stderr/exit and
+            # fail the whole run at the end.
+            label = str(path.relative_to(REPO)) if path.is_relative_to(REPO) else str(path)
+            if py is None:
+                failures.append(
+                    {
+                        "engine": "python",
+                        "file": label,
+                        "dialect": dialect,
+                        "returncode": py_rc,
+                        "stderr": py_err.strip()[-500:],
+                    }
+                )
+            if rust is None:
+                failures.append(
+                    {
+                        "engine": "rust",
+                        "file": label,
+                        "dialect": dialect,
+                        "returncode": rust_rc,
+                        "stderr": rust_err.strip()[-500:],
+                    }
+                )
             if py is None or rust is None:
-                skipped += 1
                 continue
             divergences = classify(py, rust)
             for code, kind, det in divergences:
@@ -263,8 +294,6 @@ def main() -> int:
                 )
 
     print(f"corpus: {len(files)} files x {len(dialects)} dialect(s)")
-    if skipped:
-        print(f"skipped {skipped} runs (non-JSON / crash on one engine)")
     print()
     print("ranked divergence table  (code x kind : count)")
     print("=" * 52)
@@ -320,6 +349,20 @@ def main() -> int:
         print(f"\nwrote {args.json}")
 
     shutil.rmtree(stage, ignore_errors=True)
+
+    # A crashing / non-JSON engine run is a hard error: surface it and fail,
+    # so a Rust analyser regression can never hide behind a green-looking
+    # divergence table (Codex review, PR #639).
+    if failures:
+        print()
+        print(f"ERROR: {len(failures)} engine run(s) produced no JSON (crash / error):")
+        for f in failures:
+            print(f"  [{f['engine']}] {f['file']} ({f['dialect']}) exit={f['returncode']}")
+            if f["stderr"]:
+                for line in f["stderr"].splitlines():
+                    print(f"      {line}")
+        return 2
+
     return 0
 
 
