@@ -100,8 +100,10 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
             continue;
         }
         // An array-element write a read may alias is not dead.
-        if element_observed.contains(&(chain.definition.block.clone(), chain.definition.statement_index))
-        {
+        if element_observed.contains(&(
+            chain.definition.block.clone(),
+            chain.definition.statement_index,
+        )) {
             continue;
         }
         dead.push(DeadStore {

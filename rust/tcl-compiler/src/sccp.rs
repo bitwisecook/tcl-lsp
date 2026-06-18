@@ -1137,8 +1137,7 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
     let stripped = text.trim();
     // Decimal integer grammar `[+-]?[0-9]+` (matches Python's `DECIMAL_INT_RE`).
     let digits = stripped.strip_prefix(['+', '-']).unwrap_or(stripped);
-    let is_decimal_int =
-        !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+    let is_decimal_int = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
     if is_decimal_int
         && let Ok(i) = stripped.parse::<i64>()
         && i.to_string() == stripped

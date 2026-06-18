@@ -50,8 +50,7 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     // all-exit-switch terminators, opaque-switch loop-jump edges,
     // guaranteed-iteration loop rotation) that must not reach codegen.  Rebuild
     // a `faithful_exceptions`-off CFG from the same IR for the disassembly view.
-    let codegen_cfg =
-        tcl_compiler::cfg_builder::build_cfg_codegen(&result.unit.ir_module, false);
+    let codegen_cfg = tcl_compiler::cfg_builder::build_cfg_codegen(&result.unit.ir_module, false);
     let module: ModuleAsm = codegen_module(&codegen_cfg, &result.unit.ir_module, registry);
 
     let mut entries: Vec<Value> = Vec::new();

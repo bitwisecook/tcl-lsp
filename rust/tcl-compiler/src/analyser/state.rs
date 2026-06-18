@@ -2691,12 +2691,21 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("expr $x == \"foo\"\n", "tcl");
         let unbraced: Vec<_> = r.diagnostics.iter().filter(|d| d.code == "W110").collect();
-        assert!(unbraced.is_empty(), "unbraced expr must not fire W110, got {:?}", r.diagnostics);
+        assert!(
+            unbraced.is_empty(),
+            "unbraced expr must not fire W110, got {:?}",
+            r.diagnostics
+        );
 
         let mut a2 = Analyser::new();
         let r2 = a2.analyse("set z [expr {$x == \"foo\"}]\n", "tcl");
         let braced: Vec<_> = r2.diagnostics.iter().filter(|d| d.code == "W110").collect();
-        assert_eq!(braced.len(), 1, "braced expr must fire W110, got {:?}", r2.diagnostics);
+        assert_eq!(
+            braced.len(),
+            1,
+            "braced expr must fire W110, got {:?}",
+            r2.diagnostics
+        );
     }
 
     #[test]

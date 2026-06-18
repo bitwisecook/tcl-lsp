@@ -999,7 +999,10 @@ fn reads_in_stmt(
 /// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
 /// recurse — recovered for the collapsed-body read subtraction only. Mirrors
 /// Python's `_collapsed_extra_defs`.
-fn collapsed_extra_defs(script: &crate::ir::Script, registry: &CommandRegistry) -> BTreeSet<String> {
+fn collapsed_extra_defs(
+    script: &crate::ir::Script,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
     use crate::ir_helpers::{defs_from_expr, defs_from_ir_script};
     let mut extra = BTreeSet::new();
     for stmt in &script.statements {
@@ -1035,8 +1038,7 @@ fn collapsed_extra_defs(script: &crate::ir::Script, registry: &CommandRegistry) 
                 extra.extend(collapsed_extra_defs(next, registry));
                 extra.extend(collapsed_extra_defs(body, registry));
             }
-            Statement::Foreach { body, .. }
-            | Statement::Catch { body, .. } => {
+            Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
                 extra.extend(collapsed_extra_defs(body, registry));
             }
             Statement::Try {

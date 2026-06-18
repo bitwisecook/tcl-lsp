@@ -118,7 +118,11 @@ pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Op
 /// that hold a `CommandRegistry` rather than a dialect string derive the flag
 /// via `CommandRegistry::leading_zero_is_octal`.
 #[must_use]
-pub fn eval_tcl_expr_with_octal(node: &ExprNode, env: &Env, octal: Option<bool>) -> Option<TclValue> {
+pub fn eval_tcl_expr_with_octal(
+    node: &ExprNode,
+    env: &Env,
+    octal: Option<bool>,
+) -> Option<TclValue> {
     eval_with_octal(node, env, octal)
 }
 

@@ -353,7 +353,8 @@ impl CfgBuilder {
             // execution, so a post-loop read of a loop variable also resolves.
             self.block_mut(&body_block).statements.push(var_def);
             // `continue` re-checks via the latch; `break` exits the loop.
-            self.loop_stack.push((end_block.clone(), latch_block.clone()));
+            self.loop_stack
+                .push((end_block.clone(), latch_block.clone()));
             let body_tail = self.lower_script(body, &body_block);
             self.loop_stack.pop();
             if let Some(tail) = body_tail {

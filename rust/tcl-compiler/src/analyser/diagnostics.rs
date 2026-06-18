@@ -1376,7 +1376,11 @@ type PhiBlockMap = std::collections::HashMap<(String, crate::ssa::Version), Stri
 fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<String>,
-) -> (PhiDefMap, PhiBlockMap, HashSet<(String, crate::ssa::Version)>) {
+) -> (
+    PhiDefMap,
+    PhiBlockMap,
+    HashSet<(String, crate::ssa::Version)>,
+) {
     use crate::ir::Statement;
     let mut phi_def: std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi> =
         std::collections::HashMap::new();
@@ -5150,11 +5154,7 @@ matching time on crafted input."
     /// command head): `matchclass` carries both a `deprecated_replacement`
     /// (→ IRULE2002) and the dedicated `check_matchclass` rule (→
     /// IRULE2001).  Mirrors `irules_checks.py::check_matchclass`.
-    pub(super) fn emit_irule2001_matchclass(
-        &mut self,
-        cmd_name: &str,
-        cmd_tok: tcl_lexer::Token,
-    ) {
+    pub(super) fn emit_irule2001_matchclass(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
         if self.dialect != "f5-irules" || cmd_name != "matchclass" {
             return;
         }
@@ -5810,9 +5810,9 @@ file; this call falls through to the 'unknown' handler."
         &self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) -> HashSet<String> {
-        self.registry
-            .as_ref()
-            .map_or_else(HashSet::new, |reg| Self::substitution_hidden_reads_of(fu, reg))
+        self.registry.as_ref().map_or_else(HashSet::new, |reg| {
+            Self::substitution_hidden_reads_of(fu, reg)
+        })
     }
 
     /// `self`-free core of [`Self::substitution_hidden_reads`] so the explorer's
@@ -6066,10 +6066,12 @@ file; this call falls through to the 'unknown' handler."
         let start = stmt_span.start();
         let slice = source_slice(&self.source, stmt_span)?;
         let sm = tcl_lexer::SourceMap::new(&slice);
-        let toks =
-            tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(&slice), self.lexer_config())
-                .tokenise_all()
-                .ok()?;
+        let toks = tcl_lexer::Lexer::with_source_map(
+            tcl_lexer::SourceMap::new(&slice),
+            self.lexer_config(),
+        )
+        .tokenise_all()
+        .ok()?;
         toks.iter()
             .find(|t| t.kind == tcl_lexer::TokenType::Var && base(sm.token_text(**t)) == target)
             .map(|t| tcl_lexer::Span::new(t.span.start() + start, t.span.end() + start))
@@ -7611,8 +7613,8 @@ file; this call falls through to the 'unknown' handler."
         // Python also emits.  Base commands valid everywhere (`set`/`if`,
         // `dialects: None`) still pass `get_for_dialect`, so they are not
         // spuriously flagged.
-        let active_dialect =
-            tcl_registry::prelude::DialectSet::parse(&self.dialect).unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        let active_dialect = tcl_registry::prelude::DialectSet::parse(&self.dialect)
+            .unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
         let registry_names: HashSet<String> = registry
             .command_names()
             .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
@@ -11166,7 +11168,10 @@ mod tests {
 
         // FP: body assigns y; the literal list guarantees ≥1 iteration.
         assert!(
-            !w210_fires_for("proc f {} { foreach x {1 2 3} { set y $x }\n puts $y }", "y"),
+            !w210_fires_for(
+                "proc f {} { foreach x {1 2 3} { set y $x }\n puts $y }",
+                "y"
+            ),
             "foreach over a non-empty literal defines y (no W210)",
         );
 
@@ -11191,7 +11196,10 @@ mod tests {
         // TP control: a first-iteration read-before-set inside the body still
         // fires — rotation keeps the body's internal order.
         assert!(
-            w210_fires_for("proc f {} { foreach x {1 2 3} { puts $acc; set acc $x } }", "acc"),
+            w210_fires_for(
+                "proc f {} { foreach x {1 2 3} { puts $acc; set acc $x } }",
+                "acc"
+            ),
             "first-iteration read of acc before its set still fires (W210)",
         );
     }

@@ -820,7 +820,11 @@ fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> Cf
 
     let new_builder = |inline: bool| {
         let b = CfgBuilder::new_with_upvars(inline, upvar_procs.clone(), proc_params.clone());
-        if faithful { b.with_faithful_exceptions() } else { b }
+        if faithful {
+            b.with_faithful_exceptions()
+        } else {
+            b
+        }
     };
 
     let mut top_builder = new_builder(!defer_top_level);
@@ -1107,7 +1111,10 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
                 canonical_command,
                 ..
             } => {
-                let bare = canonical_command.as_deref().unwrap_or(command).trim_start_matches(':');
+                let bare = canonical_command
+                    .as_deref()
+                    .unwrap_or(command)
+                    .trim_start_matches(':');
                 if bare == "break" {
                     can_break = true;
                 } else if bare == "continue" {
