@@ -44,8 +44,15 @@ use crate::formatters::range_dict;
 #[must_use]
 pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry = registry_for_dialect(&result.dialect);
-    let module: ModuleAsm =
-        codegen_module(&result.unit.cfg_module, &result.unit.ir_module, registry);
+    // Codegen lowers the plain (analysis-only-transform-free) CFG so the emitted
+    // bytecode is byte-identical to the unannotated source: the analysis CFG
+    // (`unit.cfg_module`) carries `faithful_exceptions` transforms (tailcall /
+    // all-exit-switch terminators, opaque-switch loop-jump edges,
+    // guaranteed-iteration loop rotation) that must not reach codegen.  Rebuild
+    // a `faithful_exceptions`-off CFG from the same IR for the disassembly view.
+    let codegen_cfg =
+        tcl_compiler::cfg_builder::build_cfg_codegen(&result.unit.ir_module, false);
+    let module: ModuleAsm = codegen_module(&codegen_cfg, &result.unit.ir_module, registry);
 
     let mut entries: Vec<Value> = Vec::new();
     entries.push(function_explorer(

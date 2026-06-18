@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg;
+use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
@@ -14,7 +14,7 @@ struct Svc(CommandRegistry);
 impl CompileService for Svc {
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let ir = lower_to_ir(src, &self.0);
-        let cfg = build_cfg(&ir, false);
+        let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.0))
     }
 }
@@ -34,7 +34,7 @@ impl Write for Capture {
 fn run(src: &str) -> (bool, String, String) {
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));

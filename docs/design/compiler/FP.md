@@ -2669,6 +2669,120 @@ info is available (a non-empty set), so registry-less test paths are unaffected.
 
 ---
 
+### FP-RBS-17 — guaranteed-iteration `foreach` defines body variables (loop rotation)
+
+- **Verdict:** FALSE POSITIVE (W210) — a `foreach` over a non-empty *literal*
+  list provably runs its body ≥1 time, so a body-assigned variable (or the loop
+  variable) read after the loop is defined; the CFG modelled every loop as
+  possibly zero iterations, false-firing W210.
+- **Status:** FIXED (Rust port). Ported from the Python builder (commit
+  `2d3dcef9`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (`foreach` accumulator / dispatch idioms).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    foreach x {1 2 3} { set y $x }   ;# runs >=1 time -> y is set
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `foreach x {1 2 3}` — the iterator list is a non-empty literal, so the body
+   runs at least once (`foreach` runs `max` over its iterator groups).
+2. `set y $x` — assigns `y` on every iteration; after the loop `y` is defined.
+3. `puts $y` — `y` is always defined → no read-before-set. Pre-fix, the loop
+   header's zero-iteration exit edge merged an unset `y` at the loop exit.
+
+#### tclsh ground truth (9.0.3)
+
+`foreach x {1 2 3} { set y $x }; puts $y` → `3` (no `can't read "y"`).
+`foreach x {a b c} {}; puts $x` → `c` (the loop variable survives). TP controls:
+an empty literal (`foreach x {} …`) or a dynamic list (`foreach x $i …`) may run
+zero times and tclsh errors `can't read`.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` `CfgBuilder::lower_foreach`: in
+analysis builds (`faithful_exceptions`), when `foreach_runs_at_least_once`
+(`list_literal_nonempty` over any iterator's list) holds, the loop is *rotated* —
+the header becomes a synthetic always-true entry guard (`literal_true_expr`,
+span-less so the optimiser's constant-branch rewriter leaves it), the var-def +
+body run before a back-edge re-check at a new `foreach_latch` block, and
+`break`/`continue` stay real edges. SCCP prunes the dead entry→end edge and the
+FP-RBS-16 dead-edge phi filter ignores the version-0 operand it carried — with no
+synthetic def, so SCCP values are untouched. Codegen builds
+(`build_cfg_codegen`, `faithful_exceptions` off) keep the original single-header
+shape, so bytecode/CFG for codegen is byte-identical (the `detect_foreach`
+emitter and `differential_codegen` parity are unchanged).
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars`
+  (FP: body var defined; FP: loop var defined; TP controls: empty literal,
+  dynamic list, first-iteration read-before-set).
+
+---
+
+### FP-RBS-18 — guaranteed-iteration `for` defines body variables (loop rotation)
+
+- **Verdict:** FALSE POSITIVE (W210) — a `for` whose condition is statically
+  true on entry provably runs its body ≥1 time, so a body-assigned variable read
+  after the loop is defined; the CFG modelled it as possibly zero iterations.
+- **Status:** FIXED (Rust port). Ported from the Python builder (commits
+  `2d3dcef9` + `d43f8ee8` for the Codex C2 for-init invalidation) and verified
+  against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (counting `for` loops).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    for {set i 0} {$i < 3} {incr i} { set y $i }   ;# 0<3 true -> runs >=1
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `for {set i 0} {$i < 3} …` — the init binds `i = 0` (a constant); the
+   condition `0 < 3` is statically true, so the first iteration always runs.
+2. `set y $i` — assigns `y`; after the loop `y` is defined.
+3. `puts $y` — defined → no read-before-set.
+
+#### tclsh ground truth (9.0.3)
+
+`for {set i 0} {$i<3} {incr i} {set y $i}; puts $y` → `2`. TP controls:
+`for {set i 5} {$i<3} …` runs zero times → `can't read "y"`; and (Codex C2) a
+stale-constant init — `for {set i 0; set i $n} …` or `for {set i 0; incr i 5} …`
+— may iterate zero times, so it must NOT be claimed guaranteed.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` `CfgBuilder::lower_for`: in
+analysis builds, when `for_runs_at_least_once` holds, the loop is rotated — the
+step (`for_step`) re-checks the *real* condition on the back-edge and the header
+becomes a synthetic always-true, span-less entry guard. `for_runs_at_least_once`
+evaluates the condition (`eval_tcl_expr`) against the init clause's constant
+bindings, processed **in order**: an `AssignConst` (re)binds a constant, but any
+other write (`set i $n`, `incr i …`, a call) *invalidates* that variable's
+binding (Codex C2), so a stale constant never makes a zero-iteration loop look
+guaranteed. `loop_nodes` + the init exit versions are unchanged, so the
+optimiser's IR-level static-`for` summary is unaffected; codegen
+(`build_cfg_codegen`) keeps the single-header shape (byte-identical bytecode).
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars`
+  (FP: statically-true entry condition; TP controls: false entry condition,
+  stale-constant `set i $n` init, `incr` in init).
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in

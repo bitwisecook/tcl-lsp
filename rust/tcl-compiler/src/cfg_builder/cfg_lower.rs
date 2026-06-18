@@ -14,6 +14,18 @@ use crate::ir_helpers::{condition_command_out_vars, expr_has_command};
 
 use super::CfgBuilder;
 
+/// A foldable always-true literal condition (`1`) for a rotated loop's
+/// synthetic entry-guard branch.  Span-less offsets (`0`) keep it distinct
+/// from any real source condition; SCCP folds it so the zero-iteration
+/// guard→exit edge is pruned.
+fn literal_true_expr() -> ExprNode {
+    ExprNode::Literal {
+        text: "1".into(),
+        start: 0,
+        end: 0,
+    }
+}
+
 impl CfgBuilder {
     // ── if ────────────────────────────────────────────────────────
 
@@ -161,8 +173,36 @@ impl CfgBuilder {
                     foreach_groups: None,
                 });
         }
-        if let Some(step_tail) = self.lower_script(next, &step_block) {
-            self.ensure_goto(&step_tail, &header, Some(*next_span));
+        // Analysis builds rotate a `for` whose condition is statically true on
+        // entry (FP-RBS-18 + Codex C2): the step re-checks the condition
+        // (back-edge) instead of looping to the header, and the header is demoted
+        // to a synthetic always-true entry guard (span `None`, so the optimiser's
+        // constant-branch source rewriter never folds the loop's source
+        // condition). SCCP then prunes the zero-iteration header→end edge, and the
+        // FP-RBS-16 dead-edge phi filter ignores the version-0 operand it carried,
+        // so a body-assigned variable read after the loop is no longer a false
+        // read-before-set. `break`/`continue` stay real edges (partial-def exits
+        // remain sound); `loop_nodes` + the init exit versions are unchanged, so
+        // the optimiser's IR-level static-for summary is unaffected.
+        let rotate = self.faithful_exceptions && crate::cfg_builder::for_runs_at_least_once(stmt);
+        let step_tail = self.lower_script(next, &step_block);
+        if let Some(step_tail) = step_tail {
+            if rotate {
+                self.block_mut(&header).terminator = Some(Terminator::Branch {
+                    condition: literal_true_expr(),
+                    true_target: body_block.clone(),
+                    false_target: end_block.clone(),
+                    span: None,
+                });
+                self.block_mut(&step_tail).terminator = Some(Terminator::Branch {
+                    condition: condition.clone(),
+                    true_target: body_block.clone(),
+                    false_target: end_block.clone(),
+                    span: Some(*condition_span),
+                });
+            } else {
+                self.ensure_goto(&step_tail, &header, Some(*next_span));
+            }
         }
 
         self.loop_nodes.insert(
@@ -274,8 +314,9 @@ impl CfgBuilder {
             (false, false) => "foreach",
         };
 
-        // Synthetic def node for iteration variables.
-        self.block_mut(&header).statements.push(Statement::Call {
+        // Synthetic def node for iteration variables (placed at the header for
+        // the normal shape, or at the top of the body when rotated).
+        let var_def = Statement::Call {
             span: *span,
             command: fe_cmd.into(),
             canonical_command: None,
@@ -286,7 +327,51 @@ impl CfgBuilder {
             safe_on_uninit: false,
             tokens: None,
             foreach_groups: Some(group_sizes),
-        });
+        };
+
+        // Analysis builds rotate a provably-non-empty foreach (FP-RBS-17) so the
+        // 0-iteration skip is a *separate*, statically-true entry-guard edge
+        // (SCCP prunes it; the FP-RBS-16 dead-edge phi filter then ignores the
+        // version-0 operand it carried). The var-def + body run at least once
+        // before the back-edge re-check, so a body-assigned variable (or a loop
+        // variable) read after the loop is no longer a false read-before-set,
+        // while SCCP values stay intact (no synthetic def). `break`/`continue`
+        // stay real edges, so partial-def exits remain sound.
+        if self.faithful_exceptions && crate::cfg_builder::foreach_runs_at_least_once(stmt) {
+            let latch_block = self.new_block("foreach_latch");
+            // Entry guard: the list is a non-empty literal, so the body always
+            // runs at least once. A statically-true condition SCCP folds, so the
+            // entry→end (zero-iteration) edge is dead. `span = None` keeps the
+            // optimiser's constant-branch source rewriter off this synthetic guard.
+            self.block_mut(&header).terminator = Some(Terminator::Branch {
+                condition: literal_true_expr(),
+                true_target: body_block.clone(),
+                false_target: end_block.clone(),
+                span: None,
+            });
+            // The iteration variables are (re)bound at the top of every body
+            // execution, so a post-loop read of a loop variable also resolves.
+            self.block_mut(&body_block).statements.push(var_def);
+            // `continue` re-checks via the latch; `break` exits the loop.
+            self.loop_stack.push((end_block.clone(), latch_block.clone()));
+            let body_tail = self.lower_script(body, &body_block);
+            self.loop_stack.pop();
+            if let Some(tail) = body_tail {
+                self.ensure_goto(&tail, &latch_block, Some(*body_span));
+            }
+            // Back-edge re-check: another element → body, else → exit.
+            self.block_mut(&latch_block).terminator = Some(Terminator::Branch {
+                condition: ExprNode::Raw {
+                    text: "<foreach_has_next>".into(),
+                },
+                true_target: body_block.clone(),
+                false_target: end_block.clone(),
+                span: Some(*span),
+            });
+            return end_block;
+        }
+
+        self.block_mut(&header).statements.push(var_def);
 
         // Opaque condition: non-deterministic branch.
         self.block_mut(&header).terminator = Some(Terminator::Branch {

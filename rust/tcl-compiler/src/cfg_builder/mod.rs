@@ -798,18 +798,37 @@ pub fn prepare_cfg_context(
 /// [`prepare_cfg_context`] for the per-module scan.
 #[must_use]
 pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, true)
+}
+
+/// Build CFGs for codegen (bytecode / WASM): the plain, byte-identical loop /
+/// switch shape with **no** analysis-only transforms (`faithful_exceptions`
+/// off).  The terminator promotions (`tailcall`, all-exit opaque switch), the
+/// opaque-switch loop-jump edges, and the guaranteed-iteration loop rotation
+/// are gated on `faithful_exceptions`, so they appear only in the analysis CFG
+/// ([`build_cfg`]) and never in the CFG codegen lowers — keeping the emitted
+/// bytecode / CFG shape identical to the unannotated source (mirrors Python,
+/// where `build_cfg` defaults to `faithful_exceptions=False` for codegen and
+/// analysis opts in).
+#[must_use]
+pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, false)
+}
+
+fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> CfgModule {
     let (upvar_procs, proc_params) = prepare_cfg_context(module);
 
-    let mut top_builder =
-        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone())
-            .with_faithful_exceptions();
+    let new_builder = |inline: bool| {
+        let b = CfgBuilder::new_with_upvars(inline, upvar_procs.clone(), proc_params.clone());
+        if faithful { b.with_faithful_exceptions() } else { b }
+    };
+
+    let mut top_builder = new_builder(!defer_top_level);
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
-        let mut builder =
-            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone())
-                .with_faithful_exceptions();
+        let mut builder = new_builder(true);
         proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
@@ -1142,6 +1161,124 @@ pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
         }
     }
     (can_break, can_continue)
+}
+
+// --- Guaranteed-iteration loops ----------------------------------------------
+//
+// A loop whose body provably runs at least once does not skip its body, so a
+// variable the body assigns is defined when code after the loop reads it.  The
+// usual CFG models every loop as possibly running zero times (the header's exit
+// edge), false-firing W210 on such a read.  In analysis builds we *rotate* a
+// provably-non-empty loop so the 0-iteration skip becomes a *separate*
+// entry-guard edge whose condition is statically true; SCCP marks that edge dead
+// and the FP-RBS-16 dead-edge phi filter then ignores the version-0 operand it
+// carried — with no synthetic def, so SCCP values are untouched.  `break` /
+// `continue` stay real CFG edges, so partial-def exits remain sound.  Mirrors
+// the Python `_foreach_runs_at_least_once` / `_for_runs_at_least_once` helpers.
+
+/// True when `text` is a static, non-empty Tcl list literal.
+///
+/// Conservative: any `$` / `[` (a possible substitution) disqualifies it, so a
+/// runtime-computed list is never claimed non-empty.  `foreach` stores a braced
+/// list with its outer braces stripped (`{1 2 3}` → `1 2 3`), so a literal
+/// splits directly.
+fn list_literal_nonempty(text: &str) -> bool {
+    if text.is_empty() || text.contains('$') || text.contains('[') {
+        return false;
+    }
+    !crate::tcl_expr_eval::split_tcl_list(text).is_empty()
+}
+
+/// True when a `foreach`/`lmap` provably iterates ≥1 time.
+///
+/// `foreach` runs `max` over its iterator groups, so *any* non-empty iterator
+/// list guarantees at least one iteration (shorter lists just pad their loop
+/// vars with `""`).
+pub(crate) fn foreach_runs_at_least_once(stmt: &Statement) -> bool {
+    let Statement::Foreach { iterators, .. } = stmt else {
+        return false;
+    };
+    iterators
+        .iter()
+        .any(|it| list_literal_nonempty(&it.list_arg))
+}
+
+/// Names a non-`AssignConst` init statement may write.  `None` means "can't
+/// tell" — the caller then drops *all* constant bindings (a write it can't
+/// characterise might clobber any of them).
+fn init_written_names(stmt: &Statement) -> Option<Vec<String>> {
+    match stmt {
+        Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => {
+            let n = normalise_var_name(name);
+            Some(if n.is_empty() {
+                Vec::new()
+            } else {
+                vec![n.to_owned()]
+            })
+        }
+        Statement::Call { defs, .. } => Some(defs.clone()),
+        _ => None,
+    }
+}
+
+/// True when a `for` loop's condition is statically true on entry.
+///
+/// Evaluates the condition against the constant bindings the init clause
+/// establishes (`for {set i 0} {$i < 3} …` → `i = 0` → `0 < 3` is true), which
+/// proves the first iteration always runs.  Init statements are processed in
+/// order: an `AssignConst` (re)binds a constant, but any *other* write
+/// *invalidates* that variable's binding — so `for {set i 0; set i $n} …` and
+/// `for {set i 0; incr i 5} …` leave `i` unknown rather than stale-constant `0`
+/// (both may iterate zero times — Codex C2).  Conservative: a condition
+/// referencing an unbound variable (or a command-substitution condition)
+/// evaluates to `None` → not guaranteed.
+pub(crate) fn for_runs_at_least_once(stmt: &Statement) -> bool {
+    use crate::tcl_expr_eval::{TclValue, eval_tcl_expr};
+    let Statement::For {
+        init, condition, ..
+    } = stmt
+    else {
+        return false;
+    };
+    let mut env: crate::tcl_expr_eval::Env = std::collections::HashMap::new();
+    for s in &init.statements {
+        if let Statement::AssignConst { name, value, .. } = s {
+            let n = normalise_var_name(name);
+            if !n.is_empty() {
+                env.insert(n.to_owned(), coerce_scalar(value));
+            }
+            continue;
+        }
+        match init_written_names(s) {
+            // Unknown write — every prior constant binding is now suspect.
+            None => env.clear(),
+            Some(names) => {
+                for n in names {
+                    env.remove(&n);
+                }
+            }
+        }
+    }
+    match eval_tcl_expr(condition, &env) {
+        Some(TclValue::Int(i)) => i != 0,
+        Some(TclValue::Float(f)) => f != 0.0,
+        None => false,
+    }
+}
+
+/// Coerce a literal assignment value to int/float when possible (else str),
+/// for the `for`-init constant environment.
+fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
+    use crate::tcl_expr_eval::EnvValue;
+    if let Ok(i) = text.parse::<i64>() {
+        return EnvValue::Int(i);
+    }
+    if let Ok(f) = text.parse::<f64>() {
+        return EnvValue::Float(f);
+    }
+    EnvValue::Str(text.to_owned())
 }
 
 /// Whether `command` raises a *catchable* exception (`error` / `throw`) —

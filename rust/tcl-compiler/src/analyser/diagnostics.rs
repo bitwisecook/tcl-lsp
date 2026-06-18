@@ -11004,6 +11004,105 @@ mod tests {
     }
 
     #[test]
+    fn fp_rbs_17_guaranteed_foreach_defines_body_vars() {
+        // FP-RBS-17: a foreach over a non-empty *literal* list provably iterates
+        // ≥1 time, so a body-assigned variable (or the loop variable) read after
+        // the loop is defined. Analysis rotates the loop so the 0-iteration skip
+        // is a dead entry-guard edge (FP-RBS-16 ignores its phi operand).
+
+        // FP: body assigns y; the literal list guarantees ≥1 iteration.
+        assert!(
+            !w210_fires_for("proc f {} { foreach x {1 2 3} { set y $x }\n puts $y }", "y"),
+            "foreach over a non-empty literal defines y (no W210)",
+        );
+
+        // FP: the loop variable itself is defined after a guaranteed foreach.
+        assert!(
+            !w210_fires_for("proc f {} { foreach x {a b c} {}\n puts $x }", "x"),
+            "loop variable is defined after a guaranteed foreach (no W210)",
+        );
+
+        // TP control: an empty literal list runs zero times — y stays unset.
+        assert!(
+            w210_fires_for("proc f {} { foreach x {} { set y $x }\n puts $y }", "y"),
+            "empty foreach list runs zero times (W210 expected on y)",
+        );
+
+        // TP control: a dynamic (`$i`) list may be empty — not guaranteed.
+        assert!(
+            w210_fires_for("proc f {i} { foreach x $i { set y $x }\n puts $y }", "y"),
+            "dynamic foreach list may be empty (W210 expected on y)",
+        );
+
+        // TP control: a first-iteration read-before-set inside the body still
+        // fires — rotation keeps the body's internal order.
+        assert!(
+            w210_fires_for("proc f {} { foreach x {1 2 3} { puts $acc; set acc $x } }", "acc"),
+            "first-iteration read of acc before its set still fires (W210)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_18_guaranteed_for_defines_body_vars() {
+        // FP-RBS-18 + Codex C2: a `for` whose condition is statically true on
+        // entry (evaluated against the init clause's *constant* bindings)
+        // provably iterates ≥1 time. Init is processed in order, and a
+        // non-constant write invalidates a stale constant binding.
+
+        // FP: `for {set i 0} {$i<3} …` — 0 < 3 true on entry, body sets y.
+        assert!(
+            !w210_fires_for(
+                "proc f {} { for {set i 0} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "for with statically-true entry condition defines y (no W210)",
+        );
+
+        // TP control: `for {set i 5} {$i<3} …` — 5 < 3 false, zero iterations.
+        assert!(
+            w210_fires_for(
+                "proc f {} { for {set i 5} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "for with false entry condition runs zero times (W210 expected on y)",
+        );
+
+        // TP control (Codex C2): a later non-constant write (`set i $n`) in the
+        // init must invalidate the stale `i = 0`, so the condition is unknown.
+        assert!(
+            w210_fires_for(
+                "proc f {n} { for {set i 0; set i $n} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "stale-constant for-init must not be claimed guaranteed (W210 on y)",
+        );
+
+        // TP control (Codex C2): an `incr` in the init likewise invalidates the
+        // constant binding (we don't fold incr in the init env).
+        assert!(
+            w210_fires_for(
+                "proc f {} { for {set i 0; incr i 5} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "incr in for-init invalidates the constant binding (W210 on y)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_15_continue_in_opaque_switch_stays_silent() {
+        // Codex C3 (companion to fp_rbs_15): a benign `continue` arm inside an
+        // opaque switch in a guaranteed foreach stays silent when the variable
+        // is set before the switch on every iteration.
+        assert!(
+            !w210_fires_for(
+                "proc f {} { foreach x {1 2 3} { set y 1; switch -glob $x { a* { continue } default {} } }\n puts $y }",
+                "y",
+            ),
+            "continue-arm switch with y set before it every iteration (no W210)",
+        );
+    }
+
+    #[test]
     fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         // `lappend` / `append` auto-create their target, so a first use is
         // not a read-before-set (matches Python excluding RMW targets).
