@@ -139,6 +139,19 @@ fn info_level_shared_core() {
     assert_eq!(result, "expected integer but got \"foo\"");
 }
 
+/// `info exists` runs through the shared core (`VarStore::exists`). Routing it
+/// surfaced and fixed a VM bug: the current-frame existence check was scalar-only
+/// (`var_exists`), so arrays like `::env` / `a` reported as not existing.
+#[test]
+fn info_exists_shared_core() {
+    assert_eq!(run("info exists nope").1, "0");
+    assert_eq!(run("set x 1\ninfo exists x").1, "1");
+    // Arrays and array elements (the cases the old scalar-only check missed).
+    assert_eq!(run("set a(k) v\ninfo exists a").1, "1");
+    assert_eq!(run("set a(k) v\ninfo exists a(k)").1, "1");
+    assert_eq!(run("set a(k) v\ninfo exists a(nope)").1, "0");
+}
+
 #[test]
 fn set_expr_puts() {
     let (ok, _result, out) = run("set x 5\nputs [expr {$x * 2}]\n");

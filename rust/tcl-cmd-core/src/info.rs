@@ -7,7 +7,7 @@
 //! Family-B role trait. Both runtimes (`tcl-vm`, `runtime/rust`) satisfy the
 //! bound and wrap the `Result<V, CmdError>` in their own command ABI.
 
-use tcl_runtime_api::Introspect;
+use tcl_runtime_api::{Frames, Introspect, VarStore};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -43,4 +43,18 @@ where
     // Syntactically an integer but no such call frame (out of range, or <= 0
     // at the global level): `bad level "x"`.
     Err(CmdError::new(format!("bad level \"{}\"", ops.as_str(n))))
+}
+
+/// `info exists varName` — whether `varName` is currently set in the current
+/// scope: a scalar, an array, or an array element (`a(k)`). Mirrors
+/// `Tcl_InfoExistsCmd` — the existence check resolves the name exactly as a read
+/// would, through [`VarStore::exists`] against the current frame.
+pub fn exists<O, V>(ops: &mut O, name: &V) -> V
+where
+    O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
+{
+    let here = Frames::current(ops);
+    let name = ops.as_str(name);
+    let present = ops.exists(here, &name);
+    ops.new_bool(present)
 }

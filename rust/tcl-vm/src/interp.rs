@@ -941,13 +941,6 @@ impl Vm {
         existed
     }
 
-    fn var_exists(&self, name: &str) -> bool {
-        let (lvl, nm) = self.locate(name);
-        self.frames
-            .get(lvl)
-            .is_some_and(|f| matches!(f.locals.get(&nm), Some(Local::Scalar(_))))
-    }
-
     // -- frame-addressed storage (the `VarStore` `FrameId`-honouring path) ------
     //
     // These resolve `name` starting from an *explicit* frame (following links),
@@ -1312,7 +1305,11 @@ impl VarStore for Vm {
 
     fn exists(&self, frame: FrameId, name: &str) -> bool {
         if frame.0 == self.current_level() {
-            self.var_exists(name)
+            // The *complete* existence check: a scalar, an array, or an array
+            // element (`exists_var`) — not the scalar-only `var_exists`, which
+            // would miss arrays like `::env` (a `VarStore` contract bug surfaced
+            // by routing `info exists` through this method).
+            self.exists_var(name)
         } else {
             self.exists_from(frame.0, name)
         }

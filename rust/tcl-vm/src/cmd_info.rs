@@ -15,10 +15,6 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("info", cmd_info);
 }
 
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
-}
-
 /// `info complete`: whether `script` has no unbalanced `{}`/`[]`/`"` and does
 /// not end in a line continuation — i.e. it is a syntactically complete command.
 fn is_complete(script: &str) -> bool {
@@ -57,8 +53,9 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"info subcommand ?arg ...?\"");
     };
     match &*sub.to_str() {
+        // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
-            [name] => ok(Value::bool(vm.exists_var(&name.to_str()))),
+            [name] => ok(tcl_cmd_core::info::exists(vm, name)),
             _ => err("wrong # args: should be \"info exists varName\""),
         },
         "complete" => match rest {
