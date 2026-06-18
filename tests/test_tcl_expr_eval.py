@@ -883,10 +883,14 @@ class TestTcl9BoolLiterals:
         assert _eval("false || true") == 1
 
     def test_true_eq_one(self):
-        assert _eval("true == 1") == 1
+        # `==` is a polymorphic compare: the bareword `true` is NOT a number,
+        # so it compares as a *string* — `expr {true == 1}` is 0 in real
+        # tclsh (8.6 and 9.0), not 1.  (Boolean *context* still coerces:
+        # `expr {true}` / `!true` are 1 / 0 — see the tests above.)
+        assert _eval("true == 1") == 0
 
     def test_false_eq_zero(self):
-        assert _eval("false == 0") == 1
+        assert _eval("false == 0") == 0
 
 
 class TestTcl9EdgeCases:
@@ -1249,3 +1253,57 @@ class TestStringComparisonFolding:
         assert _eval("5 eq 5") == 1
         assert _eval("5 eq 5.0") == 0
         assert _eval('5 eq "5"') == 1
+
+
+class TestPolymorphicEqualityFolding:
+    """`==`/`!=` follow Tcl's polymorphic comparison: numeric when *both*
+    operands are numbers, string otherwise.  The constant evaluator must fold
+    the string case too (regression: it previously bailed on non-numeric
+    operands, so ``"foo" == "foo"`` never folded — feeding a missing I230)."""
+
+    def test_string_operands_compare_as_strings(self):
+        # ``expr {"foo" == "foo"}`` -> 1 in C Tcl.
+        assert _eval('"foo" == "foo"') == 1
+        assert _eval('"foo" == "bar"') == 0
+        assert _eval('"foo" != "bar"') == 1
+        assert _eval('"foo" != "foo"') == 0
+
+    def test_mixed_operand_with_var_folds(self):
+        assert _eval('$x == "foo"', {"x": "foo"}) == 1
+        assert _eval('$x == "foo"', {"x": "bar"}) == 0
+        assert _eval('$x != "foo"', {"x": "bar"}) == 1
+
+    def test_both_numeric_operands_use_numeric_comparison(self):
+        # When both operands are numbers, ``==`` compares numerically — so a
+        # numeric string and a numeric literal are equal across types.
+        assert _eval("5 == 5") == 1
+        assert _eval("5 != 6") == 1
+        assert _eval("5 == 5.0") == 1  # int vs float literal — both numbers
+        assert _eval('"5" == 5') == 1  # numeric string vs int
+        assert _eval('5 == "5.0"') == 1  # int vs numeric string
+
+    def test_boolean_words_compare_as_strings(self):
+        # `true`/`false`/… are NOT numbers for `==`/`!=` (no boolean coercion,
+        # matching real tclsh and the Rust analyser), so they compare as
+        # strings: `"true" == "1"` and `1 == "true"` are 0, not a numeric 1.
+        assert _eval('"true" == "1"') == 0
+        assert _eval('1 == "true"') == 0
+        assert _eval('"true" == "true"') == 1  # equal strings
+
+    def test_leading_zero_operands_are_dialect_aware(self):
+        # A bare leading-zero integer is octal in Tcl 8.x but decimal in 9.0
+        # (TIP 472), so ``==`` folds per dialect — matching real tclsh and the
+        # Rust analyser.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("tcl8.6"):
+            assert _eval('"08" == "8"') == 0  # "08" invalid octal → string cmp
+            assert _eval('"010" == "10"') == 0  # octal 8 != 10
+            assert _eval('"010" == "8"') == 1  # octal 010 == 8
+        with dialect_scope("tcl9.0"):
+            assert _eval('"08" == "8"') == 1  # decimal 8 == 8
+            assert _eval('"010" == "10"') == 1  # decimal 10 == 10
+
+    def test_non_constant_operand_does_not_fold(self):
+        # An unbound variable leaves the comparison unevaluable.
+        assert _eval('$x == "foo"') is None
