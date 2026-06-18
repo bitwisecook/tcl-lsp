@@ -110,9 +110,17 @@ mkdir -p "$TARGET_DIR"
 # because the early one had already moved the file away.  Serialise
 # behind a lock; whichever process gets the lock fetches, the rest
 # wait and re-check the stamp afterwards.
+#
+# ``flock`` is a util-linux tool that is NOT present on macOS (and may
+# be absent on minimal containers).  It is only an optimisation here —
+# the per-file PID-suffixed temp names below already make concurrent
+# fetches collision-safe — so fall back to running unlocked when it is
+# missing rather than dying with exit 127.
 LOCK_FILE="$TARGET_DIR/.fetch.lock"
-exec 9>"$LOCK_FILE"
-flock 9
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    flock 9
+fi
 
 # Re-check after acquiring the lock — another process may have
 # completed the fetch while we were waiting.

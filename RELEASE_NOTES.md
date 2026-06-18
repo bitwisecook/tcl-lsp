@@ -1,3 +1,53 @@
+# v1.11.1
+
+## New Features
+
+- **`tcl registry-dump` / `f5 registry-dump`.** Serialise the command,
+  event, profile, and object registries as canonical JSON.
+
+## Improvements
+
+- **Unified secret input.** The UCS passphrase and auth-credential prompts now
+  share a single resolver — explicit value, file, environment variable, or a
+  secure `getpass` prompt — with consistent TTY detection and cancellation.
+- **Node.js baseline raised to 24+** (CI pinned to match) alongside a full
+  dependency refresh across the Python, VS Code/npm, Gradle, and
+  GitHub-Actions ecosystems.
+- **npm CLI pinned to v12 via Corepack** in CI and local development for
+  reproducible builds.
+- **VS Code engine requirement corrected to 1.95+.** The extension uses the
+  `ChatRequest.model` API finalised in VS Code 1.95, so the previously
+  declared `^1.93.0` minimum could not actually run it; the manifest now
+  states the true floor (and pins `@types/vscode` to it so the minimum stays
+  honest at compile time).
+
+## Bug Fixes
+
+- **Three latent analyser soundness bugs fixed**, each with a regression test
+  against real tclsh 9.0.3: omitted-argument call-site constants are now
+  poisoned interprocedurally; `regexp -expanded` is no longer treated as
+  unconditionally literal-safe (false W210); and a `try` body that throws now
+  keeps its exception edge to its handlers (false W210 read-before-set),
+  including conditional and nested-throw paths.
+- **Four style-check false positives fixed** (W105, W113, W212, W216).
+- **macOS build fixed.** `make test-slow` no longer fails on macOS:
+  `fetch_tcl_regex.sh` falls back to running unlocked when `flock` is absent,
+  since its per-file temp names already make concurrent fetches collision-safe.
+- **WASM rename-trace recursion fixed.** A `rename` command-trace whose
+  callback renames the very command being renamed no longer recurses until the
+  call stack is exhausted — `fire_command` now skips a trace already in
+  progress, matching reference Tcl (trace-20.10), so the outer rename becomes a
+  silent no-op.
+- **Release/capture script paths fixed.** Repo-root path bugs left by the
+  `scripts/` reorganisation are corrected, including the Sublime publish path
+  that failed the v1.11.0 release.
+
+## Security
+
+- **`form-data` bumped to 4.0.6** in the VS Code extension toolchain,
+  resolving the CRLF-injection advisory GHSA-hmw2-7cc7-3qxx (unescaped
+  multipart field names / filenames).
+
 # v1.11.0
 
 ## New Features

@@ -13,7 +13,7 @@
 #
 # Prerequisites:
 #   - Python 3.10+ with uv (https://docs.astral.sh/uv/)
-#   - Node.js 20+ with npm
+#   - Node.js 24+ with npm
 #
 
 SHELL := /bin/bash

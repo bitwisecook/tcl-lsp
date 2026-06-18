@@ -3228,6 +3228,225 @@ register(
 )
 
 
+register(
+    "FP-RBS-13",
+    _Entry(
+        label="tailcall with args replaces the frame — code after it never runs",
+        proc="::f",
+        vars=("result",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`tailcall` (Tcl 8.6+) replaces the current procedure's frame:\n"
+            "control never returns to this proc, so the statement ends\n"
+            "straight-line flow exactly like `return`/`error`/`exit`.\n"
+            "`TclNRTailcallObjCmd` (tclBasic.c) always `return TCL_RETURN` -- both\n"
+            "bare `tailcall` and `tailcall command ...` exit the proc (the arg\n"
+            "count only decides what runs *after* the frame pops).  Pre-fix the\n"
+            "CFG modelled it as an ordinary fall-through call (it was NOT in the\n"
+            "`terminates_block` trait), so the `if {$cond} { tailcall g }` arm\n"
+            "flowed into the join and `return $result` saw `result` as maybe-unset\n"
+            "-> false W210.  Fix (compiler/cfg.py): in analysis builds promote any\n"
+            "`tailcall` IRCall to a CFGReturn terminator (faithful builds only, so\n"
+            "the opaque-loop codegen / bytecode is byte-identical)."
+        ),
+        source=_dedent(
+            """
+            proc f {cond} {
+                # tailcall g replaces this frame: the `return $result` below is
+                # only reached via the else branch, where result is always set.
+                if {$cond} {
+                    tailcall g
+                } else {
+                    set result 1
+                }
+                return $result
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-14",
+    _Entry(
+        label="opaque-switch arm that cannot complete normally is excluded from must-define",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "An opaque (glob/regexp/fall-through) switch definitely-defines a var\n"
+            "only when every arm that *reaches the code after the switch* assigns\n"
+            "it.  An arm that exits the PROCEDURE (`return`/`error`/`exit`/\n"
+            "`tailcall`) never reaches that code, so it is excluded from the\n"
+            "must-define intersection — the standard definite-assignment rule.\n"
+            "(A `break`/`continue` arm is a loop jump, NOT a proc exit: it still\n"
+            "reaches the code after the enclosing loop, so it is KEPT — see the\n"
+            "FP-RBS-14 break TP control.)  Pre-fix the intersection counted the\n"
+            "proc-exit arm's (empty) def set, so `a* { return 0 } default { set y\n"
+            "2 }` left `y` out of the switch's defs and `puts $y` falsely fired\n"
+            "W210.  Fix (compiler/cfg.py `_flow_facts_*`/`_switch_must_defines`)."
+        ),
+        source=_dedent(
+            """
+            proc f {x} {
+                # the a* arm returns, so it never reaches `puts $y`; the only
+                # path that does (default) sets y -> y is definitely defined.
+                switch -glob $x {
+                    a* { return 0 }
+                    default { set y 2 }
+                }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-15",
+    _Entry(
+        label="opaque switch whose every arm exits is itself a terminator",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "When an opaque (glob/regexp/fall-through) switch has a `default` and\n"
+            "*every* reachable arm body (default + each arm with a body) cannot\n"
+            "complete normally -- e.g. every arm `return`s / `error`s / `tailcall`s\n"
+            "-- no path falls through, so the code after the switch is unreachable.\n"
+            "Pre-fix the opaque switch always fell through to the next statement,\n"
+            "so a read there (`puts $y`) was analysed as reachable and fired a\n"
+            "false W210.  Fix (compiler/cfg.py `_maybe_terminate_opaque_switch`):\n"
+            "in analysis builds promote the block to a CFGReturn terminator when\n"
+            "`_switch_completes_normally` is false, routing the trailing statements\n"
+            "to the orphan unreachable block exactly like a `return`/`tailcall`.\n"
+            "Conservative -- fires only when provably non-completing -- and\n"
+            "faithful-only, so the opaque-switch invokeStk codegen is unchanged."
+        ),
+        source=_dedent(
+            """
+            proc f {x} {
+                # every arm returns, so control never reaches `puts $y`:
+                # the switch is a terminator and the read is dead code.
+                switch -glob $x {
+                    a* { return 1 }
+                    default { return 2 }
+                }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-16",
+    _Entry(
+        label="phi operand on a dead loop-exit edge (while 1 + break) is not read-before-set",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`while 1 { set y 1; break }` runs the body at least once, so on the\n"
+            "ONLY real exit (the break) `y` is set.  The `cond -> exit` edge of\n"
+            "`while 1` is never taken (SCCP marks it non-executable), but the\n"
+            "loop-exit block's phi still has an operand for it carrying the\n"
+            "version-0 (unset) origin.  Pre-fix the read-before-set phi-undef\n"
+            "closure (`_phi_can_undef`) filtered unreachable predecessor BLOCKS\n"
+            "but not unreachable predecessor EDGES, so it consumed that dead-edge\n"
+            "version-0 and false-fired W210 on `puts $y`.  Fix (compiler/\n"
+            "core_analyses.py): thread SCCP `executable_edges` into\n"
+            "`_read_before_set` and skip phi operands whose `(pred, block)` edge\n"
+            "is non-executable -- mirroring the edge filter already in\n"
+            "`_collect_used_names`.  Common in the `while 1 { ...; if {c} break }`\n"
+            "early-exit idiom."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # while 1 runs the body >=1 time; the only exit is the break,
+                # where y is already set -> $y is always defined here.
+                while 1 { set y 1; break }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-17",
+    _Entry(
+        label="foreach over a non-empty literal runs its body at least once",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`foreach x {1 2 3} { set y $x }` always runs the body (the list is a\n"
+            "non-empty literal), so `y` is set when `puts $y` reads it.  The CFG\n"
+            "modelled every foreach as possibly zero iterations (the header's\n"
+            "opaque has-next branch), false-firing W210.  Fix (compiler/cfg.py):\n"
+            "analysis builds *rotate* a provably-non-empty foreach -- the\n"
+            "0-iteration skip becomes a separate, statically-true entry-guard\n"
+            "edge (SCCP prunes it) and the var-def + body run before the latch\n"
+            "re-check, so the loop var and body defs reach the exit.  No synthetic\n"
+            "def, so SCCP values are intact; `break`/`continue` stay real edges,\n"
+            "so partial-def exits remain sound (a `continue`-before-set still\n"
+            "fires W210).  Faithful builds only -- codegen keeps the original\n"
+            "foreach shape, so bytecode is unchanged."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # the list is a non-empty literal, so the body runs >=1 time
+                # and y is set before puts reads it.
+                foreach x {1 2 3} { set y $x }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-18",
+    _Entry(
+        label="for whose condition is true on entry runs its body at least once",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`for {set i 0} {$i < 3} {incr i} { set y $i }` runs the body at least\n"
+            "once (`0 < 3` is true on entry), so `y` is set when `puts $y` reads\n"
+            "it.  SCCP cannot fold the header test because `i` there is the loop\n"
+            "phi (0 ⊔ stepped).  Fix (compiler/cfg.py): analysis builds rotate the\n"
+            "loop so the back-edge re-check carries the real condition and the\n"
+            "header is demoted to a synthetic always-true entry guard (we proved\n"
+            "entry-truth by evaluating the condition against the init constants).\n"
+            "The header is then reached only from init, so SCCP prunes the\n"
+            "0-iteration header→end edge.  The guard branch has no source range,\n"
+            "so the optimiser's constant-branch rewriter leaves the loop source\n"
+            "alone; loop_nodes + init exit-versions are unchanged, so the static-\n"
+            "for summary still folds post-loop constants.  Faithful builds only."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # 0 < 3 is true on entry, so the body runs >=1 time and y is set.
+                for {set i 0} {$i < 3} {incr i} { set y $i }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)
