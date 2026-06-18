@@ -353,6 +353,19 @@ pub fn eval_expr(node: &ExprNode, ctx: &mut dyn ExprCtx) -> Result<Owned, ExprEr
     eval(node, &mut ops)
 }
 
+/// Drive `::tcl::mathop::<op>` over the tower: the shared `tcl_cmd_core::mathop`
+/// fold/chain logic, each primitive going through this runtime's `ExprOps` (so
+/// the same bignum behaviour as `expr`). `args` are already-evaluated operands;
+/// `ctx`'s `$var`/`[cmd]` resolution is never invoked (a trivial ctx suffices).
+pub fn eval_mathop(
+    op: &str,
+    args: Vec<Owned>,
+    ctx: &mut dyn ExprCtx,
+) -> Result<Owned, tcl_cmd_core::mathop::MathopError<ExprError>> {
+    let mut ops = TowerOps { ctx };
+    tcl_cmd_core::mathop::eval(&mut ops, op, args)
+}
+
 // ---- value helpers ---------------------------------------------------------
 
 /// Tcl boolean coercion (`Tcl_GetBoolean`): the keywords or any non-zero number.

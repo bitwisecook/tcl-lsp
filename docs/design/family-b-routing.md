@@ -58,6 +58,11 @@ Shared in `tcl-cmd-core`:
   `command_name`/`find_command`).
 - `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
   (platform-independent), replacing the VM's old `std::path::Path` versions.
+- `mathop::eval` — `::tcl::mathop::*` (every `expr` operator as a command) over
+  the existing [`ExprOps`](tcl_syntax::expr::ExprOps) seam, so **no new value
+  seam**: the fold/identity/chain logic is shared, each primitive going through
+  each runtime's `ExprOps` (the WASM runtime's bignum tower, the VM's i64+double).
+  The VM had no `mathop` at all; it now has the full operator set.
 - `sort::{key_compare, dictionary_compare, parse_wide, parse_real}` — the
   `lsort`/`lsearch` comparison modes (`-ascii`/`-dictionary`/`-integer`/`-real`,
   `-nocase`), pure `&[u8] → Ordering`. The runtime's `lsort`/`lsearch` delegate
@@ -107,6 +112,7 @@ core unified both to the correct behaviour):
 | `lappend` (no-value validate) | the runtime returned a malformed value unchanged; now validates it as a list and errors (`unmatched open brace in list`, tclsh) |
 | `binary` (subcommands) | the VM lacked `encode`/`decode` and most `format`/`scan` codes (no floats/64-bit), and its bad-subcommand error said "must be format or scan"; routing gave it the full set + the tclsh message. The runtime's `base64` decode also gained its missing `TCL BINARY DECODE INVALID` errorCode. |
 | `lsort` (VM modes) | `-dictionary` fell back to a byte compare, `-integer`/`-real` both used a `double` compare, and `-nocase` was absent; routing the shared `sort` core gave the VM the correct modes (numeric dictionary order, exact integer vs real, case folding, and mode-aware `-unique`). |
+| `mathop` (VM) | the VM had no `::tcl::mathop::*` at all; sharing the fold/chain core over `ExprOps` added the full operator set (verified against tclsh). |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

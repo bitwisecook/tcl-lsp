@@ -359,6 +359,37 @@ fn lsort_shared_comparison() {
     assert_eq!(run("lsort {x10 x9 x100}").1, "x10 x100 x9");
 }
 
+/// `::tcl::mathop::*` — newly added to the VM, sharing `tcl_cmd_core::mathop`'s
+/// fold/chain logic over the VM's `ExprOps`. Pinned against tclsh 9.0.
+#[test]
+fn mathop_shared() {
+    assert_eq!(run("::tcl::mathop::+ 1 2 3").1, "6");
+    assert_eq!(run("::tcl::mathop::+").1, "0"); // identity
+    assert_eq!(run("::tcl::mathop::- 10 3 2").1, "5");
+    assert_eq!(run("::tcl::mathop::- 5").1, "-5"); // 1 arg negates
+    assert_eq!(run("::tcl::mathop::* 2 3 4").1, "24");
+    assert_eq!(run("::tcl::mathop::/ 100 5 2").1, "10");
+    assert_eq!(run("::tcl::mathop::/ 4").1, "0.25"); // reciprocal
+    assert_eq!(run("::tcl::mathop::** 2 3 2").1, "512"); // right-assoc: 2**(3**2)
+    assert_eq!(run("::tcl::mathop::% 17 5").1, "2");
+    assert_eq!(run("::tcl::mathop::<< 1 4").1, "16");
+    assert_eq!(run("::tcl::mathop::& 12 10").1, "8");
+    assert_eq!(run("::tcl::mathop::~ 5").1, "-6");
+    assert_eq!(run("::tcl::mathop::! 0").1, "1");
+    assert_eq!(run("::tcl::mathop::< 1 2 3").1, "1"); // chained
+    assert_eq!(run("::tcl::mathop::< 1 3 2").1, "0");
+    assert_eq!(run("::tcl::mathop::== 5 5 5").1, "1");
+    assert_eq!(run("::tcl::mathop::eq abc abc").1, "1");
+    assert_eq!(run("::tcl::mathop::in b {a b c}").1, "1");
+    assert_eq!(run("::tcl::mathop::ni x {a b c}").1, "1");
+    let (ok, msg, _) = run("::tcl::mathop::% 1");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "wrong # args: should be \"::tcl::mathop::% integer integer\""
+    );
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");
