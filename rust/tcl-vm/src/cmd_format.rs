@@ -1,9 +1,11 @@
-//! The `scan` command + the `format` adapter.
+//! The `scan` + `format` adapters.
 //!
-//! `format`'s rendering logic now lives in the shared `tcl_cmd_core::format`
-//! (over `ValueOps`); this module keeps `scan` (the inverse parse) and a thin
-//! `format` adapter onto the core.
+//! Both rendering directions now live in the shared `tcl_cmd_core`: `format`'s
+//! output logic in `tcl_cmd_core::format` (over `ValueOps`) and `scan`'s
+//! matching engine in `tcl_cmd_core::scan` (a pure code-point parser). This
+//! module is the VM's thin adapter onto each.
 
+use tcl_cmd_core::scan::{Scanned, scan_match};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -15,175 +17,55 @@ pub(crate) fn register(vm: &mut Vm) {
 }
 
 /// `scan string format ?varName ...?` — parse `string` per the conversion
-/// `format`. With `varName`s, assign each conversion and return the count; with
-/// none ("inline" form), return the conversions as a list. Supports the common
-/// verbs (`d i o x c s f e g`) with optional width and `*` (assignment
-/// suppression).
+/// `format`. With `varName`s, assign each conversion and return the count (`-1`
+/// on EOF before any conversion); with none ("inline" form), return the
+/// conversions as a list. The matching engine is shared (`tcl_cmd_core::scan`),
+/// so the VM and `runtime/rust` accept the same conversions.
 fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (input, fmt, vars) = match args {
         [s, f, vars @ ..] => (s.to_str(), f.to_str(), vars),
         _ => return err("wrong # args: should be \"scan string format ?varName ...?\""),
     };
-    let results = match scan_parse(&input, &fmt) {
-        Ok(r) => r,
-        Err(e) => return err(e),
-    };
+    let inp: Vec<char> = input.chars().collect();
+    let fch: Vec<char> = fmt.chars().collect();
+    let outcome = scan_match(&inp, &fch);
     if vars.is_empty() {
-        // Inline form: return the conversions as a list (empty string for a
-        // field that did not match).
+        // Inline form: the conversions as a list (a failed field is an empty
+        // string); an outright EOF-before-anything is the empty string.
+        if outcome.values.is_empty() {
+            return ok(Value::empty());
+        }
         return ok(Value::list(
-            results
-                .into_iter()
-                .map(|o| o.unwrap_or_else(Value::empty))
+            outcome
+                .values
+                .iter()
+                .map(|v| v.as_ref().map_or_else(Value::empty, scanned_value))
                 .collect(),
         ));
     }
+    // Variable form: -1 if EOF preceded any conversion; else assign and count.
+    if outcome.nconv == 0 && outcome.eof_before_conv {
+        return ok(Value::int(-1));
+    }
     let mut count = 0;
-    for (i, var) in vars.iter().enumerate() {
-        match results.get(i).cloned().flatten() {
-            Some(v) => {
-                if let Err(c) = vm.set_var(&var.to_str(), v) {
-                    return c;
-                }
-                count += 1;
-            }
-            None => break,
+    for (v, var) in outcome.values.iter().zip(vars.iter()) {
+        let Some(value) = v else { break };
+        if let Err(c) = vm.set_var(&var.to_str(), scanned_value(value)) {
+            return c;
         }
+        count += 1;
     }
     ok(Value::int(count))
 }
 
-/// Apply a `scan` format to `input`, returning one slot per non-suppressed
-/// conversion (`None` when the field failed to match).
-fn scan_parse(input: &str, fmt: &str) -> Result<Vec<Option<Value>>, String> {
-    let inp: Vec<char> = input.chars().collect();
-    let fch: Vec<char> = fmt.chars().collect();
-    let mut ip = 0usize;
-    let mut fp = 0usize;
-    let mut out: Vec<Option<Value>> = Vec::new();
-    while fp < fch.len() {
-        let c = fch[fp];
-        if c.is_whitespace() {
-            fp += 1;
-            while ip < inp.len() && inp[ip].is_whitespace() {
-                ip += 1;
-            }
-            continue;
-        }
-        if c != '%' {
-            // Literal: must match the next input char.
-            if ip < inp.len() && inp[ip] == c {
-                ip += 1;
-                fp += 1;
-                continue;
-            }
-            break;
-        }
-        // Conversion specifier: `%[*][width]verb`.
-        fp += 1;
-        if fp < fch.len() && fch[fp] == '%' {
-            if ip < inp.len() && inp[ip] == '%' {
-                ip += 1;
-                fp += 1;
-                continue;
-            }
-            break;
-        }
-        let suppress = fp < fch.len() && fch[fp] == '*';
-        if suppress {
-            fp += 1;
-        }
-        let mut width = 0usize;
-        let mut has_width = false;
-        while fp < fch.len() && fch[fp].is_ascii_digit() {
-            has_width = true;
-            width = width * 10 + (fch[fp] as usize - '0' as usize);
-            fp += 1;
-        }
-        let Some(&verb) = fch.get(fp) else {
-            return Err("bad scan conversion".to_string());
-        };
-        fp += 1;
-        // Most verbs skip leading whitespace first (not `c`).
-        if verb != 'c' {
-            while ip < inp.len() && inp[ip].is_whitespace() {
-                ip += 1;
-            }
-        }
-        let w = if has_width { Some(width) } else { None };
-        let value = scan_field(verb, &inp, &mut ip, w)?;
-        if !suppress {
-            out.push(value);
-        }
+/// Build the VM value for a scanned conversion (`%d`/`%x`/`%c`→int,
+/// `%e`/`%f`/`%g`→double, `%s`/`%[`→string).
+fn scanned_value(v: &Scanned) -> Value {
+    match v {
+        Scanned::Int(n) => Value::int(*n),
+        Scanned::Double(d) => Value::double(*d),
+        Scanned::Str(s) => Value::string(s.as_str()),
     }
-    Ok(out)
-}
-
-/// Extract one `scan` conversion of kind `verb` from `inp` starting at `*ip`
-/// (advancing it), bounded by an optional field `width`. Returns the converted
-/// value, or `None` when the field does not match.
-fn scan_field(
-    verb: char,
-    inp: &[char],
-    ip: &mut usize,
-    width: Option<usize>,
-) -> Result<Option<Value>, String> {
-    // Collect the longest prefix (within `width`) whose chars satisfy `pred`.
-    let take = |ip: &mut usize, pred: &dyn Fn(usize, char) -> bool| -> String {
-        let mut s = String::new();
-        let mut n = 0;
-        while *ip < inp.len() && width.is_none_or(|w| n < w) && pred(n, inp[*ip]) {
-            s.push(inp[*ip]);
-            *ip += 1;
-            n += 1;
-        }
-        s
-    };
-    let value = match verb {
-        'c' => {
-            if *ip < inp.len() {
-                let ch = inp[*ip];
-                *ip += 1;
-                Some(Value::int(i64::from(u32::from(ch))))
-            } else {
-                None
-            }
-        }
-        'd' | 'i' | 'u' => take(ip, &|n, c| {
-            c.is_ascii_digit() || (n == 0 && (c == '-' || c == '+'))
-        })
-        .parse::<i64>()
-        .ok()
-        .map(Value::int),
-        'x' | 'X' => {
-            let s = take(ip, &|_, c| c.is_ascii_hexdigit());
-            i64::from_str_radix(&s, 16).ok().map(Value::int)
-        }
-        'o' => {
-            let s = take(ip, &|_, c| ('0'..='7').contains(&c));
-            i64::from_str_radix(&s, 8).ok().map(Value::int)
-        }
-        'f' | 'e' | 'E' | 'g' | 'G' => take(ip, &|n, c| {
-            c.is_ascii_digit()
-                || c == '.'
-                || (n == 0 && (c == '-' || c == '+'))
-                || c == 'e'
-                || c == 'E'
-        })
-        .parse::<f64>()
-        .ok()
-        .map(Value::double),
-        's' => {
-            let s = take(ip, &|_, c| !c.is_whitespace());
-            if s.is_empty() {
-                None
-            } else {
-                Some(Value::string(s))
-            }
-        }
-        other => return Err(format!("bad scan conversion character \"%{other}\"")),
-    };
-    Ok(value)
 }
 
 fn cmd_format(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

@@ -24,6 +24,7 @@ pub mod index;
 pub mod list;
 pub mod path;
 pub mod platform;
+pub mod scan;
 pub mod string;
 pub mod string_is;
 
