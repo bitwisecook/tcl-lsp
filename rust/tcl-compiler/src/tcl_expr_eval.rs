@@ -224,7 +224,15 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         left: &FoldValue,
         right: &FoldValue,
     ) -> Option<std::cmp::Ordering> {
-        Some(numeric_cmp(left.to_number()?, right.to_number()?))
+        // `==` / `!=` / `<` / … are polymorphic: Tcl compares numerically only
+        // when *both* operands are valid numbers, otherwise as strings. Use the
+        // *strict* number grammar (no boolean words) here — `parse_literal`
+        // coerces `true`/`yes`/… to `1`/`0`, but Tcl does NOT treat them as
+        // numbers for comparison (`expr {"true" == "1"}` → 0, a string compare;
+        // `expr {"true" + 0}` errors). Returning `None` for a non-number falls
+        // the shared evaluator back to `compare_string`, matching Tcl and
+        // avoiding a wrong-direction I230 (e.g. `set x true; if {$x == "1"}`).
+        Some(numeric_cmp(strict_number(left)?, strict_number(right)?))
     }
     fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
         left.to_string_val().cmp(&right.to_string_val())
@@ -302,6 +310,26 @@ pub fn parse_literal(text: &str) -> Option<TclValue> {
         Number::Double(d) => Some(TclValue::Float(d)),
         Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
         Number::Big { .. } => None,
+    }
+}
+
+/// Parse a *strict* Tcl number — the number grammar only, **without** the
+/// boolean-word coercion [`parse_literal`] adds. Used for the polymorphic
+/// comparison operators, whose numeric-vs-string decision follows Tcl's number
+/// rules: `true`/`yes`/`off`/… are strings, not numbers. (Leading-zero octal
+/// like `08` is still accepted as the shared grammar parses it; its
+/// dialect-dependent invalidity in tcl8.x is a separate, dialect-aware concern.)
+fn strict_number(value: &FoldValue) -> Option<TclValue> {
+    use tcl_syntax::number::Number;
+    match value {
+        FoldValue::Int(i) => Some(TclValue::Int(*i)),
+        FoldValue::Float(f) => Some(TclValue::Float(*f)),
+        FoldValue::Str(s) => match tcl_syntax::number::parse_whole(s)? {
+            Number::Int(v) => Some(TclValue::Int(v)),
+            Number::Double(d) => Some(TclValue::Float(d)),
+            Number::Nan { .. } => Some(TclValue::Float(f64::NAN)),
+            Number::Big { .. } => None,
+        },
     }
 }
 
@@ -643,6 +671,23 @@ mod tests {
     fn literal_float() {
         assert_eq!(eval_str("1.5"), Some(TclValue::Float(1.5)));
         assert_eq!(eval_str("2e3"), Some(TclValue::Float(2000.0)));
+    }
+
+    #[test]
+    fn polymorphic_equality_uses_strict_numbers() {
+        // `==` / `!=` compare numerically only when *both* operands are valid
+        // Tcl numbers; otherwise as strings. Boolean words are NOT numbers for
+        // comparison (tclsh: `expr {"true" == "1"}` → 0), so the comparison
+        // must fall back to a string compare rather than coercing `true`→1.
+        assert_eq!(eval_str(r#""true" == "1""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_str(r#""yes" == "1""#), Some(TclValue::Int(0)));
+        assert_eq!(eval_str(r#""true" != "1""#), Some(TclValue::Int(1)));
+        // Genuine numbers still compare numerically (incl. mixed int/float and
+        // hex), and non-numeric strings string-compare.
+        assert_eq!(eval_str(r#""5" == "5.0""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""0x10" == "16""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""foo" == "foo""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""foo" == "bar""#), Some(TclValue::Int(0)));
     }
 
     #[test]
