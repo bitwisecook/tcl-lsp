@@ -135,8 +135,8 @@ fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) 
 /// The var home an unqualified name lives in when resolving against frame
 /// `level` — the frame-addressed analogue of [`current_home`]: a proc frame's
 /// own table, else that frame's namespace table (the global level → the global
-/// namespace).
-fn home_at(frames: &FrameStack, level: usize) -> VarHome {
+/// namespace). Also the `Frames::link` target home (`family_b.rs`).
+pub(crate) fn home_at(frames: &FrameStack, level: usize) -> VarHome {
     if frames.is_proc_at(level) {
         VarHome::Frame(level)
     } else {

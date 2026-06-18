@@ -4,12 +4,12 @@
 //! `*mut TclObj` value model, so a consumer of the `tcl-runtime-api` role
 //! traits can reach into this runtime's state with the *same* contract the
 //! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. `VarStore`, `Introspect`,
-//! and `Commands` are implemented; the remaining role traits
-//! (`Frames`/`Namespaces`/`Traces`) follow as their handle model is reconciled
-//! with this runtime's arena/level addressing.
+//! `Commands`, `Traces`, and `Frames` are implemented; `Namespaces` follows once
+//! its `CommandId` handle has an arena/consumer story on both runtimes.
 
-use tcl_runtime_api::{Commands, Completion, FrameId, Introspect, Traces, VarStore};
+use tcl_runtime_api::{Commands, Completion, FrameId, Frames, Introspect, NsId, Traces, VarStore};
 
+use crate::frame::Link;
 use crate::interp::{new_string, Interp};
 use crate::list::new_list_obj;
 use crate::obj::{self, TclObj};
@@ -166,12 +166,50 @@ impl Traces for Interp {
     }
 }
 
+/// The call-frame stack. `NsId` is native here (each frame carries its
+/// namespace), so [`push`](Frames::push) maps directly to a proc-call frame.
+/// [`link`](Frames::link) installs an `upvar`/`global`-style alias in the
+/// current frame — the only frame `upvar` ever targets — to `target`'s variable;
+/// the target home follows the same `level → frame-or-namespace` rule as
+/// variable resolution ([`crate::vars::home_at`]), so a link to `GLOBAL_FRAME`
+/// correctly lands in the global namespace table.
+impl Frames for Interp {
+    fn push(&mut self, ns: NsId) -> FrameId {
+        // The contract's `NsId` is a `u32` newtype; the runtime's is a `usize`
+        // arena index (`ROOT_NS`/`GLOBAL` both 0).
+        FrameId(self.frames.borrow_mut().push(ns.0 as usize))
+    }
+
+    fn pop(&mut self) {
+        self.frames.borrow_mut().pop();
+    }
+
+    fn current(&self) -> FrameId {
+        FrameId(self.frames.borrow().current_level())
+    }
+
+    fn link(&mut self, here: FrameId, target: FrameId, local: &str, target_name: &str) {
+        debug_assert_eq!(
+            here.0,
+            self.frames.borrow().current_level(),
+            "upvar installs in the current frame"
+        );
+        let home = crate::vars::home_at(&self.frames.borrow(), target.0);
+        let target = Link {
+            home,
+            name: target_name.as_bytes().to_vec(),
+            elem: None,
+        };
+        self.make_upvar(target, local.as_bytes());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::counters;
     use crate::interp::{drop_fresh, new_string, obj_bytes};
-    use tcl_runtime_api::{Code, GLOBAL_FRAME};
+    use tcl_runtime_api::{Code, GLOBAL_FRAME, ROOT_NS};
 
     /// Run `body` against a fresh interpreter and assert it leaks nothing (the
     /// `*mut TclObj` refcount discipline of the `VarStore` impl is correct).
@@ -307,6 +345,31 @@ mod tests {
             // An `unset` trace error does *not* abort (matches C / the VM): Ok.
             let _ = i.eval_str(b"trace add variable z unset {error nope;#}");
             assert!(Traces::fire(i, "z", "unset").is_ok());
+        });
+    }
+
+    #[test]
+    fn frames_push_pop_current_link() {
+        leak_free(|i| {
+            // A global, set while the global frame is current.
+            i.set(GLOBAL_FRAME, "g", new_string(b"orig"));
+            let outer = Frames::current(i);
+            assert_eq!(outer, GLOBAL_FRAME);
+            // Push a proc-call frame in the global namespace; it becomes current.
+            let inner = Frames::push(i, ROOT_NS);
+            assert_ne!(inner, outer);
+            assert_eq!(Frames::current(i), inner);
+            // `upvar`: link `gg` (inner) to the outer frame's global `g`. The
+            // link target resolves to the global namespace table (level 0), so
+            // reads and writes through `gg` reach `g`.
+            Frames::link(i, inner, outer, "gg", "g");
+            assert_eq!(obj_bytes(i.get(inner, "gg").unwrap()), b"orig");
+            i.set(inner, "gg", new_string(b"changed"));
+            // Pop back to the global frame: the link is gone, the global updated.
+            Frames::pop(i);
+            assert_eq!(Frames::current(i), outer);
+            assert_eq!(obj_bytes(i.get(GLOBAL_FRAME, "g").unwrap()), b"changed");
+            assert!(i.unset(GLOBAL_FRAME, "g"));
         });
     }
 }

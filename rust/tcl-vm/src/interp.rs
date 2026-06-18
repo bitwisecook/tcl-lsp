@@ -8,7 +8,8 @@ use std::rc::Rc;
 use tcl_bytecode::FunctionAsm;
 use tcl_platform::Host;
 use tcl_runtime_api::{
-    Code, Commands, CompileService, Completion, FrameId, Introspect, ROOT_NS, Traces, VarStore,
+    Code, Commands, CompileService, Completion, FrameId, Frames, Introspect, NsId, ROOT_NS, Traces,
+    VarStore,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -70,6 +71,12 @@ pub struct Vm {
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
     ns_exports: HashMap<String, Vec<String>>,
+    /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
+    /// contract. The VM resolves namespaces by their canonical `String` name; this
+    /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
+    /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
+    ns_arena: Vec<String>,
+    ns_intern: HashMap<String, NsId>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
@@ -132,6 +139,8 @@ impl Vm {
             ns_stack: vec![String::new()],
             namespaces: std::collections::HashSet::new(),
             ns_exports: HashMap::new(),
+            ns_arena: vec![String::new()],
+            ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
@@ -252,6 +261,29 @@ impl Vm {
     /// The current namespace (canonical, no leading `::`; `""` = global).
     pub(crate) fn current_ns(&self) -> &str {
         self.ns_stack.last().map_or("", String::as_str)
+    }
+
+    /// Intern a canonical namespace name to its stable `NsId`, minting one on
+    /// first sight (`ROOT_NS` = 0 = `""`). The handle a `Frames::push` caller
+    /// passes — and what `Namespaces::current` will return — round-trips through
+    /// [`ns_name`](Self::ns_name).
+    pub fn intern_ns(&mut self, name: &str) -> NsId {
+        if let Some(&id) = self.ns_intern.get(name) {
+            return id;
+        }
+        let id = NsId(u32::try_from(self.ns_arena.len()).expect("namespace count fits u32"));
+        self.ns_arena.push(name.to_string());
+        self.ns_intern.insert(name.to_string(), id);
+        id
+    }
+
+    /// The canonical namespace name for an interned `NsId` (`""` for `ROOT_NS`
+    /// or any unknown id — a `Frames::push` into the global namespace).
+    fn ns_name(&self, id: NsId) -> String {
+        self.ns_arena
+            .get(id.0 as usize)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Push a namespace onto the resolution stack (created if new).
@@ -1280,6 +1312,40 @@ impl Traces for Vm {
     }
 }
 
+/// The call-frame stack. The VM tracks namespace context by `String`, so
+/// [`push`](Frames::push) resolves the `NsId` to its name (via the intern arena)
+/// and pushes a bare call frame plus that namespace context; [`pop`](Frames::pop)
+/// unwinds both. [`link`](Frames::link) installs an `upvar`-style alias in the
+/// current frame (the only frame `upvar` targets) — the VM stores variables
+/// (globals included) in their frame's locals, so a plain level-addressed link
+/// suffices.
+impl Frames for Vm {
+    fn push(&mut self, ns: NsId) -> FrameId {
+        let name = self.ns_name(ns);
+        let level = self.push_call_frame(None, Vec::new());
+        self.push_ns(name);
+        FrameId(level)
+    }
+
+    fn pop(&mut self) {
+        self.pop_ns();
+        self.pop_call_frame();
+    }
+
+    fn current(&self) -> FrameId {
+        FrameId(self.current_level())
+    }
+
+    fn link(&mut self, here: FrameId, target: FrameId, local: &str, target_name: &str) {
+        debug_assert_eq!(
+            here.0,
+            self.current_level(),
+            "upvar installs in the current frame"
+        );
+        self.add_link(local, target.0, target_name);
+    }
+}
+
 #[cfg(test)]
 mod family_b_tests {
     use super::*;
@@ -1345,5 +1411,30 @@ mod family_b_tests {
             &*c.result.to_str(),
             "invalid command name \"no_such_command\""
         );
+    }
+
+    #[test]
+    fn frames_push_pop_current_link() {
+        let mut vm = Vm::new();
+        let to_s = |v: Option<Value>| v.map(|v| v.to_str().to_string());
+        // A global, set while the global frame is current.
+        vm.set(GLOBAL_FRAME, "g", Value::string("orig"));
+        let outer = Frames::current(&vm);
+        assert_eq!(outer, GLOBAL_FRAME);
+        // Push a proc-call frame in a fresh namespace (interned to an NsId, which
+        // round-trips through the arena back to its name on push).
+        let ns = vm.intern_ns("foo");
+        let inner = Frames::push(&mut vm, ns);
+        assert_ne!(inner, outer);
+        assert_eq!(Frames::current(&vm), inner);
+        // `upvar`: link `gg` (inner) to the outer frame's global `g`; reads and
+        // writes through `gg` reach `g`.
+        Frames::link(&mut vm, inner, outer, "gg", "g");
+        assert_eq!(to_s(vm.get(inner, "gg")), Some("orig".to_string()));
+        vm.set(inner, "gg", Value::string("changed"));
+        // Pop back to the global frame: the link is gone, the global updated.
+        Frames::pop(&mut vm);
+        assert_eq!(Frames::current(&vm), outer);
+        assert_eq!(to_s(vm.get(GLOBAL_FRAME, "g")), Some("changed".to_string()));
     }
 }
