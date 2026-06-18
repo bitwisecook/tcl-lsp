@@ -769,10 +769,15 @@ class TestShimmerThunking:
         """)
 
     def test_numeric_string_equality(self):
-        """Numeric strings: == does numeric comparison, eq does string."""
+        """Numeric strings: == does numeric comparison, eq does string.
+
+        Uses ``10`` / ``10.0`` (numerically equal, textually distinct) rather
+        than a leading-zero pair, whose octal-vs-decimal reading is
+        dialect-dependent.
+        """
         _assert_equiv("""\
-            set a "010"
-            set b "10"
+            set a "10"
+            set b "10.0"
             set numeric_eq [expr {$a == $b}]
             set string_eq [expr {$a eq $b}]
             puts "numeric=$numeric_eq string=$string_eq"

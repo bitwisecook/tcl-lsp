@@ -1290,12 +1290,19 @@ class TestPolymorphicEqualityFolding:
         assert _eval('1 == "true"') == 0
         assert _eval('"true" == "true"') == 1  # equal strings
 
-    def test_leading_zero_operands_decline_to_fold(self):
+    def test_leading_zero_operands_are_dialect_aware(self):
         # A bare leading-zero integer is octal in Tcl 8.x but decimal in 9.0
-        # (TIP 472).  Rather than pick a dialect (and diverge from the Python
-        # VM, which reads them as decimal), the folder declines.
-        assert _eval('"08" == "8"') is None
-        assert _eval('"010" == "10"') is None
+        # (TIP 472), so ``==`` folds per dialect — matching real tclsh and the
+        # Rust analyser.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("tcl8.6"):
+            assert _eval('"08" == "8"') == 0  # "08" invalid octal → string cmp
+            assert _eval('"010" == "10"') == 0  # octal 8 != 10
+            assert _eval('"010" == "8"') == 1  # octal 010 == 8
+        with dialect_scope("tcl9.0"):
+            assert _eval('"08" == "8"') == 1  # decimal 8 == 8
+            assert _eval('"010" == "10"') == 1  # decimal 10 == 10
 
     def test_non_constant_operand_does_not_fold(self):
         # An unbound variable leaves the comparison unevaluable.
