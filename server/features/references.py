@@ -35,6 +35,13 @@ def find_proc_call_sites(name: str, qualified_name: str, analysis: AnalysisResul
     qualified_no_prefix = qualified_name[2:] if qualified_name.startswith("::") else qualified_name
     call_forms = {name, qualified_name, qualified_no_prefix}
     proc_qnames = frozenset(analysis.all_procs)
+    # Namespace disambiguation only kicks in when the simple name is genuinely
+    # ambiguous *within this analysis* — i.e. two or more procs share it (e.g.
+    # ``::a::foo`` and ``::b::foo``). When it is unique (or absent, as for a
+    # cross-file call whose proc lives in another document), plain name-form
+    # matching is both correct and necessary: requiring the proc to exist
+    # locally would drop legitimate cross-file references (#637).
+    name_is_ambiguous = sum(1 for proc in analysis.all_procs.values() if proc.name == name) >= 2
     locations: list[Range] = []
     seen: set[tuple[int, int, int, int]] = set()
     for invocation in analysis.command_invocations:
@@ -45,16 +52,16 @@ def find_proc_call_sites(name: str, qualified_name: str, analysis: AnalysisResul
             # Qualified but unresolved (forward / cross-file): the written form
             # already names the namespace, so match it exactly.
             matches_target = invocation.name in call_forms
-        else:
-            # Bare unresolved call: resolve it now against the full proc set the
-            # way Tcl would (current namespace, then global), so a forward call
-            # is credited only to the proc it actually targets — not to every
-            # same-named proc in other namespaces (#644). Without the call
-            # site's namespace, fall back to treating it as global.
+        elif name_is_ambiguous and invocation.name == name:
+            # Bare unresolved call to an ambiguous name: resolve it the way Tcl
+            # would (current namespace, then global) so it is credited only to
+            # the proc it actually targets — not every same-named proc (#644).
             call_ns = invocation.enclosing_namespace or "::"
             matches_target = (
                 _bare_call_target(invocation.name, call_ns, proc_qnames) == qualified_name
             )
+        else:
+            matches_target = invocation.name in call_forms
         if matches_target:
             key = (
                 invocation.range.start.line,
