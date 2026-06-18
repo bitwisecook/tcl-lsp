@@ -155,6 +155,18 @@ pub trait Namespaces {
     fn parent(&self, ns: NsId) -> Option<NsId>;
     /// The handles of `ns`'s direct child namespaces (`childTable`).
     fn children(&self, ns: NsId) -> Vec<NsId>;
+
+    // -- command enumeration (a namespace's `cmdTable`; backs `info commands`/
+    // `info procs`). Direct members only — one level, not descendants — returned
+    // as **unqualified** tail names. This is the command-listing **enumeration**
+    // surface, the namespace analogue of `VarStore::array_keys`.
+
+    /// The unqualified names of commands defined **directly** in `ns`. Mirrors a
+    /// walk of `Namespace.cmdTable`; backs `info commands`.
+    fn commands_in(&self, ns: NsId) -> Vec<String>;
+    /// The unqualified names of **user procedures** defined directly in `ns` (the
+    /// `TclIsProc` subset of [`commands_in`](Self::commands_in)); backs `info procs`.
+    fn procs_in(&self, ns: NsId) -> Vec<String>;
 }
 
 /// Variable traces (read/write/unset). Mirrors `runtime/zig`'s

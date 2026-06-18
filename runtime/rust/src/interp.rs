@@ -2420,29 +2420,13 @@ impl Interp {
         self.namespaces.borrow().var_names(GLOBAL)
     }
 
-    /// Command names visible from the current namespace (`info commands`):
-    /// current ns ∪ global, sorted/deduped.
-    pub(crate) fn visible_command_names(&self) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let cur = self.current_ns.get();
-        let mut v: Vec<Vec<u8>> = ns.command_names(cur).iter().map(|s| s.to_vec()).collect();
-        if cur != GLOBAL {
-            v.extend(ns.command_names(GLOBAL).iter().map(|s| s.to_vec()));
-        }
-        v.sort();
-        v.dedup();
-        v
-    }
-
-    /// Simple command names in the namespace named `qualifier` (absolute or
-    /// relative to the current namespace), or empty if it does not exist — for
-    /// a namespace-qualified `info commands ::ns::pattern`.
     /// The canonical fully-qualified prefix (ending in `::`) of the namespace a
-    /// pattern qualifier addresses (`info commands ns::pat`): `::` for the global
+    /// pattern qualifier addresses (`info vars ns::pat`): `::` for the global
     /// namespace, `::a::b::` otherwise. Resolves a *relative* qualifier against
-    /// the current namespace, so `info commands` results are always absolute
-    /// (matching C, where names are re-qualified through the namespace's
-    /// `fullName`). `None` if the namespace doesn't exist.
+    /// the current namespace, so results are always absolute (matching C, where
+    /// names are re-qualified through the namespace's `fullName`). `None` if the
+    /// namespace doesn't exist. (Used by [`set_list_qualified`] for `info
+    /// vars`/`consts`; command/proc re-qualification moved to the shared core.)
     pub(crate) fn canonical_ns_prefix(&self, qualifier: &[u8]) -> Option<Vec<u8>> {
         let ns = self.namespaces.borrow();
         let id = if qualifier.is_empty() {
@@ -2457,6 +2441,10 @@ impl Interp {
         Some(p)
     }
 
+    /// Simple command names in the namespace named `qualifier` (absolute or
+    /// relative to the current namespace), or empty if it does not exist. Used by
+    /// `cmd_oo` for ensemble/method enumeration. (`info commands`/`procs` listing
+    /// is the shared `tcl_cmd_core::info::command_list` core.)
     pub(crate) fn commands_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
         let ns = self.namespaces.borrow();
         // An empty qualifier (a leading `::pattern`) addresses the global ns.
@@ -2468,25 +2456,6 @@ impl Interp {
         match target {
             Some(id) => {
                 let mut v: Vec<Vec<u8>> = ns.command_names(id).iter().map(|s| s.to_vec()).collect();
-                v.sort();
-                v
-            }
-            None => Vec::new(),
-        }
-    }
-
-    /// Simple proc names in the namespace named `qualifier` (`info procs
-    /// ::ns::pattern`), or empty if it does not exist.
-    pub(crate) fn procs_in_namespace(&self, qualifier: &[u8]) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let target = if qualifier.is_empty() {
-            Some(GLOBAL)
-        } else {
-            ns.find_namespace(self.current_ns.get(), qualifier)
-        };
-        match target {
-            Some(id) => {
-                let mut v = ns.proc_names(id);
                 v.sort();
                 v
             }
@@ -2512,19 +2481,6 @@ impl Interp {
             }
             None => Vec::new(),
         }
-    }
-
-    /// Proc names visible from the current namespace (`info procs`).
-    pub(crate) fn visible_proc_names(&self) -> Vec<Vec<u8>> {
-        let ns = self.namespaces.borrow();
-        let cur = self.current_ns.get();
-        let mut v = ns.proc_names(cur);
-        if cur != GLOBAL {
-            v.extend(ns.proc_names(GLOBAL));
-        }
-        v.sort();
-        v.dedup();
-        v
     }
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).

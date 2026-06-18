@@ -18,7 +18,7 @@ them, so a consumer generic over the traits drives either runtime:
 | `VarStore` | `get`/`set`/`unset`/`exists` + the explicit array-element pairs `get_elem`/`set_elem`/`unset_elem`/`exists_elem`, addressed by `FrameId` |
 | `Frames` | `push(NsId)`/`pop`/`current`/`link` (the `upvar` install) |
 | `Commands` | `dispatch(name, argv)` and `dispatch_id(CommandId, argv)` — the resolve-then-invoke pair with `find_command` |
-| `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>` |
+| `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>`, tree nav `find_namespace`/`parent`/`children`, and command enumeration `commands_in(NsId)`/`procs_in(NsId)` |
 | `Traces` | `fire(var, op)` (read/write/unset; read/write errors abort) |
 | `Introspect` | `level()`, `level_argv(n)` |
 | `Procs` | `proc_info(name) -> Option<ProcInfo>` (a proc's body + formals, for `info body`/`args`/`default`) |
@@ -65,6 +65,23 @@ Shared in `tcl-cmd-core`:
   `(value, has_default)` pair, the adapter does the single store and returns the
   bool. Both runtimes already resolved imported procs through their `proc_def`;
   the share keeps that and unifies the error catalogue.
+- `info::command_list` — `info commands`/`procs` (a `procs_only` flag selects the
+  latter), over two new `Namespaces` enumeration rungs (`commands_in`/`procs_in`,
+  returning a namespace's direct command/proc members as unqualified tails — the
+  command-table analogue of `VarStore::array_keys`). The core owns the whole
+  namespace-aware listing: the qualified-pattern split on the last `::`,
+  re-qualification through the target namespace's canonical name, the glob filter,
+  and the **global-merge asymmetry** (C's `InfoCommandsCmd` merges the global
+  namespace into an unqualified `info commands`; `InfoProcsCmd` never merges, so
+  `procs` lists the current namespace only). The runtime implements the rungs over
+  its namespace arena's command table; the VM over its flat command map (keyed by
+  canonical name, so direct membership is a prefix test). This lifted the VM from a
+  flat "all command keys" listing (which leaked namespaced names into the global
+  scope and mishandled `::ns::*` patterns) to the correct behaviour, and **fixed a
+  runtime bug** (`info procs` in a namespace wrongly merged global procs). The
+  variable-listing subcommands (`info vars`/`locals`/`globals`/`consts`) stay
+  per-adapter — the VM has no namespace variables (its vars are frame locals), so
+  there is nothing to share against yet.
 - `array::dispatch` — the `array` **read-side** (`exists`/`size`/`names`/`get`)
   + `unset`, over `VarStore` + `Frames` + `ValueOps`. This is the first stateful
   *command* family shared over the interp-state seam (the `info`/`namespace`
@@ -217,6 +234,8 @@ core unified both to the correct behaviour):
 | `lsort` (VM) | the VM's `lsort` had the comparison modes but silently ignored `-index`/`-stride`/`-indices`/`-command`; sharing the full `lsort` core gave it all of them (incl. the `-command` comparator over `vm.dispatch`) — verified against tclsh 9.0. |
 | `array unset` (VM) | `array unset a` with no pattern iterated-and-unset each element (leaving an empty array) instead of removing the whole array variable; routing the shared `array` core over `VarStore::unset` fixed it (tclsh: the array no longer exists). |
 | `namespace children`/`parent` (VM) | `namespace children` ignored its `?pattern?` argument (returned all children), and `parent`/`children` on a non-existent namespace returned a computed/empty result; routing the shared core over the `Namespaces` nav rungs gave `children` the (target-qualified) glob filter and made both error `namespace "X" not found` (tclsh). |
+| `info commands`/`procs` (VM) | the VM listed *all* command-map keys flat, so `info commands` at global leaked namespaced names (`foo::bar`) and `info commands ::ns::*` matched nothing (the leading `::` never matched an unrooted key); routing the namespace-aware core fixed both (global scope excludes namespaced names; qualified patterns list + re-qualify the target namespace) — verified against tclsh 9.0. |
+| `info procs` (runtime) | inside a namespace, `info procs` merged the global namespace's procs (old `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace only (`info commands` is the one that merges global). The shared core's global-merge asymmetry fixed it. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.
@@ -265,10 +284,14 @@ early by `append`.
   (`*_from`/`*_at`) is still scalar-only on the VM and ignored by the runtime
   (the element accessors take `FrameId` but use the active frame). No current
   consumer needs cross-frame element access.
-- The enumeration surface is **partial**: `VarStore::array_keys` (added for the
-  `array` family) lists an array's element keys, but there is still no listing for
-  `info commands`/`vars`/`globals` or `namespace children` — those need their own
-  rungs (a command listing over `Namespaces`, a variable listing over `VarStore`).
+- The enumeration surface is **command-complete but variable-partial**:
+  `VarStore::array_keys` lists an array's element keys, and `Namespaces::commands_in`/
+  `procs_in` list a namespace's commands/procs (backing `info commands`/`procs`),
+  but there is still no **variable** listing rung — `info vars`/`locals`/`globals`/
+  `consts` stay per-adapter. The block is structural, not missing surface: the VM
+  has no namespace variables (its vars are frame locals), so a shared
+  namespace-aware variable listing has nothing to share against on the VM until its
+  variable model grows namespace tables.
 - `append`/`lappend` fire the write trace **once** over the whole operation, not
   per value (C's `append` fires per value). The user-visible common case — a
   write trace that runs on a mutating append — is covered; the exact count is
@@ -297,5 +320,7 @@ early by `append`.
    biggest single dedup left (Track B).
 3. `lset`/`linsert`-into-var can reuse the `try_list_append_in_place` pattern
    (a list in-place *replace* seam) if those are to share.
-4. An enumeration surface on the contract for the `info`/`namespace` listing
-   subcommands.
+4. ✅ *Done (commands)* — the command-enumeration rungs (`Namespaces::commands_in`/
+   `procs_in`) backing `info commands`/`procs`. The remaining listing gap is
+   **variable** enumeration (`info vars`/`locals`/`globals`), blocked on the VM
+   growing namespace variables (it has only frame locals today).

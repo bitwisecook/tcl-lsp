@@ -81,20 +81,13 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match sub {
         b"exists" => info_exists(interp, argv),
-        b"commands" => set_list_qualified(
-            interp,
-            argv,
-            b"info commands ?pattern?",
-            Interp::commands_in_namespace,
-            Interp::visible_command_names,
-        ),
-        b"procs" => set_list_qualified(
-            interp,
-            argv,
-            b"info procs ?pattern?",
-            Interp::procs_in_namespace,
-            Interp::visible_proc_names,
-        ),
+        // commands/procs route through the shared namespace-aware core (over the
+        // `Namespaces` enumeration rungs). This also fixed a real bug: `info procs`
+        // in a namespace wrongly merged the global procs (the old
+        // `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace
+        // only, while `info commands` does merge global.
+        b"commands" => info_command_list(interp, argv, b"info commands ?pattern?", false),
+        b"procs" => info_command_list(interp, argv, b"info procs ?pattern?", true),
         b"vars" => set_list_qualified(
             interp,
             argv,
@@ -372,6 +365,26 @@ fn set_list_qualified(
     }
     let list = visible(interp);
     set_filtered(interp, list, pattern.as_deref())
+}
+
+/// `info commands ?pattern?` / `info procs ?pattern?` — the shared
+/// namespace-aware command/proc listing core (over the `Namespaces` enumeration
+/// rungs); `procs_only` selects `procs`. The qualified-pattern split,
+/// re-qualification, glob filter, and the global-merge asymmetry all live in the
+/// core. (Variable listing — `vars`/`locals`/`globals`/`consts` — stays on
+/// [`set_list_qualified`]: the VM has no namespace variables to share against.)
+fn info_command_list(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    usage: &[u8],
+    procs_only: bool,
+) -> Code {
+    if argv.len() > 3 {
+        return wrong_args(interp, usage);
+    }
+    let result = tcl_cmd_core::info::command_list(interp, argv.get(2), procs_only);
+    interp.set_result(result);
+    Code::Ok
 }
 
 fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -715,6 +728,45 @@ mod tests {
             assert_eq!(run(i, b"info procs greet"), b"greet");
             assert_eq!(run(i, b"info procs nosuch*"), b"");
             i.eval_str(b"unset d");
+        });
+    }
+
+    #[test]
+    fn info_commands_procs_namespaced() {
+        leak_free(|i| {
+            run(
+                i,
+                b"namespace eval foo { proc bar {} {}; proc baz {} {} }\n\
+                  namespace eval foo::sub { proc deep {} {} }\nproc gproc {} {}",
+            );
+            // A qualified glob lists that namespace re-qualified (direct members
+            // only — not `foo::sub::deep`).
+            assert_eq!(
+                run(i, b"lsort [info commands ::foo::*]"),
+                b"::foo::bar ::foo::baz"
+            );
+            assert_eq!(
+                run(i, b"lsort [info procs foo::*]"),
+                b"::foo::bar ::foo::baz"
+            );
+            // A namespaced proc is not in the global listing.
+            assert_eq!(run(i, b"lsearch -exact [info commands] foo::bar"), b"-1");
+            // The bug this share fixed: inside a namespace, `info procs` lists only
+            // that namespace's procs (no global merge), while `info commands` does
+            // see the global `gproc`.
+            assert_eq!(
+                run(i, b"namespace eval foo { lsort [info procs] }"),
+                b"bar baz"
+            );
+            assert_eq!(
+                run(
+                    i,
+                    b"namespace eval foo { expr {[lsearch -exact [info commands] gproc] >= 0} }"
+                ),
+                b"1"
+            );
+            // A missing namespace qualifier → the empty list, not an error.
+            assert_eq!(run(i, b"info commands ::nope::*"), b"");
         });
     }
 

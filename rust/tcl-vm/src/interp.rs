@@ -713,9 +713,16 @@ impl Vm {
         }
     }
 
-    /// All registered command names (for `info commands`).
-    pub(crate) fn command_names(&self) -> Vec<String> {
-        self.commands.keys().cloned().collect()
+    /// The unqualified names of commands (or, with `procs_only`, just user
+    /// procedures) defined **directly** in namespace `canonical` (unrooted; `""`
+    /// = global) — the `Namespaces::commands_in`/`procs_in` enumeration, filtering
+    /// the flat command map. Direct members only (`foo::sub::x` is not in `foo`).
+    pub(crate) fn names_directly_in(&self, canonical: &str, procs_only: bool) -> Vec<String> {
+        self.commands
+            .iter()
+            .filter(|(_, c)| !procs_only || matches!(c, Command::Proc(_)))
+            .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
+            .collect()
     }
 
     /// The `ProcDef` for a user proc, if `name` resolves to one (`info body`/`args`).
@@ -724,15 +731,6 @@ impl Vm {
             Some(Command::Proc(p)) => Some(p),
             _ => None,
         }
-    }
-
-    /// User-proc names (for `info procs`).
-    pub(crate) fn proc_names(&self) -> Vec<String> {
-        self.commands
-            .iter()
-            .filter(|(_, c)| matches!(c, Command::Proc(_)))
-            .map(|(n, _)| n.clone())
-            .collect()
     }
 
     /// The invocation argv of the frame at absolute `level` (`info level N`).
@@ -1532,6 +1530,34 @@ impl Namespaces for Vm {
             .iter()
             .filter_map(|c| self.ns_intern.get(c).copied())
             .collect()
+    }
+
+    // Command enumeration over the flat command map (keyed by canonical unrooted
+    // name): the direct members of namespace `ns`, as unqualified tails.
+    fn commands_in(&self, ns: NsId) -> Vec<String> {
+        self.names_directly_in(&self.ns_name(ns), false)
+    }
+
+    fn procs_in(&self, ns: NsId) -> Vec<String> {
+        self.names_directly_in(&self.ns_name(ns), true)
+    }
+}
+
+/// The unqualified tail of `key` if it names a command **directly** in namespace
+/// `canonical` (unrooted; `""` = global), else `None`. A direct member's key is
+/// `canonical::tail` (or a bare `tail` at the global level) with no further `::`
+/// in the tail — so descendants (`foo::sub::x` for `foo`) and the namespace
+/// itself are excluded.
+fn direct_member_tail<'a>(key: &'a str, canonical: &str) -> Option<&'a str> {
+    let tail = if canonical.is_empty() {
+        key
+    } else {
+        key.strip_prefix(canonical)?.strip_prefix("::")?
+    };
+    if tail.is_empty() || tail.contains("::") {
+        None
+    } else {
+        Some(tail)
     }
 }
 

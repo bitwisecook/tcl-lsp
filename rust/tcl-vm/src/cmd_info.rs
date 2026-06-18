@@ -55,14 +55,11 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Err(e) => err(e.message()),
             }
         }
-        "commands" => ok(filtered(
-            vm.command_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
-        "procs" => ok(filtered(
-            vm.proc_names(),
-            rest.first().map(Value::to_str).as_deref(),
-        )),
+        // commands/procs route through the shared namespace-aware core (over the
+        // `Namespaces` enumeration rungs), which gives the VM correct qualified
+        // patterns + global-scope visibility (it previously listed all keys flat).
+        "commands" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), false)),
+        "procs" => ok(tcl_cmd_core::info::command_list(vm, rest.first(), true)),
         "vars" | "locals" => ok(filtered(
             vm.local_scalar_names(),
             rest.first().map(Value::to_str).as_deref(),

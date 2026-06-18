@@ -642,6 +642,51 @@ fn namespace_introspection() {
 }
 
 #[test]
+fn info_commands_procs_namespaced() {
+    // `info commands`/`procs` route through the shared namespace-aware core. The
+    // expectations are pinned against tclsh 9.0 (see C `InfoCommandsCmd`/
+    // `InfoProcsCmd`): a qualified pattern lists that namespace re-qualified
+    // absolute; `info commands` merges the global namespace, `info procs` never
+    // does; and a global-scope listing excludes namespaced names.
+    let setup = "namespace eval foo { proc bar {} {}; proc baz {} {} }\n\
+                 namespace eval foo::sub { proc deep {} {} }\nproc gproc {} {}\n";
+    // A namespaced proc is not in the global command/proc listing.
+    out_eq(
+        &format!("{setup}puts [lsearch -exact [info commands] foo::bar]\n"),
+        "-1\n",
+    );
+    // A qualified glob lists that namespace's members, re-qualified absolute,
+    // and only direct members (not `foo::sub::deep`).
+    out_eq(
+        &format!("{setup}puts [lsort [info commands ::foo::*]]\n"),
+        "::foo::bar ::foo::baz\n",
+    );
+    // A *relative* qualifier re-qualifies to absolute too.
+    out_eq(
+        &format!("{setup}puts [lsort [info commands foo::*]]\n"),
+        "::foo::bar ::foo::baz\n",
+    );
+    out_eq(
+        &format!("{setup}puts [lsort [info procs ::foo::*]]\n"),
+        "::foo::bar ::foo::baz\n",
+    );
+    // Inside a namespace: `info procs` lists only that namespace's procs (no
+    // global merge), while `info commands` *does* see the global `gproc`.
+    out_eq(
+        &format!("{setup}namespace eval foo {{ puts [lsort [info procs]] }}\n"),
+        "bar baz\n",
+    );
+    out_eq(
+        &format!(
+            "{setup}namespace eval foo {{ puts [expr {{[lsearch -exact [info commands] gproc] >= 0}}] }}\n"
+        ),
+        "1\n",
+    );
+    // A missing namespace qualifier yields the empty list, not an error.
+    out_eq(&format!("{setup}puts [info commands ::nope::*]\n"), "\n");
+}
+
+#[test]
 fn namespace_variables() {
     out_eq(
         "namespace eval foo { variable v 42 }\nputs $::foo::v\n",

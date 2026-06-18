@@ -341,6 +341,26 @@ impl Namespaces for Interp {
             .map(|id| NsId(id as u32))
             .collect()
     }
+
+    // Command enumeration: delegate to the namespace arena's command table
+    // (`command_names` borrows the keys, hence the bound `Ref` guard; `proc_names`
+    // returns owned bytes). Both map the contract's `u32` `NsId` to the runtime's
+    // `usize` arena id.
+    fn commands_in(&self, ns: NsId) -> Vec<String> {
+        let nss = self.namespaces();
+        nss.command_names(ns.0 as usize)
+            .iter()
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect()
+    }
+
+    fn procs_in(&self, ns: NsId) -> Vec<String> {
+        self.namespaces()
+            .proc_names(ns.0 as usize)
+            .iter()
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect()
+    }
 }
 
 #[cfg(test)]

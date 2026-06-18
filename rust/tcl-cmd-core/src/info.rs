@@ -7,7 +7,8 @@
 //! Family-B role trait. Both runtimes (`tcl-vm`, `runtime/rust`) satisfy the
 //! bound and wrap the `Result<V, CmdError>` in their own command ABI.
 
-use tcl_runtime_api::{Frames, Introspect, Procs, VarStore};
+use tcl_runtime_api::{Frames, Introspect, Namespaces, Procs, ROOT_NS, VarStore};
+use tcl_syntax::glob::string_match;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -188,6 +189,91 @@ where
 /// subcommands (`info body`/`args`/`default`) raise for a non-proc target.
 fn not_a_proc(name: &str) -> CmdError {
     CmdError::new(format!("\"{name}\" isn't a procedure"))
+}
+
+/// `info commands ?pattern?` (`procs_only == false`) / `info procs ?pattern?`
+/// (`procs_only == true`) — the names of commands (or just user procedures)
+/// reachable by the given pattern, mirroring C's `InfoCommandsCmd`/`InfoProcsCmd`
+/// namespace handling:
+///
+/// - A **namespace-qualified** `pattern` (`::ns::glob` or `ns::glob`) lists the
+///   matching members of *that* namespace only, re-qualified to absolute names
+///   (`::ns::name`). The qualifier resolves relative to the current namespace; an
+///   unknown namespace yields the empty list.
+/// - An **unqualified** `pattern` (or none) lists the current namespace's members
+///   glob-filtered. For `info commands` only, the global namespace's commands are
+///   merged in when the current namespace is not global (command resolution falls
+///   back to global) — `info procs` never merges global (the C asymmetry: the
+///   runtime's old `visible_proc_names` wrongly merged it).
+///
+/// Results are sorted (deterministic, unlike C's hash order — matching both
+/// runtimes' prior behaviour).
+pub fn command_list<O, V>(ops: &mut O, pattern: Option<&V>, procs_only: bool) -> V
+where
+    O: ValueOps<Value = V> + Namespaces,
+{
+    let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
+    let cur = Namespaces::current(ops);
+    let names: Vec<String> =
+        if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier) {
+            // Qualified: a single target namespace, re-qualified, no global merge.
+            let target = if prefix.is_empty() {
+                Some(ROOT_NS)
+            } else {
+                ops.find_namespace(cur, prefix)
+            };
+            if let Some(id) = target {
+                let mut raw = members_in(ops, id, procs_only);
+                raw.sort();
+                let canon = ops.name(id); // "::" for root, "::foo" otherwise
+                let qual = if id == ROOT_NS {
+                    canon
+                } else {
+                    format!("{canon}::")
+                };
+                raw.into_iter()
+                    .filter(|n| string_match(tail, n))
+                    .map(|n| format!("{qual}{n}"))
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        } else {
+            // Unqualified: the current namespace's members, glob-filtered.
+            let mut v = members_in(ops, cur, procs_only);
+            // `info commands` (not `info procs`) also sees the global commands.
+            if !procs_only && cur != ROOT_NS {
+                v.extend(members_in(ops, ROOT_NS, false));
+            }
+            v.sort();
+            v.dedup();
+            if let Some(p) = pat.as_deref() {
+                v.retain(|n| string_match(p, n));
+            }
+            v
+        };
+    let vals: Vec<V> = names.into_iter().map(|n| ops.new_string(n)).collect();
+    ops.new_list(vals)
+}
+
+/// The direct members (commands, or just procs) of namespace `id`, as
+/// unqualified tail names — the `Namespaces` enumeration rung, dispatched by
+/// `procs_only`.
+fn members_in<O: Namespaces>(ops: &O, id: tcl_runtime_api::NsId, procs_only: bool) -> Vec<String> {
+    if procs_only {
+        ops.procs_in(id)
+    } else {
+        ops.commands_in(id)
+    }
+}
+
+/// Split a command-list pattern on its **last** `::` into `(ns_prefix, tail_glob)`,
+/// or `None` when the pattern is unqualified. An empty prefix (a leading `::pat`)
+/// denotes the global namespace. Matches C's `TclGetNamespaceForQualName` split
+/// on colon runs (`foo:::bar` → prefix `foo:`, tail `bar`, like the runtime's
+/// `rposition` of `::`).
+fn split_last_qualifier(p: &str) -> Option<(&str, &str)> {
+    p.rfind("::").map(|i| (&p[..i], &p[i + 2..]))
 }
 
 #[cfg(test)]
