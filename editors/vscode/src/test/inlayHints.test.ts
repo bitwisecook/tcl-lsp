@@ -140,4 +140,103 @@ suite("Inlay Hints", () => {
       await config.update("inlayParameterHints", original, vscode.ConfigurationTarget.Global);
     }
   });
+
+  // PR #643 split the single `inlayHints` toggle into two independent options.
+  // Enabling one must not turn on the other.
+  test("parameter hints enabled alone produce labels but no type hints", async () => {
+    const config = vscode.workspace.getConfiguration("tclLsp.features");
+    const origType = config.get<boolean>("inlayTypeHints", false);
+    const origParam = config.get<boolean>("inlayParameterHints", false);
+
+    try {
+      await config.update("inlayTypeHints", false, vscode.ConfigurationTarget.Global);
+      await config.update("inlayParameterHints", true, vscode.ConfigurationTarget.Global);
+
+      // `set x 42` would carry a `: int` Type-kind hint if type hints leaked
+      // on, so the no-Type assertion below is a real check; `puts hello`
+      // carries the `string:` parameter label.
+      const doc = await vscode.workspace.openTextDocument({
+        language: "tcl",
+        content: "set x 42\nputs hello\n",
+      });
+      await vscode.window.showTextDocument(doc);
+
+      const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
+      let hints: vscode.InlayHint[] | undefined;
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        hints = (await vscode.commands.executeCommand(
+          "vscode.executeInlayHintProvider",
+          doc.uri,
+          fullRange,
+        )) as vscode.InlayHint[] | undefined;
+        // Stop as soon as the parameter hint (the readiness signal) lands.
+        if (hints && hints.some((h) => h.kind === vscode.InlayHintKind.Parameter)) {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      assert.ok(
+        hints && hints.some((h) => h.kind === vscode.InlayHintKind.Parameter),
+        "expected a parameter-kind hint with inlayParameterHints enabled",
+      );
+      assert.ok(
+        !hints!.some((h) => h.kind === vscode.InlayHintKind.Type),
+        "type hints must stay off when only inlayParameterHints is enabled",
+      );
+    } finally {
+      await config.update("inlayTypeHints", origType, vscode.ConfigurationTarget.Global);
+      await config.update("inlayParameterHints", origParam, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test("type hints enabled alone emit no parameter labels", async () => {
+    const config = vscode.workspace.getConfiguration("tclLsp.features");
+    const origType = config.get<boolean>("inlayTypeHints", false);
+    const origParam = config.get<boolean>("inlayParameterHints", false);
+
+    try {
+      await config.update("inlayTypeHints", true, vscode.ConfigurationTarget.Global);
+      await config.update("inlayParameterHints", false, vscode.ConfigurationTarget.Global);
+
+      // `set x 42` carries the `: int` type hint (the readiness signal);
+      // `puts hello` WOULD carry the `string:` parameter label if those leaked
+      // on, so the no-Parameter assertion below is a real check.
+      const doc = await vscode.workspace.openTextDocument({
+        language: "tcl",
+        content: "set x 42\nputs hello\n",
+      });
+      await vscode.window.showTextDocument(doc);
+
+      const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
+      let hints: vscode.InlayHint[] | undefined;
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        hints = (await vscode.commands.executeCommand(
+          "vscode.executeInlayHintProvider",
+          doc.uri,
+          fullRange,
+        )) as vscode.InlayHint[] | undefined;
+        // Stop as soon as the type hint lands rather than always burning the
+        // full deadline on redundant requests.
+        if (hints && hints.some((h) => h.kind === vscode.InlayHintKind.Type)) {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      assert.ok(
+        hints && hints.some((h) => h.kind === vscode.InlayHintKind.Type),
+        "expected a type-kind hint with inlayTypeHints enabled",
+      );
+      assert.ok(
+        !hints!.some((h) => h.kind === vscode.InlayHintKind.Parameter),
+        "parameter labels must stay off when only inlayTypeHints is enabled",
+      );
+    } finally {
+      await config.update("inlayTypeHints", origType, vscode.ConfigurationTarget.Global);
+      await config.update("inlayParameterHints", origParam, vscode.ConfigurationTarget.Global);
+    }
+  });
 });

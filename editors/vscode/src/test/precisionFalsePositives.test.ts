@@ -119,6 +119,44 @@ suite("Single bare-variable body (FP-STY-14)", () => {
   });
 });
 
+// FP-RBS control-flow family (PR #634) — imprecise control-flow modelling.
+//
+// PR #634 fixed a family of false W210 (read-before-set) rooted in control-flow
+// modelling.  The fixture's silent cases are a `tailcall`-terminated branch
+// (line 3), a non-empty-literal `foreach` (line 7), and a `while 1` whose only
+// exit is a `break` (line 11) — none may fire W210.  The empty-literal
+// `foreach` (line 15) never runs its body, so `$y` is genuinely unset and MUST
+// fire W210 — that doubles as the marker that analysis ran.
+suite("Control-flow read-before-set (PR #634)", () => {
+  const docUri = getDocUri("controlFlowRbs.tcl");
+
+  test("empty-literal foreach read fires W210 (true case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W210"),
+    });
+    const w210Lines = linesWithCode(diags, "W210");
+    assert.ok(
+      w210Lines.includes(15),
+      `expected W210 on the empty foreach read (line 15); got [${w210Lines}]`,
+    );
+  });
+
+  test("tailcall / non-empty foreach / while-1-break stay silent (false case)", async () => {
+    await activate(docUri);
+    const diags = await waitForDiagnostics(docUri, {
+      predicate: (d) => d.some((x) => codeOf(x) === "W210"),
+    });
+    // None of the provably-defined reads on lines 3, 7, 11 may fire W210.
+    for (const ln of linesWithCode(diags, "W210")) {
+      assert.ok(
+        ![3, 7, 11].includes(ln),
+        `unexpected W210 on a provably-defined read (line ${ln})`,
+      );
+    }
+  });
+});
+
 // FP-STY-15 — `$` before a closing `"` is a literal regex end-anchor.
 //
 // Line 7 (`regexp -- "^foo$bar" $text`) has a genuine live `$bar` substitution
