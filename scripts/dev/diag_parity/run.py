@@ -222,7 +222,17 @@ def main() -> int:
     skipped = 0
 
     for path in files:
-        for dialect in dialects:
+        # Match the dialect to the file type. An `.irule` is iRules source, so
+        # only the f5-irules dialect is meaningful — analysing it under a plain
+        # tcl dialect is a degenerate "wrong dialect" run (`when` etc. are not
+        # tcl commands there), which produces noise, not real defects. `.tcl`
+        # (and staged `.test`) files run under every requested dialect (tcl
+        # code is valid under f5-irules too).
+        if path.suffix == ".irule":
+            file_dialects = [d for d in dialects if d == "f5-irules"] or ["f5-irules"]
+        else:
+            file_dialects = dialects
+        for dialect in file_dialects:
             py = run_python(path, dialect)
             rust = run_rust(path, dialect)
             if py is None or rust is None:

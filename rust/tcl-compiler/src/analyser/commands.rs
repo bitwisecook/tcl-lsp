@@ -616,6 +616,15 @@ impl Analyser {
             return;
         };
         let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
+        // Body-role resolution stays dialect-scoped *deliberately*: a command
+        // that owns a body only in another dialect (e.g. the iRules-only
+        // `when`) is, under a plain-tcl dialect, an unknown user command whose
+        // braced `{...}` is an ordinary string argument — not a script. So we
+        // do NOT recurse into it (and do not fire W123/W002 on its contents).
+        // Python applies the iRules `when` BODY role even under tcl8.6, which
+        // leaks iRules semantics into non-iRules analysis; that divergence is
+        // intentional (Rust is the more-correct side). Analyse iRules under
+        // the f5-irules dialect, where `when` is a real body-owning command.
         let body_indices = registry.arg_indices_for_role(
             cmd_name,
             &body_args,

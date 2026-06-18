@@ -113,12 +113,9 @@ pub struct CommandRegistry {
 /// The set of command names registered by *every* dialect, built once and
 /// cached.  Backs [`CommandRegistry::known_in_any_dialect`] — the
 /// dialect-agnostic existence check Python gets for free from its global
-/// `specs_by_name`.  Built from the same spec functions [`build_default`]
-/// and [`load_dialect`] draw from, so it stays in lock-step with the
-/// registry's command universe.
-///
-/// [`build_default`]: CommandRegistry::build_default
-/// [`load_dialect`]: CommandRegistry::load_dialect
+/// `specs_by_name`.  Built from the same spec functions [`CommandRegistry::build_default`]
+/// and [`CommandRegistry::load_dialect`] draw from, so it stays in lock-step
+/// with the registry's command universe.
 fn all_dialect_command_names() -> &'static HashSet<&'static str> {
     static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
     NAMES.get_or_init(|| {

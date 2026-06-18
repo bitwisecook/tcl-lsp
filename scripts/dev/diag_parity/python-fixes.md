@@ -54,3 +54,40 @@ snippets above that Python's I230 then matches Rust (fires for both `==` and
 clears.
 
 **Do NOT** suppress Rust's I230 for `==` — Rust is correct here.
+
+---
+
+## 2. iRules `when` body recursed under a non-iRules dialect
+
+**Symptom (MISSING_FIRE in Rust under tcl8.6 — but Rust is the correct side):**
+
+```tcl
+# analysed under --dialect tcl8.6
+when HTTP_REQUEST {
+  set uri [HTTP::uri]
+  log local0. "got $uri"
+}
+```
+
+Python (tcl8.6) fires W123/W002 on `log` and `HTTP::uri` *inside* the brace;
+Rust does not.
+
+**Why Rust is correct:** `when` is an iRules-only builtin. Under a plain-tcl
+dialect it is an unknown command that, if it ran at all, would have to be
+user-defined — and a user command's braced `{…}` argument is just a string,
+not a script the analyser may assume is executed. Python resolves arg roles
+from its dialect-agnostic registry, so it applies the iRules `when` BODY role
+even under tcl8.6 and recurses into the brace as if it were an event handler —
+leaking iRules semantics into non-iRules analysis. (It also mis-lowers the
+body, yielding a spurious W210 "read before set" for `uri`, which *is* set
+before it is read.)
+
+**Fix (Python, optional / low priority):** when the active dialect does not
+enable a command, do not apply that command's body/arg roles — treat its
+braced arguments as opaque strings (matching what tcl would do). Equivalent
+to gating `_recurse_body_arguments` on dialect command status. This is a
+degenerate "wrong dialect" scenario (real iRules analysis uses
+`--dialect f5-irules`, where Rust and Python agree), so it is low priority;
+the parity harness now matches dialect to file type and no longer flags it.
+
+**Do NOT** make Rust recurse iRules bodies under tcl dialects to match Python.
