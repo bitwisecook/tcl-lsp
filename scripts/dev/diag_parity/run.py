@@ -89,9 +89,7 @@ def _parse_report(stdout: str) -> list[Diag] | None:
 
 
 def _run(cmd: list[str], env: dict[str, str] | None = None) -> list[Diag] | None:
-    proc = subprocess.run(
-        cmd, capture_output=True, text=True, env=env, cwd=str(REPO)
-    )
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=str(REPO))
     return _parse_report(proc.stdout)
 
 
@@ -271,7 +269,7 @@ def main() -> int:
     print("ranked divergence table  (code x kind : count)")
     print("=" * 52)
     if not table:
-        print("  no divergences \U0001F389")
+        print("  no divergences \U0001f389")
     else:
         width = max(len(c) for c, _ in table)
         for (code, kind), count in sorted(
@@ -304,10 +302,7 @@ def main() -> int:
         print(f"per-occurrence detail for {sorted(show)}")
         print("-" * 32)
         for item in detail_log:
-            print(
-                f"  [{item['dialect']}] {item['code']} {item['kind']} "
-                f"{item['file']}"
-            )
+            print(f"  [{item['dialect']}] {item['code']} {item['kind']} {item['file']}")
             print(f"      {item['detail']}")
 
     if args.json:
@@ -315,8 +310,7 @@ def main() -> int:
             json.dumps(
                 {
                     "table": [
-                        {"code": c, "kind": k, "count": n}
-                        for (c, k), n in table.most_common()
+                        {"code": c, "kind": k, "count": n} for (c, k), n in table.most_common()
                     ],
                     "per_file": per_file,
                 },
