@@ -197,6 +197,39 @@ fn arrays() {
     out_eq("puts [array exists nope]\n", "0\n");
 }
 
+/// `array` exists/size/names/get/unset now route through the shared
+/// `tcl_cmd_core::array` core (over the VM's `VarStore`). Pinned to tclsh 9.0.
+#[test]
+fn array_shared_core() {
+    assert_eq!(run("array set a {x 1 y 2 z 3}; array exists a").1, "1");
+    assert_eq!(run("array set a {x 1 y 2 z 3}; array size a").1, "3");
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; lsort [array names a]").1,
+        "x y z"
+    );
+    assert_eq!(
+        run("array set a {ax 1 ay 2 bz 3}; lsort [array names a a*]").1,
+        "ax ay"
+    );
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; lsort [array get a]").1,
+        "1 2 3 x y z"
+    );
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; array unset a y; lsort [array names a]").1,
+        "x z"
+    );
+    // The fixed bug: `array unset a` (no pattern) removes the *whole* array.
+    assert_eq!(
+        run("array set a {x 1 y 2 z 3}; array unset a; array exists a").1,
+        "0"
+    );
+    // A scalar is not an array; a missing var is not an array.
+    assert_eq!(run("set s scalar; array exists s").1, "0");
+    assert_eq!(run("array exists nope").1, "0");
+    assert_eq!(run("array size nope").1, "0");
+}
+
 #[test]
 fn dict_ops() {
     out_eq("set d [dict create a 1 b 2]\nputs [dict get $d b]\n", "2\n");

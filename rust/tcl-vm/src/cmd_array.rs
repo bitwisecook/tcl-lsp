@@ -1,7 +1,11 @@
-//! The `array` ensemble builtin.
+//! The `array` ensemble builtin — a thin adapter over the shared
+//! [`tcl_cmd_core::array`] core. The read-side (`exists`/`size`/`names`/`get`) and
+//! `unset` are shared over the VM's `VarStore`/`Frames`/`ValueOps`; `set` (whose
+//! per-element write traces must fail the command) stays here. Sharing fixed the
+//! VM's `array unset a` (no pattern), which used to iterate-and-unset elements
+//! (leaving an empty array) instead of removing the whole array.
 
 use tcl_runtime_api::Completion;
-use tcl_syntax::glob::string_match;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -25,57 +29,17 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     array_op(vm, &sub.to_str(), rest)
 }
 
-fn flatten(pairs: Vec<(String, Value)>) -> Vec<Value> {
-    let mut v = Vec::with_capacity(pairs.len() * 2);
-    for (k, val) in pairs {
-        v.push(Value::string(k));
-        v.push(val);
-    }
-    v
-}
-
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
-}
-
 fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
+    // The read-side + `unset` live in the shared core.
+    if let Some(result) = tcl_cmd_core::array::dispatch(vm, sub, rest) {
+        return match result {
+            Ok(v) => ok(v),
+            Err(e) => err(e.into_message()),
+        };
+    }
+    // Per-runtime: `array set` (its per-element write traces must fail the
+    // command) and the unknown-subcommand message.
     match sub {
-        "exists" => match rest {
-            [n] => ok(Value::bool(vm.array_is(&n.to_str()))),
-            _ => err("wrong # args: should be \"array exists arrayName\""),
-        },
-        "names" => match rest {
-            [n] => ok(Value::list(
-                vm.array_pairs(&n.to_str())
-                    .into_iter()
-                    .map(|(k, _)| Value::string(k))
-                    .collect(),
-            )),
-            [n, pat] => {
-                let p = pat.to_str();
-                ok(Value::list(
-                    vm.array_pairs(&n.to_str())
-                        .into_iter()
-                        .filter(|(k, _)| string_match(&p, k))
-                        .map(|(k, _)| Value::string(k))
-                        .collect(),
-                ))
-            }
-            _ => err("wrong # args: should be \"array names arrayName ?pattern?\""),
-        },
-        "get" => match rest {
-            [n] => ok(Value::list(flatten(vm.array_pairs(&n.to_str())))),
-            [n, pat] => {
-                let p = pat.to_str();
-                ok(Value::list(flatten(
-                    vm.array_pairs(&n.to_str())
-                        .into_iter()
-                        .filter(|(k, _)| string_match(&p, k))
-                        .collect(),
-                )))
-            }
-            _ => err("wrong # args: should be \"array get arrayName ?pattern?\""),
-        },
         "set" => match rest {
             [n, list] => {
                 let items = match list.as_list() {
@@ -98,30 +62,6 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
                 ok(Value::empty())
             }
             _ => err("wrong # args: should be \"array set arrayName list\""),
-        },
-        "size" => match rest {
-            [n] => ok(Value::int(ilen(vm.array_pairs(&n.to_str()).len()))),
-            _ => err("wrong # args: should be \"array size arrayName\""),
-        },
-        "unset" => match rest {
-            [n] => {
-                let name = n.to_str();
-                for (k, _) in vm.array_pairs(&name) {
-                    vm.array_unset_elem(&name, &k);
-                }
-                ok(Value::empty())
-            }
-            [n, pat] => {
-                let name = n.to_str();
-                let p = pat.to_str();
-                for (k, _) in vm.array_pairs(&name) {
-                    if string_match(&p, &k) {
-                        vm.array_unset_elem(&name, &k);
-                    }
-                }
-                ok(Value::empty())
-            }
-            _ => err("wrong # args: should be \"array unset arrayName ?pattern?\""),
         },
         other => err(format!(
             "unknown or ambiguous subcommand \"{other}\": must be exists, get, names, set, size, or unset"

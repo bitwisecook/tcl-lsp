@@ -85,6 +85,16 @@ impl VarStore for Interp {
     fn exists_elem(&self, _frame: FrameId, name: &str, key: &str) -> bool {
         self.var_get_elem(name.as_bytes(), key.as_bytes()).is_some()
     }
+
+    fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
+        // `array_names` is `None` for a non-array, `Some(keys)` (possibly empty)
+        // for an array — exactly the contract. Resolves against the active frame.
+        self.array_names(name.as_bytes()).map(|keys| {
+            keys.iter()
+                .map(|k| String::from_utf8_lossy(k).into_owned())
+                .collect()
+        })
+    }
 }
 
 /// Runtime introspection backing the `info` family (`info level`/`info level N`).

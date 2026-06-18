@@ -1337,6 +1337,16 @@ impl VarStore for Vm {
     fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
         self.exists(frame, &format!("{name}({key})"))
     }
+
+    fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
+        // `array_is` distinguishes an (empty-or-not) array from a scalar/unset;
+        // `array_pairs` yields the keys (active frame — the cores pass current).
+        if self.array_is(name) {
+            Some(self.array_pairs(name).into_iter().map(|(k, _)| k).collect())
+        } else {
+            None
+        }
+    }
 }
 
 /// Runtime introspection backing the `info` family (`info level`/`info level N`).

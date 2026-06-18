@@ -53,6 +53,17 @@ Shared in `tcl-cmd-core`:
 - `info::level` — over `Introspect` + `ValueOps`.
 - `info::exists` — over `VarStore::exists` + `Frames::current`.
 - `info::complete` — pure (`Tcl_CommandComplete`).
+- `array::dispatch` — the `array` **read-side** (`exists`/`size`/`names`/`get`)
+  + `unset`, over `VarStore` + `Frames` + `ValueOps`. This is the first stateful
+  *command* family shared over the interp-state seam (the `info`/`namespace`
+  entries above are individual subcommands). It needed one new contract rung,
+  `VarStore::array_keys` — the **enumeration** surface the otherwise-listing-free
+  state traits expose, returning an array's element keys (or `None` for a
+  scalar/unset, the existence signal). `array set`'s per-element write-trace store
+  stays per-adapter (`VarStore::set_elem` is storage-only, like `incr`/`append`);
+  `array default`/`array for` stay per-adapter (TIP 508 state / Family-B
+  iteration). Routing fixed a VM bug: `array unset a` with no pattern now removes
+  the **whole array** (was: iterate-and-unset elements, leaving an empty array).
 - `namespace::{tail, qualifiers}` — pure byte ops.
 - `namespace::{current, which_command}` — over `Namespaces` (`current`/`name`/
   `command_name`/`find_command`).
@@ -178,6 +189,7 @@ core unified both to the correct behaviour):
 | `dict filter` (VM + runtime) | the VM had no `dict filter` at all (unknown-subcommand error); sharing `key`/`value` added them (plus a small script adapter). On the runtime, the shared core fixed the error order — a bad filterType is now reported before the dict is parsed (tclsh). |
 | `lsearch` (VM) | the VM had only a `-exact`/`-glob` stub (it silently ignored every other option); sharing the full `lsearch` core gave it the entire option set — `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the numeric/dictionary types, `-start`/`-stride`/`-index`/`-subindices` — verified against tclsh 9.0. |
 | `lsort` (VM) | the VM's `lsort` had the comparison modes but silently ignored `-index`/`-stride`/`-indices`/`-command`; sharing the full `lsort` core gave it all of them (incl. the `-command` comparator over `vm.dispatch`) — verified against tclsh 9.0. |
+| `array unset` (VM) | `array unset a` with no pattern iterated-and-unset each element (leaving an empty array) instead of removing the whole array variable; routing the shared `array` core over `VarStore::unset` fixed it (tclsh: the array no longer exists). |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.
@@ -226,8 +238,10 @@ early by `append`.
   (`*_from`/`*_at`) is still scalar-only on the VM and ignored by the runtime
   (the element accessors take `FrameId` but use the active frame). No current
   consumer needs cross-frame element access.
-- No enumeration surface (`info commands`/`vars`/`globals`, `namespace children`)
-  — these need a listing API the state-mutation traits deliberately omit.
+- The enumeration surface is **partial**: `VarStore::array_keys` (added for the
+  `array` family) lists an array's element keys, but there is still no listing for
+  `info commands`/`vars`/`globals` or `namespace children` — those need their own
+  rungs (a command listing over `Namespaces`, a variable listing over `VarStore`).
 - `append`/`lappend` fire the write trace **once** over the whole operation, not
   per value (C's `append` fires per value). The user-visible common case — a
   write trace that runs on a mutating append — is covered; the exact count is

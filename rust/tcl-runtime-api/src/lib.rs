@@ -84,6 +84,14 @@ pub trait VarStore {
     fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool;
     /// Whether array element `name(key)` exists.
     fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool;
+
+    /// The element keys of array `name` in `frame`, in the runtime's storage
+    /// order, or `None` if `name` is not an array (a scalar, or unset). An array
+    /// with no elements yields `Some(vec![])` — the existence signal `array
+    /// exists`/`info exists` need. This is the **enumeration** surface the
+    /// otherwise-deliberately-listing-free state traits expose for the `array`
+    /// family (`names`/`get`/`size`/`exists`/`unset`).
+    fn array_keys(&self, frame: FrameId, name: &str) -> Option<Vec<String>>;
 }
 
 /// The call-frame stack: proc-call frames and the `uplevel` active-level dance.
