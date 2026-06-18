@@ -3,16 +3,16 @@
 //! The runtime satisfies the shared state-mutation contract over its
 //! `*mut TclObj` value model, so a consumer of the `tcl-runtime-api` role
 //! traits can reach into this runtime's state with the *same* contract the
-//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. `VarStore` and `Introspect`
-//! are implemented; the remaining role traits (`Frames`/`Namespaces`/`Traces`)
-//! follow as their handle model is reconciled with this runtime's arena/level
-//! addressing.
+//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. `VarStore`, `Introspect`,
+//! and `Commands` are implemented; the remaining role traits
+//! (`Frames`/`Namespaces`/`Traces`) follow as their handle model is reconciled
+//! with this runtime's arena/level addressing.
 
-use tcl_runtime_api::{FrameId, Introspect, VarStore};
+use tcl_runtime_api::{Commands, Completion, FrameId, Introspect, VarStore};
 
 use crate::interp::{new_string, Interp};
 use crate::list::new_list_obj;
-use crate::obj::TclObj;
+use crate::obj::{self, TclObj};
 
 /// The Family-B variable store, honouring `FrameId` (the absolute frame level,
 /// `GLOBAL_FRAME` = 0). Like the bytecode VM's impl, a `FrameId` naming the
@@ -86,12 +86,72 @@ impl Introspect for Interp {
     }
 }
 
+/// Bridge the runtime's own [`crate::interp::Code`] to the contract's
+/// [`tcl_runtime_api::Code`]. The two enums are structurally identical (the
+/// runtime predates the shared `tcl-core-types`); the explicit match keeps them
+/// honestly decoupled and breaks loudly if either drifts.
+fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
+    use crate::interp::Code as Rt;
+    use tcl_runtime_api::Code as Api;
+    match code {
+        Rt::Ok => Api::Ok,
+        Rt::Error => Api::Error,
+        Rt::Return => Api::Return,
+        Rt::Break => Api::Break,
+        Rt::Continue => Api::Continue,
+        Rt::Other(n) => Api::Other(n),
+    }
+}
+
+/// Command dispatch: resolve `name` and run it with `argv` to a [`Completion`].
+///
+/// The runtime is natively a `Code`-plus-`set_result` machine, so this bridges
+/// to the `Completion` ABI: it builds the name-included argv the inherent
+/// `dispatch` expects (taking an owning `+1` on every word for the call, mirroring
+/// `dispatch_list_obj`), runs it, then snapshots `(code, result, options)`.
+///
+/// **Refcount contract.** Unlike [`VarStore::get`]'s borrowed pointer, the
+/// returned completion *owns* a `+1` on both `result` and `options`; the caller
+/// adopts them and must release each (`decr_ref_count` / `drop_fresh`) when
+/// done — the `*mut TclObj` analogue of the VM completion's owned `Rc`s.
+/// `options` is an empty placeholder, mirroring the VM's `Value::empty()`.
+impl Commands for Interp {
+    type Value = *mut TclObj;
+
+    fn dispatch(&mut self, name: &str, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
+        // The runtime's dispatch takes a name-included argv.
+        let name_obj = new_string(name.as_bytes());
+        let mut full: Vec<*mut TclObj> = Vec::with_capacity(argv.len() + 1);
+        full.push(name_obj);
+        full.extend_from_slice(argv);
+        // An owning +1 on each word for the call's duration, released after (the
+        // `dispatch_list_obj` discipline). The fresh `name_obj` (rc 0) is freed by
+        // its release unless dispatch retained it; the caller's `argv` (rc >= 1)
+        // are returned to their prior count untouched.
+        for &w in &full {
+            unsafe { obj::incr_ref_count(w) };
+        }
+        let code = Interp::dispatch(self, &full); // the inherent dispatch, not this trait method
+        for &w in &full {
+            unsafe { obj::decr_ref_count(w) };
+        }
+        // The completion owns +1 on result and options (the caller adopts both).
+        let result = self.result_obj();
+        let options = new_string(b"");
+        unsafe {
+            obj::incr_ref_count(result);
+            obj::incr_ref_count(options);
+        }
+        Completion::new(api_code(code), result, options)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::counters;
     use crate::interp::{new_string, obj_bytes};
-    use tcl_runtime_api::GLOBAL_FRAME;
+    use tcl_runtime_api::{Code, GLOBAL_FRAME};
 
     /// Run `body` against a fresh interpreter and assert it leaks nothing (the
     /// `*mut TclObj` refcount discipline of the `VarStore` impl is correct).
@@ -175,6 +235,37 @@ mod tests {
             assert!(i.unset(GLOBAL_FRAME, "g2"));
             assert!(i.unset(GLOBAL_FRAME, "g"));
             assert!(!i.exists(GLOBAL_FRAME, "g"));
+        });
+    }
+
+    #[test]
+    fn commands_dispatch_builtin_and_unknown() {
+        leak_free(|i| {
+            // A builtin runs and yields its result. The caller owns its argv
+            // (rc >= 1, the dispatch contract); the completion owns +1 on the
+            // result + options, which the caller releases.
+            let lst = new_string(b"a b c");
+            unsafe { obj::incr_ref_count(lst) }; // the test's owning ref
+                                                 // UFCS reaches the trait method: the inherent `Interp::dispatch`
+                                                 // shadows it for method-call syntax (a generic `T: Commands` consumer
+                                                 // is unaffected).
+            let c = Commands::dispatch(i, "llength", &[lst]);
+            assert_eq!(c.code, Code::Ok);
+            assert_eq!(obj_bytes(c.result), b"3");
+            unsafe {
+                obj::decr_ref_count(c.result);
+                obj::decr_ref_count(c.options);
+                obj::decr_ref_count(lst);
+            }
+
+            // An unknown command name is an error completion.
+            let c = Commands::dispatch(i, "no_such_command", &[]);
+            assert_eq!(c.code, Code::Error);
+            assert!(obj_bytes(c.result).starts_with(b"invalid command name"));
+            unsafe {
+                obj::decr_ref_count(c.result);
+                obj::decr_ref_count(c.options);
+            }
         });
     }
 }

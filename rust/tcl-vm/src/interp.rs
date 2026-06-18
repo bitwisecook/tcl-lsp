@@ -7,7 +7,9 @@ use std::rc::Rc;
 
 use tcl_bytecode::FunctionAsm;
 use tcl_platform::Host;
-use tcl_runtime_api::{Code, CompileService, Completion, FrameId, Introspect, ROOT_NS, VarStore};
+use tcl_runtime_api::{
+    Code, Commands, CompileService, Completion, FrameId, Introspect, ROOT_NS, VarStore,
+};
 use tcl_syntax::expr::{eval, parse_expr};
 
 use crate::command::{BuiltinFn, Command, ProcDef, register_builtins};
@@ -1251,6 +1253,20 @@ impl Introspect for Vm {
     }
 }
 
+/// Command dispatch: resolve `name` in the current namespace context and run it
+/// with `argv` (name-stripped) to a [`Completion`]. Builtins run inline, procs
+/// run to completion in a nested activation, aliases re-evaluate their target,
+/// and an unknown name yields an error completion. The owned-`Value` model keeps
+/// the refcount discipline implicit (`Rc` clones), unlike the runtime's
+/// `*mut TclObj` impl.
+impl Commands for Vm {
+    type Value = Value;
+
+    fn dispatch(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        self.invoke_command(name, argv)
+    }
+}
+
 #[cfg(test)]
 mod family_b_tests {
     use super::*;
@@ -1300,5 +1316,21 @@ mod family_b_tests {
         );
         assert!(vm.unset(GLOBAL_FRAME, "g2"));
         assert!(!vm.exists(GLOBAL_FRAME, "g2"));
+    }
+
+    #[test]
+    fn commands_dispatch_builtin_and_unknown() {
+        let mut vm = Vm::new();
+        // A builtin runs inline and yields its result.
+        let c = vm.dispatch("list", &[Value::string("a"), Value::string("b c")]);
+        assert_eq!(c.code, Code::Ok);
+        assert_eq!(&*c.result.to_str(), "a {b c}");
+        // An unknown command name is an error completion.
+        let c = vm.dispatch("no_such_command", &[]);
+        assert_eq!(c.code, Code::Error);
+        assert_eq!(
+            &*c.result.to_str(),
+            "invalid command name \"no_such_command\""
+        );
     }
 }

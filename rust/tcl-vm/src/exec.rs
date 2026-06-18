@@ -335,7 +335,16 @@ impl Vm {
 
     /// Run one bytecode function to completion via the NRE trampoline.
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
-        let mut acts: Vec<Frame> = vec![Frame::new(Rc::new(asm.clone()), false)];
+        self.run_activation(Frame::new(Rc::new(asm.clone()), false))
+    }
+
+    /// Drive the NRE trampoline from an initial activation to completion. The
+    /// initial frame's `is_proc` decides whether the outermost body is a proc
+    /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
+    /// `false` for a module top-level ([`run_function`](Self::run_function)),
+    /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
+    fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
+        let mut acts: Vec<Frame> = vec![initial];
         loop {
             let tick = {
                 let top = acts.last_mut().expect("activation stack is non-empty");
@@ -1190,6 +1199,37 @@ impl Vm {
                 }
             }
             None => Err(err(format!("invalid command name \"{name}\""))),
+        }
+    }
+
+    /// Dispatch a fully-resolved command by `name` + `argv` to a completion —
+    /// the `Commands::dispatch` engine. Unlike [`dispatch_words`](Self::dispatch_words)
+    /// (bytecode-frame-coupled: it pushes the result onto `f.stack` and defers a
+    /// proc call to the trampoline as a `Tick::Call`), this is self-contained and
+    /// usable outside the bytecode loop: a builtin runs inline, a proc body runs
+    /// to completion in a nested `is_proc` activation (so its call-frame and
+    /// `return` are handled), and an alias re-evaluates its target prefix.
+    pub(crate) fn invoke_command(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
+        match self.lookup_command(name) {
+            Some(Command::Builtin(bf)) => bf(self, argv),
+            Some(Command::Proc(p)) => match self.enter_proc(&p, argv) {
+                Ok(()) => self.run_activation(Frame::new(Rc::clone(&p.body), true)),
+                Err(c) => c,
+            },
+            Some(Command::Alias(target)) => {
+                let mut full: Vec<Value> = (*target).clone();
+                full.extend_from_slice(argv);
+                let script = full
+                    .iter()
+                    .map(|v| quote_for_script(&v.to_str()))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                match self.eval_source(&script) {
+                    Ok(c) => c,
+                    Err(e) => err(e.message),
+                }
+            }
+            None => err(format!("invalid command name \"{name}\"")),
         }
     }
 

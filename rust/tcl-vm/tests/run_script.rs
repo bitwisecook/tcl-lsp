@@ -9,7 +9,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_vm::{Code, Commands, CompileError, CompileService, Value, Vm};
 
 /// A `tcl-compiler`-backed compile service so the VM can resolve runtime
 /// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself
@@ -60,6 +60,38 @@ fn run(src: &str) -> (bool, String, String) {
         completion.result.to_str().to_string(),
         out,
     )
+}
+
+/// `Commands::dispatch` runs a compiled proc to completion — the nested
+/// `is_proc` activation path (`invoke_command` pushes the call-frame, runs the
+/// body, and absorbs `return` into an ok completion), and surfaces the proc's
+/// arg-count usage error when binding fails.
+#[test]
+fn commands_dispatch_runs_proc() {
+    let registry = CommandRegistry::build_default();
+    let asm = {
+        let src = "proc add {a b} { return [expr {$a + $b}] }";
+        let ir = lower_to_ir(src, &registry);
+        let cfg = build_cfg(&ir, false);
+        codegen_module(&cfg, &ir, &registry)
+    };
+
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    }));
+    // Running the module registers `add`.
+    assert!(vm.run_module(&asm).code.is_ok());
+
+    // Dispatch the proc by name with name-stripped argv.
+    let c = vm.dispatch("add", &[Value::string("3"), Value::string("4")]);
+    assert_eq!(c.code, Code::Ok);
+    assert_eq!(&*c.result.to_str(), "7");
+
+    // Wrong arg count surfaces the proc usage error (the `enter_proc` Err path).
+    let c = vm.dispatch("add", &[Value::string("3")]);
+    assert_eq!(c.code, Code::Error);
+    assert_eq!(&*c.result.to_str(), "wrong # args: should be \"add a b\"");
 }
 
 #[test]

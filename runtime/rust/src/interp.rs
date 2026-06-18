@@ -2575,6 +2575,13 @@ impl Interp {
         obj_bytes(self.result.get())
     }
 
+    /// The current result **object** — a borrowed pointer (the interp keeps its
+    /// reference; the caller must not release it without first taking its own
+    /// `+1`). Backs `Commands::dispatch`'s completion capture in `family_b.rs`.
+    pub(crate) fn result_obj(&self) -> *mut TclObj {
+        self.result.get()
+    }
+
     /// Raise an error with result `msg` and return [`Code::Error`] — the generic
     /// throw. Resets the [`ExceptionState`] to a fresh error: the source trace
     /// (`::errorInfo`) is then built up **as the error unwinds**

@@ -46,3 +46,7 @@ pub use interp::Vm;
 pub use value::Value;
 
 pub use tcl_runtime_api::{Code, CompileError, CompileService, Completion};
+// The Family-B role traits the VM satisfies, re-exported so a consumer can call
+// the impls (a trait must be in scope to use its methods). More land as the VM
+// advances through the milestones.
+pub use tcl_runtime_api::{Commands, Introspect, VarStore};
