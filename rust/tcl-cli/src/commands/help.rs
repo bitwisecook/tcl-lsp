@@ -9,9 +9,12 @@
 //! temp file for the duration of the queries (mirroring the Python
 //! pre-3.12 fallback path).
 //!
-//! `--json` embeds the raw `BM25` `rank` float, so its byte-parity depends on
-//! the bundled `SQLite` computing `BM25` identically to the `SQLite` the
-//! database was indexed with — verified against the Python CLI by the goldens.
+//! `--json` embeds the raw `BM25` `rank` float. Codes, content and ordering
+//! match Python byte-for-byte, but the `rank` value is computed by whichever
+//! `SQLite` version is linked (Python the host's, this crate rusqlite's bundled
+//! one) and the two diverge in the low-order digits on some corpora — so it is
+//! not a cross-environment-stable parity field (the json golden is captured
+//! from this binary, not the Python CLI).
 
 use std::io::Write as _;
 use std::path::PathBuf;

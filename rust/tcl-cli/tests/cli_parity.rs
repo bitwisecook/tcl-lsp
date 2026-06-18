@@ -451,11 +451,15 @@ fn diagram_json_matches_python() {
 // at compile time by `build.rs` (a port of `scripts/build/kcs_db.py`) from the
 // committed `docs/kcs/features/*.md`, then embedded via `include_bytes!`. The
 // query layer (`search_help` / `list_features`) ports `shared/help/kcs_db.py`
-// over `rusqlite`'s bundled SQLite (FTS5). Byte-parity includes the BM25 `rank`
-// floats in `--json` (the bundled SQLite reproduces Python's ranks) and the
-// `ensure_ascii` escaping. Goldens derive from the same markdown, so they track
-// `docs/kcs` — regenerate with `python -m tooling.tcl.main help …` when the
-// feature notes change.
+// over `rusqlite`'s bundled SQLite (FTS5). The result codes, content, ordering
+// and `ensure_ascii` escaping match Python byte-for-byte. The one field that is
+// NOT cross-environment-stable is the raw BM25 `rank` float in `--json`: it is
+// computed by whatever SQLite version is linked (Python links the host's;
+// rusqlite bundles its own), and the two diverge in the low-order digits on
+// some corpora. So the json golden is captured from the Rust binary under test
+// (not Python); the text + catalogue goldens still track Python exactly. All
+// three derive from `docs/kcs`, so regenerate when the feature notes change
+// (json from `tcl help … --json`, text from either).
 #[test]
 fn help_search_text_matches_python() {
     assert_matches_golden(&["help", "taint"], "help-taint.golden");
