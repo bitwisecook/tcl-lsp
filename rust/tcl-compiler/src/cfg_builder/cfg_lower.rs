@@ -5,6 +5,8 @@
 //! with terminators, returning the name of the "continuation" block
 //! (or `None` if control doesn't fall through).
 
+use tcl_lexer::Span;
+
 use crate::cfg::{LoopNode, Terminator};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{Statement, SwitchMode};
@@ -318,34 +320,130 @@ impl CfgBuilder {
     /// fall-through is flattened into a chain of arm-dispatch branches on a
     /// foldable `STR_EQ(subject, pattern)` so the bytecode backend can build a
     /// real jump table.
-    /// Terminate `block_name` when an opaque `switch` can't fall through
-    /// (Bug 3 / FP-RBS-15).
+    /// Append an opaque `switch` to `block_name` and model how it leaves
+    /// (FP-RBS-15 + Codex C3).
     ///
     /// An opaque (glob/regexp/fall-through) switch is kept as a single
-    /// `Statement::Switch` that normally falls through to the next statement.
-    /// But when it has a `default` arm *and* every reachable arm body (default +
-    /// each arm with a body) cannot complete normally — e.g. every arm
-    /// `return`s / `error`s / `tailcall`s — no path reaches the code after the
-    /// switch, so the switch is itself a terminator.  Promote the block to a
-    /// `Return` so the following statements are routed to the orphan unreachable
-    /// block (exactly like a `return`/`tailcall`), instead of being falsely
-    /// analysed as reachable.
+    /// `Statement::Switch` whose arm bodies are not lowered into the CFG, so its
+    /// internal control flow is otherwise invisible.  In analysis builds we
+    /// recover the ways it can leave the block:
     ///
-    /// Analysis builds only (`faithful_exceptions`); codegen leaves the
-    /// fall-through edge so the opaque-switch `invokeStk` bytecode and CFG shape
-    /// are unchanged.  Conservative: only fires when provably non-completing, so
-    /// it never hides a real read-before-set.
-    fn maybe_terminate_opaque_switch(&mut self, stmt: &Statement, block_name: &str) {
-        if self.faithful_exceptions
-            && self.block_mut(block_name).terminator.is_none()
-            && !crate::cfg_builder::switch_completes_normally(stmt)
-        {
-            self.block_mut(block_name).terminator = Some(Terminator::Return {
-                value: None,
-                span: Some(stmt.span()),
-                expr: None,
-                braced: false,
+    /// * every arm exits the *procedure* → promote the block to `Return` (so the
+    ///   following statements are unreachable, like a `return`);
+    /// * an arm `break`s/`continue`s to an enclosing loop → wire explicit edges
+    ///   from this block to that loop's break / continue target, so a loop whose
+    ///   only exit is such a jump is not seen as infinite and the post-loop read
+    ///   is correctly reachable (and maybe-unset);
+    /// * otherwise it just falls through to the next statement.
+    ///
+    /// Codegen builds (`faithful_exceptions` off) leave the plain fall-through so
+    /// the opaque-switch `invokeStk` bytecode / CFG shape are unchanged.  Returns
+    /// the block subsequent statements continue in.
+    fn lower_opaque_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
+        use crate::cfg_builder::Completion;
+        self.block_mut(block_name).statements.push(stmt.clone());
+        if !self.faithful_exceptions {
+            return block_name.to_owned();
+        }
+        let completion = crate::cfg_builder::flow_facts_stmt(stmt).1;
+        if completion == Completion::ProcExit {
+            if self.block_mut(block_name).terminator.is_none() {
+                self.block_mut(block_name).terminator = Some(Terminator::Return {
+                    value: None,
+                    span: Some(stmt.span()),
+                    expr: None,
+                    braced: false,
+                });
+            }
+            return block_name.to_owned();
+        }
+        if let Some((break_target, continue_target)) = self.loop_stack.last().cloned() {
+            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps(stmt);
+            if can_break || can_continue {
+                return self.wire_opaque_switch_jumps(
+                    stmt,
+                    block_name,
+                    completion,
+                    can_break,
+                    can_continue,
+                    &break_target,
+                    &continue_target,
+                );
+            }
+        }
+        block_name.to_owned()
+    }
+
+    /// Wire an opaque switch block to its enclosing loop's jump targets.
+    ///
+    /// The switch can leave via the fall-through successor (only when it can
+    /// still complete normally), the loop's break target, and/or the loop's
+    /// continue target.  Build a non-deterministic dispatch over those targets
+    /// (we can't tell which arm runs), and return the block subsequent
+    /// statements continue in: the fall-through continuation when one exists,
+    /// else an unreachable orphan (every path jumped, so following code is dead).
+    #[allow(clippy::too_many_arguments)]
+    fn wire_opaque_switch_jumps(
+        &mut self,
+        stmt: &Statement,
+        block_name: &str,
+        completion: crate::cfg_builder::Completion,
+        can_break: bool,
+        can_continue: bool,
+        break_target: &str,
+        continue_target: &str,
+    ) -> String {
+        use crate::cfg_builder::Completion;
+        let mut targets: Vec<String> = Vec::new();
+        let mut continuation: Option<String> = None;
+        if completion == Completion::Normal {
+            let cont = self.new_block("switch_cont");
+            continuation = Some(cont.clone());
+            targets.push(cont);
+        }
+        if can_break {
+            targets.push(break_target.to_owned());
+        }
+        if can_continue {
+            targets.push(continue_target.to_owned());
+        }
+        self.branch_to_any(block_name, &targets, Some(stmt.span()));
+        continuation.unwrap_or_else(|| self.new_block("switch_jump_dead"))
+    }
+
+    /// Terminate `block_name` so control can reach any of `targets`.
+    ///
+    /// One target → a `Goto`; more → a chain of opaque `Branch`es through
+    /// synthetic dispatch blocks (the choice is non-deterministic — an opaque
+    /// switch hides which arm runs).
+    fn branch_to_any(&mut self, block_name: &str, targets: &[String], span: Option<Span>) {
+        if targets.is_empty() {
+            return;
+        }
+        if targets.len() == 1 {
+            self.block_mut(block_name).terminator = Some(Terminator::Goto {
+                target: targets[0].clone(),
+                span,
             });
+            return;
+        }
+        let opaque = ExprNode::Raw {
+            text: "<switch_jump>".into(),
+        };
+        let mut current = block_name.to_owned();
+        for i in 0..targets.len() - 1 {
+            let false_target = if i == targets.len() - 2 {
+                targets[targets.len() - 1].clone()
+            } else {
+                self.new_block("switch_jump")
+            };
+            self.block_mut(&current).terminator = Some(Terminator::Branch {
+                condition: opaque.clone(),
+                true_target: targets[i].clone(),
+                false_target: false_target.clone(),
+                span,
+            });
+            current = false_target;
         }
     }
 
@@ -374,9 +472,7 @@ impl CfgBuilder {
         // recovered by `ssa::uses_of`'s `Statement::Switch` arm (Python's
         // `_switch_reads`); the switch contributes no defs (Python's `_defs`).
         if *mode != SwitchMode::Exact || arms.iter().any(|arm| arm.fallthrough) {
-            self.block_mut(block_name).statements.push(stmt.clone());
-            self.maybe_terminate_opaque_switch(stmt, block_name);
-            return block_name.to_owned();
+            return self.lower_opaque_switch(stmt, block_name);
         }
 
         let end_block = self.new_block("switch_end");

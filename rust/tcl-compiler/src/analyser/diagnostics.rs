@@ -10891,6 +10891,18 @@ mod tests {
             ),
             "completing arm omitting y must still fire W210 on y",
         );
+
+        // TP control (Codex C1): a `break` arm is a LOOP_JUMP, not a proc-exit —
+        // it escapes the loop *without* `y`, so `y` is NOT defined on every
+        // reaching path. The arm must be kept (with its empty pre-break defs) in
+        // the must-define intersection, so `y` is dropped and W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {} { foreach x {a} { switch -glob $x { a* { break } default { set y 1 } } }\n puts $y }",
+                "y",
+            ),
+            "break arm escapes the loop with y unset (W210 expected on y)",
+        );
     }
 
     #[test]
@@ -10935,6 +10947,19 @@ mod tests {
                 "y",
             ),
             "one completing arm lets the switch fall through (W210 expected on y)",
+        );
+
+        // TP control (Codex C3): an all-*break* switch is NOT a proc terminator —
+        // it jumps to the enclosing loop's exit, so a `while 1` whose only exit
+        // is the break reaches the post-loop read with the var unset. The switch
+        // must wire its break edge to the loop exit (not promote to a Return),
+        // so the loop exit is reachable and W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { while 1 { switch -glob $x { a* { break } default { break } } }\n puts $y }",
+                "y",
+            ),
+            "all-break opaque switch in while 1 reaches the loop exit (W210 expected on y)",
         );
     }
 

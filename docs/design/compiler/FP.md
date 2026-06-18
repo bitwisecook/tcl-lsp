@@ -2492,17 +2492,20 @@ errors `can't read "y": no such variable`.
 `Statement::Switch { default_body: Some(_), .. }` arm) calls
 `cfg_builder::switch_must_defines`, which is `flow_facts_stmt(stmt).0`. The
 shared `flow_facts_*` helpers in `rust/tcl-compiler/src/cfg_builder/mod.rs`
-intersect only the bodies that `flow_facts_script` reports *can* complete
-normally (`intersect_completing` skips a body whose flow facts say it cannot —
-`return`/`error`/`throw`/`exit`/`tailcall`/`break`/`continue`, or an exhaustive
-`if`/`switch` whose every branch cannot). The resulting set feeds the switch's
-`defs`, so SSA versions `y` at the switch and the later read resolves.
+classify each branch by a 3-way `Completion` (`Normal` / `LoopJump` /
+`ProcExit`) and `intersect_completing` **excludes only `ProcExit` branches**
+(which reach no later code). A `LoopJump` (`break`/`continue`) branch is *kept*,
+intersecting the defs it makes before jumping — it still reaches the code after
+the enclosing loop, so an arm that breaks without assigning `y` correctly drops
+`y` (Codex C1). The resulting set feeds the switch's `defs`, so SSA versions `y`
+at the switch and the later read resolves.
 
 #### Tests
 
 - `analyser::diagnostics::tests::fp_rbs_14_opaque_switch_excludes_non_completing_arm`
   (FP: returning arm silent; FP: erroring arm silent; TP control: a completing
-  arm that omits `y` keeps the W210).
+  arm that omits `y` keeps the W210; TP control / Codex C1: a `break` arm
+  escapes the loop with `y` unset and keeps the W210).
 
 ---
 
@@ -2566,21 +2569,34 @@ block exit_3
 
 #### Why the analyser reaches that verdict
 
-`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`
-`CfgBuilder::maybe_terminate_opaque_switch`: when lowering an opaque
-(glob/regexp/fall-through) switch in an analysis build (`faithful_exceptions`),
-the block is promoted to a `Terminator::Return` if
-`cfg_builder::switch_completes_normally(stmt)` is false — i.e. it has a
-`default` and every arm-with-a-body plus the default cannot complete normally
-(`flow_facts_stmt`). Codegen builds leave the fall-through edge, so the
-opaque-switch `invokeStk` bytecode and CFG shape are unchanged.
+`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` `CfgBuilder::lower_opaque_switch`:
+when lowering an opaque (glob/regexp/fall-through) switch in an analysis build
+(`faithful_exceptions`), it reads `flow_facts_stmt(stmt).1` (the `Completion`):
+
+* `ProcExit` — every arm `return`s/`error`s/`exit`s/`tailcall`s with a default,
+  so the block is promoted to a `Terminator::Return` (the trailing statements
+  are orphaned, like a `return`);
+* `LoopJump` (Codex C3) — an arm `break`s/`continue`s to an enclosing loop; it
+  is **not** a proc terminator, so instead `wire_opaque_switch_jumps` /
+  `branch_to_any` wire explicit edges from the block to the loop's break /
+  continue targets (plus a fall-through continuation when the switch can still
+  complete normally), so a `while 1` whose only exit is such a jump has a
+  reachable loop exit and the post-loop read correctly fires;
+* `Normal` — plain fall-through.
+
+`switch_escaping_jumps` / `escaping_loop_jumps` scan the arm bodies for escaping
+`break`/`continue`, recursing into `if`/`switch`/`Block` but not into nested
+loops or `catch`/`try` (which capture their own jumps). Codegen builds leave the
+fall-through edge, so the opaque-switch `invokeStk` bytecode and CFG shape are
+unchanged.
 
 #### Tests
 
 - `analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator`
   (FP: all-return silent; FP: error/tailcall mix silent; TP control: no
   `default` falls through → W210; TP control: one completing arm lets the
-  switch fall through → W210).
+  switch fall through → W210; TP control / Codex C3: an all-`break` switch in
+  `while 1` reaches the loop exit → W210).
 
 ---
 

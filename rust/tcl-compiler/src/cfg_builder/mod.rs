@@ -881,29 +881,50 @@ fn is_tailcall_command(command: &str) -> bool {
 // --- Definite-assignment ("flow facts") over un-lowered IR scripts ----------
 //
 // Shared by the CFG builder (to promote an opaque `switch` whose every arm
-// exits to a terminator — Bug 3 / FP-RBS-15) and by SSA (to recover the def
-// set an opaque switch *definitely* establishes — Bug 2 / FP-RBS-14).  Both
-// consumers agree on one definition of "cannot complete normally".  Mirrors
-// the Python `_flow_facts_*` family in `compiler/cfg.py` (relocated there from
-// `ssa.py` so the control-flow and SSA layers share one definition).
+// exits the *procedure* — FP-RBS-15 — and to wire its loop-jump edges — C3) and
+// by SSA (to recover the def set an opaque switch *definitely* establishes —
+// FP-RBS-14).  Both consumers agree on one model.
+//
+// Each statement/script is classified by how it leaves: it can complete NORMALly
+// (fall through to the next statement), jump within an enclosing loop (LoopJump
+// — `break`/`continue`), or exit the procedure (ProcExit —
+// `return`/`error`/`throw`/`exit`/`tailcall`).  The distinction matters for an
+// *opaque* switch (whose arm bodies are not lowered into the CFG, so their
+// loop-jump edges are invisible): a ProcExit arm reaches no later code at all,
+// but a LoopJump arm still reaches the code after the enclosing loop *without*
+// the other arms' definitions — so it must NOT be treated as vacuous when
+// recovering the switch's defs, and an all-LoopJump switch is NOT a procedure
+// terminator.  Mirrors the Python `_flow_facts_*` family (`compiler/cfg.py`).
 
-/// `(must-defines, can-complete-normally)` for a single statement.
+/// How a statement/script leaves: fall through, jump to an enclosing loop, or
+/// exit the procedure.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Completion {
+    /// Falls through to the next statement.
+    Normal,
+    /// `break` / `continue` — leaves to an enclosing-loop target (still reaches
+    /// the code after that loop).
+    LoopJump,
+    /// `return` / `error` / `throw` / `exit` / `tailcall` — leaves the proc.
+    ProcExit,
+}
+
+/// `(must-defines, completion)` for a single statement.
 ///
 /// * assignments (`set`/`incr`/`expr`-assign) contribute their target and
-///   complete;
-/// * a plain `Call` contributes its synthetic `defs` and completes — *except* a
-///   non-returning one (`error`/`throw`/`exit` via the terminating-command set,
-///   `break`/`continue`, or `tailcall`), which cannot complete; `Return` and a
-///   `return -code` / expansion `Barrier` likewise cannot complete;
+///   complete normally; a plain `Call` contributes its synthetic `defs` and
+///   completes normally — *except* `error`/`throw`/`exit` and `tailcall`, which
+///   `ProcExit`, and `break`/`continue`, which `LoopJump`; `Return` and a
+///   `return -code` / expansion `Barrier` `ProcExit`;
 /// * `Block` / `UpFrame` bodies always run, so recurse;
-/// * an `If` *with* an else, or a `Switch` *with* a default, takes the
-///   intersection over its completing branches (and is non-completing only when
-///   every branch is); an else-less `If` / default-less `Switch` has a
-///   fall-through path, so it completes assigning nothing for certain;
+/// * an `If` *with* an else, or a `Switch` *with* a default, combine their
+///   branches via [`intersect_completing`]; an else-less `If` / default-less
+///   `Switch` has a fall-through path, so it completes normally assigning
+///   nothing for certain;
 /// * loops (`For`/`While`/`Foreach`), `Catch`/`Try` and everything else may not
-///   execute / always complete, so they contribute no must-define and complete
-///   normally.
-pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, bool) {
+///   execute / always complete (`catch` even swallows `break`), so they
+///   contribute no must-define and complete normally.
+pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion) {
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
@@ -914,17 +935,20 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, bool) {
             if !n.is_empty() {
                 set.insert(n.to_owned());
             }
-            (set, true)
+            (set, Completion::Normal)
         }
-        Statement::Return { .. } => (BTreeSet::new(), false),
+        Statement::Return { .. } => (BTreeSet::new(), Completion::ProcExit),
         Statement::Barrier { reason, .. } => {
             // A `return -options …` / `return {*}…` barrier unconditionally
-            // exits the proc, so it cannot complete normally.
-            let non_returning = matches!(
+            // exits the proc.
+            if matches!(
                 reason.as_str(),
                 "return with options" | "return with expansion"
-            );
-            (BTreeSet::new(), !non_returning)
+            ) {
+                (BTreeSet::new(), Completion::ProcExit)
+            } else {
+                (BTreeSet::new(), Completion::Normal)
+            }
         }
         Statement::Call {
             command,
@@ -933,10 +957,17 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, bool) {
             ..
         } => {
             let canon = canonical_command.as_deref().unwrap_or(command);
-            let non_returning = is_block_terminating_command(canon)
-                || is_tailcall_command(canon)
-                || matches!(canon.trim_start_matches(':'), "break" | "continue");
-            (defs.iter().cloned().collect(), !non_returning)
+            let bare = canon.trim_start_matches(':');
+            let completion = if matches!(bare, "break" | "continue") {
+                // A loop jump leaves to the enclosing loop's target — it still
+                // reaches the code after that loop, just without later defs.
+                Completion::LoopJump
+            } else if is_block_terminating_command(canon) || is_tailcall_command(canon) {
+                Completion::ProcExit
+            } else {
+                Completion::Normal
+            };
+            (defs.iter().cloned().collect(), completion)
         }
         Statement::Block { body, .. } | Statement::UpFrame { body, .. } => flow_facts_script(body),
         Statement::If {
@@ -960,72 +991,157 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, bool) {
         // An else-less `If` / default-less `Switch` has a fall-through path that
         // assigns nothing for certain; everything else may not run / always
         // completes.
-        _ => (BTreeSet::new(), true),
+        _ => (BTreeSet::new(), Completion::Normal),
     }
 }
 
-/// `(vars definitely assigned at normal completion, can-complete-normally)`.
+/// `(vars definitely assigned, completion)` for an un-lowered IR script.
 ///
-/// Sound definite-assignment over an un-lowered IR script: walk the statements
-/// in order accumulating must-defines; the first statement that cannot complete
-/// normally makes everything after it dead and the whole script non-completing.
-/// Only names guaranteed to be assigned are returned, so it never over-claims
-/// (which would hide a real read-before-set).
-pub(crate) fn flow_facts_script(script: &Script) -> (BTreeSet<String>, bool) {
+/// Walk statements in order accumulating must-defines; the first statement that
+/// does not complete normally makes the rest dead and gives the script that
+/// statement's completion (`ProcExit` or `LoopJump`), with the must-defines
+/// being those accumulated up to (and including) it.  Only names guaranteed to
+/// be assigned are returned, so it never over-claims (which would hide a real
+/// read-before-set).
+pub(crate) fn flow_facts_script(script: &Script) -> (BTreeSet<String>, Completion) {
     let mut assigned = BTreeSet::new();
     for stmt in &script.statements {
-        let (defs, completes) = flow_facts_stmt(stmt);
+        let (defs, completion) = flow_facts_stmt(stmt);
         assigned.extend(defs);
-        if !completes {
-            return (assigned, false);
+        if completion != Completion::Normal {
+            return (assigned, completion);
         }
     }
-    (assigned, true)
+    (assigned, Completion::Normal)
 }
 
-/// `(must-defines over the branches that can complete, any-completes)`.
+/// Combine branch bodies into `(must-defines, completion)`.
 ///
-/// The intersection skips any branch that cannot complete normally: such a
-/// branch never reaches the control-flow merge, so by the standard
-/// definite-assignment rule it vacuously defines everything (⊤, the identity of
-/// intersection).  `any-completes` is `false` only when *every* branch is
-/// non-completing — then the merge itself is unreachable.
-fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, bool) {
+/// A `ProcExit` branch reaches no code after the construct, so it is vacuous
+/// (⊤) and excluded from the must-define intersection.  A `Normal` or
+/// `LoopJump` branch *does* reach later code (the fall-through successor, or —
+/// for a loop jump — the code after the enclosing loop), so its must-defines
+/// (those established before it leaves) ARE intersected: this keeps the result
+/// sound when a `break`/`continue` arm escapes an opaque switch without the
+/// other arms' defs.  The combined completion is `Normal` if any branch falls
+/// through, else `LoopJump` if any jumps, else `ProcExit` (every branch exits).
+fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, Completion) {
     let mut common: Option<BTreeSet<String>> = None;
-    let mut completes_any = false;
+    let mut any_normal = false;
+    let mut any_loop_jump = false;
     for body in bodies {
-        let (assigned, completes) = flow_facts_script(body);
-        if !completes {
-            continue;
+        let (assigned, completion) = flow_facts_script(body);
+        match completion {
+            Completion::ProcExit => continue,
+            Completion::Normal => any_normal = true,
+            Completion::LoopJump => any_loop_jump = true,
         }
-        completes_any = true;
         common = Some(match common {
             None => assigned,
             Some(acc) => acc.intersection(&assigned).cloned().collect(),
         });
     }
-    (common.unwrap_or_default(), completes_any)
+    let combined = if any_normal {
+        Completion::Normal
+    } else if any_loop_jump {
+        Completion::LoopJump
+    } else {
+        Completion::ProcExit
+    };
+    (common.unwrap_or_default(), combined)
 }
 
-/// Variables an opaque `switch` assigns on *every* reaching path.
+/// Variables an opaque `switch` assigns on *every* non-proc-exit path.
 ///
 /// Empty unless the switch has a `default` arm (otherwise an unmatched subject
-/// falls through assigning nothing).  With a default, the result is the
-/// intersection of the must-define sets of the default body and of every arm
-/// that has a body — but an arm that *cannot complete normally* (always
-/// `return`s / `error`s / `tailcall`s / …) never reaches the code after the
-/// switch, so it is excluded from the intersection (FP-RBS-14).
+/// falls through assigning nothing).  Intersection over the default and every
+/// arm-with-a-body, excluding only arms that exit the procedure (which reach no
+/// later code).  A `break`/`continue` arm is *kept* (with the defs it makes
+/// before jumping), because it still reaches the code after the enclosing loop —
+/// so an arm that breaks without assigning `y` correctly drops `y` rather than
+/// letting it be claimed defined (FP-RBS-14 + Codex C1).
 pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
     flow_facts_stmt(stmt).0
 }
 
-/// Whether an opaque `switch` can reach the code after it.
+/// `(can_break, can_continue)` for `break`/`continue` that escape *script* to an
+/// enclosing loop.
 ///
-/// `false` only when it has a `default` *and* every arm-with-a-body plus the
-/// default cannot complete normally — then no path falls through, so the switch
-/// is itself a terminator (FP-RBS-15).
-pub(crate) fn switch_completes_normally(stmt: &Statement) -> bool {
-    flow_facts_stmt(stmt).1
+/// Recurses into `if`/`switch`/`Block`/`UpFrame` bodies (which don't capture a
+/// loop jump) but NOT into nested loops (`for`/`while`/`foreach`) or
+/// `catch`/`try` — those capture their own `break`/`continue` (tclsh:
+/// `catch {break}` yields code 3 and does not propagate), so a jump inside them
+/// does not escape to *this* loop.  Mirrors Python `_escaping_loop_jumps`.
+pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
+    let mut can_break = false;
+    let mut can_continue = false;
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Call {
+                command,
+                canonical_command,
+                ..
+            } => {
+                let bare = canonical_command.as_deref().unwrap_or(command).trim_start_matches(':');
+                if bare == "break" {
+                    can_break = true;
+                } else if bare == "continue" {
+                    can_continue = true;
+                }
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for clause in clauses {
+                    let (b, c) = escaping_loop_jumps(&clause.body);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+                if let Some(eb) = else_body {
+                    let (b, c) = escaping_loop_jumps(eb);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+            }
+            Statement::Switch { .. } => {
+                let (b, c) = switch_escaping_jumps(stmt);
+                can_break |= b;
+                can_continue |= c;
+            }
+            Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+                let (b, c) = escaping_loop_jumps(body);
+                can_break |= b;
+                can_continue |= c;
+            }
+            _ => {}
+        }
+    }
+    (can_break, can_continue)
+}
+
+/// `(can_break, can_continue)` over all bodies of an opaque `switch`.
+pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
+    let Statement::Switch {
+        arms, default_body, ..
+    } = stmt
+    else {
+        return (false, false);
+    };
+    let mut can_break = false;
+    let mut can_continue = false;
+    if let Some(default) = default_body {
+        let (b, c) = escaping_loop_jumps(default);
+        can_break |= b;
+        can_continue |= c;
+    }
+    for arm in arms {
+        if let Some(body) = &arm.body {
+            let (b, c) = escaping_loop_jumps(body);
+            can_break |= b;
+            can_continue |= c;
+        }
+    }
+    (can_break, can_continue)
 }
 
 /// Whether `command` raises a *catchable* exception (`error` / `throw`) —
