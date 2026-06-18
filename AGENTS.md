@@ -191,16 +191,29 @@ for the full contract:
 2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,zipapp-main,dev}/*`.
 3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
    artefact build → sign → attach to GitHub Release).
-4. **Publishing** — `make publish-*` from the maintainer's laptop,
-   never from CI.
+4. **Publishing** — `make publish-*` from the maintainer's laptop, except
+   VS Code Marketplace, which publishes from CI keylessly (OIDC) behind the
+   manually-approved `marketplace-vscode` Environment.
 
-**Invariant: no marketplace tokens go into CI.**  Every push to VS Code
-Marketplace / JetBrains Marketplace / Package Control / zed-industries
-extensions runs from the maintainer's laptop using credentials in
-local environment variables or the macOS Keychain.  CI uses only
-GitHub's built-in `github.token` + sigstore OIDC for attestations.
-Adding `secrets.VSCE_PAT` (or similar) to any workflow violates the
-contract.
+**Invariant: no long-lived publish *secret* in CI.**  CI may publish only
+with keyless, short-lived credentials it cannot leak — never a stored
+marketplace token.  Concretely:
+
+- **VS Code Marketplace** publishes *from CI* via GitHub OIDC → Azure Entra
+  workload-identity federation (`vsce publish --azure-credential`), gated by
+  the `marketplace-vscode` Environment (required reviewer + a `v*`-tag-only
+  deployment policy).  No PAT is stored anywhere; the federated token is
+  minted per run.  The laptop `make publish-vsix` stays as a keyless
+  fallback (`az login` + `--azure-credential`).
+- **JetBrains Marketplace / Package Control / zed-industries** have no OIDC
+  publishing path, so they still run from the maintainer's laptop using
+  credentials in local environment variables or the macOS Keychain — never
+  CI.
+- CI otherwise uses only GitHub's built-in `github.token` + sigstore OIDC
+  for attestations.
+
+Adding `secrets.VSCE_PAT`, `secrets.JETBRAINS_TOKEN`, or any other
+long-lived marketplace token to a workflow violates the contract.
 
 ## WASM command parity
 
