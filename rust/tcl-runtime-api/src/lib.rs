@@ -114,6 +114,13 @@ pub trait Namespaces {
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId>;
     /// The current namespace.
     fn current(&self) -> NsId;
+    /// The fully-qualified name of namespace `ns` (`"::"` for the global root) —
+    /// what `namespace current` reports.
+    fn name(&self, ns: NsId) -> String;
+    /// The fully-qualified name a [`CommandId`] names (the inverse of
+    /// [`find_command`](Self::find_command)), or `None` for a stale/unknown id —
+    /// backs `namespace which`.
+    fn command_name(&self, cmd: CommandId) -> Option<String>;
 }
 
 /// Variable traces (read/write/unset). Mirrors `runtime/zig`'s

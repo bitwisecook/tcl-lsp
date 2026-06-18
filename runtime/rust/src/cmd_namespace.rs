@@ -141,9 +141,9 @@ fn ns_current(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
         return wrong_args(interp, b"namespace current");
     }
-    let cur = interp.current_ns();
-    let name = interp.namespaces().qualified_name(cur);
-    interp.set_result_bytes(&name);
+    // The shared Family-B core over `Namespaces::{current, name}`.
+    let v = tcl_cmd_core::namespace::current(interp);
+    interp.set_result(v);
     Code::Ok
 }
 
@@ -310,13 +310,17 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(name) = name else {
         return wrong_args(interp, b"namespace which ?-command? ?-variable? name");
     };
-    let cur = interp.current_ns();
-    let fqn = if want_variable {
-        interp.namespaces().which_variable(cur, &name)
+    if want_variable {
+        // `-variable` resolution is runtime-local (not in the Family-B contract).
+        let cur = interp.current_ns();
+        let fqn = interp.namespaces().which_variable(cur, &name);
+        interp.set_result_bytes(&fqn.unwrap_or_default());
     } else {
-        interp.namespaces().which_command(cur, &name)
-    };
-    interp.set_result_bytes(&fqn.unwrap_or_default());
+        // `-command` via the shared `Namespaces` resolution core.
+        let name_str = String::from_utf8_lossy(&name);
+        let v = tcl_cmd_core::namespace::which_command(interp, name_str.as_ref());
+        interp.set_result(v);
+    }
     Code::Ok
 }
 

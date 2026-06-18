@@ -1,10 +1,14 @@
 //! `namespace` text-op cores — the pure `::`-qualified-name manipulations
 //! (`tail`, `qualifiers`), shared verbatim by both runtimes.
 //!
-//! These are pure byte→byte operations on the *literal* name (no namespace
-//! resolution, no runtime state), so — unlike the `info` cores — they need
-//! neither `ValueOps` nor a role trait: each runtime hands in the name bytes and
-//! builds its own result value from the returned slice.
+//! The `tail`/`qualifiers` ops are pure byte→byte operations on the *literal*
+//! name (no namespace resolution, no runtime state), so each runtime hands in
+//! the name bytes and builds its own result value from the returned slice. The
+//! `current`/`which` cores *do* read namespace state, so they are generic over
+//! the [`Namespaces`] role trait + [`ValueOps`].
+
+use tcl_runtime_api::Namespaces;
+use tcl_syntax::value::ValueOps;
 
 /// The byte range `(start, end)` of the last `::` separator **run** (two or more
 /// consecutive colons) in `s`: `s[..start]` is the qualifier, `s[end..]` the
@@ -48,6 +52,28 @@ pub fn tail(name: &[u8]) -> &[u8] {
     match last_sep_run(name) {
         Some((_, end)) => &name[end..],
         None => name,
+    }
+}
+
+/// `namespace current` — the fully-qualified name of the current namespace
+/// (`"::"` at the global level).
+pub fn current<O: ValueOps + Namespaces>(ops: &mut O) -> O::Value {
+    let ns = Namespaces::current(ops);
+    let name = ops.name(ns);
+    ops.new_string(name)
+}
+
+/// `namespace which -command name` — the fully-qualified name `name` resolves to
+/// as a command from the current namespace, or the empty string if it resolves
+/// to nothing. (Option parsing and the `-variable` form stay in each adapter.)
+pub fn which_command<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Value {
+    let cur = Namespaces::current(ops);
+    match ops
+        .find_command(cur, name)
+        .and_then(|id| ops.command_name(id))
+    {
+        Some(fqn) => ops.new_string(fqn),
+        None => ops.empty(),
     }
 }
 

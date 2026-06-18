@@ -2649,6 +2649,12 @@ impl Interp {
         self.cmd_arena.borrow().fqns.get(id as usize).cloned()
     }
 
+    /// The fully-qualified name of namespace `ns` (`"::"` for the root). Backs
+    /// `Namespaces::name` (`family_b.rs`), keeping the namespace-table access here.
+    pub(crate) fn ns_qualified_name(&self, ns: NsId) -> Vec<u8> {
+        self.namespaces.borrow().qualified_name(ns)
+    }
+
     /// Raise an error with result `msg` and return [`Code::Error`] — the generic
     /// throw. Resets the [`ExceptionState`] to a fresh error: the source trace
     /// (`::errorInfo`) is then built up **as the error unwinds**

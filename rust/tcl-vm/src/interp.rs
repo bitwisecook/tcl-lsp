@@ -1431,6 +1431,21 @@ impl Namespaces for Vm {
             .copied()
             .unwrap_or(ROOT_NS)
     }
+
+    fn name(&self, ns: NsId) -> String {
+        // The arena holds the canonical (unrooted) name; `namespace current`
+        // reports the absolute form (`""` → `"::"`).
+        let canonical = self.ns_name(ns);
+        if canonical.is_empty() {
+            "::".to_string()
+        } else {
+            format!("::{canonical}")
+        }
+    }
+
+    fn command_name(&self, cmd: CommandId) -> Option<String> {
+        self.command_fqn(cmd.0)
+    }
 }
 
 #[cfg(test)]

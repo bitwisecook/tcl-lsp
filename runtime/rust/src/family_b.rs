@@ -256,6 +256,15 @@ impl Namespaces for Interp {
     fn current(&self) -> NsId {
         NsId(self.current_ns() as u32)
     }
+
+    fn name(&self, ns: NsId) -> String {
+        String::from_utf8_lossy(&self.ns_qualified_name(ns.0 as usize)).into_owned()
+    }
+
+    fn command_name(&self, cmd: CommandId) -> Option<String> {
+        self.command_fqn(cmd.0)
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    }
 }
 
 #[cfg(test)]

@@ -56,7 +56,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match &*sub.to_str() {
         "eval" => ns_eval(vm, rest),
-        "current" => ok(Value::string(display_ns(vm.current_ns()))),
+        "current" => ok(tcl_cmd_core::namespace::current(vm)),
         "qualifiers" => ns_text_op(rest, tcl_cmd_core::namespace::qualifiers),
         "tail" => ns_text_op(rest, tcl_cmd_core::namespace::tail),
         "parent" => {
@@ -102,17 +102,13 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // args appended as list elements) in namespace `ns`.
         "inscope" => ns_inscope(vm, rest),
         "which" => {
-            // `namespace which ?-command|-variable? name` → resolved full name.
+            // `namespace which ?-command|-variable? name` → the resolved FQN, via
+            // the shared `Namespaces` resolution core (flag handling stays here).
             let name = rest
                 .last()
                 .map(|v| v.to_str().to_string())
                 .unwrap_or_default();
-            let resolved = if vm.lookup_command(&name).is_some() {
-                display_ns(&vm.qualify_name(&name))
-            } else {
-                String::new()
-            };
-            ok(Value::string(resolved))
+            ok(tcl_cmd_core::namespace::which_command(vm, &name))
         }
         "origin" => {
             // `namespace origin command` → the original command's fully-qualified

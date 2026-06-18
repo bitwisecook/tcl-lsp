@@ -174,6 +174,16 @@ fn info_complete_shared_core() {
     assert_eq!(run("info complete {{[}}").1, "1"); // `{[}` — was "0" before the fix
 }
 
+/// `namespace current`/`which` route through the shared `Namespaces` cores
+/// (`current`/`name` and `find_command`/`command_name`).
+#[test]
+fn namespace_current_which_shared_core() {
+    assert_eq!(run("namespace current").1, "::");
+    assert_eq!(run("namespace eval foo {namespace current}").1, "::foo");
+    assert_eq!(run("namespace which -command set").1, "::set");
+    assert_eq!(run("namespace which -command no_such_cmd_xyz").1, "");
+}
+
 #[test]
 fn set_expr_puts() {
     let (ok, _result, out) = run("set x 5\nputs [expr {$x * 2}]\n");
