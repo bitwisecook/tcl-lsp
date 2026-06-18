@@ -2124,7 +2124,14 @@ fn push_keyword_arg(line_index: &LineIndex, source: &str, tok: Token, entries: &
     if let Some((cstart, inner)) = subspec_content(source, tok) {
         let content = inner.trim_end_matches(['"', '}']);
         if !content.is_empty() {
-            push_subtoken(source, line_index, cstart, content, TokenKind::Keyword, entries);
+            push_subtoken(
+                source,
+                line_index,
+                cstart,
+                content,
+                TokenKind::Keyword,
+                entries,
+            );
             return;
         }
     }

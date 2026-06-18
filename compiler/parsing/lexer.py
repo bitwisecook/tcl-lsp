@@ -121,14 +121,14 @@ def _convert_rust_token(tok: object) -> Token:
     attribute access (``.type.name``, ``.text``, ``.start.line`` …) mirrors
     the PyO3 ``Token`` surface exactly.
     """
-    start = tok.start  # type: ignore[attr-defined]
-    end = tok.end  # type: ignore[attr-defined]
+    start = tok.start  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    end = tok.end  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     return Token(
-        type=_TOKEN_TYPE_BY_NAME[tok.type.name],  # type: ignore[attr-defined]
-        text=tok.text,  # type: ignore[attr-defined]
+        type=_TOKEN_TYPE_BY_NAME[tok.type.name],  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        text=tok.text,  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         start=SourcePosition(line=start.line, character=start.character, offset=start.offset),
         end=SourcePosition(line=end.line, character=end.character, offset=end.offset),
-        in_quote=tok.in_quote,  # type: ignore[attr-defined]
+        in_quote=tok.in_quote,  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     )
 
 

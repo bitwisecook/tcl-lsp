@@ -548,10 +548,7 @@ mod tests {
 
     #[test]
     fn lens_count_matches_references_ns_qualified_call() {
-        assert_lens_matches_references(
-            "namespace eval ns { proc foo {} {} }\nns::foo\n",
-            0,
-        );
+        assert_lens_matches_references("namespace eval ns { proc foo {} {} }\nns::foo\n", 0);
     }
 
     #[test]
@@ -602,7 +599,15 @@ mod tests {
                 .find(|l| l.qname == q)
                 .unwrap_or_else(|| panic!("no lens for {q}: {lenses:?}"))
         };
-        assert_eq!(by_qname("::a::foo").command_title, "1 reference", "{lenses:?}");
-        assert_eq!(by_qname("::b::foo").command_title, "0 references", "{lenses:?}");
+        assert_eq!(
+            by_qname("::a::foo").command_title,
+            "1 reference",
+            "{lenses:?}"
+        );
+        assert_eq!(
+            by_qname("::b::foo").command_title,
+            "0 references",
+            "{lenses:?}"
+        );
     }
 }

@@ -1078,7 +1078,9 @@ mod tests {
     #[test]
     fn if_marks_structural_keywords() {
         let reg = CommandRegistry::build_default();
-        let args = ["1", "then", "{a}", "elseif", "2", "then", "{b}", "else", "{c}"];
+        let args = [
+            "1", "then", "{a}", "elseif", "2", "then", "{b}", "else", "{c}",
+        ];
         let kw = reg.arg_indices_for_role("if", &args, ArgRole::Keyword);
         // then@1, elseif@3, then@5, else@7
         assert_eq!(kw, vec![1, 3, 5, 7], "{kw:?}");

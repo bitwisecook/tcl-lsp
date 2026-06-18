@@ -59,8 +59,8 @@ from ._parsers import (  # noqa: F401 — explicit imports for the names the dri
 # reconstructs the dataclasses; otherwise the pure-Python driver below
 # runs.  Disable with ``TCL_LSP_BIGIP_RUST=0`` (e.g. to A/B the backends).
 try:
-    from tcl_lsp_rust import (
-        bigip_parse_conf_json as _rust_bigip_parse_json,  # ty: ignore[unresolved-import]
+    from tcl_lsp_rust import (  # ty: ignore[unresolved-import]
+        bigip_parse_conf_json as _rust_bigip_parse_json,
     )
 except ImportError:
     _rust_bigip_parse_json = None

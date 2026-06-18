@@ -707,7 +707,10 @@ impl FeatureToggles {
     /// silently producing no hints.  Applied first so an explicit new
     /// `inlayParameterHints` in the same object wins.
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
-        if let Some(flag) = features.get("inlayHints").and_then(serde_json::Value::as_bool) {
+        if let Some(flag) = features
+            .get("inlayHints")
+            .and_then(serde_json::Value::as_bool)
+        {
             self.set.insert("inlayParameterHints".to_owned(), flag);
         }
         for (key, value) in features {
@@ -5850,9 +5853,14 @@ mod tests {
         assert!(!toggles.is_enabled("inlayTypeHints"));
         assert!(!toggles.is_enabled("inlayParameterHints"));
         let map = toggles.resolved_map();
-        assert_eq!(map.get("inlayTypeHints").and_then(serde_json::Value::as_bool), Some(false));
         assert_eq!(
-            map.get("inlayParameterHints").and_then(serde_json::Value::as_bool),
+            map.get("inlayTypeHints")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            map.get("inlayParameterHints")
+                .and_then(serde_json::Value::as_bool),
             Some(false),
         );
     }
