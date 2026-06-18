@@ -41,9 +41,20 @@ sha256() {
 # Content fingerprint of all tracked files except the stamp.  Hashes
 # working-tree blob content (so uncommitted edits to tracked files are
 # reflected too) bound to the sorted path list (so a rename changes it).
+#
+# Release-only docs are excluded so the stamp survives the release flow:
+# `RELEASE_NOTES.md` (and its rendered `docs/sphinx/changelog.md`) land via
+# a PR right before tagging and touch no code, so they must NOT invalidate a
+# green test-slow run.  Excluding them lets one pre-merge run carry through
+# merge → release tag (the release/publish targets verify this same stamp).
+# Keep this list to genuinely test-irrelevant, release-authored docs only.
 fingerprint() {
     local paths
-    paths="$(git -c core.quotepath=false ls-files -- ":(exclude,top)${STAMP_REL}" | LC_ALL=C sort)"
+    paths="$(git -c core.quotepath=false ls-files -- \
+        ":(exclude,top)${STAMP_REL}" \
+        ":(exclude,top)RELEASE_NOTES.md" \
+        ":(exclude)docs/sphinx/changelog.md" \
+        | LC_ALL=C sort)"
     {
         printf '%s\n' "$paths"
         # --stdin-paths preserves input order, so hash[i] ↔ path[i].

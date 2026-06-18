@@ -1,0 +1,77 @@
+# Prune GitHub Actions caches so the repo stays under the 10 GiB per-repo
+# ceiling.  Cache *keys* in ci.yml are all stable (lockfile/version hashes),
+# so the bloat is not key churn — it's stale caches scoped to PR branches
+# that nothing ever deletes.  GitHub auto-evicts LRU over 10 GiB, which
+# silently guts hit rates; pruning proactively keeps main's caches warm.
+#
+# Two triggers:
+#   * pull_request closed — delete the caches scoped to that PR's merge ref
+#     (the dominant source of accumulation).
+#   * weekly schedule — backstop sweep of any non-default-branch caches left
+#     behind by force-closed/abandoned branches or tags.
+#
+# Uses only the pre-installed `gh` CLI (no third-party actions → no added
+# supply-chain surface).  Needs `actions: write` to delete caches.
+name: cache-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cache-cleanup-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete caches for the closed PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          echo "Pruning caches scoped to $PR_REF"
+          # Filter on ref in jq rather than `gh cache list --ref` so this
+          # works regardless of the runner's gh version.
+          ids=$(gh cache list --repo "$REPO" --limit 100 --json id,ref \
+            --jq ".[] | select(.ref == \"$PR_REF\") | .id")
+          if [ -z "$ids" ]; then
+            echo "  no caches for this PR"
+          else
+            for id in $ids; do
+              echo "  deleting cache $id"
+              gh cache delete "$id" --repo "$REPO" || true
+            done
+          fi
+
+      - name: Weekly sweep of non-default-branch caches
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Sweeping caches not on refs/heads/main"
+          # Single pass (limit 100); a residual >100 is caught next week.
+          ids=$(gh cache list --repo "$REPO" --limit 100 --json id,ref \
+            --jq '.[] | select(.ref != "refs/heads/main") | .id')
+          if [ -z "$ids" ]; then
+            echo "  nothing to sweep"
+          else
+            for id in $ids; do
+              echo "  deleting non-main cache $id"
+              gh cache delete "$id" --repo "$REPO" || true
+            done
+          fi
+          echo "Cache usage after sweep:"
+          gh api "repos/$REPO/actions/cache/usage" \
+            --jq '{bytes: .active_caches_size_in_bytes, count: .active_caches_count}'
