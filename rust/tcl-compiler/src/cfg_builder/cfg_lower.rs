@@ -184,7 +184,7 @@ impl CfgBuilder {
         // read-before-set. `break`/`continue` stay real edges (partial-def exits
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
         // the optimiser's IR-level static-for summary is unaffected.
-        let rotate = self.faithful_exceptions && crate::cfg_builder::for_runs_at_least_once(stmt);
+        let rotate = self.faithful_exceptions && self.for_runs_at_least_once(stmt);
         let step_tail = self.lower_script(next, &step_block);
         if let Some(step_tail) = step_tail {
             if rotate {

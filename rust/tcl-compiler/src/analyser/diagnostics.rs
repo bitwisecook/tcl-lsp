@@ -11086,6 +11086,31 @@ mod tests {
             ),
             "incr in for-init invalidates the constant binding (W210 on y)",
         );
+
+        // TP control (Codex P1): an init call to a proc that writes the loop var
+        // through `upvar` must invalidate the stale constant — the upvar pass
+        // adds the caller-side def, so `init_written_names` (via
+        // apply_upvar_invalidation) drops `i` and the loop is not claimed
+        // guaranteed. Here `setter` sets `i = 5`, so `5 < 3` is false → zero
+        // iterations → `y` unset → W210 must fire.
+        assert!(
+            w210_fires_for(
+                "proc setter {} { upvar 1 i i; set i 5 }\nproc f {} { for {set i 0; setter} {$i < 3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "upvar-writing call in for-init invalidates the constant (W210 on y)",
+        );
+
+        // FP guard: a *benign* call in the init (one that does not write the
+        // loop var) must NOT invalidate the constant — the loop stays guaranteed
+        // and `y` is defined, so no false W210 is introduced by the upvar fix.
+        assert!(
+            !w210_fires_for(
+                "proc f {} { for {set i 0; puts hi} {$i < 3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "benign init call must not invalidate the constant (no W210 on y)",
+        );
     }
 
     #[test]

@@ -1087,10 +1087,16 @@ pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
 /// enclosing loop.
 ///
 /// Recurses into `if`/`switch`/`Block`/`UpFrame` bodies (which don't capture a
-/// loop jump) but NOT into nested loops (`for`/`while`/`foreach`) or
-/// `catch`/`try` — those capture their own `break`/`continue` (tclsh:
-/// `catch {break}` yields code 3 and does not propagate), so a jump inside them
-/// does not escape to *this* loop.  Mirrors Python `_escaping_loop_jumps`.
+/// loop jump) and into `try` — a `try` does NOT capture `break`/`continue`:
+/// without a matching `on`/`trap` handler a jump in the body, a handler body, or
+/// the `finally` body propagates to the enclosing loop (confirmed in tclsh
+/// 9.0.3, contrast `catch {break}` which yields code 3 and is absorbed).  Does
+/// NOT recurse into nested loops (`for`/`while`/`foreach`) or `catch`, which
+/// capture their own jumps.  Scanning stops at the first statement that cannot
+/// complete normally (`return`/`error`/`exit`/`tailcall`, or `break`/`continue`
+/// itself): a jump after it is dead code that never executes, so it must not
+/// create a spurious loop-exit edge.  Mirrors Python `_escaping_loop_jumps`
+/// (plus the Codex P1/P2 soundness follow-ups).
 pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
     let mut can_break = false;
     let mut can_continue = false;
@@ -1132,7 +1138,34 @@ pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
                 can_break |= b;
                 can_continue |= c;
             }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                let (b, c) = escaping_loop_jumps(body);
+                can_break |= b;
+                can_continue |= c;
+                for h in handlers {
+                    let (b, c) = escaping_loop_jumps(&h.body);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+                if let Some(fb) = finally_body {
+                    let (b, c) = escaping_loop_jumps(fb);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+            }
             _ => {}
+        }
+        // A statement that cannot complete normally makes everything after it
+        // dead code (a later `break`/`continue` never runs), so stop scanning —
+        // otherwise a dead `break` after `error`/`return` would forge a
+        // loop-exit edge and fire W210 on unreachable post-loop code (Codex P2).
+        if flow_facts_stmt(stmt).1 != Completion::Normal {
+            break;
         }
     }
     (can_break, can_continue)
@@ -1203,68 +1236,93 @@ pub(crate) fn foreach_runs_at_least_once(stmt: &Statement) -> bool {
         .any(|it| list_literal_nonempty(&it.list_arg))
 }
 
-/// Names a non-`AssignConst` init statement may write.  `None` means "can't
-/// tell" — the caller then drops *all* constant bindings (a write it can't
-/// characterise might clobber any of them).
-fn init_written_names(stmt: &Statement) -> Option<Vec<String>> {
-    match stmt {
-        Statement::AssignValue { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            let n = normalise_var_name(name);
-            Some(if n.is_empty() {
-                Vec::new()
-            } else {
-                vec![n.to_owned()]
-            })
-        }
-        Statement::Call { defs, .. } => Some(defs.clone()),
-        _ => None,
-    }
-}
-
-/// True when a `for` loop's condition is statically true on entry.
-///
-/// Evaluates the condition against the constant bindings the init clause
-/// establishes (`for {set i 0} {$i < 3} …` → `i = 0` → `0 < 3` is true), which
-/// proves the first iteration always runs.  Init statements are processed in
-/// order: an `AssignConst` (re)binds a constant, but any *other* write
-/// *invalidates* that variable's binding — so `for {set i 0; set i $n} …` and
-/// `for {set i 0; incr i 5} …` leave `i` unknown rather than stale-constant `0`
-/// (both may iterate zero times — Codex C2).  Conservative: a condition
-/// referencing an unbound variable (or a command-substitution condition)
-/// evaluates to `None` → not guaranteed.
-pub(crate) fn for_runs_at_least_once(stmt: &Statement) -> bool {
-    use crate::tcl_expr_eval::{TclValue, eval_tcl_expr};
-    let Statement::For {
-        init, condition, ..
-    } = stmt
-    else {
-        return false;
-    };
-    let mut env: crate::tcl_expr_eval::Env = std::collections::HashMap::new();
-    for s in &init.statements {
-        if let Statement::AssignConst { name, value, .. } = s {
-            let n = normalise_var_name(name);
-            if !n.is_empty() {
-                env.insert(n.to_owned(), coerce_scalar(value));
+impl CfgBuilder {
+    /// Names a non-`AssignConst` init statement may write.  `None` means "can't
+    /// tell" — the caller then drops *all* constant bindings (a write it can't
+    /// characterise might clobber any of them).
+    ///
+    /// A `Call`'s write set includes the caller-side variables an `upvar`-using
+    /// callee modifies (direct call or `[upvar_proc …]` embedded substitution),
+    /// recovered via [`Self::apply_upvar_invalidation`] — the module upvar pass
+    /// adds these to a call's `defs`, but they are absent from the raw IR the
+    /// init clause carries.  Without this, `for {set i 0; setter} {$i < 3} …`
+    /// where `setter` runs `upvar 1 i i; set i 5` would keep the stale
+    /// `i = 0` binding and be wrongly judged guaranteed (Codex P1).
+    fn init_written_names(&self, stmt: &Statement) -> Option<Vec<String>> {
+        let mut names: Vec<String> = match stmt {
+            Statement::AssignValue { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::Incr { name, .. } => {
+                let n = normalise_var_name(name);
+                if n.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![n.to_owned()]
+                }
             }
-            continue;
-        }
-        match init_written_names(s) {
-            // Unknown write — every prior constant binding is now suspect.
-            None => env.clear(),
-            Some(names) => {
-                for n in names {
-                    env.remove(&n);
+            // A plain call contributes only the (augmented) defs collected
+            // below.
+            Statement::Call { .. } => Vec::new(),
+            // Any other statement shape in the init (a nested if/loop/…) is not
+            // characterised here — clear every constant binding to stay sound.
+            _ => return None,
+        };
+        for s in self.apply_upvar_invalidation(stmt.clone()) {
+            if let Statement::Call { defs, .. } = &s {
+                for d in defs {
+                    if !names.contains(d) {
+                        names.push(d.clone());
+                    }
                 }
             }
         }
+        Some(names)
     }
-    match eval_tcl_expr(condition, &env) {
-        Some(TclValue::Int(i)) => i != 0,
-        Some(TclValue::Float(f)) => f != 0.0,
-        None => false,
+
+    /// True when a `for` loop's condition is statically true on entry.
+    ///
+    /// Evaluates the condition against the constant bindings the init clause
+    /// establishes (`for {set i 0} {$i < 3} …` → `i = 0` → `0 < 3` is true),
+    /// which proves the first iteration always runs.  Init statements are
+    /// processed in order: an `AssignConst` (re)binds a constant, but any
+    /// *other* write *invalidates* that variable's binding — so
+    /// `for {set i 0; set i $n} …` and `for {set i 0; incr i 5} …` leave `i`
+    /// unknown rather than stale-constant `0`, and an `upvar`-writing call in
+    /// the init invalidates the var it writes through the caller frame (Codex
+    /// C2 + P1).  Conservative: a condition referencing an unbound variable (or
+    /// a command-substitution condition) evaluates to `None` → not guaranteed.
+    pub(crate) fn for_runs_at_least_once(&self, stmt: &Statement) -> bool {
+        use crate::tcl_expr_eval::{TclValue, eval_tcl_expr};
+        let Statement::For {
+            init, condition, ..
+        } = stmt
+        else {
+            return false;
+        };
+        let mut env: crate::tcl_expr_eval::Env = std::collections::HashMap::new();
+        for s in &init.statements {
+            if let Statement::AssignConst { name, value, .. } = s {
+                let n = normalise_var_name(name);
+                if !n.is_empty() {
+                    env.insert(n.to_owned(), coerce_scalar(value));
+                }
+                continue;
+            }
+            match self.init_written_names(s) {
+                // Unknown write — every prior constant binding is now suspect.
+                None => env.clear(),
+                Some(names) => {
+                    for n in names {
+                        env.remove(&n);
+                    }
+                }
+            }
+        }
+        match eval_tcl_expr(condition, &env) {
+            Some(TclValue::Int(i)) => i != 0,
+            Some(TclValue::Float(f)) => f != 0.0,
+            None => false,
+        }
     }
 }
 
@@ -1539,6 +1597,64 @@ mod tests {
     fn lower_module(src: &str) -> Module {
         use tcl_registry::CommandRegistry;
         crate::lowering::lower_to_ir(src, &CommandRegistry::build_default())
+    }
+
+    // --- escaping_loop_jumps: try propagation (Codex P1@1093) and
+    //     dead-code early-stop (Codex P2@1098) -------------------------------
+    //
+    // These exercise the helper directly: their end-to-end W210 effect is
+    // masked by a separate, pre-existing `while 1` exit-reachability behaviour
+    // (Rust treats the post-loop block of an infinite loop as reachable), so we
+    // assert the `(can_break, can_continue)` result the wiring keys off.
+
+    #[test]
+    fn escaping_loop_jumps_follows_try_but_not_catch() {
+        // `try { break }` (no matching handler) propagates the break to the
+        // enclosing loop; `catch { break }` absorbs it (yields code 3). Confirmed
+        // against tclsh 9.0.3.
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("try { break }").top_level),
+            (true, false),
+            "try propagates break",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("try { continue } finally { }").top_level),
+            (false, true),
+            "try (with finally) propagates continue",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("try { puts x } on error {} { break }").top_level),
+            (true, false),
+            "a break in a try handler body propagates",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("catch { break }").top_level),
+            (false, false),
+            "catch absorbs break (does not propagate)",
+        );
+    }
+
+    #[test]
+    fn escaping_loop_jumps_stops_after_non_completing_stmt() {
+        // A `break`/`continue` after a statement that cannot complete normally
+        // is dead code and must not be collected as an escaping jump (else it
+        // forges a spurious loop-exit edge).
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("error bad\nbreak").top_level),
+            (false, false),
+            "dead break after error is not collected",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("return\ncontinue").top_level),
+            (false, false),
+            "dead continue after return is not collected",
+        );
+        // A live jump before dead code IS collected (and stops the scan there).
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("break\nset x 1").top_level),
+            (true, false),
+            "live break is collected",
+        );
     }
 
     fn find_call_defs<'a>(func: &'a Function, command: &str) -> Option<&'a [String]> {
