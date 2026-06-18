@@ -20,7 +20,23 @@ from compiler.parsing.command_segmenter import (
     segment_commands,
     segment_top_level_chunks,
 )
+from compiler.registry.dialect import dialect_scope
 from shared.tokens import SourcePosition, Token, TokenType
+
+
+@pytest.fixture
+def irules_dialect():
+    """Analyse this test's iRules snippet under the f5-irules dialect.
+
+    These recovery tests wrap their input in a ``when EVENT { … }`` handler.
+    ``when`` is an iRules-only builtin, so only under f5-irules is its body a
+    script the analyser recurses into (collecting the inner commands the
+    assertions inspect).  Under a non-iRules dialect ``when`` is an unknown
+    command whose braced body is opaque data — correct, but not what these
+    tests exercise.
+    """
+    with dialect_scope("f5-irules"):
+        yield
 
 
 class TestSegmentCommands:
@@ -395,7 +411,7 @@ class TestAnalyserErrorRecovery:
 class TestE201UnterminatedBracket:
     """E201: detect unterminated [ in CMD tokens (e.g. { inside [...])."""
 
-    def test_e201_brace_inside_bracket(self):
+    def test_e201_brace_inside_bracket(self, irules_dialect):
         """{ inside [ prevents ] from being found — produces E201."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -411,7 +427,7 @@ class TestE201UnterminatedBracket:
         assert len(e201) >= 1
         assert e201[0].message == "missing close-bracket"
 
-    def test_e201_codefix_inserts_bracket_before_brace(self):
+    def test_e201_codefix_inserts_bracket_before_brace(self, irules_dialect):
         """E201 CodeFix inserts '] ' before the stray '{'."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -449,7 +465,7 @@ class TestE201UnterminatedBracket:
 class TestE100StrayCloseBracketRecovery:
     """E100: recover from stray ']' (missing '[') for switch body analysis."""
 
-    def test_e100_switch_recovers_compact_form(self):
+    def test_e100_switch_recovers_compact_form(self, irules_dialect):
         """Stray ']' merges into virtual CMD → switch sees compact form."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -469,7 +485,7 @@ class TestE100StrayCloseBracketRecovery:
         cmd_names = [ci.name for ci in result.command_invocations]
         assert "set" in cmd_names
 
-    def test_e100_switch_body_not_treated_as_command(self):
+    def test_e100_switch_body_not_treated_as_command(self, irules_dialect):
         """After recovery, "get_totp_key" is a switch pattern, not a command."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -496,7 +512,7 @@ class TestE100StrayCloseBracketRecovery:
         cmd_names = [ci.name for ci in result.command_invocations]
         assert "set" in cmd_names
 
-    def test_no_recovery_for_valid_bracket(self):
+    def test_no_recovery_for_valid_bracket(self, irules_dialect):
         """Valid [cmd] produces no stray bracket recovery."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -560,7 +576,7 @@ class TestE100StrayCloseBracketRecovery:
 class TestE101MissingOpenBrace:
     """E101: detect missing '{' on switch and recover orphaned case commands."""
 
-    def test_e101_switch_missing_brace_multi_case(self):
+    def test_e101_switch_missing_brace_multi_case(self, irules_dialect):
         """switch with missing { and 2+ orphaned cases emits E101."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -579,7 +595,7 @@ class TestE101MissingOpenBrace:
         assert len(e101) == 1
         assert "Missing '{'" in e101[0].message
 
-    def test_e101_switch_missing_brace_no_trailing_space(self):
+    def test_e101_switch_missing_brace_no_trailing_space(self, irules_dialect):
         """E101 fires when there's no trailing space after ]."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -597,7 +613,7 @@ class TestE101MissingOpenBrace:
         e101 = [d for d in result.diagnostics if d.code == "E101"]
         assert len(e101) == 1
 
-    def test_e101_codefix_inserts_brace(self):
+    def test_e101_codefix_inserts_brace(self, irules_dialect):
         """E101 CodeFix offers to insert '{'."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -616,7 +632,7 @@ class TestE101MissingOpenBrace:
         assert e101[0].fixes
         assert " {" in e101[0].fixes[0].new_text
 
-    def test_e101_recovery_analyses_both_case_bodies(self):
+    def test_e101_recovery_analyses_both_case_bodies(self, irules_dialect):
         """After E101 recovery, variables in ALL case bodies are detected."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"
@@ -637,7 +653,7 @@ class TestE101MissingOpenBrace:
         # Orphaned "other_key" should NOT appear as a command
         assert "other_key" not in cmd_names
 
-    def test_e101_suppresses_e002(self):
+    def test_e101_suppresses_e002(self, irules_dialect):
         """When E101 fires, E002 (too few args) should not also fire."""
         source = (
             "when ACCESS_POLICY_AGENT_EVENT {\n"

@@ -271,7 +271,7 @@ class TestMultiPassInteraction:
 class TestO120CornerCases:
     """Corner cases and pass interactions for O120."""
 
-    def test_non_string_typed_var_with_boolean_literal_not_rewritten(self):
+    def test_non_string_typed_var_with_boolean_literal_folds(self):
         source = textwrap.dedent("""\
             set a [expr {1 + 1}]
             if {$a == "true"} {
@@ -282,7 +282,11 @@ class TestO120CornerCases:
         """)
         _assert_equiv(source)
         opt_source, rewrites = optimise_source(source)
-        assert '== "true"' in opt_source
+        # `a` is provably 2, and `2 == "true"` is a polymorphic compare: 2 is a
+        # number, "true" is not, so it compares as strings → false.  The branch
+        # constant-folds to the else arm (no O120 == → eq rewrite needed — the
+        # whole comparison is resolved).
+        assert "puts no" in opt_source and "puts yes" not in opt_source
         assert not any(r.code == "O120" for r in rewrites)
 
     def test_known_string_var_with_boolean_literal_rewritten(self):
@@ -296,11 +300,13 @@ class TestO120CornerCases:
         """)
         _assert_equiv(source)
         opt_source, rewrites = optimise_source(source)
-        # SCCP may fold [string trim " true "] → "true" at analysis time,
-        # which enables branch folding (if {1}) instead of just the O120
-        # == → eq rewrite.  Both are valid optimizations.
-        assert ('$a eq "true"' in opt_source) or ("if {1}" in opt_source)
-        assert any(r.code in ("O120", "O100", "O101", "O109") for r in rewrites)
+        # SCCP folds [string trim " true "] → "true", so `$a == "true"` is the
+        # string compare "true" == "true" → true (both operands non-numeric),
+        # and the branch constant-folds to the then-arm.  The O120 == → eq
+        # rewrite and the if {1} intermediate are equivalent earlier stops on
+        # the same path; accept the fully-folded result too.
+        assert "puts yes" in opt_source and "puts no" not in opt_source
+        assert any(r.code in ("O120", "O100", "O101", "O109", "O112") for r in rewrites)
 
     def test_var_vs_var_known_string_types_rewritten(self):
         source = textwrap.dedent("""\
@@ -314,9 +320,11 @@ class TestO120CornerCases:
         """)
         _assert_equiv(source)
         opt_source, rewrites = optimise_source(source)
-        # SCCP may fold both string trims to "foo", enabling branch folding.
-        assert ("$a eq $b" in opt_source) or ("if {1}" in opt_source)
-        assert any(r.code in ("O120", "O101", "O109") for r in rewrites)
+        # SCCP folds both string trims to "foo", so `$a == $b` is the string
+        # compare "foo" == "foo" → true (both operands non-numeric), and the
+        # branch constant-folds to the then-arm.
+        assert "puts equal" in opt_source and "puts notequal" not in opt_source
+        assert any(r.code in ("O120", "O101", "O109", "O112") for r in rewrites)
 
     def test_mixed_compare_rewrites_only_string_compare(self):
         source = textwrap.dedent("""\
@@ -761,10 +769,15 @@ class TestShimmerThunking:
         """)
 
     def test_numeric_string_equality(self):
-        """Numeric strings: == does numeric comparison, eq does string."""
+        """Numeric strings: == does numeric comparison, eq does string.
+
+        Uses ``10`` / ``10.0`` (numerically equal, textually distinct) rather
+        than a leading-zero pair, whose octal-vs-decimal reading is
+        dialect-dependent.
+        """
         _assert_equiv("""\
-            set a "010"
-            set b "10"
+            set a "10"
+            set b "10.0"
             set numeric_eq [expr {$a == $b}]
             set string_eq [expr {$a eq $b}]
             puts "numeric=$numeric_eq string=$string_eq"

@@ -203,6 +203,24 @@ class TestDiagnostics:
             errors = [d for d in result.diagnostics if d.code == "E003"]
             assert len(errors) >= 1, "expected E003 for tcl9.0-only switch under tcl8.6"
 
+    def test_when_body_not_recursed_under_non_irules_dialect(self):
+        # ``when`` is an iRules-only builtin.  Under plain Tcl it is an
+        # unknown would-be user command whose braced arg is opaque data, not a
+        # handler script — so its body must NOT be analysed (no W123 on the
+        # body command, no spurious W210 read-before-set).
+        from compiler.registry.dialect import dialect_scope
+
+        src = "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n"
+        with dialect_scope("tcl8.6"):
+            diags = analyse(src).diagnostics
+            body_w123 = [d for d in diags if d.code == "W123" and "boguscmd" in d.message]
+            assert body_w123 == [], "when body must not be analysed under tcl8.6"
+            assert [d for d in diags if d.code == "W210"] == [], "no spurious W210 in opaque body"
+        with dialect_scope("f5-irules"):
+            diags = analyse(src).diagnostics
+            body_w123 = [d for d in diags if d.code == "W123" and "boguscmd" in d.message]
+            assert len(body_w123) == 1, "when body IS analysed under f5-irules"
+
     def test_while_too_few_args(self):
         result = analyse("while {1}")
         errors = [d for d in result.diagnostics if d.severity == Severity.ERROR]
@@ -773,6 +791,24 @@ class TestDiagnostics:
         result = analyse("if {1} { set x 1 } else { set y 2 }")
         unreachable = [d for d in result.diagnostics if d.code == "I230"]
         assert len(unreachable) >= 1
+
+    def test_constant_string_eq_condition_folds_for_double_equals(self):
+        # With x provably "foo", ``$x == "foo"`` is always true, so the
+        # alternate branch is unreachable (I230).  Tcl semantics:
+        # ``expr {"foo" == "foo"}`` -> 1.  Previously only the ``eq`` spelling
+        # folded; the ``==`` path bailed on the non-numeric operand.
+        for op in ("==", "eq"):
+            src = f'set x foo\nif {{$x {op} "foo"}} {{ puts hi }}'
+            unreachable = [d for d in analyse(src).diagnostics if d.code == "I230"]
+            assert len(unreachable) == 1, f"expected I230 for '{op}'"
+
+    def test_constant_string_ne_condition_folds_for_bang_equals(self):
+        # ``$x != "foo"`` with x == "foo" is always false → alternate
+        # (then) branch unreachable.
+        for op in ("!=", "ne"):
+            src = f'set x foo\nif {{$x {op} "foo"}} {{ puts hi }}'
+            unreachable = [d for d in analyse(src).diagnostics if d.code == "I230"]
+            assert len(unreachable) == 1, f"expected I230 for '{op}'"
 
     def test_infinite_loop_idiom_not_flagged(self):
         # `while 1` / `for {…} 1 {…}` are intentional infinite loops (exit via

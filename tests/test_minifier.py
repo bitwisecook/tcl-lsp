@@ -666,7 +666,14 @@ class TestCommandAliasing:
             "    }\n"
             "}\n"
         )
-        result = minify_tcl(source, aggressive=True)
+        # iRules snippet: minify under the f5-irules dialect so the ``when``
+        # body (where HTTP::uri is used) is analysed and its command uses are
+        # counted.  The active dialect must be set (not just passed) because
+        # the aliasing pass runs the analyser under the ambient profile.
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
+            result = minify_tcl(source, aggressive=True, dialect="f5-irules")
         # HTTP::uri appears 3× so it must be aliased to a short command var,
         # and that ``$alias`` must render in the output.
         alias = result.symbol_map.command_aliases.get("HTTP::uri", "")

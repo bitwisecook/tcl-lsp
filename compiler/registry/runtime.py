@@ -23,7 +23,7 @@ from shared.ranges import word_closer_offset
 from shared.tokens import Token, TokenType
 
 from .command_registry import REGISTRY
-from .models import CommandSpec, PatternType, SubCommand, ValidationSpec
+from .models import CommandSpec, DialectStatus, PatternType, SubCommand, ValidationSpec
 from .signatures import ArgRole, Arity, BodyKind, CommandSig, SubcommandSig
 from .taint_hints import TaintColour, TaintHint
 from .type_hints import CommandTypeHint, SubcommandTypeHint
@@ -1590,6 +1590,48 @@ def command_is_stubbed(command: str) -> bool:
         return False
     bare = command.lstrip(":")
     return bare in stubs or f"::{bare}" in stubs
+
+
+def command_enabled_in_active_dialect(command: str) -> bool:
+    """Whether *command* is a command the active dialect actually provides.
+
+    A command that exists only in another dialect (``DISALLOWED``) — e.g. the
+    iRules ``when`` under plain Tcl — or nowhere (``NOT_EXISTS``) is, in the
+    active dialect, an unknown would-be user command.  Its registry arg-roles
+    (BODY/EXPR/...) describe how a *builtin* parses its arguments and must not
+    be applied to such a call: a braced argument is then opaque data, not a
+    script.  Inline/file stubs intentionally teach a command regardless of
+    dialect, so a stubbed command counts as enabled.
+    """
+    if not command:
+        return False
+    lookup = command.lstrip(":")
+    if command_is_stubbed(lookup):
+        return True
+    status = REGISTRY.command_status(lookup, _dialect_var.get())
+    return status in (DialectStatus.EXISTS, DialectStatus.DEPRECATED)
+
+
+def command_is_disabled_in_active_dialect(command: str) -> bool:
+    """True iff *command* is a builtin in *some* dialect but disabled in the
+    active one (:attr:`DialectStatus.DISALLOWED`) — e.g. the iRules ``when``
+    under plain Tcl.
+
+    Such a call's registry arg-roles (BODY/EXPR/…) describe a builtin the
+    active dialect does not provide, so they must not be applied: its braced
+    argument is opaque data, not a script.  Crucially this is *narrower* than
+    "not enabled": a command unknown in every dialect (``NOT_EXISTS`` — a user
+    proc, a TclOO ``method``/``constructor`` body whose role comes from
+    OO special-casing, or a recovery artefact) is **not** disabled and must
+    still have its roles applied / body recursed.  Stubs are available by
+    definition, so a stubbed command is never "disabled".
+    """
+    if not command:
+        return False
+    lookup = command.lstrip(":")
+    if command_is_stubbed(lookup):
+        return False
+    return REGISTRY.command_status(lookup, _dialect_var.get()) is DialectStatus.DISALLOWED
 
 
 def is_loop_command(command: str, args: list[str]) -> bool:
