@@ -237,9 +237,9 @@ fn value_to_json(value: &serde_json::Value) -> Json {
         serde_json::Value::Bool(b) => Json::Bool(*b),
         // CFG payloads are integer-only; a non-`i64` number would be a bug, so
         // surface it as a string rather than silently truncating through `f64`.
-        serde_json::Value::Number(n) => {
-            n.as_i64().map_or_else(|| Json::Str(n.to_string()), Json::Int)
-        }
+        serde_json::Value::Number(n) => n
+            .as_i64()
+            .map_or_else(|| Json::Str(n.to_string()), Json::Int),
         serde_json::Value::String(s) => Json::Str(s.clone()),
         serde_json::Value::Array(items) => Json::Array(items.iter().map(value_to_json).collect()),
         serde_json::Value::Object(map) => Json::Object(
