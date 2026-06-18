@@ -193,12 +193,13 @@ class TestInlayToggleIndependenceE2E:
             ),
             settle_uri=uri,
         ):
-            lsp_server.open_ready(uri, "puts hello\n")
-            hints = lsp_server.inlay_hints(uri, (0, 0), (1, 0)) or []
-            # ``puts hello`` yields the ``string:`` parameter label …
-            assert any(h.get("kind") == 2 for h in hints), hints  # Parameter
-            # … and no Type-kind hints, since parameter hints are independent.
-            assert all(h.get("kind") != 1 for h in hints), hints  # Type
+            # ``set x 42`` would yield a Type-kind hint (``: int``) if type hints
+            # leaked on, so the no-Type assertion below is a real check, not a
+            # vacuous one; ``puts hello`` carries the ``string:`` parameter label.
+            lsp_server.open_ready(uri, "set x 42\nputs hello\n")
+            hints = lsp_server.inlay_hints(uri, (0, 0), (2, 0)) or []
+            assert any(h.get("kind") == 2 for h in hints), hints  # Parameter present
+            assert all(h.get("kind") != 1 for h in hints), hints  # no Type leaked in
 
     def test_type_hints_only_emit_no_parameter_labels(self, lsp_server, uri_factory):
         uri = uri_factory()
@@ -210,11 +211,12 @@ class TestInlayToggleIndependenceE2E:
             ),
             settle_uri=uri,
         ):
-            lsp_server.open_ready(uri, "puts hello\n")
-            hints = lsp_server.inlay_hints(uri, (0, 0), (1, 0)) or []
-            # Type hints on, parameter hints off: the ``string:`` label must
-            # never appear even though the call site would carry one.
-            assert all(h.get("kind") != 2 for h in hints), hints  # no Parameter
+            # ``set x 42`` carries the ``: int`` type hint; ``puts hello`` would
+            # carry the ``string:`` parameter label if parameter hints leaked on.
+            lsp_server.open_ready(uri, "set x 42\nputs hello\n")
+            hints = lsp_server.inlay_hints(uri, (0, 0), (2, 0)) or []
+            assert any(h.get("kind") == 1 for h in hints), hints  # Type present
+            assert all(h.get("kind") != 2 for h in hints), hints  # no Parameter leaked in
 
 
 class TestInlayLegacyAliasE2E:
@@ -234,7 +236,9 @@ class TestInlayLegacyAliasE2E:
             # The alias resolves to type hints; parameter hints remain off.
             assert eff["features"].get("inlayTypeHints") is True, eff["features"]
             assert eff["features"].get("inlayParameterHints") is False, eff["features"]
-            # Behaviourally, the verbose parameter labels never appear.
-            lsp_server.open_ready(uri, "puts hello\n")
-            hints = lsp_server.inlay_hints(uri, (0, 0), (1, 0)) or []
+            # Behaviourally the alias enables type hints (``set x 42`` -> a
+            # Type-kind hint) while the verbose parameter labels never appear.
+            lsp_server.open_ready(uri, "set x 42\nputs hello\n")
+            hints = lsp_server.inlay_hints(uri, (0, 0), (2, 0)) or []
+            assert any(h.get("kind") == 1 for h in hints), hints  # Type present
             assert all(h.get("kind") != 2 for h in hints), hints  # no Parameter

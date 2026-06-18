@@ -152,9 +152,12 @@ suite("Inlay Hints", () => {
       await config.update("inlayTypeHints", false, vscode.ConfigurationTarget.Global);
       await config.update("inlayParameterHints", true, vscode.ConfigurationTarget.Global);
 
+      // `set x 42` would carry a `: int` Type-kind hint if type hints leaked
+      // on, so the no-Type assertion below is a real check; `puts hello`
+      // carries the `string:` parameter label.
       const doc = await vscode.workspace.openTextDocument({
         language: "tcl",
-        content: "puts hello\n",
+        content: "set x 42\nputs hello\n",
       });
       await vscode.window.showTextDocument(doc);
 
@@ -167,6 +170,7 @@ suite("Inlay Hints", () => {
           doc.uri,
           fullRange,
         )) as vscode.InlayHint[] | undefined;
+        // Stop as soon as the parameter hint (the readiness signal) lands.
         if (hints && hints.some((h) => h.kind === vscode.InlayHintKind.Parameter)) {
           break;
         }
@@ -196,32 +200,40 @@ suite("Inlay Hints", () => {
       await config.update("inlayTypeHints", true, vscode.ConfigurationTarget.Global);
       await config.update("inlayParameterHints", false, vscode.ConfigurationTarget.Global);
 
-      // A call site that WOULD carry a parameter label if those were on.
+      // `set x 42` carries the `: int` type hint (the readiness signal);
+      // `puts hello` WOULD carry the `string:` parameter label if those leaked
+      // on, so the no-Parameter assertion below is a real check.
       const doc = await vscode.workspace.openTextDocument({
         language: "tcl",
-        content: "puts hello\n",
+        content: "set x 42\nputs hello\n",
       });
       await vscode.window.showTextDocument(doc);
 
       const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 0));
-      // Give the server time to settle the config change, then sample.
       let hints: vscode.InlayHint[] | undefined;
-      const deadline = Date.now() + 6_000;
+      const deadline = Date.now() + 10_000;
       while (Date.now() < deadline) {
         hints = (await vscode.commands.executeCommand(
           "vscode.executeInlayHintProvider",
           doc.uri,
           fullRange,
         )) as vscode.InlayHint[] | undefined;
+        // Stop as soon as the type hint lands rather than always burning the
+        // full deadline on redundant requests.
+        if (hints && hints.some((h) => h.kind === vscode.InlayHintKind.Type)) {
+          break;
+        }
         await new Promise((r) => setTimeout(r, 250));
       }
 
-      if (hints) {
-        assert.ok(
-          !hints.some((h) => h.kind === vscode.InlayHintKind.Parameter),
-          "parameter labels must stay off when only inlayTypeHints is enabled",
-        );
-      }
+      assert.ok(
+        hints && hints.some((h) => h.kind === vscode.InlayHintKind.Type),
+        "expected a type-kind hint with inlayTypeHints enabled",
+      );
+      assert.ok(
+        !hints!.some((h) => h.kind === vscode.InlayHintKind.Parameter),
+        "parameter labels must stay off when only inlayTypeHints is enabled",
+      );
     } finally {
       await config.update("inlayTypeHints", origType, vscode.ConfigurationTarget.Global);
       await config.update("inlayParameterHints", origParam, vscode.ConfigurationTarget.Global);
