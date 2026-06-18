@@ -225,6 +225,32 @@ fn incr_and_var_substitution() {
     assert_eq!(out, "6\n");
 }
 
+/// `incr` routed through the shared `tcl_cmd_core::var::incr_value` core (the
+/// `VarStore` read + `ValueOps::int_add` tower seam). Covers the unset → 0 start,
+/// array elements (the name carries `base(key)`; the VM parses it), and the
+/// canonical coercion errors. Crucially, the VM has no bignum, so an overflowing
+/// `incr` now **errors** (`integer value too large to represent`) rather than
+/// silently wrapping as the old hand-rolled `wrapping_add` did.
+#[test]
+fn incr_shared_core() {
+    // Unset variable starts at 0 (no prior `set`).
+    assert_eq!(run("incr fresh 5").1, "5");
+    assert_eq!(run("incr fresh").1, "1");
+    // Array element: the VM's var_get/var_set parse `a(k)` from the name.
+    assert_eq!(run("set a(k) 10\nincr a(k) 5\nset a(k)").1, "15");
+    // Non-integer current value / increment → the canonical coercion error.
+    let (ok, msg, _) = run("set x abc\nincr x");
+    assert!(!ok);
+    assert_eq!(msg, "expected integer but got \"abc\"");
+    let (ok, msg, _) = run("set y 1\nincr y xyz");
+    assert!(!ok);
+    assert_eq!(msg, "expected integer but got \"xyz\"");
+    // i64::MAX + 1 overflows the VM's fixed-width integer: error, not wrap.
+    let (ok, msg, _) = run("set big 9223372036854775807\nincr big");
+    assert!(!ok);
+    assert_eq!(msg, "integer value too large to represent");
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");

@@ -5763,6 +5763,34 @@ mod tests {
         });
     }
 
+    /// The `incr` adapter's element + const paths, exercised through the shared
+    /// `ValueOps::int_add` seam: array elements increment (and widen) correctly,
+    /// an unset element starts at 0, and a `const` scalar is rejected before the
+    /// read-modify-write (the const check stays runtime-side).
+    #[cfg(have_tommath)]
+    #[test]
+    fn incr_element_and_const_via_seam() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"set a(k) 10"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr a(k) 5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"15");
+            // an unset element starts at 0
+            assert_eq!(i.eval_str(b"incr a(fresh)"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            // an element past a wide promotes to a bignum (never wraps)
+            assert_eq!(i.eval_str(b"set a(big) 9223372036854775807"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr a(big)"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"9223372036854775808");
+            // a const scalar cannot be incremented
+            assert_eq!(i.eval_str(b"const c 7"), Code::Ok);
+            assert_eq!(i.eval_str(b"incr c"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"can't incr \"c\": variable is a constant"
+            );
+        });
+    }
+
     #[test]
     fn qualified_global_aliases_plain_at_top_level() {
         // The headline T1.5 fix: `::pinged` and `pinged` are the SAME global

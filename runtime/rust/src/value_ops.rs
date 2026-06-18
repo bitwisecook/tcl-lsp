@@ -89,6 +89,44 @@ impl ValueOps for Interp {
         }
     }
 
+    /// Bignum-aware integer addition (the `incr` step) — overrides the default's
+    /// fixed-`i64` path. Both operands must read as integers (a wide or a bignum;
+    /// a float or non-number is the canonical "expected integer" error). The sum
+    /// goes over the numeric tower, so it **widens to a bignum on overflow**
+    /// instead of erroring — Tcl integers never wrap — and demotes back to a wide
+    /// when it fits. A `None` left operand is an unset variable, treated as 0.
+    fn int_add(
+        &mut self,
+        a: Option<&*mut TclObj>,
+        b: &*mut TclObj,
+    ) -> Result<*mut TclObj, ValueError> {
+        fn not_int(obj: *mut TclObj) -> ValueError {
+            ValueError::NotInteger(String::from_utf8_lossy(&obj_bytes(obj)).into_owned())
+        }
+        // Coercion order matches C's `TclIncrObj`: the current value first, then
+        // the increment (both must read as an integer — a wide or a bignum).
+        if let Some(av) = a {
+            if !crate::bignum::is_integer(*av) {
+                return Err(not_int(*av));
+            }
+        }
+        if !crate::bignum::is_integer(*b) {
+            return Err(not_int(*b));
+        }
+        // Both integers → tower add (never fails for two integer operands except
+        // on allocation failure, mapped to the overflow error). The left operand
+        // is a transient zero when the variable was unset.
+        match a {
+            Some(av) => crate::bignum::add(*av, *b).map_err(|_| ValueError::IntegerOverflow),
+            None => {
+                let zero = obj::new_wide_int_obj(0);
+                let sum = crate::bignum::add(zero, *b).map_err(|_| ValueError::IntegerOverflow);
+                crate::interp::drop_fresh(zero);
+                sum
+            }
+        }
+    }
+
     fn list_elements(&mut self, v: &*mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
         list::list_elements(*v)
             .map_err(|e| ValueError::BadList(String::from_utf8_lossy(e.message()).into_owned()))

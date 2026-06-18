@@ -1234,17 +1234,23 @@ impl Vm {
     }
 
     /// `incr` helper shared by the scalar/stk increment opcodes.
+    ///
+    /// The current cell is read exactly as before (scalar or `arr(key)`), but the
+    /// arithmetic goes through the shared [`tcl_syntax::value::ValueOps::int_add`]
+    /// seam — the same one `incr`'s command core uses — so the number-model
+    /// behaviour is identical across the compiled and dispatched paths. The VM
+    /// has no bignum, so an overflowing `incr` reports `integer value too large to
+    /// represent` rather than silently wrapping (the old `wrapping_add` bug).
     fn incr_var(
         &mut self,
         f: &mut Frame,
         name: &str,
         amount: i64,
     ) -> Result<(), Completion<Value>> {
-        let old = match self.var_get(name) {
-            Some(v) => v.as_int().map_err(|e| err(e.message))?,
-            None => 0,
-        };
-        let next = Value::int(old.wrapping_add(amount));
+        let cur = self.var_get(name);
+        let inc = Value::int(amount);
+        let next = tcl_syntax::value::ValueOps::int_add(self, cur.as_ref(), &inc)
+            .map_err(|e| err(e.message()))?;
         self.var_set(name, next.clone())?;
         f.stack.push(next);
         Ok(())

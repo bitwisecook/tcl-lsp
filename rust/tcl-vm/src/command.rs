@@ -392,28 +392,28 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `incr varName ?increment?` — add to an integer variable (default 1; missing
-/// variable starts at 0).
+/// variable starts at 0). The numeric-tower addition goes through the shared
+/// [`ValueOps::int_add`](tcl_syntax::value::ValueOps::int_add) seam (the same one
+/// the bytecode `incr` opcodes and the WASM runtime use), so the number-model
+/// behaviour is identical everywhere: the VM has no bignum, so an overflowing
+/// `incr` reports `integer value too large to represent` instead of wrapping.
 fn cmd_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (name, amount) = match args {
-        [name] => (name.to_str(), 1),
-        [name, inc] => match inc.as_int() {
-            Ok(n) => (name.to_str(), n),
-            Err(e) => return err(e.message),
-        },
+        [name] => (name.to_str(), Value::int(1)),
+        [name, inc] => (name.to_str(), inc.clone()),
         _ => return err("wrong # args: should be \"incr varName ?increment?\""),
     };
-    let old = match vm.var_get(&name) {
-        Some(v) => match v.as_int() {
-            Ok(n) => n,
-            Err(e) => return err(e.message),
-        },
-        None => 0,
+    // `var_get`/`var_set` parse `base(key)` themselves; an unset variable reads
+    // as `None`, which `int_add` treats as zero.
+    let cur = vm.var_get(&name);
+    let sum = match tcl_syntax::value::ValueOps::int_add(vm, cur.as_ref(), &amount) {
+        Ok(v) => v,
+        Err(e) => return err(e.message()),
     };
-    let next = Value::int(old.wrapping_add(amount));
-    if let Err(e) = vm.var_set(&name, next.clone()) {
+    if let Err(e) = vm.var_set(&name, sum.clone()) {
         return e;
     }
-    ok(next)
+    ok(sum)
 }
 
 /// `expr arg ?arg ...?` — concatenate the args and evaluate as an expression.

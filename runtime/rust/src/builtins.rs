@@ -235,42 +235,26 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return c;
     }
 
-    // Current cell value (borrowed) or a fresh 0 for an unset variable; the
-    // fresh-0 is `rc 0` and freed below whether or not it's used.
-    let existing = match &elem {
+    // Current cell value (borrowed; `None` for an unset variable → the shared
+    // seam treats it as 0). The increment is `argv[2]` (borrowed) or a fresh 1.
+    let cur = match &elem {
         Some(k) => interp.var_get_elem(&base, k),
         None => interp.var_get(&base),
     };
-    let zero = obj::new_wide_int_obj(0);
-    let cur = existing.unwrap_or(zero);
-    if !crate::bignum::is_integer(cur) {
-        let bytes = obj_bytes(cur);
-        drop_fresh(zero);
-        return not_integer(interp, &bytes);
-    }
-
-    // Increment object: `argv[2]` (borrowed) or a fresh 1 (freed below).
     let one = obj::new_wide_int_obj(1);
     let amount = if argv.len() == 3 { argv[2] } else { one };
-    if !crate::bignum::is_integer(amount) {
-        let bytes = obj_bytes(amount);
-        drop_fresh(zero);
-        drop_fresh(one);
-        return not_integer(interp, &bytes);
-    }
 
-    // Both integers → integer sum (wide fast path; bignum on overflow; the
-    // result demotes back to a wide when it fits).
-    let sum = match crate::bignum::add(cur, amount) {
+    // The numeric-tower addition is the shared `ValueOps::int_add` seam, run over
+    // this runtime's bignum (overflow widens; a non-integer operand is the
+    // canonical `expected integer but got "…"`). The store below — with its write
+    // traces and the per-runtime result protocol — stays here, since a write
+    // trace that errors must still store yet fail the command.
+    let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
+    drop_fresh(one); // the transient `1` (used or not) is no longer needed
+    let sum = match sum {
         Ok(s) => s, // rc 0
-        Err(_) => {
-            drop_fresh(zero);
-            drop_fresh(one);
-            return interp.set_error(b"out of memory");
-        }
+        Err(e) => return interp.set_error(e.message().as_bytes()),
     };
-    drop_fresh(zero); // `cur` no longer needed
-    drop_fresh(one); // `amount` no longer needed
 
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, sum),
@@ -347,6 +331,10 @@ fn read_cell(interp: &Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec
     Some(obj_bytes(obj))
 }
 
+/// The canonical `expected integer but got "…"` for the no-tower `incr`
+/// fallback. The tower build reports this through the shared `ValueOps::int_add`
+/// seam instead, so this is only needed when `have_tommath` is off.
+#[cfg(not(have_tommath))]
 fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
     let mut msg = b"expected integer but got \"".to_vec();
     msg.extend_from_slice(bytes);

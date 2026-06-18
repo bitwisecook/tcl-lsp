@@ -47,6 +47,11 @@ pub enum ValueError {
     /// The value is not a well-formed list; carries the verbatim parser message
     /// (e.g. `unmatched open brace in list`).
     BadList(String),
+    /// An integer operation overflowed the runtime's wide-integer range
+    /// (`integer value too large to represent`). The bignum-capable runtime
+    /// never raises this from [`ValueOps::int_add`] (it widens); the fixed-`i64`
+    /// VM does.
+    IntegerOverflow,
 }
 
 impl ValueError {
@@ -58,6 +63,7 @@ impl ValueError {
             ValueError::NotDouble(s) => format!("expected floating-point number but got \"{s}\""),
             ValueError::NotBoolean(s) => format!("expected boolean value but got \"{s}\""),
             ValueError::BadList(msg) => msg.clone(),
+            ValueError::IntegerOverflow => "integer value too large to represent".to_string(),
         }
     }
 }
@@ -120,6 +126,36 @@ pub trait ValueOps {
     fn as_double(&mut self, v: &Self::Value) -> Result<f64, ValueError>;
     /// As a boolean (`Tcl_GetBooleanFromObj`).
     fn as_bool(&mut self, v: &Self::Value) -> Result<bool, ValueError>;
+
+    // -- integer arithmetic (the value-model boundary made explicit) --
+
+    /// Integer sum `a + b` as a fresh value (`incr`'s arithmetic step), where a
+    /// `None` left operand denotes an **absent value treated as zero** — `incr`
+    /// of an unset variable starts at 0.
+    ///
+    /// This is a seam, not a convenience: the two runtimes have **different
+    /// integer towers**. The default coerces both operands to `i64` and reports
+    /// [`ValueError::IntegerOverflow`] on wrap — exactly the fixed-width VM's
+    /// behaviour. A runtime with arbitrary-precision integers (the WASM runtime's
+    /// bignum) overrides this to widen instead of overflowing, so `incr` shared
+    /// in `tcl-cmd-core` stays faithful to each runtime's number model without
+    /// the core ever naming a representation. Folding the unset → zero case into
+    /// the seam keeps the shared core free of a throwaway zero value (the runtime
+    /// would otherwise have to refcount-release it); each implementor supplies its
+    /// own zero.
+    fn int_add(
+        &mut self,
+        a: Option<&Self::Value>,
+        b: &Self::Value,
+    ) -> Result<Self::Value, ValueError> {
+        let x = match a {
+            Some(v) => self.as_int(v)?,
+            None => 0,
+        };
+        let y = self.as_int(b)?;
+        let sum = x.checked_add(y).ok_or(ValueError::IntegerOverflow)?;
+        Ok(self.new_int(sum))
+    }
 
     // -- list (copy-on-write) --
 
