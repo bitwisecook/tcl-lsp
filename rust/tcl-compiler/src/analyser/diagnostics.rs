@@ -1287,8 +1287,10 @@ fn phi_can_undef(
     name: &str,
     version: crate::ssa::Version,
     phi_def: &std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>,
+    phi_block: &std::collections::HashMap<(String, crate::ssa::Version), String>,
     killed: &HashSet<(String, crate::ssa::Version)>,
     considered: &HashSet<String>,
+    executable_edges: &HashSet<(String, String)>,
     exists_guards: &[(String, String)],
     ssa: &crate::ssa::SsaFunction,
     seen: &mut HashSet<(String, crate::ssa::Version)>,
@@ -1310,10 +1312,25 @@ fn phi_can_undef(
         // Concrete (non-phi) definition reached this version — safe.
         return false;
     };
+    // The block this phi lives in — the destination of each incoming edge.
+    let this_block = phi_block.get(&key).map(String::as_str);
     seen.insert(key.clone());
     let mut result = false;
     for (pred, &incoming_ver) in &phi.incoming {
         if !considered.contains(pred) {
+            continue;
+        }
+        // A phi has one operand per predecessor *edge*; an operand arriving on
+        // a non-executable edge (SCCP proved the edge dead — e.g. the
+        // `cond → exit` edge of `while 1`, which a `break` makes the loop's
+        // only real exit) can never actually be read, so its version-0 origin
+        // must not count as a possible undef.  Mirrors the FP-RBS-16 edge
+        // filter (`_read_before_set` in `compiler/core_analyses.py`); only
+        // applied when SCCP edge info is available (a non-empty set).
+        if let Some(blk) = this_block
+            && !executable_edges.is_empty()
+            && !executable_edges.contains(&(pred.clone(), blk.to_owned()))
+        {
             continue;
         }
         // A dominating existence guard proves the variable is defined at
@@ -1329,8 +1346,10 @@ fn phi_can_undef(
             name,
             incoming_ver,
             phi_def,
+            phi_block,
             killed,
             considered,
+            executable_edges,
             exists_guards,
             ssa,
             seen,
@@ -1346,17 +1365,22 @@ fn phi_can_undef(
 /// `(name, version) → Phi` index used by [`phi_can_undef`].
 type PhiDefMap = std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi>;
 
-/// Build the `(name, version) → Phi` index and the set of `unset`-killed
-/// versions for [`phi_can_undef`], restricted to `considered` (executable)
-/// blocks.  Mirrors the `phi_def` / `killed_versions` setup in
-/// `compiler/core_analyses.py::_read_before_set`.
+/// `(name, version) → defining block` index, so [`phi_can_undef`] can test
+/// each incoming `(pred, phi_block)` edge against the SCCP-executable edge set.
+type PhiBlockMap = std::collections::HashMap<(String, crate::ssa::Version), String>;
+
+/// Build the `(name, version) → Phi` index, the `(name, version) → block`
+/// index, and the set of `unset`-killed versions for [`phi_can_undef`],
+/// restricted to `considered` (executable) blocks.  Mirrors the `phi_def` /
+/// `killed_versions` setup in `compiler/core_analyses.py::_read_before_set`.
 fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<String>,
-) -> (PhiDefMap, HashSet<(String, crate::ssa::Version)>) {
+) -> (PhiDefMap, PhiBlockMap, HashSet<(String, crate::ssa::Version)>) {
     use crate::ir::Statement;
     let mut phi_def: std::collections::HashMap<(String, crate::ssa::Version), crate::ssa::Phi> =
         std::collections::HashMap::new();
+    let mut phi_block: PhiBlockMap = std::collections::HashMap::new();
     let mut killed: HashSet<(String, crate::ssa::Version)> = HashSet::new();
     for bn in considered {
         let Some(sblock) = ssa.blocks.get(bn) else {
@@ -1364,6 +1388,7 @@ fn build_phi_undef_index(
         };
         for phi in &sblock.phis {
             phi_def.insert((phi.name.clone(), phi.version), phi.clone());
+            phi_block.insert((phi.name.clone(), phi.version), bn.clone());
         }
         for s in &sblock.statements {
             let Statement::Call {
@@ -1387,7 +1412,7 @@ fn build_phi_undef_index(
             }
         }
     }
-    (phi_def, killed)
+    (phi_def, phi_block, killed)
 }
 
 /// True when an expression operand is provably the integer zero: a literal
@@ -1720,7 +1745,7 @@ fn build_undef_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<String>,
 ) -> UndefSuppression {
-    let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+    let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
@@ -1732,8 +1757,10 @@ fn build_undef_suppression(
             &key.0,
             key.1,
             &phi_def,
+            &phi_block,
             &killed,
             considered,
+            &fu.sccp.executable_edges,
             &exists_guards,
             &fu.ssa,
             &mut seen,
@@ -6525,7 +6552,7 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let (phi_def, killed) = build_phi_undef_index(&fu.ssa, considered);
+        let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
 
         let mut scanner = VarReferenceScanner::new(VarScanOptions {
             include_var_read_roles: false,
@@ -6589,8 +6616,10 @@ file; this call falls through to the 'unknown' handler."
                     &name,
                     ver,
                     &phi_def,
+                    &phi_block,
                     &killed,
                     considered,
+                    &fu.sccp.executable_edges,
                     exists_guards,
                     &fu.ssa,
                     &mut seen,
@@ -10774,6 +10803,327 @@ mod tests {
                 .any(|d| d.code == "W210" && d.message.contains("'y'")),
             "non-exhaustive opaque switch leaves y maybe-undef (W210 expected); got {:?}",
             b.result.diagnostics,
+        );
+    }
+
+    /// Helper: does the analyser emit a W210 for a read of `var` in `src`?
+    #[cfg(test)]
+    fn w210_fires_for(src: &str, var: &str) -> bool {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics(src);
+        let needle = format!("'{var}'");
+        a.result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "W210" && d.message.contains(&needle))
+    }
+
+    #[test]
+    fn fp_rbs_13_tailcall_is_a_terminator() {
+        // Bug 1 / FP-RBS-13: `tailcall` replaces the current frame and never
+        // returns (TclNRTailcallObjCmd always `return TCL_RETURN`), so it ends
+        // straight-line flow exactly like `return`/`error`. A var set only on
+        // the *other* branch of an `if {…} { tailcall … }` is therefore always
+        // set at a read after the `if` — no false W210.
+
+        // FP: `tailcall g` (with args) — only the else branch reaches `return`.
+        assert!(
+            !w210_fires_for(
+                "proc f {cond} { if {$cond} { tailcall g } else { set result 1 }\n return $result }",
+                "result",
+            ),
+            "tailcall g must terminate the then-branch (no W210 on result)",
+        );
+
+        // FP: bare `tailcall` is *also* a terminator (no args guard) — the C
+        // impl returns TCL_RETURN regardless of arg count.
+        assert!(
+            !w210_fires_for(
+                "proc f {cond} { if {$cond} { tailcall } else { set result 1 }\n return $result }",
+                "result",
+            ),
+            "bare tailcall must terminate the then-branch (no W210 on result)",
+        );
+
+        // TP control: a non-terminating then-branch (`puts hi`) leaves `result`
+        // maybe-unset at the read — W210 must still fire. Proves the
+        // suppression is specific to the terminator, not the if/return shape.
+        assert!(
+            w210_fires_for(
+                "proc f {cond} { if {$cond} { puts hi } else { set result 1 }\n return $result }",
+                "result",
+            ),
+            "non-terminating then-branch must still fire W210 on result",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_14_opaque_switch_excludes_non_completing_arm() {
+        // Bug 2 / FP-RBS-14: an opaque switch's must-define set excludes any arm
+        // that cannot complete normally (it never reaches the code after the
+        // switch). The default sets `y`; the `a*` arm exits, so `y` is defined
+        // on every *reaching* path.
+
+        // FP: returning arm excluded — default defines `y`.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 0 } default { set y 2 } }\n puts $y }",
+                "y",
+            ),
+            "returning arm must be excluded from must-define (no W210 on y)",
+        );
+
+        // FP: erroring arm likewise cannot complete normally.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { error bad } default { set y 2 } }\n puts $y }",
+                "y",
+            ),
+            "erroring arm must be excluded from must-define (no W210 on y)",
+        );
+
+        // TP control: a *completing* arm that omits `y` (`set z 9`) reaches the
+        // code after the switch with `y` unset — W210 must fire.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { set z 9 } default { set y 2 } }\n puts $y }",
+                "y",
+            ),
+            "completing arm omitting y must still fire W210 on y",
+        );
+
+        // TP control (Codex C1): a `break` arm is a LOOP_JUMP, not a proc-exit —
+        // it escapes the loop *without* `y`, so `y` is NOT defined on every
+        // reaching path. The arm must be kept (with its empty pre-break defs) in
+        // the must-define intersection, so `y` is dropped and W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {} { foreach x {a} { switch -glob $x { a* { break } default { set y 1 } } }\n puts $y }",
+                "y",
+            ),
+            "break arm escapes the loop with y unset (W210 expected on y)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_15_all_exiting_opaque_switch_is_a_terminator() {
+        // Bug 3 / FP-RBS-15: an opaque switch with a `default` whose *every*
+        // reachable arm body cannot complete normally never falls through, so
+        // the code after it is dead — no W210 on a read in that dead code.
+
+        // FP: every arm returns — the switch is a terminator, `puts $y` is dead.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 1 } default { return 2 } }\n puts $y }",
+                "y",
+            ),
+            "all-returning opaque switch must terminate (puts $y is dead, no W210)",
+        );
+
+        // FP: a mix of error / tailcall arms is also all-exiting.
+        assert!(
+            !w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { error bad } default { tailcall g } }\n puts $y }",
+                "y",
+            ),
+            "all error/tailcall opaque switch must terminate (no W210 on y)",
+        );
+
+        // TP control: drop the `default` — an unmatched subject falls through to
+        // `puts $y` with `y` unset, so the read is reachable. W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 1 } b* { return 2 } }\n puts $y }",
+                "y",
+            ),
+            "default-less opaque switch falls through (W210 expected on y)",
+        );
+
+        // TP control: one arm that *completes* (`set z 9`) lets the switch fall
+        // through with `y` unset. W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { switch -glob $x { a* { return 1 } default { set z 9 } }\n puts $y }",
+                "y",
+            ),
+            "one completing arm lets the switch fall through (W210 expected on y)",
+        );
+
+        // TP control (Codex C3): an all-*break* switch is NOT a proc terminator —
+        // it jumps to the enclosing loop's exit, so a `while 1` whose only exit
+        // is the break reaches the post-loop read with the var unset. The switch
+        // must wire its break edge to the loop exit (not promote to a Return),
+        // so the loop exit is reachable and W210 fires.
+        assert!(
+            w210_fires_for(
+                "proc f {x} { while 1 { switch -glob $x { a* { break } default { break } } }\n puts $y }",
+                "y",
+            ),
+            "all-break opaque switch in while 1 reaches the loop exit (W210 expected on y)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set() {
+        // FP-RBS-16: a `while 1` loop-exit phi has an operand on the never-taken
+        // `cond -> exit` edge carrying the var's version-0 (unset) origin. SCCP
+        // marks that edge non-executable; the read-before-set phi-undef closure
+        // must skip operands on dead predecessor edges, not just dead blocks.
+
+        // FP: `while 1 { set y 1; break }` — only live exit is the break (y set).
+        assert!(
+            !w210_fires_for("proc f {} { while 1 { set y 1; break }\n puts $y }", "y"),
+            "while 1 set+break: y set on the only live exit edge (no W210)",
+        );
+
+        // FP: the realistic `while 1 { ...; if {c} break }` early-exit idiom.
+        assert!(
+            !w210_fires_for(
+                "proc compute {} {return 7}\nproc ok {a} {return 1}\nproc f {} { while 1 { set r [compute]; if {[ok $r]} break }\n return $r }",
+                "r",
+            ),
+            "while 1 compute/if-break: r set before the only live exit (no W210)",
+        );
+
+        // TP control: a non-constant condition may run the body zero times, so
+        // the cond-exit edge IS live and y is genuinely maybe-unset.
+        assert!(
+            w210_fires_for("proc f {n} { while {$n>0} { set y 1 }\n puts $y }", "y"),
+            "non-constant while condition may run zero times (W210 expected on y)",
+        );
+
+        // TP control: only one of two break paths sets y, so the exit merges a
+        // genuine unset version on a live edge.
+        assert!(
+            w210_fires_for(
+                "proc f {c} { while 1 { if {$c} { set y 1; break } else break }\n puts $y }",
+                "y",
+            ),
+            "partial-def break path leaves y maybe-unset (W210 expected on y)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_17_guaranteed_foreach_defines_body_vars() {
+        // FP-RBS-17: a foreach over a non-empty *literal* list provably iterates
+        // ≥1 time, so a body-assigned variable (or the loop variable) read after
+        // the loop is defined. Analysis rotates the loop so the 0-iteration skip
+        // is a dead entry-guard edge (FP-RBS-16 ignores its phi operand).
+
+        // FP: body assigns y; the literal list guarantees ≥1 iteration.
+        assert!(
+            !w210_fires_for("proc f {} { foreach x {1 2 3} { set y $x }\n puts $y }", "y"),
+            "foreach over a non-empty literal defines y (no W210)",
+        );
+
+        // FP: the loop variable itself is defined after a guaranteed foreach.
+        assert!(
+            !w210_fires_for("proc f {} { foreach x {a b c} {}\n puts $x }", "x"),
+            "loop variable is defined after a guaranteed foreach (no W210)",
+        );
+
+        // TP control: an empty literal list runs zero times — y stays unset.
+        assert!(
+            w210_fires_for("proc f {} { foreach x {} { set y $x }\n puts $y }", "y"),
+            "empty foreach list runs zero times (W210 expected on y)",
+        );
+
+        // TP control: a dynamic (`$i`) list may be empty — not guaranteed.
+        assert!(
+            w210_fires_for("proc f {i} { foreach x $i { set y $x }\n puts $y }", "y"),
+            "dynamic foreach list may be empty (W210 expected on y)",
+        );
+
+        // TP control: a first-iteration read-before-set inside the body still
+        // fires — rotation keeps the body's internal order.
+        assert!(
+            w210_fires_for("proc f {} { foreach x {1 2 3} { puts $acc; set acc $x } }", "acc"),
+            "first-iteration read of acc before its set still fires (W210)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_18_guaranteed_for_defines_body_vars() {
+        // FP-RBS-18 + Codex C2: a `for` whose condition is statically true on
+        // entry (evaluated against the init clause's *constant* bindings)
+        // provably iterates ≥1 time. Init is processed in order, and a
+        // non-constant write invalidates a stale constant binding.
+
+        // FP: `for {set i 0} {$i<3} …` — 0 < 3 true on entry, body sets y.
+        assert!(
+            !w210_fires_for(
+                "proc f {} { for {set i 0} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "for with statically-true entry condition defines y (no W210)",
+        );
+
+        // TP control: `for {set i 5} {$i<3} …` — 5 < 3 false, zero iterations.
+        assert!(
+            w210_fires_for(
+                "proc f {} { for {set i 5} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "for with false entry condition runs zero times (W210 expected on y)",
+        );
+
+        // TP control (Codex C2): a later non-constant write (`set i $n`) in the
+        // init must invalidate the stale `i = 0`, so the condition is unknown.
+        assert!(
+            w210_fires_for(
+                "proc f {n} { for {set i 0; set i $n} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "stale-constant for-init must not be claimed guaranteed (W210 on y)",
+        );
+
+        // TP control (Codex C2): an `incr` in the init likewise invalidates the
+        // constant binding (we don't fold incr in the init env).
+        assert!(
+            w210_fires_for(
+                "proc f {} { for {set i 0; incr i 5} {$i<3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "incr in for-init invalidates the constant binding (W210 on y)",
+        );
+
+        // TP control (Codex P1): an init call to a proc that writes the loop var
+        // through `upvar` must invalidate the stale constant — the upvar pass
+        // adds the caller-side def, so `init_written_names` (via
+        // apply_upvar_invalidation) drops `i` and the loop is not claimed
+        // guaranteed. Here `setter` sets `i = 5`, so `5 < 3` is false → zero
+        // iterations → `y` unset → W210 must fire.
+        assert!(
+            w210_fires_for(
+                "proc setter {} { upvar 1 i i; set i 5 }\nproc f {} { for {set i 0; setter} {$i < 3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "upvar-writing call in for-init invalidates the constant (W210 on y)",
+        );
+
+        // FP guard: a *benign* call in the init (one that does not write the
+        // loop var) must NOT invalidate the constant — the loop stays guaranteed
+        // and `y` is defined, so no false W210 is introduced by the upvar fix.
+        assert!(
+            !w210_fires_for(
+                "proc f {} { for {set i 0; puts hi} {$i < 3} {incr i} { set y $i }\n puts $y }",
+                "y",
+            ),
+            "benign init call must not invalidate the constant (no W210 on y)",
+        );
+    }
+
+    #[test]
+    fn fp_rbs_15_continue_in_opaque_switch_stays_silent() {
+        // Codex C3 (companion to fp_rbs_15): a benign `continue` arm inside an
+        // opaque switch in a guaranteed foreach stays silent when the variable
+        // is set before the switch on every iteration.
+        assert!(
+            !w210_fires_for(
+                "proc f {} { foreach x {1 2 3} { set y 1; switch -glob $x { a* { continue } default {} } }\n puts $y }",
+                "y",
+            ),
+            "continue-arm switch with y set before it every iteration (no W210)",
         );
     }
 

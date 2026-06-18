@@ -2032,6 +2032,10 @@ mod tests {
 
     #[test]
     fn loops_detects_for_loop_with_depth() {
+        // `0 < 10` is statically true on entry, so analysis rotates the loop
+        // (FP-RBS-18): the entry guard `for_header` moves out of the natural
+        // loop and the back-edge target — the natural-loop header — becomes the
+        // `for_body` block, with the `for_step` re-check as the latch.
         let result = run_pipeline("for {set i 0} {$i < 10} {incr i} { puts $i }", "tcl8.6");
         let loops = serialise_result(&result)["loops"].clone();
         let top = &loops.as_array().unwrap()[0];
@@ -2039,7 +2043,11 @@ mod tests {
         assert_eq!(lps.len(), 1, "one natural loop for a single for-loop");
         let lp = &lps[0];
         assert_eq!(lp["depth"], 1);
-        assert!(lp["header"].as_str().unwrap().contains("header"));
+        let header = lp["header"].as_str().unwrap();
+        assert!(
+            header.contains("for_body") || header.contains("header"),
+            "rotated for-loop header is the body block, got {header}"
+        );
         assert!(!lp["latches"].as_array().unwrap().is_empty());
         assert_eq!(
             lp["blockCount"].as_u64().unwrap(),
