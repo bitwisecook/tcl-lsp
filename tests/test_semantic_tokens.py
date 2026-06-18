@@ -116,6 +116,14 @@ class TestSemanticTokens:
         proc_tok = next(t for t in tokens if source[t["char"] : t["char"] + t["length"]] == "proc")
         assert proc_tok["type"] == "string"
 
+    def test_quoted_structural_keyword_offsets_past_quote(self):
+        """A quoted ``"else"`` keyword marks ``else``, not ``"els`` (PR #643)."""
+        source = 'if 0 {} "else" {puts ok}'
+        tokens = _decode_tokens(semantic_tokens_full(source))
+        kw = next(t for t in tokens if t["type"] == "keyword" and t["char"] >= 8)
+        covered = source[kw["char"] : kw["char"] + kw["length"]]
+        assert covered == "else", (kw, covered)
+
     def test_user_command_as_function(self):
         tokens = _decode_tokens(semantic_tokens_full("mycommand arg1"))
         assert tokens[0]["type"] == "function"  # unknown command = function

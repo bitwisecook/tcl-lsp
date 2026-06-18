@@ -911,10 +911,14 @@ def _collect_tokens(
             # on/trap/finally) sit at argument positions, not the command-name
             # slot, so the default classifier would render them as strings.
             # The registry's KEYWORD role marks them; highlight as keywords.
+            # Use the token content base so a quoted keyword (``"else"``, whose
+            # ``start`` sits on the opening quote) is offset past the quote
+            # rather than marking ``"els``.
             if is_keyword_arg and tok.type is TokenType.ESC:
+                kw_offset, kw_line, kw_col = token_content_base(tok)
                 _append_text_token(
                     tokens,
-                    start=tok.start,
+                    start=SourcePosition(line=kw_line, character=kw_col, offset=kw_offset),
                     text=tok.text,
                     type_idx=_TYPE_INDEX["keyword"],
                 )

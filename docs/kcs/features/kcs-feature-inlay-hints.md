@@ -21,6 +21,10 @@ all-editors, analyser
   - `tclLsp.features.inlayParameterHints` — parameter-name labels at
     proc/method call sites (`NAME:`, `PROC_SCRIPT:`, …). These are more
     verbose and less likely to assist, so they are opt-in separately.
+- **Legacy key**: the retired `tclLsp.features.inlayHints` is still
+  accepted as a backward-compatible alias — it enables the type hints only
+  (not the verbose parameter hints), so an existing explicit opt-in keeps
+  working after the rename. An explicit new key wins when both are set.
 
 ## Operational context
 
