@@ -42,28 +42,30 @@ git pull origin main
 
 ### 3. Pre-release validation
 
-Run the fast gate first, then slow tests:
+**Do not re-run the full slow gate here.** Every feature PR already ran
+`make test-slow` and committed `.test-slow.stamp`, which CI's `test-slow-stamp`
+job verified before merge. The release reuses that single proof — it only
+confirms the committed stamp still matches `main`:
 
 ```bash
-make prep-pr
+make verify-test-slow-stamp
 ```
 
-If `prep-pr` applies formatting changes, commit them:
+- **OK** → the slow gate is already proven against this exact tree. Continue.
+- **STALE** → code reached `main` without a fresh stamp (should not normally
+  happen). Only then regenerate it:
 
-```bash
-git add -A && git commit -m "Pre-release formatting fixes"
-```
+  ```bash
+  make test-slow            # ~27 min; rewrites .test-slow.stamp on success
+  ```
 
-Then run slow tests:
+  Main is protected, so land the refreshed stamp via a PR: create a fix branch,
+  push, open the PR with `gh pr create`, wait for CI green, and ask the user to
+  merge it. Then `git checkout main && git pull origin main` before continuing.
 
-```bash
-make test-slow
-```
-
-If any test fails, investigate and fix the issue. **Main is protected — push
-fixes via a PR.** Create a fix branch, push, open the PR with `gh pr create`,
-wait for CI green, and ask the user to merge it. Then `git checkout main &&
-git pull origin main` before continuing.
+Release-only docs (`RELEASE_NOTES.md`, `docs/sphinx/changelog.md`) are excluded
+from the stamp fingerprint, so landing the release notes in step 6 will **not**
+invalidate this proof — the one pre-merge run carries through to the tag.
 
 ### 4. Determine version bump
 
