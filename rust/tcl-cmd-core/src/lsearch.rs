@@ -360,34 +360,14 @@ fn select_key<O: ValueOps>(
     select_by_index(ops, &elems[base + group_offset], key_path)
 }
 
-/// Drill into a (nested) list value by an index `path` (`lsearch`/`lsort
-/// -index`). An out-of-range step is an error; a non-list step stops (returning
-/// the current value), matching C's `TclLindexFlat` fallthrough.
+/// Drill into a (nested) list value by an index `path` — the shared
+/// [`index::drill`], with the message wrapped in [`LsearchError`].
 fn select_by_index<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
 ) -> Result<O::Value, LsearchError> {
-    let mut cur = value.clone();
-    for spec in path {
-        let len = ops
-            .list_len(&cur)
-            .map_err(|e| LsearchError::msg(e.message()))?;
-        let idx = index::resolve_opt(&str_of(spec), len).ok_or_else(|| bad_index(spec))?;
-        if idx < 0 || idx as usize >= len {
-            let mut m = b"element ".to_vec();
-            m.extend_from_slice(spec);
-            m.extend_from_slice(b" missing from sublist \"");
-            m.extend_from_slice(&ops.as_bytes(&cur));
-            m.push(b'"');
-            return Err(LsearchError::msg(m));
-        }
-        match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
-            Ok(Some(e)) => cur = e,
-            _ => return Ok(cur),
-        }
-    }
-    Ok(cur)
+    index::drill(ops, value, path).map_err(LsearchError::msg)
 }
 
 /// Compare the search `pattern` against key `obj` under `dtype` (`-exact`/

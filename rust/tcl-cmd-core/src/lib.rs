@@ -26,6 +26,7 @@ pub mod info;
 pub mod list;
 pub mod lsearch;
 pub mod lseq;
+pub mod lsort;
 pub mod mathop;
 pub mod namespace;
 pub mod path;

@@ -1,6 +1,5 @@
 //! List builtins, reusing `tcl_syntax::list` for split/merge semantics.
 
-use std::cmp::Ordering;
 use std::rc::Rc;
 
 use tcl_cmd_core::list as list_core;
@@ -163,52 +162,56 @@ fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn cmd_lsort(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    use tcl_cmd_core::sort::SortMode;
-    let mut mode = SortMode::Ascii;
-    let mut nocase = false;
-    let mut decreasing = false;
-    let mut unique = false;
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-ascii" => mode = SortMode::Ascii,
-            "-dictionary" => mode = SortMode::Dictionary,
-            "-integer" => mode = SortMode::Integer,
-            "-real" => mode = SortMode::Real,
-            "-nocase" => nocase = true,
-            "-decreasing" => decreasing = true,
-            "-increasing" => decreasing = false,
-            "-unique" => unique = true,
-            // `-index`/`-command`/`-stride` aren't supported here yet (skipped).
-            s if s.starts_with('-') => {}
-            _ => break,
-        }
-        rest = &rest[1..];
+/// `lsort ?-option value ...? list` — a thin adapter over the shared
+/// [`tcl_cmd_core::lsort`] core. The VM previously had only the comparison modes
+/// over a flat option set; it now has `-index`/`-stride`/`-indices` and
+/// `-command` (the comparator evaluates Tcl through `vm.dispatch`).
+fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
+    let mut job = match prepare(vm, args) {
+        Ok(Lsort::Done(v)) => return ok(v),
+        Ok(Lsort::Command(job)) => job,
+        Err(e) => return err(String::from_utf8_lossy(&e.message).into_owned()),
+    };
+    // `-command`: split the comparison prefix into words, run the reentrant merge
+    // sort over the VM comparator (no `ValueOps` borrow during the eval), build.
+    let prefix = match job.cmd_prefix.as_list() {
+        Ok(w) => w,
+        Err(e) => return err(e.message),
+    };
+    if let Err(c) = sort_command(&mut job, |a, b| vm_compare(vm, &prefix, a, b)) {
+        return c;
     }
-    let [list] = rest else {
-        return err("wrong # args: should be \"lsort ?options? list\"");
+    ok(build_command(vm, &job))
+}
+
+/// The `lsort -command` comparator: invoke `<prefix words...> a b` and read its
+/// integer result as a sign. Uses `vm.dispatch` (argv-based — no re-parsing, so
+/// elements containing `$`/`[` are passed literally).
+fn vm_compare(
+    vm: &mut Vm,
+    prefix: &[Value],
+    a: &Value,
+    b: &Value,
+) -> Result<i32, Completion<Value>> {
+    use tcl_runtime_api::Commands;
+    let Some((name, pre_args)) = prefix.split_first() else {
+        return Err(err("-command comparison command is empty"));
     };
-    let mut items = match as_list(list) {
-        Ok(i) => (*i).clone(),
-        Err(c) => return c,
-    };
-    // The comparison modes (incl. the subtle dictionary order, and the
-    // integer-vs-real distinction the VM previously collapsed) are the shared
-    // `tcl_cmd_core::sort` core.
-    let cmp = |a: &Value, b: &Value| {
-        tcl_cmd_core::sort::key_compare(mode, nocase, a.to_str().as_bytes(), b.to_str().as_bytes())
-    };
-    items.sort_by(|a, b| {
-        let ord = cmp(a, b);
-        if decreasing { ord.reverse() } else { ord }
-    });
-    if unique {
-        // `-unique` removes elements equal *under the sort mode* (e.g. `1`/`01`
-        // for `-integer`), not just byte-equal ones.
-        items.dedup_by(|a, b| cmp(a, b) == Ordering::Equal);
+    let mut argv: Vec<Value> = pre_args.to_vec();
+    argv.push(a.clone());
+    argv.push(b.clone());
+    let comp = vm.dispatch(&name.to_str(), &argv);
+    if !comp.code.is_ok() {
+        return Err(comp);
     }
-    ok(Value::list(items))
+    let r = comp.result.to_str();
+    match tcl_cmd_core::sort::parse_wide(r.as_bytes()) {
+        Some(v) => Ok(i32::try_from(v.signum()).unwrap_or(0)),
+        None => Err(err(format!(
+            "-command comparison script returned non-integer result: {r}"
+        ))),
+    }
 }
 
 fn cmd_concat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

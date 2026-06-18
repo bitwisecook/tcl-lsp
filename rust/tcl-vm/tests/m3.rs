@@ -127,6 +127,44 @@ fn lsearch_shared_core() {
     assert!(msg.starts_with("bad option \"-bogus\""), "got: {msg}");
 }
 
+/// `lsort` — the VM gained `-index`/`-stride`/`-indices`/`-command` by sharing
+/// `tcl_cmd_core::lsort` (it had only flat comparison modes). Pinned to tclsh.
+#[test]
+fn lsort_shared_core() {
+    assert_eq!(run("lsort {b a c}").1, "a b c");
+    assert_eq!(
+        run("lsort -decreasing -dictionary {x9 x10 x100}").1,
+        "x100 x10 x9"
+    );
+    assert_eq!(run("lsort -integer -unique {1 01 1 2}").1, "1 2");
+    assert_eq!(run("lsort -indices {c a b}").1, "1 2 0");
+    assert_eq!(
+        run("lsort -index 1 {{a 3} {b 1} {c 2}}").1,
+        "{b 1} {c 2} {a 3}"
+    );
+    assert_eq!(
+        run("lsort -stride 2 -index 1 {x 3 y 1 z 2}").1,
+        "y 1 z 2 x 3"
+    );
+    assert_eq!(
+        run("lsort -stride 2 -indices {c 3 a 1 b 2}").1,
+        "2 3 4 5 0 1"
+    );
+    // -command (Family-B: the comparator evaluates Tcl via vm.dispatch).
+    assert_eq!(
+        run("lsort -command {apply {{a b} {expr {$a - $b}}}} {3 1 2}").1,
+        "1 2 3"
+    );
+    assert_eq!(
+        run("lsort -unique -command {apply {{a b} {expr {$a - $b}}}} {3 1 3 2 1}").1,
+        "1 2 3"
+    );
+    // Errors.
+    let (ok, msg, _) = run("lsort -index 5 {{a b} {c d}}");
+    assert!(!ok);
+    assert_eq!(msg, "element 5 missing from sublist \"a b\"");
+}
+
 #[test]
 fn string_ops() {
     out_eq("puts [string length hello]\n", "5\n");

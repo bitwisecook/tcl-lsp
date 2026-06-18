@@ -65,8 +65,20 @@ Shared in `tcl-cmd-core`:
   The VM had no `mathop` at all; it now has the full operator set.
 - `sort::{key_compare, dictionary_compare, parse_wide, parse_real}` — the
   `lsort`/`lsearch` comparison modes (`-ascii`/`-dictionary`/`-integer`/`-real`,
-  `-nocase`), pure `&[u8] → Ordering`. The runtime's `lsort`/`lsearch` delegate
-  here; the subtle `DictionaryCompare` port now lives once.
+  `-nocase`), pure `&[u8] → Ordering`. The subtle `DictionaryCompare` port lives
+  once; the full `lsort`/`lsearch` commands (below) build on it.
+- `lsort` — the **whole** `lsort` command (the option set, up-front numeric-key
+  validation, mode-aware `-unique`, `-index` path, `-stride`, `-indices`), over
+  `ValueOps` + a `-command` comparator callback. `-command` evaluates a user Tcl
+  proc per comparison (Family-B), so — like `lseq`'s expression edge — it is split
+  into three sequential calls so the interp the comparator evaluates against is
+  not double-borrowed: `prepare` (everything needing `ValueOps`, including the
+  full non-command sort+build), `sort_command` (the reentrant stable merge sort
+  over the adapter's comparator, **no `ValueOps`**), and `build_command`. The VM's
+  comparator goes through `vm.dispatch` (argv-based, so an element containing
+  `$`/`[` is passed literally); the runtime's through `interp.dispatch`. This
+  lifted the VM from a flat-comparison-only `lsort` to `-index`/`-stride`/
+  `-indices`/`-command`.
 - `lsearch` — the **whole** `lsearch` command (every option: `-exact`/`-glob`/
   `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the four `-ascii`/
   `-dictionary`/`-integer`/`-real` types, `-nocase`, `-increasing`/`-decreasing`,
@@ -165,6 +177,7 @@ core unified both to the correct behaviour):
 | `string wordstart`/`wordend` (VM) | the VM errored "not yet implemented"; sharing the word-boundary scan added both. |
 | `dict filter` (VM + runtime) | the VM had no `dict filter` at all (unknown-subcommand error); sharing `key`/`value` added them (plus a small script adapter). On the runtime, the shared core fixed the error order — a bad filterType is now reported before the dict is parsed (tclsh). |
 | `lsearch` (VM) | the VM had only a `-exact`/`-glob` stub (it silently ignored every other option); sharing the full `lsearch` core gave it the entire option set — `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the numeric/dictionary types, `-start`/`-stride`/`-index`/`-subindices` — verified against tclsh 9.0. |
+| `lsort` (VM) | the VM's `lsort` had the comparison modes but silently ignored `-index`/`-stride`/`-indices`/`-command`; sharing the full `lsort` core gave it all of them (incl. the `-command` comparator over `vm.dispatch`) — verified against tclsh 9.0. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

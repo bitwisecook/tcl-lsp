@@ -7,6 +7,8 @@
 //! integer operand: `5`, `-2`, `end`, `end-2`, `1+1`, `0-1`, `end--1`
 //! (= `end - (-1)`).
 
+use tcl_syntax::value::ValueOps;
+
 use crate::error::CmdError;
 
 /// Resolve an index `spec` against a container length `len` (so `end` is
@@ -22,6 +24,44 @@ pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
 #[must_use]
 pub fn resolve_opt(spec: &str, len: usize) -> Option<i64> {
     parse(spec, len)
+}
+
+/// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
+/// -index`): each spec steps one level. An out-of-range step is an error
+/// (`element <spec> missing from sublist "<list>"`); a non-list step stops,
+/// returning the current value (C's `TclLindexFlat` fallthrough). Returns the
+/// error **message bytes** so each command wraps them in its own error type.
+///
+/// # Errors
+/// `bad index`, the list-parse error, or `element … missing from sublist …`.
+pub fn drill<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    path: &[Vec<u8>],
+) -> Result<O::Value, Vec<u8>> {
+    let mut cur = value.clone();
+    for spec in path {
+        let len = ops.list_len(&cur).map_err(|e| e.message().into_bytes())?;
+        let idx = resolve_opt(&String::from_utf8_lossy(spec), len).ok_or_else(|| {
+            let mut m = b"bad index \"".to_vec();
+            m.extend_from_slice(spec);
+            m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
+            m
+        })?;
+        if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
+            let mut m = b"element ".to_vec();
+            m.extend_from_slice(spec);
+            m.extend_from_slice(b" missing from sublist \"");
+            m.extend_from_slice(&ops.as_bytes(&cur));
+            m.push(b'"');
+            return Err(m);
+        }
+        match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
+            Ok(Some(e)) => cur = e,
+            _ => return Ok(cur),
+        }
+    }
+    Ok(cur)
 }
 
 /// Whether an index `spec` is *encodable* the way `TclIndexEncode` requires for
