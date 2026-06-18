@@ -6450,6 +6450,15 @@ file; this call falls through to the 'unknown' handler."
         // X]` guards the false arm.
         let exists_guards = collect_existence_guards(fu);
 
+        // W210 fires **once per variable**, at the earliest read-before-set
+        // — Python iterates `analysis.read_before_set`, which carries one
+        // entry per variable, not one per read. The def-use walk below
+        // visits *every* version-0 use, so record the earliest passing span
+        // per variable here and emit after the walk (W213, a distinct code,
+        // stays inline).
+        let mut w210_min: std::collections::HashMap<String, tcl_lexer::Span> =
+            std::collections::HashMap::new();
+
         for chain in fu.def_use.chains.values() {
             // Version-0 synthetic defs are the undef origin; an
             // `unset`-killed real version, and a phi version that can reach
@@ -6565,18 +6574,31 @@ file; this call falls through to the 'unknown' handler."
                 if use_site_safe_initialises(stmt_opt, var) {
                     continue;
                 }
-                let mut message = format!("Variable '{var}' is read before it is set");
-                if let Some(similar) = find_case_mismatch(var, defined_vars) {
-                    let _ = write!(message, "; did you mean '{similar}'?");
-                }
-                self.result.diagnostics.push(super::types::Diagnostic {
-                    code: "W210".to_string(),
-                    span,
-                    message,
-                    severity: Severity::Warning,
-                    fixes: Vec::new(),
-                });
+                w210_min
+                    .entry(var.clone())
+                    .and_modify(|s| {
+                        if span.start() < s.start() {
+                            *s = span;
+                        }
+                    })
+                    .or_insert(span);
             }
+        }
+
+        let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
+        entries.sort_by_key(|(_, s)| s.start());
+        for (var, span) in entries {
+            let mut message = format!("Variable '{var}' is read before it is set");
+            if let Some(similar) = find_case_mismatch(&var, defined_vars) {
+                let _ = write!(message, "; did you mean '{similar}'?");
+            }
+            self.result.diagnostics.push(super::types::Diagnostic {
+                code: "W210".to_string(),
+                span,
+                message,
+                severity: Severity::Warning,
+                fixes: Vec::new(),
+            });
         }
     }
 
