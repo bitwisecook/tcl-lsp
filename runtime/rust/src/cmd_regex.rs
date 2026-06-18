@@ -61,11 +61,8 @@ impl RegexEngine for AreEngine {
     }
 
     fn exec(re: &mut Regex, cps: &[i32], offset: usize, notbol: bool) -> Option<Vec<RegMatch>> {
-        re.exec(cps, offset, notbol).map(|v| {
-            v.iter()
-                .map(|m| RegMatch { so: m.so, eo: m.eo })
-                .collect()
-        })
+        re.exec(cps, offset, notbol)
+            .map(|v| v.iter().map(|m| RegMatch { so: m.so, eo: m.eo }).collect())
     }
 }
 

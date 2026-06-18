@@ -68,6 +68,16 @@ Shared in `tcl-cmd-core`:
   `-nocase`), pure `&[u8] → Ordering`. The runtime's `lsort`/`lsearch` delegate
   here; the subtle `DictionaryCompare` port now lives once. `-command` (proc
   callback) and `-index` stay per-adapter.
+- `string::word_bound` — `string wordstart`/`wordend` (the word-boundary scan
+  over the Unicode word-char + connector-punctuation classification), added to the
+  shared `string` dispatch. The VM lacked these entirely (it errored "not yet
+  implemented"); the runtime's hand-rolled `str_word` is deleted.
+- `dict::filter` — `dict filter key|value ?glob ...?` (the pure glob-filter half).
+  The `script` filter type evaluates a body per pair (Family-B) and stays in each
+  adapter, so the core returns `None` for it. The VM had no `dict filter` at all;
+  it now has key/value (shared) plus a small script adapter. Routing also fixed a
+  runtime ordering bug — the filterType is now validated **before** the dict is
+  parsed (`dict filter {a b c} bogus` → "bad filterType", not the dict error).
 - `binary::{hex,base64,uu}_{encode,decode}` + `format`/`scan` — value-model-free
   `&[u8]` codecs and the pack/unpack grammars. Each adapter bridges its value to
   bytes (the runtime's raw `obj_bytes`, the VM's byte-array `U+00xx` convention),
@@ -143,6 +153,8 @@ core unified both to the correct behaviour):
 | `mathop` (VM) | the VM had no `::tcl::mathop::*` at all; sharing the fold/chain core over `ExprOps` added the full operator set (verified against tclsh). |
 | `lseq` (VM) | the VM had no `lseq` at all; sharing the decode-key + precision-matched generation over `ValueOps` (with an `eval_expr` edge for expression-valued args) added every form — ranges, `by`/`count`/`to`/`..`, double precision (`lseq 0 0.5 by 0.1` → `0.0 0.1 0.2 0.3 0.4 0.5`), expression arguments — verified against tclsh 9.0. |
 | `regexp`/`regsub` (VM) | the VM's `regex`-crate version lacked `-indices`/`-start`, used **byte** offsets (wrong for non-ASCII), **set match vars to empty on a failed match** (tclsh leaves them untouched), reported `couldn't compile…` (tclsh: `cannot compile…`), and had a wrong/short bad-option message. Routing the shared plumbing over the `RegexEngine` seam fixed all of these while keeping the crate engine — verified against tclsh 9.0. |
+| `string wordstart`/`wordend` (VM) | the VM errored "not yet implemented"; sharing the word-boundary scan added both. |
+| `dict filter` (VM + runtime) | the VM had no `dict filter` at all (unknown-subcommand error); sharing `key`/`value` added them (plus a small script adapter). On the runtime, the shared core fixed the error order — a bad filterType is now reported before the dict is parsed (tclsh). |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

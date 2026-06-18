@@ -152,6 +152,31 @@ fn dict_ops() {
     out_eq("puts [dict getdef {a 1 b 2} z X]\n", "X\n");
 }
 
+/// `dict filter` — `key`/`value` globs via the shared core, `script` via the
+/// VM's Family-B adapter (the VM lacked `dict filter` entirely). Pinned to tclsh.
+#[test]
+fn dict_filter() {
+    assert_eq!(run("dict filter {a 1 b 2 aa 3} key a*").1, "a 1 aa 3");
+    assert_eq!(run("dict filter {a 1 b 2 aa 3} value 2").1, "b 2");
+    assert_eq!(run("dict filter {a 1 b 2} key").1, ""); // no patterns → empty
+    assert_eq!(run("dict filter {a 1 b 2 c 3} key a c").1, "a 1 c 3"); // any-of
+    // script mode (Family-B): keep pairs whose body is true.
+    assert_eq!(
+        run("dict filter {a 1 b 2 c 3} script {k v} {expr {$v > 1}}").1,
+        "b 2 c 3"
+    );
+    // filterType is validated before the dict is parsed (was a runtime bug).
+    let (ok, msg, _) = run("dict filter {a b c} bogus");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "bad filterType \"bogus\": must be key, script, or value"
+    );
+    let (ok, msg, _) = run("dict filter {a 1 b 2} script {k} {expr 1}");
+    assert!(!ok);
+    assert_eq!(msg, "must have exactly two variable names");
+}
+
 #[test]
 fn info_introspection() {
     out_eq("puts [info exists nope]\n", "0\n");

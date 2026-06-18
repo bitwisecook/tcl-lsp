@@ -137,8 +137,7 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"is" => str_is(interp, argv),
         b"replace" => str_replace(interp, argv),
         b"insert" => str_insert(interp, argv),
-        b"wordstart" => str_word(interp, argv, true),
-        b"wordend" => str_word(interp, argv, false),
+        // `wordstart`/`wordend` are handled by the shared core above.
         _ => unreachable!("index_lookup only yields a known subcommand"),
     }
 }
@@ -614,70 +613,6 @@ fn tcl_prefix_longest(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let out: String = longest.iter().collect();
     interp.set_result_bytes(out.as_bytes());
-    Code::Ok
-}
-
-/// `string wordstart|wordend string charIndex` — the bounds of the word
-/// containing `charIndex` (`StringStartCmd`/`StringEndCmd`). A word is a maximal
-/// run of word-characters, or a single non-word character.
-fn str_word(interp: &mut Interp, argv: &[*mut TclObj], start: bool) -> Code {
-    if argv.len() != 4 {
-        return wrong_args(
-            interp,
-            if start {
-                b"string wordstart string index"
-            } else {
-                b"string wordend string index"
-            },
-        );
-    }
-    let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
-        .chars()
-        .collect();
-    let n = chars.len();
-    let index = match index_spec(&obj_bytes(argv[3]), n) {
-        Some(i) => i,
-        None => return bad_index(interp, &obj_bytes(argv[3])),
-    };
-    let is_word = is_word_char;
-    let result: usize = if start {
-        if n == 0 {
-            0
-        } else {
-            let i = index.min(n as isize - 1);
-            if i <= 0 {
-                0
-            } else {
-                let i = i as usize;
-                if !is_word(chars[i]) {
-                    i
-                } else {
-                    let mut j = i;
-                    while j > 0 && is_word(chars[j - 1]) {
-                        j -= 1;
-                    }
-                    j
-                }
-            }
-        }
-    } else {
-        let i = index.max(0);
-        if i >= n as isize {
-            n
-        } else {
-            let i = i as usize;
-            let mut cur = i;
-            while cur < n && is_word(chars[cur]) {
-                cur += 1;
-            }
-            if cur == i {
-                cur + 1
-            } else {
-                cur
-            }
-        }
-    };
-    interp.set_result(obj::new_wide_int_obj(result as i64));
     Code::Ok
 }
 
@@ -1296,31 +1231,6 @@ fn option_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
 // `string is` classification now lives in the shared `tcl_cmd_core::string_is`
 // (the per-class membership + fail-index logic). `str_is` above is the thin
 // per-runtime wrapper (option parsing + `-failindex` var write) over it.
-
-/// The connector-punctuation characters (Unicode category `Pc`) — the full set,
-/// including `_`. `Tcl_UniCharIsWordChar` and `string is wordchar` treat these
-/// as word characters.
-fn is_connector_punct(c: char) -> bool {
-    matches!(
-        c,
-        '\u{005F}'
-            | '\u{203F}'
-            | '\u{2040}'
-            | '\u{2054}'
-            | '\u{FE33}'
-            | '\u{FE34}'
-            | '\u{FE4D}'
-            | '\u{FE4E}'
-            | '\u{FE4F}'
-            | '\u{FF3F}'
-    )
-}
-
-/// `Tcl_UniCharIsWordChar`: letters and decimal digits (here approximated by
-/// `char::is_alphanumeric`) plus connector punctuation.
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || is_connector_punct(c)
-}
 
 // -- char helpers (ASCII fast path) ----------------------------------------
 

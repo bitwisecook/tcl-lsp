@@ -145,6 +145,32 @@ pub fn size<O: ValueOps>(ops: &mut O, dict: &O::Value) -> Result<O::Value, CmdEr
     Ok(ops.new_int(ilen(n)))
 }
 
+/// `dict filter dictionary key|value ?globPattern ...?` — keep entries whose key
+/// (or value) matches **any** of the glob patterns (with no patterns, nothing
+/// matches, so the result is empty). The `script` filter type is Family-B (it
+/// evaluates a body per pair) and stays per-adapter — this returns `None` for it
+/// and for an unhandled arg shape so the caller falls back.
+///
+/// `by_key` selects the `key` form vs `value`.
+pub fn filter<O: ValueOps>(
+    ops: &mut O,
+    dict: &O::Value,
+    by_key: bool,
+    patterns: &[O::Value],
+) -> Result<O::Value, CmdError> {
+    let pats: Vec<String> = patterns.iter().map(|p| ops.as_str(p).to_string()).collect();
+    let pairs = ops.dict_pairs(dict)?;
+    let mut out: Vec<O::Value> = Vec::new();
+    for (k, v) in pairs {
+        let target = ops.as_str(if by_key { &k } else { &v });
+        if pats.iter().any(|p| string_match(p, &target)) {
+            out.push(k);
+            out.push(v);
+        }
+    }
+    Ok(ops.new_list(out))
+}
+
 /// `dict merge ?dictionary ...?` — later dicts override earlier keys.
 pub fn merge<O: ValueOps>(ops: &mut O, dicts: &[O::Value]) -> Result<O::Value, CmdError> {
     let mut acc: Vec<(O::Value, O::Value)> = Vec::new();
@@ -252,6 +278,23 @@ pub fn dispatch_canon<O: ValueOps>(
             _ => Some(Err(CmdError::wrong_args("dict size dictionary"))),
         },
         "merge" => Some(merge(ops, rest)),
+        // `key`/`value` are pure (glob); `script` is Family-B → `None` so the
+        // caller's adapter handles it. The filterType is validated *before* the
+        // dict is parsed (tclsh: `dict filter {a b c} bogus` is a bad-filterType
+        // error, not a bad-dict one).
+        "filter" => match (rest.first(), rest.get(1)) {
+            (Some(dict), Some(ft)) => match ops.as_str(ft).as_ref() {
+                "key" => Some(filter(ops, dict, true, &rest[2..])),
+                "value" => Some(filter(ops, dict, false, &rest[2..])),
+                "script" => None,
+                other => Some(Err(CmdError::new(format!(
+                    "bad filterType \"{other}\": must be key, script, or value"
+                )))),
+            },
+            _ => Some(Err(CmdError::wrong_args(
+                "dict filter dictionary filterType ?arg ...?",
+            ))),
+        },
         "replace" => match rest.split_first() {
             Some((d, kv)) => Some(replace(ops, d, kv)),
             None => Some(Err(CmdError::wrong_args(

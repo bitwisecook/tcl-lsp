@@ -446,6 +446,13 @@ fn string_core_helpers() {
     // count <= 0 yields empty; an out-of-range index yields empty.
     assert_eq!(run("puts \"[string repeat ab 0]<\"").2, "<\n");
     assert_eq!(run("puts \"[string index hello 99]<\"").2, "<\n");
+    // `wordstart`/`wordend` — the VM gained these via the shared core (it errored
+    // "not yet implemented" before). Pinned against tclsh 9.0.
+    assert_eq!(run("string wordstart {hello world} 7").1, "6");
+    assert_eq!(run("string wordend {hello world} 0").1, "5");
+    assert_eq!(run("string wordstart {a_b.c} 2").1, "0"); // underscore is a word char
+    assert_eq!(run("string wordend {ab cd} -5").1, "2"); // negative clamps to 0
+    assert_eq!(run("string wordstart {ab cd} 10").1, "3"); // past-end clamps
 }
 
 /// A non-integer `string repeat` count produces the canonical coercion error,

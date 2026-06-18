@@ -468,10 +468,96 @@ pub fn dispatch_canon<O: ValueOps>(
             false,
             true,
         )),
+        "wordstart" => arity(2, "string wordstart string index")
+            .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], true))),
+        "wordend" => arity(2, "string wordend string index")
+            .or_else(|| Some(word_bound(ops, &rest[0], &rest[1], false))),
         // Not yet ported into the core — caller falls back to its legacy path
-        // (`is`, `wordstart`/`wordend`, …).
+        // (`is`, …).
         _ => None,
     }
+}
+
+/// `string wordstart|wordend str charIndex` — the bounds of the word containing
+/// `charIndex` (`StringStartCmd`/`StringEndCmd`). A "word" is a maximal run of
+/// word-characters, or a single non-word character. `start` selects `wordstart`
+/// (the index of the word's first char) vs `wordend` (one past its last char).
+pub fn word_bound<O: ValueOps>(
+    ops: &mut O,
+    s: &O::Value,
+    idx: &O::Value,
+    start: bool,
+) -> Result<O::Value, CmdError> {
+    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let index = index::resolve(&ops.as_str(idx), chars.len())?;
+    let result = if start {
+        word_start(&chars, index)
+    } else {
+        word_end(&chars, index)
+    };
+    Ok(ops.new_int(i64::try_from(result).unwrap_or(i64::MAX)))
+}
+
+/// The start of the word containing (clamped) `index` — walk left over word
+/// chars. A non-word char at `index` is its own word start.
+fn word_start(chars: &[char], index: i64) -> usize {
+    let n = chars.len();
+    if n == 0 {
+        return 0;
+    }
+    let last = i64::try_from(n - 1).unwrap_or(i64::MAX);
+    let i = index.min(last);
+    if i <= 0 {
+        return 0;
+    }
+    let i = usize::try_from(i).unwrap_or(0);
+    if !is_word_char(chars[i]) {
+        return i;
+    }
+    let mut j = i;
+    while j > 0 && is_word_char(chars[j - 1]) {
+        j -= 1;
+    }
+    j
+}
+
+/// The end (one past the last char) of the word containing (clamped) `index` —
+/// walk right over word chars. A non-word char advances exactly one.
+fn word_end(chars: &[char], index: i64) -> usize {
+    let n = chars.len();
+    if index >= i64::try_from(n).unwrap_or(i64::MAX) {
+        return n;
+    }
+    let i = usize::try_from(index.max(0)).unwrap_or(0);
+    let mut cur = i;
+    while cur < n && is_word_char(chars[cur]) {
+        cur += 1;
+    }
+    if cur == i { cur + 1 } else { cur }
+}
+
+/// `Tcl_UniCharIsWordChar`: letters and decimal digits (approximated by
+/// `char::is_alphanumeric`) plus connector punctuation.
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || is_connector_punct(c)
+}
+
+/// The Unicode connector-punctuation set Tcl treats as word characters
+/// (underscore and friends).
+fn is_connector_punct(c: char) -> bool {
+    matches!(
+        c,
+        '\u{005F}'
+            | '\u{203F}'
+            | '\u{2040}'
+            | '\u{2054}'
+            | '\u{FE33}'
+            | '\u{FE34}'
+            | '\u{FE4D}'
+            | '\u{FE4E}'
+            | '\u{FE4F}'
+            | '\u{FF3F}'
+    )
 }
 
 /// Dispatch a `string` subcommand from the raw argument vector (`args[0]` is the
