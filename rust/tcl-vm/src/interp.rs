@@ -1,6 +1,7 @@
 //! The interpreter state (`Vm`): the call-frame stack, the command table, the
 //! compiled-proc registry, and the variable/command/eval surface.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, Write};
 use std::rc::Rc;
@@ -8,8 +9,8 @@ use std::rc::Rc;
 use tcl_bytecode::FunctionAsm;
 use tcl_platform::Host;
 use tcl_runtime_api::{
-    Code, Commands, CompileService, Completion, FrameId, Frames, Introspect, NsId, ROOT_NS, Traces,
-    VarStore,
+    Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
+    NsId, ROOT_NS, Traces, VarStore,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -77,6 +78,11 @@ pub struct Vm {
     /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
     ns_arena: Vec<String>,
     ns_intern: HashMap<String, NsId>,
+    /// Command-FQN → dense raw `CommandId` arena for `Namespaces::find_command`.
+    /// Interior-mutable because that method is `&self` but mints a handle on first
+    /// sight. The handle identifies a command; nothing dispatches by it yet
+    /// (dispatch is by name), so no reverse map is kept.
+    cmd_intern: RefCell<HashMap<String, u32>>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
@@ -141,6 +147,7 @@ impl Vm {
             ns_exports: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
+            cmd_intern: RefCell::new(HashMap::new()),
             packages: HashMap::new(),
             var_traces: HashMap::new(),
             active_traces: std::collections::HashSet::new(),
@@ -286,11 +293,43 @@ impl Vm {
             .unwrap_or_default()
     }
 
+    /// Resolve `name` from namespace `cxt` to its command's canonical key (the
+    /// `commands` map key — a qualified name without the leading `::`), mirroring
+    /// [`lookup_command`](Self::lookup_command)'s order: an absolute `::name`
+    /// directly, else `cxt::name`, else the global `name`. `None` if unresolved.
+    fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+        if let Some(abs) = name.strip_prefix("::") {
+            return self.commands.contains_key(abs).then(|| abs.to_string());
+        }
+        if !cxt.is_empty() {
+            let qualified = format!("{cxt}::{name}");
+            if self.commands.contains_key(&qualified) {
+                return Some(qualified);
+            }
+        }
+        self.commands.contains_key(name).then(|| name.to_string())
+    }
+
+    /// Intern a command key to a stable, dense raw `CommandId`, minting one on
+    /// first sight. Backs `Namespaces::find_command`.
+    fn intern_cmd(&self, fqn: &str) -> u32 {
+        let mut m = self.cmd_intern.borrow_mut();
+        if let Some(&id) = m.get(fqn) {
+            return id;
+        }
+        let id = u32::try_from(m.len()).expect("command count fits u32");
+        m.insert(fqn.to_string(), id);
+        id
+    }
+
     /// Push a namespace onto the resolution stack (created if new).
     pub(crate) fn push_ns(&mut self, ns: String) {
         if !ns.is_empty() {
             self.namespaces.insert(ns.clone());
         }
+        // Ensure it has an `NsId` so `Namespaces::current` (a `&self` lookup) can
+        // resolve it without minting.
+        self.intern_ns(&ns);
         self.ns_stack.push(ns);
     }
 
@@ -1346,6 +1385,29 @@ impl Frames for Vm {
     }
 }
 
+/// Namespace name resolution over the VM's String-based namespace model, bridged
+/// to opaque `NsId`/`CommandId` handles via the intern arenas.
+/// [`current`](Namespaces::current) returns the interned id of the current
+/// namespace (interned when pushed). [`find_command`](Namespaces::find_command)
+/// resolves `name` from `cxt` to its command key and interns that to a stable
+/// `CommandId`. Note: the handle is produced for command *identity* only —
+/// nothing dispatches by it yet (the `Commands` trait dispatches by name), the
+/// open `find_command`/`CommandId` consumer question.
+impl Namespaces for Vm {
+    fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
+        let cxt_name = self.ns_name(cxt);
+        let fqn = self.resolve_command_fqn(&cxt_name, name)?;
+        Some(CommandId(self.intern_cmd(&fqn)))
+    }
+
+    fn current(&self) -> NsId {
+        self.ns_intern
+            .get(self.current_ns())
+            .copied()
+            .unwrap_or(ROOT_NS)
+    }
+}
+
 #[cfg(test)]
 mod family_b_tests {
     use super::*;
@@ -1436,5 +1498,26 @@ mod family_b_tests {
         Frames::pop(&mut vm);
         assert_eq!(Frames::current(&vm), outer);
         assert_eq!(to_s(vm.get(GLOBAL_FRAME, "g")), Some("changed".to_string()));
+    }
+
+    #[test]
+    fn namespaces_current_and_find_command() {
+        let mut vm = Vm::new();
+        // At the top level the current namespace is the global root.
+        assert_eq!(Namespaces::current(&vm), ROOT_NS);
+        // Builtins resolve from the global namespace to stable, distinct ids.
+        let a = Namespaces::find_command(&vm, ROOT_NS, "list").expect("list resolves");
+        assert_eq!(a, Namespaces::find_command(&vm, ROOT_NS, "list").unwrap());
+        assert_ne!(
+            a,
+            Namespaces::find_command(&vm, ROOT_NS, "llength").unwrap()
+        );
+        assert!(Namespaces::find_command(&vm, ROOT_NS, "no_such_command").is_none());
+        // `current` tracks the namespace pushed by `Frames::push`.
+        let foo = vm.intern_ns("foo");
+        Frames::push(&mut vm, foo);
+        assert_eq!(Namespaces::current(&vm), foo);
+        Frames::pop(&mut vm);
+        assert_eq!(Namespaces::current(&vm), ROOT_NS);
     }
 }

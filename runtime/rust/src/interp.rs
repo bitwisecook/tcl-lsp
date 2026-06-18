@@ -694,6 +694,12 @@ pub struct InterpState {
     /// since the chain is then consumed.
     during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
+    /// Command-FQN → dense raw `CommandId` arena for `Namespaces::find_command`.
+    /// Interior-mutable because that method is `&self` but mints a handle on first
+    /// sight; `family_b.rs` wraps the raw id in the contract's `CommandId`. The
+    /// handle is produced for command *identity* only — nothing dispatches by it
+    /// yet (dispatch is by name), so no reverse map is kept.
+    cmd_intern: RefCell<std::collections::HashMap<Vec<u8>, u32>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -770,6 +776,7 @@ impl Interp {
             reset_error_stack: Cell::new(true),
             during: Cell::new(None),
             result: Cell::new(result),
+            cmd_intern: RefCell::new(std::collections::HashMap::new()),
         }));
         builtins::install(&mut interp);
         interp
@@ -2608,6 +2615,27 @@ impl Interp {
     /// `+1`). Backs `Commands::dispatch`'s completion capture in `family_b.rs`.
     pub(crate) fn result_obj(&self) -> *mut TclObj {
         self.result.get()
+    }
+
+    /// Intern a command's fully-qualified name to a stable, dense raw
+    /// `CommandId`, minting one on first sight. Backs `Namespaces::find_command`.
+    pub(crate) fn intern_cmd(&self, fqn: &[u8]) -> u32 {
+        let mut m = self.cmd_intern.borrow_mut();
+        if let Some(&id) = m.get(fqn) {
+            return id;
+        }
+        let id = u32::try_from(m.len()).expect("command count fits u32");
+        m.insert(fqn.to_vec(), id);
+        id
+    }
+
+    /// Resolve `name` from namespace context `cxt` (through the namespace tree to
+    /// the root) to its command's FQN, then intern that to a stable raw
+    /// `CommandId`. `None` if it resolves to no command. The `Namespaces::find_command`
+    /// engine (`family_b.rs`), keeping the namespace-table access here.
+    pub(crate) fn find_command_id(&self, cxt: NsId, name: &[u8]) -> Option<u32> {
+        let fqn = self.namespaces.borrow().resolve_fqn(cxt, name)?;
+        Some(self.intern_cmd(&fqn))
     }
 
     /// Raise an error with result `msg` and return [`Code::Error`] — the generic

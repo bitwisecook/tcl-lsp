@@ -3,11 +3,15 @@
 //! The runtime satisfies the shared state-mutation contract over its
 //! `*mut TclObj` value model, so a consumer of the `tcl-runtime-api` role
 //! traits can reach into this runtime's state with the *same* contract the
-//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. `VarStore`, `Introspect`,
-//! `Commands`, `Traces`, and `Frames` are implemented; `Namespaces` follows once
-//! its `CommandId` handle has an arena/consumer story on both runtimes.
+//! bytecode VM (`tcl-vm`) satisfies over `Rc<Obj>`. All six role traits —
+//! `VarStore`, `Introspect`, `Commands`, `Traces`, `Frames`, `Namespaces` — are
+//! implemented here. (`Namespaces::find_command` mints a `CommandId` for command
+//! identity; nothing dispatches by that handle yet — an open contract question.)
 
-use tcl_runtime_api::{Commands, Completion, FrameId, Frames, Introspect, NsId, Traces, VarStore};
+use tcl_runtime_api::{
+    CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, Traces,
+    VarStore,
+};
 
 use crate::frame::Link;
 use crate::interp::{new_string, Interp};
@@ -204,6 +208,25 @@ impl Frames for Interp {
     }
 }
 
+/// Namespace name resolution. `NsId` is native (the contract's `u32` newtype
+/// bridges the runtime's `usize` arena id), so [`current`](Namespaces::current)
+/// is a direct read. [`find_command`](Namespaces::find_command) resolves `name`
+/// from `cxt` through the namespace tree to its FQN (`resolve_fqn`) and interns
+/// that to a stable `CommandId`. Note: the handle is currently produced for
+/// command *identity* only — nothing dispatches by it (the `Commands` trait
+/// dispatches by name), the open `find_command`/`CommandId` consumer question.
+impl Namespaces for Interp {
+    fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
+        // The contract's `NsId` is a `u32` newtype; the runtime's is a `usize`.
+        self.find_command_id(cxt.0 as usize, name.as_bytes())
+            .map(CommandId)
+    }
+
+    fn current(&self) -> NsId {
+        NsId(self.current_ns() as u32)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,6 +393,23 @@ mod tests {
             assert_eq!(Frames::current(i), outer);
             assert_eq!(obj_bytes(i.get(GLOBAL_FRAME, "g").unwrap()), b"changed");
             assert!(i.unset(GLOBAL_FRAME, "g"));
+        });
+    }
+
+    #[test]
+    fn namespaces_current_and_find_command() {
+        leak_free(|i| {
+            // At the top level the current namespace is the global root.
+            assert_eq!(Namespaces::current(i), ROOT_NS);
+            // A builtin resolves from the global namespace to a stable CommandId.
+            let a = Namespaces::find_command(i, ROOT_NS, "list").expect("list resolves");
+            let b = Namespaces::find_command(i, ROOT_NS, "list").expect("list resolves");
+            assert_eq!(a, b);
+            // A different command resolves to a distinct id.
+            let c = Namespaces::find_command(i, ROOT_NS, "llength").expect("llength resolves");
+            assert_ne!(a, c);
+            // An unknown command resolves to nothing.
+            assert!(Namespaces::find_command(i, ROOT_NS, "no_such_command").is_none());
         });
     }
 }
