@@ -67,6 +67,20 @@ Shared in `tcl-cmd-core`:
 - `namespace::{tail, qualifiers}` — pure byte ops.
 - `namespace::{current, which_command}` — over `Namespaces` (`current`/`name`/
   `command_name`/`find_command`).
+- `namespace::{exists, parent, children}` — the namespace-tree **navigation**
+  subcommands, over three new `Namespaces` rungs (`find_namespace`/`parent`/
+  `children`) that mirror C's `Namespace` struct directly: a namespace **is** a
+  handle (`NsId` = C's `nsId` / `Tcl_Namespace*` identity), and its FQN/parent/
+  children are queried *from* it (`Tcl_FindNamespace`/`parentPtr`/`childTable`).
+  This is the handle-model answer (not a name-based shortcut): it matches the C
+  reference and composes for the harder ops (`eval`/`import`/`export`/`upvar` all
+  address namespaces by identity). The VM's String namespace model honours the
+  handles via its `ns_arena`/`ns_intern` id arena (every namespace interned on
+  creation, so the `&self` nav methods are pure lookups). `export`/`import`/
+  `eval`/`delete` stay per-adapter (namespace *state*/control, needing heavier
+  surface). Routing also fixed two VM bugs: `namespace children` ignored its
+  `?pattern?`, and `parent`/`children` on a missing namespace returned a computed
+  result instead of erroring `namespace "X" not found`.
 - `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
   (platform-independent), replacing the VM's old `std::path::Path` versions.
 - `mathop::eval` — `::tcl::mathop::*` (every `expr` operator as a command) over
@@ -190,6 +204,7 @@ core unified both to the correct behaviour):
 | `lsearch` (VM) | the VM had only a `-exact`/`-glob` stub (it silently ignored every other option); sharing the full `lsearch` core gave it the entire option set — `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the numeric/dictionary types, `-start`/`-stride`/`-index`/`-subindices` — verified against tclsh 9.0. |
 | `lsort` (VM) | the VM's `lsort` had the comparison modes but silently ignored `-index`/`-stride`/`-indices`/`-command`; sharing the full `lsort` core gave it all of them (incl. the `-command` comparator over `vm.dispatch`) — verified against tclsh 9.0. |
 | `array unset` (VM) | `array unset a` with no pattern iterated-and-unset each element (leaving an empty array) instead of removing the whole array variable; routing the shared `array` core over `VarStore::unset` fixed it (tclsh: the array no longer exists). |
+| `namespace children`/`parent` (VM) | `namespace children` ignored its `?pattern?` argument (returned all children), and `parent`/`children` on a non-existent namespace returned a computed/empty result; routing the shared core over the `Namespaces` nav rungs gave `children` the (target-qualified) glob filter and made both error `namespace "X" not found` (tclsh). |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

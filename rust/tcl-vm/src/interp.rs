@@ -378,14 +378,12 @@ impl Vm {
             return;
         }
         self.namespaces.insert(ns.to_string());
+        // Mint a stable `NsId` (handle) so the `Namespaces` nav methods are pure
+        // `&self` lookups — every namespace, however created, has an id.
+        self.intern_ns(ns);
         if let Some((parent, _)) = ns.rsplit_once("::") {
             self.declare_namespace(parent);
         }
-    }
-
-    /// Whether a canonical namespace name exists.
-    pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
-        ns.is_empty() || self.namespaces.contains(ns)
     }
 
     /// Record `namespace export` patterns for the current namespace.
@@ -1478,6 +1476,40 @@ impl Namespaces for Vm {
 
     fn command_name(&self, cmd: CommandId) -> Option<String> {
         self.command_fqn(cmd.0)
+    }
+
+    // Namespace-tree navigation over the arena. Every namespace is interned on
+    // creation (`push_ns`/`declare_namespace`), so these are pure `&self` lookups
+    // — the String model honouring the `NsId` handle contract.
+    fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId> {
+        // Resolve `name` (absolute, or relative to `cxt`) to a canonical name.
+        let canonical = if let Some(abs) = name.strip_prefix("::") {
+            abs.to_string()
+        } else {
+            let cxt_name = self.ns_name(cxt);
+            if cxt_name.is_empty() {
+                name.to_string()
+            } else {
+                format!("{cxt_name}::{name}")
+            }
+        };
+        self.ns_intern.get(&canonical).copied()
+    }
+
+    fn parent(&self, ns: NsId) -> Option<NsId> {
+        let name = self.ns_name(ns);
+        if name.is_empty() {
+            return None; // the global root has no parent
+        }
+        let parent = name.rsplit_once("::").map_or("", |(p, _)| p);
+        self.ns_intern.get(parent).copied()
+    }
+
+    fn children(&self, ns: NsId) -> Vec<NsId> {
+        self.child_namespaces(&self.ns_name(ns))
+            .iter()
+            .filter_map(|c| self.ns_intern.get(c).copied())
+            .collect()
     }
 }
 

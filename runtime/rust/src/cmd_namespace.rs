@@ -198,70 +198,49 @@ fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"namespace exists name");
     }
-    let name = obj_bytes(argv[2]);
-    let cur = interp.current_ns();
-    let exists = interp.namespaces().find_namespace(cur, &name).is_some();
-    interp.set_result_bytes(if exists { b"1" } else { b"0" });
+    let name = String::from_utf8_lossy(&obj_bytes(argv[2])).into_owned();
+    let v = tcl_cmd_core::namespace::exists(interp, &name);
+    interp.set_result(v);
     Code::Ok
 }
 
-/// `namespace parent ?name?` — the FQN of the (named, or current) ns's parent.
+/// `namespace parent ?name?` — the FQN of the (named, or current) ns's parent,
+/// via the shared `tcl_cmd_core::namespace` core over `Namespaces`.
 fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
         return wrong_args(interp, b"namespace parent ?name?");
     }
-    let cur = interp.current_ns();
-    let ns = match resolve_arg_ns(interp, argv.get(2).copied(), cur) {
-        Ok(ns) => ns,
-        Err(code) => return code,
-    };
-    let parent = interp.namespaces().parent(ns);
-    let name = match parent {
-        Some(p) => interp.namespaces().qualified_name(p),
-        None => Vec::new(), // global's parent is the empty string
-    };
-    interp.set_result_bytes(&name);
-    Code::Ok
+    let name = argv
+        .get(2)
+        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
+    match tcl_cmd_core::namespace::parent(interp, name.as_deref()) {
+        Ok(v) => {
+            interp.set_result(v);
+            Code::Ok
+        }
+        Err(e) => interp.set_error(e.message().as_bytes()),
+    }
 }
 
-/// `namespace children ?name? ?pattern?` — child namespace FQNs (glob-filtered).
+/// `namespace children ?name? ?pattern?` — child namespace FQNs (glob-filtered),
+/// via the shared core.
 fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 4 {
         return wrong_args(interp, b"namespace children ?name? ?pattern?");
     }
-    let cur = interp.current_ns();
-    let ns = match resolve_arg_ns(interp, argv.get(2).copied(), cur) {
-        Ok(ns) => ns,
-        Err(code) => return code,
-    };
-    // The pattern matches against children's *fully-qualified* names, so a
-    // pattern without a leading `::` is qualified with the target namespace's
-    // full name first (C's `NamespaceChildrenCmd`).
-    let pattern = argv.get(3).map(|&a| obj_bytes(a)).map(|p| {
-        if p.starts_with(b"::") {
-            p
-        } else {
-            let mut full = interp.namespaces().qualified_name(ns);
-            if full != b"::" {
-                full.extend_from_slice(b"::");
-            }
-            full.extend_from_slice(&p);
-            full
+    let name = argv
+        .get(2)
+        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
+    let pattern = argv
+        .get(3)
+        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
+    match tcl_cmd_core::namespace::children(interp, name.as_deref(), pattern.as_deref()) {
+        Ok(v) => {
+            interp.set_result(v);
+            Code::Ok
         }
-    });
-    let mut names: Vec<Vec<u8>> = interp
-        .namespaces()
-        .children(ns)
-        .into_iter()
-        .map(|c| interp.namespaces().qualified_name(c))
-        .filter(|fqn| match &pattern {
-            None => true,
-            Some(p) => glob_match_bytes(p, fqn),
-        })
-        .collect();
-    names.sort();
-    set_list_bytes(interp, &names);
-    Code::Ok
+        Err(e) => interp.set_error(e.message().as_bytes()),
+    }
 }
 
 /// `namespace qualifiers string` — everything before the last `::` (pure text).
@@ -523,26 +502,6 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 // -- helpers ---------------------------------------------------------------
-
-/// Resolve an optional namespace-name argument to an `NsId`, defaulting to
-/// `current`. Errors (as a builtin `Code`) if a given name doesn't exist.
-fn resolve_arg_ns(
-    interp: &mut Interp,
-    arg: Option<*mut TclObj>,
-    current: NsId,
-) -> Result<NsId, Code> {
-    match arg {
-        None => Ok(current),
-        Some(a) => {
-            let name = obj_bytes(a);
-            let found = interp.namespaces().find_namespace(current, &name);
-            match found {
-                Some(ns) => Ok(ns),
-                None => Err(ns_not_found(interp, &name)),
-            }
-        }
-    }
-}
 
 /// The `TclGetNamespaceFromObj` not-found error: a *relative* name names the
 /// current namespace context (`… not found in "::ns"`), an absolute one does not

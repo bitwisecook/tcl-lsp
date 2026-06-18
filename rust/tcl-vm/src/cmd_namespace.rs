@@ -59,32 +59,25 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "current" => ok(tcl_cmd_core::namespace::current(vm)),
         "qualifiers" => ns_text_op(rest, tcl_cmd_core::namespace::qualifiers),
         "tail" => ns_text_op(rest, tcl_cmd_core::namespace::tail),
+        // exists/parent/children route through the shared core over `Namespaces`
+        // (the VM's String model honours the `NsId` handles via its arena). This
+        // also gave `children` its missing `?pattern?` filter and made
+        // parent/children on a missing namespace error, both matching tclsh.
+        "exists" => ok(tcl_cmd_core::namespace::exists(vm, &first(rest))),
         "parent" => {
-            let target = if rest.is_empty() {
-                vm.current_ns().to_string()
-            } else {
-                canon_ns(vm, &rest[0].to_str())
-            };
-            let parent = target.rsplit_once("::").map_or("", |(p, _)| p);
-            ok(Value::string(display_ns(parent)))
+            let name = rest.first().map(|v| v.to_str().to_string());
+            match tcl_cmd_core::namespace::parent(vm, name.as_deref()) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
+            }
         }
         "children" => {
-            let parent = if rest.is_empty() {
-                vm.current_ns().to_string()
-            } else {
-                canon_ns(vm, &rest[0].to_str())
-            };
-            let mut kids: Vec<String> = vm
-                .child_namespaces(&parent)
-                .iter()
-                .map(|c| display_ns(c))
-                .collect();
-            kids.sort();
-            ok(Value::list(kids.into_iter().map(Value::string).collect()))
-        }
-        "exists" => {
-            let ns = canon_ns(vm, &first(rest));
-            ok(Value::bool(vm.namespace_exists(&ns)))
+            let name = rest.first().map(|v| v.to_str().to_string());
+            let pattern = rest.get(1).map(|v| v.to_str().to_string());
+            match tcl_cmd_core::namespace::children(vm, name.as_deref(), pattern.as_deref()) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
+            }
         }
         // `namespace code script` captures the current namespace as a callback
         // command prefix: `::namespace inscope <ns> <script>`.

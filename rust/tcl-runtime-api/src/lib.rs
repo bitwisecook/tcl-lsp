@@ -142,6 +142,19 @@ pub trait Namespaces {
     /// [`find_command`](Self::find_command)), or `None` for a stale/unknown id —
     /// backs `namespace which`.
     fn command_name(&self, cmd: CommandId) -> Option<String>;
+
+    // -- namespace-tree navigation (mirrors C's `Namespace` struct: `nsId`
+    // identity, `parentPtr`, `childTable`). A namespace *is* a handle; its
+    // FQN/parent/children are queried from it. `name(ns)` (above) is its
+    // `fullName`. These back `namespace exists`/`parent`/`children`.
+
+    /// Resolve namespace `name` (qualified or unqualified) from context `cxt` to
+    /// its handle (`Tcl_FindNamespace`), or `None` if no such namespace exists.
+    fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId>;
+    /// The handle of `ns`'s parent (`parentPtr`), or `None` for the global root.
+    fn parent(&self, ns: NsId) -> Option<NsId>;
+    /// The handles of `ns`'s direct child namespaces (`childTable`).
+    fn children(&self, ns: NsId) -> Vec<NsId>;
 }
 
 /// Variable traces (read/write/unset). Mirrors `runtime/zig`'s

@@ -8,7 +8,10 @@
 //! the [`Namespaces`] role trait + [`ValueOps`].
 
 use tcl_runtime_api::Namespaces;
+use tcl_syntax::glob::string_match;
 use tcl_syntax::value::ValueOps;
+
+use crate::error::CmdError;
 
 /// The byte range `(start, end)` of the last `::` separator **run** (two or more
 /// consecutive colons) in `s`: `s[..start]` is the qualifier, `s[end..]` the
@@ -74,6 +77,81 @@ pub fn which_command<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Va
     {
         Some(fqn) => ops.new_string(fqn),
         None => ops.empty(),
+    }
+}
+
+/// `namespace exists name` — whether `name` (resolved from the current
+/// namespace) names an existing namespace.
+pub fn exists<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Value {
+    let cur = Namespaces::current(ops);
+    let present = ops.find_namespace(cur, name).is_some();
+    ops.new_bool(present)
+}
+
+/// `namespace parent ?name?` — the FQN of the (named, or current) namespace's
+/// parent (the global root's parent is the empty string).
+///
+/// # Errors
+/// `namespace "<name>" not found` if `name` is given and does not resolve.
+pub fn parent<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: Option<&str>,
+) -> Result<O::Value, CmdError> {
+    let ns = resolve_target(ops, name)?;
+    let fqn = match ops.parent(ns) {
+        Some(p) => ops.name(p),
+        None => String::new(), // the global root has no parent
+    };
+    Ok(ops.new_string(fqn))
+}
+
+/// `namespace children ?name? ?pattern?` — the FQNs of the (named, or current)
+/// namespace's child namespaces, glob-filtered and sorted. A pattern without a
+/// leading `::` is qualified with the target namespace's FQN first (C's
+/// `NamespaceChildrenCmd`).
+///
+/// # Errors
+/// `namespace "<name>" not found` if `name` is given and does not resolve.
+pub fn children<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: Option<&str>,
+    pattern: Option<&str>,
+) -> Result<O::Value, CmdError> {
+    let ns = resolve_target(ops, name)?;
+    let target_fqn = ops.name(ns);
+    let qualified = pattern.map(|p| {
+        if p.starts_with("::") {
+            p.to_string()
+        } else if target_fqn == "::" {
+            format!("::{p}")
+        } else {
+            format!("{target_fqn}::{p}")
+        }
+    });
+    // Collect child FQNs (the ids are owned, so the `name` lookups don't alias).
+    let mut names: Vec<String> = Vec::new();
+    for child in ops.children(ns) {
+        names.push(ops.name(child));
+    }
+    names.retain(|n| qualified.as_deref().is_none_or(|p| string_match(p, n)));
+    names.sort();
+    let items: Vec<O::Value> = names.iter().map(|n| ops.new_str(n)).collect();
+    Ok(ops.new_list(items))
+}
+
+/// Resolve the optional `name` argument to a namespace handle: the current
+/// namespace when absent, else `name` resolved from it (erroring if it doesn't
+/// exist) — the shared first step of `namespace parent`/`children`.
+fn resolve_target<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: Option<&str>,
+) -> Result<tcl_runtime_api::NsId, CmdError> {
+    let cur = Namespaces::current(ops);
+    match name {
+        None => Ok(cur),
+        Some(n) => ops
+            .find_namespace(cur, n)
+            .ok_or_else(|| CmdError::new(format!("namespace \"{n}\" not found"))),
     }
 }
 

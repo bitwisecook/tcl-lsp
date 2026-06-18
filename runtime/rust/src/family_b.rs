@@ -296,6 +296,28 @@ impl Namespaces for Interp {
         self.command_fqn(cmd.0)
             .map(|b| String::from_utf8_lossy(&b).into_owned())
     }
+
+    // Namespace-tree navigation. The contract's `NsId` is a `u32` newtype; the
+    // runtime's arena id is a `usize` (both `ROOT_NS`/`GLOBAL` = 0).
+    fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId> {
+        self.namespaces()
+            .find_namespace(cxt.0 as usize, name.as_bytes())
+            .map(|id| NsId(id as u32))
+    }
+
+    fn parent(&self, ns: NsId) -> Option<NsId> {
+        self.namespaces()
+            .parent(ns.0 as usize)
+            .map(|id| NsId(id as u32))
+    }
+
+    fn children(&self, ns: NsId) -> Vec<NsId> {
+        self.namespaces()
+            .children(ns.0 as usize)
+            .into_iter()
+            .map(|id| NsId(id as u32))
+            .collect()
+    }
 }
 
 #[cfg(test)]

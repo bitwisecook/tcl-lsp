@@ -165,6 +165,36 @@ fn lsort_shared_core() {
     assert_eq!(msg, "element 5 missing from sublist \"a b\"");
 }
 
+/// `namespace exists`/`parent`/`children` now route through the shared core over
+/// the `Namespaces` handle trait (the VM's String model honouring `NsId`).
+/// Sharing gave `children` its `?pattern?` filter and the missing-namespace
+/// error. Pinned to tclsh 9.0.
+#[test]
+fn namespace_nav_shared() {
+    let setup = "namespace eval a { namespace eval b {}; namespace eval c {} }; ";
+    assert_eq!(run(&format!("{setup}namespace parent ::a")).1, "::");
+    assert_eq!(run(&format!("{setup}namespace parent ::a::b")).1, "::a");
+    assert_eq!(
+        run(&format!("{setup}lsort [namespace children ::a]")).1,
+        "::a::b ::a::c"
+    );
+    // `children` now honours the pattern (was ignored), qualified to the target.
+    assert_eq!(
+        run(&format!("{setup}lsort [namespace children ::a b*]")).1,
+        "::a::b"
+    );
+    assert_eq!(run(&format!("{setup}namespace exists ::a")).1, "1");
+    assert_eq!(run(&format!("{setup}namespace exists ::a::b")).1, "1");
+    assert_eq!(run("namespace exists ::nope").1, "0");
+    // A missing namespace now errors (was: a computed/empty result).
+    let (ok, msg, _) = run("namespace parent ::nope");
+    assert!(!ok);
+    assert_eq!(msg, "namespace \"::nope\" not found");
+    let (ok, msg, _) = run("namespace children ::nope");
+    assert!(!ok);
+    assert_eq!(msg, "namespace \"::nope\" not found");
+}
+
 #[test]
 fn string_ops() {
     out_eq("puts [string length hello]\n", "5\n");
