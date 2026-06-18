@@ -3455,8 +3455,14 @@ Consider capturing the result: catch {\u{2026}} result"
         }
         let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
         // EXISTS in the active dialect → fine.  UNKNOWN everywhere → W123's
-        // concern.  Only DISALLOWED (exists in some dialect, not this one) fires.
-        if registry.get_for_dialect(bare, dialect).is_some() || registry.get(bare).is_none() {
+        // concern.  Only DISALLOWED (exists in some dialect, not this one)
+        // fires.  Existence must be checked *dialect-agnostically*: the
+        // analyser registry only loads the active dialect, so `get(bare)`
+        // misses an iRules command like `when`/`log`/`session` under
+        // tcl8.6 — Python sees it via the global `get_any`, so use the
+        // dialect-independent `known_in_any_dialect` to match.
+        if registry.get_for_dialect(bare, dialect).is_some() || !registry.known_in_any_dialect(bare)
+        {
             return;
         }
         // An earlier *unconditional* user proc with this name shadows the

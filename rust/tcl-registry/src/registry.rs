@@ -5,6 +5,8 @@
 //! queries.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::sync::OnceLock;
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
@@ -108,6 +110,41 @@ pub struct CommandRegistry {
     loaded_dialects: DialectSet,
 }
 
+/// The set of command names registered by *every* dialect, built once and
+/// cached.  Backs [`CommandRegistry::known_in_any_dialect`] — the
+/// dialect-agnostic existence check Python gets for free from its global
+/// `specs_by_name`.  Built from the same spec functions [`build_default`]
+/// and [`load_dialect`] draw from, so it stays in lock-step with the
+/// registry's command universe.
+///
+/// [`build_default`]: CommandRegistry::build_default
+/// [`load_dialect`]: CommandRegistry::load_dialect
+fn all_dialect_command_names() -> &'static HashSet<&'static str> {
+    static NAMES: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut set: HashSet<&'static str> = HashSet::new();
+        let mut add = |specs: Vec<CommandSpec>| {
+            for spec in specs {
+                set.insert(spec.name);
+            }
+        };
+        add(crate::commands::tcl::tcl_command_specs());
+        add(crate::commands::stdlib::stdlib_command_specs());
+        add(crate::commands::tcllib::tcllib_command_specs());
+        add(crate::commands::tk::tk_command_specs());
+        add(crate::commands::irules::irules_command_specs());
+        add(crate::commands::iapps::iapps_command_specs());
+        add(crate::commands::expect::expect_command_specs());
+        add(crate::commands::sdc_base::sdc_base_command_specs());
+        add(crate::commands::eda_synopsys::eda_synopsys_command_specs());
+        add(crate::commands::eda_cadence::eda_cadence_command_specs());
+        add(crate::commands::eda_xilinx::eda_xilinx_command_specs());
+        add(crate::commands::eda_quartus::eda_quartus_command_specs());
+        add(crate::commands::eda_mentor::eda_mentor_command_specs());
+        set
+    })
+}
+
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
     #[must_use]
@@ -192,6 +229,24 @@ impl CommandRegistry {
             .entry(spec.name.to_owned())
             .or_default()
             .push(spec);
+    }
+
+    /// Whether `name` exists as a command in *any* dialect, independent of
+    /// which dialects this registry instance loaded.
+    ///
+    /// Mirrors Python's `CommandRegistry.get_any` over the global
+    /// `specs_by_name` (every dialect's specs are registered at import).
+    /// Like [`Self::taint_source`], this is deliberately dialect-agnostic:
+    /// an iRules command such as `when` is "known" even when analysing a
+    /// `tcl8.6` document whose registry never loaded the iRules specs — the
+    /// W002 disabled-in-dialect check needs to distinguish "exists, but not
+    /// in this dialect" (→ DISALLOWED) from "exists nowhere" (→ W123's
+    /// concern).  A leading `::` falls back to the bare name, matching
+    /// [`Self::get`].
+    #[must_use]
+    pub fn known_in_any_dialect(&self, name: &str) -> bool {
+        let bare = name.strip_prefix("::").unwrap_or(name);
+        all_dialect_command_names().contains(bare)
     }
 
     /// Look up a command spec by name (dialect-agnostic).
