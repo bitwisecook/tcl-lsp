@@ -180,3 +180,37 @@ pub trait Introspect {
     /// The argv of the call at `level` (`info level N`), if retained.
     fn level_argv(&self, level: usize) -> Option<Self::Value>;
 }
+
+/// Procedure introspection backing `info body`/`args`/`default`: the retained
+/// formal parameters (name + optional default) and source body of a user
+/// procedure. Mirrors the `Proc`/`CompiledLocal` chain C's `InfoBodyCmd`/
+/// `InfoArgsCmd`/`InfoDefaultCmd` walk.
+///
+/// The answer is plain owned bytes, **not** the runtime's `Value`: the contract
+/// stays value-agnostic, and the byte-oriented runtime avoids minting fresh
+/// refcounted result objects inside a `&self` query — the shared `info` core
+/// builds the result value from these bytes through `ValueOps`.
+pub trait Procs {
+    /// The formals + body of the user procedure `name` resolves to (following
+    /// `namespace import` redirects, exactly as a call would), or `None` if
+    /// `name` is not a user procedure (a builtin, alias, or unknown command).
+    fn proc_info(&self, name: &str) -> Option<ProcInfo>;
+}
+
+/// A user procedure's introspectable definition — the [`Procs::proc_info`] answer.
+#[derive(Debug, Clone)]
+pub struct ProcInfo {
+    /// The procedure body source (`info body`), byte-exact.
+    pub body: Vec<u8>,
+    /// The formal parameters, in declaration order (`info args`/`default`).
+    pub params: Vec<ProcParam>,
+}
+
+/// One formal parameter of a [`ProcInfo`]: a name with an optional default value.
+#[derive(Debug, Clone)]
+pub struct ProcParam {
+    /// The parameter name.
+    pub name: Vec<u8>,
+    /// The declared default value, if the parameter has one.
+    pub default: Option<Vec<u8>>,
+}

@@ -78,13 +78,13 @@ pub mod dict;
 pub mod ensemble;
 #[cfg(have_tommath)]
 pub mod expr;
-pub mod state_traits;
 pub mod frame;
 pub mod interp;
 pub mod list;
 pub mod namespace;
 pub mod obj;
 pub mod parse;
+pub mod state_traits;
 // The Tcl regex engine FFI wrapper; only when `build.rs` links the engine.
 #[cfg(have_regex)]
 pub mod regex;

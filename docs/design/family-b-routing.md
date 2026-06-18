@@ -21,6 +21,7 @@ them, so a consumer generic over the traits drives either runtime:
 | `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>` |
 | `Traces` | `fire(var, op)` (read/write/unset; read/write errors abort) |
 | `Introspect` | `level()`, `level_argv(n)` |
+| `Procs` | `proc_info(name) -> Option<ProcInfo>` (a proc's body + formals, for `info body`/`args`/`default`) |
 
 The **value seam** (`ValueOps` in `tcl-syntax`) also grew an arithmetic rung,
 `int_add(Option<&V>, &V) -> Result<V, ValueError>`, whose `Option` left operand
@@ -53,6 +54,17 @@ Shared in `tcl-cmd-core`:
 - `info::level` — over `Introspect` + `ValueOps`.
 - `info::exists` — over `VarStore::exists` + `Frames::current`.
 - `info::complete` — pure (`Tcl_CommandComplete`).
+- `info::{body, args, default}` — the **proc-introspection** subcommands, over a
+  new `Procs` role trait (`proc_info(name) -> Option<ProcInfo>`, returning the
+  proc's body + formals as plain owned bytes so the contract stays value-agnostic
+  and a byte-oriented runtime never mints fresh result objects inside a `&self`
+  query). The core resolves the proc (or raises the shared `"name" isn't a
+  procedure` / `procedure "name" doesn't have an argument "arg"` errors) and
+  builds the result through `ValueOps`. `info default`'s var-write stays
+  per-adapter (trace-aware, like `incr`/`array set`): the core returns the
+  `(value, has_default)` pair, the adapter does the single store and returns the
+  bool. Both runtimes already resolved imported procs through their `proc_def`;
+  the share keeps that and unifies the error catalogue.
 - `array::dispatch` — the `array` **read-side** (`exists`/`size`/`names`/`get`)
   + `unset`, over `VarStore` + `Frames` + `ValueOps`. This is the first stateful
   *command* family shared over the interp-state seam (the `info`/`namespace`

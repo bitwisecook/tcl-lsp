@@ -10,7 +10,7 @@ use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_platform::Host;
 use tcl_runtime_api::{
     Code, CommandId, Commands, CompileService, Completion, FrameId, Frames, Introspect, Namespaces,
-    NsId, ROOT_NS, Traces, VarStore,
+    NsId, ProcInfo, ProcParam, Procs, ROOT_NS, Traces, VarStore,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -1366,6 +1366,28 @@ impl Introspect for Vm {
         self.frame_argv(level)
             .filter(|av| !av.is_empty())
             .map(Value::list)
+    }
+}
+
+/// Proc introspection (`info body`/`args`/`default`) over the VM's retained
+/// [`ProcDef`](crate::command::ProcDef). The body (`body_src`) and any defaults
+/// are flattened to owned bytes so the shared `info` core can rebuild the result
+/// values through `ValueOps` — a string round-trip that is observably identical
+/// (only the value's string content is significant to these subcommands).
+impl Procs for Vm {
+    fn proc_info(&self, name: &str) -> Option<ProcInfo> {
+        let p = self.proc_def(name)?;
+        Some(ProcInfo {
+            body: p.body_src.to_str().as_bytes().to_vec(),
+            params: p
+                .params
+                .iter()
+                .map(|pp| ProcParam {
+                    name: pp.name.as_bytes().to_vec(),
+                    default: pp.default.as_ref().map(|d| d.to_str().as_bytes().to_vec()),
+                })
+                .collect(),
+        })
     }
 }
 

@@ -71,50 +71,31 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             vm.global_names(),
             rest.first().map(Value::to_str).as_deref(),
         )),
+        // body/args/default route through the shared `info` core over the `Procs`
+        // role trait; the var-write for `default` stays here (it is trace-aware).
         "body" => match rest {
-            [name] => match vm.proc_def(&name.to_str()) {
-                Some(p) => ok(p.body_src.clone()),
-                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            [name] => match tcl_cmd_core::info::body(vm, name) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
             },
             _ => err("wrong # args: should be \"info body procname\""),
         },
         "args" => match rest {
-            [name] => match vm.proc_def(&name.to_str()) {
-                Some(p) => ok(Value::list(
-                    p.params
-                        .iter()
-                        .map(|pp| Value::string(pp.name.as_str()))
-                        .collect(),
-                )),
-                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+            [name] => match tcl_cmd_core::info::args(vm, name) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.into_message()),
             },
             _ => err("wrong # args: should be \"info args procname\""),
         },
         "default" => match rest {
-            [name, arg, var] => match vm.proc_def(&name.to_str()) {
-                Some(p) => {
-                    let an = arg.to_str();
-                    match p.params.iter().find(|pp| pp.name == *an) {
-                        Some(pp) => {
-                            if let Some(d) = &pp.default {
-                                if let Err(e) = vm.set_var(&var.to_str(), d.clone()) {
-                                    return e;
-                                }
-                                ok(Value::bool(true))
-                            } else {
-                                if let Err(e) = vm.set_var(&var.to_str(), Value::empty()) {
-                                    return e;
-                                }
-                                ok(Value::bool(false))
-                            }
-                        }
-                        None => err(format!(
-                            "procedure \"{}\" doesn't have an argument \"{an}\"",
-                            name.to_str()
-                        )),
+            [name, arg, var] => match tcl_cmd_core::info::default(vm, name, arg) {
+                Ok((val, has)) => {
+                    if let Err(e) = vm.set_var(&var.to_str(), val) {
+                        return e;
                     }
+                    ok(Value::bool(has))
                 }
-                None => err(format!("\"{}\" isn't a procedure", name.to_str())),
+                Err(e) => err(e.into_message()),
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },

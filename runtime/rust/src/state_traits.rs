@@ -9,8 +9,8 @@
 //! `Commands::dispatch_id` invokes (the resolve-then-invoke pairing).
 
 use tcl_runtime_api::{
-    Code, CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, Traces,
-    VarStore,
+    Code, CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, ProcInfo,
+    ProcParam, Procs, Traces, VarStore,
 };
 
 use crate::frame::Link;
@@ -118,6 +118,29 @@ impl Introspect for Interp {
         let words = self.level_words(level)?;
         let objs: Vec<*mut TclObj> = words.iter().map(|w| new_string(w)).collect();
         Some(new_list_obj(&objs))
+    }
+}
+
+/// Proc introspection (`info body`/`args`/`default`) over the runtime's retained
+/// [`ProcDef`](crate::interp::ProcDef). `proc_def` already follows `namespace
+/// import` redirects to the underlying proc, so an imported proc introspects as
+/// its source (info-1.7/2.4). The body/params are cloned into owned bytes — the
+/// contract is value-agnostic, and the shared `info` core rebuilds the result
+/// objects through `ValueOps`.
+impl Procs for Interp {
+    fn proc_info(&self, name: &str) -> Option<ProcInfo> {
+        let def = self.proc_def(name.as_bytes())?;
+        Some(ProcInfo {
+            body: def.body.clone(),
+            params: def
+                .params
+                .iter()
+                .map(|p| ProcParam {
+                    name: p.name.clone(),
+                    default: p.default.clone(),
+                })
+                .collect(),
+        })
     }
 }
 

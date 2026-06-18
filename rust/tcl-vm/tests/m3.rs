@@ -324,6 +324,17 @@ fn info_introspection() {
     out_eq("puts [info level]\n", "0\n");
     out_eq("proc g {} { return [info level] }\nputs [g]\n", "1\n");
     out_eq("puts [info tclversion]\n", "9.0\n");
+    // body/args/default on a non-proc (unknown or a builtin) → the shared
+    // `"name" isn't a procedure` error (pinned against tclsh 9.0).
+    let (ok, msg, _) = run("info body nosuch");
+    assert!(!ok);
+    assert_eq!(msg, "\"nosuch\" isn't a procedure");
+    let (ok, msg, _) = run("info args nosuch");
+    assert!(!ok);
+    assert_eq!(msg, "\"nosuch\" isn't a procedure");
+    let (ok, msg, _) = run("info body set");
+    assert!(!ok);
+    assert_eq!(msg, "\"set\" isn't a procedure");
 }
 
 #[test]
@@ -752,10 +763,24 @@ fn switch_glob_and_default() {
 
 #[test]
 fn info_default() {
+    // A parameter with a default: the var is set to it and the command returns 1.
     out_eq(
-        "proc f {a {b 99}} {}\ninfo default f b d\nputs $d\n",
-        "99\n",
+        "proc f {a {b 99}} {}\nputs [info default f b d]:$d\n",
+        "1:99\n",
     );
+    // A parameter with no default: the var is set to the empty string, returns 0.
+    out_eq(
+        "proc f {a {b 99}} {}\nputs [info default f a d]:<$d>\n",
+        "0:<>\n",
+    );
+    // An unknown parameter is the shared catalogue error (pinned vs tclsh 9.0).
+    let (ok, msg, _) = run("proc f {a {b 99}} {}\ninfo default f zz d");
+    assert!(!ok);
+    assert_eq!(msg, "procedure \"f\" doesn't have an argument \"zz\"");
+    // A non-proc target.
+    let (ok, msg, _) = run("info default nosuch a d");
+    assert!(!ok);
+    assert_eq!(msg, "\"nosuch\" isn't a procedure");
 }
 
 #[test]

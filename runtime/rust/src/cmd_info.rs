@@ -489,13 +489,12 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"info body procname");
     }
-    let name = obj_bytes(argv[2]);
-    match interp.proc_def(&name) {
-        Some(def) => {
-            interp.set_result_bytes(&def.body);
+    match tcl_cmd_core::info::body(interp, &argv[2]) {
+        Ok(v) => {
+            interp.set_result(v);
             Code::Ok
         }
-        None => not_a_proc(interp, &name),
+        Err(e) => interp.set_error(e.message().as_bytes()),
     }
 }
 
@@ -503,16 +502,12 @@ fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return wrong_args(interp, b"info args procname");
     }
-    let name = obj_bytes(argv[2]);
-    match interp.proc_def(&name) {
-        Some(def) => {
-            let names: Vec<Vec<u8>> = def.params.iter().map(|p| p.name.clone()).collect();
-            // info args preserves declaration order (not sorted).
-            let objs: Vec<*mut TclObj> = names.iter().map(|n| new_string(n)).collect();
-            interp.set_result(list::new_list_obj(&objs));
+    match tcl_cmd_core::info::args(interp, &argv[2]) {
+        Ok(v) => {
+            interp.set_result(v);
             Code::Ok
         }
-        None => not_a_proc(interp, &name),
+        Err(e) => interp.set_error(e.message().as_bytes()),
     }
 }
 
@@ -520,41 +515,21 @@ fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return wrong_args(interp, b"info default procname arg varname");
     }
-    let proc = obj_bytes(argv[2]);
-    let arg = obj_bytes(argv[3]);
     let var = obj_bytes(argv[4]);
-    let Some(def) = interp.proc_def(&proc) else {
-        return not_a_proc(interp, &proc);
+    // The core computes the `(value, has_default)` pair (and the not-a-proc /
+    // no-such-argument errors); the **store** stays here because it is
+    // trace-aware — a write trace or array-typed target makes it fail with the
+    // variable error verbatim (`can't set "a": variable is array`).
+    let (val, has) = match tcl_cmd_core::info::default(interp, &argv[2], &argv[3]) {
+        Ok(pair) => pair,
+        Err(e) => return interp.set_error(e.message().as_bytes()),
     };
-    let Some(param) = def.params.iter().find(|p| p.name == arg) else {
-        let mut m = b"procedure \"".to_vec();
-        m.extend_from_slice(&proc);
-        m.extend_from_slice(b"\" doesn't have an argument \"");
-        m.extend_from_slice(&arg);
-        m.push(b'"');
-        return interp.set_error(&m);
-    };
-    // With a default, store it and return 1; without one, store the empty string
-    // and return 0 (C's `InfoDefaultCmd`). A store failure (e.g. the target is an
-    // array) is the variable error verbatim (`can't set "a": variable is array`).
-    let (val, has): (&[u8], &[u8]) = match &param.default {
-        Some(d) => (d, b"1"),
-        None => (b"", b"0"),
-    };
-    let o = new_string(val);
-    if let Err(e) = interp.var_set(&var, o) {
-        crate::interp::drop_fresh(o);
+    if let Err(e) = interp.var_set(&var, val) {
+        crate::interp::drop_fresh(val);
         return crate::builtins::var_error(interp, &var, e);
     }
-    interp.set_result_bytes(has);
+    interp.set_result_bytes(if has { b"1" } else { b"0" });
     Code::Ok
-}
-
-fn not_a_proc(interp: &mut Interp, name: &[u8]) -> Code {
-    let mut m = b"\"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\" isn't a procedure");
-    interp.set_error(&m)
 }
 
 fn glob_match(pat: &[u8], name: &[u8]) -> bool {
@@ -740,6 +715,30 @@ mod tests {
             assert_eq!(run(i, b"info procs greet"), b"greet");
             assert_eq!(run(i, b"info procs nosuch*"), b"");
             i.eval_str(b"unset d");
+        });
+    }
+
+    #[test]
+    fn info_proc_introspection_errors() {
+        leak_free(|i| {
+            run(i, b"proc greet {name {g hi}} {return $g-$name}");
+            // body/args/default on a non-proc (unknown name or a builtin) → the
+            // shared `"name" isn't a procedure` error (pinned vs tclsh 9.0).
+            for src in [
+                &b"info body nosuch"[..],
+                &b"info args nosuch"[..],
+                &b"info default nosuch a d"[..],
+                &b"info body set"[..],
+            ] {
+                assert_eq!(i.eval_str(src), Code::Error);
+            }
+            assert_eq!(i.result_bytes(), b"\"set\" isn't a procedure");
+            // An unknown formal parameter.
+            assert_eq!(i.eval_str(b"info default greet zz d"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"procedure \"greet\" doesn't have an argument \"zz\""
+            );
         });
     }
 

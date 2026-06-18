@@ -7,7 +7,7 @@
 //! Family-B role trait. Both runtimes (`tcl-vm`, `runtime/rust`) satisfy the
 //! bound and wrap the `Result<V, CmdError>` in their own command ABI.
 
-use tcl_runtime_api::{Frames, Introspect, VarStore};
+use tcl_runtime_api::{Frames, Introspect, Procs, VarStore};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -118,6 +118,76 @@ where
     let name = ops.as_str(name);
     let present = ops.exists(here, &name);
     ops.new_bool(present)
+}
+
+/// `info body procname` — the source body of procedure `name`. Errors with
+/// `"name" isn't a procedure` when `name` does not name a user proc. Mirrors
+/// C's `InfoBodyCmd`.
+pub fn body<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V> + Procs,
+{
+    let n = ops.as_str(name);
+    match ops.proc_info(&n) {
+        Some(info) => Ok(ops.new_bytes(&info.body)),
+        None => Err(not_a_proc(&n)),
+    }
+}
+
+/// `info args procname` — the formal parameter names of procedure `name`, in
+/// declaration order (not sorted). Errors as [`body`] does for a non-proc.
+/// Mirrors C's `InfoArgsCmd`.
+pub fn args<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V> + Procs,
+{
+    let n = ops.as_str(name);
+    let Some(info) = ops.proc_info(&n) else {
+        return Err(not_a_proc(&n));
+    };
+    let names: Vec<V> = info.params.iter().map(|p| ops.new_bytes(&p.name)).collect();
+    Ok(ops.new_list(names))
+}
+
+/// `info default procname arg varname` — the default value of formal parameter
+/// `arg` of procedure `name`. Returns the `(value, has_default)` pair: the
+/// declared default (or the empty string when the parameter has none) and
+/// whether a default was declared. The caller writes `value` into `varname`
+/// (a write trace or array-typed target can fail, so the store stays in the
+/// adapter) and returns `has_default` as the result — C's `InfoDefaultCmd`
+/// returns 1/0 accordingly.
+///
+/// Errors `"name" isn't a procedure` for a non-proc, or `procedure "name"
+/// doesn't have an argument "arg"` when the parameter is unknown.
+pub fn default<O, V>(ops: &mut O, name: &V, arg: &V) -> Result<(V, bool), CmdError>
+where
+    O: ValueOps<Value = V> + Procs,
+{
+    let n = ops.as_str(name);
+    let a = ops.as_str(arg);
+    let Some(info) = ops.proc_info(&n) else {
+        return Err(not_a_proc(&n));
+    };
+    let Some(param) = info
+        .params
+        .iter()
+        .find(|p| p.name.as_slice() == a.as_bytes())
+    else {
+        return Err(CmdError::new(format!(
+            "procedure \"{n}\" doesn't have an argument \"{a}\""
+        )));
+    };
+    let (bytes, has): (&[u8], bool) = match &param.default {
+        Some(d) => (d, true),
+        None => (&[], false),
+    };
+    Ok((ops.new_bytes(bytes), has))
+}
+
+/// `"name" isn't a procedure` — the shared error the proc-introspection
+/// subcommands (`info body`/`args`/`default`) raise for a non-proc target.
+fn not_a_proc(name: &str) -> CmdError {
+    CmdError::new(format!("\"{name}\" isn't a procedure"))
 }
 
 #[cfg(test)]
