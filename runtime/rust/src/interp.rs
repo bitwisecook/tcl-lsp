@@ -1833,6 +1833,34 @@ impl Interp {
         errored
     }
 
+    /// Fire `var`'s `op` traces; on a read/write callback error return the
+    /// access-aborting message, already wrapped as `can't read/set "var": <msg>`
+    /// (`TclCallVarTraces`), else `None`. The `Traces::fire` engine (`family_b.rs`)
+    /// — it keeps the trace internals (the firing guard, `pending_err`, the
+    /// per-op wrapping) here; `unset`/`array` callback errors do not abort, so
+    /// they yield `None`.
+    pub(crate) fn fire_var_traces_for(&mut self, var: &[u8], op: &[u8]) -> Option<Vec<u8>> {
+        let (base, elem) = crate::frame::split_array_ref(var);
+        if !self.fire_var_trace(&base, elem.as_deref(), op) {
+            return None;
+        }
+        let raw = self
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        // The user-facing verb: a write trace reports `can't set` (C's wording).
+        let verb: &[u8] = if op == b"read" { b"read" } else { b"set" };
+        let mut m = b"can't ".to_vec();
+        m.extend_from_slice(verb);
+        m.extend_from_slice(b" \"");
+        m.extend_from_slice(var);
+        m.extend_from_slice(b"\": ");
+        m.extend_from_slice(&raw);
+        Some(m)
+    }
+
     /// Fire matching command traces (`rename`/`delete`) as `command oldName
     /// newName op` (C's `TraceCommandProc`). `new_fqn` is empty for a delete.
     /// Callback errors are **ignored** (C: "We ignore errors in these traced

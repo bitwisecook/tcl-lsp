@@ -9,7 +9,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, Commands, CompileError, CompileService, Value, Vm};
+use tcl_vm::{Code, Commands, CompileError, CompileService, Traces, Value, Vm};
 
 /// A `tcl-compiler`-backed compile service so the VM can resolve runtime
 /// `eval` / `[command substitution]` (the injection seam — `tcl-vm` itself
@@ -92,6 +92,36 @@ fn commands_dispatch_runs_proc() {
     let c = vm.dispatch("add", &[Value::string("3")]);
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "wrong # args: should be \"add a b\"");
+}
+
+/// `Traces::fire` runs a variable's registered traces, aborting the access with
+/// the wrapped `can't read "var": <msg>` error when a read/write callback fails,
+/// and swallowing `unset`-trace errors (matching C and the runtime). Traces are
+/// registered via the `trace` command (callbacks evaluate through the compiler).
+#[test]
+fn traces_fire_ok_error_and_unset() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    }));
+    // `;#` comments out the appended `name elem op` trace words.
+    for add in [
+        "trace add variable x read {list ok;#}",
+        "trace add variable y read {error boom;#}",
+        "trace add variable z unset {error nope;#}",
+    ] {
+        assert!(vm.eval_source(add).expect("compiles").code.is_ok());
+    }
+
+    // Read trace, callback succeeds → the access proceeds.
+    assert!(Traces::fire(&mut vm, "x", "read").is_ok());
+    // Read trace, callback errors → the access aborts with the wrapped error.
+    assert_eq!(
+        &*Traces::fire(&mut vm, "y", "read").unwrap_err().to_str(),
+        "can't read \"y\": boom",
+    );
+    // An `unset`-trace error does not abort the access.
+    assert!(Traces::fire(&mut vm, "z", "unset").is_ok());
 }
 
 #[test]

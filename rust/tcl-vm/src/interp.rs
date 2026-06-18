@@ -8,7 +8,7 @@ use std::rc::Rc;
 use tcl_bytecode::FunctionAsm;
 use tcl_platform::Host;
 use tcl_runtime_api::{
-    Code, Commands, CompileService, Completion, FrameId, Introspect, ROOT_NS, VarStore,
+    Code, Commands, CompileService, Completion, FrameId, Introspect, ROOT_NS, Traces, VarStore,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
@@ -1264,6 +1264,19 @@ impl Commands for Vm {
 
     fn dispatch(&mut self, name: &str, argv: &[Value]) -> Completion<Value> {
         self.invoke_command(name, argv)
+    }
+}
+
+/// Variable traces: fire `var`'s `op` (`read`/`write`/`unset`) traces, aborting
+/// the access if a callback errors. The VM's [`fire_var_traces`](Vm::fire_var_traces)
+/// already produces the user-facing `can't read/set "var": <msg>` completion
+/// (and swallows `unset`/`array` errors, matching C); the trait keeps only its
+/// error result value (`options` is irrelevant to an aborted access).
+impl Traces for Vm {
+    type Value = Value;
+
+    fn fire(&mut self, var: &str, op: &str) -> Result<(), Value> {
+        self.fire_var_traces(var, op).map_err(|c| c.result)
     }
 }
 

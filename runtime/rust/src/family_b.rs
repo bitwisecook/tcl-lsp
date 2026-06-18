@@ -8,7 +8,7 @@
 //! (`Frames`/`Namespaces`/`Traces`) follow as their handle model is reconciled
 //! with this runtime's arena/level addressing.
 
-use tcl_runtime_api::{Commands, Completion, FrameId, Introspect, VarStore};
+use tcl_runtime_api::{Commands, Completion, FrameId, Introspect, Traces, VarStore};
 
 use crate::interp::{new_string, Interp};
 use crate::list::new_list_obj;
@@ -146,11 +146,31 @@ impl Commands for Interp {
     }
 }
 
+/// Variable traces: fire `var`'s `op` (`read`/`write`/`unset`) traces, aborting
+/// the access if a callback errors.
+///
+/// Delegates to [`Interp::fire_var_traces_for`], which keeps the trace internals
+/// (firing guard, result preservation, per-op `can't read/set "var"` wrapping)
+/// in `interp.rs`. Only `read`/`write` callback errors abort (matching C and the
+/// VM); `unset`/`array` errors are swallowed, so those fire as `Ok`. The error
+/// value is **freshly built** (rc-0) — the caller adopts it (store via
+/// `set_result`, or `drop_fresh`), as for [`Introspect::level_argv`].
+impl Traces for Interp {
+    type Value = *mut TclObj;
+
+    fn fire(&mut self, var: &str, op: &str) -> Result<(), *mut TclObj> {
+        match self.fire_var_traces_for(var.as_bytes(), op.as_bytes()) {
+            Some(msg) => Err(new_string(&msg)),
+            None => Ok(()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::counters;
-    use crate::interp::{new_string, obj_bytes};
+    use crate::interp::{drop_fresh, new_string, obj_bytes};
     use tcl_runtime_api::{Code, GLOBAL_FRAME};
 
     /// Run `body` against a fresh interpreter and assert it leaks nothing (the
@@ -243,12 +263,11 @@ mod tests {
         leak_free(|i| {
             // A builtin runs and yields its result. The caller owns its argv
             // (rc >= 1, the dispatch contract); the completion owns +1 on the
-            // result + options, which the caller releases.
+            // result + options, which the caller releases. UFCS reaches the trait
+            // method — the inherent `Interp::dispatch` shadows it for method
+            // syntax (a generic `T: Commands` consumer is unaffected).
             let lst = new_string(b"a b c");
-            unsafe { obj::incr_ref_count(lst) }; // the test's owning ref
-                                                 // UFCS reaches the trait method: the inherent `Interp::dispatch`
-                                                 // shadows it for method-call syntax (a generic `T: Commands` consumer
-                                                 // is unaffected).
+            unsafe { obj::incr_ref_count(lst) };
             let c = Commands::dispatch(i, "llength", &[lst]);
             assert_eq!(c.code, Code::Ok);
             assert_eq!(obj_bytes(c.result), b"3");
@@ -266,6 +285,28 @@ mod tests {
                 obj::decr_ref_count(c.result);
                 obj::decr_ref_count(c.options);
             }
+        });
+    }
+
+    #[test]
+    fn traces_fire_ok_and_error() {
+        leak_free(|i| {
+            // A read trace whose callback succeeds → the access proceeds (Ok).
+            // (`;#` comments out the appended `name elem op` words.)
+            let _ = i.eval_str(b"trace add variable x read {list ok;#}");
+            assert!(Traces::fire(i, "x", "read").is_ok());
+
+            // A read trace whose callback errors → the access aborts, with the
+            // error wrapped to the user-facing `can't read "var"` form. The error
+            // value is fresh (rc-0); adopt and release it.
+            let _ = i.eval_str(b"trace add variable y read {error boom;#}");
+            let e = Traces::fire(i, "y", "read").unwrap_err();
+            assert_eq!(obj_bytes(e), b"can't read \"y\": boom");
+            drop_fresh(e);
+
+            // An `unset` trace error does *not* abort (matches C / the VM): Ok.
+            let _ = i.eval_str(b"trace add variable z unset {error nope;#}");
+            assert!(Traces::fire(i, "z", "unset").is_ok());
         });
     }
 }
