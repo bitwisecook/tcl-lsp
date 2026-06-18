@@ -283,6 +283,24 @@ def _eval_binary(
             return None
         return _apply_string_compare(op, ls, rs)
 
+    # ``==`` / ``!=`` follow Tcl's polymorphic comparison: if *both* operands
+    # are numeric, compare numerically; otherwise compare as strings (so
+    # ``"foo" == "foo"`` folds to 1 rather than bailing out).  Extract string
+    # operands first, then promote to numbers only when both parse.
+    if op in (BinOp.EQ, BinOp.NE):
+        ls = _eval_as_string(left, env)
+        if ls is None:
+            return None
+        rs = _eval_as_string(right, env)
+        if rs is None:
+            return None
+        ln = _parse_literal(ls)
+        rn = _parse_literal(rs)
+        if ln is not None and rn is not None:
+            return _apply_binary(op, ln, rn)
+        str_op = BinOp.STR_EQ if op is BinOp.EQ else BinOp.STR_NE
+        return _apply_string_compare(str_op, ls, rs)
+
     # All other operators evaluate both sides
     lv = _eval(left, env)
     if lv is None:

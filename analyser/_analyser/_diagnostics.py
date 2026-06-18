@@ -13,6 +13,7 @@ from compiler.cfg import CFGFunction
 from compiler.compilation_unit import CompilationUnit, FunctionUnit, ensure_compilation_unit
 from compiler.core_analyses import FunctionAnalysis
 from compiler.ir import when_event_name
+from compiler.registry.runtime import command_enabled_in_active_dialect
 from compiler.ssa import SSAFunction
 
 log = logging.getLogger(__name__)
@@ -179,9 +180,18 @@ class _AnalyserDiagsMixin(_Base):
         # W121: a call to a command renamed/deleted away earlier in the file.
         self._emit_renamed_command_diagnostics(cu)
         conn = cu.connection_scope
+        # ``::when::*`` procedures are synthesised from ``when EVENT { body }``
+        # calls.  ``when`` is an iRules-only builtin, so under a non-iRules
+        # dialect it is an unknown would-be user command whose braced argument
+        # is opaque data, not a handler script — the body is still lowered (the
+        # diagram extractor relies on it) but must not be analysed for
+        # diagnostics (no spurious W210 read-before-set, etc.).
+        when_enabled = command_enabled_in_active_dialect("when")
         for qname, fu in cu.procedures.items():
             if fu.complexity_guarded:
                 continue  # deep analysis skipped for pathologically large bodies
+            if not when_enabled and qname.startswith("::when::"):
+                continue
             cross_vars: frozenset[str] = frozenset()
             if conn is not None and qname.startswith("::when::"):
                 cross_vars = conn.cross_event_defs | conn.cross_event_imports

@@ -52,6 +52,7 @@ from compiler.registry.runtime import (
     CommandSig,
     SubcommandSig,
     arg_indices_for_role,
+    command_enabled_in_active_dialect,
 )
 from shared.codes import diag
 from shared.diagnostic import Diagnostic, Range, Severity
@@ -290,6 +291,14 @@ class _CompilerCheckRunner:
         args: list[str],
         arg_tokens: list[Token],
     ) -> None:
+        # A command's body/script arg-roles only apply when the command is
+        # actually enabled in the active dialect.  For a command that exists
+        # only in another dialect (e.g. the iRules ``when`` under plain Tcl)
+        # or is wholly unknown, a braced argument is just a string, not a
+        # script — re-lexing and recursing into it produces spurious findings
+        # (W123/W002/W210) on what is really opaque data.
+        if not command_enabled_in_active_dialect(cmd_name):
+            return
         # For ``when EVENT { body }``, set event context while recursing.
         prev_event = self._current_event
         if cmd_name == "when" and args:

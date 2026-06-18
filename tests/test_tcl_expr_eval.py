@@ -1249,3 +1249,34 @@ class TestStringComparisonFolding:
         assert _eval("5 eq 5") == 1
         assert _eval("5 eq 5.0") == 0
         assert _eval('5 eq "5"') == 1
+
+
+class TestPolymorphicEqualityFolding:
+    """`==`/`!=` follow Tcl's polymorphic comparison: numeric when *both*
+    operands are numbers, string otherwise.  The constant evaluator must fold
+    the string case too (regression: it previously bailed on non-numeric
+    operands, so ``"foo" == "foo"`` never folded — feeding a missing I230)."""
+
+    def test_string_operands_compare_as_strings(self):
+        # ``expr {"foo" == "foo"}`` -> 1 in C Tcl.
+        assert _eval('"foo" == "foo"') == 1
+        assert _eval('"foo" == "bar"') == 0
+        assert _eval('"foo" != "bar"') == 1
+        assert _eval('"foo" != "foo"') == 0
+
+    def test_mixed_operand_with_var_folds(self):
+        assert _eval('$x == "foo"', {"x": "foo"}) == 1
+        assert _eval('$x == "foo"', {"x": "bar"}) == 0
+        assert _eval('$x != "foo"', {"x": "bar"}) == 1
+
+    def test_both_numeric_uses_numeric_comparison(self):
+        # When both operands are numbers, ``==`` compares numerically — so
+        # "5" and "5.0" are *equal* (unlike the string-only ``eq``).
+        assert _eval("5 == 5") == 1
+        assert _eval('5 == "5.0"') == 1
+        assert _eval('$x == "5.0"', {"x": 5}) == 1
+        assert _eval("5 != 6") == 1
+
+    def test_non_constant_operand_does_not_fold(self):
+        # An unbound variable leaves the comparison unevaluable.
+        assert _eval('$x == "foo"') is None
