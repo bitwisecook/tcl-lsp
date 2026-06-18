@@ -66,8 +66,17 @@ Shared in `tcl-cmd-core`:
 - `sort::{key_compare, dictionary_compare, parse_wide, parse_real}` — the
   `lsort`/`lsearch` comparison modes (`-ascii`/`-dictionary`/`-integer`/`-real`,
   `-nocase`), pure `&[u8] → Ordering`. The runtime's `lsort`/`lsearch` delegate
-  here; the subtle `DictionaryCompare` port now lives once. `-command` (proc
-  callback) and `-index` stay per-adapter.
+  here; the subtle `DictionaryCompare` port now lives once.
+- `lsearch` — the **whole** `lsearch` command (every option: `-exact`/`-glob`/
+  `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the four `-ascii`/
+  `-dictionary`/`-integer`/`-real` types, `-nocase`, `-increasing`/`-decreasing`,
+  `-start`, `-stride`, `-index` *path*, `-subindices`), the sorted binary search,
+  and the stride / sub-index result shapes — over `ValueOps` + the `RegexEngine`
+  provider (`-regexp` reuses the engine seam: the real ARE engine on the runtime,
+  the `regex` crate on the VM). `lsearch` never writes a variable, so it is a pure
+  value→value function; the adapter only maps the result/error. The `-index` path
+  resolution moved to the shared `index::{resolve_opt, encodable}`. This lifted
+  the VM from a `-exact`/`-glob`-only stub to the full command.
 - `string::word_bound` — `string wordstart`/`wordend` (the word-boundary scan
   over the Unicode word-char + connector-punctuation classification), added to the
   shared `string` dispatch. The VM lacked these entirely (it errored "not yet
@@ -155,6 +164,7 @@ core unified both to the correct behaviour):
 | `regexp`/`regsub` (VM) | the VM's `regex`-crate version lacked `-indices`/`-start`, used **byte** offsets (wrong for non-ASCII), **set match vars to empty on a failed match** (tclsh leaves them untouched), reported `couldn't compile…` (tclsh: `cannot compile…`), and had a wrong/short bad-option message. Routing the shared plumbing over the `RegexEngine` seam fixed all of these while keeping the crate engine — verified against tclsh 9.0. |
 | `string wordstart`/`wordend` (VM) | the VM errored "not yet implemented"; sharing the word-boundary scan added both. |
 | `dict filter` (VM + runtime) | the VM had no `dict filter` at all (unknown-subcommand error); sharing `key`/`value` added them (plus a small script adapter). On the runtime, the shared core fixed the error order — a bad filterType is now reported before the dict is parsed (tclsh). |
+| `lsearch` (VM) | the VM had only a `-exact`/`-glob` stub (it silently ignored every other option); sharing the full `lsearch` core gave it the entire option set — `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the numeric/dictionary types, `-start`/`-stride`/`-index`/`-subindices` — verified against tclsh 9.0. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

@@ -31,12 +31,13 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("regsub", cmd_regsub);
 }
 
-/// The `regex` crate as the shared plumbing's [`RegexEngine`] provider.
-struct CrateEngine;
+/// The `regex` crate as the shared plumbing's [`RegexEngine`] provider. Reused
+/// by `lsearch -regexp`.
+pub(crate) struct CrateEngine;
 
 /// A compiled crate regex plus the lazily-encoded subject (constant within one
 /// command invocation) used to translate codepoint↔byte offsets.
-struct CrateRe {
+pub(crate) struct CrateRe {
     re: regex::Regex,
     nsub: usize,
     cache: Option<Encoded>,

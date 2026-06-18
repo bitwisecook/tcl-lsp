@@ -16,6 +16,35 @@ pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
     parse(spec, len).ok_or_else(|| bad_index(spec.trim()))
 }
 
+/// Resolve an index `spec` against `len`, returning `None` (rather than an
+/// error) on an unparseable spec — the `lsearch`/`lsort -index` driving needs the
+/// raw option to classify "bad index" vs "out of range" itself.
+#[must_use]
+pub fn resolve_opt(spec: &str, len: usize) -> Option<i64> {
+    parse(spec, len)
+}
+
+/// Whether an index `spec` is *encodable* the way `TclIndexEncode` requires for
+/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (a non-negative
+/// integer, or `end`/`end-N`), `Some(false)` for one that can never be in range
+/// (a negative integer, or `end+N`), and `None` for a syntactically bad spec.
+/// Length-independent: it classifies end-relativity by resolving against two
+/// different lengths.
+#[must_use]
+pub fn encodable(spec: &str) -> Option<bool> {
+    const BIG: usize = 1 << 20;
+    let r_big = parse(spec, BIG + 1)?; // None ⇒ syntactically bad
+    let r_small = parse(spec, 1)?;
+    let big = i64::try_from(BIG).unwrap_or(i64::MAX);
+    Some(if r_big == r_small {
+        // Absolute: encodable iff non-negative.
+        r_big >= 0
+    } else {
+        // End-relative: encodable iff it lands at or before `end` (offset ≤ 0).
+        r_big - big <= 0
+    })
+}
+
 fn parse(spec: &str, len: usize) -> Option<i64> {
     let s = spec.trim();
     if s.is_empty() {

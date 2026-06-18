@@ -55,11 +55,6 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-/// Set the result to an integer.
-fn set_int(interp: &mut Interp, n: i64) {
-    interp.set_result(obj::new_wide_int_obj(n));
-}
-
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
     interp.set_result(list::new_list_obj(elems));
@@ -120,25 +115,6 @@ pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     let operand = parse_isize(&rest[1..])?;
     let offset = if connector == b'-' { -operand } else { operand };
     Some(base + offset)
-}
-
-/// Whether an index spec is *encodable* the way `TclIndexEncode` requires for
-/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (non-negative
-/// integer, or `end`/`end-N`), `Some(false)` for one that can never be in range
-/// (a negative integer, or `end+N`), and `None` for a syntactically bad spec.
-/// The check is length-independent: it classifies end-relativity by resolving
-/// the spec against two different lengths.
-fn index_encodable(spec: &[u8]) -> Option<bool> {
-    const BIG: usize = 1 << 20;
-    let r_big = index_spec(spec, BIG + 1)?; // None ⇒ syntactically bad
-    let r_small = index_spec(spec, 1)?;
-    if r_big != r_small {
-        // End-relative: encodable iff it lands at or before `end` (offset ≤ 0).
-        Some(r_big - BIG as isize <= 0)
-    } else {
-        // Absolute: encodable iff non-negative.
-        Some(r_big >= 0)
-    }
 }
 
 // -- commands --------------------------------------------------------------
@@ -580,481 +556,23 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum SearchMode {
-    Exact,
-    Glob,
-    Regexp,
-    Sorted,
-}
-
-/// Compare an `lsearch` pattern against an element key for exact/sorted modes
-/// (`<0/0/>0`, pattern as the left). For `-integer`/`-real`, a non-numeric
-/// element is an error (C converts each examined element lazily); the pattern
-/// is pre-validated by the caller.
-fn lsearch_elem_cmp(
-    interp: &mut Interp,
-    dtype: SortMode,
-    nocase: bool,
-    pattern: &[u8],
-    obj: *mut TclObj,
-) -> Result<core::cmp::Ordering, Code> {
-    use core::cmp::Ordering;
-    let ob = obj_bytes(obj);
-    Ok(match dtype {
-        SortMode::Dictionary => dictionary_compare(pattern, &ob),
-        SortMode::Integer => {
-            let o = match parse_wide(&ob) {
-                Some(v) => v,
-                None => return Err(not_integer(interp, &ob)),
-            };
-            parse_wide(pattern).unwrap_or(0).cmp(&o)
-        }
-        SortMode::Real => {
-            let o = match parse_real(&ob) {
-                Some(v) => v,
-                None => {
-                    let mut m = b"expected floating-point number but got \"".to_vec();
-                    m.extend_from_slice(&ob);
-                    m.push(b'"');
-                    return Err(interp.set_error(&m));
-                }
-            };
-            parse_real(pattern)
-                .unwrap_or(0.0)
-                .partial_cmp(&o)
-                .unwrap_or(Ordering::Equal)
-        }
-        _ => {
-            if nocase {
-                pattern.to_ascii_lowercase().cmp(&ob.to_ascii_lowercase())
-            } else {
-                pattern.cmp(&ob)
-            }
-        }
-    })
-}
-
-/// `lsearch ?-option value ...? list pattern` — search a list (`Tcl_LsearchObjCmd`).
+/// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
+/// [`tcl_cmd_core::lsearch`] core, driven by the real Tcl ARE engine for the
+/// `-regexp` mode. The whole command is a pure value->value function in the
+/// core (`lsearch` never writes a variable); this adapter only maps the result
+/// onto `set_result` and the error onto `set_error`/`error_with_code`.
 fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let n = argv.len();
-    if n < 3 {
-        return wrong_args(interp, b"lsearch ?-option value ...? list pattern");
-    }
-    let mut mode = SearchMode::Glob;
-    let mut dtype = SortMode::Ascii; // ASCII/Dictionary/Integer/Real
-    let (mut increasing, mut all, mut inline, mut not, mut nocase) =
-        (true, false, false, false, false);
-    let (mut bisect, mut subindices) = (false, false);
-    let mut group = 1usize;
-    let mut index_path: Vec<Vec<u8>> = Vec::new();
-    let mut start_spec: Option<Vec<u8>> = None;
-    let mut i = 1;
-    while i < n - 2 {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-all" => all = true,
-            b"-ascii" => dtype = SortMode::Ascii,
-            b"-dictionary" => dtype = SortMode::Dictionary,
-            b"-integer" => dtype = SortMode::Integer,
-            b"-real" => dtype = SortMode::Real,
-            b"-bisect" => {
-                mode = SearchMode::Sorted;
-                bisect = true;
-            }
-            b"-decreasing" => increasing = false,
-            b"-increasing" => increasing = true,
-            b"-exact" => mode = SearchMode::Exact,
-            b"-glob" => mode = SearchMode::Glob,
-            b"-regexp" => mode = SearchMode::Regexp,
-            b"-sorted" => mode = SearchMode::Sorted,
-            b"-inline" => inline = true,
-            b"-nocase" => nocase = true,
-            b"-not" => not = true,
-            b"-subindices" => subindices = true,
-            b"-start" => {
-                if i > n - 4 {
-                    return interp.set_error(b"missing starting index");
-                }
-                start_spec = Some(obj_bytes(argv[i + 1]));
-                i += 1;
-            }
-            b"-stride" => {
-                if i > n - 4 {
-                    return lsort_needs_value(interp, b"-stride", b"stride length");
-                }
-                match parse_wide(&obj_bytes(argv[i + 1])) {
-                    Some(w) if w >= 1 => group = w as usize,
-                    Some(_) => return interp.set_error(b"stride length must be at least 1"),
-                    None => return not_integer(interp, &obj_bytes(argv[i + 1])),
-                }
-                i += 1;
-            }
-            b"-index" => {
-                if i > n - 4 {
-                    return lsort_needs_value(interp, b"-index", b"list index");
-                }
-                index_path = match crate::parse::split_list(&obj_bytes(argv[i + 1])) {
-                    Ok(p) => p,
-                    Err(e) => return interp.set_error(e.message()),
-                };
-                // C validates each `-index` value's *scale* at parse time
-                // (`TclIndexEncode`): a syntactically-bad spec is `bad index`,
-                // an unencodable one (negative, or `end+N`) is `out of range`.
-                for spec in &index_path {
-                    match index_encodable(spec) {
-                        Some(true) => {}
-                        Some(false) => {
-                            let mut m = b"index \"".to_vec();
-                            m.extend_from_slice(spec);
-                            m.extend_from_slice(b"\" out of range");
-                            return interp.error_with_code(&m, b"TCL VALUE INDEX OUTOFRANGE");
-                        }
-                        None => return bad_index(interp, spec),
-                    }
-                }
-                i += 1;
-            }
-            other => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be -all, -ascii, -bisect, -decreasing, -dictionary, -exact, -glob, -increasing, -index, -inline, -integer, -nocase, -not, -real, -regexp, -sorted, -start, -stride, or -subindices");
-                return interp.set_error(&m);
-            }
+    match tcl_cmd_core::lsearch::lsearch::<Interp, crate::cmd_regex::AreEngine>(interp, &argv[1..])
+    {
+        Ok(v) => {
+            interp.set_result(v);
+            Code::Ok
         }
-        i += 1;
+        Err(e) => match e.code {
+            Some(code) => interp.error_with_code(&e.message, code),
+            None => interp.set_error(&e.message),
+        },
     }
-    // `-subindices` only makes sense alongside `-index` (C's BAD_OPTION_MIX).
-    if subindices && index_path.is_empty() {
-        return interp.error_with_code(
-            b"-subindices cannot be used without -index option",
-            b"TCL OPERATION LSEARCH BAD_OPTION_MIX",
-        );
-    }
-    let elems = match list::list_elements(argv[n - 2]) {
-        Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
-    };
-    let listc = elems.len();
-    if group > 1 && listc % group != 0 {
-        return interp.set_error(b"list size must be a multiple of the stride length");
-    }
-    // -stride + -index: the leading index value picks the key element within
-    // each group; the rest of the path applies inside it.
-    let mut group_offset = 0usize;
-    let mut key_path: &[Vec<u8>] = &index_path;
-    if group > 1 && !index_path.is_empty() {
-        match index_spec(&index_path[0], group) {
-            Some(o) if o >= 0 && (o as usize) < group => group_offset = o as usize,
-            _ => {
-                return interp.set_error(
-                    b"when used with \"-stride\", the leading \"-index\" value must be within the group",
-                )
-            }
-        }
-        key_path = &index_path[1..];
-    }
-
-    // Resolve -start (relative to listc-1, then clamped to a group boundary).
-    let mut start = 0usize;
-    if let Some(spec) = &start_spec {
-        let s = match index_spec(spec, listc) {
-            Some(v) => v,
-            None => return bad_index(interp, spec),
-        };
-        let s = s.max(0) as usize;
-        if s >= listc {
-            // Started past the end → no match.
-            if all || inline {
-                interp.set_result_bytes(b"");
-            } else {
-                set_int(interp, -1);
-            }
-            return Code::Ok;
-        }
-        start = s - (s % group);
-    }
-
-    let pattern = obj_bytes(argv[n - 1]);
-    // For numeric exact/sorted search, the pattern must parse as that type.
-    if matches!(mode, SearchMode::Exact | SearchMode::Sorted) {
-        if dtype == SortMode::Integer && parse_wide(&pattern).is_none() {
-            return not_integer(interp, &pattern);
-        }
-        if dtype == SortMode::Real && parse_real(&pattern).is_none() {
-            let mut m = b"expected floating-point number but got \"".to_vec();
-            m.extend_from_slice(&pattern);
-            m.push(b'"');
-            return interp.set_error(&m);
-        }
-    }
-    // Pre-compile a -regexp pattern once.
-    let mut re = if mode == SearchMode::Regexp {
-        let mut flags = crate::regex::REG_ADVANCED;
-        if nocase {
-            flags |= crate::regex::REG_ICASE;
-        }
-        match crate::regex::Regex::compile(&pattern, flags) {
-            Ok(r) => Some(r),
-            Err(detail) => {
-                let mut m = b"cannot compile regular expression pattern: ".to_vec();
-                m.extend_from_slice(&detail);
-                return interp.set_error(&m);
-            }
-        }
-    } else {
-        None
-    };
-
-    // The key object for logical element `g` (group base index).
-    let key_of = |interp: &mut Interp, base: usize| -> Result<*mut TclObj, Code> {
-        select_by_index(interp, elems[base + group_offset], key_path)
-    };
-
-    let mut index: isize = -1; // logical group base index of the match
-                               // Sorted binary search (only when not -all and not -not).
-    if mode == SearchMode::Sorted && !all && !not {
-        let mut lower: isize = start as isize - group as isize;
-        let mut upper: isize = listc as isize;
-        while lower + (group as isize) != upper {
-            let mut mid = (lower + upper) / 2;
-            mid -= mid % group as isize;
-            let key = match key_of(interp, mid as usize) {
-                Ok(k) => k,
-                Err(c) => return c,
-            };
-            let ord = match lsearch_elem_cmp(interp, dtype, nocase, &pattern, key) {
-                Ok(o) => o,
-                Err(c) => return c,
-            };
-            use core::cmp::Ordering::*;
-            match ord {
-                Equal => {
-                    // Don't stop on the first match: with duplicates it may be an
-                    // interior one. Keep searching the lower half for the leftmost
-                    // occurrence (C's `lsearch` binary search), or the upper half
-                    // for the last `<=` under `-bisect`.
-                    index = mid;
-                    if bisect {
-                        lower = mid;
-                    } else {
-                        upper = mid;
-                    }
-                }
-                Less => {
-                    if increasing {
-                        upper = mid;
-                    } else {
-                        lower = mid;
-                    }
-                }
-                Greater => {
-                    if increasing {
-                        lower = mid;
-                    } else {
-                        upper = mid;
-                    }
-                }
-            }
-        }
-        if bisect && index < 0 {
-            index = lower;
-        }
-    } else {
-        // Linear search.
-        let mut matches: Vec<usize> = Vec::new();
-        let mut g = start;
-        while g < listc {
-            let key = match key_of(interp, g) {
-                Ok(k) => k,
-                Err(c) => return c,
-            };
-            let kb = obj_bytes(key);
-            let mut m = match mode {
-                SearchMode::Glob => match core::str::from_utf8(&pattern)
-                    .ok()
-                    .zip(core::str::from_utf8(&kb).ok())
-                {
-                    Some((p, e)) => tcl_syntax::glob::string_case_match(p, e, nocase),
-                    None => false,
-                },
-                SearchMode::Regexp => {
-                    let (cps, _) = crate::regex::decode_utf8(&kb);
-                    re.as_mut()
-                        .expect("compiled")
-                        .exec(&cps, 0, false)
-                        .is_some()
-                }
-                SearchMode::Exact | SearchMode::Sorted => {
-                    match lsearch_elem_cmp(interp, dtype, nocase, &pattern, key) {
-                        Ok(o) => o.is_eq(),
-                        Err(c) => return c,
-                    }
-                }
-            };
-            if not {
-                m = !m;
-            }
-            if m {
-                if !all {
-                    index = g as isize;
-                    break;
-                }
-                matches.push(g);
-            }
-            g += group;
-        }
-        if all {
-            return lsearch_result_all(
-                interp,
-                &elems,
-                &matches,
-                inline,
-                subindices,
-                group,
-                group_offset,
-                key_path,
-                listc,
-            );
-        }
-    }
-
-    // Single-match result.
-    lsearch_result_one(
-        interp,
-        &elems,
-        index,
-        inline,
-        subindices,
-        group,
-        group_offset,
-        key_path,
-        listc,
-    )
-}
-
-/// Build the result of a non-`-all` `lsearch` (a single match at logical base
-/// `index`, or `index < 0` for no match).
-#[allow(clippy::too_many_arguments)]
-fn lsearch_result_one(
-    interp: &mut Interp,
-    elems: &[*mut TclObj],
-    index: isize,
-    inline: bool,
-    subindices: bool,
-    group: usize,
-    group_offset: usize,
-    key_path: &[Vec<u8>],
-    listc: usize,
-) -> Code {
-    if inline {
-        if index < 0 {
-            interp.set_result_bytes(b"");
-            return Code::Ok;
-        }
-        let base = index as usize;
-        if subindices {
-            // The matched leaf at the resolved sub-path (drilled), or — when the
-            // stride consumed the only `-index` value — the in-group key element.
-            let leaf = if key_path.is_empty() {
-                elems[base + group_offset]
-            } else {
-                match select_by_index(interp, elems[base + group_offset], key_path) {
-                    Ok(o) => o,
-                    Err(c) => return c,
-                }
-            };
-            interp.set_result(leaf);
-        } else if group > 1 {
-            set_list(interp, &elems[base..base + group]);
-        } else {
-            interp.set_result(elems[base]);
-        }
-        return Code::Ok;
-    }
-    if index < 0 {
-        set_int(interp, -1);
-        return Code::Ok;
-    }
-    if subindices {
-        let r = subindex_obj(index as usize + group_offset, key_path, listc);
-        interp.set_result(r);
-    } else {
-        set_int(interp, index as i64);
-    }
-    Code::Ok
-}
-
-/// Build a `-subindices` result element: the group base followed by each
-/// remaining `-index` value, decoded the way C's `lsearch` does — end-relative
-/// specs resolve against the top-level list count `listc` (`TclIndexDecode(…,
-/// listc)`), integers pass through.
-fn subindex_obj(base: usize, key_path: &[Vec<u8>], listc: usize) -> *mut TclObj {
-    let mut out = vec![obj::new_wide_int_obj(base as i64)];
-    for spec in key_path {
-        let v = index_spec(spec, listc + 1).unwrap_or(0);
-        out.push(obj::new_wide_int_obj(v as i64));
-    }
-    let r = list::new_list_obj(&out);
-    for &o in &out {
-        drop_fresh(o);
-    }
-    r
-}
-
-/// Build the result of `lsearch -all` (every match).
-#[allow(clippy::too_many_arguments)]
-fn lsearch_result_all(
-    interp: &mut Interp,
-    elems: &[*mut TclObj],
-    matches: &[usize],
-    inline: bool,
-    subindices: bool,
-    group: usize,
-    group_offset: usize,
-    key_path: &[Vec<u8>],
-    listc: usize,
-) -> Code {
-    let mut out: Vec<*mut TclObj> = Vec::new();
-    let mut fresh: Vec<*mut TclObj> = Vec::new();
-    for &base in matches {
-        if inline {
-            if subindices {
-                // Matched leaf (drilled), or the in-group key element when the
-                // stride consumed the only `-index` value.
-                let leaf = if key_path.is_empty() {
-                    elems[base + group_offset]
-                } else {
-                    match select_by_index(interp, elems[base + group_offset], key_path) {
-                        Ok(o) => o,
-                        Err(c) => {
-                            for o in fresh {
-                                drop_fresh(o);
-                            }
-                            return c;
-                        }
-                    }
-                };
-                out.push(leaf);
-            } else if group > 1 {
-                out.extend_from_slice(&elems[base..base + group]);
-            } else {
-                out.push(elems[base]);
-            }
-        } else if subindices {
-            let s = subindex_obj(base + group_offset, key_path, listc);
-            fresh.push(s);
-            out.push(s);
-        } else {
-            let o = obj::new_wide_int_obj(base as i64);
-            fresh.push(o);
-            out.push(o);
-        }
-    }
-    set_list(interp, &out);
-    for o in fresh {
-        drop_fresh(o);
-    }
-    Code::Ok
 }
 
 /// `lsort ?-ascii|-integer|-real? ?-nocase? ?-increasing|-decreasing? ?-unique?
@@ -1496,6 +1014,54 @@ mod tests {
         let (c, b) = run(src);
         assert_eq!(c, Code::Ok, "result={:?}", String::from_utf8_lossy(&b));
         b
+    }
+
+    #[test]
+    fn lsearch_shared_core() {
+        // Pinned against tclsh 9.0 (every option exercised; each case is also
+        // leak-checked by `ok`/`run`).
+        assert_eq!(ok(b"lsearch {a b c d} c"), b"2");
+        assert_eq!(ok(b"lsearch {a b c d} x"), b"-1");
+        assert_eq!(ok(b"lsearch -exact {aa ab ac} ab"), b"1");
+        assert_eq!(ok(b"lsearch -all {a b a c a} a"), b"0 2 4");
+        assert_eq!(ok(b"lsearch -inline {foo bar baz} ba*"), b"bar");
+        assert_eq!(ok(b"lsearch -all -inline {x1 y2 x3} x*"), b"x1 x3");
+        assert_eq!(ok(b"lsearch -not {a b a} a"), b"1");
+        assert_eq!(ok(b"lsearch -all -not {a b a c} a"), b"1 3");
+        assert_eq!(ok(b"lsearch -start 2 {a b a a} a"), b"2");
+        assert_eq!(ok(b"lsearch -nocase {AB cd EF} ef"), b"2");
+        assert_eq!(ok(b"lsearch -integer {3 1 4 1 5} 4"), b"2");
+        assert_eq!(ok(b"lsearch -real {1.5 2.5 3.5} 2.5"), b"1");
+        assert_eq!(ok(b"lsearch -sorted {1 3 5 7 9} 7"), b"3");
+        assert_eq!(ok(b"lsearch -sorted -integer {1 3 5 7} 5"), b"2");
+        assert_eq!(ok(b"lsearch -sorted -decreasing {9 7 5 3 1} 5"), b"2");
+        assert_eq!(ok(b"lsearch -bisect -integer {2 4 6 8} 5"), b"1");
+        assert_eq!(ok(br"lsearch -regexp {foo123 bar456} {[0-9]+}"), b"0");
+        assert_eq!(
+            ok(br"lsearch -all -inline -regexp {a1 b2 c3} {\d}"),
+            b"a1 b2 c3"
+        );
+        assert_eq!(ok(b"lsearch -index 1 {{a 1} {b 2} {c 3}} 2"), b"1");
+        assert_eq!(ok(b"lsearch -index 0 -inline {{a 1} {b 2}} b"), b"b 2");
+        assert_eq!(ok(b"lsearch -all -index 1 {{a 1} {b 2} {c 1}} 1"), b"0 2");
+        assert_eq!(ok(b"lsearch -subindices -index 1 {{a 1} {b 2}} 2"), b"1 1");
+        assert_eq!(ok(b"lsearch -stride 2 -index 0 {a 1 b 2 c 3} b"), b"2");
+        assert_eq!(ok(b"lsearch -stride 2 {a 1 b 2} 2"), b"-1");
+        assert_eq!(
+            ok(b"lsearch -all -inline -stride 2 {a 1 b 2 c 3} *"),
+            b"a 1 b 2 c 3"
+        );
+        assert_eq!(ok(b"lsearch -exact -sorted {a b c d} c"), b"2");
+        assert_eq!(ok(b"lsearch {} x"), b"-1");
+        assert_eq!(ok(b"lsearch -integer {1 x 3} 3"), b"2");
+        assert_eq!(ok(b"lsearch -index end {{a b} {c d}} d"), b"1");
+        // Errors.
+        let (c, b) = run(b"lsearch -bogus {a b} a");
+        assert_eq!(c, Code::Error);
+        assert!(b.starts_with(b"bad option \"-bogus\""));
+        let (c, b) = run(b"lsearch -subindices {a b} a");
+        assert_eq!(c, Code::Error);
+        assert_eq!(b, b"-subindices cannot be used without -index option");
     }
 
     #[test]

@@ -100,6 +100,33 @@ fn lappend_and_lassign() {
     out_eq("lassign {1 2 3} x y\nputs \"$x $y\"\n", "1 2\n");
 }
 
+/// `lsearch` — the VM gained the full option set by sharing
+/// `tcl_cmd_core::lsearch` (it had only a `-exact`/`-glob` stub). Pinned to tclsh.
+#[test]
+fn lsearch_shared_core() {
+    assert_eq!(run("lsearch {a b c d} c").1, "2");
+    assert_eq!(run("lsearch {a b c d} x").1, "-1");
+    assert_eq!(run("lsearch -all {a b a c a} a").1, "0 2 4");
+    assert_eq!(run("lsearch -inline {foo bar baz} ba*").1, "bar");
+    assert_eq!(run("lsearch -all -inline {x1 y2 x3} x*").1, "x1 x3");
+    assert_eq!(run("lsearch -not {a b a} a").1, "1");
+    assert_eq!(run("lsearch -start 2 {a b a a} a").1, "2");
+    assert_eq!(run("lsearch -nocase {AB cd EF} ef").1, "2");
+    assert_eq!(run("lsearch -integer {3 1 4 1 5} 4").1, "2");
+    assert_eq!(run("lsearch -sorted {1 3 5 7 9} 7").1, "3");
+    assert_eq!(run("lsearch -bisect -integer {2 4 6 8} 5").1, "1");
+    assert_eq!(run("lsearch -regexp {foo123 bar456} {[0-9]+}").1, "0");
+    assert_eq!(run("lsearch -index 1 {{a 1} {b 2} {c 3}} 2").1, "1");
+    assert_eq!(run("lsearch -all -index 1 {{a 1} {b 2} {c 1}} 1").1, "0 2");
+    assert_eq!(run("lsearch -subindices -index 1 {{a 1} {b 2}} 2").1, "1 1");
+    assert_eq!(run("lsearch -stride 2 -index 0 {a 1 b 2 c 3} b").1, "2");
+    assert_eq!(run("lsearch -index end {{a b} {c d}} d").1, "1");
+    // bad option error (full message now).
+    let (ok, msg, _) = run("lsearch -bogus {a b} a");
+    assert!(!ok);
+    assert!(msg.starts_with("bad option \"-bogus\""), "got: {msg}");
+}
+
 #[test]
 fn string_ops() {
     out_eq("puts [string length hello]\n", "5\n");

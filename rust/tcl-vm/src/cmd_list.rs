@@ -39,10 +39,6 @@ fn as_list(v: &Value) -> Result<Rc<Vec<Value>>, Completion<Value>> {
     v.as_list().map_err(|e| err(e.message))
 }
 
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
-}
-
 fn cmd_list(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(list_core::list(vm, args))
 }
@@ -155,44 +151,16 @@ fn cmd_lreplace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     adapt(list_core::lreplace(vm, list, from, to, rest))
 }
 
-fn cmd_lsearch(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // Minimal: lsearch ?-exact|-glob? list pattern  (default -glob).
-    let mut glob = true;
-    let mut rest = args;
-    while let Some(first) = rest.first() {
-        match &*first.to_str() {
-            "-exact" => {
-                glob = false;
-                rest = &rest[1..];
-            }
-            "-glob" => {
-                glob = true;
-                rest = &rest[1..];
-            }
-            s if s.starts_with('-') => rest = &rest[1..], // ignore unknown options (M3)
-            _ => break,
-        }
+/// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
+/// [`tcl_cmd_core::lsearch`] core, driven by the VM's `regex`-crate engine for
+/// `-regexp`. The VM previously had only a `-exact`/`-glob` stub; it now has the
+/// full option set (the Tcl errorCodes the core carries are dropped — the VM has
+/// no errorCode surface).
+fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args) {
+        Ok(v) => ok(v),
+        Err(e) => err(String::from_utf8_lossy(&e.message).into_owned()),
     }
-    let [list, pat] = rest else {
-        return err("wrong # args: should be \"lsearch ?options? list pattern\"");
-    };
-    let items = match as_list(list) {
-        Ok(i) => i,
-        Err(c) => return c,
-    };
-    let p = pat.to_str();
-    for (i, item) in items.iter().enumerate() {
-        let s = item.to_str();
-        let hit = if glob {
-            tcl_syntax::glob::string_match(&p, &s)
-        } else {
-            *s == *p
-        };
-        if hit {
-            return ok(Value::int(ilen(i)));
-        }
-    }
-    ok(Value::int(-1))
 }
 
 fn cmd_lsort(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {

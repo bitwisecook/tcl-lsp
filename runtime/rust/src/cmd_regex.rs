@@ -33,8 +33,8 @@ pub fn install(interp: &mut Interp) {
 /// The real Tcl 9 ARE engine, presented as the shared plumbing's
 /// [`RegexEngine`] provider. Maps the engine-neutral [`RegexFlags`] onto the
 /// engine's compile flags and bridges its codepoint-native [`crate::regex`]
-/// match vector to the core's [`RegMatch`].
-struct AreEngine;
+/// match vector to the core's [`RegMatch`]. Reused by `lsearch -regexp`.
+pub(crate) struct AreEngine;
 
 impl RegexEngine for AreEngine {
     type Regex = Regex;
