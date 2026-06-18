@@ -147,35 +147,94 @@ def _parse_literal(text: str) -> TclValue | None:
         return None
 
 
-def _is_non_numeric_string(text: str) -> bool:
-    """True when *text* cannot be a Tcl number in *any* dialect.
+def _is_bare_leading_zero(text: str) -> bool:
+    """``[+-]?0DDD…`` — a bare decimal-shaped integer with a redundant leading
+    zero, whose octal-vs-decimal reading is dialect-dependent (octal in Tcl
+    8.x, decimal in 9.0 per TIP 472)."""
+    digits = text[1:] if text[:1] in "+-" else text
+    return len(digits) > 1 and digits[0] == "0" and digits.isdigit()
 
-    Used by the ``==``/``!=`` constant folder to decide it is safe to compare
-    two operands purely as strings: if either could parse as a number under
-    some dialect (decimal, leading-zero octal/decimal, ``0x``/``0o``/``0b``,
-    float, ``Inf``/``NaN``) the numeric-vs-string result would be
-    dialect-dependent, so the caller declines to fold.  Boolean words
-    (``true``/``yes``/…) are *not* numbers for ``==``/``!=`` and so count as
-    non-numeric strings.  Deliberately stricter than :func:`_parse_literal`,
-    which coerces boolean words and leading-zero decimals to integers.
+
+def _strict_number(text: str) -> int | float | None:
+    """Parse *text* as a Tcl number with the *strict* grammar used by ``==`` /
+    ``!=``: decimal / ``0x`` / ``0o`` / ``0b`` integers and floats
+    (``Inf``/``NaN`` included), but **no** boolean-word coercion
+    (``true``/``yes``/… are *not* numbers for comparison — ``expr {"true" ==
+    "1"}`` is 0).  Deliberately stricter than :func:`_parse_literal`, which
+    coerces boolean words.  ``int(t, 0)`` also rejects redundant-leading-zero
+    decimals (``08``/``010``); those are handled separately by the caller.
     """
     t = text.strip()
     if not t:
-        return True
-    # ``int(t, 0)`` accepts decimal without leading zeros plus ``0x``/``0o``/
-    # ``0b``; ``int(t, 10)`` additionally accepts leading-zero decimals (octal
-    # in 8.x, decimal in 9.0 — dialect-dependent, hence "looks numeric").
-    for base in (0, 10):
-        try:
-            int(t, base)
-            return False
-        except (ValueError, TypeError):
-            pass
+        return None
     try:
-        float(t)
-        return False
+        return int(t, 0)
     except (ValueError, TypeError):
-        return True
+        pass
+    try:
+        return float(t)
+    except (ValueError, TypeError):
+        return None
+
+
+# Sentinels for ``==``/``!=`` operand classification (mirrors the Rust
+# analyser's ``Operand::{Num,Str,Ambiguous}``).
+_OPERAND_STR = object()
+_OPERAND_AMBIGUOUS = object()
+
+
+def _classify_eq_operand(text: str) -> int | float | object:
+    """Classify a ``==``/``!=`` operand as a number, a string, or ambiguous.
+
+    Returns the numeric value when *text* is unambiguously a Tcl number,
+    :data:`_OPERAND_STR` for a plain string, or :data:`_OPERAND_AMBIGUOUS` for
+    a bare leading-zero integer (``08``/``010``) whose value is octal in Tcl
+    8.x but decimal in 9.0.  We decline to fold the leading-zero case rather
+    than pick a dialect: unlike the Rust analyser (whose VM models the 8.x
+    octal rule), the Python optimiser's VM-equivalence harness reads leading
+    zeros as decimal, so folding them per-dialect here would diverge from the
+    VM.  The common cases (plain numbers, floats, boolean words, strings) are
+    classified exactly as Rust's ``classify_operand`` does.
+    """
+    s = text.strip()
+    if _is_bare_leading_zero(s):
+        return _OPERAND_AMBIGUOUS
+    v = _strict_number(s)
+    return v if v is not None else _OPERAND_STR
+
+
+def _eval_eq_ne(
+    op: BinOp,
+    left: ExprNode,
+    right: ExprNode,
+    env: dict[str, int | float | str],
+) -> TclValue | None:
+    """Fold ``==`` / ``!=`` with Tcl's polymorphic comparison: numeric when
+    *both* operands are numbers, string otherwise — so a constant condition
+    like ``$x == "foo"`` folds for I230, while ``"true" == "1"`` correctly
+    compares as strings (→ 0).  Mirrors the Rust analyser's
+    ``compare_numeric``/``classify_operand``; declines on dialect-ambiguous
+    leading-zero operands.
+    """
+    ls = _eval_as_string(left, env)
+    if ls is None:
+        return None
+    rs = _eval_as_string(right, env)
+    if rs is None:
+        return None
+    lo = _classify_eq_operand(ls)
+    ro = _classify_eq_operand(rs)
+    if lo is _OPERAND_AMBIGUOUS or ro is _OPERAND_AMBIGUOUS:
+        return None
+    lo_num = lo is not _OPERAND_STR
+    ro_num = ro is not _OPERAND_STR
+    if lo_num and ro_num:
+        equal = lo == ro  # numeric comparison (Python int/float ==)
+    else:
+        equal = ls == rs  # string comparison
+    if op is BinOp.NE:
+        equal = not equal
+    return 1 if equal else 0
 
 
 def _resolve_var(
@@ -314,31 +373,12 @@ def _eval_binary(
             return None
         return _apply_string_compare(op, ls, rs)
 
-    # ``==`` / ``!=`` follow Tcl's polymorphic comparison: numeric when *both*
-    # operands are numbers, string otherwise.  The numeric case is covered by
-    # the generic ``_eval`` path (numeric literals / numeric-valued vars); here
-    # we add the *string* case the old code missed (``"foo" == "foo"`` never
-    # folded).  Fold to a string comparison only when both operands are
-    # definitively non-numeric, so the result is dialect-independent.  If
-    # either operand merely *looks* numeric — a boolean word, or a leading-zero
-    # decimal that is octal in 8.x but decimal in 9.0 — the numeric-vs-string
-    # outcome depends on the dialect's equality-conversion rules, so we decline
-    # to fold rather than risk a wrong answer (a false I230 unreachable-branch).
+    # ``==`` / ``!=`` are polymorphic (numeric when both operands are numbers,
+    # string otherwise) and dialect-aware (8.x octal vs 9.0 decimal leading
+    # zeros).  Handle them in a dedicated helper so a constant condition like
+    # ``$x == "foo"`` folds for I230 without a dialect-dependent wrong answer.
     if op in (BinOp.EQ, BinOp.NE):
-        lv = _eval(left, env)
-        rv = _eval(right, env)
-        if lv is not None and rv is not None:
-            return _apply_binary(op, lv, rv)
-        ls = _eval_as_string(left, env)
-        if ls is None:
-            return None
-        rs = _eval_as_string(right, env)
-        if rs is None:
-            return None
-        if _is_non_numeric_string(ls) and _is_non_numeric_string(rs):
-            str_op = BinOp.STR_EQ if op is BinOp.EQ else BinOp.STR_NE
-            return _apply_string_compare(str_op, ls, rs)
-        return None
+        return _eval_eq_ne(op, left, right, env)
 
     # All other operators evaluate both sides
     lv = _eval(left, env)

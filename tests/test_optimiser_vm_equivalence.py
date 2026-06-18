@@ -271,7 +271,7 @@ class TestMultiPassInteraction:
 class TestO120CornerCases:
     """Corner cases and pass interactions for O120."""
 
-    def test_non_string_typed_var_with_boolean_literal_not_rewritten(self):
+    def test_non_string_typed_var_with_boolean_literal_folds(self):
         source = textwrap.dedent("""\
             set a [expr {1 + 1}]
             if {$a == "true"} {
@@ -282,7 +282,11 @@ class TestO120CornerCases:
         """)
         _assert_equiv(source)
         opt_source, rewrites = optimise_source(source)
-        assert '== "true"' in opt_source
+        # `a` is provably 2, and `2 == "true"` is a polymorphic compare: 2 is a
+        # number, "true" is not, so it compares as strings → false.  The branch
+        # constant-folds to the else arm (no O120 == → eq rewrite needed — the
+        # whole comparison is resolved).
+        assert "puts no" in opt_source and "puts yes" not in opt_source
         assert not any(r.code == "O120" for r in rewrites)
 
     def test_known_string_var_with_boolean_literal_rewritten(self):
