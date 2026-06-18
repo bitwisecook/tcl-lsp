@@ -7572,8 +7572,23 @@ file; this call falls through to the 'unknown' handler."
             }
         }
 
-        let registry_names: HashSet<String> =
-            registry.command_names().map(str::to_string).collect();
+        // Mirror Python's `REGISTRY.command_names(dialect)`: only commands
+        // *enabled in the active dialect* count as "known" for W123.  The
+        // Rust registry's `command_names()` returns every loaded spec —
+        // including base tcl commands like `exec`/`glob` that `build_default`
+        // loads but the active dialect (e.g. f5-irules) disables — so filter
+        // by dialect support.  Without this, `exec`/`glob` under f5-irules
+        // would draw W002 (disabled) but not the W123 (unknown-in-dialect)
+        // Python also emits.  Base commands valid everywhere (`set`/`if`,
+        // `dialects: None`) still pass `get_for_dialect`, so they are not
+        // spuriously flagged.
+        let active_dialect =
+            tcl_registry::prelude::DialectSet::parse(&self.dialect).unwrap_or(tcl_registry::prelude::DialectSet::ALL_TCL);
+        let registry_names: HashSet<String> = registry
+            .command_names()
+            .filter(|name| registry.get_for_dialect(name, active_dialect).is_some())
+            .map(str::to_string)
+            .collect();
         // **C41 follow-up.** Inline ``# tcl-lsp: stub NAME ...``
         // declarations contribute to the candidate set and the
         // suppression set so users who declared a stub for a
