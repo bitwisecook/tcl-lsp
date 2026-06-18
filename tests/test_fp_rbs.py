@@ -1150,3 +1150,117 @@ def test_FP_RBS_16_partial_break_def_still_fires():
     assert w210, "a break path that leaves 'y' unset must still fire W210; got: " + ", ".join(
         f"{d.code}:{d.message}" for d in _rbs(src)
     )
+
+
+# FP-RBS-17 — foreach over a non-empty literal runs its body at least once
+
+
+FP_RBS_17_REPRO = """\
+proc f {} {
+    # the list is a non-empty literal, so the body runs >=1 time and y is set
+    # before puts reads it.
+    foreach x {1 2 3} { set y $x }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_17_foreach_literal_silent():
+    """FP: foreach over a non-empty literal list always runs the body, so the
+    body-assigned 'y' is defined after the loop -- no W210."""
+    assert _rbs(FP_RBS_17_REPRO) == [], (
+        "non-empty-literal foreach defines 'y'; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_17_REPRO))
+    )
+
+
+def test_FP_RBS_17_loop_var_after_foreach_silent():
+    """FP: the loop variable is set on every iteration, so it is defined after
+    a non-empty-literal foreach."""
+    src = "proc f {} { foreach x {a b c} { } ; puts $x }\n"
+    assert _rbs(src) == [], (
+        "loop var defined after non-empty foreach; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(src))
+    )
+
+
+def test_FP_RBS_17_empty_literal_still_fires():
+    """TP control: foreach over an empty literal never runs the body, so 'y'
+    is genuinely unset -- W210 must fire."""
+    src = "proc f {} { foreach x {} { set y $x } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "empty-list foreach leaves 'y' unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_17_dynamic_list_still_fires():
+    """TP control: a foreach over a $var list may be empty, so the read after
+    is maybe-unset -- W210 must fire."""
+    src = "proc f {items} { foreach x $items { set y $x } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "dynamic-list foreach may be empty; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_17_continue_before_set_still_fires():
+    """TP control: a `continue` before the def can skip it on the last
+    iteration, so 'y' may be unset -- the rotation keeps `continue` a real
+    edge, so W210 must still fire.  tclsh-verified: this errors."""
+    src = "proc f {} { foreach x {1} { if {$x==1} continue; set y $x } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "continue-before-set may skip 'y'; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+# FP-RBS-18 — for whose condition is true on entry runs its body at least once
+
+
+FP_RBS_18_REPRO = """\
+proc f {} {
+    # 0 < 3 is true on entry, so the body runs >=1 time and y is set.
+    for {set i 0} {$i < 3} {incr i} { set y $i }
+    puts $y
+}
+"""
+
+
+def test_FP_RBS_18_for_true_on_entry_silent():
+    """FP: a for whose condition is true on entry runs the body at least once,
+    so the body-assigned 'y' is defined after the loop -- no W210."""
+    assert _rbs(FP_RBS_18_REPRO) == [], (
+        "for true-on-entry defines 'y'; no W210; current: "
+        + ", ".join(f"{d.code}:{d.message}" for d in _rbs(FP_RBS_18_REPRO))
+    )
+
+
+def test_FP_RBS_18_false_on_entry_still_fires():
+    """TP control: a for whose condition is false on entry runs zero times, so
+    'y' is unset -- W210 must fire."""
+    src = "proc f {} { for {set i 5} {$i < 3} {incr i} { set y $i } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "false-on-entry for runs zero times; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_18_unknown_bound_still_fires():
+    """TP control: a for with an unknown (parameter) bound may run zero times,
+    so the read after is maybe-unset -- W210 must fire."""
+    src = "proc f {n} { for {set i 0} {$i < $n} {incr i} { set y $i } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "unknown-bound for may run zero times; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )
+
+
+def test_FP_RBS_18_break_before_set_still_fires():
+    """TP control: a `break` before the def exits with 'y' unset -- the
+    rotation keeps `break` a real edge, so W210 must still fire."""
+    src = "proc f {} { for {set i 0} {$i < 3} {incr i} { if {$i==0} break; set y $i } ; puts $y }\n"
+    w210 = [d for d in _rbs(src) if d.code == "W210" and "'y'" in (d.message or "")]
+    assert w210, "break-before-set exits with 'y' unset; W210 must fire; got: " + ", ".join(
+        f"{d.code}:{d.message}" for d in _rbs(src)
+    )

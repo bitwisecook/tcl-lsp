@@ -3377,6 +3377,75 @@ register(
 )
 
 
+register(
+    "FP-RBS-17",
+    _Entry(
+        label="foreach over a non-empty literal runs its body at least once",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`foreach x {1 2 3} { set y $x }` always runs the body (the list is a\n"
+            "non-empty literal), so `y` is set when `puts $y` reads it.  The CFG\n"
+            "modelled every foreach as possibly zero iterations (the header's\n"
+            "opaque has-next branch), false-firing W210.  Fix (compiler/cfg.py):\n"
+            "analysis builds *rotate* a provably-non-empty foreach -- the\n"
+            "0-iteration skip becomes a separate, statically-true entry-guard\n"
+            "edge (SCCP prunes it) and the var-def + body run before the latch\n"
+            "re-check, so the loop var and body defs reach the exit.  No synthetic\n"
+            "def, so SCCP values are intact; `break`/`continue` stay real edges,\n"
+            "so partial-def exits remain sound (a `continue`-before-set still\n"
+            "fires W210).  Faithful builds only -- codegen keeps the original\n"
+            "foreach shape, so bytecode is unchanged."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # the list is a non-empty literal, so the body runs >=1 time
+                # and y is set before puts reads it.
+                foreach x {1 2 3} { set y $x }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
+register(
+    "FP-RBS-18",
+    _Entry(
+        label="for whose condition is true on entry runs its body at least once",
+        proc="::f",
+        vars=("y",),
+        show=("ssa", "rbs"),
+        notes=(
+            "`for {set i 0} {$i < 3} {incr i} { set y $i }` runs the body at least\n"
+            "once (`0 < 3` is true on entry), so `y` is set when `puts $y` reads\n"
+            "it.  SCCP cannot fold the header test because `i` there is the loop\n"
+            "phi (0 ⊔ stepped).  Fix (compiler/cfg.py): analysis builds rotate the\n"
+            "loop so the back-edge re-check carries the real condition and the\n"
+            "header is demoted to a synthetic always-true entry guard (we proved\n"
+            "entry-truth by evaluating the condition against the init constants).\n"
+            "The header is then reached only from init, so SCCP prunes the\n"
+            "0-iteration header→end edge.  The guard branch has no source range,\n"
+            "so the optimiser's constant-branch rewriter leaves the loop source\n"
+            "alone; loop_nodes + init exit-versions are unchanged, so the static-\n"
+            "for summary still folds post-loop constants.  Faithful builds only."
+        ),
+        source=_dedent(
+            """
+            proc f {} {
+                # 0 < 3 is true on entry, so the body runs >=1 time and y is set.
+                for {set i 0} {$i < 3} {incr i} { set y $i }
+                puts $y
+            }
+            """
+        ),
+    ),
+)
+
+
 def _render(fp_id: str) -> str:
     entry = ENTRIES[fp_id]
     snap = _pick(entry.source, entry.proc, dialect=entry.dialect)

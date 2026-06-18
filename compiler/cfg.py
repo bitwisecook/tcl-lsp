@@ -203,6 +203,80 @@ def _switch_completes_normally(stmt: IRSwitch) -> bool:
     return _flow_facts_stmt(stmt)[1]
 
 
+# --- Guaranteed-iteration loops ----------------------------------------------
+#
+# A loop whose body provably runs at least once does not skip its body, so a
+# variable the body assigns is defined when code after the loop reads it.  The
+# usual CFG models every loop as possibly running zero times (the header's
+# exit edge), false-firing W210 on such a read.  In analysis builds we *rotate*
+# a provably-non-empty loop so the 0-iteration skip becomes a *separate* entry-
+# guard edge whose condition is statically true; SCCP marks that edge dead and
+# the dead-edge phi filter (read-before-set) then ignores the version-0 operand
+# it carried — with no synthetic def, so SCCP values are untouched.  ``break`` /
+# ``continue`` stay real CFG edges, so partial-def exits remain sound.
+
+
+def _list_literal_nonempty(text: str) -> bool:
+    """True when *text* is a static, non-empty Tcl list literal.
+
+    Conservative: any ``$`` / ``[`` (a possible substitution) disqualifies it,
+    so a runtime-computed list is never claimed non-empty.  ``foreach`` stores a
+    braced list with its outer braces stripped (``{1 2 3}`` → ``1 2 3``), so a
+    literal splits directly.
+    """
+    if not text or "$" in text or "[" in text:
+        return False
+    from compiler.tcl_expr_eval import _split_tcl_list
+
+    try:
+        return len(_split_tcl_list(text)) >= 1
+    except Exception:
+        return False
+
+
+def _foreach_runs_at_least_once(stmt: IRForeach) -> bool:
+    """True when a ``foreach``/``lmap`` provably iterates ≥1 time.
+
+    ``foreach`` runs ``max`` over its iterator groups, so *any* non-empty
+    iterator list guarantees at least one iteration (shorter lists just pad
+    their loop vars with ``""``).
+    """
+    return any(_list_literal_nonempty(list_arg) for _vars, list_arg in stmt.iterators)
+
+
+def _coerce_scalar(text: str) -> int | float | str:
+    """Coerce a literal assignment value to int/float when possible (else str)."""
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return float(text)
+        except ValueError:
+            return text
+
+
+def _for_runs_at_least_once(stmt: IRFor) -> bool:
+    """True when a ``for`` loop's condition is statically true on entry.
+
+    Evaluates the condition against the constant bindings the init clause
+    establishes (``for {set i 0} {$i < 3} …`` → ``i = 0`` → ``0 < 3`` is true),
+    which proves the first iteration always runs.  Conservative: a non-constant
+    init binding, or a condition referencing a variable the init does not bind
+    to a constant (or a command-substitution condition), leaves the evaluation
+    unknown (``None``) → not guaranteed.
+    """
+    from .tcl_expr_eval import eval_tcl_expr
+
+    env: dict[str, int | float | str] = {}
+    for s in stmt.init.statements:
+        if isinstance(s, IRAssignConst):
+            name = _normalise_var_name(s.name)
+            if name:
+                env[name] = _coerce_scalar(s.value)
+    val = eval_tcl_expr(stmt.condition, env)
+    return val is not None and bool(val)
+
+
 def _static_var_write_defs(seg: SegmentedCommand) -> list[str]:
     """Literal ``ArgRole.VAR_WRITE`` def names from one segmented command.
 
@@ -1441,7 +1515,35 @@ class _CFGBuilder:
                 IRCall(range=stmt.next_range, command="<empty_clause>")
             )
         step_tail = self._lower_script(stmt.next, step_block)
-        if step_tail is not None:
+
+        # Analysis builds rotate a for whose condition is statically true on
+        # entry: the step re-checks the condition (back-edge) instead of
+        # looping back to the header, so the header is reached only from init.
+        # Its condition then folds on the entry values and SCCP prunes the
+        # zero-iteration header→end edge, so a body-assigned variable read
+        # after the loop is no longer a false read-before-set.  The loop_nodes
+        # mapping and the init block's exit versions are unchanged, so the
+        # optimiser's IR-level static-for summary is unaffected.
+        rotate = self._faithful_exceptions and _for_runs_at_least_once(stmt)
+        if rotate and step_tail is not None:
+            # The back-edge re-check carries the *real* condition (and source
+            # range) so the optimiser still sees the loop test.  The header is
+            # demoted to a synthetic always-true entry guard (range=None, so it
+            # is never source-rewritten) — we already proved the condition is
+            # true on entry, so SCCP prunes the zero-iteration header→end edge.
+            self._block(header_block).terminator = CFGBranch(
+                condition=ExprLiteral(text="1", start=0, end=0),
+                true_target=body_block,
+                false_target=end_block,
+                range=None,
+            )
+            self._block(step_tail).terminator = CFGBranch(
+                condition=stmt.condition,
+                true_target=body_block,
+                false_target=end_block,
+                range=stmt.condition_range,
+            )
+        elif step_tail is not None:
             self._ensure_goto(step_tail, header_block, stmt.next_range)
 
         self._loop_nodes[end_block] = (block_name, stmt)
@@ -1488,6 +1590,46 @@ class _CFGBuilder:
             defs=tuple(all_vars),
             foreach_groups=tuple(group_sizes),
         )
+
+        # Analysis builds rotate a provably-non-empty foreach so the
+        # 0-iteration skip is a *separate*, statically-true entry-guard edge
+        # (SCCP prunes it).  The var-def + body run at least once before the
+        # back-edge re-check, so a body-assigned variable read after the loop
+        # is no longer a false read-before-set, while SCCP values stay intact.
+        if self._faithful_exceptions and _foreach_runs_at_least_once(stmt):
+            latch_block = self._new_block("foreach_latch")
+            # Entry guard: the list is a non-empty literal, so the body always
+            # runs at least once — a statically-true condition SCCP folds, so
+            # the entry→end (zero-iteration) edge is dead.  ``range=None`` keeps
+            # the optimiser's constant-branch source rewriter (which only acts
+            # on branches with a range) from touching this synthetic guard.
+            self._block(header_block).terminator = CFGBranch(
+                condition=ExprLiteral(text="1", start=0, end=0),
+                true_target=body_block,
+                false_target=end_block,
+                range=None,
+            )
+            # The iteration variables are (re)bound at the top of every body
+            # execution — model the def node there so a post-loop read of a
+            # loop variable also resolves.
+            self._block(body_block).statements.append(var_def)
+            # ``continue`` re-checks via the latch; ``break`` exits the loop.
+            self._loop_stack.append((end_block, latch_block))
+            try:
+                body_tail = self._lower_script(stmt.body, body_block)
+            finally:
+                self._loop_stack.pop()
+            if body_tail is not None:
+                self._ensure_goto(body_tail, latch_block, stmt.body_range)
+            # Back-edge re-check: another element → body, else → exit.
+            self._block(latch_block).terminator = CFGBranch(
+                condition=ExprRaw(text="<foreach_has_next>"),
+                true_target=body_block,
+                false_target=end_block,
+                range=stmt.range,
+            )
+            return end_block
+
         self._block(header_block).statements.append(var_def)
 
         # Opaque condition: the loop runs "for each element" — we model

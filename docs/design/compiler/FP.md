@@ -2776,6 +2776,210 @@ possible undef.
 
 ---
 
+### FP-RBS-17 — `foreach` over a non-empty literal runs its body at least once
+
+- **Verdict:** FALSE POSITIVE (W210) — a `foreach` over a statically non-empty
+  literal always executes its body, so a body-assigned variable (or the loop
+  variable) read after the loop is defined; the CFG modelled every `foreach` as
+  possibly zero iterations.
+- **Status:** FIXED via loop rotation (analysis builds only).
+- **Codes:** W210
+- **Corpus:** synthetic (the `foreach x {…literal…} { … }; use $x` idiom).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # the list is a non-empty literal, so the body runs >=1 time and y is set
+    # before puts reads it.
+    foreach x {1 2 3} { set y $x }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `foreach x {1 2 3} { … }` — `{1 2 3}` is a static, non-empty list literal, so
+   `foreach` runs its body at least once (here three times). tclsh-verified:
+   `f` returns with `y == 3`, no `can't read "y"`.
+2. `set y $x` — runs on every iteration, so `y` is set on exit.
+3. `puts $y` — reached only after ≥1 iteration, so `y` is defined.
+4. Pre-fix, the `foreach` header was a single opaque has-next branch serving
+   both the first-iteration check and the back-edge, so its exit edge merged a
+   version-0 (zero-iteration) origin into the post-loop value → false W210.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% f
+3
+```
+
+(TP controls: `foreach x {} …` and `foreach x $items …` may run zero times, so
+both still fire W210; `foreach x {1} { if {$x==1} continue; set y $x }; puts $y`
+errors in tclsh — the `continue` skips `set y` — and still fires W210, because
+the rotation keeps `continue` a real edge.)
+
+#### Compiler evidence
+
+```
+--- FP-RBS-17: foreach over a non-empty literal runs its body at least once
+regen: python -m bench.fp_snippets --id FP-RBS-17
+function ::f
+  block entry_1
+    term Goto
+  block foreach_header_2
+    term Branch ExprLiteral(text='1', start=0, end=0)
+  block foreach_body_3
+    phi  SSAPhi(name='y', version=1, incoming={'foreach_header_2': 0, 'foreach_latch_5': 2})
+    [0] Call cmd='foreach'  defs={x#1}  uses={}
+    [1] AssignValue 'y' value='${x}'  defs={y#2}  uses={x#1}
+    term Goto
+  block foreach_end_4
+    phi  SSAPhi(name='y', version=3, incoming={'foreach_header_2': 0, 'foreach_latch_5': 2})
+    [0] Call cmd='puts'  defs={}  uses={y#3}
+    term Goto
+  block foreach_latch_5
+    term Branch ExprRaw(text='<foreach_has_next>')
+  block exit_6
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+- **`foreach_header_2 … Branch ExprLiteral('1')`** — the rotated entry guard:
+  a statically-true branch (SCCP prunes the `→ foreach_end_4` zero-iteration
+  edge), with no source range so the optimiser leaves it alone.
+- **`foreach_body_3`** holds the var-def and `set y`; **`foreach_latch_5`** is
+  the back-edge has-next re-check.
+- **`foreach_end_4`** is reached only via the latch (after ≥1 iteration); the
+  pruned header operand (`0`) is ignored by the dead-edge phi filter, so
+  **`read_before_set: (none)`**.
+
+#### Why the analyser reaches that verdict
+
+`compiler/cfg.py` `_lower_foreach`: in analysis builds (`faithful_exceptions`),
+when `_foreach_runs_at_least_once` holds (any iterator list is a non-empty
+literal per `_list_literal_nonempty`), the loop is lowered rotated — a literal-
+true entry guard, then `body → latch` with the has-next test on the latch.
+SCCP marks the guard's `→ end` edge non-executable, and the FP-RBS-16 dead-edge
+filter in `_read_before_set` drops its version-0 operand.  Codegen builds keep
+the original single-header `foreach` shape, so bytecode is unchanged.
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_17_foreach_literal_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_17_loop_var_after_foreach_silent` (FP — the
+  loop variable is also defined after a non-empty foreach)
+- `tests/test_fp_rbs.py::test_FP_RBS_17_empty_literal_still_fires` (TP control)
+- `tests/test_fp_rbs.py::test_FP_RBS_17_dynamic_list_still_fires` (TP control —
+  a `$var` list may be empty)
+- `tests/test_fp_rbs.py::test_FP_RBS_17_continue_before_set_still_fires` (TP
+  control — `continue` stays a real edge, so a skipped def still fires)
+
+---
+
+### FP-RBS-18 — `for` whose condition is true on entry runs its body at least once
+
+- **Verdict:** FALSE POSITIVE (W210) — a `for` whose condition is statically
+  true on entry always executes its body once, so a body-assigned variable read
+  after the loop is defined; SCCP could not fold the header test because the
+  loop variable there is the loop phi.
+- **Status:** FIXED via loop rotation (analysis builds only).
+- **Codes:** W210
+- **Corpus:** synthetic (the canonical counted `for {set i 0} {$i < N} …` loop).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # 0 < 3 is true on entry, so the body runs >=1 time and y is set.
+    for {set i 0} {$i < 3} {incr i} { set y $i }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `for {set i 0} {$i < 3} {incr i} { … }` — after the init `set i 0`, the
+   condition `0 < 3` is true, so the first iteration always runs.
+2. `set y $i` — runs on the first (and every) iteration, so `y` is set on exit.
+3. `puts $y` — reached only after the loop, which ran ≥1 time, so `y` is set.
+4. Pre-fix, SCCP could not prove the first iteration runs: the header test
+   reads `i` as the loop phi (`0 ⊔ stepped`), which is not constant, so the
+   header's zero-iteration exit edge stayed live and merged a version-0 origin
+   into the post-loop value → false W210.
+
+#### tclsh ground truth (9.0.3 — confirmed by execution)
+
+```
+% f
+2
+```
+
+(TP controls: `for {set i 5} {$i < 3} …` is false on entry → may run zero times
+→ W210 fires; `for {set i 0} {$i < $n} …` has an unknown bound → W210 fires;
+`for {set i 0} {$i < 3} {incr i} { if {$i==0} break; set y $i }; puts $y` errors
+in tclsh and still fires W210.)
+
+#### Compiler evidence
+
+```
+--- FP-RBS-18: for whose condition is true on entry runs its body at least once
+regen: python -m bench.fp_snippets --id FP-RBS-18
+function ::f
+  block entry_1
+    [0] AssignConst 'i' value='0'  defs={i#1}  uses={}
+    term Goto
+  block for_header_2
+    term Branch ExprLiteral(text='1', start=0, end=0)
+  block for_body_3
+    phi  SSAPhi(name='i', version=2, incoming={'for_header_2': 1, 'for_step_4': 3})
+    phi  SSAPhi(name='y', version=1, incoming={'for_header_2': 0, 'for_step_4': 2})
+    [0] AssignValue 'y' value='${i}'  defs={y#2}  uses={i#2}
+    term Goto
+  block for_step_4
+    [0] Incr 'i'  defs={i#3}  uses={i#2}
+    term Branch ExprBinary(op=<BinOp.LT: '<'>, left=ExprVar(text='$i', name='i', start=0, end=1), right=ExprLiteral(text='3', start=5, end=5))
+  block for_end_5
+    phi  SSAPhi(name='i', version=4, incoming={'for_header_2': 1, 'for_step_4': 3})
+    phi  SSAPhi(name='y', version=3, incoming={'for_header_2': 0, 'for_step_4': 2})
+    [0] Call cmd='puts'  defs={}  uses={y#3}
+    term Goto
+  block exit_6
+    term (none — fall-through exit)
+  read_before_set: (none)
+```
+
+- **`for_header_2 … Branch ExprLiteral('1')`** — the rotated entry guard
+  (range-less, so the optimiser does not rewrite the loop's source condition).
+  SCCP prunes its `→ for_end_5` zero-iteration edge.
+- **`for_step_4`** carries the *real* condition `$i < 3` (with its source
+  range), so the optimiser still sees the loop test and SCCP folds it only when
+  `i` actually becomes constant.
+- **`for_end_5`** is reached only via the step (after ≥1 iteration); the pruned
+  header operand is ignored → **`read_before_set: (none)`**.
+
+#### Why the analyser reaches that verdict
+
+`compiler/cfg.py` `_lower_for`: in analysis builds, when `_for_runs_at_least_once`
+holds (the condition evaluates true against the init clause's constant
+bindings), the loop is rotated — the back-edge re-check (on the step block)
+carries the real condition, and the header becomes a synthetic always-true,
+range-less entry guard.  The header is then reached only from init, so SCCP
+folds it and prunes the zero-iteration edge.  `loop_nodes` and the init block's
+exit versions are unchanged, so the optimiser's IR-level static-`for` summary
+(`summarise_static_for_ir`) still folds post-loop constants.  Codegen builds
+keep the original header/body/step shape, so bytecode is unchanged.
+
+#### Tests
+
+- `tests/test_fp_rbs.py::test_FP_RBS_18_for_true_on_entry_silent` (FP)
+- `tests/test_fp_rbs.py::test_FP_RBS_18_false_on_entry_still_fires` (TP control)
+- `tests/test_fp_rbs.py::test_FP_RBS_18_unknown_bound_still_fires` (TP control)
+- `tests/test_fp_rbs.py::test_FP_RBS_18_break_before_set_still_fires` (TP control)
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in
