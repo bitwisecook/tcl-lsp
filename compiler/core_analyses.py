@@ -2810,6 +2810,7 @@ def _read_before_set(
     ssa: SSAFunction,
     *,
     executable_blocks: set[str] | None = None,
+    executable_edges: set[tuple[str, str]] | None = None,
     params: frozenset[str] = frozenset(),
     values: dict[SSAValueKey, LatticeValue] | None = None,
 ) -> tuple[ReadBeforeSet, ...]:
@@ -2817,6 +2818,13 @@ def _read_before_set(
 
     A variable use with SSA version 0 means no prior definition was found
     during SSA renaming — the variable is read before set on that path.
+
+    *executable_edges* (the SCCP-reachable CFG edges) lets the phi-undef
+    closure ignore operands arriving on a dead predecessor edge: a phi merges
+    one value per incoming edge, so a version-0 operand on a never-taken edge
+    (e.g. the ``cond → exit`` edge of ``while 1``, which a ``break`` makes the
+    loop's only real exit) can never actually be read.  Without this, such an
+    operand false-fires W210 even though every live path defines the variable.
     """
     considered = executable_blocks if executable_blocks is not None else set(cfg.blocks)
     skip = _IMPLICIT_VARS | params
@@ -3145,6 +3153,13 @@ def _read_before_set(
             bn_def, phi = entry
             for pred, incoming_ver in phi.incoming.items():
                 if pred not in considered:
+                    continue
+                # A phi has one operand per predecessor *edge*; an operand on a
+                # non-executable edge (SCCP proved the edge dead — e.g. the
+                # ``cond → exit`` edge of ``while 1``) is never actually read,
+                # so its version-0 origin must not count as a possible undef.
+                # Mirrors the edge filter in ``_collect_used_names``.
+                if executable_edges is not None and (pred, bn_def) not in executable_edges:
                     continue
                 # A dominating existence guard (``if {[info exists v]}``
                 # or its negated form ``if {![info exists v]} {set v X}``)
@@ -3986,6 +4001,7 @@ def analyse_function(
         cfg,
         ssa,
         executable_blocks=executable_blocks,
+        executable_edges=executable_edges,
         params=params,
         values=values,
     )

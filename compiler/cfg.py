@@ -44,6 +44,7 @@ from .ir import (
     IRAssignExpr,
     IRAssignValue,
     IRBarrier,
+    IRBlock,
     IRCall,
     IRCatch,
     IRFor,
@@ -56,6 +57,7 @@ from .ir import (
     IRStatement,
     IRSwitch,
     IRTry,
+    IRUpFrame,
     IRWhile,
 )
 
@@ -74,6 +76,311 @@ def _terminating_commands() -> frozenset[str]:
 
 
 _TERMINATING_COMMANDS = _terminating_commands()
+
+
+# --- Definite-assignment ("flow facts") over un-lowered IR scripts ------------
+#
+# Shared by the CFG builder (to promote an opaque ``switch`` whose every arm
+# exits the *procedure*) and by SSA (to recover the def set an opaque switch
+# *definitely* establishes).  Lives here, at the control-flow layer, so both
+# consumers agree on one model.
+#
+# Each statement/script is classified by how it leaves: it can complete NORMALly
+# (fall through to the next statement), exit the procedure (PROC_EXIT —
+# ``return``/``error``/``throw``/``exit``/``tailcall``), or jump within an
+# enclosing loop (LOOP_JUMP — ``break``/``continue``).  The distinction matters
+# for an *opaque* switch (whose arm bodies are not lowered into the CFG, so
+# their loop-jump edges are invisible): a PROC_EXIT arm reaches no later code at
+# all, but a LOOP_JUMP arm still reaches the code after the enclosing loop
+# *without* the other arms' definitions — so it must NOT be treated as vacuous
+# when recovering the switch's defs, and an all-LOOP_JUMP switch is NOT a
+# procedure terminator.
+_COMPLETE_NORMAL = 0  # falls through to the next statement
+_COMPLETE_LOOP_JUMP = 1  # break / continue — leaves to an enclosing-loop target
+_COMPLETE_PROC_EXIT = 2  # return / error / throw / exit / tailcall
+
+
+def _flow_facts_stmt(stmt: IRStatement) -> tuple[set[str], int]:
+    """``(must-defines, completion)`` for a single statement.
+
+    ``completion`` is one of ``_COMPLETE_NORMAL`` / ``_COMPLETE_LOOP_JUMP`` /
+    ``_COMPLETE_PROC_EXIT``.
+
+    * assignments (``set``/``incr``/``expr``-assign) contribute their target and
+      complete normally; a plain ``IRCall`` contributes its synthetic ``defs``
+      and completes normally — *except* ``error``/``throw``/``exit`` (the
+      ``terminates_block`` trait) and ``tailcall``, which PROC_EXIT, and
+      ``break``/``continue``, which LOOP_JUMP.  ``IRReturn`` and a
+      ``return -code``/expansion ``IRBarrier`` PROC_EXIT;
+    * ``IRBlock`` / ``IRUpFrame`` bodies always run, so recurse;
+    * an ``IRIf`` *with* an else, or an ``IRSwitch`` *with* a default, combine
+      their branches via :func:`_intersect_completing`; an else-less ``IRIf`` /
+      default-less ``IRSwitch`` has a fall-through path, so it completes normally
+      assigning nothing for certain;
+    * loops, ``IRCatch``/``IRTry`` and everything else may not execute / always
+      complete (``catch`` even swallows ``break``), so they contribute no
+      must-define and complete normally.
+    """
+    if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
+        name = _normalise_var_name(stmt.name)
+        return ({name} if name else set()), _COMPLETE_NORMAL
+    if isinstance(stmt, IRReturn):
+        return set(), _COMPLETE_PROC_EXIT
+    if isinstance(stmt, IRBarrier):
+        if stmt.reason in ("return with options", "return with expansion"):
+            return set(), _COMPLETE_PROC_EXIT
+        return set(), _COMPLETE_NORMAL
+    if isinstance(stmt, IRCall):
+        canon = stmt.canonical_command.lstrip(":") if stmt.canonical_command else ""
+        if canon in ("break", "continue"):
+            # A loop jump leaves to the enclosing loop's target — it still
+            # reaches the code after that loop, just without later defs.
+            return set(stmt.defs), _COMPLETE_LOOP_JUMP
+        # ``tailcall`` always exits the proc (``TclNRTailcallObjCmd`` returns
+        # TCL_RETURN for any arg count).
+        if canon in _TERMINATING_COMMANDS or canon == "tailcall":
+            return set(stmt.defs), _COMPLETE_PROC_EXIT
+        return set(stmt.defs), _COMPLETE_NORMAL
+    if isinstance(stmt, (IRBlock, IRUpFrame)):
+        return _flow_facts_script(stmt.body)
+    if isinstance(stmt, IRIf):
+        if stmt.else_body is None:
+            return set(), _COMPLETE_NORMAL
+        bodies = [clause.body for clause in stmt.clauses]
+        bodies.append(stmt.else_body)
+        return _intersect_completing(bodies)
+    if isinstance(stmt, IRSwitch):
+        if stmt.default_body is None:
+            return set(), _COMPLETE_NORMAL
+        bodies = [stmt.default_body]
+        bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
+        return _intersect_completing(bodies)
+    return set(), _COMPLETE_NORMAL
+
+
+def _flow_facts_script(script: IRScript) -> tuple[set[str], int]:
+    """``(vars definitely assigned, completion)`` for an un-lowered IR script.
+
+    Walk statements in order accumulating must-defines; the first statement that
+    does not complete normally makes the rest dead and gives the script that
+    statement's completion (PROC_EXIT or LOOP_JUMP), with the must-defines being
+    those accumulated up to (and including) it.  Only names guaranteed to be
+    assigned are returned, so it never over-claims.
+    """
+    assigned: set[str] = set()
+    for stmt in script.statements:
+        defs, completion = _flow_facts_stmt(stmt)
+        assigned |= defs
+        if completion != _COMPLETE_NORMAL:
+            return assigned, completion
+    return assigned, _COMPLETE_NORMAL
+
+
+def _intersect_completing(bodies: list[IRScript]) -> tuple[set[str], int]:
+    """Combine branch bodies into ``(must-defines, completion)``.
+
+    A PROC_EXIT branch reaches no code after the construct, so it is vacuous
+    (⊤) and excluded from the must-define intersection.  A NORMAL or LOOP_JUMP
+    branch *does* reach later code (the fall-through successor, or — for a
+    loop jump — the code after the enclosing loop), so its must-defines (those
+    established before it leaves) ARE intersected: this keeps the result sound
+    when a ``break``/``continue`` arm escapes an opaque switch without the other
+    arms' defs.  The combined completion is NORMAL if any branch falls through,
+    else LOOP_JUMP if any jumps, else PROC_EXIT (every branch exits the proc).
+    """
+    common: set[str] | None = None
+    any_normal = False
+    any_loop_jump = False
+    for body in bodies:
+        assigned, completion = _flow_facts_script(body)
+        if completion == _COMPLETE_PROC_EXIT:
+            continue
+        if completion == _COMPLETE_NORMAL:
+            any_normal = True
+        else:
+            any_loop_jump = True
+        common = set(assigned) if common is None else (common & assigned)
+    if any_normal:
+        combined = _COMPLETE_NORMAL
+    elif any_loop_jump:
+        combined = _COMPLETE_LOOP_JUMP
+    else:
+        combined = _COMPLETE_PROC_EXIT
+    return (common or set()), combined
+
+
+def _switch_must_defines(stmt: IRSwitch) -> set[str]:
+    """Variables an opaque ``switch`` assigns on *every* non-proc-exit path.
+
+    Empty unless the switch has a ``default`` arm (otherwise an unmatched
+    subject falls through assigning nothing).  Intersection over the default and
+    every arm-with-a-body, excluding only arms that exit the procedure (which
+    reach no later code).  A ``break``/``continue`` arm is *kept* (with the defs
+    it makes before jumping), because it still reaches the code after the
+    enclosing loop — so an arm that breaks without assigning ``y`` correctly
+    drops ``y`` from the set rather than letting it be claimed defined.
+    """
+    return _flow_facts_stmt(stmt)[0]
+
+
+def _switch_proc_exits(stmt: IRSwitch) -> bool:
+    """Whether an opaque ``switch`` exits the *procedure* on every path.
+
+    True only when it has a ``default`` *and* every arm-with-a-body plus the
+    default exits the proc (``return``/``error``/``exit``/``tailcall``, possibly
+    nested).  A switch whose arms ``break``/``continue`` is NOT a proc
+    terminator — it jumps to an enclosing-loop target — so it must not be
+    promoted to a ``CFGReturn``.
+    """
+    return _flow_facts_stmt(stmt)[1] == _COMPLETE_PROC_EXIT
+
+
+def _escaping_loop_jumps(script: IRScript) -> tuple[bool, bool]:
+    """``(can_break, can_continue)`` for ``break``/``continue`` that escape
+    *script* to an enclosing loop.
+
+    Recurses into ``if``/``switch``/``IRBlock`` bodies (which don't capture a
+    loop jump) but NOT into nested loops (``for``/``while``/``foreach``) or
+    ``catch``/``try`` — those capture their own ``break``/``continue`` (tclsh:
+    ``catch {break}`` yields code 3 and does not propagate), so a jump inside
+    them does not escape to *this* loop.
+    """
+    can_break = can_continue = False
+    for stmt in script.statements:
+        if isinstance(stmt, IRCall):
+            canon = stmt.canonical_command.lstrip(":") if stmt.canonical_command else ""
+            if canon == "break":
+                can_break = True
+            elif canon == "continue":
+                can_continue = True
+        elif isinstance(stmt, IRIf):
+            for clause in stmt.clauses:
+                b, c = _escaping_loop_jumps(clause.body)
+                can_break |= b
+                can_continue |= c
+            if stmt.else_body is not None:
+                b, c = _escaping_loop_jumps(stmt.else_body)
+                can_break |= b
+                can_continue |= c
+        elif isinstance(stmt, IRSwitch):
+            b, c = _switch_escaping_jumps(stmt)
+            can_break |= b
+            can_continue |= c
+        elif isinstance(stmt, (IRBlock, IRUpFrame)):
+            b, c = _escaping_loop_jumps(stmt.body)
+            can_break |= b
+            can_continue |= c
+    return can_break, can_continue
+
+
+def _switch_escaping_jumps(stmt: IRSwitch) -> tuple[bool, bool]:
+    """``(can_break, can_continue)`` over all bodies of an opaque ``switch``."""
+    can_break = can_continue = False
+    bodies = [stmt.default_body] if stmt.default_body is not None else []
+    bodies.extend(arm.body for arm in stmt.arms if arm.body is not None)
+    for body in bodies:
+        b, c = _escaping_loop_jumps(body)
+        can_break |= b
+        can_continue |= c
+    return can_break, can_continue
+
+
+# --- Guaranteed-iteration loops ----------------------------------------------
+#
+# A loop whose body provably runs at least once does not skip its body, so a
+# variable the body assigns is defined when code after the loop reads it.  The
+# usual CFG models every loop as possibly running zero times (the header's
+# exit edge), false-firing W210 on such a read.  In analysis builds we *rotate*
+# a provably-non-empty loop so the 0-iteration skip becomes a *separate* entry-
+# guard edge whose condition is statically true; SCCP marks that edge dead and
+# the dead-edge phi filter (read-before-set) then ignores the version-0 operand
+# it carried — with no synthetic def, so SCCP values are untouched.  ``break`` /
+# ``continue`` stay real CFG edges, so partial-def exits remain sound.
+
+
+def _list_literal_nonempty(text: str) -> bool:
+    """True when *text* is a static, non-empty Tcl list literal.
+
+    Conservative: any ``$`` / ``[`` (a possible substitution) disqualifies it,
+    so a runtime-computed list is never claimed non-empty.  ``foreach`` stores a
+    braced list with its outer braces stripped (``{1 2 3}`` → ``1 2 3``), so a
+    literal splits directly.
+    """
+    if not text or "$" in text or "[" in text:
+        return False
+    from compiler.tcl_expr_eval import _split_tcl_list
+
+    try:
+        return len(_split_tcl_list(text)) >= 1
+    except Exception:
+        return False
+
+
+def _foreach_runs_at_least_once(stmt: IRForeach) -> bool:
+    """True when a ``foreach``/``lmap`` provably iterates ≥1 time.
+
+    ``foreach`` runs ``max`` over its iterator groups, so *any* non-empty
+    iterator list guarantees at least one iteration (shorter lists just pad
+    their loop vars with ``""``).
+    """
+    return any(_list_literal_nonempty(list_arg) for _vars, list_arg in stmt.iterators)
+
+
+def _coerce_scalar(text: str) -> int | float | str:
+    """Coerce a literal assignment value to int/float when possible (else str)."""
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return float(text)
+        except ValueError:
+            return text
+
+
+def _init_written_names(stmt: IRStatement) -> set[str] | None:
+    """Names a non-``IRAssignConst`` init statement may write.
+
+    ``None`` means "can't tell" — the caller then drops *all* constant bindings
+    (a write it can't characterise might clobber any of them).
+    """
+    if isinstance(stmt, (IRAssignValue, IRAssignExpr, IRIncr)):
+        name = _normalise_var_name(stmt.name)
+        return {name} if name else set()
+    if isinstance(stmt, IRCall):
+        return set(stmt.defs)
+    return None
+
+
+def _for_runs_at_least_once(stmt: IRFor) -> bool:
+    """True when a ``for`` loop's condition is statically true on entry.
+
+    Evaluates the condition against the constant bindings the init clause
+    establishes (``for {set i 0} {$i < 3} …`` → ``i = 0`` → ``0 < 3`` is true),
+    which proves the first iteration always runs.  Init statements are processed
+    in order: an ``IRAssignConst`` (re)binds a constant, but any *other* write
+    *invalidates* that variable's binding — so ``for {set i 0; set i $n} …`` and
+    ``for {set i 0; incr i 5} …`` leave ``i`` unknown rather than stale-constant
+    ``0`` (both may iterate zero times).  Conservative: a condition referencing
+    an unbound variable (or a command-substitution condition) evaluates to
+    ``None`` → not guaranteed.
+    """
+    from .tcl_expr_eval import eval_tcl_expr
+
+    env: dict[str, int | float | str] = {}
+    for s in stmt.init.statements:
+        if isinstance(s, IRAssignConst):
+            name = _normalise_var_name(s.name)
+            if name:
+                env[name] = _coerce_scalar(s.value)
+            continue
+        written = _init_written_names(s)
+        if written is None:
+            env.clear()  # unknown write — every prior constant is now suspect
+        else:
+            for name in written:
+                env.pop(name, None)
+    val = eval_tcl_expr(stmt.condition, env)
+    return val is not None and bool(val)
 
 
 def _static_var_write_defs(seg: SegmentedCommand) -> list[str]:
@@ -588,6 +895,17 @@ class _CFGBuilder:
         # throw has it set.  Nested ``try`` bodies install their own list so an
         # inner-caught throw is not attributed to the outer handler.
         self._throw_blocks: list[str] | None = None
+        # Stack of ``(break_target, continue_target)`` block names for the
+        # enclosing inlined loops.  Pushed by ``_lower_for`` / ``_lower_while``
+        # / ``_lower_foreach`` around their body lowering and consulted by
+        # ``_lower_loop_jump`` so a ``break`` / ``continue`` IRCall becomes a
+        # CFGGoto to the loop's exit / continue target instead of falling
+        # through to the next statement.  Empty on the opaque-loop
+        # (``invokeStk``) codegen path -- loops there are emitted as
+        # ``IRBarrier`` and never push a target -- so that lowering is
+        # unaffected (bytecode parity).  Loop jumps are modelled only in
+        # analysis builds (``faithful_exceptions``); see ``_lower_loop_jump``.
+        self._loop_stack: list[tuple[str, str]] = []
         self._inline_loops = inline_loops
         self._upvar_procs = upvar_procs or {}
         self._proc_params = proc_params or {}
@@ -835,6 +1153,15 @@ class _CFGBuilder:
                 current = orphan
                 block = self._block(current)
 
+            # ``break`` / ``continue`` inside an inlined loop are control-flow
+            # jumps, not ordinary calls: terminate the current block with a
+            # CFGGoto to the loop's exit / continue target.  Straight-line flow
+            # stops here -- any following statements are dead and get routed to
+            # the orphan unreachable block on the next iteration, exactly like a
+            # ``return``.
+            if self._lower_loop_jump(stmt, block):
+                continue
+
             match stmt:
                 case IRIf():
                     current = self._lower_if(stmt, current)
@@ -1048,19 +1375,29 @@ class _CFGBuilder:
                         self._faithful_exceptions
                         and isinstance(stmt, IRCall)
                         and stmt.canonical_command
-                        and stmt.canonical_command.lstrip(":") in _TERMINATING_COMMANDS
                     ):
-                        block.terminator = CFGReturn(
-                            value=None, range=stmt.range, expr=None, braced=False
-                        )
-                        # ``error`` / ``throw`` are catchable throw points; an
-                        # enclosing ``try`` sources its on-error edge from here
-                        # so the handler sees the var state *at the throw*.
-                        # ``exit`` is not catchable, so it is not a throw point.
-                        if self._throw_blocks is not None and stmt.canonical_command.lstrip(
-                            ":"
-                        ) in ("error", "throw"):
-                            self._throw_blocks.append(current)
+                        canon = stmt.canonical_command.lstrip(":")
+                        # ``tailcall`` (Tcl 8.6+) replaces the current
+                        # procedure's frame and never returns here, so it ends
+                        # straight-line flow just like ``error`` / ``exit``.
+                        # ``TclNRTailcallObjCmd`` (tclBasic.c) always
+                        # ``return TCL_RETURN`` -- both bare ``tailcall`` and
+                        # ``tailcall command ...`` exit the proc; the arg count
+                        # only decides what runs *after* the frame pops, not
+                        # whether this proc continues.  So any ``tailcall`` is a
+                        # terminator.
+                        exits_proc = canon in _TERMINATING_COMMANDS or canon == "tailcall"
+                        if exits_proc:
+                            block.terminator = CFGReturn(
+                                value=None, range=stmt.range, expr=None, braced=False
+                            )
+                            # ``error`` / ``throw`` are catchable throw points;
+                            # an enclosing ``try`` sources its on-error edge
+                            # from here so the handler sees the var state *at
+                            # the throw*.  ``exit`` / ``tailcall`` are not
+                            # catchable, so they are not throw points.
+                            if self._throw_blocks is not None and canon in ("error", "throw"):
+                                self._throw_blocks.append(current)
 
         # The script has no normal fall-through if the block control finally
         # rests in is terminated (a straight-line ``return``/``error`` as the
@@ -1069,6 +1406,36 @@ class _CFGBuilder:
             terminal = current
         self._last_terminal_block = terminal
         return current
+
+    def _lower_loop_jump(self, stmt: IRStatement, block: _MutableBlock) -> bool:
+        """Model a ``break`` / ``continue`` inside an inlined loop as a jump.
+
+        When *stmt* is a ``break`` / ``continue`` IRCall and we are inside an
+        inlined loop (``self._loop_stack`` non-empty), append it to *block* and
+        set the block's terminator to a CFGGoto targeting the enclosing loop's
+        break / continue target.  Returns True when the statement was handled
+        as a loop jump (so the caller skips normal lowering).
+
+        Only active in analysis builds (``faithful_exceptions``).  Codegen
+        builds leave ``break`` / ``continue`` as ordinary IRCalls that fall
+        through, so the emitted bytecode is unchanged.  Identified by canonical
+        command name so renamed / aliased spellings resolve through the
+        registry, consistent with the rest of ``cfg.py``.
+        """
+        if not (self._faithful_exceptions and self._loop_stack):
+            return False
+        if not isinstance(stmt, IRCall):
+            return False
+        break_target, continue_target = self._loop_stack[-1]
+        if stmt.canonical_command == "::break":
+            target = break_target
+        elif stmt.canonical_command == "::continue":
+            target = continue_target
+        else:
+            return False
+        block.statements.append(stmt)
+        block.terminator = CFGGoto(target=target, range=stmt.range)
+        return True
 
     def _lower_if(self, stmt: IRIf, block_name: str) -> str | None:
         end_block = self._new_block("if_end")
@@ -1105,6 +1472,98 @@ class _CFGBuilder:
 
         return end_block
 
+    def _lower_opaque_switch(self, stmt: IRSwitch, block_name: str) -> str:
+        """Append an opaque ``switch`` to *block_name* and model how it leaves.
+
+        An opaque (glob/regexp/fall-through) switch is kept as a single
+        ``IRSwitch`` statement whose arm bodies are not lowered into the CFG, so
+        its internal control flow is otherwise invisible.  In analysis builds we
+        recover the ways it can leave the block:
+
+        * every arm exits the *procedure* → promote the block to ``CFGReturn``
+          (so the following statements are unreachable, like a ``return``);
+        * an arm ``break``s/``continue``s to an enclosing loop → wire explicit
+          edges from this block to that loop's break / continue target, so a
+          loop whose only exit is such a jump is not seen as infinite and the
+          post-loop read is correctly reachable (and maybe-unset);
+        * otherwise it just falls through to the next statement.
+
+        Codegen builds (``faithful_exceptions`` off) leave the plain
+        fall-through so the opaque-switch ``invokeStk`` bytecode / CFG shape are
+        unchanged.  Returns the block subsequent statements continue in.
+        """
+        self._block(block_name).statements.append(stmt)
+        if not self._faithful_exceptions:
+            return block_name
+        completion = _flow_facts_stmt(stmt)[1]
+        if completion == _COMPLETE_PROC_EXIT:
+            self._block(block_name).terminator = CFGReturn(
+                value=None, range=stmt.range, expr=None, braced=False
+            )
+            return block_name
+        if self._loop_stack:
+            can_break, can_continue = _switch_escaping_jumps(stmt)
+            if can_break or can_continue:
+                return self._wire_opaque_switch_jumps(
+                    stmt, block_name, completion, can_break, can_continue
+                )
+        return block_name
+
+    def _wire_opaque_switch_jumps(
+        self,
+        stmt: IRSwitch,
+        block_name: str,
+        completion: int,
+        can_break: bool,
+        can_continue: bool,
+    ) -> str:
+        """Wire an opaque switch block to its enclosing loop's jump targets.
+
+        The switch can leave via the fall-through successor (only when it can
+        still complete normally), the loop's break target, and/or the loop's
+        continue target.  Build a non-deterministic dispatch over those targets
+        (we can't tell which arm runs), and return the block subsequent
+        statements continue in: the fall-through continuation when one exists,
+        else an unreachable orphan (every path jumped, so following code is
+        dead).
+        """
+        break_target, continue_target = self._loop_stack[-1]
+        targets: list[str] = []
+        continuation: str | None = None
+        if completion == _COMPLETE_NORMAL:
+            continuation = self._new_block("switch_cont")
+            targets.append(continuation)
+        if can_break:
+            targets.append(break_target)
+        if can_continue:
+            targets.append(continue_target)
+        self._branch_to_any(block_name, targets, stmt.range)
+        return continuation if continuation is not None else self._new_block("switch_jump_dead")
+
+    def _branch_to_any(self, block_name: str, targets: list[str], r: Range | None) -> None:
+        """Terminate *block_name* so control can reach any of *targets*.
+
+        One target → a ``CFGGoto``; more → a chain of opaque ``CFGBranch``es
+        through synthetic dispatch blocks (the choice is non-deterministic — an
+        opaque switch hides which arm runs).
+        """
+        if not targets:
+            return
+        if len(targets) == 1:
+            self._block(block_name).terminator = CFGGoto(target=targets[0], range=r)
+            return
+        opaque = ExprRaw(text="<switch_jump>")
+        current = block_name
+        for i in range(len(targets) - 1):
+            false_target = targets[-1] if i == len(targets) - 2 else self._new_block("switch_jump")
+            self._block(current).terminator = CFGBranch(
+                condition=opaque,
+                true_target=targets[i],
+                false_target=false_target,
+                range=r,
+            )
+            current = false_target
+
     def _lower_switch(self, stmt: IRSwitch, block_name: str) -> str | None:
         # ``-regexp`` needs a runtime regex engine pass we haven't plumbed
         # through the CFG, and ``-glob`` matching can't be expressed by the
@@ -1119,11 +1578,9 @@ class _CFGBuilder:
         # be lowered to valid WASM structured control flow in general;
         # ``_emit_switch`` handles OR-matching for fallthrough groups.
         if stmt.mode in ("glob", "regexp"):
-            self._block(block_name).statements.append(stmt)
-            return block_name
+            return self._lower_opaque_switch(stmt, block_name)
         if any(arm.fallthrough for arm in stmt.arms) and not self._expand_fallthrough_switch:
-            self._block(block_name).statements.append(stmt)
-            return block_name
+            return self._lower_opaque_switch(stmt, block_name)
 
         end_block = self._new_block("switch_end")
         default_block = self._new_block("switch_default")
@@ -1213,7 +1670,13 @@ class _CFGBuilder:
             range=stmt.condition_range,
         )
 
-        body_tail = self._lower_script(stmt.body, body_block)
+        # ``continue`` re-checks the loop via the step/next clause; ``break``
+        # exits to the loop-exit block.
+        self._loop_stack.append((end_block, step_block))
+        try:
+            body_tail = self._lower_script(stmt.body, body_block)
+        finally:
+            self._loop_stack.pop()
         if body_tail is not None:
             self._ensure_goto(body_tail, step_block, stmt.body_range)
 
@@ -1223,7 +1686,35 @@ class _CFGBuilder:
                 IRCall(range=stmt.next_range, command="<empty_clause>")
             )
         step_tail = self._lower_script(stmt.next, step_block)
-        if step_tail is not None:
+
+        # Analysis builds rotate a for whose condition is statically true on
+        # entry: the step re-checks the condition (back-edge) instead of
+        # looping back to the header, so the header is reached only from init.
+        # Its condition then folds on the entry values and SCCP prunes the
+        # zero-iteration header→end edge, so a body-assigned variable read
+        # after the loop is no longer a false read-before-set.  The loop_nodes
+        # mapping and the init block's exit versions are unchanged, so the
+        # optimiser's IR-level static-for summary is unaffected.
+        rotate = self._faithful_exceptions and _for_runs_at_least_once(stmt)
+        if rotate and step_tail is not None:
+            # The back-edge re-check carries the *real* condition (and source
+            # range) so the optimiser still sees the loop test.  The header is
+            # demoted to a synthetic always-true entry guard (range=None, so it
+            # is never source-rewritten) — we already proved the condition is
+            # true on entry, so SCCP prunes the zero-iteration header→end edge.
+            self._block(header_block).terminator = CFGBranch(
+                condition=ExprLiteral(text="1", start=0, end=0),
+                true_target=body_block,
+                false_target=end_block,
+                range=None,
+            )
+            self._block(step_tail).terminator = CFGBranch(
+                condition=stmt.condition,
+                true_target=body_block,
+                false_target=end_block,
+                range=stmt.condition_range,
+            )
+        elif step_tail is not None:
             self._ensure_goto(step_tail, header_block, stmt.next_range)
 
         self._loop_nodes[end_block] = (block_name, stmt)
@@ -1270,6 +1761,46 @@ class _CFGBuilder:
             defs=tuple(all_vars),
             foreach_groups=tuple(group_sizes),
         )
+
+        # Analysis builds rotate a provably-non-empty foreach so the
+        # 0-iteration skip is a *separate*, statically-true entry-guard edge
+        # (SCCP prunes it).  The var-def + body run at least once before the
+        # back-edge re-check, so a body-assigned variable read after the loop
+        # is no longer a false read-before-set, while SCCP values stay intact.
+        if self._faithful_exceptions and _foreach_runs_at_least_once(stmt):
+            latch_block = self._new_block("foreach_latch")
+            # Entry guard: the list is a non-empty literal, so the body always
+            # runs at least once — a statically-true condition SCCP folds, so
+            # the entry→end (zero-iteration) edge is dead.  ``range=None`` keeps
+            # the optimiser's constant-branch source rewriter (which only acts
+            # on branches with a range) from touching this synthetic guard.
+            self._block(header_block).terminator = CFGBranch(
+                condition=ExprLiteral(text="1", start=0, end=0),
+                true_target=body_block,
+                false_target=end_block,
+                range=None,
+            )
+            # The iteration variables are (re)bound at the top of every body
+            # execution — model the def node there so a post-loop read of a
+            # loop variable also resolves.
+            self._block(body_block).statements.append(var_def)
+            # ``continue`` re-checks via the latch; ``break`` exits the loop.
+            self._loop_stack.append((end_block, latch_block))
+            try:
+                body_tail = self._lower_script(stmt.body, body_block)
+            finally:
+                self._loop_stack.pop()
+            if body_tail is not None:
+                self._ensure_goto(body_tail, latch_block, stmt.body_range)
+            # Back-edge re-check: another element → body, else → exit.
+            self._block(latch_block).terminator = CFGBranch(
+                condition=ExprRaw(text="<foreach_has_next>"),
+                true_target=body_block,
+                false_target=end_block,
+                range=stmt.range,
+            )
+            return end_block
+
         self._block(header_block).statements.append(var_def)
 
         # Opaque condition: the loop runs "for each element" — we model
@@ -1282,7 +1813,13 @@ class _CFGBuilder:
             range=stmt.range,
         )
 
-        body_tail = self._lower_script(stmt.body, body_block)
+        # ``continue`` starts the next iteration via the header; ``break``
+        # exits to the loop-exit block.
+        self._loop_stack.append((end_block, header_block))
+        try:
+            body_tail = self._lower_script(stmt.body, body_block)
+        finally:
+            self._loop_stack.pop()
         if body_tail is not None:
             self._ensure_goto(body_tail, header_block, stmt.body_range)
 
@@ -1308,7 +1845,13 @@ class _CFGBuilder:
             range=stmt.condition_range,
         )
 
-        body_tail = self._lower_script(stmt.body, body_block)
+        # ``continue`` re-checks the condition via the header; ``break`` exits
+        # to the loop-exit block.
+        self._loop_stack.append((end_block, header_block))
+        try:
+            body_tail = self._lower_script(stmt.body, body_block)
+        finally:
+            self._loop_stack.pop()
         if body_tail is not None:
             self._ensure_goto(body_tail, header_block, stmt.body_range)
 

@@ -40,6 +40,7 @@ from .cfg import (
     CFGTerminator,
     _defs_from_expr,
     _defs_from_ir_script,
+    _switch_must_defines,
 )
 from .expr_ast import ExprNode, command_texts_in_expr_node, vars_in_expr_node
 from .ir import (
@@ -140,6 +141,18 @@ def _defs(stmt: IRStatement) -> tuple[str, ...]:
         is_namespace_eval = len(sa) >= 3 and sa[0] == "eval"
         if not is_namespace_eval:
             return tuple(_defs_from_ir_script(stmt.body))
+    if isinstance(stmt, IRSwitch):
+        # An opaque (glob/regexp/fall-through) switch is kept as one IRSwitch
+        # statement (cfg.py keeps its shared-body topology un-lowered), so its
+        # arm-body assignments never reach the CFG as ordinary defs.  Recover
+        # the variables it *definitely* defines: a variable is switch-defined
+        # only when EVERY execution path assigns it — there must be a
+        # ``default`` arm AND the variable must be must-defined in the default
+        # body and in every arm that has a body.  This is sound (never
+        # over-claims), so a variable assigned in the arms and read afterwards
+        # is no longer falsely flagged read-before-set (W210), while a switch
+        # that might leave it unset still reports the genuine read-before-set.
+        return tuple(sorted(_switch_must_defines(stmt)))
     return ()
 
 
@@ -485,6 +498,12 @@ def _uses(stmt: IRStatement) -> tuple[str, ...]:
                     reads_own_def.add(name)
         case IRSwitch():
             vars_found |= _switch_reads(stmt)
+            # The subject is read before any arm runs, so a subject variable
+            # that an arm also assigns (now in ``_defs`` for an exhaustive
+            # switch) must stay live — mark it reads-own-def so the final
+            # filter doesn't drop it as a switch def.  Mirrors the Rust
+            # oracle's ``uses_of`` Switch arm.
+            reads_own_def |= _vars_in_word(stmt.subject)
         case IRReturn(value=_value, expr=_expr):
             if _value is not None:
                 vars_found |= _vars_in_word(_value)
