@@ -168,18 +168,26 @@ def lsp_server_inlay(
 ) -> Iterator[LspServerClient]:
     """A server with inlay hints enabled via ``workspace/configuration``.
 
-    Inlay hints are gated off by default (``inlay_hints_enabled``), and the
-    main ``lsp_server`` deliberately pins that default-off contract.  The inlay
-    *content* regressions (optional-positional labelling, issue #510) need the
-    provider switched on, so they run against this dedicated server whose
-    ``tclLsp`` config reply opts into ``features.inlayHints`` (keeping linked
-    editing on too, matching the default fixture).
+    Inlay hints are gated off by default (both ``inlayTypeHints`` and
+    ``inlayParameterHints``), and the main ``lsp_server`` deliberately pins
+    that default-off contract.  The inlay *content* regressions
+    (optional-positional labelling, issue #510) exercise the parameter-name
+    hints, so they run against this dedicated server whose ``tclLsp`` config
+    reply opts into ``features.inlayTypeHints`` and
+    ``features.inlayParameterHints`` (keeping linked editing on too, matching
+    the default fixture).
     """
     workspace = tmp_path_factory.mktemp("lsp-inlay-workspace")
     client = LspServerClient(
         server_launch_argv(lsp_pyz),
         cwd=workspace,
-        tcllsp_config={"features": {"linkedEditingRange": True, "inlayHints": True}},
+        tcllsp_config={
+            "features": {
+                "linkedEditingRange": True,
+                "inlayTypeHints": True,
+                "inlayParameterHints": True,
+            }
+        },
     )
     client.start()
     client.initialize(root_uri=workspace.as_uri())

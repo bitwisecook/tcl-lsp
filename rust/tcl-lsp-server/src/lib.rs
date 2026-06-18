@@ -2189,6 +2189,32 @@ impl Backend {
             .is_enabled_default_off("willSaveWaitUntil")
     }
 
+    /// Whether inlay hints should be produced for the document at `uri`.
+    ///
+    /// Inlay hints are opt-in and default **off**, matching the Python
+    /// server's default-off contract (PR #643).  The Rust provider emits
+    /// only parameter-name hints (`InlayHintKind::Parameter`), so this gates
+    /// on the `inlayParameterHints` family.  The retired `inlayHints` key is
+    /// already normalised to `inlayTypeHints` on input (see
+    /// [`FeatureToggles::apply`]) and so does not enable the verbose
+    /// parameter hints — consistent with the Python alias semantics.
+    /// Resolves per folder like [`Self::feature_enabled`] so a folder-scoped
+    /// opt-in works in a multi-root workspace.
+    async fn inlay_parameter_hints_enabled(&self, uri: &Url) -> bool {
+        {
+            let configs = self.folder_configs.lock().await;
+            if let Some(fc) = longest_folder_match(&configs, uri)
+                && let Some(flag) = fc.feature_toggles.set.get("inlayParameterHints").copied()
+            {
+                return flag;
+            }
+        }
+        self.feature_toggles
+            .lock()
+            .await
+            .is_enabled_default_off("inlayParameterHints")
+    }
+
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
     /// from the registry.  Mirrors `server/commands.py::on_list_subcommands`.
     /// An unknown command (or one with no subcommands) yields an empty list.
@@ -3962,6 +3988,13 @@ impl LanguageServer for Backend {
 
     async fn inlay_hint(&self, params: InlayHintParams) -> jsonrpc::Result<Option<Vec<InlayHint>>> {
         let uri = params.text_document.uri.clone();
+        // Inlay hints are opt-in (default off).  The provider must still answer
+        // with a well-formed (empty) list — never an error or `null` — when the
+        // feature is disabled, mirroring the Python default-off contract
+        // (`on_inlay_hint` returns `[]`).
+        if !self.inlay_parameter_hints_enabled(&uri).await {
+            return Ok(Some(Vec::new()));
+        }
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(None);
         };
