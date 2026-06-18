@@ -99,10 +99,19 @@ const MAX_EXPONENT: i64 = (1 << 28) - 1;
 /// [`FoldOps`]. A `None` result means "can't fold".
 #[must_use]
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
-    let mut ops = FoldOps { env };
+    let mut ops = FoldOps {
+        env,
+        ambiguous: false,
+    };
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
-    tcl_syntax::expr::eval(node, &mut ops).ok()?.to_number()
+    let result = tcl_syntax::expr::eval(node, &mut ops).ok()?;
+    if ops.ambiguous {
+        // A comparison hit a dialect-ambiguous operand (e.g. `"08" == "8"`);
+        // its value would be dialect-dependent, so decline to fold.
+        return None;
+    }
+    result.to_number()
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +159,13 @@ impl FoldValue {
 /// `env`, `[cmd]`/`Raw` are opaque.
 struct FoldOps<'a> {
     env: &'a Env,
+    /// Set when a comparison operand is a *dialect-ambiguous* number (a
+    /// leading-zero decimal like `08`: octal in tcl8.x, decimal in tcl9.0).
+    /// Its numeric-vs-string classification — and therefore the comparison
+    /// result — depends on the dialect, which this const-folder does not know,
+    /// so [`eval_tcl_expr`] declines to fold the whole expression rather than
+    /// risk a wrong answer (a false I230 unreachable-branch).
+    ambiguous: bool,
 }
 
 impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
@@ -232,6 +248,15 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // `expr {"true" + 0}` errors). Returning `None` for a non-number falls
         // the shared evaluator back to `compare_string`, matching Tcl and
         // avoiding a wrong-direction I230 (e.g. `set x true; if {$x == "1"}`).
+        //
+        // A *dialect-ambiguous* operand (a leading-zero decimal like `08`,
+        // octal in 8.x but decimal in 9.0) makes the numeric-vs-string outcome
+        // dialect-dependent: mark the fold unreliable so `eval_tcl_expr`
+        // declines entirely (no I230) rather than pick a dialect.
+        if is_dialect_ambiguous_number(left) || is_dialect_ambiguous_number(right) {
+            self.ambiguous = true;
+            return None;
+        }
         Some(numeric_cmp(strict_number(left)?, strict_number(right)?))
     }
     fn compare_string(&mut self, left: &FoldValue, right: &FoldValue) -> std::cmp::Ordering {
@@ -331,6 +356,24 @@ fn strict_number(value: &FoldValue) -> Option<TclValue> {
             Number::Big { .. } => None,
         },
     }
+}
+
+/// Whether a comparison operand is a *dialect-ambiguous* number: a leading-zero
+/// decimal (`08`, `010`, `-007`). Tcl 8.x reads such a literal as octal (and
+/// `08`/`09` as an *invalid* octal → a string), whereas Tcl 9.0 reads it as
+/// decimal, so the numeric-vs-string classification — and the comparison's
+/// result — depends on the dialect. `0` alone, `0x…`/`0o…`/`0b…` prefixes, and
+/// floats (`0.5`) are unambiguous. Only `Str` operands carry raw text; an
+/// already-parsed `Int`/`Float` is unambiguous. Mirrors the Codex-reviewed
+/// eligibility on PR #640.
+fn is_dialect_ambiguous_number(value: &FoldValue) -> bool {
+    let FoldValue::Str(s) = value else {
+        return false;
+    };
+    let digits = s.strip_prefix(['+', '-']).unwrap_or(s);
+    digits.len() > 1
+        && digits.starts_with('0')
+        && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
 // ---------------------------------------------------------------------------
@@ -688,6 +731,20 @@ mod tests {
         assert_eq!(eval_str(r#""0x10" == "16""#), Some(TclValue::Int(1)));
         assert_eq!(eval_str(r#""foo" == "foo""#), Some(TclValue::Int(1)));
         assert_eq!(eval_str(r#""foo" == "bar""#), Some(TclValue::Int(0)));
+    }
+
+    #[test]
+    fn dialect_ambiguous_operand_declines_to_fold() {
+        // A leading-zero decimal is octal in tcl8.x but decimal in tcl9.0, so
+        // its numeric-vs-string comparison is dialect-dependent — the
+        // const-folder declines rather than risk a wrong answer (false I230).
+        assert_eq!(eval_str(r#""08" == "8""#), None);
+        assert_eq!(eval_str(r#""010" == "8""#), None);
+        assert_eq!(eval_str(r#""8" != "08""#), None);
+        // But unambiguous numbers and non-numbers still fold.
+        assert_eq!(eval_str(r#""0" == "0""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""0x10" == "16""#), Some(TclValue::Int(1)));
+        assert_eq!(eval_str(r#""08" == "foo""#), None); // 08 still ambiguous
     }
 
     #[test]
