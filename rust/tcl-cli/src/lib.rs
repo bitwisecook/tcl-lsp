@@ -168,6 +168,7 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
             json,
             output,
         } => commands::help::run_help(query, dialect, *limit, *json, output.as_deref()),
+        Command::FindLegacy { input, json } => commands::misc::run_find_legacy(input, *json),
         // Verbs not yet ported fall through to a clear not-implemented error.
         other => {
             let verb = other.verb_name();

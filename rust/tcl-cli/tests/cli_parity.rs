@@ -567,3 +567,80 @@ fn explore_text_renders_box_drawing_trees() {
     );
     assert!(!text.contains('\x1b'), "no ANSI escapes with --no-colour");
 }
+
+// `find-legacy` (`tooling/tcl/verbs/misc.py::_run_find_legacy`) runs the
+// analyser over the combined input, keeps the six convertible codes (W100,
+// W104, W110, W304, IRULE2001, IRULE5001), and reports each with its
+// modernisation hint. The firing condition, span, message, and severity match
+// the Python analyser byte-for-byte; the only accepted divergence is the
+// emission *order* of the underlying diagnostics (Rust sorts by source
+// position, Python emits in pass order — see docs/rust-cli-port.md). The
+// fixtures below are deliberately single-pattern-per-line, so source order and
+// Python's pass order coincide and the goldens match Python exactly (verified
+// at capture time); they are captured from the Rust binary per the
+// ordering-divergence guardrail. `.irule` fixtures run under `f5-irules` — the
+// realistic dialect; analysing an iRule under `tcl8.6` is a degenerate
+// wrong-dialect run (the `when` body is an opaque string there, so Rust's
+// dialect-aware body recursion (#640) intentionally skips it).
+#[test]
+fn find_legacy_tcl_text_matches_python() {
+    let input = fixtures_dir().join("find-legacy.tcl");
+    assert_matches_golden(
+        &["find-legacy", input.to_str().unwrap()],
+        "find-legacy.tcl.golden",
+    );
+}
+
+#[test]
+fn find_legacy_tcl_json_matches_python() {
+    let input = fixtures_dir().join("find-legacy.tcl");
+    assert_matches_golden(
+        &["find-legacy", input.to_str().unwrap(), "--json"],
+        "find-legacy.tcl.json.golden",
+    );
+}
+
+#[test]
+fn find_legacy_irule_text_matches_python() {
+    let input = fixtures_dir().join("find-legacy.irule");
+    assert_matches_golden(
+        &[
+            "find-legacy",
+            "--dialect",
+            "f5-irules",
+            input.to_str().unwrap(),
+        ],
+        "find-legacy.irule.golden",
+    );
+}
+
+#[test]
+fn find_legacy_irule_json_matches_python() {
+    let input = fixtures_dir().join("find-legacy.irule");
+    assert_matches_golden(
+        &[
+            "find-legacy",
+            "--dialect",
+            "f5-irules",
+            input.to_str().unwrap(),
+            "--json",
+        ],
+        "find-legacy.irule.json.golden",
+    );
+}
+
+#[test]
+fn find_legacy_empty_text_matches_python() {
+    assert_matches_golden(
+        &["find-legacy", "--source", "set x 1"],
+        "find-legacy-empty.golden",
+    );
+}
+
+#[test]
+fn find_legacy_empty_json_matches_python() {
+    assert_matches_golden(
+        &["find-legacy", "--source", "set x 1", "--json"],
+        "find-legacy-empty.json.golden",
+    );
+}
