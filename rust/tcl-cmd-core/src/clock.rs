@@ -8,8 +8,9 @@
 //! `0` offset, so local time then equals UTC.
 //!
 //! Implemented: `seconds`/`milliseconds`/`microseconds`/`clicks`, `format` (the
-//! civil-date specifiers), and `add` (count/unit arithmetic incl. calendar
-//! months/years). `scan` (free-form date parsing) is not yet supported. Mirrors
+//! civil-date specifiers), `add` (count/unit arithmetic incl. calendar
+//! months/years), and `scan -format` (the inverse — parse an input per a format).
+//! Free-form `clock scan` (natural-language dates) is not yet supported. Mirrors
 //! C's `clock.tcl` ensemble. The civil↔days conversions are Howard Hinnant's
 //! branch-free algorithms (valid for the full proleptic Gregorian range).
 
@@ -61,7 +62,7 @@ where
         "clicks" => clicks(ops, rest, now),
         "format" => format(ops, rest, local_offset),
         "add" => add(ops, rest, local_offset),
-        "scan" => Err(CmdError::new("clock scan is not yet supported")),
+        "scan" => scan(ops, rest, now, local_offset),
         other => Err(CmdError::new(format!(
             "unknown or ambiguous subcommand \"{other}\": must be add, clicks, \
              format, microseconds, milliseconds, scan, or seconds"
@@ -227,6 +228,199 @@ fn add_units(
     let day = c.day.min(days_in_month(year, month));
     let local = days_from_civil(year, month, day) * 86_400 + c.tod;
     Ok(local - offset)
+}
+
+/// `clock scan inputString -format formatString ?-gmt boolean? ?-base clock? …` —
+/// parse `inputString` per `formatString` into an epoch timestamp. Free-form
+/// scanning (no `-format`) is not yet supported.
+fn scan<O, V>(
+    ops: &mut O,
+    rest: &[V],
+    now: &Now,
+    local_offset: &dyn Fn(i64) -> i32,
+) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V>,
+{
+    let Some((input, opts)) = rest.split_first() else {
+        return Err(CmdError::wrong_args(
+            "clock scan inputString ?-base clockVal? ?-format string? ?-gmt boolean? ?-locale locale? ?-timezone zone?",
+        ));
+    };
+    let input = ops.as_str(input).to_string();
+    let mut fmt: Option<String> = None;
+    let mut gmt = false;
+    let mut base = now.secs;
+    let mut i = 0;
+    while i < opts.len() {
+        let name = ops.as_str(&opts[i]).to_string();
+        let value = opts
+            .get(i + 1)
+            .ok_or_else(|| CmdError::new(format!("value for \"{name}\" missing")))?;
+        match name.as_str() {
+            "-format" => fmt = Some(ops.as_str(value).to_string()),
+            "-gmt" => gmt = ops.as_bool(value)?,
+            "-base" => base = ops.as_int(value)?,
+            "-timezone" | "-locale" => {}
+            other => {
+                return Err(CmdError::bad_choice(
+                    "option",
+                    other,
+                    "-base, -format, -gmt, -locale, or -timezone",
+                ));
+            }
+        }
+        i += 2;
+    }
+    // Free-form (natural-language) scanning is not implemented; `-format` only.
+    let Some(fmt) = fmt else {
+        return Err(CmdError::new("free-form clock scan is not yet supported"));
+    };
+    let base_offset = if gmt { 0 } else { local_offset(base) };
+    let base_civil = Civil::from_secs(base + i64::from(base_offset));
+    let fields = parse_with_format(&input, &fmt)?;
+    if let Some(epoch) = fields.epoch {
+        return Ok(ops.new_int(epoch));
+    }
+    let year = fields.year.unwrap_or(base_civil.year);
+    let month = fields.month.unwrap_or(base_civil.month);
+    let day = fields.day.unwrap_or(base_civil.day);
+    if day == 0 || day > days_in_month(year, month) {
+        return Err(CmdError::new("unable to convert input string: invalid day"));
+    }
+    let hour = fields.hour.unwrap_or(0);
+    let min = fields.min.unwrap_or(0);
+    let sec = fields.sec.unwrap_or(0);
+    let local = days_from_civil(year, month, day) * 86_400 + hour * 3600 + min * 60 + sec;
+    let offset = if gmt { 0 } else { local_offset(local) };
+    Ok(ops.new_int(local - i64::from(offset)))
+}
+
+/// The date/time fields a `-format` scan extracted (each `None` if its specifier
+/// was absent). `epoch` (from `%s`) short-circuits everything else.
+#[derive(Default, Debug)]
+struct ScanFields {
+    year: Option<i64>,
+    month: Option<u32>,
+    day: Option<u32>,
+    hour: Option<i64>,
+    min: Option<i64>,
+    sec: Option<i64>,
+    epoch: Option<i64>,
+}
+
+/// `input string does not match supplied format` — the scan mismatch error.
+fn no_match() -> CmdError {
+    CmdError::new("input string does not match supplied format")
+}
+
+/// Read up to `max` decimal digits (at least one) from `inb` at `*ip`.
+fn read_uint(inb: &[u8], ip: &mut usize, max: usize) -> Result<i64, CmdError> {
+    let start = *ip;
+    let mut val: i64 = 0;
+    while *ip < inb.len() && *ip - start < max && inb[*ip].is_ascii_digit() {
+        val = val * 10 + i64::from(inb[*ip] - b'0');
+        *ip += 1;
+    }
+    if *ip == start {
+        return Err(no_match());
+    }
+    Ok(val)
+}
+
+/// Read an alphabetic month name (full or 3-letter abbreviation) → 1-12.
+fn read_month_name(inb: &[u8], ip: &mut usize) -> Result<u32, CmdError> {
+    let start = *ip;
+    while *ip < inb.len() && inb[*ip].is_ascii_alphabetic() {
+        *ip += 1;
+    }
+    let name = core::str::from_utf8(&inb[start..*ip]).map_err(|_| no_match())?;
+    if name.is_empty() {
+        return Err(no_match());
+    }
+    for (idx, m) in MONTHS.iter().enumerate() {
+        if m.eq_ignore_ascii_case(name) || m[..3].eq_ignore_ascii_case(name) {
+            return Ok(idx as u32 + 1);
+        }
+    }
+    Err(CmdError::new(
+        "unable to convert input string: invalid month",
+    ))
+}
+
+/// Parse `input` against the strftime-style `fmt`, extracting the date/time
+/// fields. A literal char must match; a numeric specifier reads its digits; an
+/// unrecognised value (e.g. month 13) is `unable to convert input string`.
+fn parse_with_format(input: &str, fmt: &str) -> Result<ScanFields, CmdError> {
+    let inb = input.as_bytes();
+    let mut ip = 0;
+    let mut f = ScanFields::default();
+    let mut chars = fmt.chars();
+    while let Some(fc) = chars.next() {
+        if fc != '%' {
+            // A literal format byte must match the input (a space matches a space).
+            let mut buf = [0u8; 4];
+            for b in fc.encode_utf8(&mut buf).as_bytes() {
+                if inb.get(ip) != Some(b) {
+                    return Err(no_match());
+                }
+                ip += 1;
+            }
+            continue;
+        }
+        let Some(spec) = chars.next() else {
+            return Err(no_match());
+        };
+        match spec {
+            'Y' => f.year = Some(read_uint(inb, &mut ip, 4)?),
+            'y' => {
+                let yy = read_uint(inb, &mut ip, 2)?;
+                f.year = Some(if yy < 69 { 2000 + yy } else { 1900 + yy });
+            }
+            'm' => {
+                let m = read_uint(inb, &mut ip, 2)?;
+                if !(1..=12).contains(&m) {
+                    return Err(CmdError::new(
+                        "unable to convert input string: invalid month",
+                    ));
+                }
+                f.month = Some(m as u32);
+            }
+            'b' | 'B' | 'h' => f.month = Some(read_month_name(inb, &mut ip)?),
+            'd' | 'e' => f.day = Some(read_uint(inb, &mut ip, 2)? as u32),
+            'H' | 'k' | 'I' | 'l' => f.hour = Some(read_uint(inb, &mut ip, 2)?),
+            'M' => f.min = Some(read_uint(inb, &mut ip, 2)?),
+            'S' => f.sec = Some(read_uint(inb, &mut ip, 2)?),
+            's' => {
+                let neg = inb.get(ip) == Some(&b'-');
+                if neg {
+                    ip += 1;
+                }
+                let v = read_uint(inb, &mut ip, 19)?;
+                f.epoch = Some(if neg { -v } else { v });
+            }
+            't' | 'n' => {
+                while inb.get(ip).is_some_and(u8::is_ascii_whitespace) {
+                    ip += 1;
+                }
+            }
+            '%' => {
+                if inb.get(ip) != Some(&b'%') {
+                    return Err(no_match());
+                }
+                ip += 1;
+            }
+            _ => return Err(no_match()),
+        }
+    }
+    // The format must consume the whole input (trailing whitespace excepted).
+    while inb.get(ip).is_some_and(u8::is_ascii_whitespace) {
+        ip += 1;
+    }
+    if ip != inb.len() {
+        return Err(no_match());
+    }
+    Ok(f)
 }
 
 // -- civil date ---------------------------------------------------------------
@@ -462,6 +656,33 @@ mod tests {
         assert_eq!(render(&c, "%s", 0, 1_700_000_000), "1700000000");
         // Unknown specifier passes through verbatim (Tcl does not support %F).
         assert_eq!(render(&c, "%F", 0, 0), "%F");
+    }
+
+    #[test]
+    fn scan_with_format_parses_fields() {
+        // Full date+time round-trips `format` (UTC).
+        let f = parse_with_format("2023-11-14 22:13:20", "%Y-%m-%d %H:%M:%S").unwrap();
+        assert_eq!((f.year, f.month, f.day), (Some(2023), Some(11), Some(14)));
+        assert_eq!((f.hour, f.min, f.sec), (Some(22), Some(13), Some(20)));
+        // Month name + the day defaults handled at the `scan` layer.
+        let f = parse_with_format("Nov 14 2023", "%b %d %Y").unwrap();
+        assert_eq!((f.year, f.month, f.day), (Some(2023), Some(11), Some(14)));
+        // %s short-circuits to an absolute epoch.
+        assert_eq!(
+            parse_with_format("1700000000", "%s").unwrap().epoch,
+            Some(1_700_000_000)
+        );
+        // Errors: bad month, then a literal/format mismatch.
+        assert_eq!(
+            parse_with_format("2023-13-01", "%Y-%m-%d")
+                .unwrap_err()
+                .message(),
+            "unable to convert input string: invalid month"
+        );
+        assert_eq!(
+            parse_with_format("xyz", "%Y").unwrap_err().message(),
+            "input string does not match supplied format"
+        );
     }
 
     #[test]

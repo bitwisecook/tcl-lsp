@@ -96,9 +96,32 @@ mod tests {
                 run(i, b"expr {[clock microseconds] > 1700000000000000}"),
                 b"1"
             );
-            // scan not yet supported.
+            // `clock scan -format` round-trips `clock format`.
+            assert_eq!(
+                run(
+                    i,
+                    b"clock scan {2023-11-14 22:13:20} -format {%Y-%m-%d %H:%M:%S} -gmt 1"
+                ),
+                b"1700000000"
+            );
+            assert_eq!(
+                run(i, b"clock scan {Nov 14 2023} -format {%b %d %Y} -gmt 1"),
+                b"1699920000"
+            );
+            assert_eq!(
+                i.eval_str(b"clock scan {2023-13-01} -format {%Y-%m-%d} -gmt 1"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"unable to convert input string: invalid month"
+            );
+            // Free-form scan (no -format) is the remaining piece.
             assert_eq!(i.eval_str(b"clock scan now"), Code::Error);
-            assert_eq!(i.result_bytes(), b"clock scan is not yet supported");
+            assert_eq!(
+                i.result_bytes(),
+                b"free-form clock scan is not yet supported"
+            );
         });
     }
 }

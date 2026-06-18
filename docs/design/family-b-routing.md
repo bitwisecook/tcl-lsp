@@ -172,8 +172,11 @@ Shared in `tcl-cmd-core`:
   `Rc<dyn Host>`). The `Clock` trait grew `now_micros` + `local_offset_secs`; the
   std host has no timezone database, so local time currently equals UTC (a host
   with TZ data plugs in later) — `format`/`scan` against a fixed instant use
-  `-gmt 1` for determinism. `scan` (free-form date parsing) is the remaining
-  piece. Pinned vs tclsh 9.0 on both runtimes (runtime leak-gate clean).
+  `-gmt 1` for determinism. `clock scan -format` (the inverse — parse an input
+  per a format with the `%b`/`%s` etc. specifiers, base-date defaulting, and the
+  `invalid month` / `does not match` errors) is implemented; only **free-form**
+  `clock scan "next tuesday"` (Tcl's natural-language date grammar) remains.
+  Pinned vs tclsh 9.0 on both runtimes (runtime leak-gate clean).
 - `trace::{parse_ops, bad_type_error}` — the `trace` **argument decoding**: the
   op-list parser (split + per-type validation of `read`/`write`/`unset`/`array`,
   `rename`/`delete`, `enter`/`leave`/`enterstep`/`leavestep`) and the `bad type` /

@@ -814,10 +814,22 @@ fn clock_shared_core() {
         "puts [expr {[clock milliseconds] > 1700000000000}]\n",
         "1\n",
     );
-    // `clock scan` is not yet supported (errors cleanly).
+    // `clock scan -format` round-trips `clock format` (the inverse).
+    out_eq(
+        "puts [clock scan {2023-11-14 22:13:20} -format {%Y-%m-%d %H:%M:%S} -gmt 1]\n",
+        "1700000000\n",
+    );
+    out_eq(
+        "puts [clock scan {Nov 14 2023} -format {%b %d %Y} -gmt 1]\n",
+        "1699920000\n",
+    );
+    let (ok, msg, _) = run("clock scan {2023-13-01} -format {%Y-%m-%d} -gmt 1");
+    assert!(!ok);
+    assert_eq!(msg, "unable to convert input string: invalid month");
+    // Free-form scan (no -format) is the remaining piece.
     let (ok, msg, _) = run("clock scan tomorrow");
     assert!(!ok);
-    assert_eq!(msg, "clock scan is not yet supported");
+    assert_eq!(msg, "free-form clock scan is not yet supported");
 }
 
 #[test]
