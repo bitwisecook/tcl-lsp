@@ -318,3 +318,53 @@ The diagnostic-side dead-store/unused parity (W210 / W211 / W220) is closed.
 
 Diagnostic-side dead-store/unused parity (W210 / W211 / W220) is now
 closed — see the analyser changes landed alongside this note.
+
+## Loop-condition O101 malformation — fixed (2026-06)
+
+A constant `while` / `for` loop condition folded through `O101` produced
+**malformed** output: `while {1}` → `while 1}` and `while {1 < 2}` →
+`while 1}` (Python: `while {1}` / `while {1}`). Root cause: the CFG
+`while` / `for` loop-condition `Branch` span omits the closing brace (an
+off-by-one in the loop-condition lowering span), so the slice is `{1 < 2`;
+the brace-balance check then fails and the rewrite drops the `{` while
+leaving the trailing `}`. Worked around **in the optimiser**
+(`branch_folding::brace_corrected_span`, applied in both
+`fold_constant_branches` and `propagate_into_branches`): when the slice has
+an unmatched leading `{` and the next source byte is `}`, the emitted span
+is extended by one so the braced word is whole. The `if`-condition folds
+(also off-by-one) now emit a correctly-braced replacement (`{0}` / `{1}`
+instead of the brace-stripped `0` / `1`); their final output is unchanged
+because the branch is eliminated. Hint-only — codegen unaffected — and
+**zero new divergences** across the sample corpus. (The underlying CFG
+loop-condition span off-by-one is flagged for the CFG-builder workstream;
+the optimiser-side recovery is self-contained.)
+
+## Triage — the "Rust removes more" cases (2026-06)
+
+- **`samples/tcl9_smoke/inline_passthrough/01_zero_param_reset.tcl` —
+  genuine miscompile (missing guard, flagged).** `proc reset {} { uplevel 1
+  {set counter 0} }; proc run {} { set counter 10; reset; return $counter }`
+  must return `0` (the file's own comment asserts this; `tclsh` confirms
+  `0`). Rust removes `set counter 10` and folds `return $counter` →
+  `return 10`, ignoring that the call to `reset` writes the caller's frame
+  via `uplevel`. Python keeps both. The sound fix needs interprocedural
+  *uplevel-frame-write* analysis (the callee's `uplevel`-`set` must act as a
+  write to the caller's local), which lives in the just-landed
+  dead-store / forwarding code that this workstream is asked not to disturb
+  — **flagged** for that workstream rather than patched here. (One of the
+  pre-existing over-removals.)
+- **`samples/diagnostics/W102_subst_injection/example.tcl` — Rust correct
+  (intentional divergence).** Rust inlines `set evil {$name [...]}` into
+  `catch {subst $evil}` → `catch {subst {$name [...]}}` and folds the
+  `string map` demo. `subst $evil` and `subst {$name [...]}` substitute the
+  *same* text, so the rewrite is behaviourally equivalent; Rust (the
+  production optimiser) keeps the more-folded form. Demonstration fixture —
+  optimiser output incidental.
+- **`samples/optimiser/profile_aggressive.tcl` — two items.** (a) The
+  `while {1}` malformation is fixed (above). (b) Rust removes a top-level
+  `incr count` where `count` is *never* read anywhere and is not a
+  proc-read global (`globals_written_by_procs` is empty for it); Python
+  keeps it under the conservative top-level never-used rule. The removal is
+  behaviourally safe on Tcl 8.5+ (`incr` auto-initialises); it is the same
+  top-level dead-store class as the 22 "Rust keeps more" / "removes more"
+  demo-file residuals and is left to the dead-store coupling follow-up.

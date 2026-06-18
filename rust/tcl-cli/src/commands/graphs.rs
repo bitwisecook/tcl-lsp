@@ -898,6 +898,10 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
 /// carries no command field, so we supply the same constant).
 fn collect_taint_warnings(
     fu: &FunctionUnit,
+    taints: &std::collections::HashMap<
+        tcl_compiler::ssa::ValueKey,
+        tcl_compiler::taint::TaintLattice,
+    >,
     registry: &tcl_registry::CommandRegistry,
     dialect: &str,
     line_index: &LineIndex,
@@ -917,7 +921,7 @@ fn collect_taint_warnings(
     for w in find_taint_warnings(
         &fu.cfg,
         &fu.ssa,
-        &fu.taints,
+        taints,
         &fu.sccp.executable_blocks,
         registry,
         Some(dialect),
@@ -933,7 +937,7 @@ fn collect_taint_warnings(
             registry,
             &fu.cfg,
             &fu.ssa,
-            &fu.taints,
+            taints,
             &fu.sccp.executable_blocks,
             Some(dialect),
         ) {
@@ -956,7 +960,7 @@ fn collect_taint_warnings(
         &fu.cfg,
         &fu.ssa,
         &fu.rendered_props,
-        &fu.taints,
+        taints,
         &fu.sccp.executable_blocks,
     ) {
         push(&w.code, w.span, &w.message, &w.variable, "set");
@@ -966,7 +970,7 @@ fn collect_taint_warnings(
     for w in find_destructive_file_warnings(
         &fu.cfg,
         &fu.ssa,
-        &fu.taints,
+        taints,
         &fu.sccp.executable_blocks,
         registry,
     ) {
@@ -1038,18 +1042,29 @@ fn build_dataflow_graph(source: &str, dialect: &str) -> Value {
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
     proc_names.sort();
 
+    // Interprocedural taint solve: colour-aware return summaries + parameter
+    // entry taints. Its `top_taints` / `proc_taints` feed the warning
+    // families (cross-proc entry-taint), mirroring Python's
+    // `find_taint_warnings`. The `tainted_variables` listing below keeps the
+    // per-unit `fu.taints` lattice, matching Python's `analysis.taints`.
+    let solved =
+        tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(dialect));
+
     // Taint warnings: top level first, then each procedure.
     let mut taint_warnings: Vec<Value> = Vec::new();
     collect_taint_warnings(
         &cu.top_level,
+        solved.taints_for(&cu.top_level.name, &cu.top_level.taints),
         registry,
         dialect,
         &line_index,
         &mut taint_warnings,
     );
     for qname in &proc_names {
+        let fu = &cu.procedures[*qname];
         collect_taint_warnings(
-            &cu.procedures[*qname],
+            fu,
+            solved.taints_for(&fu.name, &fu.taints),
             registry,
             dialect,
             &line_index,

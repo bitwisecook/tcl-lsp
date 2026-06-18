@@ -236,12 +236,19 @@ pub fn run_all_checks(
         }
     }
 
-    // Taint.
+    // Taint. The interprocedural solve produces colour-aware return
+    // summaries and parameter entry taints; its `top_taints` / `proc_taints`
+    // supersede the bare per-function `fu.taints` for the warning families so
+    // a tainted argument flowing into a callee parameter and then a sink is
+    // reported (cross-proc entry-taint). Mirrors Python `find_taint_warnings`,
+    // which consumes `_solve_interprocedural_taints`.
+    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
     for fu in cu.functions() {
+        let taints = solved.taints_for(&fu.name, &fu.taints);
         for w in find_taint_warnings(
             &fu.cfg,
             &fu.ssa,
-            &fu.taints,
+            taints,
             &fu.sccp.executable_blocks,
             registry,
             dialect,
@@ -256,7 +263,7 @@ pub fn run_all_checks(
                 registry,
                 &fu.cfg,
                 &fu.ssa,
-                &fu.taints,
+                taints,
                 &fu.sccp.executable_blocks,
                 dialect,
             ) {
@@ -278,7 +285,7 @@ pub fn run_all_checks(
             &fu.cfg,
             &fu.ssa,
             &fu.rendered_props,
-            &fu.taints,
+            taints,
             &fu.sccp.executable_blocks,
         ) {
             out.push(shift(fu, Diagnostic::from_path_concat(&w)));
@@ -287,7 +294,7 @@ pub fn run_all_checks(
         for w in find_destructive_file_warnings(
             &fu.cfg,
             &fu.ssa,
-            &fu.taints,
+            taints,
             &fu.sccp.executable_blocks,
             registry,
         ) {
