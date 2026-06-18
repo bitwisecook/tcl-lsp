@@ -93,6 +93,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_math::register(vm);
     crate::cmd_binary::register(vm);
     crate::cmd_mathop::register(vm);
+    crate::cmd_lseq::register(vm);
     crate::cmd_prefix::register(vm);
     crate::cmd_namespace::register(vm);
     crate::cmd_package::register(vm);

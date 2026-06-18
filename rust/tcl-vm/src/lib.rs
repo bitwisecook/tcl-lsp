@@ -25,6 +25,7 @@ mod cmd_file;
 mod cmd_format;
 mod cmd_info;
 mod cmd_list;
+mod cmd_lseq;
 mod cmd_math;
 mod cmd_mathop;
 mod cmd_namespace;

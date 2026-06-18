@@ -390,6 +390,39 @@ fn mathop_shared() {
     );
 }
 
+/// `lseq` — newly added to the VM, sharing `tcl_cmd_core::lseq`'s decode key +
+/// generation over the VM's `ValueOps` and an `eval_expr`-backed expression edge.
+/// Pinned against tclsh 9.0.
+#[test]
+fn lseq_shared() {
+    // Integer forms (count-only, ranges, by-step, count keyword, n n).
+    assert_eq!(run("lseq 5").1, "0 1 2 3 4");
+    assert_eq!(run("lseq 0").1, "");
+    assert_eq!(run("lseq -5").1, ""); // negative count → empty
+    assert_eq!(run("lseq 1 .. 10").1, "1 2 3 4 5 6 7 8 9 10");
+    assert_eq!(run("lseq 10 .. 1").1, "10 9 8 7 6 5 4 3 2 1");
+    assert_eq!(run("lseq 1 to 10 by 2").1, "1 3 5 7 9");
+    assert_eq!(run("lseq 1 to 10 by -2").1, ""); // wrong-sign step → empty
+    assert_eq!(run("lseq 5 count 5 by -2").1, "5 3 1 -1 -3");
+    assert_eq!(run("lseq 3 by 2").1, "0 2 4");
+    assert_eq!(run("lseq 5 1").1, "5 4 3 2 1");
+    // Double precision matches the inputs' fractional digits.
+    assert_eq!(run("lseq 0 0.5 by 0.1").1, "0.0 0.1 0.2 0.3 0.4 0.5");
+    assert_eq!(run("lseq 25. to 5. by -5").1, "25.0 20.0 15.0 10.0 5.0");
+    // A double-valued count stays an integer sequence.
+    assert_eq!(run("lseq 5 count 5.0").1, "5 6 7 8 9");
+    // Expression-valued arguments (the eval edge).
+    assert_eq!(run("lseq 1+2 to 10").1, "3 4 5 6 7 8 9 10");
+    assert_eq!(run("set n 3; lseq $n*2").1, "0 1 2 3 4 5");
+    // Errors.
+    let (ok, msg, _) = run("lseq");
+    assert!(!ok);
+    assert_eq!(msg, "wrong # args: should be \"lseq n ??op? n ??by? n??\"");
+    let (ok, msg, _) = run("lseq 10 2147483647");
+    assert!(!ok);
+    assert_eq!(msg, "max length of a Tcl list exceeded");
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");

@@ -77,6 +77,18 @@ Shared in `tcl-cmd-core`:
   gave it `binary`'s `errorCode`s. `scan`'s variable assignment stays in the
   adapter (the unpack core returns the values; the adapter sets the vars).
 
+- `lseq::{decode, generate}` — the `lseq` arithmetic-sequence generator (the
+  argument-decode key, the `..`/`to`/`count`/`by` keywords, the int-vs-double
+  selection, and the `maxObjPrecision`/`ArithRound` precision matching). The split
+  is what makes it shareable despite the **expression-valued-argument** edge
+  (`lseq $n*2 to 10`): `decode` runs the argument state machine over an injected
+  `eval_expr` callback (so the core never names an interp), `generate` builds the
+  element list over `ValueOps` — **two separate calls**, so a runtime whose
+  value-ops *is* its interp runs the eval callback first (interp borrowed by the
+  closure) and the generation second (interp borrowed as the ops) without a borrow
+  conflict. `lseq` is `i64`-based on both runtimes (C's `assignNumber` rejects
+  `TCL_NUMBER_BIG`), so the shared `Num` carries a fixed `i64`/`f64` pair. This
+  lifted the VM from **no `lseq` at all** to the full command.
 - `var::append_bytes` / `var::lappend_value` — the COW-aware *value computation*
   for `append`/`lappend`, over two new `ValueOps` rungs: a **byte-exact** seam
   (`as_bytes`/`new_bytes` + `try_append_bytes_in_place`) so `append` never routes
@@ -113,6 +125,7 @@ core unified both to the correct behaviour):
 | `binary` (subcommands) | the VM lacked `encode`/`decode` and most `format`/`scan` codes (no floats/64-bit), and its bad-subcommand error said "must be format or scan"; routing gave it the full set + the tclsh message. The runtime's `base64` decode also gained its missing `TCL BINARY DECODE INVALID` errorCode. |
 | `lsort` (VM modes) | `-dictionary` fell back to a byte compare, `-integer`/`-real` both used a `double` compare, and `-nocase` was absent; routing the shared `sort` core gave the VM the correct modes (numeric dictionary order, exact integer vs real, case folding, and mode-aware `-unique`). |
 | `mathop` (VM) | the VM had no `::tcl::mathop::*` at all; sharing the fold/chain core over `ExprOps` added the full operator set (verified against tclsh). |
+| `lseq` (VM) | the VM had no `lseq` at all; sharing the decode-key + precision-matched generation over `ValueOps` (with an `eval_expr` edge for expression-valued args) added every form — ranges, `by`/`count`/`to`/`..`, double precision (`lseq 0 0.5 by 0.1` → `0.0 0.1 0.2 0.3 0.4 0.5`), expression arguments — verified against tclsh 9.0. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

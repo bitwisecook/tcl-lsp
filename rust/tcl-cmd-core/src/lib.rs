@@ -24,6 +24,7 @@ pub mod format;
 pub mod index;
 pub mod info;
 pub mod list;
+pub mod lseq;
 pub mod mathop;
 pub mod namespace;
 pub mod path;
