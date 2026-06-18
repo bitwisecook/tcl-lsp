@@ -29,5 +29,6 @@ pub mod platform;
 pub mod scan;
 pub mod string;
 pub mod string_is;
+pub mod var;
 
 pub use error::CmdError;

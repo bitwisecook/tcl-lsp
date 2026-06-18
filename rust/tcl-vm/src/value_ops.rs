@@ -4,9 +4,11 @@
 //! Value construction needs no interpreter state, so the seam is implemented
 //! directly on [`Vm`] (the natural `ops` object a builtin already holds). The
 //! copy-on-write asymmetry is explicit: the `Rc`-handle model cannot grow a
-//! string buffer in place, so [`ValueOps::try_append_str_in_place`] keeps its
-//! default (`false`) and callers build a fresh value — the contrast with the
-//! WASM runtime's amortised in-place growth that the contract is designed around.
+//! buffer in place, so [`ValueOps::try_append_bytes_in_place`] /
+//! [`ValueOps::try_list_append_in_place`] keep their default (`false`) and
+//! callers build a fresh value — the contrast with the WASM runtime's amortised
+//! in-place growth that the contract is designed around. The VM's value is a
+//! UTF-8 `Rc<str>`, so `as_bytes`/`new_bytes` use their (string-rep) defaults.
 
 use std::rc::Rc;
 

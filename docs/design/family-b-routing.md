@@ -59,13 +59,24 @@ Shared in `tcl-cmd-core`:
 - `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
   (platform-independent), replacing the VM's old `std::path::Path` versions.
 
+- `var::append_bytes` / `var::lappend_value` — the COW-aware *value computation*
+  for `append`/`lappend`, over two new `ValueOps` rungs: a **byte-exact** seam
+  (`as_bytes`/`new_bytes` + `try_append_bytes_in_place`) so `append` never routes
+  binary data through the lossy char seam, and `try_list_append_in_place` for
+  `lappend`. In-place amortised growth is preserved (the runtime grows an unshared
+  value, returning the same object; the VM rebuilds), so a building loop stays
+  O(1) per element, not O(n²).
+
 `incr` is shared **only at the value seam**: all three sites (the VM's
 `cmd_incr`, the VM's compiled `INCR_*` opcodes via `incr_var`, and the runtime's
 `incr`) compute the new value through `ValueOps::int_add`, each over its own
 native variable access. The trace-aware *store* and the const check stay in each
 adapter on purpose — the contract's `VarStore::set` is storage-only and discards
 the write-trace outcome, whereas C's `incr` must store yet fail when a write
-trace errors.
+trace errors. `append`/`lappend` follow the same split: the core computes the
+value, the adapter does a **single store** (so the write trace fires once — the
+common, user-visible case) and owns the const check and the no-argument read
+forms.
 
 **Routing repeatedly surfaced real VM bugs** (the runtime was correct; the shared
 core unified both to the correct behaviour):
@@ -78,58 +89,49 @@ core unified both to the correct behaviour):
 | `info complete` | counted `[]` inside `{braces}` (`info complete {[}` → 0) |
 | `incr` (overflow) | `i64` `wrapping_add` silently wrapped past `i64::MAX`; now errors `integer value too large to represent` (the VM has no bignum) |
 | `incr` (error order) | a non-integer increment was reported before a non-integer current value; now current-first, matching C's `TclIncrObj` and the runtime |
+| `append` (no-value unset) | the VM created an empty variable; now errors `can't read "x": no such variable` (tclsh) |
+| `append`/`lappend` (in-place trace) | the runtime's in-place path skipped the store and so fired **no** write trace; now always stores → the trace fires once |
+| `lappend` (no-value validate) | the runtime returned a malformed value unchanged; now validates it as a list and errors (`unmatched open brace in list`, tclsh) |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.
 
-## 3. Boundaries — commands that are *not* shared (and why)
+## 3. What stays in the per-runtime adapter (the value/state split)
 
-These are not caution; they are real value-model / representation boundaries that
-vindicate the architecture's "trait calls, not shared code" stance for stateful
-commands.
+There is no longer a command family that *cannot* be shared at all — `incr`,
+`append`, and `lappend` (the var-mutating commands) all route their **value
+computation** through `tcl-cmd-core`. What stays per-runtime is the **state
+mutation**, which is the point: a shared core that never names a runtime's frame
+table, refcount discipline, or result protocol, paired with a thin adapter that
+owns exactly those.
 
-- **`append`/`lappend`** — deliberately kept per-runtime after a full
-  investigation. The blocker is the **value representation**, which is exactly the
-  irreducible per-target difference the architecture isolates:
+For `append`/`lappend` the adapter keeps three things, each genuinely
+per-runtime or per-command:
 
-  - *`append` is byte-vs-UTF-8 bound.* The runtime stores raw bytes (`*mut TclObj`,
-    `obj_bytes`) and its `append` is byte-exact (`string_append_inplace`); the VM's
-    `Value` is `Rc<str>` — **UTF-8 only**, it cannot hold arbitrary bytes. The
-    `ValueOps` value seam is deliberately char-correct (`as_str -> Rc<str>`, via
-    `from_utf8_lossy` in the runtime). Routing `append` through it would silently
-    corrupt binary data in the runtime (`append data $bytes`), a **correctness**
-    regression. Byte-exact sharing needs a *byte-oriented* `ValueOps` extension —
-    the same one the plan scopes to the `binary` family (Track B) — not the
-    char-correct seam.
+- **The store + write trace.** The core returns the new value; the adapter does a
+  single `var_set`, which fires the write trace once. This is deliberate — the
+  contract's `VarStore::set` is storage-only (it discards the trace outcome),
+  whereas a write trace that errors must store the value yet fail the command
+  (C's `TclObjCallVarTraces`). The adapter maps that to its own protocol
+  (`Completion` on the VM, set-result + `Code` on the runtime). "Always store,
+  even when grown in place" is what fixes the runtime's old in-place-skips-the-
+  trace bug; `store_scalar` is retain-then-release, so storing the in-place object
+  back onto itself is alias-safe.
+- **The const-variable check** (`const x` then `append x …`) — a runtime-only
+  concept the VM has no notion of.
+- **The no-argument read forms** — `append x` reads (erroring if unset),
+  `lappend x` reads + validates-as-list (creating an empty list if unset). These
+  differ per command and per runtime (the VM's value is UTF-8; the runtime's is
+  bytes) and involve reads/misses, so they live in the adapter, not the core.
 
-  - *In-place growth is load-bearing, not a micro-opt.* The runtime grows its
-    string/list buffer in place when the value is unshared (amortised O(1)); a
-    shared core built on the default rebuild seam makes `append`/`lappend` in a
-    loop **O(n²)** — and string-building via `append` in a loop is a core Tcl
-    idiom. Preserving it across the seam requires per-element in-place capabilities
-    (`try_append_str_in_place` exists for strings; an analogous
-    `try_list_append_in_place` would be new) plus a `(value, needs_store)` return
-    so the adapter knows whether the variable was mutated in place.
-
-  - *Write-trace semantics already diverge — sharing would be a behaviour
-    change.* C's `Tcl_AppendObjCmd` fires a write trace **per value**, while
-    `Tcl_LappendObjCmd` appends all at once and fires it **once**; crucially both
-    **always store back** (`TclPtrSetVarIdx`) — the unshared case modifies in place
-    *and still* stores, so the write trace fires. The runtime's in-place path skips
-    `var_set` entirely and so fires **no** write trace (a latent bug vs C), while
-    its copy/new path fires once. A C-faithful shared core would "always store"
-    (firing the trace, fixing the bug) — but that is a behaviour change to verify
-    against `tclsh`, alongside the matching read-trace-once that the runtime's
-    `var_get`-based read also currently skips. Worth doing as a deliberate
-    C-reconciliation, not folded silently into a dedup.
-
-  Net: every sharing path either regresses correctness (lossy bytes), regresses
-  performance (O(n²)), or only breaks even on dedup while adding a new value-seam
-  capability and `(value, needs_store)` plumbing — and touches the delicate
-  trace/refcount machinery. That is a deliberate contract extension (the Track-B
-  byte seam + a list in-place seam), better made with review than as an autonomous
-  side-effect. Contrast `incr`: it had a *clean* number-model seam (`int_add`) with
-  no byte/COW/trace entanglement, so it was shared.
+The **value-representation difference is bridged, not avoided**: the VM's value
+is UTF-8 `Rc<str>`, the runtime's is raw bytes, so `append` works over the
+byte-exact `as_bytes`/`new_bytes` rung (the runtime overrides them to its real
+bytes; the VM uses the UTF-8 string-rep default — sound because a UTF-8-only
+value only ever appends valid UTF-8). `lappend` is byte-exact for free: it
+manipulates list *element values*, never their string rep. This is the
+`ValueOps` "byte rung" the plan anticipated for `binary` (Track B), delivered
+early by `append`.
 
 ## 4. Known contract gaps (no consumer yet — recorded, not fixed)
 
@@ -140,22 +142,24 @@ commands.
   consumer needs cross-frame element access.
 - No enumeration surface (`info commands`/`vars`/`globals`, `namespace children`)
   — these need a listing API the state-mutation traits deliberately omit.
-- No **byte-oriented** `ValueOps` rung. `as_str` is char-correct (UTF-8); a
-  `binary`/byte family (and a byte-exact `append`) needs `as_bytes`/`new_bytes`
-  (+ a byte in-place append). Scoped to Track B.
+- `append`/`lappend` fire the write trace **once** over the whole operation, not
+  per value (C's `append` fires per value). The user-visible common case — a
+  write trace that runs on a mutating append — is covered; the exact count is
+  not. The matching read-trace on the no-argument read forms is likewise not
+  fired (the runtime's `var_get` doesn't). Recorded as an accepted simplification.
 
 ## 5. Recommended next steps (each its own decision)
 
 1. ✅ *Done* — `VarStore` array-element methods; the `ValueOps::int_add`
    arithmetic seam (`incr` shared); `Namespaces::name`/`command_name`
    (`namespace current`/`which` shared); the `/`-based byte `path` core (`file`
-   path-ops shared, VM made platform-independent).
-2. The **byte-oriented `ValueOps` extension** (`as_bytes`/`new_bytes` + a byte
-   in-place append). Unlocks the `binary` family *and* a byte-exact shared
-   `append`; the make-or-break call for §3's `append`/`lappend` boundary.
-3. A **list in-place seam** (`try_list_append_in_place`, mirroring
-   `try_append_str_in_place`) + a `(value, needs_store)` core convention, if
-   `lappend`/`lset`/`linsert`-into-var are to share without losing amortised
-   growth — and a deliberate reconciliation of their write-trace firing against C.
+   path-ops shared); the **byte-exact `ValueOps` rung** (`as_bytes`/`new_bytes` +
+   `try_append_bytes_in_place`) and the **list in-place seam**
+   (`try_list_append_in_place`) — `append`/`lappend` shared, in-place growth
+   preserved, byte-exact.
+2. The **`binary` family** can now build on the `as_bytes`/`new_bytes` rung — the
+   biggest single dedup left (Track B).
+3. `lset`/`linsert`-into-var can reuse the `try_list_append_in_place` pattern
+   (a list in-place *replace* seam) if those are to share.
 4. An enumeration surface on the contract for the `info`/`namespace` listing
    subcommands.

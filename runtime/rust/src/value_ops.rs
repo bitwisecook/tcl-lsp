@@ -132,14 +132,36 @@ impl ValueOps for Interp {
             .map_err(|e| ValueError::BadList(String::from_utf8_lossy(e.message()).into_owned()))
     }
 
-    fn try_append_str_in_place(&mut self, v: &mut *mut TclObj, s: &str) -> bool {
+    /// Byte-exact, unlike the lossy `as_str` — this is why `append` can route
+    /// through the shared core without corrupting a value's non-UTF-8 bytes.
+    fn as_bytes(&mut self, v: &*mut TclObj) -> Rc<[u8]> {
+        Rc::from(obj_bytes(*v).as_slice())
+    }
+
+    /// Byte-exact construction (the `obj::new_string_bytes` path).
+    fn new_bytes(&mut self, bytes: &[u8]) -> *mut TclObj {
+        obj::new_string_bytes(bytes)
+    }
+
+    fn try_append_bytes_in_place(&mut self, v: &mut *mut TclObj, bytes: &[u8]) -> bool {
         // Amortised O(1) growth when the object is an unshared plain string —
         // the EXP-STRING in-place path the VM cannot take (it always copies).
         if obj::is_plain_string(*v) && !obj::is_shared(*v) {
-            obj::string_append_inplace(*v, s.as_bytes());
+            obj::string_append_inplace(*v, bytes);
             true
         } else {
             false
         }
+    }
+
+    fn try_list_append_in_place(&mut self, list: &mut *mut TclObj, item: &*mut TclObj) -> bool {
+        // Mutate the list's backing vector in place when it is uniquely owned —
+        // the COW fast path the runtime's hand-rolled `lappend` used. A shared or
+        // non-list value falls back to a rebuild (the caller copies). `list_append`
+        // validates the list first, so a malformed value leaves it untouched.
+        if obj::is_shared(*list) {
+            return false;
+        }
+        crate::list::list_append(*list, *item).is_ok()
     }
 }

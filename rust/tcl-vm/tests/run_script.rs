@@ -251,6 +251,26 @@ fn incr_shared_core() {
     assert_eq!(msg, "integer value too large to represent");
 }
 
+/// `append`/`lappend` routed through the shared cores
+/// (`tcl_cmd_core::var::{append_bytes, lappend_value}`). Pins the user-visible
+/// behaviour against tclsh: concatenation/list building, the no-values read
+/// form, and — the fix — `append`/`lappend` of an unset variable with no values
+/// errors (`can't read`) rather than the VM's old silent empty-variable create.
+#[test]
+fn append_lappend_shared_core() {
+    assert_eq!(run("set x ab\nappend x cd ef").1, "abcdef");
+    assert_eq!(run("lappend y a b\nlappend y c").1, "a b c");
+    // no-values read returns the value (set) and errors (unset).
+    assert_eq!(run("set s hi\nappend s").1, "hi");
+    let (ok, msg, _) = run("append nope");
+    assert!(!ok);
+    assert_eq!(msg, "can't read \"nope\": no such variable");
+    // lappend no-values validates the current value as a list.
+    let (ok, msg, _) = run("set z \"{\"\nlappend z");
+    assert!(!ok);
+    assert_eq!(msg, "unmatched open brace in list");
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");

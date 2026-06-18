@@ -73,31 +73,31 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"lappend varName ?value ...?\"");
     };
     let n = name.to_str();
-    let existing = vm.var_get(&n);
-    let mut items: Vec<Value> = match &existing {
-        Some(v) => match as_list(v) {
-            Ok(i) => (*i).clone(),
-            Err(c) => return c,
-        },
-        None => Vec::new(),
-    };
+    let cur = vm.var_get(&n);
     if vals.is_empty() {
         // `lappend var` with no values returns the variable's current value
-        // *unchanged*: Tcl shimmer-validates it as a list (the `as_list` above
-        // would have errored on a malformed value) but never re-renders the
-        // string representation. An unset variable is created as the empty
-        // string. Re-rendering here would canonically requote elements (e.g. a
-        // leading `#` → `{#}`), diverging from C Tcl.
-        return match existing {
-            Some(v) => ok(v),
+        // *unchanged*: Tcl shimmer-validates it as a list (so a malformed value
+        // errors) but never re-renders the string representation — re-rendering
+        // would canonically requote elements (a leading `#` → `{#}`), diverging
+        // from C Tcl. An unset variable is created as the empty string.
+        return match cur {
+            Some(v) => match as_list(&v) {
+                Ok(_) => ok(v),
+                Err(c) => c,
+            },
             None => match vm.var_set(&n, Value::empty()) {
                 Ok(()) => ok(Value::empty()),
                 Err(e) => e,
             },
         };
     }
-    items.extend(vals.iter().cloned());
-    let result = Value::list(items);
+    // The COW-aware list append (rebuild on the VM; in place on the WASM runtime)
+    // is shared via `tcl_cmd_core::var::lappend_value`; the single store fires the
+    // write trace once.
+    let result = match tcl_cmd_core::var::lappend_value(vm, cur, vals) {
+        Ok(v) => v,
+        Err(e) => return err(e.message()),
+    };
     if let Err(e) = vm.var_set(&n, result.clone()) {
         return e;
     }

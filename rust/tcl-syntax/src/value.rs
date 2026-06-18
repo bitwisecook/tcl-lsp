@@ -6,9 +6,9 @@
 //! `ValueOps` implementor; each runtime plugs in its own value representation:
 //!
 //! - the **bytecode VM** over `Rc<Obj>` (cheap clone; copy-on-write list ops;
-//!   `try_append_str_in_place` is always a no-op so the caller copies),
+//!   `try_append_bytes_in_place` is always a no-op so the caller copies),
 //! - the **WASM runtime** over `*mut TclObj` (24-byte C-ABI object; amortised
-//!   in-place string growth via `try_append_str_in_place`).
+//!   in-place string growth via `try_append_bytes_in_place`).
 //!
 //! Two deliberate contract decisions (see
 //! `docs/design/common-runtime-emitter-architecture.md` §4d and the red-team
@@ -17,11 +17,13 @@
 //! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`,
 //!    and all downstream indexing is by **character**, matching `tclsh`. A
 //!    byte-oriented runtime conforms inside its own impl; the seam never exposes
-//!    byte offsets.
+//!    byte offsets. Byte-exact commands (`append`, `binary`) use the parallel
+//!    [`ValueOps::as_bytes`]/[`ValueOps::new_bytes`] rung instead.
 //! 2. **Copy-on-write is explicit, not implied.** The asymmetry between a runtime
-//!    that can grow a string buffer in place (when unshared) and one that always
-//!    copies is encoded as the [`ValueOps::try_append_str_in_place`] capability
-//!    (default: cannot), **not** as a hidden `strong_count` assumption.
+//!    that can grow a buffer in place (when unshared) and one that always copies
+//!    is encoded as the [`ValueOps::try_append_bytes_in_place`] /
+//!    [`ValueOps::try_list_append_in_place`] capabilities (default: cannot),
+//!    **not** as a hidden `strong_count` assumption.
 //!
 //! Coercion failures are a closed, runtime-agnostic set ([`ValueError`]) carrying
 //! the canonical Tcl message, so a single shared body produces identical errors
@@ -234,15 +236,44 @@ pub trait ValueOps {
         self.new_list(items)
     }
 
-    // -- copy-on-write escape hatch --
+    // -- bytes (byte-exact; the value-representation seam for append/binary) --
 
-    /// Try to append `s` to `v`'s string rep **in place** (amortised growth),
+    /// The value's **raw bytes**, byte-exact — unlike [`as_str`](Self::as_str) it
+    /// must not lose information for a value holding non-UTF-8 data. The default
+    /// reuses the (UTF-8) string rep, correct for a string-only value model (the
+    /// VM's `Rc<str>`); a byte-oriented runtime (the WASM `*mut TclObj`) overrides
+    /// it to return the real bytes, so a shared `append` core stays byte-exact
+    /// (`append data $binary` must not corrupt a byte > 127).
+    fn as_bytes(&mut self, v: &Self::Value) -> Rc<[u8]> {
+        Rc::from(self.as_str(v).as_bytes())
+    }
+
+    /// A value from raw bytes. The default routes through
+    /// [`new_string`](Self::new_string) (lossy for non-UTF-8 on a string-only
+    /// model, but such a runtime only ever builds from valid UTF-8); a byte
+    /// runtime overrides it to be byte-exact.
+    fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+        self.new_string(String::from_utf8_lossy(bytes).into_owned())
+    }
+
+    // -- copy-on-write escape hatches (amortised in-place growth) --
+
+    /// Try to append `bytes` to `v`'s value **in place** (amortised growth),
     /// returning whether it happened. A runtime whose object can be grown when
     /// unshared (the WASM `*mut TclObj`) overrides this; the default (the
     /// `Rc`-handle VM) returns `false`, signalling the caller to build a fresh
     /// value. This makes the COW asymmetry an explicit capability rather than a
-    /// hidden `strong_count` assumption.
-    fn try_append_str_in_place(&mut self, _v: &mut Self::Value, _s: &str) -> bool {
+    /// hidden `strong_count` assumption — and keeps `append` amortised O(1) per
+    /// byte rather than O(n²) over a building loop.
+    fn try_append_bytes_in_place(&mut self, _v: &mut Self::Value, _bytes: &[u8]) -> bool {
+        false
+    }
+
+    /// Try to append `item` to `list`'s list value **in place** (the `lappend`
+    /// analogue of [`try_append_bytes_in_place`](Self::try_append_bytes_in_place)),
+    /// returning whether it happened. The default returns `false` (the VM
+    /// rebuilds); a runtime owning the backing vector uniquely overrides it.
+    fn try_list_append_in_place(&mut self, _list: &mut Self::Value, _item: &Self::Value) -> bool {
         false
     }
 }

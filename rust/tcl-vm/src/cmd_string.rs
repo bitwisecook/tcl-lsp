@@ -527,13 +527,20 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"append varName ?value ...?\"");
     };
     let n = name.to_str();
-    let mut s = vm
-        .var_get(&n)
-        .map_or_else(String::new, |v| v.to_str().to_string());
-    for v in vals {
-        s.push_str(&v.to_str());
+    if vals.is_empty() {
+        // `append x` with no values is a read: return the current value, erroring
+        // if the variable is unset (matching tclsh — the old VM wrongly created an
+        // empty variable here). `var_get` parses `a(k)`.
+        return match vm.var_get(&n) {
+            Some(v) => ok(v),
+            None => err(format!("can't read \"{n}\": no such variable")),
+        };
     }
-    let result = Value::string(s);
+    // The byte-exact concatenation is shared with the WASM runtime via
+    // `tcl_cmd_core::var::append_bytes`; the single store fires the write trace
+    // once. The VM's value model never grows in place, so the core rebuilds.
+    let cur = vm.var_get(&n);
+    let result = tcl_cmd_core::var::append_bytes(vm, cur, vals);
     if let Err(e) = vm.var_set(&n, result.clone()) {
         return e;
     }

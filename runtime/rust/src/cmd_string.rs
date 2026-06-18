@@ -50,31 +50,35 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
     }
 
-    // A constant can't be appended to; reject before the in-place update would
-    // bypass the store-time constant check (var-26.2/27.2).
+    // A constant can't be appended to; reject before the update would bypass the
+    // store-time constant check (var-26.2/27.2).
     if let Some(c) = interp.const_write_check(&name) {
         return c;
     }
 
-    // Pick the target: in place if it's an unshared plain string; else a fresh
-    // plain string seeded from the current value (or empty).
-    let (target, is_new) = match interp.var_get(&name) {
-        Some(o) if obj::is_plain_string(o) && !obj::is_shared(o) => (o, false),
-        Some(o) => (obj::new_string_bytes(&obj_bytes(o)), true), // typed/shared → copy
-        None => (obj::new_string_bytes(b""), true),
-    };
+    // Byte-exact concatenation, shared with the VM via `append_bytes`: it grows
+    // the current value in place when it's an unshared plain string (returning
+    // that same object) else builds a fresh copy/new value. `var_get` parses
+    // `a(k)`, so array elements are handled.
+    let cur = interp.var_get(&name);
+    let result = tcl_cmd_core::var::append_bytes(interp, cur, values);
 
-    for &v in values {
-        let bytes = obj_bytes(v);
-        obj::string_append_inplace(target, &bytes);
+    // Always store back: rebinds the variable to `result` — a refcount-neutral
+    // re-set when it was grown in place — and fires the write trace exactly once
+    // (the in-place path used to skip the store and so fire no trace, diverging
+    // from C; this fixes that).
+    match interp.var_set(&name, result) {
+        Ok(()) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(e) => {
+            // `result` is fresh (rc 0) on the copy/new path; on the in-place path
+            // it's the frame-owned object and `drop_fresh` is a no-op.
+            drop_fresh(result);
+            crate::builtins::var_error(interp, &name, e)
+        }
     }
-
-    if is_new && interp.var_set(&name, target).is_err() {
-        drop_fresh(target);
-        return cant_set(interp, &name);
-    }
-    interp.set_result(target);
-    Code::Ok
 }
 
 // -- string ensemble -------------------------------------------------------
@@ -1580,6 +1584,30 @@ mod tests {
         assert_eq!(
             ok(b"set i 0; append acc x; append acc y; append acc z"),
             b"xyz"
+        );
+    }
+
+    /// `append` routed through the shared byte core: byte-exact (a high byte
+    /// survives, where the lossy char seam would corrupt it to U+FFFD), the
+    /// no-values read matches tclsh (returns the value, errors if unset — the VM
+    /// shared the same fix), and the in-place growth now fires the write trace
+    /// once (the old in-place path skipped the store and so fired no trace).
+    #[test]
+    fn append_shared_core_parity() {
+        // byte-exact: 0x41 then 0xc8 → "41c8", not a corrupted multi-byte U+FFFD.
+        assert_eq!(
+            ok(b"set b [binary format H* 41]; append b [binary format H* c8]; binary scan $b H* h; set h"),
+            b"41c8"
+        );
+        // no-values: read the value; error if unset (was a VM bug, now both fixed).
+        assert_eq!(ok(b"set s hello; append s"), b"hello");
+        let (c, m) = run(b"append nope");
+        assert_eq!(c, Code::Error);
+        assert_eq!(m, b"can't read \"nope\": no such variable");
+        // the in-place growth path fires the write trace exactly once.
+        assert_eq!(
+            ok(b"set t abc; set n 0; trace add variable t write {incr ::n;#}; append t xyz; set n"),
+            b"1"
         );
     }
 

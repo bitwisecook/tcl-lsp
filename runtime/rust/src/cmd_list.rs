@@ -180,57 +180,81 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[1]);
     let values = &argv[2..];
-    // A `lappend` with values writes; reject a constant before the in-place
-    // update would bypass the store-time check (`lappend X` with no values is a
-    // pure read, so it is allowed).
-    if !values.is_empty() {
-        if let Some(c) = interp.const_write_check(&name) {
-            return c;
-        }
-    }
     // `lappend a(k) ...` must address the array element, not a scalar literally
     // named `a(k)` — split the array ref like `set`/`incr` do.
     let (base, elem) = crate::frame::split_array_ref(&name);
 
+    // `lappend x` with no values is a read: validate the current value as a list
+    // (erroring on a malformed one, like tclsh) and return it *unchanged* — no
+    // store, no trace, no re-rendering. An unset variable is created as an empty
+    // list.
+    if values.is_empty() {
+        let cur = match &elem {
+            Some(k) => interp.var_get_elem(&base, k),
+            None => interp.var_get(&base),
+        };
+        return match cur {
+            Some(o) => match list::list_elements(o) {
+                Ok(_) => {
+                    interp.set_result(o);
+                    Code::Ok
+                }
+                Err(e) => bad_list(interp, e),
+            },
+            None => {
+                let empty = list::new_list_obj(&[]); // rc 0
+                let stored = match &elem {
+                    Some(k) => interp.var_set_elem(&base, k, empty),
+                    None => interp.var_set(&base, empty),
+                };
+                match stored {
+                    Ok(()) => {
+                        interp.set_result(empty);
+                        Code::Ok
+                    }
+                    Err(e) => {
+                        drop_fresh(empty);
+                        crate::builtins::var_error(interp, &name, e)
+                    }
+                }
+            }
+        };
+    }
+
+    // A `lappend` with values writes; reject a constant before the update.
+    if let Some(c) = interp.const_write_check(&name) {
+        return c;
+    }
+
+    // COW-aware list append, shared with the VM via `lappend_value`: it appends in
+    // place when the current value is an unshared list (returning that same
+    // object), else builds a fresh list. Byte-exact (elements are never
+    // stringified).
     let cur = match &elem {
         Some(k) => interp.var_get_elem(&base, k),
         None => interp.var_get(&base),
     };
-
-    // Determine the target list object (in-place if unshared, else a copy/new).
-    let (target, is_new) = match cur {
-        None => (list::new_list_obj(&[]), true), // fresh empty list (rc 0)
-        Some(o) if obj::is_shared(o) => (obj::duplicate(o), true), // COW copy (rc 0)
-        Some(o) => (o, false),                   // mutate in place (frame owns it)
+    let result = match tcl_cmd_core::var::lappend_value(interp, cur, values) {
+        Ok(v) => v,
+        Err(e) => return interp.set_error(e.message().as_bytes()),
     };
 
-    for &v in values {
-        if let Err(e) = list::list_append(target, v) {
-            if is_new {
-                drop_fresh(target);
-            }
-            return bad_list(interp, e);
+    // Always store back: rebinds the variable (a refcount-neutral re-set when
+    // appended in place) and fires the write trace once.
+    let stored = match &elem {
+        Some(k) => interp.var_set_elem(&base, k, result),
+        None => interp.var_set(&base, result),
+    };
+    match stored {
+        Ok(()) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(e) => {
+            drop_fresh(result);
+            crate::builtins::var_error(interp, &name, e)
         }
     }
-
-    // A new/copied list must be stored back into the variable.
-    if is_new {
-        // `target` is rc 0; `set` retains it into the variable (and releases the
-        // prior value for the COW/overwrite case).
-        let stored = match &elem {
-            Some(k) => interp.var_set_elem(&base, k, target),
-            None => interp.var_set(&base, target),
-        };
-        if stored.is_err() {
-            drop_fresh(target);
-            let mut m = b"can't set \"".to_vec();
-            m.extend_from_slice(&name);
-            m.extend_from_slice(b"\": variable is array");
-            return interp.set_error(&m);
-        }
-    }
-    interp.set_result(target);
-    Code::Ok
 }
 
 /// `lrange list first last` — the sublist from `first` to `last` (inclusive),
@@ -1867,6 +1891,26 @@ mod tests {
         assert_eq!(
             ok(b"namespace eval n { variable arr; lappend arr(::x::y) a b }; set ::n::arr(::x::y)"),
             b"a b"
+        );
+    }
+
+    /// `lappend` routed through the shared COW core: the no-values form now
+    /// validates the current value as a list (erroring on a malformed one, like
+    /// tclsh — the old runtime skipped this), creates an empty list when unset,
+    /// and a mutating `lappend` fires the write trace once.
+    #[test]
+    fn lappend_shared_core_parity() {
+        // no-values on a malformed list errors (was silently returned before).
+        let (c, m) = run(b"set y \"{\"; lappend y");
+        assert_eq!(c, Code::Error);
+        assert_eq!(m, b"unmatched open brace in list");
+        // no-values on an unset variable creates an empty list.
+        assert_eq!(ok(b"lappend fresh; info exists fresh"), b"1");
+        assert_eq!(ok(b"lappend fresh; set fresh"), b"");
+        // a mutating lappend fires the write trace exactly once.
+        assert_eq!(
+            ok(b"set l {1 2}; set m 0; trace add variable l write {incr ::m;#}; lappend l 3; set m"),
+            b"1"
         );
     }
 
