@@ -13,7 +13,7 @@ all-editors, MCP, transform
 
 ## How to use
 
-- **Editor**: Format Document (Shift+Alt+F) or enable your editor's built-in format-on-save (e.g. VS Code's `editor.formatOnSave`).
+- **Editor**: Format Document (Shift+Alt+F), enable your editor's built-in format-on-save (e.g. VS Code's `editor.formatOnSave`), or turn on the server's own format-on-save with `tclLsp.features.willSaveWaitUntil`.
 - **MCP**: `format_source` tool — pass source and optional settings.
 - **VS Code command**: `Tcl: Format Document`.
 - **Settings**: Configure via `tclLsp.formatting.*`:
@@ -22,6 +22,17 @@ all-editors, MCP, transform
   - `maxLineLength`, `goalLineLength`
   - `spaceAfterCommentHash`, `trimTrailingWhitespace`, `ensureFinalNewline`
   - `expandSingleLineBodies`, `blankLinesBetweenProcs`, and more.
+
+### Format on save
+
+The server advertises `textDocument/willSaveWaitUntil`, so it can format a
+document as part of the save itself rather than relying on the editor's own
+format-on-save. It is **off by default**; enable
+`tclLsp.features.willSaveWaitUntil` to turn it on. When enabled, a save runs the
+same formatter as **Format Document** and applies the resulting edits, using the
+`tclLsp.formatting.lineLength` resolved for the document's workspace folder. When
+disabled, save makes no formatting edits, and the editor's `editor.formatOnSave`
+(if set) still applies through the ordinary `textDocument/formatting` request.
 
 ## Operational context
 

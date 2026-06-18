@@ -8,7 +8,7 @@
 //! - [`build_cfg`] — build CFGs for a whole module (top-level + procs).
 //! - [`build_cfg_function`] — build a CFG for a single script body.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use tcl_lexer::Span;
 
@@ -16,6 +16,7 @@ use crate::cfg::{Block, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
+use crate::naming::normalise_var_name;
 
 use self::upvar_info::{UpvarInfo, collect_upvar_targets};
 
@@ -277,32 +278,46 @@ impl CfgBuilder {
     }
 
     /// Push a non-control-flow statement into `current` (after upvar
-    /// invalidation), promoting `error` / `throw` / `exit` to a `Return`
-    /// terminator so any following statements become dead code (mirrors the
-    /// `TERMINATES_BLOCK` registry trait).
+    /// invalidation), promoting `error` / `throw` / `exit` (and, in analysis
+    /// builds, `tailcall`) to a `Return` terminator so any following statements
+    /// become dead code (mirrors the `TERMINATES_BLOCK` registry trait).
     fn push_plain_statement(&mut self, current: &str, stmt: &Statement) {
         for s in self.apply_upvar_invalidation(stmt.clone()) {
             self.block_mut(current).statements.push(s);
         }
-        if let Statement::Call { command, span, .. } = stmt
-            && is_block_terminating_command(command)
+        if let Statement::Call {
+            command,
+            canonical_command,
+            span,
+            ..
+        } = stmt
             && self.block_mut(current).terminator.is_none()
         {
-            // A catchable `error` / `throw` (not `exit`, which leaves the
-            // process) is a throw point: record the current block so an
-            // enclosing `try`'s on-error edge can be sourced from here,
-            // where the body's prior defs are live.
-            if is_catchable_throw(command)
-                && let Some(blocks) = self.throw_blocks.as_mut()
-            {
-                blocks.push(current.to_owned());
+            let canon = canonical_command.as_deref().unwrap_or(command);
+            // `tailcall` (Tcl 8.6+, FP-RBS-13) replaces the current frame and
+            // never returns here, so it ends straight-line flow exactly like
+            // `error`/`exit`.  Promote it only in analysis builds
+            // (`faithful_exceptions`) so the codegen / non-faithful CFG shape
+            // stays byte-identical — codegen leaves the call as a fall-through.
+            let exits_proc = is_block_terminating_command(canon)
+                || (self.faithful_exceptions && is_tailcall_command(canon));
+            if exits_proc {
+                // A catchable `error` / `throw` (not `exit` / `tailcall`, which
+                // leave the process / pop the frame) is a throw point: record
+                // the current block so an enclosing `try`'s on-error edge can be
+                // sourced from here, where the body's prior defs are live.
+                if is_catchable_throw(canon)
+                    && let Some(blocks) = self.throw_blocks.as_mut()
+                {
+                    blocks.push(current.to_owned());
+                }
+                self.block_mut(current).terminator = Some(Terminator::Return {
+                    value: None,
+                    span: Some(*span),
+                    expr: None,
+                    braced: false,
+                });
             }
-            self.block_mut(current).terminator = Some(Terminator::Return {
-                value: None,
-                span: Some(*span),
-                expr: None,
-                braced: false,
-            });
         }
     }
 
@@ -783,18 +798,37 @@ pub fn prepare_cfg_context(
 /// [`prepare_cfg_context`] for the per-module scan.
 #[must_use]
 pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, true)
+}
+
+/// Build CFGs for codegen (bytecode / WASM): the plain, byte-identical loop /
+/// switch shape with **no** analysis-only transforms (`faithful_exceptions`
+/// off).  The terminator promotions (`tailcall`, all-exit opaque switch), the
+/// opaque-switch loop-jump edges, and the guaranteed-iteration loop rotation
+/// are gated on `faithful_exceptions`, so they appear only in the analysis CFG
+/// ([`build_cfg`]) and never in the CFG codegen lowers — keeping the emitted
+/// bytecode / CFG shape identical to the unannotated source (mirrors Python,
+/// where `build_cfg` defaults to `faithful_exceptions=False` for codegen and
+/// analysis opts in).
+#[must_use]
+pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, false)
+}
+
+fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> CfgModule {
     let (upvar_procs, proc_params) = prepare_cfg_context(module);
 
-    let mut top_builder =
-        CfgBuilder::new_with_upvars(!defer_top_level, upvar_procs.clone(), proc_params.clone())
-            .with_faithful_exceptions();
+    let new_builder = |inline: bool| {
+        let b = CfgBuilder::new_with_upvars(inline, upvar_procs.clone(), proc_params.clone());
+        if faithful { b.with_faithful_exceptions() } else { b }
+    };
+
+    let mut top_builder = new_builder(!defer_top_level);
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
     for (qname, proc) in &module.procedures {
-        let mut builder =
-            CfgBuilder::new_with_upvars(true, upvar_procs.clone(), proc_params.clone())
-                .with_faithful_exceptions();
+        let mut builder = new_builder(true);
         proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
     }
 
@@ -849,6 +883,460 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 /// as its own `Statement::Return`.
 fn is_block_terminating_command(command: &str) -> bool {
     matches!(command.trim_start_matches(':'), "error" | "throw" | "exit")
+}
+
+/// Whether `command` is `tailcall` (canonical `::tailcall`).
+///
+/// `tailcall` (Tcl 8.6+) replaces the current procedure's frame and never
+/// returns here: `TclNRTailcallObjCmd` (generic/tclBasic.c) always
+/// `return TCL_RETURN` — both bare `tailcall` and `tailcall command ...` exit
+/// the proc; the arg count only decides what runs *after* the frame pops, not
+/// whether this proc continues.  So *any* `tailcall` ends straight-line flow
+/// exactly like `error` / `exit` (with no args guard).
+fn is_tailcall_command(command: &str) -> bool {
+    command.trim_start_matches(':') == "tailcall"
+}
+
+// --- Definite-assignment ("flow facts") over un-lowered IR scripts ----------
+//
+// Shared by the CFG builder (to promote an opaque `switch` whose every arm
+// exits the *procedure* — FP-RBS-15 — and to wire its loop-jump edges — C3) and
+// by SSA (to recover the def set an opaque switch *definitely* establishes —
+// FP-RBS-14).  Both consumers agree on one model.
+//
+// Each statement/script is classified by how it leaves: it can complete NORMALly
+// (fall through to the next statement), jump within an enclosing loop (LoopJump
+// — `break`/`continue`), or exit the procedure (ProcExit —
+// `return`/`error`/`throw`/`exit`/`tailcall`).  The distinction matters for an
+// *opaque* switch (whose arm bodies are not lowered into the CFG, so their
+// loop-jump edges are invisible): a ProcExit arm reaches no later code at all,
+// but a LoopJump arm still reaches the code after the enclosing loop *without*
+// the other arms' definitions — so it must NOT be treated as vacuous when
+// recovering the switch's defs, and an all-LoopJump switch is NOT a procedure
+// terminator.  Mirrors the Python `_flow_facts_*` family (`compiler/cfg.py`).
+
+/// How a statement/script leaves: fall through, jump to an enclosing loop, or
+/// exit the procedure.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Completion {
+    /// Falls through to the next statement.
+    Normal,
+    /// `break` / `continue` — leaves to an enclosing-loop target (still reaches
+    /// the code after that loop).
+    LoopJump,
+    /// `return` / `error` / `throw` / `exit` / `tailcall` — leaves the proc.
+    ProcExit,
+}
+
+/// `(must-defines, completion)` for a single statement.
+///
+/// * assignments (`set`/`incr`/`expr`-assign) contribute their target and
+///   complete normally; a plain `Call` contributes its synthetic `defs` and
+///   completes normally — *except* `error`/`throw`/`exit` and `tailcall`, which
+///   `ProcExit`, and `break`/`continue`, which `LoopJump`; `Return` and a
+///   `return -code` / expansion `Barrier` `ProcExit`;
+/// * `Block` / `UpFrame` bodies always run, so recurse;
+/// * an `If` *with* an else, or a `Switch` *with* a default, combine their
+///   branches via [`intersect_completing`]; an else-less `If` / default-less
+///   `Switch` has a fall-through path, so it completes normally assigning
+///   nothing for certain;
+/// * loops (`For`/`While`/`Foreach`), `Catch`/`Try` and everything else may not
+///   execute / always complete (`catch` even swallows `break`), so they
+///   contribute no must-define and complete normally.
+pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion) {
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => {
+            let mut set = BTreeSet::new();
+            let n = normalise_var_name(name);
+            if !n.is_empty() {
+                set.insert(n.to_owned());
+            }
+            (set, Completion::Normal)
+        }
+        Statement::Return { .. } => (BTreeSet::new(), Completion::ProcExit),
+        Statement::Barrier { reason, .. } => {
+            // A `return -options …` / `return {*}…` barrier unconditionally
+            // exits the proc.
+            if matches!(
+                reason.as_str(),
+                "return with options" | "return with expansion"
+            ) {
+                (BTreeSet::new(), Completion::ProcExit)
+            } else {
+                (BTreeSet::new(), Completion::Normal)
+            }
+        }
+        Statement::Call {
+            command,
+            canonical_command,
+            defs,
+            ..
+        } => {
+            let canon = canonical_command.as_deref().unwrap_or(command);
+            let bare = canon.trim_start_matches(':');
+            let completion = if matches!(bare, "break" | "continue") {
+                // A loop jump leaves to the enclosing loop's target — it still
+                // reaches the code after that loop, just without later defs.
+                Completion::LoopJump
+            } else if is_block_terminating_command(canon) || is_tailcall_command(canon) {
+                Completion::ProcExit
+            } else {
+                Completion::Normal
+            };
+            (defs.iter().cloned().collect(), completion)
+        }
+        Statement::Block { body, .. } | Statement::UpFrame { body, .. } => flow_facts_script(body),
+        Statement::If {
+            clauses,
+            else_body: Some(eb),
+            ..
+        } => {
+            let mut bodies: Vec<&Script> = clauses.iter().map(|c| &c.body).collect();
+            bodies.push(eb);
+            intersect_completing(&bodies)
+        }
+        Statement::Switch {
+            arms,
+            default_body: Some(default),
+            ..
+        } => {
+            let mut bodies: Vec<&Script> = vec![default];
+            bodies.extend(arms.iter().filter_map(|arm| arm.body.as_ref()));
+            intersect_completing(&bodies)
+        }
+        // An else-less `If` / default-less `Switch` has a fall-through path that
+        // assigns nothing for certain; everything else may not run / always
+        // completes.
+        _ => (BTreeSet::new(), Completion::Normal),
+    }
+}
+
+/// `(vars definitely assigned, completion)` for an un-lowered IR script.
+///
+/// Walk statements in order accumulating must-defines; the first statement that
+/// does not complete normally makes the rest dead and gives the script that
+/// statement's completion (`ProcExit` or `LoopJump`), with the must-defines
+/// being those accumulated up to (and including) it.  Only names guaranteed to
+/// be assigned are returned, so it never over-claims (which would hide a real
+/// read-before-set).
+pub(crate) fn flow_facts_script(script: &Script) -> (BTreeSet<String>, Completion) {
+    let mut assigned = BTreeSet::new();
+    for stmt in &script.statements {
+        let (defs, completion) = flow_facts_stmt(stmt);
+        assigned.extend(defs);
+        if completion != Completion::Normal {
+            return (assigned, completion);
+        }
+    }
+    (assigned, Completion::Normal)
+}
+
+/// Combine branch bodies into `(must-defines, completion)`.
+///
+/// A `ProcExit` branch reaches no code after the construct, so it is vacuous
+/// (⊤) and excluded from the must-define intersection.  A `Normal` or
+/// `LoopJump` branch *does* reach later code (the fall-through successor, or —
+/// for a loop jump — the code after the enclosing loop), so its must-defines
+/// (those established before it leaves) ARE intersected: this keeps the result
+/// sound when a `break`/`continue` arm escapes an opaque switch without the
+/// other arms' defs.  The combined completion is `Normal` if any branch falls
+/// through, else `LoopJump` if any jumps, else `ProcExit` (every branch exits).
+fn intersect_completing(bodies: &[&Script]) -> (BTreeSet<String>, Completion) {
+    let mut common: Option<BTreeSet<String>> = None;
+    let mut any_normal = false;
+    let mut any_loop_jump = false;
+    for body in bodies {
+        let (assigned, completion) = flow_facts_script(body);
+        match completion {
+            Completion::ProcExit => continue,
+            Completion::Normal => any_normal = true,
+            Completion::LoopJump => any_loop_jump = true,
+        }
+        common = Some(match common {
+            None => assigned,
+            Some(acc) => acc.intersection(&assigned).cloned().collect(),
+        });
+    }
+    let combined = if any_normal {
+        Completion::Normal
+    } else if any_loop_jump {
+        Completion::LoopJump
+    } else {
+        Completion::ProcExit
+    };
+    (common.unwrap_or_default(), combined)
+}
+
+/// Variables an opaque `switch` assigns on *every* non-proc-exit path.
+///
+/// Empty unless the switch has a `default` arm (otherwise an unmatched subject
+/// falls through assigning nothing).  Intersection over the default and every
+/// arm-with-a-body, excluding only arms that exit the procedure (which reach no
+/// later code).  A `break`/`continue` arm is *kept* (with the defs it makes
+/// before jumping), because it still reaches the code after the enclosing loop —
+/// so an arm that breaks without assigning `y` correctly drops `y` rather than
+/// letting it be claimed defined (FP-RBS-14 + Codex C1).
+pub(crate) fn switch_must_defines(stmt: &Statement) -> BTreeSet<String> {
+    flow_facts_stmt(stmt).0
+}
+
+/// `(can_break, can_continue)` for `break`/`continue` that escape *script* to an
+/// enclosing loop.
+///
+/// Recurses into `if`/`switch`/`Block`/`UpFrame` bodies (which don't capture a
+/// loop jump) and into `try` — a `try` does NOT capture `break`/`continue`:
+/// without a matching `on`/`trap` handler a jump in the body, a handler body, or
+/// the `finally` body propagates to the enclosing loop (confirmed in tclsh
+/// 9.0.3, contrast `catch {break}` which yields code 3 and is absorbed).  Does
+/// NOT recurse into nested loops (`for`/`while`/`foreach`) or `catch`, which
+/// capture their own jumps.  Scanning stops at the first statement that cannot
+/// complete normally (`return`/`error`/`exit`/`tailcall`, or `break`/`continue`
+/// itself): a jump after it is dead code that never executes, so it must not
+/// create a spurious loop-exit edge.  Mirrors Python `_escaping_loop_jumps`
+/// (plus the Codex P1/P2 soundness follow-ups).
+pub(crate) fn escaping_loop_jumps(script: &Script) -> (bool, bool) {
+    let mut can_break = false;
+    let mut can_continue = false;
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Call {
+                command,
+                canonical_command,
+                ..
+            } => {
+                let bare = canonical_command.as_deref().unwrap_or(command).trim_start_matches(':');
+                if bare == "break" {
+                    can_break = true;
+                } else if bare == "continue" {
+                    can_continue = true;
+                }
+            }
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for clause in clauses {
+                    let (b, c) = escaping_loop_jumps(&clause.body);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+                if let Some(eb) = else_body {
+                    let (b, c) = escaping_loop_jumps(eb);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+            }
+            Statement::Switch { .. } => {
+                let (b, c) = switch_escaping_jumps(stmt);
+                can_break |= b;
+                can_continue |= c;
+            }
+            Statement::Block { body, .. } | Statement::UpFrame { body, .. } => {
+                let (b, c) = escaping_loop_jumps(body);
+                can_break |= b;
+                can_continue |= c;
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                let (b, c) = escaping_loop_jumps(body);
+                can_break |= b;
+                can_continue |= c;
+                for h in handlers {
+                    let (b, c) = escaping_loop_jumps(&h.body);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+                if let Some(fb) = finally_body {
+                    let (b, c) = escaping_loop_jumps(fb);
+                    can_break |= b;
+                    can_continue |= c;
+                }
+            }
+            _ => {}
+        }
+        // A statement that cannot complete normally makes everything after it
+        // dead code (a later `break`/`continue` never runs), so stop scanning —
+        // otherwise a dead `break` after `error`/`return` would forge a
+        // loop-exit edge and fire W210 on unreachable post-loop code (Codex P2).
+        if flow_facts_stmt(stmt).1 != Completion::Normal {
+            break;
+        }
+    }
+    (can_break, can_continue)
+}
+
+/// `(can_break, can_continue)` over all bodies of an opaque `switch`.
+pub(crate) fn switch_escaping_jumps(stmt: &Statement) -> (bool, bool) {
+    let Statement::Switch {
+        arms, default_body, ..
+    } = stmt
+    else {
+        return (false, false);
+    };
+    let mut can_break = false;
+    let mut can_continue = false;
+    if let Some(default) = default_body {
+        let (b, c) = escaping_loop_jumps(default);
+        can_break |= b;
+        can_continue |= c;
+    }
+    for arm in arms {
+        if let Some(body) = &arm.body {
+            let (b, c) = escaping_loop_jumps(body);
+            can_break |= b;
+            can_continue |= c;
+        }
+    }
+    (can_break, can_continue)
+}
+
+// --- Guaranteed-iteration loops ----------------------------------------------
+//
+// A loop whose body provably runs at least once does not skip its body, so a
+// variable the body assigns is defined when code after the loop reads it.  The
+// usual CFG models every loop as possibly running zero times (the header's exit
+// edge), false-firing W210 on such a read.  In analysis builds we *rotate* a
+// provably-non-empty loop so the 0-iteration skip becomes a *separate*
+// entry-guard edge whose condition is statically true; SCCP marks that edge dead
+// and the FP-RBS-16 dead-edge phi filter then ignores the version-0 operand it
+// carried — with no synthetic def, so SCCP values are untouched.  `break` /
+// `continue` stay real CFG edges, so partial-def exits remain sound.  Mirrors
+// the Python `_foreach_runs_at_least_once` / `_for_runs_at_least_once` helpers.
+
+/// True when `text` is a static, non-empty Tcl list literal.
+///
+/// Conservative: any `$` / `[` (a possible substitution) disqualifies it, so a
+/// runtime-computed list is never claimed non-empty.  `foreach` stores a braced
+/// list with its outer braces stripped (`{1 2 3}` → `1 2 3`), so a literal
+/// splits directly.
+fn list_literal_nonempty(text: &str) -> bool {
+    if text.is_empty() || text.contains('$') || text.contains('[') {
+        return false;
+    }
+    !crate::tcl_expr_eval::split_tcl_list(text).is_empty()
+}
+
+/// True when a `foreach`/`lmap` provably iterates ≥1 time.
+///
+/// `foreach` runs `max` over its iterator groups, so *any* non-empty iterator
+/// list guarantees at least one iteration (shorter lists just pad their loop
+/// vars with `""`).
+pub(crate) fn foreach_runs_at_least_once(stmt: &Statement) -> bool {
+    let Statement::Foreach { iterators, .. } = stmt else {
+        return false;
+    };
+    iterators
+        .iter()
+        .any(|it| list_literal_nonempty(&it.list_arg))
+}
+
+impl CfgBuilder {
+    /// Names a non-`AssignConst` init statement may write.  `None` means "can't
+    /// tell" — the caller then drops *all* constant bindings (a write it can't
+    /// characterise might clobber any of them).
+    ///
+    /// A `Call`'s write set includes the caller-side variables an `upvar`-using
+    /// callee modifies (direct call or `[upvar_proc …]` embedded substitution),
+    /// recovered via [`Self::apply_upvar_invalidation`] — the module upvar pass
+    /// adds these to a call's `defs`, but they are absent from the raw IR the
+    /// init clause carries.  Without this, `for {set i 0; setter} {$i < 3} …`
+    /// where `setter` runs `upvar 1 i i; set i 5` would keep the stale
+    /// `i = 0` binding and be wrongly judged guaranteed (Codex P1).
+    fn init_written_names(&self, stmt: &Statement) -> Option<Vec<String>> {
+        let mut names: Vec<String> = match stmt {
+            Statement::AssignValue { name, .. }
+            | Statement::AssignExpr { name, .. }
+            | Statement::Incr { name, .. } => {
+                let n = normalise_var_name(name);
+                if n.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![n.to_owned()]
+                }
+            }
+            // A plain call contributes only the (augmented) defs collected
+            // below.
+            Statement::Call { .. } => Vec::new(),
+            // Any other statement shape in the init (a nested if/loop/…) is not
+            // characterised here — clear every constant binding to stay sound.
+            _ => return None,
+        };
+        for s in self.apply_upvar_invalidation(stmt.clone()) {
+            if let Statement::Call { defs, .. } = &s {
+                for d in defs {
+                    if !names.contains(d) {
+                        names.push(d.clone());
+                    }
+                }
+            }
+        }
+        Some(names)
+    }
+
+    /// True when a `for` loop's condition is statically true on entry.
+    ///
+    /// Evaluates the condition against the constant bindings the init clause
+    /// establishes (`for {set i 0} {$i < 3} …` → `i = 0` → `0 < 3` is true),
+    /// which proves the first iteration always runs.  Init statements are
+    /// processed in order: an `AssignConst` (re)binds a constant, but any
+    /// *other* write *invalidates* that variable's binding — so
+    /// `for {set i 0; set i $n} …` and `for {set i 0; incr i 5} …` leave `i`
+    /// unknown rather than stale-constant `0`, and an `upvar`-writing call in
+    /// the init invalidates the var it writes through the caller frame (Codex
+    /// C2 + P1).  Conservative: a condition referencing an unbound variable (or
+    /// a command-substitution condition) evaluates to `None` → not guaranteed.
+    pub(crate) fn for_runs_at_least_once(&self, stmt: &Statement) -> bool {
+        use crate::tcl_expr_eval::{TclValue, eval_tcl_expr};
+        let Statement::For {
+            init, condition, ..
+        } = stmt
+        else {
+            return false;
+        };
+        let mut env: crate::tcl_expr_eval::Env = std::collections::HashMap::new();
+        for s in &init.statements {
+            if let Statement::AssignConst { name, value, .. } = s {
+                let n = normalise_var_name(name);
+                if !n.is_empty() {
+                    env.insert(n.to_owned(), coerce_scalar(value));
+                }
+                continue;
+            }
+            match self.init_written_names(s) {
+                // Unknown write — every prior constant binding is now suspect.
+                None => env.clear(),
+                Some(names) => {
+                    for n in names {
+                        env.remove(&n);
+                    }
+                }
+            }
+        }
+        match eval_tcl_expr(condition, &env) {
+            Some(TclValue::Int(i)) => i != 0,
+            Some(TclValue::Float(f)) => f != 0.0,
+            None => false,
+        }
+    }
+}
+
+/// Coerce a literal assignment value to int/float when possible (else str),
+/// for the `for`-init constant environment.
+fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
+    use crate::tcl_expr_eval::EnvValue;
+    if let Ok(i) = text.parse::<i64>() {
+        return EnvValue::Int(i);
+    }
+    if let Ok(f) = text.parse::<f64>() {
+        return EnvValue::Float(f);
+    }
+    EnvValue::Str(text.to_owned())
 }
 
 /// Whether `command` raises a *catchable* exception (`error` / `throw`) —
@@ -1109,6 +1597,64 @@ mod tests {
     fn lower_module(src: &str) -> Module {
         use tcl_registry::CommandRegistry;
         crate::lowering::lower_to_ir(src, &CommandRegistry::build_default())
+    }
+
+    // --- escaping_loop_jumps: try propagation (Codex P1@1093) and
+    //     dead-code early-stop (Codex P2@1098) -------------------------------
+    //
+    // These exercise the helper directly: their end-to-end W210 effect is
+    // masked by a separate, pre-existing `while 1` exit-reachability behaviour
+    // (Rust treats the post-loop block of an infinite loop as reachable), so we
+    // assert the `(can_break, can_continue)` result the wiring keys off.
+
+    #[test]
+    fn escaping_loop_jumps_follows_try_but_not_catch() {
+        // `try { break }` (no matching handler) propagates the break to the
+        // enclosing loop; `catch { break }` absorbs it (yields code 3). Confirmed
+        // against tclsh 9.0.3.
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("try { break }").top_level),
+            (true, false),
+            "try propagates break",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("try { continue } finally { }").top_level),
+            (false, true),
+            "try (with finally) propagates continue",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("try { puts x } on error {} { break }").top_level),
+            (true, false),
+            "a break in a try handler body propagates",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("catch { break }").top_level),
+            (false, false),
+            "catch absorbs break (does not propagate)",
+        );
+    }
+
+    #[test]
+    fn escaping_loop_jumps_stops_after_non_completing_stmt() {
+        // A `break`/`continue` after a statement that cannot complete normally
+        // is dead code and must not be collected as an escaping jump (else it
+        // forges a spurious loop-exit edge).
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("error bad\nbreak").top_level),
+            (false, false),
+            "dead break after error is not collected",
+        );
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("return\ncontinue").top_level),
+            (false, false),
+            "dead continue after return is not collected",
+        );
+        // A live jump before dead code IS collected (and stops the scan there).
+        assert_eq!(
+            escaping_loop_jumps(&lower_module("break\nset x 1").top_level),
+            (true, false),
+            "live break is collected",
+        );
     }
 
     fn find_call_defs<'a>(func: &'a Function, command: &str) -> Option<&'a [String]> {

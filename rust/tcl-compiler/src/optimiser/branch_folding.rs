@@ -34,6 +34,7 @@ use crate::cfg::Terminator;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::sccp::ConstantBranch;
+use tcl_lexer::Span;
 
 use super::helpers::expr_simplify::{
     instcombine_expr_typed, numeric_var_names, substitute_expr_constants,
@@ -69,6 +70,32 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         fold_constant_branches(ctx, fu);
         propagate_into_branches(ctx, fu);
     }
+}
+
+/// Recover the whole braced condition word when the CFG `while` / `for`
+/// loop-condition `Branch` span omits the closing brace.
+///
+/// The loop-condition lowering span can end one byte short of the closing
+/// `}` (so a braced `while {1 < 2}` slices as `{1 < 2`). Left uncorrected,
+/// the brace-balance check in the fold paths fails and a rewrite replaces
+/// `{1 < 2` with `1`, leaving a stray `}` (`while 1}` — a malformation).
+/// When the slice has an unmatched leading `{` and the byte just past it is
+/// `}`, return the span extended by one so the braced word is whole;
+/// otherwise return `span` unchanged. (Workaround for an off-by-one in the
+/// loop-condition CFG span; the codegen path is unaffected.)
+fn brace_corrected_span(source: &str, span: Span) -> Span {
+    let range = span.as_range();
+    if range.end >= source.len() {
+        return span;
+    }
+    let text = &source[range.clone()];
+    if text.starts_with('{')
+        && !text.ends_with('}')
+        && source.as_bytes().get(range.end) == Some(&b'}')
+    {
+        return Span::new(span.start(), span.end() + 1);
+    }
+    span
 }
 
 /// For every branch the SCCP pass *did not* fold, project the
@@ -108,6 +135,7 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // Terminator span is relative to the unit's `base_offset`; absolutise
         // before slicing `ctx.source` / emitting.
         let span = fu.abs_span(*span);
+        let span = brace_corrected_span(ctx.source, span);
         let range = span.as_range();
         if range.end > ctx.source.len() {
             continue;
@@ -240,6 +268,7 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // a memoised offset-0 unit); recover the absolute span before slicing
         // `ctx.source` or emitting.
         let span = fu.abs_span(*span);
+        let span = brace_corrected_span(ctx.source, span);
         let source = ctx.source;
         let range = span.as_range();
         if range.end > source.len() {

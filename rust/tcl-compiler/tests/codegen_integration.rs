@@ -354,12 +354,12 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
     // Regression (PR #514 review): a glob/regexp `switch` as a proc's
     // last command must leave the invoke result on TOS for the proc
     // return — emitting a statement-level POP underflows the stack.
-    use tcl_compiler::cfg_builder::build_cfg;
+    use tcl_compiler::cfg_builder::build_cfg_codegen;
     use tcl_compiler::lowering::lower_to_ir;
 
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
     let f = asm.procedures.get("::f").expect("proc ::f");
     let ops: Vec<Op> = f.instructions.iter().map(|i| i.op).collect();
@@ -383,12 +383,12 @@ fn foreach_synthetic_ops_carry_no_source_span() {
     // must be cleared after the body so they serialise as null `range` in the
     // explorer asm view, rather than inheriting the last body statement's
     // span (which would render them as clickable ranges on that statement).
-    use tcl_compiler::cfg_builder::build_cfg;
+    use tcl_compiler::cfg_builder::build_cfg_codegen;
     use tcl_compiler::lowering::lower_to_ir;
 
     let registry = CommandRegistry::build_default();
     let ir = lower_to_ir("foreach x {1 2 3} { set y $x }", &registry);
-    let cfg = build_cfg(&ir, false);
+    let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
 
     let foreach_ops: Vec<_> = asm

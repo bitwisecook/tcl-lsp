@@ -203,6 +203,8 @@ impl FunctionUnit {
             Some(&rendered_props),
             None,
             None,
+            None,
+            None,
         );
         Self {
             name: name.into(),
@@ -277,6 +279,8 @@ impl FunctionUnit {
             Some(&self.rendered_props),
             Some(ia),
             dialect,
+            None,
+            None,
         )
     }
 }
@@ -577,6 +581,8 @@ impl CompilationUnit {
             Some(&self.top_level.rendered_props),
             Some(&interproc),
             dialect,
+            None,
+            None,
         );
         for fu in self.procedures.values_mut() {
             fu.taints = propagate_taints(
@@ -587,6 +593,8 @@ impl CompilationUnit {
                 Some(&fu.rendered_props),
                 Some(&interproc),
                 dialect,
+                None,
+                None,
             );
         }
 

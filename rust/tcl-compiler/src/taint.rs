@@ -388,12 +388,20 @@ fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> boo
 /// outer level (to colour each SSA def) and is not referenced by the
 /// nested helpers.
 #[derive(Clone, Copy)]
-struct TaintCtx<'a> {
-    registry: &'a CommandRegistry,
-    interproc: Option<&'a InterproceduralAnalysis>,
-    known_procs: Option<&'a HashSet<String>>,
-    caller_qname: Option<&'a str>,
-    dialect: Option<&'a str>,
+pub(crate) struct TaintCtx<'a> {
+    pub(crate) registry: &'a CommandRegistry,
+    pub(crate) interproc: Option<&'a InterproceduralAnalysis>,
+    pub(crate) known_procs: Option<&'a HashSet<String>>,
+    pub(crate) caller_qname: Option<&'a str>,
+    pub(crate) dialect: Option<&'a str>,
+    /// Colour-aware return summaries from the interprocedural taint
+    /// solve (`taint_interproc::solve_interprocedural_taints`). When
+    /// present, calls to a known proc apply the full
+    /// [`crate::taint_interproc::apply_proc_return_summary`] transfer
+    /// instead of the conservative single-passthrough rule. Mirrors
+    /// Python's `_make_call_return_provider`.
+    pub(crate) taint_summaries:
+        Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 }
 
 /// Infer the taint of an argument word from already-known per-variable
@@ -401,7 +409,7 @@ struct TaintCtx<'a> {
 ///
 /// Handles pure variable references (`$x`), bracketed command
 /// substitutions (`[cmd ...]`), and interpolated strings.
-fn word_taint(
+pub(crate) fn word_taint(
     word: &str,
     uses: &HashMap<String, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -630,9 +638,29 @@ fn interproc_call_taint(
     taints: &HashMap<ValueKey, TaintLattice>,
     ctx: TaintCtx<'_>,
 ) -> Option<TaintLattice> {
-    let interproc = ctx.interproc?;
     let known = ctx.known_procs?;
     let caller = ctx.caller_qname.unwrap_or("::top");
+
+    // Colour-aware return-summary path: when the interprocedural taint
+    // solve has computed per-proc summaries, apply the full transfer.
+    // Mirrors Python's `_make_call_return_provider` — a resolved callee
+    // always yields a result (untainted when the arity rejects the call),
+    // so the bare argument join below is bypassed for internal calls.
+    if let Some(summaries) = ctx.taint_summaries {
+        let target = crate::interprocedural::resolve_call_target(command, args, caller, known)?;
+        let summary = summaries.get(&target)?;
+        let arg_taints: Vec<TaintLattice> = args
+            .iter()
+            .map(|a| word_taint(a, uses, taints, ctx))
+            .collect();
+        return Some(crate::taint_interproc::apply_proc_return_summary(
+            summary,
+            &arg_taints,
+        ));
+    }
+
+    // Legacy single-passthrough rule (no solve summaries available).
+    let interproc = ctx.interproc?;
     let target = crate::interprocedural::resolve_internal_call(command, caller, known)?;
     let summary = interproc.procedures.get(&target)?;
     let passthrough = summary.return_passthrough_param.as_ref()?;
@@ -746,7 +774,30 @@ fn colour_from_rendered(lat: TaintLattice, props: RenderedValueProps) -> TaintLa
     out
 }
 
+/// True when a version-0 SSA use should be skipped by the *reporting*
+/// passes as the Rust-only conservative global-write taint seeding rather
+/// than a genuine taint.
+///
+/// Version-0 (`(name, 0)`) taints arise from two sources: the
+/// interprocedural solve's parameter entry-taint (a genuine cross-proc
+/// flow that Python surfaces) and the conservative cross-procedure
+/// global-write seeding ([`collect_global_reads`], which only ever seeds
+/// `::`-prefixed global / namespace names). Python never surfaces the
+/// latter, so a version-0 use is suppressed only when its name is
+/// global/namespace-scoped; a non-`::` version-0 use is a real parameter
+/// entry-taint and is reported, matching Python's
+/// `for name, ver in uses.items(): taints.get((name, ver))`.
+fn is_seeded_global_v0(name: &str, ver: u32) -> bool {
+    ver == 0 && name.starts_with("::")
+}
+
 /// Join taint from all SSA uses in a statement.
+///
+/// Version-0 uses contribute when they carry a genuine parameter
+/// entry-taint (non-`::` name): mirrors Python `_join_uses_map`, which
+/// joins `(name, 0)` when present in the taint map. The Rust-only
+/// global-write seeding (`::` names at version 0) is excluded so it does
+/// not over-propagate into expression results.
 fn join_uses(
     uses: &HashMap<String, u32>,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -760,6 +811,10 @@ fn join_uses(
                     .copied()
                     .unwrap_or(TaintLattice::clean()),
             );
+        } else if !name.starts_with("::")
+            && let Some(&v0) = taints.get(&(name.clone(), 0))
+        {
+            t = t.join(v0);
         }
     }
     t
@@ -874,7 +929,15 @@ fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
 /// * `dialect` — when `"f5-irules"` / `"irules"`, iRules-specific
 ///   namespace-prefixed commands (`HTTP::`, `URI::`, …) are treated
 ///   as taint sources.
+/// * `param_taints` — entry taints seeded by the interprocedural
+///   solve: each tainted entry seeds the version-0 slot of the named
+///   parameter (mirrors Python `taint_propagation`'s `param_taints`).
+/// * `taint_summaries` — colour-aware return summaries from the
+///   interprocedural solve; when present, internal calls apply the
+///   full return-summary transfer (`apply_proc_return_summary`)
+///   instead of the conservative single-passthrough rule.
 #[must_use]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(crate) fn propagate_taints(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -883,24 +946,42 @@ pub(crate) fn propagate_taints(
     rendered_props: Option<&HashMap<ValueKey, RenderedValueProps>>,
     interproc: Option<&InterproceduralAnalysis>,
     dialect: Option<&str>,
+    param_taints: Option<&HashMap<String, TaintLattice>>,
+    taint_summaries: Option<&HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 ) -> HashMap<ValueKey, TaintLattice> {
     let preds = cfg.predecessors();
     let order = cfg_order(cfg);
 
     // Precompute the set of known procedure names once so per-call
     // resolution in `interproc_call_taint` is O(1) rather than
-    // O(procedures) per call site.
-    let known_procs: Option<HashSet<String>> =
-        interproc.map(|ia| ia.procedures.keys().cloned().collect());
+    // O(procedures) per call site. The solve's summaries take
+    // precedence (their key set mirrors Python's `set(summaries)`).
+    let known_procs: Option<HashSet<String>> = match (taint_summaries, interproc) {
+        (Some(s), _) => Some(s.keys().cloned().collect()),
+        (None, Some(ia)) => Some(ia.procedures.keys().cloned().collect()),
+        (None, None) => None,
+    };
     let ctx = TaintCtx {
         registry,
         interproc,
         known_procs: known_procs.as_ref(),
         caller_qname: Some(ssa.name.as_str()),
         dialect,
+        taint_summaries,
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
+
+    // Seed entry taints for tainted parameters (interprocedural solve).
+    // Only tainted params seed a slot; clean params leave the version-0
+    // slot absent (implicitly clean). Mirrors Python's `param_taints`.
+    if let Some(pt) = param_taints {
+        for (name, t) in pt {
+            if t.is_tainted() {
+                taints.insert((name.clone(), 0), *t);
+            }
+        }
+    }
 
     // Seed: when a callee reachable from the current function writes
     // to global scope, taint version-0 reads of global/namespace
@@ -1513,7 +1594,7 @@ fn emit_double_encode_warnings(
     let label = double_encode_label(dup_colour);
     let mut emitted: HashSet<String> = HashSet::new();
     for (name, &ver) in uses {
-        if ver == 0 || emitted.contains(name) {
+        if is_seeded_global_v0(name, ver) || emitted.contains(name) {
             continue;
         }
         let t = taints
@@ -1598,13 +1679,15 @@ pub fn find_taint_warnings_for_cu(
     dialect: Option<&str>,
 ) -> Vec<TaintWarning> {
     let mut out = Vec::new();
+    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
     for fu in cu.functions() {
         let exec = &fu.sccp.executable_blocks;
+        let taints = solved.taints_for(&fu.name, &fu.taints);
         out.extend(find_taint_warnings(
-            &fu.cfg, &fu.ssa, &fu.taints, exec, registry, dialect,
+            &fu.cfg, &fu.ssa, taints, exec, registry, dialect,
         ));
         out.extend(find_setter_constraint_warnings(
-            registry, &fu.cfg, &fu.ssa, &fu.taints, exec, dialect,
+            registry, &fu.cfg, &fu.ssa, taints, exec, dialect,
         ));
         out.extend(crate::uri_split::find_uri_split_suggestions(
             &fu.cfg,
@@ -1615,7 +1698,7 @@ pub fn find_taint_warnings_for_cu(
             dialect,
         ));
         out.extend(find_destructive_file_warnings(
-            &fu.cfg, &fu.ssa, &fu.taints, exec, registry,
+            &fu.cfg, &fu.ssa, taints, exec, registry,
         ));
     }
     out
@@ -1830,7 +1913,7 @@ fn emit_regexp_pattern_warnings(
     names.sort_unstable();
     for var in names {
         let Some(&ver) = uses.get(&var) else { continue };
-        if ver == 0 {
+        if is_seeded_global_v0(&var, ver) {
             continue;
         }
         let t = taints
@@ -1866,7 +1949,7 @@ fn emit_expr_warnings(
     warnings: &mut Vec<TaintWarning>,
 ) {
     for (name, &ver) in uses {
-        if ver == 0 {
+        if is_seeded_global_v0(name, ver) {
             continue;
         }
         let t = taints
@@ -2032,7 +2115,7 @@ fn emit_sink_warnings(
 ) {
     let mut emitted: HashSet<String> = HashSet::new();
     for (name, &ver) in uses {
-        if ver == 0 || emitted.contains(name) {
+        if is_seeded_global_v0(name, ver) || emitted.contains(name) {
             continue;
         }
         let t = taints
@@ -2236,7 +2319,7 @@ fn emit_option_injection(
                 continue;
             }
             let Some(&ver) = uses.get(&var) else { continue };
-            if ver == 0 {
+            if is_seeded_global_v0(&var, ver) {
                 continue;
             }
             let t = taints
@@ -2496,7 +2579,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         assert!(
             taints
                 .get(&("x".to_string(), 1))
@@ -2583,7 +2666,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
             &ssa,
@@ -2661,7 +2744,7 @@ mod tests {
             },
         );
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         find_taint_warnings(
             &cfg,
             &ssa,
@@ -2787,7 +2870,7 @@ mod tests {
             },
         );
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         // The transform colour must have landed on y.
         assert!(
             taints
@@ -2856,7 +2939,7 @@ mod tests {
             },
         );
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         find_destructive_file_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry)
     }
 
@@ -3026,7 +3109,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         assert!(
             taints
                 .get(&("x".to_string(), 1))
@@ -3114,7 +3197,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
             &ssa,
@@ -3211,7 +3294,7 @@ mod tests {
         );
 
         let sccp = simple_sccp(&["entry"]);
-        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None);
+        let taints = propagate_taints(&cfg, &ssa, &sccp, &registry, None, None, None, None, None);
         let warnings = find_taint_warnings(
             &cfg,
             &ssa,

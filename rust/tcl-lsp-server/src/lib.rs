@@ -70,30 +70,38 @@ use tower_lsp::lsp_types::{
     CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse, ConfigurationItem,
     DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
-    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkOptions,
-    DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
-    DocumentSymbolResponse, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
-    FileOperationFilter, FileOperationPattern, FileOperationRegistrationOptions, FoldingRange,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidChangeWatchedFilesRegistrationOptions, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChanges,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentLink, DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams,
+    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation,
+    ExecuteCommandOptions, ExecuteCommandParams, FileChangeType, FileOperationFilter,
+    FileOperationPattern, FileOperationRegistrationOptions, FileSystemWatcher, FoldingRange,
     FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability,
-    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
     MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
     ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
-    RelatedFullDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextEdit, TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities, WorkspaceSymbolParams,
+    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
+    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
+    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability,
+    UnchangedDocumentDiagnosticReport, Url, WatchKind, WillSaveTextDocumentParams,
+    WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
+    WorkspaceDiagnosticReportResult, WorkspaceDocumentDiagnosticReport, WorkspaceEdit,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceFoldersServerCapabilities,
+    WorkspaceFullDocumentDiagnosticReport, WorkspaceServerCapabilities, WorkspaceSymbolParams,
+    WorkspaceUnchangedDocumentDiagnosticReport,
     request::{
         GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
         GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
@@ -162,6 +170,33 @@ struct DiagJob {
     config: tcl_lsp_db::AnalyserConfig,
 }
 
+/// One document's last-published diagnostics plus the `result_id` that
+/// identifies that exact set, for the pull-diagnostic path
+/// (`textDocument/diagnostic` + `workspace/diagnostic`).  Kept in sync with
+/// the push pipeline so a pull request returns the same diagnostics the editor
+/// last received via `publish_diagnostics`, and an unchanged set can be
+/// answered with a cheap `Unchanged` report.  Mirrors the Python server's
+/// `_pull_diag_cache` / `_pull_diag_result_ids`.
+#[derive(Clone)]
+struct PullDiagEntry {
+    result_id: String,
+    /// The document revision the cached diagnostics were computed for.  The
+    /// pull handler compares it against the live document so a cache entry from
+    /// an older edit is recomputed rather than served as current.
+    revision: u64,
+    diagnostics: Vec<tower_lsp::lsp_types::Diagnostic>,
+}
+
+/// Monotonic `result_id` for the pull-diagnostic cache.  A fresh id each time a
+/// document's diagnostics change lets a client's `previousResultId` be compared
+/// for the `Unchanged` short-circuit.
+fn next_pull_diag_result_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("pd-{id}")
+}
+
 /// Per-URI coalescing-scheduler slot (see [`Backend::diag_slots`]).
 #[derive(Default)]
 struct DiagSlot {
@@ -196,6 +231,15 @@ struct DiagInputs {
     db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+    /// Per-folder salsa `AnalyserConfig` handles (see
+    /// [`Backend::folder_db_configs`]); `capture_job` resolves the right one by
+    /// the document's URI so folder-scoped W-code suppression reaches the
+    /// cached analysis, falling back to `db_config`.
+    folder_db_configs: Arc<Mutex<Vec<(Url, tcl_lsp_db::AnalyserConfig)>>>,
+    /// Pull-diagnostic cache, updated as each push run publishes so the
+    /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
+    /// last-published set.
+    pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
 }
 
 impl DiagInputs {
@@ -216,7 +260,16 @@ impl DiagInputs {
             )
         };
         let file = self.db_files.lock().await.get(uri).copied();
-        let config = *self.db_config.lock().await;
+        // Prefer a folder-scoped analyser config when the document sits under a
+        // folder that overrides disabled codes / non-ASCII mode; else the
+        // process-global config.
+        let config = {
+            let folder = self.folder_db_configs.lock().await;
+            match longest_folder_match(&folder, uri) {
+                Some(cfg) => *cfg,
+                None => *self.db_config.lock().await,
+            }
+        };
         Some(DiagJob {
             text,
             dialect,
@@ -253,9 +306,11 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
         documents,
         workspace_index,
         db,
+        pull_diag_cache,
         // The worker captures the job from these before calling us; unused here.
         db_files: _,
         db_config: _,
+        folder_db_configs: _,
     } = inputs;
     let DiagJob {
         text,
@@ -401,6 +456,18 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Url, job: DiagJob) -> bo
                 index.add_document(uri.as_str(), &analysis);
             }
             let diag_count = diags.len();
+            // Keep the pull-diagnostic cache in lock-step with the push: a
+            // `textDocument/diagnostic` request now returns this exact set with
+            // a fresh `result_id`, and an editor that already holds it gets a
+            // cheap `Unchanged` report.
+            pull_diag_cache.lock().await.insert(
+                uri.clone(),
+                PullDiagEntry {
+                    result_id: next_pull_diag_result_id(),
+                    revision,
+                    diagnostics: diags.clone(),
+                },
+            );
             client
                 .publish_diagnostics(uri.clone(), diags, version)
                 .await;
@@ -478,6 +545,20 @@ pub struct Backend {
     /// longest-prefix folder's dialect when a document is
     /// opened.
     folder_dialects: Mutex<Vec<(Url, String)>>,
+    /// Per-folder editor configuration overrides (diagnostics, optimiser,
+    /// formatting, feature toggles), keyed by folder URI and resolved by
+    /// longest prefix at read time.  Populated by the per-folder
+    /// `workspace/configuration` pull.  Empty in a single-root workspace, where
+    /// every read falls back to the process-global fields below.  Mirrors the
+    /// Python `editor_config_settings_per_folder`.
+    folder_configs: Mutex<Vec<(Url, FolderConfig)>>,
+    /// Per-folder salsa `AnalyserConfig` input handles, present only for folders
+    /// that override the disabled-diagnostics set or non-ASCII mode.  The
+    /// diagnostics path resolves the handle by longest prefix so a folder's
+    /// W-code suppression reaches the cached `file_analysis` query, not just the
+    /// server-side lift.  Folders without such overrides fall back to
+    /// [`Backend::db_config`].
+    folder_db_configs: Arc<Mutex<Vec<(Url, tcl_lsp_db::AnalyserConfig)>>>,
     /// W108 non-ASCII detection mode (`tclLsp.style.nonAscii`).
     /// [`NonAsciiMode::Default`] until an editor configures it via
     /// `initializationOptions` or `workspace/didChangeConfiguration`.
@@ -528,8 +609,14 @@ pub struct Backend {
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<Mutex<HashMap<Url, tcl_lsp_db::SourceFile>>>,
     /// The salsa `AnalyserConfig` input (disabled diagnostics + non-ASCII
-    /// mode); `set_*` on `workspace/didChangeConfiguration`.
+    /// mode); `set_*` on `workspace/didChangeConfiguration`.  Used as the
+    /// fallback when no per-folder override applies to the document.
     db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
+    /// Last-published diagnostics per open document, keyed by URI, for the
+    /// pull-diagnostic path.  Written by the push pipeline and read by the
+    /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
+    /// `did_close`.  Mirrors the Python `_pull_diag_cache`.
+    pull_diag_cache: Arc<Mutex<HashMap<Url, PullDiagEntry>>>,
 }
 
 /// Resolved `tclLsp.features.*` toggle state.
@@ -577,6 +664,13 @@ impl FeatureToggles {
         self.set.get(feature).copied().unwrap_or(true)
     }
 
+    /// Like [`Self::is_enabled`] but with a default-**off** fallback, for
+    /// opt-in features (e.g. `willSaveWaitUntil`) that the Python server
+    /// leaves disabled unless an editor turns them on.
+    fn is_enabled_default_off(&self, feature: &str) -> bool {
+        self.set.get(feature).copied().unwrap_or(false)
+    }
+
     /// Merge an editor-supplied `features` object, setting only the
     /// keys it carries (absent keys keep their last-applied value).
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
@@ -594,6 +688,39 @@ impl FeatureToggles {
             .map(|&k| (k.to_owned(), serde_json::Value::Bool(self.is_enabled(k))))
             .collect()
     }
+}
+
+/// One workspace folder's editor configuration overrides.
+///
+/// Each field is `None` (or empty) when the folder's pulled `tclLsp` config
+/// did not set it, in which case the resolver falls back to the process-global
+/// value.  This is the Rust analogue of the Python server's
+/// `editor_config_settings_per_folder`: in a multi-root workspace each root can
+/// carry its own diagnostics, optimiser, formatting, and feature settings.
+/// Per-folder *dialect* is handled separately by [`Backend::folder_dialects`].
+#[derive(Clone, Default)]
+struct FolderConfig {
+    feature_toggles: FeatureToggles,
+    disabled_diagnostics: Option<HashSet<String>>,
+    non_ascii_mode: Option<NonAsciiMode>,
+    optimiser_enabled: Option<bool>,
+    optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
+    optimiser_code_overrides: HashMap<String, bool>,
+    line_length: Option<u32>,
+}
+
+/// Pick the value associated with the **longest** folder URI that `uri` sits
+/// under, mirroring the Python server's longest-prefix folder resolution.
+fn longest_folder_match<'a, T>(entries: &'a [(Url, T)], uri: &Url) -> Option<&'a T> {
+    let mut best: Option<&'a (Url, T)> = None;
+    for entry in entries {
+        if uri_under_folder(uri.as_str(), entry.0.as_str())
+            && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
+        {
+            best = Some(entry);
+        }
+    }
+    best.map(|(_, value)| value)
 }
 
 impl std::fmt::Debug for Backend {
@@ -625,6 +752,8 @@ impl Backend {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            folder_configs: Mutex::new(Vec::new()),
+            folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
@@ -636,6 +765,7 @@ impl Backend {
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_config: Arc::new(Mutex::new(db_config)),
+            pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -956,6 +1086,36 @@ impl Backend {
     /// Disk IO and analysis deliberately run before taking any lock; the final
     /// index update holds the `documents` lock across the still-closed re-check
     /// so a slow disk read cannot overwrite a newly reopened unsaved buffer.
+    /// Remove from the cross-document index every entry whose URI sits under
+    /// one of `folders` and is not currently open in the editor.  Used when a
+    /// workspace folder is removed (`did_change_workspace_folders`) so its
+    /// files stop contributing definitions / references / symbols.
+    async fn drop_index_under_folders(&self, folders: &[Url]) {
+        if folders.is_empty() {
+            return;
+        }
+        let folder_strs: Vec<String> = folders.iter().map(ToString::to_string).collect();
+        // Hold `documents` across the open-set read + index removals (the
+        // `documents` → `workspace_index` order used since the global gate was
+        // retired) so a file opening mid-reconcile keeps its open-buffer entry.
+        let docs = self.documents.lock().await;
+        let open: HashSet<String> = docs.keys().map(ToString::to_string).collect();
+        let mut index = self.workspace_index.lock().await;
+        let to_remove: Vec<String> = index
+            .document_uris()
+            .into_iter()
+            .filter(|uri| {
+                !open.contains(uri)
+                    && folder_strs
+                        .iter()
+                        .any(|folder| uri_under_folder(uri, folder))
+            })
+            .collect();
+        for uri in to_remove {
+            index.remove_document(&uri);
+        }
+    }
+
     async fn reindex_index_from_disk(&self, uri: &Url) {
         let analysed: Option<AnalysisResult> = if let Ok(path) = uri.to_file_path() {
             let dialect = match self.resolve_folder_dialect(uri).await {
@@ -1908,11 +2068,109 @@ impl Backend {
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
         self.sync_db_config().await;
+        // Per-folder editor configuration: VS Code resolves `tclLsp` settings
+        // per scope, so pull each folder's resolved config and store it for
+        // longest-prefix resolution at read time.  Mirrors the Python
+        // `editor_config_settings_per_folder`.  A single-root / no-folder
+        // session skips this — the global pull above is the whole story.
+        let folders = self.workspace_folder_urls().await;
+        if !folders.is_empty() {
+            let items: Vec<ConfigurationItem> = folders
+                .iter()
+                .map(|f| ConfigurationItem {
+                    scope_uri: Some(f.clone()),
+                    section: Some("tclLsp".to_owned()),
+                })
+                .collect();
+            if let Ok(values) = self.client.configuration(items).await {
+                let parsed: Vec<(Url, FolderConfig)> = folders
+                    .into_iter()
+                    .zip(values)
+                    .filter_map(|(folder, cfg)| parse_folder_config(&cfg).map(|fc| (folder, fc)))
+                    .collect();
+                self.apply_folder_configs(parsed).await;
+            }
+        }
+    }
+
+    /// Store the per-folder editor configs and refresh the per-folder salsa
+    /// `AnalyserConfig` handles.  A handle is created only for a folder that
+    /// overrides the disabled-diagnostics set or non-ASCII mode (others inherit
+    /// [`Backend::db_config`]); existing handles are reused across re-pulls so
+    /// the salsa store does not accumulate dead config inputs.
+    async fn apply_folder_configs(&self, parsed: Vec<(Url, FolderConfig)>) {
+        use salsa::Setter as _;
+        {
+            let mut global_disabled: Vec<String> = self
+                .disabled_diagnostics
+                .lock()
+                .await
+                .iter()
+                .cloned()
+                .collect();
+            global_disabled.sort();
+            let global_mode = *self.non_ascii_mode.lock().await;
+            let mut db = self.db.lock().await;
+            let mut handles = self.folder_db_configs.lock().await;
+            let mut next: Vec<(Url, tcl_lsp_db::AnalyserConfig)> = Vec::new();
+            for (folder, fc) in &parsed {
+                if fc.disabled_diagnostics.is_none() && fc.non_ascii_mode.is_none() {
+                    continue;
+                }
+                let mut disabled: Vec<String> = match &fc.disabled_diagnostics {
+                    Some(d) => d.iter().cloned().collect(),
+                    None => global_disabled.clone(),
+                };
+                disabled.sort();
+                let mode = fc.non_ascii_mode.unwrap_or(global_mode);
+                if let Some((_, handle)) = handles.iter().find(|(u, _)| u == folder) {
+                    handle.set_disabled_diagnostics(&mut *db).to(disabled);
+                    handle.set_non_ascii_mode(&mut *db).to(mode);
+                    next.push((folder.clone(), *handle));
+                } else {
+                    let handle = tcl_lsp_db::AnalyserConfig::new(&*db, disabled, mode);
+                    next.push((folder.clone(), handle));
+                }
+            }
+            *handles = next;
+        }
+        *self.folder_configs.lock().await = parsed;
     }
 
     /// Whether the named `tclLsp.features.*` provider is enabled.
-    async fn feature_enabled(&self, feature: &str) -> bool {
+    async fn feature_enabled(&self, feature: &str, uri: &Url) -> bool {
+        // A folder that explicitly sets the toggle wins for documents under it;
+        // otherwise fall back to the process-global toggle state.
+        {
+            let configs = self.folder_configs.lock().await;
+            if let Some(fc) = longest_folder_match(&configs, uri)
+                && let Some(flag) = fc.feature_toggles.set.get(feature).copied()
+            {
+                return flag;
+            }
+        }
         self.feature_toggles.lock().await.is_enabled(feature)
+    }
+
+    /// Whether opt-in format-on-save (`tclLsp.features.willSaveWaitUntil`)
+    /// is enabled for the document at `uri`.  Resolves per folder like
+    /// [`Self::feature_enabled`] so a folder-scoped opt-in works in a
+    /// multi-root workspace, but — unlike the default-on feature toggles — it
+    /// defaults **off** to match the Python server, so it cannot reuse
+    /// `feature_enabled` (whose absent-key fallback is `true`).
+    async fn will_save_format_enabled(&self, uri: &Url) -> bool {
+        {
+            let configs = self.folder_configs.lock().await;
+            if let Some(fc) = longest_folder_match(&configs, uri)
+                && let Some(flag) = fc.feature_toggles.set.get("willSaveWaitUntil").copied()
+            {
+                return flag;
+            }
+        }
+        self.feature_toggles
+            .lock()
+            .await
+            .is_enabled_default_off("willSaveWaitUntil")
     }
 
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
@@ -2048,6 +2306,74 @@ impl Backend {
         (disabled, mode)
     }
 
+    /// Resolve the diagnostics-affecting settings for `uri`: a per-folder editor
+    /// config (longest-prefix match) overrides the process-global fields
+    /// field-by-field; unset folder fields inherit the global value.  Returns
+    /// `(disabled_diagnostics, non_ascii_mode, optimiser_enabled,
+    /// optimiser_disabled_codes)`.  In a single-root workspace (no per-folder
+    /// configs) this is exactly the global state.
+    async fn resolved_analysis_settings(
+        &self,
+        uri: &Url,
+    ) -> (HashSet<String>, NonAsciiMode, bool, HashSet<String>) {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).cloned()
+        };
+        let disabled = match folder.as_ref().and_then(|f| f.disabled_diagnostics.clone()) {
+            Some(d) => d,
+            None => self.disabled_diagnostics.lock().await.clone(),
+        };
+        let non_ascii_mode = match folder.as_ref().and_then(|f| f.non_ascii_mode) {
+            Some(m) => m,
+            None => *self.non_ascii_mode.lock().await,
+        };
+        let optimiser_enabled = match folder.as_ref().and_then(|f| f.optimiser_enabled) {
+            Some(b) => b,
+            None => *self.optimiser_enabled.lock().await,
+        };
+        let profile = match folder.as_ref().and_then(|f| f.optimiser_profile) {
+            Some(p) => p,
+            None => *self.optimiser_profile.lock().await,
+        };
+        let mut opt_disabled: HashSet<String> =
+            tcl_compiler::optimiser::profiles::profile_to_disabled(profile)
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+        // Global per-code overrides first, then the folder's (folder wins).
+        for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
+            if *enabled {
+                opt_disabled.remove(code);
+            } else {
+                opt_disabled.insert(code.clone());
+            }
+        }
+        if let Some(f) = folder.as_ref() {
+            for (code, enabled) in &f.optimiser_code_overrides {
+                if *enabled {
+                    opt_disabled.remove(code);
+                } else {
+                    opt_disabled.insert(code.clone());
+                }
+            }
+        }
+        (disabled, non_ascii_mode, optimiser_enabled, opt_disabled)
+    }
+
+    /// Resolve the formatter line length for `uri` (per-folder override, else
+    /// the global `tclLsp.formatting.lineLength`).
+    async fn resolved_line_length(&self, uri: &Url) -> u32 {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri).and_then(|f| f.line_length)
+        };
+        match folder {
+            Some(len) => len,
+            None => *self.line_length.lock().await,
+        }
+    }
+
     /// Build an `Analyser` carrying the configured disabled-diagnostics
     /// set and W108 mode.
     fn configured_analyser(disabled: HashSet<String>, mode: NonAsciiMode) -> Analyser {
@@ -2082,26 +2408,10 @@ impl Backend {
     /// debounced streaming contract lands in a follow-up.
     /// Gather the document-independent handles a detached diagnostics run needs
     /// (per-edit state travels in a [`DiagJob`]).
-    async fn diag_inputs(&self, dialect: &str) -> DiagInputs {
-        let opt_disabled: HashSet<String> = {
-            let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
-                *self.optimiser_profile.lock().await,
-            )
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-            for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
-                if *enabled {
-                    set.remove(code);
-                } else {
-                    set.insert(code.clone());
-                }
-            }
-            set
-        };
-        let (disabled, non_ascii_mode) = self.analyser_config().await;
+    async fn diag_inputs(&self, uri: &Url, dialect: &str) -> DiagInputs {
+        let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
+            self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(dialect).await;
-        let optimiser_enabled = *self.optimiser_enabled.lock().await;
         DiagInputs {
             client: self.client.clone(),
             registry,
@@ -2114,6 +2424,8 @@ impl Backend {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
             db_config: Arc::clone(&self.db_config),
+            folder_db_configs: Arc::clone(&self.folder_db_configs),
+            pull_diag_cache: Arc::clone(&self.pull_diag_cache),
         }
     }
 
@@ -2136,24 +2448,8 @@ impl Backend {
         dialect: String,
     ) -> Vec<tower_lsp::lsp_types::Diagnostic> {
         let analysis = self.analysis_for(uri, text.clone(), dialect.clone()).await;
-        let opt_disabled: HashSet<String> = {
-            let mut set: HashSet<String> = tcl_compiler::optimiser::profiles::profile_to_disabled(
-                *self.optimiser_profile.lock().await,
-            )
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-            for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
-                if *enabled {
-                    set.remove(code);
-                } else {
-                    set.insert(code.clone());
-                }
-            }
-            set
-        };
-        let (disabled, _non_ascii_mode) = self.analyser_config().await;
-        let optimiser_enabled = *self.optimiser_enabled.lock().await;
+        let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
+            self.resolved_analysis_settings(uri).await;
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = {
@@ -2201,7 +2497,7 @@ impl Backend {
         _revision: u64,
         _version: Option<i32>,
     ) {
-        let inputs = self.diag_inputs(&dialect).await;
+        let inputs = self.diag_inputs(&uri, &dialect).await;
         let Some(job) = inputs.capture_job(&uri).await else {
             return;
         };
@@ -2236,7 +2532,7 @@ impl Backend {
         if !start_worker {
             return;
         }
-        let inputs = self.diag_inputs(&dialect).await;
+        let inputs = self.diag_inputs(&uri, &dialect).await;
         let slots = Arc::clone(&self.diag_slots);
         tokio::spawn(async move {
             loop {
@@ -2276,6 +2572,34 @@ impl Backend {
                 }
             }
         });
+    }
+
+    /// Best-effort dynamic registration of
+    /// `workspace/didChangeWatchedFiles` for Tcl source files, so external
+    /// on-disk changes reach [`LanguageServer::did_change_watched_files`].
+    /// The glob mirrors the Python server's watched-file pattern.  A client
+    /// without dynamic-registration support rejects the request; that is
+    /// logged and ignored (the startup scan still seeds the index).
+    async fn register_file_watchers(&self) {
+        let registration = Registration {
+            id: "tcl-lsp-watched-files".to_owned(),
+            method: "workspace/didChangeWatchedFiles".to_owned(),
+            register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers: vec![FileSystemWatcher {
+                    glob_pattern: GlobPattern::String("**/*.{tcl,tm,itcl,irule,irul}".to_owned()),
+                    kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+                }],
+            })
+            .ok(),
+        };
+        if let Err(err) = self.client.register_capability(vec![registration]).await {
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!("file-watcher registration declined by client: {err}"),
+                )
+                .await;
+        }
     }
 
     /// On-disk workspace-folder scan: analyse `.tcl` / `.tm`
@@ -2390,6 +2714,12 @@ impl LanguageServer for Backend {
         // feature toggles / optimiser switch / analyser knobs are in effect
         // before the first request.
         self.pull_and_apply_config().await;
+        // Ask the client to watch Tcl source files so external edits
+        // (`git checkout`, generated files, deletions) reach
+        // `did_change_watched_files` and refresh the cross-document index.
+        // Best-effort: clients without dynamic-registration support reject
+        // this, which is harmless — the startup scan still seeds the index.
+        self.register_file_watchers().await;
         // Seed the cross-document index with on-disk project files
         // the editor hasn't opened yet.
         self.scan_workspace_folders().await;
@@ -2532,6 +2862,10 @@ impl LanguageServer for Backend {
         self.client
             .publish_diagnostics(uri.clone(), Vec::new(), None)
             .await;
+        // Drop the pull-diagnostic cache entry so a `workspace/diagnostic`
+        // sweep no longer reports the now-closed document and a later reopen
+        // recomputes from scratch.
+        self.pull_diag_cache.lock().await.remove(uri);
         self.db_remove_source(uri).await;
         // Re-index the file from disk rather than dropping it: the
         // file still exists on disk and was (or would be) part of
@@ -2545,11 +2879,114 @@ impl LanguageServer for Backend {
         self.reindex_index_from_disk(uri).await;
     }
 
+    async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
+        // Update the tracked folder set, then reconcile the cross-document
+        // index and configuration so multi-root behaviour is not frozen at the
+        // `initialize` snapshot.  Mirrors the Python `didChangeWorkspaceFolders`
+        // handler (drop removed-folder state, load/scan added folders, re-pull
+        // config).
+        let removed: Vec<Url> = params.event.removed.iter().map(|f| f.uri.clone()).collect();
+        {
+            let mut folders = self.workspace_folders.lock().await;
+            for uri in &removed {
+                folders.retain(|f| f != uri);
+            }
+            for added in &params.event.added {
+                if !folders.iter().any(|f| f == &added.uri) {
+                    folders.push(added.uri.clone());
+                }
+            }
+        }
+        // Drop index entries for files under removed folders so their symbols
+        // stop resolving across the workspace.  Open documents are left alone —
+        // their live buffer is the source of truth regardless of folder set.
+        if !removed.is_empty() {
+            self.drop_index_under_folders(&removed).await;
+        }
+        // Pick up files under any newly-added folder.  `scan_workspace_folders`
+        // walks the *current* folder list and skips open documents, so it is
+        // safe to call here.
+        if !params.event.added.is_empty() {
+            self.scan_workspace_folders().await;
+        }
+        // Per-folder config may differ between roots; re-pull so the resolved
+        // settings reflect the new folder set.
+        self.pull_and_apply_config().await;
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        // External (non-editor) file changes — `git checkout`, a generated
+        // file, a deletion — must refresh the cross-document index so
+        // definition / references / rename / call-hierarchy keep seeing the
+        // project's true on-disk state between restarts.  Mirrors the Python
+        // `didChangeWatchedFiles` handler.
+        for change in params.changes {
+            // Files the editor has open are driven by did_open/did_change; their
+            // unsaved buffer must not be clobbered by the on-disk copy.
+            // `reindex_index_from_disk` re-checks this under the lock as well.
+            if self.documents.lock().await.contains_key(&change.uri) {
+                continue;
+            }
+            if change.typ == FileChangeType::DELETED {
+                self.workspace_index
+                    .lock()
+                    .await
+                    .remove_document(change.uri.as_str());
+            } else {
+                // CREATED or CHANGED: re-analyse from disk (a Tcl source file)
+                // or drop it if it no longer reads as one.
+                self.reindex_index_from_disk(&change.uri).await;
+            }
+        }
+    }
+
+    async fn will_save_wait_until(
+        &self,
+        params: WillSaveTextDocumentParams,
+    ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
+        // Opt-in format-on-save, mirroring the Python server's
+        // `willSaveWaitUntil` handler (`server/server.py`): gated behind
+        // `tclLsp.features.willSaveWaitUntil`, which is **off by default**.
+        // The capability is advertised unconditionally; the runtime guard
+        // here returns no edits when the toggle is unset, matching the
+        // repo's "always register, guard in the body" feature pattern.
+        if !self
+            .will_save_format_enabled(&params.text_document.uri)
+            .await
+        {
+            return Ok(None);
+        }
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let config = core_formatting::FormatterConfig {
+            max_line_length: self.resolved_line_length(&params.text_document.uri).await as usize,
+            ..core_formatting::FormatterConfig::default()
+        };
+        let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
+        if edits.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(
+            edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect(),
+        ))
+    }
+
     async fn folding_range(
         &self,
         params: FoldingRangeParams,
     ) -> jsonrpc::Result<Option<Vec<FoldingRange>>> {
-        if !self.feature_enabled("folding").await {
+        if !self
+            .feature_enabled("folding", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
@@ -2564,7 +3001,10 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentSymbolParams,
     ) -> jsonrpc::Result<Option<DocumentSymbolResponse>> {
-        if !self.feature_enabled("documentSymbols").await {
+        if !self
+            .feature_enabled("documentSymbols", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let Some(doc) = self.read_document(&params.text_document.uri).await else {
@@ -2601,7 +3041,13 @@ impl LanguageServer for Backend {
         &self,
         params: CompletionParams,
     ) -> jsonrpc::Result<Option<CompletionResponse>> {
-        if !self.feature_enabled("completion").await {
+        if !self
+            .feature_enabled(
+                "completion",
+                &params.text_document_position.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document_position.text_document.uri.clone();
@@ -2654,7 +3100,13 @@ impl LanguageServer for Backend {
         &self,
         params: GotoDefinitionParams,
     ) -> jsonrpc::Result<Option<GotoDefinitionResponse>> {
-        if !self.feature_enabled("definition").await {
+        if !self
+            .feature_enabled(
+                "definition",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params
@@ -2814,7 +3266,13 @@ impl LanguageServer for Backend {
     }
 
     async fn references(&self, params: ReferenceParams) -> jsonrpc::Result<Option<Vec<Location>>> {
-        if !self.feature_enabled("references").await {
+        if !self
+            .feature_enabled(
+                "references",
+                &params.text_document_position.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document_position.text_document.uri.clone();
@@ -3168,6 +3626,11 @@ impl LanguageServer for Backend {
         // other request uses) and lift each analyser
         // diagnostic to the LSP wire shape.
         let uri = params.text_document.uri.clone();
+        let previous = params.previous_result_id;
+        // Read the live document first so a cache entry from an older edit is
+        // never served as current: a pull arriving between `did_change` and the
+        // debounced worker's refresh must recompute, not return stale (or worse,
+        // `Unchanged`) diagnostics for the edited buffer.
         let Some(doc) = self.read_document(&uri).await else {
             return Ok(empty_diagnostic_report());
         };
@@ -3177,20 +3640,126 @@ impl LanguageServer for Backend {
         if Self::is_bigip_dialect(&doc.dialect) {
             return Ok(empty_diagnostic_report());
         }
-        // Mirror the push path's full set (analyser + compiler/optimiser +
-        // source-style) so pull-mode editors don't lose the compiler /
-        // optimiser / style warnings.
+        // Serve from the push-maintained cache only when it matches the live
+        // document revision: pull then mirrors the exact set the editor last
+        // received via `publish_diagnostics`, and an unchanged document is
+        // answered with a cheap `Unchanged` report (no diagnostics re-sent).
+        // Mirrors the Python `on_document_diagnostic`.
+        if let Some(entry) = self.pull_diag_cache.lock().await.get(&uri).cloned()
+            && entry.revision == doc.revision
+        {
+            if previous.as_deref() == Some(entry.result_id.as_str()) {
+                return Ok(DocumentDiagnosticReportResult::Report(
+                    DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
+                        related_documents: None,
+                        unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
+                            result_id: entry.result_id,
+                        },
+                    }),
+                ));
+            }
+            return Ok(DocumentDiagnosticReportResult::Report(
+                DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                    related_documents: None,
+                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                        result_id: Some(entry.result_id),
+                        items: entry.diagnostics,
+                    },
+                }),
+            ));
+        }
+        // Cache miss or stale (a pull arrived before the push settled, or push
+        // is disabled).  Compute the full set on demand, prime the cache with
+        // the revision it was computed for, and return it.  Mirror the push
+        // path's full set (analyser + compiler/optimiser + source-style) so
+        // pull-mode editors don't lose the compiler / optimiser / style
+        // warnings.
         let items = self
             .full_diagnostics_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
+        let result_id = next_pull_diag_result_id();
+        self.pull_diag_cache.lock().await.insert(
+            uri.clone(),
+            PullDiagEntry {
+                result_id: result_id.clone(),
+                revision: doc.revision,
+                diagnostics: items.clone(),
+            },
+        );
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
                 full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                    result_id: None,
+                    result_id: Some(result_id),
                     items,
                 },
             }),
+        ))
+    }
+
+    async fn workspace_diagnostic(
+        &self,
+        params: WorkspaceDiagnosticParams,
+    ) -> jsonrpc::Result<WorkspaceDiagnosticReportResult> {
+        // Workspace pull: report every open document's last-published set from
+        // the cache, honouring the per-URI `previousResultId` the client sends
+        // so unchanged documents cost nothing.  Mirrors the Python
+        // `on_workspace_diagnostic`.
+        let previous: HashMap<Url, String> = params
+            .previous_result_ids
+            .into_iter()
+            .map(|p| (p.uri, p.value))
+            .collect();
+        // Snapshot the cache (clone out) so we don't hold its lock while also
+        // taking the `documents` lock for versions.
+        let entries: Vec<(Url, PullDiagEntry)> = self
+            .pull_diag_cache
+            .lock()
+            .await
+            .iter()
+            .map(|(uri, entry)| (uri.clone(), entry.clone()))
+            .collect();
+        let versions: HashMap<Url, Option<i64>> = {
+            let docs = self.documents.lock().await;
+            entries
+                .iter()
+                .map(|(uri, _)| {
+                    (
+                        uri.clone(),
+                        docs.get(uri).and_then(|d| d.version.map(i64::from)),
+                    )
+                })
+                .collect()
+        };
+        let items = entries
+            .into_iter()
+            .map(|(uri, entry)| {
+                let version = versions.get(&uri).copied().flatten();
+                if previous.get(&uri).map(String::as_str) == Some(entry.result_id.as_str()) {
+                    WorkspaceDocumentDiagnosticReport::Unchanged(
+                        WorkspaceUnchangedDocumentDiagnosticReport {
+                            uri,
+                            version,
+                            unchanged_document_diagnostic_report:
+                                UnchangedDocumentDiagnosticReport {
+                                    result_id: entry.result_id,
+                                },
+                        },
+                    )
+                } else {
+                    WorkspaceDocumentDiagnosticReport::Full(WorkspaceFullDocumentDiagnosticReport {
+                        uri,
+                        version,
+                        full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                            result_id: Some(entry.result_id),
+                            items: entry.diagnostics,
+                        },
+                    })
+                }
+            })
+            .collect();
+        Ok(WorkspaceDiagnosticReportResult::Report(
+            WorkspaceDiagnosticReport { items },
         ))
     }
 
@@ -3329,7 +3898,10 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentLinkParams,
     ) -> jsonrpc::Result<Option<Vec<DocumentLink>>> {
-        if !self.feature_enabled("documentLinks").await {
+        if !self
+            .feature_enabled("documentLinks", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
@@ -3713,7 +4285,10 @@ impl LanguageServer for Backend {
         &self,
         params: SelectionRangeParams,
     ) -> jsonrpc::Result<Option<Vec<SelectionRange>>> {
-        if !self.feature_enabled("selectionRange").await {
+        if !self
+            .feature_enabled("selectionRange", &params.text_document.uri)
+            .await
+        {
             return Ok(None);
         }
         let uri = params.text_document.uri.clone();
@@ -3954,7 +4529,13 @@ impl LanguageServer for Backend {
         &self,
         params: SignatureHelpParams,
     ) -> jsonrpc::Result<Option<SignatureHelp>> {
-        if !self.feature_enabled("signatureHelp").await {
+        if !self
+            .feature_enabled(
+                "signatureHelp",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params
@@ -3994,7 +4575,13 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
-        if !self.feature_enabled("hover").await {
+        if !self
+            .feature_enabled(
+                "hover",
+                &params.text_document_position_params.text_document.uri,
+            )
+            .await
+        {
             return Ok(None);
         }
         let uri = params
@@ -4287,6 +4874,50 @@ fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet
         }
     }
     found.then_some(set)
+}
+
+/// Parse one folder's resolved `tclLsp` config object into a [`FolderConfig`]
+/// of overrides.  Keys absent from the object stay `None` / empty so the
+/// resolver inherits the process-global value.  Returns `None` when `cfg` is
+/// not a JSON object (the folder pull returned nothing usable).  Mirrors the
+/// key handling of [`Backend::pull_and_apply_config`]'s global pull.
+fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
+    let obj = cfg.as_object()?;
+    let mut fc = FolderConfig::default();
+    if let Some(features) = obj.get("features").and_then(serde_json::Value::as_object) {
+        fc.feature_toggles.apply(features);
+    }
+    if let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) {
+        if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
+            fc.optimiser_enabled = Some(b);
+        }
+        if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
+            fc.optimiser_profile =
+                Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
+        }
+        for (key, val) in opt {
+            if key == "enabled" || key == "profile" {
+                continue;
+            }
+            if let Some(b) = val.as_bool() {
+                fc.optimiser_code_overrides.insert(key.clone(), b);
+            }
+        }
+    }
+    if let Some(len) = obj
+        .get("formatting")
+        .and_then(|f| f.get("lineLength"))
+        .or_else(|| obj.get("lineLength"))
+        .and_then(serde_json::Value::as_u64)
+    {
+        fc.line_length = Some(u32::try_from(len).unwrap_or(80));
+    }
+    // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
+    // under `tclLsp`; the per-folder pull hands us the section content directly.
+    let wrapped = serde_json::json!({ "tclLsp": cfg });
+    fc.non_ascii_mode = settings_non_ascii_mode(&wrapped);
+    fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
+    Some(fc)
 }
 
 /// Apply one LSP content change to `text` (incremental document sync).
@@ -4680,8 +5311,17 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// literal lives here rather than inside the trait method.
 fn build_server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(
-            TextDocumentSyncKind::INCREMENTAL,
+        // Options form (rather than the bare `Kind`) so we can advertise
+        // `willSaveWaitUntil` alongside incremental sync. The handler is
+        // gated by `tclLsp.features.willSaveWaitUntil` (default off).
+        text_document_sync: Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::INCREMENTAL),
+                will_save: Some(false),
+                will_save_wait_until: Some(true),
+                save: None,
+            },
         )),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
@@ -4736,7 +5376,10 @@ fn build_server_capabilities() -> ServerCapabilities {
         diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
             identifier: Some("tcl-lsp".to_string()),
             inter_file_dependencies: false,
-            workspace_diagnostics: false,
+            // Workspace pull is backed by the per-URI pull-diagnostic cache the
+            // push pipeline maintains (`workspace_diagnostic` reports each open
+            // document's last-published set).
+            workspace_diagnostics: true,
             work_done_progress_options: WorkDoneProgressOptions::default(),
         })),
         // Editor-invoked workspace commands (currently the
@@ -4764,7 +5407,14 @@ fn build_server_capabilities() -> ServerCapabilities {
         // rename — the willRename handler rewrites dependents' `source`
         // literals, the didRename handler reindexes the moved file.
         workspace: Some(WorkspaceServerCapabilities {
-            workspace_folders: None,
+            // Advertise multi-root support and ask the client to send
+            // `workspace/didChangeWorkspaceFolders` so folders added or removed
+            // mid-session update the index and configuration (the
+            // `did_change_workspace_folders` handler), not just at startup.
+            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(true)),
+            }),
             file_operations: Some(WorkspaceFileOperationsServerCapabilities {
                 will_rename: Some(rename_file_operation_options()),
                 did_rename: Some(rename_file_operation_options()),
@@ -5550,6 +6200,8 @@ mod tests {
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             workspace_folders: Mutex::new(Vec::new()),
             folder_dialects: Mutex::new(Vec::new()),
+            folder_configs: Mutex::new(Vec::new()),
+            folder_db_configs: Arc::new(Mutex::new(Vec::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(HashSet::new()),
             workspace_index: Arc::new(Mutex::new(core_workspace_index::WorkspaceIndex::new())),
@@ -5561,6 +6213,7 @@ mod tests {
             db: Arc::new(Mutex::new(db)),
             db_files: Arc::new(Mutex::new(HashMap::new())),
             db_config: Arc::new(Mutex::new(db_config)),
+            pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -5595,6 +6248,387 @@ mod tests {
         assert!(
             !has_o100(&analyser_only),
             "the analyser-only path should not emit O100 (sanity)",
+        );
+    }
+
+    fn doc_diag_params(uri: &Url, previous: Option<&str>) -> DocumentDiagnosticParams {
+        DocumentDiagnosticParams {
+            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            identifier: None,
+            previous_result_id: previous.map(str::to_owned),
+            work_done_progress_params: tower_lsp::lsp_types::WorkDoneProgressParams::default(),
+            partial_result_params: tower_lsp::lsp_types::PartialResultParams::default(),
+        }
+    }
+
+    /// The pull handler returns a `Full` report carrying a `result_id` and,
+    /// when the client echoes that same id back as `previousResultId` and the
+    /// document has not changed, an `Unchanged` report naming the same id.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pull_diagnostic_returns_unchanged_when_result_id_matches() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///pull-unchanged.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        let first = backend
+            .diagnostic(doc_diag_params(&uri, None))
+            .await
+            .unwrap();
+        let result_id = match first {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => full
+                .full_document_diagnostic_report
+                .result_id
+                .expect("first pull must carry a result_id"),
+            other => panic!("expected a Full report, got {other:?}"),
+        };
+
+        let second = backend
+            .diagnostic(doc_diag_params(&uri, Some(&result_id)))
+            .await
+            .unwrap();
+        match second {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(u)) => {
+                assert_eq!(
+                    u.unchanged_document_diagnostic_report.result_id, result_id,
+                    "Unchanged report must name the cached result_id",
+                );
+            }
+            other => panic!("expected an Unchanged report, got {other:?}"),
+        }
+    }
+
+    /// `workspace/diagnostic` reports each cached (open) document, and honours a
+    /// matching `previousResultId` with an `Unchanged` per-document report.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_diagnostic_reports_cached_documents() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///ws-diag.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        // Prime the pull cache through the document handler.
+        let first = backend
+            .diagnostic(doc_diag_params(&uri, None))
+            .await
+            .unwrap();
+        let result_id = match first {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => {
+                full.full_document_diagnostic_report.result_id.unwrap()
+            }
+            other => panic!("expected Full, got {other:?}"),
+        };
+
+        let params = WorkspaceDiagnosticParams {
+            identifier: None,
+            previous_result_ids: vec![tower_lsp::lsp_types::PreviousResultId {
+                uri: uri.clone(),
+                value: result_id.clone(),
+            }],
+            work_done_progress_params: tower_lsp::lsp_types::WorkDoneProgressParams::default(),
+            partial_result_params: tower_lsp::lsp_types::PartialResultParams::default(),
+        };
+        let report = backend.workspace_diagnostic(params).await.unwrap();
+        let WorkspaceDiagnosticReportResult::Report(report) = report else {
+            panic!("expected a full workspace report");
+        };
+        assert_eq!(
+            report.items.len(),
+            1,
+            "the one open document must be reported"
+        );
+        match &report.items[0] {
+            WorkspaceDocumentDiagnosticReport::Unchanged(u) => {
+                assert_eq!(u.uri, uri);
+                assert_eq!(u.unchanged_document_diagnostic_report.result_id, result_id);
+            }
+            WorkspaceDocumentDiagnosticReport::Full(full) => {
+                panic!(
+                    "matching previousResultId must yield Unchanged, got Full for {:?}",
+                    full.uri,
+                )
+            }
+        }
+    }
+
+    /// `did_change_watched_files` drops a deleted file from the cross-document
+    /// index and re-indexes a (closed) changed file from disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn watched_files_deletion_drops_index_entry() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///watched-gone.tcl").unwrap();
+        // Index a file that is NOT open (no `documents` entry).
+        {
+            let mut a = Analyser::new();
+            let analysis = a.analyse("proc gone {} {}\n", "tcl8.6").clone();
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .add_document(uri.as_str(), &analysis);
+        }
+        assert!(
+            backend
+                .workspace_index
+                .lock()
+                .await
+                .document_uris()
+                .iter()
+                .any(|u| u == uri.as_str()),
+            "precondition: file is indexed",
+        );
+
+        backend
+            .did_change_watched_files(DidChangeWatchedFilesParams {
+                changes: vec![tower_lsp::lsp_types::FileEvent {
+                    uri: uri.clone(),
+                    typ: FileChangeType::DELETED,
+                }],
+            })
+            .await;
+
+        assert!(
+            !backend
+                .workspace_index
+                .lock()
+                .await
+                .document_uris()
+                .iter()
+                .any(|u| u == uri.as_str()),
+            "a DELETED watched-file event must drop the index entry",
+        );
+    }
+
+    /// Removing a workspace folder drops index entries for its (closed) files
+    /// while leaving files under other folders intact.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_folder_removal_drops_index_under_folder() {
+        let backend = test_backend();
+        let gone = Url::parse("file:///proj-a/lib.tcl").unwrap();
+        let kept = Url::parse("file:///proj-b/lib.tcl").unwrap();
+        {
+            let mut a = Analyser::new();
+            let analysis = a.analyse("proc p {} {}\n", "tcl8.6").clone();
+            let mut index = backend.workspace_index.lock().await;
+            index.add_document(gone.as_str(), &analysis);
+            index.add_document(kept.as_str(), &analysis);
+        }
+        *backend.workspace_folders.lock().await = vec![
+            Url::parse("file:///proj-a").unwrap(),
+            Url::parse("file:///proj-b").unwrap(),
+        ];
+
+        backend
+            .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
+                event: tower_lsp::lsp_types::WorkspaceFoldersChangeEvent {
+                    added: Vec::new(),
+                    removed: vec![tower_lsp::lsp_types::WorkspaceFolder {
+                        uri: Url::parse("file:///proj-a").unwrap(),
+                        name: "proj-a".to_owned(),
+                    }],
+                },
+            })
+            .await;
+
+        let uris = backend.workspace_index.lock().await.document_uris();
+        assert!(
+            !uris.iter().any(|u| u == gone.as_str()),
+            "files under the removed folder must be dropped",
+        );
+        assert!(
+            uris.iter().any(|u| u == kept.as_str()),
+            "files under a retained folder must remain",
+        );
+        // The folder list itself no longer carries the removed root.
+        assert!(
+            !backend
+                .workspace_folders
+                .lock()
+                .await
+                .iter()
+                .any(|f| f.as_str() == "file:///proj-a"),
+        );
+    }
+
+    /// A per-folder editor config overrides the process-global settings for
+    /// documents under that folder, while documents under other folders keep
+    /// the global values (longest-prefix resolution).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn per_folder_config_overrides_global_settings() {
+        let backend = test_backend();
+        let folder_a = Url::parse("file:///proj-a").unwrap();
+        let folder_b = Url::parse("file:///proj-b").unwrap();
+        let inside = Url::parse("file:///proj-a/sub/file.tcl").unwrap();
+        let outside = Url::parse("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+
+        // proj-a turns hover off and disables W100; the global state keeps both
+        // on / empty.
+        let feature_toggles = {
+            let mut t = FeatureToggles::default();
+            t.set.insert("hover".to_owned(), false);
+            t
+        };
+        let fc = FolderConfig {
+            feature_toggles,
+            disabled_diagnostics: Some(std::iter::once("W100".to_owned()).collect()),
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder_a.clone(), fc)])
+            .await;
+
+        // Feature gating resolves per folder.
+        assert!(
+            !backend.feature_enabled("hover", &inside).await,
+            "hover must be off under proj-a",
+        );
+        assert!(
+            backend.feature_enabled("hover", &outside).await,
+            "hover must stay on under proj-b (global default)",
+        );
+
+        // Disabled-diagnostics resolve per folder.
+        let (disabled_in, ..) = backend.resolved_analysis_settings(&inside).await;
+        assert!(disabled_in.contains("W100"), "proj-a disables W100");
+        let (disabled_out, ..) = backend.resolved_analysis_settings(&outside).await;
+        assert!(
+            !disabled_out.contains("W100"),
+            "proj-b inherits the empty global disabled set",
+        );
+
+        // A folder that overrides the disabled set gets its own salsa config
+        // handle, so the suppression also reaches the cached analysis.
+        assert!(
+            backend
+                .folder_db_configs
+                .lock()
+                .await
+                .iter()
+                .any(|(u, _)| u == &folder_a),
+            "proj-a must have a per-folder AnalyserConfig handle",
+        );
+    }
+
+    /// A pull arriving after an edit (revision bumped) but before the debounced
+    /// worker refreshes the cache must recompute, not serve the stale cached
+    /// report — and must not answer `Unchanged` even when the client echoes the
+    /// stale `result_id`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pull_diagnostic_recomputes_after_edit_bumps_revision() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///pull-stale.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        let first = backend
+            .diagnostic(doc_diag_params(&uri, None))
+            .await
+            .unwrap();
+        let stale_id = match first {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => {
+                full.full_document_diagnostic_report.result_id.unwrap()
+            }
+            other => panic!("expected Full, got {other:?}"),
+        };
+
+        // Simulate `did_change`: bump the revision (and text) without running
+        // the worker, so the cache entry is now for an older revision.
+        {
+            let mut docs = backend.documents.lock().await;
+            let doc = docs.get_mut(&uri).unwrap();
+            doc.text = "set x 2\n".to_owned();
+            doc.bump_revision(1);
+        }
+
+        let second = backend
+            .diagnostic(doc_diag_params(&uri, Some(&stale_id)))
+            .await
+            .unwrap();
+        match second {
+            DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(full)) => {
+                assert_ne!(
+                    full.full_document_diagnostic_report.result_id,
+                    Some(stale_id),
+                    "a stale result_id must not be reused after an edit",
+                );
+            }
+            other => panic!("an edited buffer must recompute, not serve Unchanged: {other:?}"),
+        }
+    }
+
+    /// Format-on-save honours a folder-scoped opt-in: a document under a folder
+    /// that turns on `willSaveWaitUntil` formats, while documents outside it
+    /// stay inert under the (off) global default.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn will_save_format_respects_per_folder_opt_in() {
+        let backend = test_backend();
+        let folder = Url::parse("file:///proj-a").unwrap();
+        let inside = Url::parse("file:///proj-a/file.tcl").unwrap();
+        let outside = Url::parse("file:///other/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder.clone()];
+        register(&backend, &inside, "set    x     1\n").await;
+        register(&backend, &outside, "set    x     1\n").await;
+
+        // Global toggle stays off; only proj-a opts in.
+        let feature_toggles = {
+            let mut t = FeatureToggles::default();
+            t.set.insert("willSaveWaitUntil".to_owned(), true);
+            t
+        };
+        let fc = FolderConfig {
+            feature_toggles,
+            ..FolderConfig::default()
+        };
+        backend
+            .apply_folder_configs(vec![(folder.clone(), fc)])
+            .await;
+
+        let params = |uri: &Url| WillSaveTextDocumentParams {
+            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            reason: tower_lsp::lsp_types::TextDocumentSaveReason::MANUAL,
+        };
+        assert!(
+            backend
+                .will_save_wait_until(params(&inside))
+                .await
+                .unwrap()
+                .is_some_and(|edits| !edits.is_empty()),
+            "a folder-scoped opt-in must format on save",
+        );
+        assert!(
+            backend
+                .will_save_wait_until(params(&outside))
+                .await
+                .unwrap()
+                .is_none(),
+            "outside the opted-in folder, save stays inert under the global default",
+        );
+    }
+
+    /// `willSaveWaitUntil` is opt-in: with the feature toggle unset it returns
+    /// no edits even for mis-formatted source; once enabled it formats.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn will_save_format_is_opt_in() {
+        let backend = test_backend();
+        let uri = Url::parse("file:///will-save.tcl").unwrap();
+        register(&backend, &uri, "set    x     1\n").await;
+        let params = WillSaveTextDocumentParams {
+            text_document: tower_lsp::lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+            reason: tower_lsp::lsp_types::TextDocumentSaveReason::MANUAL,
+        };
+
+        let disabled = backend.will_save_wait_until(params.clone()).await.unwrap();
+        assert!(
+            disabled.is_none(),
+            "format-on-save must be inert until the feature toggle is set",
+        );
+
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .set
+            .insert("willSaveWaitUntil".to_owned(), true);
+        let enabled = backend.will_save_wait_until(params).await.unwrap();
+        assert!(
+            enabled.is_some_and(|edits| !edits.is_empty()),
+            "with the toggle on, mis-formatted source must yield edits",
         );
     }
 

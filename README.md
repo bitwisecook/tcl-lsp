@@ -1734,8 +1734,10 @@ See [KCS: Proc arg traits](docs/kcs/kcs-proc-arg-traits.md) for details.
 ## Code formatting
 
 The formatter supports full-document and range formatting via the standard LSP
-`textDocument/formatting` and `textDocument/rangeFormatting` requests.  Defaults
-follow the [F5 iRules Style Guide](https://community.f5.com/kb/technicalarticles/irules-style-guide/305921).
+`textDocument/formatting` and `textDocument/rangeFormatting` requests, plus
+opt-in format-on-save via `textDocument/willSaveWaitUntil` (enable
+`tclLsp.features.willSaveWaitUntil`; off by default).  Defaults follow the
+[F5 iRules Style Guide](https://community.f5.com/kb/technicalarticles/irules-style-guide/305921).
 
 ![Formatting side-by-side (before left, after right)](docs/screenshots/07-formatting-after.png)
 

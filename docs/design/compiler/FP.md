@@ -2371,6 +2371,418 @@ The `read_before_set` row pins the verdict: the `$v` read in `if_then_3` is repo
 
 ---
 
+### FP-RBS-13 — `tailcall` replaces the frame; code after it never runs
+
+- **Verdict:** FALSE POSITIVE (W210) — `tailcall` ends the proc's straight-line
+  flow, but the CFG modelled it as an ordinary fall-through call, so a variable
+  set only on the *other* branch of an `if` looked maybe-unset at a read after
+  the `if`.
+- **Status:** FIXED (Rust port). Found while auditing the control-flow-terminator
+  family (sibling of the `break`/`continue` CFG-jump fix); `tailcall` was the
+  missing proc-exit terminator. Ported from the Python builder (commit `d312c6e`)
+  and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (Tcl 8.6+ `tailcall` dispatch idiom).
+
+#### Reproducer
+
+```tcl
+proc f {cond} {
+    # tailcall g replaces this frame: the `return $result` below is only
+    # reached via the else branch, where result is always set.
+    if {$cond} {
+        tailcall g
+    } else {
+        set result 1
+    }
+    return $result
+}
+```
+
+#### Per-line reasoning
+
+1. `if {$cond} { tailcall g } else { set result 1 }` — exactly one branch runs.
+2. `tailcall g` — replaces the current procedure with `g`. Control **never
+   returns** to `f`, so the `then` branch does not reach the code after the
+   `if`. The C implementation `TclNRTailcallObjCmd` (generic/tclBasic.c) ends
+   with `return TCL_RETURN` for *any* arg count — both bare `tailcall` and
+   `tailcall command ...` exit the proc; the arg count only decides what runs
+   *after* the frame is popped.
+3. `return $result` — reachable only via the `else` branch, where `set result
+   1` ran. So `result` is **always** defined when read → no read-before-set.
+4. Pre-fix, the CFG builder pushed `tailcall` as a plain fall-through call, so
+   the `then` block edged into the `if` join; the join's `return $result` then
+   merged an "unset" version of `result` from the `then` path → false W210.
+
+#### tclsh ground truth (9.0.3)
+
+`proc g {} { return GG }; f 0` → `1`; `f 1` → `GG`. No `can't read "result"`
+error on either path. Bare `tailcall` behaves identically — `proc f {} { puts
+before; tailcall; puts after }; f` prints only `before`.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/mod.rs` `CfgBuilder::push_plain_statement`:
+in analysis builds (`faithful_exceptions`), a `Statement::Call` whose canonical
+command is `::tailcall` (via `is_tailcall_command`) promotes the block to a
+`Terminator::Return`, on the same path as `error`/`throw`/`exit`
+(`is_block_terminating_command`), so post-`tailcall` statements are routed to an
+orphan unreachable block exactly like `return`. Codegen builds
+(`faithful_exceptions = false`) leave the call untouched, so bytecode is
+unchanged. `tailcall` is not catchable, so it is not added to `throw_blocks`.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator`
+  (FP: `tailcall g` silent; FP: bare `tailcall` silent; TP control: a
+  non-terminating then-branch — `puts hi` — restores the W210).
+
+---
+
+### FP-RBS-14 — opaque-switch arm that can't complete normally is excluded from must-define
+
+- **Verdict:** FALSE POSITIVE (W210) — an opaque `switch`'s must-define set was
+  a plain intersection over arm bodies, so an arm that always `return`s /
+  `error`s (and therefore never reaches the code after the `switch`) wrongly
+  dropped a variable that every *reaching* arm assigns.
+- **Status:** FIXED (Rust port). Refines the opaque-switch arm-def recovery with
+  the standard definite-assignment rule: a branch that cannot complete normally
+  contributes ⊤ (vacuously defines everything) at the merge. Ported from the
+  Python builder (commit `d312c6e`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (dispatch `switch` with an early-return guard arm).
+
+#### Reproducer
+
+```tcl
+proc f {x} {
+    # the a* arm returns, so it never reaches `puts $y`; the only path that
+    # does (default) sets y -> y is definitely defined.
+    switch -glob $x {
+        a* { return 0 }
+        default { set y 2 }
+    }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `switch -glob $x { … }` stays *opaque* (one `Statement::Switch`; its
+   shared-body topology is not lowered into CFG blocks), so its arm-body defs
+   are recovered by an exhaustive must-define rule rather than by SSA phis.
+2. `a* { return 0 }` — this arm `return`s, so it **cannot complete normally**;
+   it never reaches `puts $y`. By definite assignment, a non-completing branch
+   is excluded from the must-define intersection at the merge.
+3. `default { set y 2 }` — the only arm that *reaches* `puts $y` assigns `y`.
+4. `puts $y` — every path that arrives here has run `set y 2`, so `y` is
+   definitely defined → no read-before-set. Pre-fix, the plain intersection
+   counted the `return`-arm's empty def set, dropping `y` → false W210.
+
+#### tclsh ground truth (9.0.3)
+
+`f abc` → `0` (returns from the `a*` arm before `puts $y`); `f xyz` → `2`
+(takes the default, sets `y`). No `can't read "y"` error. TP control: with the
+`a*` arm changed to `{ set z 9 }` it falls through with `y` unset, and tclsh
+errors `can't read "y": no such variable`.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/ssa.rs` `defs_of_with_registry` (the
+`Statement::Switch { default_body: Some(_), .. }` arm) calls
+`cfg_builder::switch_must_defines`, which is `flow_facts_stmt(stmt).0`. The
+shared `flow_facts_*` helpers in `rust/tcl-compiler/src/cfg_builder/mod.rs`
+classify each branch by a 3-way `Completion` (`Normal` / `LoopJump` /
+`ProcExit`) and `intersect_completing` **excludes only `ProcExit` branches**
+(which reach no later code). A `LoopJump` (`break`/`continue`) branch is *kept*,
+intersecting the defs it makes before jumping — it still reaches the code after
+the enclosing loop, so an arm that breaks without assigning `y` correctly drops
+`y` (Codex C1). The resulting set feeds the switch's `defs`, so SSA versions `y`
+at the switch and the later read resolves.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_14_opaque_switch_excludes_non_completing_arm`
+  (FP: returning arm silent; FP: erroring arm silent; TP control: a completing
+  arm that omits `y` keeps the W210; TP control / Codex C1: a `break` arm
+  escapes the loop with `y` unset and keeps the W210).
+
+---
+
+### FP-RBS-15 — opaque switch whose every arm exits is itself a terminator
+
+- **Verdict:** FALSE POSITIVE (W210) — an opaque `switch` whose every reachable
+  arm `return`s / `error`s / `tailcall`s never falls through, so the code after
+  it is unreachable; the CFG modelled the switch as a fall-through statement, so
+  a read in that dead code was analysed as reachable and fired W210.
+- **Status:** FIXED (Rust port). Extends FP-RBS-14 (which excludes non-completing
+  arms from the must-define) to the case where *all* arms are non-completing:
+  the switch itself becomes a terminator. Ported from the Python builder (commit
+  `f18e2c2`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (exhaustive dispatch `switch` where every arm returns).
+
+#### Reproducer
+
+```tcl
+proc f {x} {
+    # every arm returns, so control never reaches `puts $y`:
+    # the switch is a terminator and the read is dead code.
+    switch -glob $x {
+        a* { return 1 }
+        default { return 2 }
+    }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `switch -glob $x { … }` is opaque (one `Statement::Switch`; not lowered to
+   CFG blocks). It has a `default`, so the subject always selects some arm.
+2. `a* { return 1 }` and `default { return 2 }` — *every* reachable arm body
+   `return`s, so none can complete normally. With a `default` present there is
+   no fall-through path, so **no execution reaches `puts $y`**.
+3. `puts $y` — dead code. tclsh never evaluates it, so reading the unset `y`
+   here is not a runtime error; W210 must not fire.
+4. Pre-fix the opaque switch always fell through to the next statement, so the
+   block edged into `puts $y` and W210 fired on a read that can never execute.
+
+#### tclsh ground truth (9.0.3)
+
+`f abc` → `1`; `f zzz` → `2`. `f` always returns from inside the switch; the
+`puts $y` after it never runs (no `can't read "y"` error). TP controls: dropping
+the `default` lets an unmatched subject fall through → W210 fires; or making one
+arm complete (`default { set z 9 }`) lets the switch fall through with `y` unset
+→ W210 fires.
+
+#### Compiler evidence (`tcl explore --json`, `cfgPreSsa` for `::f`)
+
+```
+block entry_1
+  [0] Switch …
+  term Return            # promoted: the opaque switch can't fall through
+block unreachable_2      # `puts $y` routed here (orphan, no incoming edge)
+  term Goto
+block exit_3
+```
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` `CfgBuilder::lower_opaque_switch`:
+when lowering an opaque (glob/regexp/fall-through) switch in an analysis build
+(`faithful_exceptions`), it reads `flow_facts_stmt(stmt).1` (the `Completion`):
+
+* `ProcExit` — every arm `return`s/`error`s/`exit`s/`tailcall`s with a default,
+  so the block is promoted to a `Terminator::Return` (the trailing statements
+  are orphaned, like a `return`);
+* `LoopJump` (Codex C3) — an arm `break`s/`continue`s to an enclosing loop; it
+  is **not** a proc terminator, so instead `wire_opaque_switch_jumps` /
+  `branch_to_any` wire explicit edges from the block to the loop's break /
+  continue targets (plus a fall-through continuation when the switch can still
+  complete normally), so a `while 1` whose only exit is such a jump has a
+  reachable loop exit and the post-loop read correctly fires;
+* `Normal` — plain fall-through.
+
+`switch_escaping_jumps` / `escaping_loop_jumps` scan the arm bodies for escaping
+`break`/`continue`, recursing into `if`/`switch`/`Block` but not into nested
+loops or `catch`/`try` (which capture their own jumps). Codegen builds leave the
+fall-through edge, so the opaque-switch `invokeStk` bytecode and CFG shape are
+unchanged.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator`
+  (FP: all-return silent; FP: error/tailcall mix silent; TP control: no
+  `default` falls through → W210; TP control: one completing arm lets the
+  switch fall through → W210; TP control / Codex C3: an all-`break` switch in
+  `while 1` reaches the loop exit → W210).
+
+---
+
+### FP-RBS-16 — phi operand on a dead loop-exit edge (`while 1` + `break`) is not read-before-set
+
+- **Verdict:** FALSE POSITIVE (W210) — a loop-exit block's phi had an operand
+  for the never-taken `cond → exit` edge of `while 1`; that operand carried the
+  variable's version-0 (unset) origin, and the read-before-set phi-undef closure
+  consumed it even though the edge is unreachable.
+- **Status:** FIXED (Rust port). Same family as the terminator work (false W210
+  from control-flow imprecision), but the gap is in the read-before-set /
+  SCCP-edge interaction rather than CFG construction. Ported from the Python
+  builder (commit `9f725e46`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (the `while 1 { …; break }` / `while 1 { …; if {c} break }`
+  early-exit idiom).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    # while 1 runs the body >=1 time; the only exit is the break, where y is
+    # already set -> $y is always defined here.
+    while 1 { set y 1; break }
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `while 1 { … }` — the condition is the constant `1`, so the loop never exits
+   via the condition; SCCP marks the `while_header → while_end` (cond-false)
+   edge non-executable.
+2. `set y 1; break` — the body runs at least once and the `break` is the loop's
+   only real exit. On that edge `y` is set.
+3. `puts $y` — `while_end` is reachable (via the `break` edge), and its phi
+   `y#2` merges the break edge (`y#1`, set) with the dead cond-exit edge
+   (`y#0`, unset). Only the break edge is live, so `y` is always defined here.
+4. Pre-fix, `phi_can_undef` filtered unreachable predecessor *blocks*
+   (`while_header` is reachable) but not unreachable *edges*, so it consumed the
+   `y#0` operand on the dead `while_header → while_end` edge and false-fired
+   W210. (Contrast: with no `break`, `while_end` is fully unreachable and
+   correctly silent — that's why the bug only shows with a `break`.)
+
+#### tclsh ground truth (9.0.3)
+
+`f` → `1`. No `can't read "y"` error. The realistic shape behaves the same —
+`proc f {} { while 1 { set r [compute]; if {[ok $r]} break }; return $r }`
+returns the computed value with no unset-read. TP controls: `while {$n > 0} {
+set y 1 }` (non-constant cond, may run zero times) still fires W210; and a
+`while 1` where only one of two `break` paths sets `y` still fires.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/analyser/diagnostics.rs`: `build_phi_undef_index` now also
+records each phi's defining block (`PhiBlockMap`), and `phi_can_undef` takes the
+SCCP `executable_edges` (`fu.sccp.executable_edges`) and skips any phi operand
+whose `(pred, phi_block)` edge is non-executable — the same edge filter the
+SCCP-reachability passes already use. SCCP marks the `while 1` cond-false edge
+non-executable, so the version-0 operand it carries can never be read and no
+longer counts as a possible undef. The filter is applied only when SCCP edge
+info is available (a non-empty set), so registry-less test paths are unaffected.
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set`
+  (FP: `while 1` set+break silent; FP: `while 1` compute/if-break silent; TP
+  control: non-constant condition still fires; TP control: partial-def break
+  path still fires).
+
+---
+
+### FP-RBS-17 — guaranteed-iteration `foreach` defines body variables (loop rotation)
+
+- **Verdict:** FALSE POSITIVE (W210) — a `foreach` over a non-empty *literal*
+  list provably runs its body ≥1 time, so a body-assigned variable (or the loop
+  variable) read after the loop is defined; the CFG modelled every loop as
+  possibly zero iterations, false-firing W210.
+- **Status:** FIXED (Rust port). Ported from the Python builder (commit
+  `2d3dcef9`) and verified against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (`foreach` accumulator / dispatch idioms).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    foreach x {1 2 3} { set y $x }   ;# runs >=1 time -> y is set
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `foreach x {1 2 3}` — the iterator list is a non-empty literal, so the body
+   runs at least once (`foreach` runs `max` over its iterator groups).
+2. `set y $x` — assigns `y` on every iteration; after the loop `y` is defined.
+3. `puts $y` — `y` is always defined → no read-before-set. Pre-fix, the loop
+   header's zero-iteration exit edge merged an unset `y` at the loop exit.
+
+#### tclsh ground truth (9.0.3)
+
+`foreach x {1 2 3} { set y $x }; puts $y` → `3` (no `can't read "y"`).
+`foreach x {a b c} {}; puts $x` → `c` (the loop variable survives). TP controls:
+an empty literal (`foreach x {} …`) or a dynamic list (`foreach x $i …`) may run
+zero times and tclsh errors `can't read`.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` `CfgBuilder::lower_foreach`: in
+analysis builds (`faithful_exceptions`), when `foreach_runs_at_least_once`
+(`list_literal_nonempty` over any iterator's list) holds, the loop is *rotated* —
+the header becomes a synthetic always-true entry guard (`literal_true_expr`,
+span-less so the optimiser's constant-branch rewriter leaves it), the var-def +
+body run before a back-edge re-check at a new `foreach_latch` block, and
+`break`/`continue` stay real edges. SCCP prunes the dead entry→end edge and the
+FP-RBS-16 dead-edge phi filter ignores the version-0 operand it carried — with no
+synthetic def, so SCCP values are untouched. Codegen builds
+(`build_cfg_codegen`, `faithful_exceptions` off) keep the original single-header
+shape, so bytecode/CFG for codegen is byte-identical (the `detect_foreach`
+emitter and `differential_codegen` parity are unchanged).
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars`
+  (FP: body var defined; FP: loop var defined; TP controls: empty literal,
+  dynamic list, first-iteration read-before-set).
+
+---
+
+### FP-RBS-18 — guaranteed-iteration `for` defines body variables (loop rotation)
+
+- **Verdict:** FALSE POSITIVE (W210) — a `for` whose condition is statically
+  true on entry provably runs its body ≥1 time, so a body-assigned variable read
+  after the loop is defined; the CFG modelled it as possibly zero iterations.
+- **Status:** FIXED (Rust port). Ported from the Python builder (commits
+  `2d3dcef9` + `d43f8ee8` for the Codex C2 for-init invalidation) and verified
+  against the Rust oracle.
+- **Codes:** W210
+- **Corpus:** synthetic (counting `for` loops).
+
+#### Reproducer
+
+```tcl
+proc f {} {
+    for {set i 0} {$i < 3} {incr i} { set y $i }   ;# 0<3 true -> runs >=1
+    puts $y
+}
+```
+
+#### Per-line reasoning
+
+1. `for {set i 0} {$i < 3} …` — the init binds `i = 0` (a constant); the
+   condition `0 < 3` is statically true, so the first iteration always runs.
+2. `set y $i` — assigns `y`; after the loop `y` is defined.
+3. `puts $y` — defined → no read-before-set.
+
+#### tclsh ground truth (9.0.3)
+
+`for {set i 0} {$i<3} {incr i} {set y $i}; puts $y` → `2`. TP controls:
+`for {set i 5} {$i<3} …` runs zero times → `can't read "y"`; and (Codex C2) a
+stale-constant init — `for {set i 0; set i $n} …` or `for {set i 0; incr i 5} …`
+— may iterate zero times, so it must NOT be claimed guaranteed.
+
+#### Why the analyser reaches that verdict
+
+`rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` `CfgBuilder::lower_for`: in
+analysis builds, when `for_runs_at_least_once` holds, the loop is rotated — the
+step (`for_step`) re-checks the *real* condition on the back-edge and the header
+becomes a synthetic always-true, span-less entry guard. `for_runs_at_least_once`
+evaluates the condition (`eval_tcl_expr`) against the init clause's constant
+bindings, processed **in order**: an `AssignConst` (re)binds a constant, but any
+other write (`set i $n`, `incr i …`, a call) *invalidates* that variable's
+binding (Codex C2), so a stale constant never makes a zero-iteration loop look
+guaranteed. `loop_nodes` + the init exit versions are unchanged, so the
+optimiser's IR-level static-`for` summary is unaffected; codegen
+(`build_cfg_codegen`) keeps the single-header shape (byte-identical bytecode).
+
+#### Tests
+
+- `analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars`
+  (FP: statically-true entry condition; TP controls: false entry condition,
+  stale-constant `set i $n` init, `incr` in init).
+
+---
+
 ## DS — dead-store / unused (W220/W211)
 
 These entries lock in the analyser's recovery of *real* reads that live in
