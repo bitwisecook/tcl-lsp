@@ -1,3 +1,64 @@
+# v1.11.2
+
+## New Features
+
+- **Inlay hints split into two independent toggles.** The single
+  `tclLsp.features.inlayHints` setting is replaced by two opt-in families:
+  `inlayTypeHints` (inferred variable types and format-string specifiers) and
+  `inlayParameterHints` (parameter-name labels at proc/method call sites, e.g.
+  `NAME:`). Both are off by default and can be enabled independently, so you can
+  show the broadly-useful type hints without the more verbose parameter labels.
+  The retired `inlayHints` key is preserved as a legacy alias mapping to type
+  hints only, so an existing opt-in keeps working after the rename.
+
+## Improvements
+
+- **Structural keywords now highlight as keywords.** `if`'s
+  `then`/`elseif`/`else` and `try`'s `on`/`trap`/`finally` previously rendered
+  as strings; they are now emitted as keyword semantic tokens, while a bareword
+  builtin used as a plain argument (e.g. `dict set frame proc "x"`) correctly
+  stays a string.
+
+## Bug Fixes
+
+- **Fixed a family of false `W210` (read-before-set) warnings caused by
+  imprecise control-flow modelling.** Several patterns where a variable is in
+  fact always assigned no longer warn: a branch ending in `tailcall`; an opaque
+  `switch` whose every arm exits the procedure (and recovery of the variables
+  such a switch definitely assigns); a `while 1 { ...; break }` loop whose only
+  real exit is the `break`; a `foreach`/`lmap` over a non-empty list literal;
+  and a `for` loop whose condition is statically true on entry. Genuinely-unset
+  reads (e.g. a `foreach` over an empty literal, or a `continue`-before-set)
+  still correctly warn.
+
+- **iRules-only commands no longer produce spurious diagnostics under plain
+  Tcl.** A foreign-dialect builtin such as iRules `when`, when seen in a
+  non-iRules dialect, is an unknown user command whose braced argument is opaque
+  data rather than a script; its body is no longer recursed into (it is still
+  lowered for diagram extraction), eliminating spurious findings such as
+  `W123`/`W210` on what Tcl never parses as a script.
+
+- **Code lens reference counts now match the peek list (issue #637).** The
+  "N references" count above a proc is derived from the same
+  reference-resolution pass that backs the peek, so the two can no longer drift.
+  A call written before its definition (a forward reference) or a cross-file
+  call is now counted correctly instead of showing "0 references". Unqualified
+  calls to a name shared by procs in different namespaces are resolved the way
+  Tcl would — current namespace first, then global — so they are credited only
+  to the proc they actually target.
+
+- **Fixed syntax highlighting for `proc`/`method` used as a bareword
+  argument.** The TextMate grammar (VS Code and JetBrains) no longer lets a
+  bareword `proc`/`method` (e.g. `dict set frame proc "x"`) swallow a following
+  quote and derail string/brace scoping.
+
+- **Dialect-aware `==`/`!=` constant folding.** Equality comparisons now fold
+  polymorphically (numeric when both operands are numbers, string otherwise) and
+  respect the leading-zero rule (octal under Tcl 8.x, decimal under Tcl 9.0 per
+  TIP 472), so a constant condition like `$x == "foo"` folds correctly without a
+  dialect-dependent wrong answer, while `"true" == "1"` correctly compares as
+  strings.
+
 # v1.11.1
 
 ## New Features
