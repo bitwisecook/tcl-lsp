@@ -250,6 +250,15 @@ step 10.
 
 ### 10. Editor publishing
 
+**VS Code is published by CI, not here.** When the tag's CI run reaches the
+`publish-vsix-marketplace` job it pauses on the `marketplace-vscode`
+Environment for your approval. After the step 9 verification passes, approve
+that deployment in the Actions run and CI publishes VSCE keylessly via OIDC —
+no token, no `make publish-vsix`. Only if the CI federated path fails, fall
+back to the laptop: `az login --allow-no-subscriptions && make publish-vsix`.
+The targets below cover the remaining editors (JetBrains, Sublime, Zed),
+which still publish from the laptop.
+
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks
 targets:
@@ -266,8 +275,11 @@ or skip that target.
 
 Then ask which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed)
+> Which editors should be published? (All / None / comma-separated list of: jetbrains, sublime, zed)
 > Default: None
+
+(VS Code is excluded — CI publishes it via the approval gate above. Only
+add `vscode` here if you are deliberately invoking the laptop fallback.)
 
 Based on the response:
 
@@ -276,8 +288,12 @@ Based on the response:
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:
-- `make publish-vsix` — VS Code Marketplace. Runs `vsce publish`. Requires
-  a valid PAT for `bitwisecook` (interactive login otherwise).
+- `make publish-vsix` — VS Code Marketplace **laptop fallback only**
+  (normally CI publishes VSCE; see the note at the top of this step).
+  Keyless: needs an Azure Entra session (`az login --allow-no-subscriptions`)
+  and runs `vsce publish --azure-credential`. Set `VSCE_PAT` only to force
+  the legacy stored-PAT path (discouraged; Azure DevOps global PATs retire
+  2026-12-01).
 - `make publish-jetbrains` — JetBrains Marketplace. Runs
   `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. The
   first-ever publish must be done interactively via the JetBrains web

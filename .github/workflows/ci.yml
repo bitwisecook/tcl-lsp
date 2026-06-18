@@ -908,6 +908,60 @@ jobs:
           gh release upload "${{ steps.tag.outputs.tag }}" dist/SHA256SUMS.cosign.bundle \
             --repo "${{ github.repository }}" --clobber
 
+  # Keyless VS Code Marketplace publish via GitHub OIDC -> Azure Entra
+  # workload-identity federation.  No marketplace PAT exists anywhere: the
+  # job exchanges GitHub's OIDC token for a short-lived Entra token at
+  # publish time (`vsce publish --azure-credential`).  This honours the
+  # AGENTS.md invariant (no long-lived publish secret in CI) — the keyless
+  # analogue of the sigstore signing used by publish-checksums above.
+  #
+  # Gated by the `marketplace-vscode` Environment (required reviewer + a
+  # v*-tag-only deployment policy), so it PAUSES for manual approval and can
+  # never run on a non-tag ref.  Minimal on purpose: it only downloads the
+  # already-built, already-signed .vsix and runs vsce — no source build, no
+  # project dep install — to keep the smallest possible surface around the
+  # federated session.
+  #
+  # Skipped until the Entra identity is configured (AZURE_CLIENT_ID /
+  # AZURE_TENANT_ID repo *variables* — non-secret identifiers).  Nothing
+  # depends on this job, so its manual-approval wait never blocks cleanup.
+  publish-vsix-marketplace:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != ''
+    needs: [build-vsix, publish-checksums]
+    runs-on: ubuntu-24.04
+    environment: marketplace-vscode
+    permissions:
+      id-token: write # GitHub OIDC token for Entra federation
+      contents: read
+    steps:
+      - name: Download the signed VSIX (built upstream)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vsix
+          path: dist
+
+      - name: Azure login (OIDC — no secret at rest)
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Publish to VS Code Marketplace (keyless)
+        run: |
+          set -euo pipefail
+          vsix="$(find dist -name '*.vsix' | head -1)"
+          if [ -z "$vsix" ]; then
+            echo "::error::no .vsix found in the downloaded 'vsix' artifact"; exit 1
+          fi
+          echo "Publishing $vsix via vsce --azure-credential (no PAT)"
+          npx --yes @vscode/vsce@3.9.2 publish --azure-credential --packagePath "$vsix"
+
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
