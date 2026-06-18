@@ -159,6 +159,24 @@ Shared in `tcl-cmd-core`:
   value→value function; the adapter only maps the result/error. The `-index` path
   resolution moved to the shared `index::{resolve_opt, encodable}`. This lifted
   the VM from a `-exact`/`-glob`-only stub to the full command.
+- `switch::{parse_options, select}` — the `switch` **decision** logic: the option
+  table (`-exact`/`-glob`/`-regexp`/`-nocase`/`-indexvar`/`-matchvar`/`--`, with
+  the prefix-matching + the error catalogue), and the value/pattern selection
+  across all three modes — incl. `default`-only-as-final-pattern, and the regexp
+  mode driving the shared `RegexEngine` provider to build the TIP #75
+  `-matchvar`/`-indexvar` values. Like `lsort -command`, `switch` evaluates a body
+  script, so only the decision is shared: each adapter keeps the pattern/body pair
+  extraction (the inline vs. brace-list forms — the runtime with its `info frame`
+  line tracking), the `-` fall-through resolution, the trace-aware variable
+  writes, and the transparent body eval. The runtime's list-form patterns are
+  sub-strings of a literal (no `Tcl_Obj`), so the adapter mints temporary objects
+  for `select` and frees them (leak-gate-validated). This lifted the VM from a
+  basic exact/glob `switch` (regexp fell back to exact; `default` matched
+  anywhere; no `-matchvar`/`-indexvar`) to the full superset, and deduplicated the
+  runtime's 770-line implementation down to its per-target edges. The shared
+  `select` is exercised on the VM via `-glob`/`-regexp` (exact switches are
+  codegen-inlined), and on the runtime (a tree-walker, always calling the builtin)
+  across the whole option/error surface — both pinned vs tclsh 9.0.
 - `string::word_bound` — `string wordstart`/`wordend` (the word-boundary scan
   over the Unicode word-char + connector-punctuation classification), added to the
   shared `string` dispatch. The VM lacked these entirely (it errored "not yet
@@ -252,6 +270,7 @@ core unified both to the correct behaviour):
 | `namespace children`/`parent` (VM) | `namespace children` ignored its `?pattern?` argument (returned all children), and `parent`/`children` on a non-existent namespace returned a computed/empty result; routing the shared core over the `Namespaces` nav rungs gave `children` the (target-qualified) glob filter and made both error `namespace "X" not found` (tclsh). |
 | `info commands`/`procs` (VM) | the VM listed *all* command-map keys flat, so `info commands` at global leaked namespaced names (`foo::bar`) and `info commands ::ns::*` matched nothing (the leading `::` never matched an unrooted key); routing the namespace-aware core fixed both (global scope excludes namespaced names; qualified patterns list + re-qualify the target namespace) — verified against tclsh 9.0. |
 | `info procs` (runtime) | inside a namespace, `info procs` merged the global namespace's procs (old `visible_proc_names`); C's `InfoProcsCmd` lists the current namespace only (`info commands` is the one that merges global). The shared core's global-merge asymmetry fixed it. |
+| `switch` (VM) | the VM's `switch` only did exact/glob: `-regexp` fell back to exact (no engine), `default` matched in **any** position (not just last), and `-matchvar`/`-indexvar` were absent. Sharing the selection core gave it real regexp matching (via the `regex` crate engine), the correct final-pattern-only `default`, and the TIP #75 side-channel — verified vs tclsh 9.0. |
 | `info vars`/`globals` (VM) | the VM aliased `info vars` to `info locals` (both listed the frame's non-link locals), so `info vars` in a proc **dropped its `upvar`/`global`/`variable` links** and ignored namespace scope; and `info globals` listed *all* global-frame keys, leaking namespaced variables (`foo::v`). Routing the shared cores over `vars_in` + the frame rungs gave `info vars` its links + namespace-scope behaviour and `info globals` the global-only filter — verified against tclsh 9.0. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
