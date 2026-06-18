@@ -5,8 +5,11 @@ Emits lenses in two phases:
 1. ``get_code_lenses`` produces lightweight lenses with a ``data`` payload and
    no command; the client must call ``codeLens/resolve`` for the final title
    and command.
-2. ``resolve_code_lens`` looks up the cached counts from the workspace index
-   and returns a fully populated ``CodeLens``.
+2. ``resolve_code_lens`` resolves the proc's references and returns a fully
+   populated ``CodeLens`` whose count is ``len(references)`` — the same
+   resolution that backs the peek, so the title and the peek can never drift
+   (issue #637). When no resolver is supplied (unit tests) it falls back to the
+   cached workspace usage counts.
 """
 
 from __future__ import annotations
@@ -101,10 +104,23 @@ def resolve_code_lens(
     payload = lens.data if isinstance(lens.data, dict) else {}
     data = _LensData.from_dict(payload)
     if data.kind == "proc_ref_count":
-        counts = workspace_index.proc_usage_counts()
-        count = counts.get(data.qname, 0)
+        # The count must equal the number of locations the peek resolves, so
+        # derive it from the same ``find_references`` pass rather than the
+        # parallel ``proc_usage_counts`` aggregate. The two used to drift
+        # (issue #637): a forward or cross-file call resolves to ``None`` at
+        # analysis time, so it is absent from ``proc_usage_counts`` (keyed by
+        # the resolved qualified name) yet still matched by name in the
+        # reference resolution — giving "0 references" above a proc the peek
+        # listed as used. ``proc_usage_counts`` remains the fallback only for
+        # callers (e.g. unit tests) that supply no resolver.
+        if find_references is not None:
+            locations = find_references(data.uri, data.qname)
+            count = len(locations)
+        else:
+            locations = []
+            counts = workspace_index.proc_usage_counts()
+            count = counts.get(data.qname, 0)
         title = f"{count} reference" if count == 1 else f"{count} references"
-        locations = find_references(data.uri, data.qname) if find_references else []
         return types.CodeLens(
             range=lens.range,
             command=types.Command(
