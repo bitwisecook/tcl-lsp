@@ -180,7 +180,15 @@ impl FunctionUnit {
     ) -> Self {
         let ssa = build_ssa(&cfg, registry);
         let def_use = build_def_use_chains(&ssa, Some(&cfg));
-        let mut sccp = sccp(&cfg, &ssa, param_constants);
+        // The registry encodes the analysis dialect's Tcl version, which fixes
+        // how a bare leading-zero literal (`08`, `010`) is read when SCCP folds
+        // `==`/`!=` (octal in tcl8.x / F5 / EDA, decimal in tcl9.0).
+        let mut sccp = sccp(
+            &cfg,
+            &ssa,
+            param_constants,
+            Some(registry.leading_zero_is_octal()),
+        );
         // SYNC-MAY31-3: surface `[info exists X]` / `[array exists X]`
         // folds (parameter → exists, never-defined non-param → absent)
         // as constant branches so the optimiser's O101 fold / DCE sees

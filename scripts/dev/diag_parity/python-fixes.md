@@ -65,9 +65,8 @@ invalid octal, → 1 in tcl9.0 as decimal). The Rust side is now fixed to use a
 strict number grammar (no boolean coercion) in `compare_numeric`
 (`tcl_expr_eval.rs`), so `"true"=="1"`→0 / `"5"=="5.0"`→1 / `"foo"=="bar"`→0
 match tclsh. The Python #640 fix needs the same strict eligibility (Codex P2 on
-`tcl_expr_eval.py`). The `08` dialect nuance is a **coordinated residual on both
-engines** (the Rust const-folder is dialect-unaware and still folds `08` as
-decimal).
+`tcl_expr_eval.py`). The `08` dialect nuance is now **fixed on the Rust side
+and outstanding on Python** — see section 3.
 
 ---
 
@@ -105,3 +104,48 @@ degenerate "wrong dialect" scenario (real iRules analysis uses
 the parity harness now matches dialect to file type and no longer flags it.
 
 **Do NOT** make Rust recurse iRules bodies under tcl dialects to match Python.
+
+---
+
+## 3. Leading-zero `==` / `!=` constant-fold ignores the dialect's octal rule
+
+**Symptom (WRONG_MESSAGE — Rust is the correct side):**
+
+```tcl
+# analysed under --dialect tcl8.6
+set x 08
+if {$x == 8} { puts a } else { puts b }
+```
+
+- tclsh8.6: `expr {"08" == 8}` → **0** (`08` is an *invalid* octal, so the
+  operands compare as strings: `"08" != "8"`). The `if` always takes the
+  `else` branch → I230 "always **false**".
+- tclsh9.0: `expr {"08" == 8}` → **1** (TIP 472 dropped the octal rule; `08`
+  is decimal 8). I230 "always **true**".
+
+Rust now folds both correctly per dialect. **Python folds it to "always true"
+under *every* dialect** — it reads `08` as decimal 8 regardless of the active
+dialect, so its tcl8.x answer is wrong (and disagrees with tclsh).
+
+**Root cause (Python):** Python's `_parse_literal_value` already preserves the
+string identity of a non-round-tripping literal (`"08"` stays the string
+`"08"`, not int 8), so the *value* survives — but `tcl_expr_eval.py`'s
+`==`/`!=` numeric-eligibility check is **dialect-unaware**: it treats `"08"` as
+a number unconditionally instead of consulting the dialect's leading-zero rule
+(octal in tcl8.4/8.5/8.6 and the 8.x-derived F5/EDA dialects, where `08`/`09`
+are invalid octal → string; decimal only in tcl9.0).
+
+**Fix (Python):** thread the analysis dialect into the constant-condition
+evaluator and classify a bare leading-zero operand (`08`, `010`) per dialect:
+in 8.x, a *valid* octal (`010` → 8) is a number and an *invalid* one
+(`08`/`09`) is a string; in 9.0 it is plain decimal. The Rust implementation
+is `tcl_expr_eval.rs::classify_operand` + `parse_octal_literal`, gated by the
+registry's `leading_zero_is_octal()` (true for every dialect whose registry
+did not load the `tcl9.0` version bit). Verify against tclsh8.6 / tclsh9.0
+that Python's I230 direction then matches both.
+
+**Do NOT** revert Rust to the dialect-unaware decimal reading — Rust matches
+tclsh per dialect; Python is the side that is wrong. (This divergence is kept
+out of the parity corpus on purpose: the corpus oracle treats Python as ground
+truth, and adding a case where Python is known-wrong would register a spurious
+"defect".)

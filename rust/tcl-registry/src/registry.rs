@@ -220,6 +220,25 @@ impl CommandRegistry {
         self.load_dialect(DialectSet::IRULES);
     }
 
+    /// Whether this registry's dialect reads a bare leading-zero integer
+    /// (`08`, `010`) as **octal**.
+    ///
+    /// Tcl 9.0 dropped the leading-zero octal rule (TIP 472): `08` parses as
+    /// decimal 8 and `010` as decimal 10. Every earlier Tcl (8.4/8.5/8.6) and
+    /// every 8.x-derived dialect (f5-irules ≈ 8.4, f5-iapps ≈ 8.5/8.6, the EDA
+    /// dialects) keeps the octal rule, where `08`/`09` are *invalid* octal
+    /// (treated as a string in `==`/`!=`) and `010` is 8.
+    ///
+    /// The per-dialect registry built by `registry_for_dialect` records its
+    /// Tcl version via [`Self::load_dialect`], so the only registry whose
+    /// `loaded_dialects` carries [`DialectSet::TCL90`] is the tcl9.0 one; every
+    /// other dialect (including the F5/EDA registries, which never load a Tcl
+    /// version bit) reads leading zeros as octal.
+    #[must_use]
+    pub fn leading_zero_is_octal(&self) -> bool {
+        !self.loaded_dialects.contains(DialectSet::TCL90)
+    }
+
     /// Insert a command spec into the registry.
     pub fn insert(&mut self, spec: CommandSpec) {
         self.by_name
@@ -872,6 +891,30 @@ mod tests {
         assert!(reg.get("for").is_some());
         assert!(reg.get("set").is_some());
         assert!(reg.get("nonexistent_command").is_none());
+    }
+
+    #[test]
+    fn leading_zero_is_octal_tracks_tcl_version() {
+        use crate::dialects::DialectSet;
+        // Plain default registry (no Tcl version bit) defaults to octal.
+        assert!(CommandRegistry::build_default().leading_zero_is_octal());
+        // tcl9.0 (TIP 472) reads leading zeros as decimal; everything else
+        // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
+        let octal_cases = [
+            DialectSet::TCL84,
+            DialectSet::TCL85,
+            DialectSet::TCL86,
+            DialectSet::IRULES,
+            DialectSet::IAPPS,
+        ];
+        for d in octal_cases {
+            let mut reg = CommandRegistry::build_default();
+            reg.load_dialect(d);
+            assert!(reg.leading_zero_is_octal(), "{d:?} should be octal");
+        }
+        let mut reg90 = CommandRegistry::build_default();
+        reg90.load_dialect(DialectSet::TCL90);
+        assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
     }
 
     #[test]
