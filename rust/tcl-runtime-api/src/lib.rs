@@ -71,6 +71,19 @@ pub trait VarStore {
     fn unset(&mut self, frame: FrameId, name: &str) -> bool;
     /// Whether a variable exists in `frame`.
     fn exists(&self, frame: FrameId, name: &str) -> bool;
+
+    // Array-element access. The `name` is the array *base* and `key` the element,
+    // already split from `base(key)` — runtimes differ on whether the by-name
+    // accessors parse `a(k)`, so element ops are explicit. Mirror the scalar ops.
+
+    /// Read array element `name(key)` in `frame`, following links.
+    fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Self::Value>;
+    /// Write array element `name(key)` in `frame` (firing write traces).
+    fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: Self::Value);
+    /// Remove array element `name(key)`; returns whether it existed.
+    fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool;
+    /// Whether array element `name(key)` exists.
+    fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool;
 }
 
 /// The call-frame stack: proc-call frames and the `uplevel` active-level dance.

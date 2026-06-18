@@ -64,6 +64,27 @@ impl VarStore for Interp {
             self.var_exists_at(name.as_bytes(), frame.0)
         }
     }
+
+    // Element access. The runtime's by-name accessors take the array *base*, so
+    // elements use the dedicated `var_*_elem` accessors directly. These resolve
+    // against the active frame (the cores always pass the current `FrameId`); a
+    // non-active frame's elements are a documented gap (no consumer yet).
+
+    fn get_elem(&self, _frame: FrameId, name: &str, key: &str) -> Option<*mut TclObj> {
+        self.var_get_elem(name.as_bytes(), key.as_bytes())
+    }
+
+    fn set_elem(&mut self, _frame: FrameId, name: &str, key: &str, value: *mut TclObj) {
+        let _ = self.var_set_elem(name.as_bytes(), key.as_bytes(), value);
+    }
+
+    fn unset_elem(&mut self, _frame: FrameId, name: &str, key: &str) -> bool {
+        self.var_unset_elem(name.as_bytes(), key.as_bytes())
+    }
+
+    fn exists_elem(&self, _frame: FrameId, name: &str, key: &str) -> bool {
+        self.var_get_elem(name.as_bytes(), key.as_bytes()).is_some()
+    }
 }
 
 /// Runtime introspection backing the `info` family (`info level`/`info level N`).
@@ -307,6 +328,20 @@ mod tests {
             assert!(i.unset(GLOBAL_FRAME, "x"));
             assert!(!i.exists(GLOBAL_FRAME, "x"));
             assert!(!i.unset(GLOBAL_FRAME, "x")); // already gone
+        });
+    }
+
+    #[test]
+    fn varstore_array_elements() {
+        leak_free(|i| {
+            assert!(!i.exists_elem(GLOBAL_FRAME, "a", "k"));
+            i.set_elem(GLOBAL_FRAME, "a", "k", new_string(b"v"));
+            assert!(i.exists_elem(GLOBAL_FRAME, "a", "k"));
+            assert_eq!(obj_bytes(i.get_elem(GLOBAL_FRAME, "a", "k").unwrap()), b"v");
+            assert!(!i.exists_elem(GLOBAL_FRAME, "a", "nope"));
+            assert!(i.unset_elem(GLOBAL_FRAME, "a", "k"));
+            assert!(!i.exists_elem(GLOBAL_FRAME, "a", "k"));
+            i.unset(GLOBAL_FRAME, "a"); // drop the now-empty array
         });
     }
 

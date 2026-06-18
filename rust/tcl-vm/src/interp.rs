@@ -1314,6 +1314,29 @@ impl VarStore for Vm {
             self.exists_from(frame.0, name)
         }
     }
+
+    // Element access: the VM's by-name accessors already parse `base(key)`, so
+    // get/set/exists reconstruct the name and delegate (honouring `FrameId`).
+    // `unset` is the exception — `unset_var` is element-blind — so it removes the
+    // element directly (active frame; the cores always pass the current frame).
+
+    fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Value> {
+        self.get(frame, &format!("{name}({key})"))
+    }
+
+    fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: Value) {
+        self.set(frame, &format!("{name}({key})"), value);
+    }
+
+    fn unset_elem(&mut self, _frame: FrameId, name: &str, key: &str) -> bool {
+        let existed = self.get_array_elem(name, key).is_some();
+        self.array_unset_elem(name, key);
+        existed
+    }
+
+    fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
+        self.exists(frame, &format!("{name}({key})"))
+    }
 }
 
 /// Runtime introspection backing the `info` family (`info level`/`info level N`).
@@ -1497,6 +1520,22 @@ mod family_b_tests {
         );
         assert!(vm.unset(GLOBAL_FRAME, "g2"));
         assert!(!vm.exists(GLOBAL_FRAME, "g2"));
+    }
+
+    #[test]
+    fn varstore_array_elements() {
+        let mut vm = Vm::new();
+        assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+        vm.set_elem(GLOBAL_FRAME, "a", "k", Value::string("v"));
+        assert!(vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+        assert_eq!(
+            vm.get_elem(GLOBAL_FRAME, "a", "k")
+                .map(|v| v.to_str().to_string()),
+            Some("v".to_string())
+        );
+        assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "nope"));
+        assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
+        assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "k"));
     }
 
     #[test]
