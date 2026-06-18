@@ -284,7 +284,11 @@ add `vscode` here if you are deliberately invoking the laptop fallback.)
 Based on the response:
 
 - **None** (default): Skip publishing entirely.
-- **All**: Run `make publish-all`.
+- **All**: Run the laptop editor targets **except VS Code** —
+  `make publish-jetbrains publish-sublime publish-zed`. Do **not** run
+  `make publish-all`: it includes `publish-vsix`, which would try to
+  re-publish the version CI already shipped (vsce errors on a duplicate
+  version without `--skip-duplicate`).
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:

@@ -917,10 +917,14 @@ jobs:
   #
   # Gated by the `marketplace-vscode` Environment (required reviewer + a
   # v*-tag-only deployment policy), so it PAUSES for manual approval and can
-  # never run on a non-tag ref.  Minimal on purpose: it only downloads the
-  # already-built, already-signed .vsix and runs vsce — no source build, no
-  # project dep install — to keep the smallest possible surface around the
-  # federated session.
+  # never run on a non-tag ref.  Two deliberate hardening choices:
+  #   * vsce is installed from the COMMITTED lockfile BEFORE `azure/login`,
+  #     and the local binary is run AFTER — so no freshly-fetched npm code
+  #     ever executes while the marketplace-capable Azure session is live.
+  #   * the .vsix is pulled from the GitHub Release (which persists) and
+  #     checksum-verified against the cosign-signed SHA256SUMS — not from a
+  #     workflow artifact, which cleanup-*-artifacts could delete while this
+  #     job sits waiting for approval.
   #
   # Skipped until the Entra identity is configured (AZURE_CLIENT_ID /
   # AZURE_TENANT_ID repo *variables* — non-secret identifiers).  Nothing
@@ -932,14 +936,40 @@ jobs:
     environment: marketplace-vscode
     permissions:
       id-token: write # GitHub OIDC token for Entra federation
-      contents: read
+      contents: read # gh release download
     steps:
-      - name: Download the signed VSIX (built upstream)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      # --- Everything credential-free runs first, before azure/login ---
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          name: vsix
-          path: dist
+          fetch-depth: 1
 
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: corepack enable npm
+
+      - name: Install vsce from the committed lockfile (pre-auth)
+        run: cd editors/vscode && npm ci
+
+      - name: Download the released VSIX and verify against SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          mkdir -p dist && cd dist
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.vsix' --pattern 'SHA256SUMS' --clobber
+          # --ignore-missing: SHA256SUMS lists every release asset; we only
+          # fetched the .vsix, so verify just that one (others are skipped).
+          sha256sum -c --ignore-missing SHA256SUMS
+
+      # --- Credential becomes live here; only the local vsce binary runs ---
       - name: Azure login (OIDC — no secret at rest)
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
@@ -947,20 +977,12 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: "24"
-
-      - name: Publish to VS Code Marketplace (keyless)
+      - name: Publish to VS Code Marketplace (keyless, local binary)
         run: |
           set -euo pipefail
-          vsix="$(find dist -name '*.vsix' | head -1)"
-          if [ -z "$vsix" ]; then
-            echo "::error::no .vsix found in the downloaded 'vsix' artifact"; exit 1
-          fi
+          vsix="$(ls dist/*.vsix)"
           echo "Publishing $vsix via vsce --azure-credential (no PAT)"
-          npx --yes @vscode/vsce@3.9.2 publish --azure-credential --packagePath "$vsix"
+          editors/vscode/node_modules/.bin/vsce publish --azure-credential --packagePath "$vsix"
 
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
