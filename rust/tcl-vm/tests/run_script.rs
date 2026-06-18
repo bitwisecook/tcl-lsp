@@ -126,6 +126,19 @@ fn traces_fire_ok_error_and_unset() {
     assert!(Traces::fire(&mut vm, "z", "unset").is_ok());
 }
 
+/// `info level` runs through the shared Family-B core
+/// (`tcl_cmd_core::info::level`, over the `Introspect` role trait): the current
+/// depth with no argument, and the correct coercion error for a non-integer
+/// argument (the VM previously diverged from the runtime / real Tcl with a
+/// "bad level" message — routing through the shared core unifies the behaviour).
+#[test]
+fn info_level_shared_core() {
+    assert_eq!(run("info level").1, "0"); // global scope: depth 0
+    let (ok, result, _out) = run("info level foo");
+    assert!(!ok);
+    assert_eq!(result, "expected integer but got \"foo\"");
+}
+
 #[test]
 fn set_expr_puts() {
     let (ok, _result, out) = run("set x 5\nputs [expr {$x * 2}]\n");

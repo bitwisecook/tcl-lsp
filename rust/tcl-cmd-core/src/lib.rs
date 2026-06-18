@@ -21,6 +21,7 @@ pub mod dict;
 pub mod error;
 pub mod format;
 pub mod index;
+pub mod info;
 pub mod list;
 pub mod path;
 pub mod platform;

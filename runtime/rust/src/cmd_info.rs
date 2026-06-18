@@ -384,43 +384,21 @@ fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    match argv.len() {
-        2 => {
-            interp.set_result_bytes(interp.level().to_string().as_bytes());
+    // The shared Family-B core over `Introspect` (`tcl_cmd_core::info::level`);
+    // the runtime is a thin adapter mapping `Result<*mut TclObj, CmdError>` onto
+    // its set-result/`Code` ABI. (`info level 0` is relative — the current call;
+    // `N>0` absolute.)
+    let number = match argv.len() {
+        2 => None,
+        3 => Some(&argv[2]),
+        _ => return wrong_args(interp, b"info level ?number?"),
+    };
+    match tcl_cmd_core::info::level(interp, number) {
+        Ok(v) => {
+            interp.set_result(v);
             Code::Ok
         }
-        // `info level N` — the command words at level N. N<=0 is relative to the
-        // current level (`info level 0` = the current call); N>0 is absolute.
-        3 => {
-            let spec = obj_bytes(argv[2]);
-            let n = match core::str::from_utf8(&spec)
-                .ok()
-                .and_then(|s| s.trim().parse::<i64>().ok())
-            {
-                Some(n) => n,
-                None => {
-                    let mut m = b"expected integer but got \"".to_vec();
-                    m.extend_from_slice(&spec);
-                    m.push(b'"');
-                    return interp.set_error(&m);
-                }
-            };
-            let cur = interp.level() as i64;
-            let target = if n <= 0 { cur + n } else { n };
-            if target <= 0 {
-                return bad_level(interp, &spec);
-            }
-            match interp.level_words(target as usize) {
-                Some(words) => {
-                    let objs: Vec<*mut TclObj> =
-                        words.iter().map(|w| crate::interp::new_string(w)).collect();
-                    interp.set_result(crate::list::new_list_obj(&objs));
-                    Code::Ok
-                }
-                None => bad_level(interp, &spec),
-            }
-        }
-        _ => wrong_args(interp, b"info level ?number?"),
+        Err(e) => interp.set_error(e.message().as_bytes()),
     }
 }
 

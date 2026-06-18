@@ -42,6 +42,7 @@ name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
  "tcl-platform",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 

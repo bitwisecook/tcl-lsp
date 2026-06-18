@@ -2360,11 +2360,6 @@ impl Interp {
         )
     }
 
-    /// `info level` — the current frame level (proc nesting depth).
-    pub(crate) fn level(&self) -> usize {
-        self.frames.borrow().current_level()
-    }
-
     /// The invoking command words at call `level` (`info level N`), or `None`
     /// when the level has none.
     pub(crate) fn level_words(&self, level: usize) -> Option<Vec<Vec<u8>>> {

@@ -65,28 +65,20 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [script] => ok(Value::bool(is_complete(&script.to_str()))),
             _ => err("wrong # args: should be \"info complete command\""),
         },
-        "level" => match rest {
-            [] => ok(Value::int(ilen(vm.current_level()))),
-            [n] => match n.as_int() {
-                // A positive number is an absolute stack level; zero or negative
-                // is relative to the current level (`info level 0` is the current
-                // procedure's invocation). Valid levels run 1..=current.
-                Ok(req) => {
-                    let cur = i64::try_from(vm.current_level()).unwrap_or(0);
-                    let abs = if req > 0 { req } else { cur + req };
-                    if abs >= 1 && abs <= cur {
-                        match vm.frame_argv(usize::try_from(abs).unwrap_or(0)) {
-                            Some(av) => ok(Value::list(av)),
-                            None => err(format!("bad level \"{}\"", n.to_str())),
-                        }
-                    } else {
-                        err(format!("bad level \"{}\"", n.to_str()))
-                    }
-                }
-                _ => err(format!("bad level \"{}\"", n.to_str())),
-            },
-            _ => err("wrong # args: should be \"info level ?number?\""),
-        },
+        // `info level ?number?` — the shared Family-B core over `Introspect`
+        // (`tcl_cmd_core::info::level`); the VM is a thin adapter mapping
+        // `Result<Value, CmdError>` onto its completion ABI.
+        "level" => {
+            let number = match rest {
+                [] => None,
+                [n] => Some(n),
+                _ => return err("wrong # args: should be \"info level ?number?\""),
+            };
+            match tcl_cmd_core::info::level(vm, number) {
+                Ok(v) => ok(v),
+                Err(e) => err(e.message()),
+            }
+        }
         "commands" => ok(filtered(
             vm.command_names(),
             rest.first().map(Value::to_str).as_deref(),
