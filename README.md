@@ -2504,7 +2504,8 @@ disabled = O109
 enabled = true
 
 [features]
-inlayHints = false
+inlayTypeHints = false
+inlayParameterHints = false
 
 [formatting]
 indent_size = 2

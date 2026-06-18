@@ -205,18 +205,27 @@ install: package-vsix ## Build and install the .vsix into VS Code
 	@echo "==> Installing VS Code extension"
 	$(VSCODE) --install-extension $(VSIX_FILE) --force
 
-publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS Code Marketplace
-	@echo "==> Verifying VS Code Marketplace credentials"
-	@if [ -n "$$VSCE_PAT" ]; then \
-		echo "    Using VSCE_PAT from environment (non-interactive)."; \
-	elif ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
-		echo "    No valid cached PAT for publisher '$(VSCE_PUBLISHER)' and"; \
-		echo "    VSCE_PAT is not set."; \
-		echo "    Launching interactive login (create a PAT at https://dev.azure.com if needed)..."; \
-		$(VSCE) login $(VSCE_PUBLISHER); \
-	fi
+publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS Code Marketplace (keyless; CI is the primary path)
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
-	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
+	@# Releases normally publish VSCE from CI (keyless OIDC, behind the
+	@# marketplace-vscode Environment).  This laptop target is the fallback.
+	@# Primary fallback path is also keyless: an Azure Entra session via the
+	@# Azure CLI (`az login --allow-no-subscriptions`) feeds vsce's
+	@# DefaultAzureCredential through `--azure-credential` — no PAT at rest.
+	@# Set VSCE_PAT to force the legacy stored-PAT path (discouraged; Azure
+	@# DevOps global PATs retire 2026-12-01).
+	@if [ -n "$$VSCE_PAT" ]; then \
+		echo "    VSCE_PAT set — using the legacy stored PAT (override)."; \
+		cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE); \
+	elif az account show >/dev/null 2>&1; then \
+		echo "    Keyless publish via Azure Entra (--azure-credential, no PAT)."; \
+		cd $(STAGE_DIR) && $(VSCE) publish --azure-credential --packagePath $(VSIX_FILE); \
+	else \
+		echo "    No Azure CLI session for keyless publishing."; \
+		echo "    Run:  az login --allow-no-subscriptions"; \
+		echo "    (or set VSCE_PAT to use the legacy stored-PAT path instead.)"; \
+		exit 1; \
+	fi
 
 $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build/zipapps.py $(ROOT)scripts/zipapp-main/lsp.py $(ROOT)scripts/install/filter_readme.py
 	@echo "==> Preparing VSIX staging directory"

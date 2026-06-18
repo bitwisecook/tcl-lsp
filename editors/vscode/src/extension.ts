@@ -440,12 +440,10 @@ const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
   folding: () => workspace.getConfiguration("editor").get<boolean>("folding", true),
   signatureHelp: () =>
     workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
-  inlayHints: () => {
-    const v = workspace
-      .getConfiguration("editor")
-      .get<string | boolean>("inlayHints.enabled", true);
-    return v !== "off" && v !== "offUnlessPressed" && v !== false;
-  },
+  // Inlay hints split into two opt-in families, both off unless the user
+  // explicitly enables them (they do not inherit editor.inlayHints.enabled).
+  inlayTypeHints: () => false,
+  inlayParameterHints: () => false,
   documentHighlight: () => {
     const v = workspace
       .getConfiguration("editor")

@@ -3152,15 +3152,25 @@
             "description": "Override workspace symbols (Cmd+T). When null, enabled.",
             "order": 12
           },
-          "tclLsp.features.inlayHints": {
+          "tclLsp.features.inlayTypeHints": {
             "scope": "language-overridable",
             "type": [
               "boolean",
               "null"
             ],
             "default": null,
-            "description": "Override inlay hints (inferred types shown inline). When null, inherits from editor.inlayHints.enabled.",
+            "description": "Show inferred-type inlay hints on variables (and format-string specifiers). Off by default; set true to enable.",
             "order": 13
+          },
+          "tclLsp.features.inlayParameterHints": {
+            "scope": "language-overridable",
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "description": "Show parameter-name inlay hints at proc/method call sites (e.g. NAME:, PROC_SCRIPT:). Verbose; off by default, set true to enable.",
+            "order": 14
           },
           "tclLsp.features.callHierarchy": {
             "scope": "language-overridable",
@@ -3170,7 +3180,7 @@
             ],
             "default": null,
             "description": "Override call hierarchy (incoming/outgoing calls for procs). When null, enabled.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.features.documentLinks": {
             "scope": "language-overridable",
@@ -3180,7 +3190,7 @@
             ],
             "default": null,
             "description": "Override document links (clickable source paths and package requires). When null, enabled.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.features.selectionRange": {
             "scope": "language-overridable",
@@ -3190,7 +3200,7 @@
             ],
             "default": null,
             "description": "Override selection range (smart expand/shrink). When null, enabled.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.features.documentHighlight": {
             "scope": "language-overridable",
@@ -3200,7 +3210,7 @@
             ],
             "default": null,
             "description": "Override document highlight. When null, inherits from editor.occurrencesHighlight.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.features.codeLens": {
             "scope": "language-overridable",
@@ -3210,7 +3220,7 @@
             ],
             "default": null,
             "description": "Override code lens (inline reference counts, test runners). When null, inherits from editor.codeLens.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.features.workspaceFileOps": {
             "scope": "language-overridable",
@@ -3220,14 +3230,14 @@
             ],
             "default": null,
             "description": "Override workspace file operations (auto-rewrite source paths on rename). When null, enabled.",
-            "order": 19
+            "order": 20
           },
           "tclLsp.features.pullDiagnostics": {
             "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "description": "Enable pull-model diagnostics (textDocument/diagnostic, workspace/diagnostic). Off by default: turning this on causes most clients to stop honouring push notifications.",
-            "order": 20
+            "order": 21
           },
           "tclLsp.features.progress": {
             "scope": "language-overridable",

@@ -127,6 +127,23 @@ class TestInlayHints:
         assert "channelId:" in labels
         assert "string:" in labels
 
+    def test_type_and_parameter_hints_toggle_independently(self):
+        # ``proc add`` call has both a type hint (none here) and parameter
+        # hints; ``set x 42`` has a type hint.  Each family can be requested
+        # on its own.
+        source = "proc add {a b} {}\nset x 42\nadd 1 2\n"
+
+        type_only = get_inlay_hints(source, FULL_RANGE, type_hints=True, parameter_hints=False)
+        assert type_only, "expected type hints"
+        assert all(h.kind == types.InlayHintKind.Type for h in type_only)
+
+        param_only = get_inlay_hints(source, FULL_RANGE, type_hints=False, parameter_hints=True)
+        assert param_only, "expected parameter hints"
+        assert all(h.kind == types.InlayHintKind.Parameter for h in param_only)
+
+        neither = get_inlay_hints(source, FULL_RANGE, type_hints=False, parameter_hints=False)
+        assert neither == []
+
     def test_flag_group_placeholder_not_labelled(self):
         # ``?switches?`` / ``?options?`` are doc placeholders, not real
         # positional params -- ``regsub pat str sub var`` (4 positionals)

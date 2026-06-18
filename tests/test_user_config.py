@@ -74,11 +74,11 @@ class TestGetAllSettings:
     def test_features_camelcase_preserved(self):
         """camelCase feature keys like semanticTokens must survive config parsing."""
         config = _config_from_string(
-            "[features]\nsemanticTokens = false\ninlayHints = false\ncodeActions = true\n"
+            "[features]\nsemanticTokens = false\ninlayTypeHints = false\ncodeActions = true\n"
         )
         result = get_all_settings(config)
         assert result["features"]["semanticTokens"] is False
-        assert result["features"]["inlayHints"] is False
+        assert result["features"]["inlayTypeHints"] is False
         assert result["features"]["codeActions"] is True
 
     def test_formatting(self):

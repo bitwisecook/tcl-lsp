@@ -565,12 +565,27 @@ def get_inlay_hints(
     analysis: AnalysisResult | None = None,
     *,
     lines: list[str] | None = None,
+    type_hints: bool = True,
+    parameter_hints: bool = True,
 ) -> list[types.InlayHint]:
-    """Return inlay hints for a Tcl source file within the given range."""
+    """Return inlay hints for a Tcl source file within the given range.
+
+    ``type_hints`` controls the inferred-variable-type annotations and the
+    format-string specifier labels (``InlayHintKind.Type``).
+    ``parameter_hints`` controls the proc/method parameter-name labels at
+    call sites (``InlayHintKind.Parameter``).  Each family is gated
+    independently so editors can opt into one without the other.
+    """
+    if not type_hints and not parameter_hints:
+        return []
+
     if analysis is None:
         analysis = analyse(source)
 
-    hints = _collect_type_hints(source, analysis, range_)
-    hints.extend(_collect_format_string_hints(source, range_, lines=lines))
-    hints.extend(_collect_param_name_hints(source, range_, analysis))
+    hints: list[types.InlayHint] = []
+    if type_hints:
+        hints.extend(_collect_type_hints(source, analysis, range_))
+        hints.extend(_collect_format_string_hints(source, range_, lines=lines))
+    if parameter_hints:
+        hints.extend(_collect_param_name_hints(source, range_, analysis))
     return hints

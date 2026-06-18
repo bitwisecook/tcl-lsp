@@ -15,10 +15,11 @@ _SOURCE = "Tcl man page try.n"
 
 
 _BODY = frozenset({ArgRole.BODY})
+_KEYWORD = frozenset({ArgRole.KEYWORD})
 
 
 def _try_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
-    """Resolve BODY roles for try/on/trap/finally."""
+    """Resolve BODY and structural-KEYWORD roles for try/on/trap/finally."""
     roles: dict[int, frozenset[ArgRole]] = {}
     if args:
         roles[0] = _BODY
@@ -26,9 +27,11 @@ def _try_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     while i < len(args):
         kw = args[i]
         if kw == "finally" and i + 1 < len(args):
+            roles[i] = _KEYWORD
             roles[i + 1] = _BODY
             i += 2
         elif kw in ("on", "trap") and i + 3 < len(args):
+            roles[i] = _KEYWORD
             roles[i + 3] = _BODY
             i += 4
         else:

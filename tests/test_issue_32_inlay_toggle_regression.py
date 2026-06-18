@@ -2,18 +2,19 @@
 
 The user reported confusing ``: int`` / ``: str`` type annotations being
 injected after ``set`` statements.  Inlay hints are an *opt-in* feature
-(``features.inlayHints`` → ``FeatureConfig.inlay_hints_enabled``, default
-``False``), so the fix is that the server must produce *no* inlay hints unless
-the user explicitly enables them.
+(``features.inlayTypeHints`` → ``FeatureConfig.inlay_type_hints_enabled``,
+default ``False``), so the fix is that the server must produce *no* inlay
+hints unless the user explicitly enables them.
 
 The existing coverage only asserts that the flag parses
 (``tests/test_user_config.py``) and that ``get_inlay_hints`` renders hints when
 called directly (``tests/test_inlay_hints.py``).  Neither exercises the actual
 gate.  The toggle is honoured at the *handler* level: ``on_inlay_hint`` in
-``server/server.py`` checks ``config_for_uri(uri).inlay_hints_enabled`` and
-short-circuits to ``[]`` before ever calling ``get_inlay_hints``.  This test
-drives that handler directly so a regression that stops honouring the toggle
-(e.g. dropping the guard, or defaulting the flag on) fails here.
+``server/server.py`` checks ``config_for_uri(uri).inlay_type_hints_enabled``
+(and the parameter-hint sibling) and short-circuits to ``[]`` before ever
+calling ``get_inlay_hints``.  This test drives that handler directly so a
+regression that stops honouring the toggle (e.g. dropping the guard, or
+defaulting the flag on) fails here.
 """
 
 from __future__ import annotations
@@ -53,19 +54,21 @@ def _params() -> types.InlayHintParams:
 def opened_doc():
     """Register the document with the workspace and restore global state after."""
     _state.workspace_state.open(_URI, SOURCE)
-    original = _state.feature_config.inlay_hints_enabled
+    original_type = _state.feature_config.inlay_type_hints_enabled
+    original_param = _state.feature_config.inlay_parameter_hints_enabled
     try:
         yield
     finally:
-        _state.feature_config.inlay_hints_enabled = original
+        _state.feature_config.inlay_type_hints_enabled = original_type
+        _state.feature_config.inlay_parameter_hints_enabled = original_param
         _state.workspace_state.close(_URI)
 
 
 def test_inlay_hints_produced_when_enabled(opened_doc):
-    """Positive control: with the feature on, the type hints from #32 appear."""
-    _state.feature_config.inlay_hints_enabled = True
+    """Positive control: with type hints on, the type hints from #32 appear."""
+    _state.feature_config.inlay_type_hints_enabled = True
     hints = on_inlay_hint(_params())
-    assert hints, "expected inlay hints when features.inlayHints is enabled"
+    assert hints, "expected inlay hints when features.inlayTypeHints is enabled"
     # The specific ``: <type>`` annotations the issue complained about.
     type_labels = [h.label for h in hints if h.kind == types.InlayHintKind.Type]
     assert ": int" in type_labels
@@ -78,24 +81,29 @@ def test_no_inlay_hints_when_disabled(opened_doc):
     This is the assertion the audit found missing.  Must fail if the toggle
     stops being honoured at the handler gate.
     """
-    _state.feature_config.inlay_hints_enabled = False
+    _state.feature_config.inlay_type_hints_enabled = False
+    _state.feature_config.inlay_parameter_hints_enabled = False
     hints = on_inlay_hint(_params())
     assert hints == [], (
-        "inlay hints must be suppressed when features.inlayHints is disabled; "
+        "inlay hints must be suppressed when both inlay toggles are disabled; "
         f"got {[h.label for h in hints]}"
     )
 
 
 def test_disabled_is_the_default(opened_doc):
-    """The feature ships off by default, so an untouched config produces none.
+    """Both families ship off by default, so an untouched config produces none.
 
-    Guards against a regression that flips the default flag on (which would
+    Guards against a regression that flips a default flag on (which would
     reintroduce the unwanted annotations for every user).
     """
     from server.feature_config import FeatureConfig
 
-    assert FeatureConfig().inlay_hints_enabled is False
+    assert FeatureConfig().inlay_type_hints_enabled is False
+    assert FeatureConfig().inlay_parameter_hints_enabled is False
     # And the live process config the handler reads honours that default too,
     # unless a test explicitly opted in.
-    _state.feature_config.inlay_hints_enabled = FeatureConfig().inlay_hints_enabled
+    _state.feature_config.inlay_type_hints_enabled = FeatureConfig().inlay_type_hints_enabled
+    _state.feature_config.inlay_parameter_hints_enabled = (
+        FeatureConfig().inlay_parameter_hints_enabled
+    )
     assert on_inlay_hint(_params()) == []
