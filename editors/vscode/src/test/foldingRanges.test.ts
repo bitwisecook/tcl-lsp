@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, pollUntil } from "./helper";
 
 suite("Folding Ranges", () => {
   const docUri = getDocUri("folding.tcl");
@@ -8,9 +8,10 @@ suite("Folding Ranges", () => {
   test("returns folding ranges for procs and namespaces", async () => {
     await activate(docUri);
 
-    const ranges = (await vscode.commands.executeCommand(
-      "vscode.executeFoldingRangeProvider",
-      docUri,
+    const ranges = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+      (r) => Array.isArray(r) && r.length > 0,
+      { timeout: 10_000, label: "folding ranges present" },
     )) as vscode.FoldingRange[];
 
     assert.ok(ranges, "Should return folding ranges");
@@ -20,9 +21,11 @@ suite("Folding Ranges", () => {
   test("proc body is foldable", async () => {
     await activate(docUri);
 
-    const ranges = (await vscode.commands.executeCommand(
-      "vscode.executeFoldingRangeProvider",
-      docUri,
+    const ranges = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+      (r) =>
+        Array.isArray(r) && (r as vscode.FoldingRange[]).some((fr) => fr.start <= 1 && fr.end >= 7),
+      { timeout: 10_000, label: "proc body foldable" },
     )) as vscode.FoldingRange[];
 
     assert.ok(ranges && ranges.length > 0, "Should have folding ranges");
@@ -35,9 +38,12 @@ suite("Folding Ranges", () => {
   test("namespace body is foldable", async () => {
     await activate(docUri);
 
-    const ranges = (await vscode.commands.executeCommand(
-      "vscode.executeFoldingRangeProvider",
-      docUri,
+    const ranges = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.FoldingRange[]).some((fr) => fr.start >= 10 && fr.end >= 13),
+      { timeout: 10_000, label: "namespace body foldable" },
     )) as vscode.FoldingRange[];
 
     assert.ok(ranges && ranges.length > 0, "Should have folding ranges");
@@ -50,9 +56,12 @@ suite("Folding Ranges", () => {
   test("backslash-continued command folds as one logical line (issue #541)", async () => {
     await activate(docUri);
 
-    const ranges = (await vscode.commands.executeCommand(
-      "vscode.executeFoldingRangeProvider",
-      docUri,
+    const ranges = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeFoldingRangeProvider", docUri),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.FoldingRange[]).some((fr) => fr.start === 17 && fr.end >= 19),
+      { timeout: 10_000, label: "backslash-continued command folds" },
     )) as vscode.FoldingRange[];
 
     assert.ok(ranges && ranges.length > 0, "Should have folding ranges");

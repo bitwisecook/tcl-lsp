@@ -191,29 +191,38 @@ for the full contract:
 2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,zipapp-main,dev}/*`.
 3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
    artefact build → sign → attach to GitHub Release).
-4. **Publishing** — `make publish-*` from the maintainer's laptop, except
-   VS Code Marketplace, which publishes from CI keylessly (OIDC) behind the
-   manually-approved `marketplace-vscode` Environment.
+4. **Publishing** — VS Code and JetBrains publish *from CI* behind
+   manually-approved Environments; Package Control (Sublime) and Zed
+   publish from the maintainer's laptop (they need no token).
 
-**Invariant: no long-lived publish *secret* in CI.**  CI may publish only
-with keyless, short-lived credentials it cannot leak — never a stored
-marketplace token.  Concretely:
+**Invariant: a publish secret used in a workflow must be an Environment
+secret on a protected, manually-approved Environment.**  A marketplace
+token may live in CI only when it is stored as a GitHub *Environment*
+secret on an Environment with a required reviewer (and a `v*`-tag-only
+deployment policy) — never as a plain repo/org secret available to every
+workflow run.  Stored that way, the secret is reachable only by the one
+gated publish job that targets that Environment, which pauses for human
+approval and cannot run on a non-tag ref.  Concretely:
 
-- **VS Code Marketplace** publishes *from CI* via GitHub OIDC → Azure Entra
-  workload-identity federation (`vsce publish --azure-credential`), gated by
-  the `marketplace-vscode` Environment (required reviewer + a `v*`-tag-only
-  deployment policy).  No PAT is stored anywhere; the federated token is
-  minted per run.  The laptop `make publish-vsix` stays as a keyless
-  fallback (`az login` + `--azure-credential`).
-- **JetBrains Marketplace / Package Control / zed-industries** have no OIDC
-  publishing path, so they still run from the maintainer's laptop using
-  credentials in local environment variables or the macOS Keychain — never
-  CI.
+- **VS Code Marketplace** publishes from CI with `secrets.VSCE_PAT`, an
+  Environment secret on `marketplace-vscode` (required reviewer + a
+  `v*`-tag-only policy).  The token is scoped to the publish step's `env:`
+  so freshly-fetched npm code never runs with it in the environment.
+  `make publish-vsix` stays as a laptop fallback (keyless `az login`, or
+  `VSCE_PAT`).
+- **JetBrains Marketplace** publishes from CI with `secrets.JETBRAINS_TOKEN`,
+  an Environment secret on `marketplace-jetbrains` (same protections),
+  uploading the released, checksum-verified `.zip` via the Marketplace REST
+  API.  `make publish-jetbrains` stays as a laptop fallback.
+- **Package Control (Sublime)** and **zed-industries/extensions** need no
+  token — they publish by pushing to a maintainer-owned mirror / opening a
+  PR — so they stay laptop-only and never enter CI.
 - CI otherwise uses only GitHub's built-in `github.token` + sigstore OIDC
   for attestations.
 
-Adding `secrets.VSCE_PAT`, `secrets.JETBRAINS_TOKEN`, or any other
-long-lived marketplace token to a workflow violates the contract.
+A publish secret stored any other way — a plain repo secret, an org secret,
+or one reachable by a job with no protected `environment:` — violates the
+contract.
 
 ## WASM command parity
 

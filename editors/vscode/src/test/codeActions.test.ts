@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, waitForDiagnostics } from "./helper";
+import { getDocUri, activate, waitForDiagnostics, pollUntil } from "./helper";
 
 suite("Code Actions", () => {
   const docUri = getDocUri("diagnostics.tcl");
@@ -18,10 +18,14 @@ suite("Code Actions", () => {
     assert.ok(w100, "W100 diagnostic should be present");
 
     // Request code actions at the W100 range
-    const actions = (await vscode.commands.executeCommand(
-      "vscode.executeCodeActionProvider",
-      docUri,
-      w100.range,
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w100.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => a.kind && a.kind.value === vscode.CodeActionKind.QuickFix.value,
+        ),
+      { timeout: 10_000, label: "W100 quick fix" },
     )) as vscode.CodeAction[];
 
     assert.ok(actions, "Code actions should not be null");
@@ -45,10 +49,14 @@ suite("Code Actions", () => {
     });
     assert.ok(w304, "W304 diagnostic should be present");
 
-    const actions = (await vscode.commands.executeCommand(
-      "vscode.executeCodeActionProvider",
-      docUri,
-      w304.range,
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w304.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.toLowerCase().includes("option terminator"),
+        ),
+      { timeout: 10_000, label: "W304 option terminator quick fix" },
     )) as vscode.CodeAction[];
 
     const quickFix = actions.find(
@@ -67,10 +75,17 @@ suite("Code Actions", () => {
     });
     assert.ok(w302, "W302 diagnostic should be present");
 
-    const actions = (await vscode.commands.executeCommand(
-      "vscode.executeCodeActionProvider",
-      docUri,
-      w302.range,
+    const actions = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w302.range),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("catch result variable"),
+        ) &&
+        (r as vscode.CodeAction[]).some(
+          (a) => typeof a.title === "string" && a.title.includes("result + options"),
+        ),
+      { timeout: 10_000, label: "W302 catch result quick fixes" },
     )) as vscode.CodeAction[];
 
     const resultFix = actions.find(
@@ -103,10 +118,22 @@ suite("Code Actions", () => {
     });
     assert.ok(irule1005, "IRULE1005 diagnostic should be present");
 
-    const actions = (await vscode.commands.executeCommand(
-      "vscode.executeCodeActionProvider",
-      irulesDocUri,
-      irule1005.range,
+    const actions = (await pollUntil(
+      () =>
+        vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          irulesDocUri,
+          irule1005.range,
+        ),
+      (r) =>
+        Array.isArray(r) &&
+        (r as vscode.CodeAction[]).some(
+          (a) =>
+            typeof a.title === "string" &&
+            a.title.includes("collect") &&
+            a.title.includes("CLIENT_ACCEPTED"),
+        ),
+      { timeout: 10_000, label: "IRULE1005 collect bootstrap quick fix" },
     )) as vscode.CodeAction[];
 
     const collectFix = actions.find(

@@ -1,20 +1,24 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, sleep } from "./helper";
+import { activate, getDocUri, pollUntil } from "./helper";
 
 suite("Code Lens", () => {
   const docUri = getDocUri("procs.tcl");
 
   test("returns resolved lenses for each proc", async () => {
     await activate(docUri);
-    // Code lenses are populated asynchronously — give the provider a beat.
-    await sleep(500);
+    // Code lenses are populated asynchronously — poll until the server
+    // has published and resolved its first batch rather than racing on a
+    // fixed sleep.
     // executeCodeLensProvider's second argument is the number of lenses
     // to resolve; without it VS Code returns unresolved lenses (command=null).
-    const lenses = (await vscode.commands.executeCommand(
-      "vscode.executeCodeLensProvider",
-      docUri,
-      100,
+    const lenses = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", docUri, 100),
+      (r) => {
+        const ls = r as vscode.CodeLens[] | undefined;
+        return !!ls && ls.filter((l) => l.command !== undefined).length >= 2;
+      },
+      { timeout: 10_000, label: "resolved code lenses" },
     )) as vscode.CodeLens[] | undefined;
 
     assert.ok(lenses, "codeLens result should not be null");
@@ -41,11 +45,21 @@ suite("Code Lens", () => {
   test("reference count matches resolution for forward and namespaced calls", async () => {
     const refsUri = getDocUri("codeLensRefs.tcl");
     await activate(refsUri);
-    await sleep(500);
-    const lenses = (await vscode.commands.executeCommand(
-      "vscode.executeCodeLensProvider",
-      refsUri,
-      100,
+    // Poll until the lenses for the proc-definition lines under test
+    // (1, 5, 8) have all resolved their reference-count titles.
+    const lenses = (await pollUntil(
+      () => vscode.commands.executeCommand("vscode.executeCodeLensProvider", refsUri, 100),
+      (r) => {
+        const ls = r as vscode.CodeLens[] | undefined;
+        if (!ls) return false;
+        const resolvedLines = new Set(
+          ls
+            .filter((l) => l.command && typeof l.command.title === "string")
+            .map((l) => l.range.start.line),
+        );
+        return [1, 5, 8].every((line) => resolvedLines.has(line));
+      },
+      { timeout: 10_000, label: "resolved code lenses for forward/namespaced calls" },
     )) as vscode.CodeLens[] | undefined;
     assert.ok(lenses, "codeLens result should not be null");
 
