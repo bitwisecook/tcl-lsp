@@ -4110,9 +4110,17 @@ Consider capturing the result: catch {\u{2026}} result"
             return;
         }
 
-        let dialect = DialectSet::parse(&self.dialect).unwrap_or(DialectSet::ALL_TCL);
+        // Resolve the option-terminator profile *dialect-agnostically*:
+        // Python's `check_missing_option_terminator` calls
+        // `REGISTRY.resolve_option_terminator(cmd_name, args)` with no
+        // dialect, so W304 still fires on a command that the active dialect
+        // disables (e.g. `exec` / `glob` under f5-irules, which also draw
+        // W002 / W123).  Passing the dialect here would over-filter via
+        // `get_for_dialect` and silently drop those W304s.
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(profile) = registry.resolve_option_terminator(cmd_name, &arg_strs, dialect) else {
+        let Some(profile) =
+            registry.resolve_option_terminator(cmd_name, &arg_strs, DialectSet::empty())
+        else {
             return;
         };
 
@@ -5098,6 +5106,31 @@ matching time on crafted input."
             code: "IRULE2002".to_string(),
             span: cmd_tok.span,
             message: format!("'{cmd_name}' is deprecated in iRules. Use '{replacement}' instead."),
+            severity: Severity::Warning,
+            fixes: Vec::new(),
+        });
+    }
+
+    /// **IRULE2001.** Warn that `matchclass` is deprecated — use
+    /// `class match` instead.  Only fires under the `f5-irules` dialect.
+    /// Python fires this *alongside* IRULE2002 at the same span (the
+    /// command head): `matchclass` carries both a `deprecated_replacement`
+    /// (→ IRULE2002) and the dedicated `check_matchclass` rule (→
+    /// IRULE2001).  Mirrors `irules_checks.py::check_matchclass`.
+    pub(super) fn emit_irule2001_matchclass(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
+    ) {
+        if self.dialect != "f5-irules" || cmd_name != "matchclass" {
+            return;
+        }
+        self.result.diagnostics.push(super::types::Diagnostic {
+            code: "IRULE2001".to_string(),
+            span: cmd_tok.span,
+            message: "'matchclass' is deprecated since BIG-IP v10. \
+Use 'class match <item> <operator> <class>' instead."
+                .to_string(),
             severity: Severity::Warning,
             fixes: Vec::new(),
         });

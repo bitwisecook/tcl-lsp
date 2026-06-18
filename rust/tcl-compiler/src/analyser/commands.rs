@@ -280,6 +280,15 @@ impl Analyser {
             // command.
             self.run_nested_command_diagnostics(arg_tokens_in, scope_path);
 
+            // Run the per-command syntactic + EXPR checks on commands nested
+            // inside a ``[…]`` substitution of a *braced expression*
+            // argument (`if { [matchclass …] }`, `while { [done $x] }`).
+            // The bare-`Cmd` walk above never enters a braced `Str` expr
+            // arg, so those substitution commands would otherwise escape
+            // every per-command check (IRULE2001/2002, W100, …).  Mirrors
+            // main's ``_recurse_expression_subcommands``.
+            self.run_nested_expr_diagnostics(cmd_name, args, arg_tokens, scope_path);
+
             // **C41d3.** Record variable-as-command and
             // command-substitution-as-command call sites so the
             // post-walk W307 / W308 emitters can resolve them.
@@ -489,6 +498,9 @@ impl Analyser {
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
         // IRULE2002: deprecated iRules command (f5-irules only).
         self.emit_irule2002_deprecated_command(cmd_name, cmd_tok);
+        // IRULE2001: deprecated `matchclass` (f5-irules only).  Python
+        // fires this alongside IRULE2002 at the same command-head span.
+        self.emit_irule2001_matchclass(cmd_name, cmd_tok);
         // IRULE1003 / 1004 / 2101 / 4001 / 4003 / 5001 / 6001 —
         // analyser-level iRules event-context checks (f5-irules only).
         self.emit_irules_event_checks(cmd_name, args, arg_tokens, cmd_tok);
@@ -788,21 +800,99 @@ impl Analyser {
             }
         }
         for seg in nested {
-            if seg.texts.is_empty() || seg.argv.is_empty() {
-                continue;
-            }
-            let cmd_name = seg.texts[0].clone();
-            let cmd_tok = seg.argv[0];
-            let args = seg.texts.get(1..).unwrap_or(&[]);
-            let arg_tokens = seg.argv.get(1..).unwrap_or(&[]);
-            let arg_single = seg.single_token_word.get(1..).unwrap_or(&[]);
-            // `emit_arity_diagnostics` expects the expand array parallel to
-            // the *full* argv (head at index 0), matching `process_command`.
-            let arg_expand = seg.expand_word.as_deref().unwrap_or(&[]);
-            self.emit_dispatch_site_diagnostics(
-                &cmd_name, args, arg_tokens, arg_single, arg_expand, cmd_tok, scope_path,
-            );
+            self.dispatch_nested_segment(&seg, scope_path);
         }
+    }
+
+    /// Run the per-command syntactic dispatch on every command nested in a
+    /// ``[…]`` substitution that appears inside a *braced expression*
+    /// argument (`if { [acl_ok] } …`, `while { [done $x] } …`).  Such an
+    /// argument is a `Str` (braced) token, so it is opaque to
+    /// [`Self::run_nested_command_diagnostics`] (which only descends bare
+    /// `Cmd` argument tokens) — yet the expression's `[…]` substitutions
+    /// are live commands the main walk never reaches.  Mirrors main's
+    /// ``_recurse_expression_subcommands`` re-running ``run_all_checks`` on
+    /// each substitution command found inside an EXPR-role argument.
+    fn run_nested_expr_diagnostics(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        let expr_indices: Vec<usize> = match self.registry.as_ref() {
+            Some(r) => {
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                r.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::Expr)
+            }
+            None => return,
+        };
+        if expr_indices.is_empty() {
+            return;
+        }
+        let config = self.lexer_config();
+        let mut nested: Vec<SegmentedCommand> = Vec::new();
+        {
+            let sm = SourceMap::new(&self.source);
+            for idx in expr_indices {
+                // Only a *braced* expr arg is opaque to the bare-`Cmd` walk;
+                // an unbraced `[…]` expr arg is itself a `Cmd` token already
+                // descended by `run_nested_command_diagnostics`.
+                let Some(tok) = arg_tokens.get(idx) else {
+                    continue;
+                };
+                if tok.kind != TokenType::Str {
+                    continue;
+                }
+                // Re-lex the braced expression as a script: its operands
+                // (`$x`, `+`, literals) are not commands, but each `[…]`
+                // substitution still tokenises as a `Cmd` to descend.
+                let descended = descend_token(&sm, *tok, config);
+                for seg in segments_from_tree(descended.tree(), &sm) {
+                    for inner in &seg.all_tokens {
+                        if inner.kind == TokenType::Cmd {
+                            collect_substitution_segments(
+                                &sm,
+                                self.registry.as_ref(),
+                                *inner,
+                                config,
+                                &mut nested,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        for seg in nested {
+            self.dispatch_nested_segment(&seg, scope_path);
+        }
+    }
+
+    /// Run the full per-command diagnostic dispatch on one command
+    /// descended from a ``[…]`` substitution: the syntactic emitters
+    /// ([`Self::emit_dispatch_site_diagnostics`]) plus the EXPR-argument
+    /// walk ([`Self::dispatch_expr_arguments`], which hosts W100 / W110 /
+    /// W114 / W003).  The main walk runs both on a top-level command but
+    /// only the syntactic half had been reaching substitution commands, so
+    /// an unbraced `expr` inside `[…]` (`set y [expr $a + $b]`) escaped
+    /// W100.  Mirrors main feeding nested commands through the same
+    /// ``run_all_checks`` entry point as top-level ones.
+    fn dispatch_nested_segment(&mut self, seg: &SegmentedCommand, scope_path: &[usize]) {
+        if seg.texts.is_empty() || seg.argv.is_empty() {
+            return;
+        }
+        let cmd_name = seg.texts[0].clone();
+        let cmd_tok = seg.argv[0];
+        let args = seg.texts.get(1..).unwrap_or(&[]);
+        let arg_tokens = seg.argv.get(1..).unwrap_or(&[]);
+        let arg_single = seg.single_token_word.get(1..).unwrap_or(&[]);
+        // `emit_arity_diagnostics` expects the expand array parallel to
+        // the *full* argv (head at index 0), matching `process_command`.
+        let arg_expand = seg.expand_word.as_deref().unwrap_or(&[]);
+        self.emit_dispatch_site_diagnostics(
+            &cmd_name, args, arg_tokens, arg_single, arg_expand, cmd_tok, scope_path,
+        );
+        self.dispatch_expr_arguments(&cmd_name, args, arg_tokens);
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)
