@@ -541,6 +541,13 @@ fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> Value {
     Value::list(items)
 }
 
+/// An `ERROR` completion carrying an `-errorcode` (e.g. `TCL BINARY DECODE
+/// INVALID`), so `$errorCode` is set when the error propagates.
+pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
+    let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
+    Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
 /// Look up a key in an options-dict value, returning the following element.
 fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;

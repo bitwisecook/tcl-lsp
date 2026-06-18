@@ -271,6 +271,48 @@ fn append_lappend_shared_core() {
     assert_eq!(msg, "unmatched open brace in list");
 }
 
+/// `binary encode`/`decode` — newly added to the VM, sharing the byte codecs
+/// with the WASM runtime (`tcl_cmd_core::binary`). Values cross the VM's value
+/// boundary via the byte-array convention. Pinned against tclsh 9.0.
+#[test]
+fn binary_encode_decode_shared() {
+    assert_eq!(run("binary encode hex abc").1, "616263");
+    assert_eq!(run("binary decode hex 616263").1, "abc");
+    assert_eq!(run("binary encode base64 hello").1, "aGVsbG8=");
+    assert_eq!(run("binary decode base64 aGVsbG8=").1, "hello");
+    // base64 line wrapping at -maxlen.
+    assert_eq!(run("binary encode base64 -maxlen 4 Manny").1, "TWFu\nbnk=");
+    // uuencode round-trips through a command substitution.
+    assert_eq!(
+        run("binary decode uuencode [binary encode uuencode Cat]").1,
+        "Cat"
+    );
+    // bad codec and the bad-subcommand dispatch message.
+    let (ok, msg, _) = run("binary encode zip x");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "unknown subcommand \"zip\": must be base64, hex, or uuencode"
+    );
+    let (ok, msg, _) = run("binary frobnicate x");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "unknown or ambiguous subcommand \"frobnicate\": must be decode, encode, format, or scan"
+    );
+    // decode error message + errorCode.
+    let (ok, msg, _) = run("binary decode hex 6z");
+    assert!(!ok);
+    assert_eq!(
+        msg,
+        "invalid hexadecimal digit \"z\" (U+00007A) at position 1"
+    );
+    assert_eq!(
+        run("catch {binary decode hex 6z}; set ::errorCode").1,
+        "TCL BINARY DECODE INVALID"
+    );
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");

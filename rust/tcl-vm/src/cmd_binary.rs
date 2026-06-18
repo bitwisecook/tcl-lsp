@@ -75,8 +75,137 @@ fn cmd_binary(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match &*sub.to_str() {
         "format" => binary_format(rest),
         "scan" => binary_scan(vm, rest),
-        other => err(format!("bad option \"{other}\": must be format or scan")),
+        "encode" => binary_encode(rest),
+        "decode" => binary_decode(rest),
+        other => err(format!(
+            "unknown or ambiguous subcommand \"{other}\": must be decode, encode, format, or scan"
+        )),
     }
+}
+
+/// `binary encode hex|base64|uuencode ?options? data`. The byte codecs live in
+/// the shared `tcl_cmd_core::binary`; bytes cross the VM's value boundary via the
+/// byte-array convention (`value_to_bytes`/`bytes_to_value`).
+fn binary_encode(rest: &[Value]) -> Completion<Value> {
+    let Some((fmt, args)) = rest.split_first() else {
+        return err("wrong # args: should be \"binary encode format ?options? data\"");
+    };
+    match &*fmt.to_str() {
+        "hex" => {
+            let [data] = args else {
+                return err("wrong # args: should be \"binary encode hex data\"");
+            };
+            let out = tcl_cmd_core::binary::hex_encode(&value_to_bytes(data));
+            ok(bytes_to_value(&out))
+        }
+        "base64" => binary_encode_wrapped(args, false),
+        "uuencode" => binary_encode_wrapped(args, true),
+        other => err(format!(
+            "unknown subcommand \"{other}\": must be base64, hex, or uuencode"
+        )),
+    }
+}
+
+/// `binary encode base64|uuencode ?-maxlen n? ?-wrapchar c? data`.
+fn binary_encode_wrapped(args: &[Value], uu: bool) -> Completion<Value> {
+    let mut maxlen: usize = if uu { 61 } else { 0 };
+    let mut wrapchar: Vec<u8> = b"\n".to_vec();
+    let mut i = 0;
+    while i + 1 < args.len() {
+        match &*args[i].to_str() {
+            "-maxlen" => match args[i + 1].as_int() {
+                Ok(n) if n >= 0 => {
+                    maxlen = usize::try_from(n).unwrap_or(usize::MAX);
+                    i += 2;
+                }
+                _ => return err("line length out of range"),
+            },
+            "-wrapchar" => {
+                wrapchar = value_to_bytes(&args[i + 1]);
+                i += 2;
+            }
+            _ => return err("wrong # args: should be \"binary encode format ?options? data\""),
+        }
+    }
+    let [data] = &args[i..] else {
+        return err("wrong # args: should be \"binary encode format ?options? data\"");
+    };
+    let bytes = value_to_bytes(data);
+    let out = if uu {
+        tcl_cmd_core::binary::uu_encode(&bytes, maxlen, &wrapchar)
+    } else {
+        tcl_cmd_core::binary::base64_encode(&bytes, maxlen, &wrapchar)
+    };
+    ok(bytes_to_value(&out))
+}
+
+/// `binary decode hex|base64|uuencode ?-strict? data`.
+fn binary_decode(rest: &[Value]) -> Completion<Value> {
+    let Some((fmt, args)) = rest.split_first() else {
+        return err("wrong # args: should be \"binary decode format ?options? data\"");
+    };
+    match &*fmt.to_str() {
+        "hex" => {
+            let [data] = args else {
+                return err("wrong # args: should be \"binary decode hex data\"");
+            };
+            match tcl_cmd_core::binary::hex_decode(&value_to_bytes(data)) {
+                Ok(out) => ok(bytes_to_value(&out)),
+                Err(e) => decode_invalid("hexadecimal digit", e),
+            }
+        }
+        "base64" => match decode_args(args) {
+            Ok((strict, bytes)) => match tcl_cmd_core::binary::base64_decode(&bytes, strict) {
+                Ok(out) => ok(bytes_to_value(&out)),
+                Err(e) => decode_invalid("base64 character", e),
+            },
+            Err(c) => c,
+        },
+        "uuencode" => match decode_args(args) {
+            Ok((_strict, bytes)) => ok(bytes_to_value(&tcl_cmd_core::binary::uu_decode(&bytes))),
+            Err(c) => c,
+        },
+        other => err(format!(
+            "unknown subcommand \"{other}\": must be base64, hex, or uuencode"
+        )),
+    }
+}
+
+/// Parse a decode subcommand's `?-strict? data` → `(strict, bytes)`.
+fn decode_args(args: &[Value]) -> Result<(bool, Vec<u8>), Completion<Value>> {
+    let mut strict = false;
+    let mut i = 0;
+    while i + 1 < args.len() {
+        match &*args[i].to_str() {
+            "-strict" => {
+                strict = true;
+                i += 1;
+            }
+            _ => {
+                return Err(err(
+                    "wrong # args: should be \"binary decode format ?options? data\"",
+                ));
+            }
+        }
+    }
+    let [data] = &args[i..] else {
+        return Err(err(
+            "wrong # args: should be \"binary decode format ?options? data\"",
+        ));
+    };
+    Ok((strict, value_to_bytes(data)))
+}
+
+/// `invalid <what> "<byte>" (U+XXXXXX) at position N`, code `TCL BINARY DECODE
+/// INVALID` — the shared decode-failure form for hex and base64.
+fn decode_invalid(what: &str, e: tcl_cmd_core::binary::DecodeError) -> Completion<Value> {
+    let msg = format!(
+        "invalid {what} \"{}\" (U+{:06X}) at position {}",
+        e.byte as char,
+        u32::from(e.byte),
+        e.pos
+    );
+    crate::command::err_with_code(msg, "TCL BINARY DECODE INVALID")
 }
 
 /// Width in bytes for an integer specifier.

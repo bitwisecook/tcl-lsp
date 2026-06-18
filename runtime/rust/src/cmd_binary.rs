@@ -126,10 +126,9 @@ fn put(out: &mut Vec<u8>, cur: &mut usize, bytes: &[u8]) {
     }
 }
 
-const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
 /// `binary encode hex|base64|uuencode ?options? data` (`BinaryEncodeHex`/
-/// `BinaryEncode64`/`BinaryEncodeUu`).
+/// `BinaryEncode64`/`BinaryEncodeUu`). The byte codecs are shared with the VM in
+/// `tcl_cmd_core::binary`; this adapter handles option parsing + result/error.
 fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"binary encode format ?options? data");
@@ -140,26 +139,13 @@ fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 4 {
                 return wrong_args(interp, b"binary encode hex data");
             }
-            let data = obj_bytes(argv[3]);
-            let mut out = Vec::with_capacity(data.len() * 2);
-            for b in data {
-                out.push(hex_digit(b >> 4));
-                out.push(hex_digit(b & 0xf));
-            }
+            let out = tcl_cmd_core::binary::hex_encode(&obj_bytes(argv[3]));
             interp.set_result_bytes(&out);
             Code::Ok
         }
         b"base64" => binary_encode_wrapped(interp, argv, false),
         b"uuencode" => binary_encode_wrapped(interp, argv, true),
         _ => binary_encode_bad(interp, &fmt),
-    }
-}
-
-fn hex_digit(n: u8) -> u8 {
-    if n < 10 {
-        b'0' + n
-    } else {
-        b'a' + (n - 10)
     }
 }
 
@@ -196,88 +182,16 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
     }
     let data = obj_bytes(argv[i]);
     let out = if uu {
-        uu_encode(&data, maxlen, &wrapchar)
+        tcl_cmd_core::binary::uu_encode(&data, maxlen, &wrapchar)
     } else {
-        base64_encode(&data, maxlen, &wrapchar)
+        tcl_cmd_core::binary::base64_encode(&data, maxlen, &wrapchar)
     };
     interp.set_result_bytes(&out);
     Code::Ok
 }
 
-fn base64_encode(data: &[u8], maxlen: usize, wrap: &[u8]) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut line = 0usize;
-    let emit = |out: &mut Vec<u8>, c: u8, line: &mut usize| {
-        if maxlen > 0 && *line >= maxlen {
-            out.extend_from_slice(wrap);
-            *line = 0;
-        }
-        out.push(c);
-        *line += 1;
-    };
-    for chunk in data.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
-        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
-        let n = (b0 << 16) | (b1 << 8) | b2;
-        emit(&mut out, B64[(n >> 18) as usize & 63], &mut line);
-        emit(&mut out, B64[(n >> 12) as usize & 63], &mut line);
-        emit(
-            &mut out,
-            if chunk.len() > 1 {
-                B64[(n >> 6) as usize & 63]
-            } else {
-                b'='
-            },
-            &mut line,
-        );
-        emit(
-            &mut out,
-            if chunk.len() > 2 {
-                B64[n as usize & 63]
-            } else {
-                b'='
-            },
-            &mut line,
-        );
-    }
-    out
-}
-
-fn uu_encode(data: &[u8], maxlen: usize, wrap: &[u8]) -> Vec<u8> {
-    // uuencode: each line is a length byte (count + 0x20) then groups of 4 chars
-    // per 3 data bytes, value+0x20 ('`' for 0). `maxlen` caps data bytes/line.
-    let per_line = if maxlen >= 5 {
-        (maxlen - 1) / 4 * 3
-    } else {
-        45
-    };
-    let mut out = Vec::new();
-    let uc = |v: u8| -> u8 {
-        if v == 0 {
-            b'`'
-        } else {
-            0x20 + v
-        }
-    };
-    for line in data.chunks(per_line.max(1)) {
-        out.push(uc(line.len() as u8));
-        for chunk in line.chunks(3) {
-            let b0 = chunk[0] as u32;
-            let b1 = *chunk.get(1).unwrap_or(&0) as u32;
-            let b2 = *chunk.get(2).unwrap_or(&0) as u32;
-            let n = (b0 << 16) | (b1 << 8) | b2;
-            out.push(uc((n >> 18) as u8 & 63));
-            out.push(uc((n >> 12) as u8 & 63));
-            out.push(uc((n >> 6) as u8 & 63));
-            out.push(uc(n as u8 & 63));
-        }
-        out.extend_from_slice(wrap);
-    }
-    out
-}
-
-/// `binary decode hex|base64|uuencode ?options? string`.
+/// `binary decode hex|base64|uuencode ?options? string`. The byte codecs are
+/// shared in `tcl_cmd_core::binary`; this adapter handles options + errors.
 fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"binary decode format ?options? data");
@@ -288,31 +202,13 @@ fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 4 {
                 return wrong_args(interp, b"binary decode hex data");
             }
-            let s = obj_bytes(argv[3]);
-            let mut out = Vec::with_capacity(s.len() / 2);
-            let mut hi: Option<u8> = None;
-            for (i, &c) in s.iter().enumerate() {
-                let v = match hex_nib(c) {
-                    Some(v) => v,
-                    // Whitespace is ignorable; any other non-hex byte is an error
-                    // (C's `binary decode hex`: `if (strict || !isspace) badChar`).
-                    None if c.is_ascii_whitespace() => continue,
-                    None => {
-                        let mut m = b"invalid hexadecimal digit \"".to_vec();
-                        m.push(c);
-                        m.extend_from_slice(
-                            format!("\" (U+{:06X}) at position {i}", u32::from(c)).as_bytes(),
-                        );
-                        return interp.error_with_code(&m, b"TCL BINARY DECODE INVALID");
-                    }
-                };
-                match hi.take() {
-                    None => hi = Some(v),
-                    Some(h) => out.push((h << 4) | v),
+            match tcl_cmd_core::binary::hex_decode(&obj_bytes(argv[3])) {
+                Ok(out) => {
+                    interp.set_result_bytes(&out);
+                    Code::Ok
                 }
+                Err(e) => decode_invalid(interp, b"hexadecimal digit", e),
             }
-            interp.set_result_bytes(&out);
-            Code::Ok
         }
         b"base64" => binary_decode_b64(interp, argv),
         b"uuencode" => binary_decode_uu(interp, argv),
@@ -320,24 +216,17 @@ fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-fn hex_nib(c: u8) -> Option<u8> {
-    match c {
-        b'0'..=b'9' => Some(c - b'0'),
-        b'a'..=b'f' => Some(c - b'a' + 10),
-        b'A'..=b'F' => Some(c - b'A' + 10),
-        _ => None,
-    }
-}
-
-fn b64_val(c: u8) -> Option<u8> {
-    match c {
-        b'A'..=b'Z' => Some(c - b'A'),
-        b'a'..=b'z' => Some(c - b'a' + 26),
-        b'0'..=b'9' => Some(c - b'0' + 52),
-        b'+' => Some(62),
-        b'/' => Some(63),
-        _ => None,
-    }
+/// `invalid <what> "<byte>" (U+XXXXXX) at position N`, code `TCL BINARY DECODE
+/// INVALID` — the decode-failure message shared by `hex` and `base64`.
+fn decode_invalid(interp: &mut Interp, what: &[u8], e: tcl_cmd_core::binary::DecodeError) -> Code {
+    let mut m = b"invalid ".to_vec();
+    m.extend_from_slice(what);
+    m.extend_from_slice(b" \"");
+    m.push(e.byte);
+    m.extend_from_slice(
+        format!("\" (U+{:06X}) at position {}", u32::from(e.byte), e.pos).as_bytes(),
+    );
+    interp.error_with_code(&m, b"TCL BINARY DECODE INVALID")
 }
 
 fn binary_decode_b64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -355,57 +244,13 @@ fn binary_decode_b64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() - i != 1 {
         return wrong_args(interp, b"binary decode format ?options? data");
     }
-    let s = obj_bytes(argv[i]);
-    let mut out = Vec::new();
-    let mut quad = [0u8; 4];
-    let mut q = 0usize;
-    let mut pads = 0usize;
-    for (pos, &c) in s.iter().enumerate() {
-        if c == b'=' {
-            pads += 1;
-            quad[q] = 0;
-            q += 1;
-        } else if let Some(v) = b64_val(c) {
-            if pads > 0 && strict {
-                return b64_bad_char(interp, c, pos);
-            }
-            quad[q] = v;
-            q += 1;
-        } else if c.is_ascii_whitespace() {
-            if strict && c != b'\n' && c != b'\r' {
-                return b64_bad_char(interp, c, pos);
-            }
-            continue;
-        } else if strict {
-            return b64_bad_char(interp, c, pos);
-        } else {
-            continue;
+    match tcl_cmd_core::binary::base64_decode(&obj_bytes(argv[i]), strict) {
+        Ok(out) => {
+            interp.set_result_bytes(&out);
+            Code::Ok
         }
-        if q == 4 {
-            let n = ((quad[0] as u32) << 18)
-                | ((quad[1] as u32) << 12)
-                | ((quad[2] as u32) << 6)
-                | quad[3] as u32;
-            out.push((n >> 16) as u8);
-            if pads < 2 {
-                out.push((n >> 8) as u8);
-            }
-            if pads < 1 {
-                out.push(n as u8);
-            }
-            q = 0;
-            pads = 0;
-        }
+        Err(e) => decode_invalid(interp, b"base64 character", e),
     }
-    interp.set_result_bytes(&out);
-    Code::Ok
-}
-
-fn b64_bad_char(interp: &mut Interp, c: u8, pos: usize) -> Code {
-    let mut m = b"invalid base64 character \"".to_vec();
-    m.push(c);
-    m.extend_from_slice(format!("\" (U+{:06X}) at position {}", c as u32, pos).as_bytes());
-    interp.set_error(&m)
 }
 
 fn binary_decode_uu(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -419,37 +264,7 @@ fn binary_decode_uu(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() - i != 1 {
         return wrong_args(interp, b"binary decode format ?options? data");
     }
-    let s = obj_bytes(argv[i]);
-    let dc = |c: u8| -> u8 { (c.wrapping_sub(0x20)) & 63 };
-    let mut out = Vec::new();
-    for line in s.split(|&c| c == b'\n') {
-        let line: &[u8] = match line.strip_suffix(b"\r") {
-            Some(l) => l,
-            None => line,
-        };
-        if line.is_empty() {
-            continue;
-        }
-        let count = dc(line[0]) as usize;
-        let body = &line[1..];
-        let mut produced = 0usize;
-        for chunk in body.chunks(4) {
-            if produced >= count {
-                break;
-            }
-            let vals: Vec<u8> = chunk.iter().map(|&c| dc(c)).collect();
-            let n = ((vals[0] as u32) << 18)
-                | ((*vals.get(1).unwrap_or(&0) as u32) << 12)
-                | ((*vals.get(2).unwrap_or(&0) as u32) << 6)
-                | *vals.get(3).unwrap_or(&0) as u32;
-            for shift in [16, 8, 0] {
-                if produced < count {
-                    out.push((n >> shift) as u8);
-                    produced += 1;
-                }
-            }
-        }
-    }
+    let out = tcl_cmd_core::binary::uu_decode(&obj_bytes(argv[i]));
     interp.set_result_bytes(&out);
     Code::Ok
 }
