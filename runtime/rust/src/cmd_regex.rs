@@ -19,6 +19,7 @@
 
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_string_bytes, new_wide_int_obj, TclObj};
+#[cfg(have_regex)]
 use crate::regex::{Regex, REG_EXPANDED, REG_ICASE, REG_NLANCH, REG_NLSTOP};
 use tcl_cmd_core::regex::{
     self as core_re, RegMatch, RegexEngine, RegexFlags, RegexpResult, RegsubResult,
@@ -36,6 +37,7 @@ pub fn install(interp: &mut Interp) {
 /// match vector to the core's [`RegMatch`]. Reused by `lsearch -regexp`.
 pub(crate) struct AreEngine;
 
+#[cfg(have_regex)]
 impl RegexEngine for AreEngine {
     type Regex = Regex;
 
@@ -63,6 +65,27 @@ impl RegexEngine for AreEngine {
     fn exec(re: &mut Regex, cps: &[i32], offset: usize, notbol: bool) -> Option<Vec<RegMatch>> {
         re.exec(cps, offset, notbol)
             .map(|v| v.iter().map(|m| RegMatch { so: m.so, eo: m.eo }).collect())
+    }
+}
+
+/// Stub engine for a build without the ARE FFI (wasm32). Compiling any pattern
+/// reports that regular expressions are unavailable, so `regexp`/`regsub`/
+/// `lsearch -regexp`/`switch -regexp` exist but fail cleanly rather than the
+/// whole runtime failing to build.
+#[cfg(not(have_regex))]
+impl RegexEngine for AreEngine {
+    type Regex = ();
+
+    fn compile(_pattern: &[u8], _flags: RegexFlags) -> Result<(), Vec<u8>> {
+        Err(b"regular expressions are not available in this build".to_vec())
+    }
+
+    fn nsub(_re: &()) -> usize {
+        0
+    }
+
+    fn exec(_re: &mut (), _cps: &[i32], _offset: usize, _notbol: bool) -> Option<Vec<RegMatch>> {
+        None
     }
 }
 

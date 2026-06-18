@@ -739,15 +739,13 @@ impl Interp {
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
         // The default capability host. Native builds get the full-capability
-        // std-backed `NativeHost`; the wasm32 hosts (`WasiHost`/`BrowserHost`)
-        // are wired in a later Phase-D increment.
+        // std-backed `NativeHost`; the `wasm32-unknown-unknown` build gets the
+        // placeholder `BrowserHost` (mandatory caps stubbed, no fs/sockets/process)
+        // so the runtime links — a real browser host plugs into the same trait.
         #[cfg(not(target_arch = "wasm32"))]
         let host: Rc<dyn tcl_platform::Host> = Rc::new(tcl_host_native::NativeHost::new());
         #[cfg(target_arch = "wasm32")]
-        compile_error!(
-            "wasm32 Host (WasiHost/BrowserHost) not yet wired — Phase D follow-up; \
-             native builds use tcl-host-native::NativeHost"
-        );
+        let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::BrowserHost::new());
         let mut interp = Interp(Rc::new(InterpState {
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),

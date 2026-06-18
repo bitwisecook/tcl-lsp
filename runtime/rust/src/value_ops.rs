@@ -95,6 +95,11 @@ impl ValueOps for Interp {
     /// goes over the numeric tower, so it **widens to a bignum on overflow**
     /// instead of erroring — Tcl integers never wrap — and demotes back to a wide
     /// when it fits. A `None` left operand is an unset variable, treated as 0.
+    ///
+    /// Only when the libtommath FFI is linked (`have_tommath`). A build without it
+    /// (the wasm32 target) keeps the trait's fixed-`i64` default — overflow then
+    /// errors, exactly like the bytecode VM, since there is no bignum tower.
+    #[cfg(have_tommath)]
     fn int_add(
         &mut self,
         a: Option<&*mut TclObj>,
