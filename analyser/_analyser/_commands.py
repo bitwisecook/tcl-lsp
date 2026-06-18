@@ -164,6 +164,7 @@ class _AnalyserCommandsMixin(_Base):
                 name=cmd_name,
                 range=range_from_token(argv[0]),
                 resolved_qualified_name=resolved_proc.qualified_name if resolved_proc else None,
+                enclosing_namespace=self._namespace_from_scope(scope),
             )
         )
 
@@ -265,6 +266,7 @@ class _AnalyserCommandsMixin(_Base):
                     resolved_qualified_name=(
                         call_target_proc.qualified_name if call_target_proc else None
                     ),
+                    enclosing_namespace=self._namespace_from_scope(scope),
                 )
             )
 
