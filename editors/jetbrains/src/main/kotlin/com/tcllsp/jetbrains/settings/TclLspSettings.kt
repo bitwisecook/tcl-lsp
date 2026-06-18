@@ -35,7 +35,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureRename: Boolean = true
     var featureSignatureHelp: Boolean = true
     var featureWorkspaceSymbols: Boolean = true
-    var featureInlayHints: Boolean = false
+    var featureInlayTypeHints: Boolean = false
+    var featureInlayParameterHints: Boolean = false
     var featureCallHierarchy: Boolean = true
     var featureDocumentLinks: Boolean = true
     var featureSelectionRange: Boolean = true
@@ -287,7 +288,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "rename" to featureRename,
                 "signatureHelp" to featureSignatureHelp,
                 "workspaceSymbols" to featureWorkspaceSymbols,
-                "inlayHints" to featureInlayHints,
+                "inlayTypeHints" to featureInlayTypeHints,
+                "inlayParameterHints" to featureInlayParameterHints,
                 "callHierarchy" to featureCallHierarchy,
                 "documentLinks" to featureDocumentLinks,
                 "selectionRange" to featureSelectionRange,

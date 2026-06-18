@@ -181,6 +181,21 @@ class TestApplyToTarget:
         assert _lsp_state.feature_config.line_length == 90
         assert _lsp_state.feature_config.shimmer_enabled is False
 
+    def test_legacy_inlay_hints_key_maps_to_type_hints_only(self, reset_per_folder_state):
+        # The retired ``inlayHints`` key keeps an existing opt-in working by
+        # enabling the variable-type hints; the verbose parameter-name hints
+        # stay off (PR #643 review).
+        _lsp_settings._apply_settings_to_target("", {"features": {"inlayHints": True}})
+        assert _lsp_state.feature_config.inlay_type_hints_enabled is True
+        assert _lsp_state.feature_config.inlay_parameter_hints_enabled is False
+
+    def test_explicit_new_inlay_key_wins_over_legacy_alias(self, reset_per_folder_state):
+        # When a config carries both, the explicit new key takes precedence.
+        _lsp_settings._apply_settings_to_target(
+            "", {"features": {"inlayHints": True, "inlayTypeHints": False}}
+        )
+        assert _lsp_state.feature_config.inlay_type_hints_enabled is False
+
     def test_folder_target_creates_isolated_config(self, reset_per_folder_state):
         folder_uri = "file:///home/user/proj-a"
         _lsp_settings._apply_settings_to_target(folder_uri, {"style": {"lineLength": 200}})

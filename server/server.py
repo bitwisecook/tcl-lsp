@@ -1061,7 +1061,8 @@ def on_workspace_symbol(
 def on_inlay_hint(
     params: types.InlayHintParams,
 ) -> list[types.InlayHint]:
-    if not _state.config_for_uri(params.text_document.uri).inlay_hints_enabled:
+    cfg = _state.config_for_uri(params.text_document.uri)
+    if not (cfg.inlay_type_hints_enabled or cfg.inlay_parameter_hints_enabled):
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
@@ -1074,6 +1075,8 @@ def on_inlay_hint(
         params.range,
         analysis=snap.analysis if snap else None,
         lines=snap.buffer.lines if snap and snap.buffer else None,
+        type_hints=cfg.inlay_type_hints_enabled,
+        parameter_hints=cfg.inlay_parameter_hints_enabled,
     )
 
 

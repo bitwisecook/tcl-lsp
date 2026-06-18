@@ -32,8 +32,8 @@
       "comment": "Command definitions that introduce a named entity",
       "patterns": [
         {
-          "comment": "proc/method name — capture the command name as entity.name.function",
-          "match": "(?<=^|\\s|;|\\[)(proc|method)\\s+(\\S+)",
+          "comment": "proc/method name — capture the command name as entity.name.function. The name class deliberately excludes string/brace/bracket delimiters so a bareword 'proc'/'method' used as an argument (e.g. `dict set frame proc \"x\"`) cannot swallow an opening quote and derail string/brace scoping (issue #637).",
+          "match": "(?<=^|\\s|;|\\[)(proc|method)\\s+([^\\s\"{}\\[\\];$]+)",
           "captures": {
             "1": { "name": "keyword.other.tcl" },
             "2": { "name": "entity.name.function.tcl" }

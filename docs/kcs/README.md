@@ -40,6 +40,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-issue-highlight-drops-closing-delimiter.md](kcs-issue-highlight-drops-closing-delimiter.md)
   — a highlight over a braced word covers `{$condition` instead of
   `{$condition}`, dropping the closing delimiter.
+- [kcs-issue-shadowed-builtin-breaks-highlighting.md](kcs-issue-shadowed-builtin-breaks-highlighting.md)
+  — `else`/`elseif` render as strings, and a bareword built-in
+  (`dict set frame proc "…"`) breaks the closing-brace colour.
 - [kcs-issue-duplicate-diagnostics.md](kcs-issue-duplicate-diagnostics.md)
   — the same finding is reported twice.
 - [kcs-issue-wasm-arithmetic-divergence.md](kcs-issue-wasm-arithmetic-divergence.md)

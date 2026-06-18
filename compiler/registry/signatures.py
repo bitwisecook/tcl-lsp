@@ -32,6 +32,7 @@ class ArgRole(Enum):
     OPTION_TERMINATOR = auto()  # The "--" option terminator
     CHANNEL = auto()  # Channel identifier (stdout, stdin, channelId)
     INDEX = auto()  # List/string index expression
+    KEYWORD = auto()  # A structural keyword word (if's else/elseif/then, try's on/trap/finally)
 
 
 # Deprecated module-level alias for the combined VAR_READ + VAR_WRITE role.

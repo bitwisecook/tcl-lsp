@@ -34,9 +34,12 @@ contexts:
       captures:
         1: comment.line.number-sign.tcl
 
-  # Proc definition — capture the procedure name for Goto Symbol
+  # Proc definition — capture the procedure name for Goto Symbol.
+  # The name class excludes string/brace/bracket delimiters so a bareword
+  # ``proc`` used as an argument (e.g. ``dict set frame proc "x"``) cannot
+  # swallow an opening quote and derail string/brace scoping (issue #637).
   proc-definition:
-    - match: '(?<=^|\s|;|\[)(proc)\s+(\S+)'
+    - match: '(?<=^|\s|;|\[)(proc)\s+([^\s"{}\[\];$]+)'
       captures:
         1: keyword.other.tcl
         2: entity.name.function.tcl

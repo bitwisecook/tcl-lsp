@@ -16,16 +16,18 @@ _SOURCE = "Tcl if(1)"
 
 _EXPR = frozenset({ArgRole.EXPR})
 _BODY = frozenset({ArgRole.BODY})
+_KEYWORD = frozenset({ArgRole.KEYWORD})
 
 
 def _if_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
-    """Resolve BODY and EXPR roles for if/elseif/else chains."""
+    """Resolve BODY, EXPR, and structural-KEYWORD roles for if/elseif/else chains."""
     roles: dict[int, frozenset[ArgRole]] = {}
     i = 0
     if i < len(args):
         roles[i] = _EXPR
         i += 1
     if i < len(args) and args[i] == "then":
+        roles[i] = _KEYWORD
         i += 1
     if i < len(args):
         roles[i] = _BODY
@@ -33,17 +35,20 @@ def _if_arg_roles(args: list[str]) -> dict[int, frozenset[ArgRole]]:
     while i < len(args):
         kw = args[i]
         if kw == "elseif":
+            roles[i] = _KEYWORD
             i += 1
             if i < len(args):
                 roles[i] = _EXPR
                 i += 1
             if i < len(args) and args[i] == "then":
+                roles[i] = _KEYWORD
                 i += 1
             if i < len(args):
                 roles[i] = _BODY
                 i += 1
             continue
         if kw == "else":
+            roles[i] = _KEYWORD
             if i + 1 < len(args):
                 roles[i + 1] = _BODY
             break

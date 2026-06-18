@@ -160,7 +160,8 @@ Toggle individual LSP features.  All default to `true`.
 | `rename` | Rename symbol |
 | `signatureHelp` | Function signature help |
 | `workspaceSymbols` | Workspace symbol search |
-| `inlayHints` | Inlay hints |
+| `inlayTypeHints` | Inferred-type inlay hints (variables, format specifiers) |
+| `inlayParameterHints` | Parameter-name inlay hints at proc/method call sites |
 | `callHierarchy` | Call hierarchy |
 | `documentLinks` | Document links |
 | `selectionRange` | Smart selection |
@@ -195,7 +196,8 @@ disabled = O109
 enabled = true
 
 [features]
-inlayHints = false
+inlayTypeHints = false
+inlayParameterHints = false
 
 [formatting]
 indent_size = 2
