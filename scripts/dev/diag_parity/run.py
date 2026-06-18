@@ -56,6 +56,17 @@ KINDS = (
     "WRONG_ORDER",
 )
 
+# Kinds that are NOT parity defects. Diagnostic *order* is an intentional,
+# documented divergence: Rust applies one global source-position sort
+# (deterministic, required for the `incremental == fresh` guarantee and a
+# saner LSP/CLI contract) where Python emits in pass order. No consumer
+# depends on Python's pass order — editors re-sort, find-legacy's six codes
+# are all command-walk codes that already order identically, and minimize is
+# membership-only. So WRONG_ORDER is reported separately as informational and
+# excluded from the defect totals. See docs/rust-cli-port.md.
+INFORMATIONAL_KINDS = frozenset({"WRONG_ORDER"})
+DEFECT_KINDS = tuple(k for k in KINDS if k not in INFORMATIONAL_KINDS)
+
 
 def _parse_report(stdout: str) -> list[Diag] | None:
     try:
@@ -256,15 +267,27 @@ def main() -> int:
         for (code, kind), count in sorted(
             table.items(), key=lambda kv: (-kv[1], kv[0][0], kv[0][1])
         ):
+            if kind in INFORMATIONAL_KINDS:
+                continue
             print(f"  {code:<{width}}  {kind:<14} {count:>5}")
     print()
-    print("totals by kind")
+    print("totals by kind  (defects)")
     print("-" * 32)
     by_kind: collections.Counter[str] = collections.Counter()
     for (_, kind), count in table.items():
         by_kind[kind] += count
-    for kind in KINDS:
+    for kind in DEFECT_KINDS:
         print(f"  {kind:<14} {by_kind.get(kind, 0):>5}")
+
+    informational = sum(by_kind.get(k, 0) for k in INFORMATIONAL_KINDS)
+    if informational:
+        print()
+        print("informational  (intentional divergence, not a defect)")
+        print("-" * 32)
+        for kind in INFORMATIONAL_KINDS:
+            print(f"  {kind:<14} {by_kind.get(kind, 0):>5}")
+        print("  (Rust global source-position sort vs Python pass order;")
+        print("   see docs/rust-cli-port.md)")
 
     if show and detail_log:
         print()
