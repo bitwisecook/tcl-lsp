@@ -58,6 +58,14 @@ Shared in `tcl-cmd-core`:
   `command_name`/`find_command`).
 - `path::{tail, dirname, extension, rootname}` — a `/`-based **byte** path core
   (platform-independent), replacing the VM's old `std::path::Path` versions.
+- `binary::{hex,base64,uu}_{encode,decode}` + `format`/`scan` — value-model-free
+  `&[u8]` codecs and the pack/unpack grammars. Each adapter bridges its value to
+  bytes (the runtime's raw `obj_bytes`, the VM's byte-array `U+00xx` convention),
+  so the codec between is identical. This is the **byte-oriented** family the plan
+  scoped to Track B; sharing it lifted the VM from `binary`'s integer-only subset
+  to the full code set (floats, 64-bit/big-endian ints, `encode`/`decode`) and
+  gave it `binary`'s `errorCode`s. `scan`'s variable assignment stays in the
+  adapter (the unpack core returns the values; the adapter sets the vars).
 
 - `var::append_bytes` / `var::lappend_value` — the COW-aware *value computation*
   for `append`/`lappend`, over two new `ValueOps` rungs: a **byte-exact** seam
@@ -92,6 +100,7 @@ core unified both to the correct behaviour):
 | `append` (no-value unset) | the VM created an empty variable; now errors `can't read "x": no such variable` (tclsh) |
 | `append`/`lappend` (in-place trace) | the runtime's in-place path skipped the store and so fired **no** write trace; now always stores → the trace fires once |
 | `lappend` (no-value validate) | the runtime returned a malformed value unchanged; now validates it as a list and errors (`unmatched open brace in list`, tclsh) |
+| `binary` (subcommands) | the VM lacked `encode`/`decode` and most `format`/`scan` codes (no floats/64-bit), and its bad-subcommand error said "must be format or scan"; routing gave it the full set + the tclsh message. The runtime's `base64` decode also gained its missing `TCL BINARY DECODE INVALID` errorCode. |
 
 That is the payoff of the seam: one body (or one seam), enforced-identical
 semantics, latent divergences caught.

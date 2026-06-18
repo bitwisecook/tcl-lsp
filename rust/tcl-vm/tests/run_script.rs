@@ -313,6 +313,36 @@ fn binary_encode_decode_shared() {
     );
 }
 
+/// `binary format`/`scan` routed through the shared grammar
+/// (`tcl_cmd_core::binary::{format, scan}`), lifting the VM from its old
+/// integer-only subset to the runtime's full code set — floats, 64-bit and
+/// big-endian ints, `*` counts, and the round-trip. Pinned against tclsh 9.0.
+#[test]
+fn binary_format_scan_shared() {
+    // codes the VM lacked before sharing: f/d floats, W (64-bit big-endian).
+    assert_eq!(
+        run("binary scan [binary format f 1.5] H* h; set h").1,
+        "0000c03f"
+    );
+    assert_eq!(
+        run("binary scan [binary format d 2.5] H* h; set h").1,
+        "0000000000000440"
+    );
+    assert_eq!(
+        run("binary scan [binary format W 1] H* h; set h").1,
+        "0000000000000001"
+    );
+    // `*` count over a list.
+    assert_eq!(
+        run("binary scan [binary format s* {1 2 3}] H* h; set h").1,
+        "010002000300"
+    );
+    // float round-trips through scan.
+    assert_eq!(run("binary scan [binary format f 1.5] f v; set v").1, "1.5");
+    // scan returns the conversion count.
+    assert_eq!(run("binary scan abcd a2a2 x y").1, "2");
+}
+
 #[test]
 fn string_and_numeric_compare() {
     let (ok, result, _out) = run("expr {9 < 10}");
