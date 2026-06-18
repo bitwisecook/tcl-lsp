@@ -1463,6 +1463,57 @@ impl Interp {
         )
     }
 
+    // -- frame-addressed access (the `VarStore` `FrameId`-honouring path) -----
+    //
+    // Resolve `name` as if `level` were the active frame. Used only for a
+    // non-active `FrameId`; the active frame keeps the by-name accessors above.
+
+    /// Frame-addressed [`var_get`](Self::var_get).
+    pub(crate) fn var_get_at(&self, name: &[u8], level: usize) -> Option<*mut TclObj> {
+        crate::vars::get_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            level,
+        )
+    }
+
+    /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
+    pub(crate) fn var_set_at(
+        &mut self,
+        name: &[u8],
+        obj: *mut TclObj,
+        level: usize,
+    ) -> Result<(), VarError> {
+        crate::vars::set_at(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            name,
+            obj,
+            level,
+        )
+    }
+
+    /// Frame-addressed [`var_unset`](Self::var_unset).
+    pub(crate) fn var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
+        crate::vars::unset_at(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            name,
+            level,
+        )
+    }
+
+    /// Frame-addressed [`var_exists`](Self::var_exists).
+    pub(crate) fn var_exists_at(&self, name: &[u8], level: usize) -> bool {
+        crate::vars::exists_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            level,
+        )
+    }
+
     /// `set name(key)` — borrowed.
     pub(crate) fn var_get_elem(&self, name: &[u8], key: &[u8]) -> Option<*mut TclObj> {
         crate::vars::get_elem(

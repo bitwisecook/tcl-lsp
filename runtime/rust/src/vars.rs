@@ -102,12 +102,8 @@ fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8])
     })
 }
 
-/// Classify then follow `global`/`variable`/`upvar` links to the concrete cell.
-fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) -> Resolved {
-    let mut place = match classify(frames, ns, current_ns, name) {
-        Resolved::Place(p) => p,
-        other => return other,
-    };
+/// Follow `global`/`variable`/`upvar` links from `place` to the concrete cell.
+fn follow_links(frames: &FrameStack, ns: &Namespaces, mut place: Place) -> Place {
     for _ in 0..LINK_LIMIT {
         let link = match table(frames, ns, place.home).and_then(|t| t.cell(&place.name)) {
             Some(Var::Link(l)) => l.clone(),
@@ -125,7 +121,55 @@ fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) 
             elem,
         };
     }
-    Resolved::Place(place)
+    place
+}
+
+/// Classify then follow `global`/`variable`/`upvar` links to the concrete cell.
+fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) -> Resolved {
+    match classify(frames, ns, current_ns, name) {
+        Resolved::Place(p) => Resolved::Place(follow_links(frames, ns, p)),
+        other => other,
+    }
+}
+
+/// The var home an unqualified name lives in when resolving against frame
+/// `level` — the frame-addressed analogue of [`current_home`]: a proc frame's
+/// own table, else that frame's namespace table (the global level → the global
+/// namespace).
+fn home_at(frames: &FrameStack, level: usize) -> VarHome {
+    if frames.is_proc_at(level) {
+        VarHome::Frame(level)
+    } else {
+        VarHome::Namespace(frames.frame_ns(level))
+    }
+}
+
+/// Frame-addressed [`classify`]: an unqualified name is a local of frame `level`
+/// (or, for a non-proc frame, its namespace); a qualified name resolves in that
+/// frame's namespace context.
+fn classify_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -> Resolved {
+    let (home, key) = if is_qualified(name) {
+        match ns.var_home(frames.frame_ns(level), name) {
+            Some((id, simple)) => (VarHome::Namespace(id), simple),
+            None => return Resolved::NoNamespace,
+        }
+    } else {
+        (home_at(frames, level), name.to_vec())
+    };
+    Resolved::Place(Place {
+        home,
+        name: key,
+        elem: None,
+    })
+}
+
+/// Frame-addressed [`resolve`]: classify `name` as if `level` were the active
+/// frame (`FrameId`-addressed access), then follow links.
+fn resolve_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -> Resolved {
+    match classify_at(frames, ns, name, level) {
+        Resolved::Place(p) => Resolved::Place(follow_links(frames, ns, p)),
+        other => other,
+    }
 }
 
 /// The namespace a (possibly linked) variable ultimately lives in — `Some(ns)`
@@ -263,6 +307,82 @@ pub(crate) fn get(
             }
         }
         Resolved::NoNamespace => None,
+    }
+}
+
+// -- frame-addressed access (the `VarStore` `FrameId`-honouring path) ---------
+//
+// These resolve `name` as if `level` were the active frame, following links —
+// the `set`/`get`/`unset`/`exists` above are exactly these at the active level.
+// The runtime's `VarStore` uses them only for a non-active `FrameId`; the active
+// frame keeps the by-name accessors verbatim.
+
+/// Frame-addressed [`get`] — read `name` resolved against frame `level`.
+pub(crate) fn get_at(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    level: usize,
+) -> Option<*mut TclObj> {
+    match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) => {
+            let t = table(frames, ns, p.home)?;
+            match &p.elem {
+                Some(elem) => t.load_elem(&p.name, elem),
+                None => t.load_scalar(&p.name),
+            }
+        }
+        Resolved::NoNamespace => None,
+    }
+}
+
+/// Frame-addressed [`set`] — the cell takes a **+1** on `obj`.
+pub(crate) fn set_at(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    obj: *mut TclObj,
+    level: usize,
+) -> Result<(), VarError> {
+    let place = match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) => p,
+        Resolved::NoNamespace => return Err(VarError::NoSuchNamespace),
+    };
+    let t = table_mut(frames, ns, place.home);
+    match place.elem {
+        Some(elem) => t.store_elem(&place.name, &elem, obj),
+        None => t.store_scalar(&place.name, obj),
+    }
+}
+
+/// Frame-addressed [`unset`] — returns whether the variable existed.
+pub(crate) fn unset_at(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    level: usize,
+) -> bool {
+    let place = match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) => p,
+        Resolved::NoNamespace => return false,
+    };
+    let t = table_mut(frames, ns, place.home);
+    match place.elem {
+        Some(elem) => t.remove_elem(&place.name, &elem),
+        None => t.remove(&place.name),
+    }
+}
+
+/// Frame-addressed [`exists`].
+pub(crate) fn exists_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -> bool {
+    match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home).is_some_and(|t| t.is_set(&p.name))
+        }
+        Resolved::Place(p) => table(frames, ns, p.home)
+            .and_then(|t| p.elem.as_ref().map(|e| t.load_elem(&p.name, e).is_some()))
+            .unwrap_or(false),
+        Resolved::NoNamespace => false,
     }
 }
 

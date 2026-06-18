@@ -442,6 +442,14 @@ impl FrameStack {
             .is_some_and(|i| self.frames[i].is_proc)
     }
 
+    /// Whether the frame at logical `level` is a proc call frame (vs the global
+    /// or a `namespace eval` frame) — the frame-addressed analogue of
+    /// [`in_proc`](Self::in_proc), for `FrameId`-addressed variable access.
+    pub(crate) fn is_proc_at(&self, level: usize) -> bool {
+        self.index_of_level(level)
+            .is_some_and(|i| self.frames[i].is_proc)
+    }
+
     /// Whether `name` is bound to a link (`global`/`upvar`/`variable`) in the
     /// active frame — used to decide if a variable trace on an unqualified name
     /// is frame-local (it is not when the name links to an outer variable, which

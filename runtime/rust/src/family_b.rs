@@ -14,36 +14,51 @@ use crate::interp::{new_string, Interp};
 use crate::list::new_list_obj;
 use crate::obj::TclObj;
 
-/// The Family-B variable store over the active call frame.
-///
-/// `FrameId` is **not yet honoured here** — this runtime still resolves against
-/// the *current* frame. (The bytecode VM now honours it via its `locate_from`
-/// start-level; doing the same here needs `vars.rs`'s `resolve`, which hardcodes
-/// `current_level`, to take an explicit start level — the next increment.) The
-/// refcount contract mirrors the runtime's internal accessors:
+/// The Family-B variable store, honouring `FrameId` (the absolute frame level,
+/// `GLOBAL_FRAME` = 0). Like the bytecode VM's impl, a `FrameId` naming the
+/// *active* frame delegates to the by-name accessors verbatim (their namespace
+/// resolution + trace firing), and any other frame uses the frame-addressed
+/// resolver (`vars::*_at`, resolving as if that frame were active, following
+/// links). The refcount contract mirrors the runtime's internal accessors:
 /// [`get`](VarStore::get) returns a **borrowed** pointer (the variable table
 /// keeps its reference — the caller must not release it), and
 /// [`set`](VarStore::set) has the table take its own `+1` on the value.
 impl VarStore for Interp {
     type Value = *mut TclObj;
 
-    fn get(&self, _frame: FrameId, name: &str) -> Option<*mut TclObj> {
-        self.var_get(name.as_bytes())
+    fn get(&self, frame: FrameId, name: &str) -> Option<*mut TclObj> {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.var_get(name.as_bytes())
+        } else {
+            self.var_get_at(name.as_bytes(), frame.0)
+        }
     }
 
-    fn set(&mut self, _frame: FrameId, name: &str, value: *mut TclObj) {
+    fn set(&mut self, frame: FrameId, name: &str, value: *mut TclObj) {
         // The variable table takes a +1; a write-trace error is irrelevant to
         // the storage contract, so the `Result` is intentionally discarded
         // (the VM's impl likewise drops it).
-        let _ = self.var_set(name.as_bytes(), value);
+        if frame.0 == self.frames.borrow().current_level() {
+            let _ = self.var_set(name.as_bytes(), value);
+        } else {
+            let _ = self.var_set_at(name.as_bytes(), value, frame.0);
+        }
     }
 
-    fn unset(&mut self, _frame: FrameId, name: &str) -> bool {
-        self.var_unset(name.as_bytes())
+    fn unset(&mut self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.var_unset(name.as_bytes())
+        } else {
+            self.var_unset_at(name.as_bytes(), frame.0)
+        }
     }
 
-    fn exists(&self, _frame: FrameId, name: &str) -> bool {
-        self.var_exists(name.as_bytes())
+    fn exists(&self, frame: FrameId, name: &str) -> bool {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.var_exists(name.as_bytes())
+        } else {
+            self.var_exists_at(name.as_bytes(), frame.0)
+        }
     }
 }
 
@@ -133,6 +148,33 @@ mod tests {
             assert_eq!(i.result_bytes(), b"p x");
             i.frames.borrow_mut().pop();
             assert_eq!(Introspect::level(i), 0);
+        });
+    }
+
+    #[test]
+    fn varstore_honours_frame_id() {
+        leak_free(|i| {
+            // A global, written while the global frame is active.
+            i.set(GLOBAL_FRAME, "g", new_string(b"global"));
+            // Enter a proc-call frame (its own local table).
+            let lvl = i.frames.borrow_mut().push(crate::namespace::GLOBAL);
+            let here = FrameId(lvl);
+            assert_ne!(here, GLOBAL_FRAME);
+            i.set(here, "loc", new_string(b"local"));
+            // FrameId is honoured: the global is reachable via GLOBAL_FRAME but
+            // is not a proc local; the local lives in the proc frame only.
+            assert_eq!(obj_bytes(i.get(GLOBAL_FRAME, "g").unwrap()), b"global");
+            assert!(i.get(here, "g").is_none());
+            assert!(i.exists(here, "loc"));
+            assert!(!i.exists(GLOBAL_FRAME, "loc"));
+            // Reach back into the global frame from the proc frame.
+            i.set(GLOBAL_FRAME, "g2", new_string(b"two"));
+            // Pop the proc frame (frees `loc`); the reached-back write is visible.
+            i.frames.borrow_mut().pop();
+            assert_eq!(obj_bytes(i.get(GLOBAL_FRAME, "g2").unwrap()), b"two");
+            assert!(i.unset(GLOBAL_FRAME, "g2"));
+            assert!(i.unset(GLOBAL_FRAME, "g"));
+            assert!(!i.exists(GLOBAL_FRAME, "g"));
         });
     }
 }
