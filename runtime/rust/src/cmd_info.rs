@@ -147,7 +147,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() != 3 {
                 return wrong_args(interp, b"info complete command");
             }
-            let ok = command_complete(&obj_bytes(argv[2]));
+            let ok = tcl_cmd_core::info::complete(&obj_bytes(argv[2]));
             interp.set_result_bytes(if ok { b"1" } else { b"0" });
             Code::Ok
         }
@@ -446,57 +446,6 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_CommandComplete` (approximation): a script is complete when no brace,
 /// bracket, or quote is left open and it doesn't end mid-escape. Inside braces
 /// only `{`/`}` nest; inside quotes `[...]` command substitution still nests.
-fn command_complete(s: &[u8]) -> bool {
-    let mut stack: Vec<u8> = Vec::new(); // expected closers: `}` or `]`
-    let mut in_quote = false;
-    let mut i = 0;
-    while i < s.len() {
-        let c = s[i];
-        if c == b'\\' {
-            // A backslash escapes the next byte; a trailing one leaves the
-            // command incomplete (line continuation awaiting more input).
-            if i + 1 >= s.len() {
-                return false;
-            }
-            i += 2;
-            continue;
-        }
-        let in_brace = stack.last() == Some(&b'}');
-        if in_brace {
-            match c {
-                b'{' => stack.push(b'}'),
-                b'}' => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        } else if in_quote {
-            match c {
-                b'"' => in_quote = false,
-                b'[' => stack.push(b']'),
-                b']' if stack.last() == Some(&b']') => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        } else {
-            match c {
-                b'{' => stack.push(b'}'),
-                b'[' => stack.push(b']'),
-                b']' => {
-                    if stack.last() == Some(&b']') {
-                        stack.pop();
-                    }
-                }
-                b'"' => in_quote = true,
-                _ => {}
-            }
-        }
-        i += 1;
-    }
-    stack.is_empty() && !in_quote
-}
-
 fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
     let mut m = b"bad level \"".to_vec();
     m.extend_from_slice(spec);

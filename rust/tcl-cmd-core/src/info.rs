@@ -12,6 +12,67 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// `info complete script` — whether `script` is a syntactically complete command
+/// (or sequence): no unclosed `{}`/`[]`/`"` and no trailing backslash
+/// continuation. Mirrors C's `Tcl_CommandComplete`.
+///
+/// Pure (no runtime state), unlike the rest of this module. Crucially, command
+/// substitution is **not** parsed inside `{braces}` (a `[` there is literal), so
+/// `{[}` is complete — where a naive bracket counter (the VM's old `is_complete`)
+/// diverged.
+#[must_use]
+pub fn complete(s: &[u8]) -> bool {
+    let mut stack: Vec<u8> = Vec::new(); // expected closers: `}` or `]`
+    let mut in_quote = false;
+    let mut i = 0;
+    while i < s.len() {
+        let c = s[i];
+        if c == b'\\' {
+            // A backslash escapes the next byte; a trailing one leaves the
+            // command incomplete (line continuation awaiting more input).
+            if i + 1 >= s.len() {
+                return false;
+            }
+            i += 2;
+            continue;
+        }
+        let in_brace = stack.last() == Some(&b'}');
+        if in_brace {
+            // Inside braces only brace nesting matters — `[`/`"` are literal.
+            match c {
+                b'{' => stack.push(b'}'),
+                b'}' => {
+                    stack.pop();
+                }
+                _ => {}
+            }
+        } else if in_quote {
+            match c {
+                b'"' => in_quote = false,
+                b'[' => stack.push(b']'),
+                b']' if stack.last() == Some(&b']') => {
+                    stack.pop();
+                }
+                _ => {}
+            }
+        } else {
+            match c {
+                b'{' => stack.push(b'}'),
+                b'[' => stack.push(b']'),
+                b']' => {
+                    if stack.last() == Some(&b']') {
+                        stack.pop();
+                    }
+                }
+                b'"' => in_quote = true,
+                _ => {}
+            }
+        }
+        i += 1;
+    }
+    stack.is_empty() && !in_quote
+}
+
 /// `info level ?number?` — with no argument, the current call-stack depth; with
 /// `number`, the command words (proc name + args) of that level. A positive
 /// `number` is an absolute level; zero or negative is relative to the current
@@ -57,4 +118,22 @@ where
     let name = ops.as_str(name);
     let present = ops.exists(here, &name);
     ops.new_bool(present)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::complete;
+
+    #[test]
+    fn complete_matches_c_semantics() {
+        assert!(complete(b"set x 1"));
+        assert!(!complete(b"set x {")); // unclosed brace
+        assert!(!complete(b"set x [")); // unclosed bracket
+        assert!(!complete(b"a \"")); // unclosed quote
+        assert!(!complete(b"a \\")); // trailing backslash continuation
+        // `[` is literal inside braces — `{[}` is complete (the VM's old bracket
+        // counter wrongly reported it incomplete).
+        assert!(complete(b"{[}"));
+        assert!(complete(b"puts {a [ b}"));
+    }
 }

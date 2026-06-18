@@ -164,6 +164,16 @@ fn namespace_tail_qualifiers_colon_runs() {
     assert_eq!(run("namespace qualifiers foo:::").1, "foo");
 }
 
+/// `info complete` runs through the shared core (`tcl_cmd_core::info::complete`,
+/// C's `Tcl_CommandComplete`). Routing fixed the VM, whose old counter tracked
+/// brackets even inside `{braces}` (where `[` is literal): `{[}` is complete.
+#[test]
+fn info_complete_shared_core() {
+    assert_eq!(run("info complete {set x 1}").1, "1");
+    assert_eq!(run("info complete {set x [}").1, "0"); // unclosed bracket
+    assert_eq!(run("info complete {{[}}").1, "1"); // `{[}` — was "0" before the fix
+}
+
 #[test]
 fn set_expr_puts() {
     let (ok, _result, out) = run("set x 5\nputs [expr {$x * 2}]\n");
