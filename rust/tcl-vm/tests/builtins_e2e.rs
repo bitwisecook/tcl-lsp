@@ -779,6 +779,48 @@ fn info_commands_procs_namespaced() {
 }
 
 #[test]
+fn clock_shared_core() {
+    // `clock` is net-new (neither runtime had it); shared over tcl-cmd-core::clock.
+    // Pinned vs tclsh 9.0 (the civil math is deterministic; UTC via -gmt).
+    out_eq(
+        "puts [clock format 1700000000 -gmt 1]\n",
+        "Tue Nov 14 22:13:20 GMT 2023\n",
+    );
+    out_eq(
+        "puts [clock format 1700000000 -format {%Y-%m-%d %H:%M:%S} -gmt 1]\n",
+        "2023-11-14 22:13:20\n",
+    );
+    out_eq(
+        "puts [clock format 1700000000 -format {%a %A %b %B %p %j %u %z} -gmt 1]\n",
+        "Tue Tuesday Nov November PM 318 2 +0000\n",
+    );
+    // Unknown specifier (%F) passes through verbatim, as in tclsh.
+    out_eq(
+        "puts [clock format 0 -format {%F %T} -gmt 1]\n",
+        "%F 00:00:00\n",
+    );
+    // `clock add` — fixed + calendar units.
+    out_eq(
+        "puts [clock format [clock add 1700000000 2 days -gmt 1] -format {%Y-%m-%d} -gmt 1]\n",
+        "2023-11-16\n",
+    );
+    out_eq(
+        "puts [clock format [clock add 1700000000 3 months -gmt 1] -format {%Y-%m-%d} -gmt 1]\n",
+        "2024-02-14\n",
+    );
+    // Timing subcommands return sane monotone-ish values.
+    out_eq("puts [expr {[clock seconds] > 1700000000}]\n", "1\n");
+    out_eq(
+        "puts [expr {[clock milliseconds] > 1700000000000}]\n",
+        "1\n",
+    );
+    // `clock scan` is not yet supported (errors cleanly).
+    let (ok, msg, _) = run("clock scan tomorrow");
+    assert!(!ok);
+    assert_eq!(msg, "clock scan is not yet supported");
+}
+
+#[test]
 fn namespace_variables() {
     out_eq(
         "namespace eval foo { variable v 42 }\nputs $::foo::v\n",

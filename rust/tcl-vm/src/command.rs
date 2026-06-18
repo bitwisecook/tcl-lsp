@@ -84,6 +84,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     vm.register("auto_import", |_, _| ok(Value::empty()));
     crate::cmd_array::register(vm);
     crate::cmd_chan::register(vm);
+    crate::cmd_clock::register(vm);
     crate::cmd_list::register(vm);
     crate::cmd_string::register(vm);
     crate::cmd_dict::register(vm);

@@ -159,6 +159,21 @@ Shared in `tcl-cmd-core`:
   value→value function; the adapter only maps the result/error. The `-index` path
   resolution moved to the shared `index::{resolve_opt, encodable}`. This lifted
   the VM from a `-exact`/`-glob`-only stub to the full command.
+- `clock::dispatch` — the **net-new** `clock` command (neither runtime had it),
+  written once over `ValueOps`: `seconds`/`milliseconds`/`microseconds`/`clicks`,
+  `format` (the civil-date strftime specifiers — incl. Tcl's quirks: `%D`/`%x`
+  use a 4-digit year, and an unknown specifier like `%F` passes through verbatim),
+  and `add` (count/unit arithmetic incl. calendar months/years). The civil↔days
+  math is Hinnant's branch-free algorithm. The command stays **host-free**: the
+  per-runtime adapter reads the current time from its host's
+  [`Clock`](tcl_platform::Clock) capability and passes it in as a `Now` plus a
+  `local_offset(ts)` callback, so the core never touches the host (resolving the
+  same `ops`+host borrow the `exec` slice hit, via each runtime's owned
+  `Rc<dyn Host>`). The `Clock` trait grew `now_micros` + `local_offset_secs`; the
+  std host has no timezone database, so local time currently equals UTC (a host
+  with TZ data plugs in later) — `format`/`scan` against a fixed instant use
+  `-gmt 1` for determinism. `scan` (free-form date parsing) is the remaining
+  piece. Pinned vs tclsh 9.0 on both runtimes (runtime leak-gate clean).
 - `trace::{parse_ops, bad_type_error}` — the `trace` **argument decoding**: the
   op-list parser (split + per-type validation of `read`/`write`/`unset`/`array`,
   `rename`/`delete`, `enter`/`leave`/`enterstep`/`leavestep`) and the `bad type` /

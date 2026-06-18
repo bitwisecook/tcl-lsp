@@ -42,6 +42,7 @@ pub mod cmd_alias;
 pub mod cmd_array;
 pub mod cmd_binary;
 pub mod cmd_chan;
+pub mod cmd_clock;
 pub mod cmd_control;
 pub mod cmd_coro;
 pub mod cmd_dict;

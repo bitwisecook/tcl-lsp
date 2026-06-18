@@ -19,6 +19,7 @@
 
 pub mod array;
 pub mod binary;
+pub mod clock;
 pub mod dict;
 pub mod error;
 pub mod format;

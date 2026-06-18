@@ -132,6 +132,16 @@ impl Clock for NativeClock {
             .and_then(|d| i128::try_from(d.as_millis()).ok())
             .unwrap_or(0)
     }
+
+    fn now_micros(&self) -> i128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .and_then(|d| i128::try_from(d.as_micros()).ok())
+            .unwrap_or(0)
+    }
+    // `local_offset_secs` keeps the trait default (0 = UTC): the std host has no
+    // timezone database, so local time equals UTC until a TZ-capable host wires it.
 }
 
 struct NativeStdIo;

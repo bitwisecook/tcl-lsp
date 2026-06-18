@@ -24,6 +24,7 @@ pub fn install(interp: &mut Interp) {
     crate::cmd_scan::install(interp);
     crate::cmd_format::install(interp);
     crate::cmd_binary::install(interp);
+    crate::cmd_clock::install(interp);
     // `expr` needs the numeric tower (libtommath); registered only when linked.
     #[cfg(have_tommath)]
     interp.register_builtin(b"expr", expr_cmd);

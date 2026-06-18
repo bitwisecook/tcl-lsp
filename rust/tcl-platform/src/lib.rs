@@ -178,6 +178,18 @@ pub trait Clock {
     fn now_secs(&self) -> i64;
     /// Milliseconds since the Unix epoch.
     fn now_millis(&self) -> i128;
+    /// Microseconds since the Unix epoch (`clock microseconds`/`clock clicks`).
+    /// Defaults to millisecond precision; a host with finer resolution overrides.
+    fn now_micros(&self) -> i128 {
+        self.now_millis() * 1000
+    }
+    /// The local timezone's offset from UTC in **seconds east of UTC**, at the
+    /// instant `at_secs` (so DST is accounted for). Backs `clock format`/`scan`
+    /// without an explicit `-gmt`. A host with no timezone database (the std host
+    /// today, and a bare browser) returns `0` — local time then equals UTC.
+    fn local_offset_secs(&self, _at_secs: i64) -> i32 {
+        0
+    }
 }
 
 /// Standard output/error sinks (`puts`). Mandatory — the browser routes these to

@@ -20,6 +20,7 @@ mod value_ops;
 mod cmd_array;
 mod cmd_binary;
 mod cmd_chan;
+mod cmd_clock;
 mod cmd_dict;
 mod cmd_file;
 mod cmd_format;
