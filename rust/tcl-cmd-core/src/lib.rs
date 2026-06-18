@@ -23,6 +23,7 @@ pub mod format;
 pub mod index;
 pub mod info;
 pub mod list;
+pub mod namespace;
 pub mod path;
 pub mod platform;
 pub mod scan;

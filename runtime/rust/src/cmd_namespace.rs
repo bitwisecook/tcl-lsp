@@ -270,7 +270,7 @@ fn ns_qualifiers(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"namespace qualifiers string");
     }
     let s = obj_bytes(argv[2]);
-    interp.set_result_bytes(qualifiers(&s));
+    interp.set_result_bytes(tcl_cmd_core::namespace::qualifiers(&s));
     Code::Ok
 }
 
@@ -280,7 +280,7 @@ fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return wrong_args(interp, b"namespace tail string");
     }
     let s = obj_bytes(argv[2]);
-    interp.set_result_bytes(tail(&s));
+    interp.set_result_bytes(tcl_cmd_core::namespace::tail(&s));
     Code::Ok
 }
 
@@ -386,8 +386,8 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(b"empty import pattern");
         }
         // Split into the source-namespace qualifier and the simple glob tail.
-        let q = qualifiers(pat);
-        let tail_pat = tail(pat);
+        let q = tcl_cmd_core::namespace::qualifiers(pat);
+        let tail_pat = tcl_cmd_core::namespace::tail(pat);
         let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
             let mut m = b"unknown namespace in import pattern \"".to_vec();
             m.extend_from_slice(pat);
@@ -453,8 +453,8 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let pat = obj_bytes(a);
         // Resolve the pattern's namespace to an absolute FQN so we match against
         // the redirect's stored source FQN.
-        let q = qualifiers(&pat);
-        let tail_pat = tail(&pat);
+        let q = tcl_cmd_core::namespace::qualifiers(&pat);
+        let tail_pat = tcl_cmd_core::namespace::tail(&pat);
         let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
             // C's `Tcl_ForgetImport` errors if the pattern's namespace qualifier
             // names a namespace that does not exist (an unqualified pattern
@@ -568,46 +568,6 @@ fn dest_has_own(interp: &Interp, dest: NsId, simple: &[u8]) -> bool {
 /// `namespace qualifiers` text op: everything before the last `::` separator,
 /// with the whole trailing colon-run trimmed (`foo:::` → `foo`, `:::::` → ``);
 /// empty if unqualified.
-fn qualifiers(s: &[u8]) -> &[u8] {
-    match last_sep_run(s) {
-        Some((start, _)) => &s[..start],
-        None => b"",
-    }
-}
-
-/// `namespace tail` text op: the simple name after the last `::` separator (the
-/// whole colon-run is skipped, so `foo:::` → ``).
-fn tail(s: &[u8]) -> &[u8] {
-    match last_sep_run(s) {
-        Some((_, end)) => &s[end..],
-        None => s,
-    }
-}
-
-/// The byte range `(start, end)` of the last `::` separator run in `s` (a run is
-/// two or more consecutive colons), or `None` if there is none. `s[..start]` is
-/// the qualifier and `s[end..]` the tail (C's `NamespaceQualifiersCmd` /
-/// `NamespaceTailCmd` colon-run handling).
-fn last_sep_run(s: &[u8]) -> Option<(usize, usize)> {
-    // Scan back for the last "::" pair, then extend over every adjacent colon.
-    let mut i = s.len();
-    while i >= 2 {
-        if s[i - 1] == b':' && s[i - 2] == b':' {
-            let mut start = i - 2;
-            while start > 0 && s[start - 1] == b':' {
-                start -= 1;
-            }
-            let mut end = i;
-            while end < s.len() && s[end] == b':' {
-                end += 1;
-            }
-            return Some((start, end));
-        }
-        i -= 1;
-    }
-    None
-}
-
 /// `string match` over bytes (UTF-8 → shared [`tcl_syntax::glob`]; a non-UTF-8
 /// pattern or text can only match byte-identically, handled by the equality
 /// fallback).

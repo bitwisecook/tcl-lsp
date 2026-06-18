@@ -57,8 +57,8 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match &*sub.to_str() {
         "eval" => ns_eval(vm, rest),
         "current" => ok(Value::string(display_ns(vm.current_ns()))),
-        "qualifiers" => ok(Value::string(qualifiers(&first(rest)))),
-        "tail" => ok(Value::string(tail(&first(rest)))),
+        "qualifiers" => ns_text_op(rest, tcl_cmd_core::namespace::qualifiers),
+        "tail" => ns_text_op(rest, tcl_cmd_core::namespace::tail),
         "parent" => {
             let target = if rest.is_empty() {
                 vm.current_ns().to_string()
@@ -161,18 +161,15 @@ fn first(rest: &[Value]) -> String {
         .unwrap_or_default()
 }
 
-/// Everything before the last `::` of a (possibly absolute) name, preserving an
-/// absolute leading `::`.
-fn qualifiers(name: &str) -> String {
-    match name.rsplit_once("::") {
-        Some((q, _)) => q.to_string(),
-        None => String::new(),
-    }
-}
-
-/// The last `::`-separated component of a name.
-fn tail(name: &str) -> String {
-    name.rsplit("::").next().unwrap_or(name).to_string()
+/// `namespace qualifiers`/`tail`: run the first argument (lenient — defaults to
+/// empty) through a shared `tcl_cmd_core::namespace` text op, as a `Value`. The
+/// shared core handles `::`-runs the way C does (the VM's old `rsplit("::")`
+/// diverged for 3+ colons, e.g. `tail foo:::`).
+fn ns_text_op(rest: &[Value], op: fn(&[u8]) -> &[u8]) -> Completion<Value> {
+    let name = first(rest);
+    ok(Value::string(
+        std::str::from_utf8(op(name.as_bytes())).unwrap_or(""),
+    ))
 }
 
 fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -206,17 +203,4 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .collect::<Vec<_>>()
         .join(" ");
     eval_in_ns(vm, child, &body)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{qualifiers, tail};
-
-    #[test]
-    fn name_splitting() {
-        assert_eq!(qualifiers("foo::bar::baz"), "foo::bar");
-        assert_eq!(qualifiers("bar"), "");
-        assert_eq!(tail("foo::bar::baz"), "baz");
-        assert_eq!(tail("bar"), "bar");
-    }
 }

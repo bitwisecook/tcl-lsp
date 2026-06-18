@@ -152,6 +152,18 @@ fn info_exists_shared_core() {
     assert_eq!(run("set a(k) v\ninfo exists a(nope)").1, "0");
 }
 
+/// `namespace tail`/`qualifiers` run through the shared pure core
+/// (`tcl_cmd_core::namespace`). Routing fixed the VM's `::`-run handling: a run
+/// of 3+ colons is one separator (C semantics), where the VM's old `rsplit("::")`
+/// yielded a stray `:`.
+#[test]
+fn namespace_tail_qualifiers_colon_runs() {
+    assert_eq!(run("namespace tail ::a::b::c").1, "c");
+    assert_eq!(run("namespace qualifiers ::a::b::c").1, "::a::b");
+    assert_eq!(run("namespace tail foo:::").1, ""); // was ":" before the fix
+    assert_eq!(run("namespace qualifiers foo:::").1, "foo");
+}
+
 #[test]
 fn set_expr_puts() {
     let (ok, _result, out) = run("set x 5\nputs [expr {$x * 2}]\n");
