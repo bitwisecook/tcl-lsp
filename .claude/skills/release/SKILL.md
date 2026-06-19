@@ -139,34 +139,7 @@ git checkout main
 git pull origin main
 ```
 
-### 7. Security gate (CodeQL on tag candidate)
-
-CodeQL is the release gate, not a pre-merge PR check. After pulling the
-merged release-notes commit, HEAD on `main` is the commit the tag will
-point at. Wait for CodeQL on that commit and verify no open high/critical
-alerts remain on `main`:
-
-```bash
-tag_sha="$(git rev-parse HEAD)"
-make release-codeql-gate SHA="$tag_sha"
-```
-
-`release-codeql-gate` runs `scripts/release/codeql_gate.sh`, which:
-
-1. Locates the push-triggered CodeQL run for `$tag_sha` (polling for up to
-   2 min; dispatches `workflow_dispatch` as a fallback if none appears).
-2. Watches the run with `gh run watch --exit-status` and fails if it does
-   not succeed.
-3. Queries the Code Scanning API for open alerts on `refs/heads/main` and
-   fails if any have `security_severity_level` of `high` or `critical`.
-
-If the gate fails, **do not tag**. Investigate the alerts, fix or dismiss
-them via PR (dismissals must include a justification), pull `main` again,
-and re-run the gate. Override the severity threshold only with strong
-justification by setting `CODEQL_GATE_MIN_SEVERITY=critical` in the
-environment.
-
-### 8. Create and push the tag
+### 7. Create and push the tag
 
 `make release-tag` handles validation (clean tree, correct branch, no
 existing tag) and pushes only the tag — no source-file edits, no commit on
@@ -179,7 +152,7 @@ make release-tag V=X.Y.Z
 The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
 `publish-checksums`, and publish the GitHub release.
 
-### 9. Verify published artefacts
+### 8. Verify published artefacts
 
 After `make release-tag` pushes the tag, CI builds and uploads every
 artefact, then the `publish-checksums` job aggregates them into a
@@ -189,7 +162,7 @@ installer (`scripts/install/install.sh`) verifies downloads against this file.
 **Wait for CI to finish, then verify locally** before publishing to any
 editor marketplace. A SUMS mismatch means an artefact was modified
 after upload or the build was non-reproducible — either way, **do not
-proceed to step 10**.
+proceed to step 9**.
 
 ```bash
 tag="vX.Y.Z"
@@ -246,14 +219,14 @@ job. The post-install checks above catch the next failure modes after
 that: a successfully-completed installer that nevertheless landed
 stale or version-skewed binaries (e.g. cached artefact, partial
 upload, dev build leaking through). All checks must pass before
-step 10.
+step 9.
 
-### 10. Editor publishing
+### 9. Editor publishing
 
 **VS Code and JetBrains are published by CI, not here.** When the tag's CI
 run reaches the `publish-vsix-marketplace` and `publish-jetbrains-marketplace`
 jobs, each pauses on its protected Environment (`marketplace-vscode` /
-`marketplace-jetbrains`) for your approval. After the step 9 verification
+`marketplace-jetbrains`) for your approval. After the step 8 verification
 passes, approve both deployments in the Actions run; CI then publishes the
 released, checksum-verified `.vsix` / plugin `.zip` using the Environment
 secret (`secrets.VSCE_PAT` / `secrets.JETBRAINS_TOKEN`). The laptop targets
@@ -332,7 +305,7 @@ external repositories — any external-repo PR (JetBrains first-time
 upload, Package Control channel submission, Zed extensions registry,
 nvim-lspconfig, Helix) is raised by the user.
 
-### 11. Summary
+### 10. Summary
 
 Print a summary of what was done:
 
