@@ -1119,9 +1119,19 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   recognition (`new`/`create`/`createWithNamespace`/`%AUTO%`/leading-`.`),
   keeping the D4-F6 guard (no `object_of` from the `new` spelling alone when
   the command is not a known class).
-- **open** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity — the emitters are
-  linear-scan MVPs (single shared `responded` flag); add per-branch state and
-  restore the dropped quick-fixes (the C44 follow-up).
+- **done bar quick-fixes** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the
+  C44 follow-up). The linear scans are replaced by a shared path-sensitive
+  walk over the structured IR (`irules_checks::walk_flow`) that threads
+  per-path response-/drop-flow states and merges at join points — so
+  mutually-exclusive branches no longer false-positive, `catch` bodies are
+  analysed, and loops run zero-or-more times. The response-commit /
+  HTTP-namespace command sets are registry-derived. Verified against the
+  Python `find_irules_flow_warnings` oracle (spans use the *correct* command
+  offset — Python's module-IR path double-counts the body base offset; Rust
+  matches Python's intended re-lowered offset). **Residual:** the IRULE5002 /
+  5004 / 2001 insertion quick-fixes need a fix-range field on the
+  `IrulesCheckWarning` / `compiler_checks::Diagnostic` model (today only a
+  span-rewriting `replacement` exists) — a small plumbing follow-up.
 - **done** `DynamicNameLocal` reconciliation — **row closed**. Withholding the
   trait does *not* change caller-side W211/W214 suppression: that suppression is
   driven by the interprocedural summary index (`build_proc_index_from_summaries`,
@@ -1139,9 +1149,13 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   dialect profile"); Python emits `W002` only and does not analyse the body
   (`tests/lsp_e2e/test_diagnostics_e2e.py::TestWhenBodyDialectGatingE2E::
   test_when_body_not_analysed_under_plain_tcl`).
-- **open** source-style pass + W108 `non_ascii_mode` (line-length /
-  trailing-whitespace / line-endings / comment-continuation / missing
-  `package require`) and the GAP-C1 feature-config toggles.
+- **done bar config toggles** source-style pass + W108 `non_ascii_mode`. The
+  source-style checks are all ported in `tcl-lsp-core::source_style` — W111
+  (line length), W112 (trailing whitespace), W115 (comment continuation), W118
+  (line endings) — plus W120 (command without `package require`) in the
+  analyser and W108 `non_ascii_mode` (`NonAsciiMode`, dialect-resolved). The
+  **residual** is the GAP-C1 per-check feature-config toggles wiring, which
+  lives in the server config layer (**SRV-LSP**), not the analyser.
 
 #### FE-DIAG-F5 — F5 dialect diagnostics
 Owns new analyser slices on `tcl-bigip` / `tcl-xc` and the tk dialect.
