@@ -1,0 +1,27 @@
+//! `ip::contract` command.
+use crate::prelude::*;
+const FORMS: &[FormSpec] = &[FormSpec {
+    kind: FormKind::Default,
+    synopsis: "ip::contract address",
+}];
+
+pub fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "ip::contract",
+        traits: Traits::PURE,
+        dialects: None,
+        arity: Arity::exact(1),
+        hover: Some(HoverSnippet {
+            summary: "Contract an IPv6 address to its shortest form.",
+            synopsis: &["ip::contract address"],
+            snippet: "",
+            source: "tcllib ip package",
+            examples: "",
+            return_value: "The contracted IPv6 address string.",
+        }),
+        forms: FORMS,
+        tcllib_package: Some("ip"),
+        required_package: Some("ip"),
+        ..CommandSpec::DEFAULT
+    }
+}

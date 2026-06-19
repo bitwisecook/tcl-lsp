@@ -1,0 +1,28 @@
+//! `AUTH::subscribe` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "AUTH::subscribe",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet {
+            summary: "Registers interest in auth query results.",
+            synopsis: &["AUTH::subscribe AUTH_ID"],
+            snippet: "AUTH::subscribe registers interest in auth query results.\nAUTH::response_data will only return data from query results for\nwhich a subscription has been made prior to calling\nAUTH::authenticate. As a convenience when using the built-in\nsystem auth rules, these rules will call AUTH::subscribe if the\nvariable tmm_auth_subscription is set. Instead of calling\nAUTH::subscribe directly, we recommend setting tmm_auth_subscription to\n\"*\" when using the built-in system auth rules in the interest of\nforward-compatibility. Also see AUTH::unsubscribe.",
+            source: "https://clouddocs.f5.com/api/irules/AUTH__subscribe.html",
+            examples: "when HTTP_REQUEST {\n        if {not [info exists auth_pass]} {\n            set auth_sid [AUTH::start pam auth_method_user]\n            AUTH::subscribe $auth_sid\n            set auth_username [HTTP::username]\n            set auth_password [HTTP::password]\n            AUTH::username_credential $auth_sid $auth_username\n            AUTH::password_credential $auth_sid $auth_password\n            AUTH::authenticate $auth_sid\n            set auth_pass 1\n        }\n    }",
+            return_value: "",
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "AUTH::subscribe AUTH_ID",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::ApmState,
+            reads: false,
+            writes: true,
+            connection_side: ConnectionSide::Both,
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}

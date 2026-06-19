@@ -1,0 +1,2 @@
+# === __FIXTURES__/bigip.conf ===
+Connection limit reached for pool /Common/web_pool

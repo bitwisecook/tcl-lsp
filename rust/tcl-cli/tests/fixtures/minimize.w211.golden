@@ -1,0 +1,3 @@
+# /home/user/tcl-lsp/rust/tcl-cli/tests/fixtures/minimize.tcl: W211 (6→1 lines, renamed=True)
+set a [expr $aaa + $bbb]
+

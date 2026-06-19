@@ -14,8 +14,8 @@ function getApi(): TclLspApi {
 
 // Root-level hooks bracket the entire test run.
 
-// Runs before ALL test suites.  If the server crashed on startup (e.g. a
-// missing module in the .pyz bundle) then ext.activate() rejects because
+// Runs before ALL test suites.  If the native tcl-lsp-server binary is
+// missing or crashes on startup then ext.activate() rejects because
 // client.start() fails, and the whole test run aborts with a clear message.
 suiteSetup(async function () {
   this.timeout(60_000);

@@ -2,3 +2,7 @@
 pyodide/
 *.whl
 mermaid.min.js
+build_info.json
+# Rust → WASM compiler-explorer module (built by `make explorer-wasm`)
+tcl_explorer_wasm.js
+tcl_explorer_wasm_bg.wasm

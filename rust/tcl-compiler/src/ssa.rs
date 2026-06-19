@@ -1,0 +1,2162 @@
+// These algorithms always use the default RandomState hasher; making
+// them generic over BuildHasher adds complexity for no real benefit.
+//! Static Single-Assignment (SSA) construction over CFG blocks.
+//!
+//! SSA is a variable-naming discipline where every variable is assigned
+//! exactly once. When control flow merges (e.g. after an `if`), a
+//! synthetic *phi node* is inserted to select the correct version of a
+//! variable depending on which predecessor block was executed.
+//!
+//! This module provides:
+//!
+//! 1. SSA data structures: [`Phi`], [`SsaStatement`], [`SsaBlock`],
+//!    [`SsaFunction`].
+//! 2. **Dominator** computation: [`compute_dominators`] and
+//!    `compute_idom` for immediate dominators.
+//! 3. **Dominance frontier**: [`compute_dominance_frontier`].
+//! 4. **Phi placement**: [`compute_phi_vars`] using the iterated
+//!    dominance frontier algorithm.
+//! 5. **Variable definition extraction**: [`defs_of`] extracts variable
+//!    names defined by an IR statement.
+//!
+//! The full SSA rename pass ([`build_ssa`]) and variable-use scanner
+//! ([`uses_of`]) are now implemented, completing the SSA construction
+//! pipeline. The rename pass walks the dominator tree, assigns SSA
+//! versions to variable definitions and uses, and fills in phi-node
+//! incoming edges.
+
+use std::collections::{BTreeSet, HashMap, HashSet};
+
+use tcl_registry::CommandRegistry;
+
+use crate::cfg;
+use crate::ir::{CommandTokens, Statement};
+use crate::naming::normalise_var_name;
+use crate::var_refs::{VarReferenceScanner, VarScanOptions, vars_in_expr};
+
+/// SSA version number — each definition of a variable gets a unique version.
+pub type Version = u32;
+
+/// Key identifying a specific SSA value: `(variable_name, version)`.
+pub type ValueKey = (String, Version);
+
+// SSA data structures
+
+/// A phi node merging variable versions at a control-flow join.
+///
+/// `incoming` maps each predecessor block name to the variable
+/// version that flows in from that edge.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Phi {
+    /// Variable name.
+    pub name: String,
+    /// SSA version assigned by this phi.
+    pub version: Version,
+    /// Predecessor block → incoming version.
+    pub incoming: HashMap<String, Version>,
+}
+
+/// An IR statement annotated with SSA version numbers.
+///
+/// `uses` maps each variable name read by the statement to the
+/// SSA version in scope. `defs` maps each variable name written
+/// to its newly assigned version.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SsaStatement {
+    /// The underlying IR statement.
+    pub statement: Statement,
+    /// Variables read: name → SSA version.
+    pub uses: HashMap<String, Version>,
+    /// Variables written: name → SSA version.
+    pub defs: HashMap<String, Version>,
+}
+
+/// A CFG basic block in SSA form.
+///
+/// `entry_versions` / `exit_versions` record which SSA version
+/// of each variable is live at the start and end of the block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SsaBlock {
+    /// Block name.
+    pub name: String,
+    /// Phi nodes at the start of this block.
+    pub phis: Vec<Phi>,
+    /// SSA-annotated statements.
+    pub statements: Vec<SsaStatement>,
+    /// Variable versions at block entry.
+    pub entry_versions: HashMap<String, Version>,
+    /// Variable versions at block exit.
+    pub exit_versions: HashMap<String, Version>,
+}
+
+/// Complete SSA representation of one Tcl procedure or top-level script.
+///
+/// Includes the dominator tree and dominance frontier so that
+/// downstream passes (SCCP, liveness) do not need to recompute them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SsaFunction {
+    /// Procedure name.
+    pub name: String,
+    /// Entry block name.
+    pub entry: String,
+    /// SSA blocks keyed by block name.
+    pub blocks: HashMap<String, SsaBlock>,
+    /// Immediate dominator: block → parent (None for entry).
+    pub idom: HashMap<String, Option<String>>,
+    /// Dominance frontier: block → frontier blocks.
+    pub dominance_frontier: HashMap<String, Vec<String>>,
+    /// Dominator tree: block → children.
+    pub dominator_tree: HashMap<String, Vec<String>>,
+}
+
+// Variable definition extraction
+
+/// Extract variable names defined by an IR statement.
+///
+/// Handles assignments (`set`, `incr`), call defs, `trace add variable`
+/// (via registry roles when `registry` is supplied), and `dict for`/
+/// `dict map` barriers. This is the Rust equivalent of the Python
+/// `_defs()` function in `ssa.py`.
+///
+/// Pass `Some(&CommandRegistry)` when available so barrier defs route
+/// through the registry's `ArgRole::VarWrite` query (SYNC4); pass
+/// `None` for the legacy string-match path used by the unit-test
+/// helpers.
+#[must_use]
+pub fn defs_of(stmt: &Statement) -> Vec<String> {
+    defs_of_with_registry(stmt, None)
+}
+
+/// SYNC4: registry-aware `defs_of`.
+///
+/// Mirrors Python's post-`01326b40` shape — barrier defs route through
+/// `ArgRole::VarWrite` instead of a hardcoded string-match.  The
+/// registry-aware path also covers `::trace` and any future trace
+/// alias spellings without code edits, plus skips
+/// `creates_dynamic_barrier` specs (SYNC5: `global` / `variable` /
+/// `upvar` are handled by `var_scoping`, not by SSA's per-arg
+/// `VarWrite` walk).
+#[must_use]
+pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry>) -> Vec<String> {
+    use tcl_registry::{ArgRole, Traits};
+
+    match stmt {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => {
+            vec![normalise_var_name(name).to_owned()]
+        }
+        Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
+        Statement::Barrier { command, args, .. } => {
+            // dict for/map barriers: extract iteration variable names
+            // (these come from a structured-body scan, not from a
+            // role-tagged arg, so they stay as a separate path).
+            if (command.ends_with("::for") || command.ends_with("::map")) && !args.is_empty() {
+                return args[0].split_whitespace().map(String::from).collect();
+            }
+            // SYNC4 + SYNC5: registry-driven VarWrite walk.  Skips
+            // *scope-alias* commands (`global`, `variable`, `upvar`)
+            // whose variable bindings are tracked separately by the
+            // `var_scoping` pass; without the skip we'd produce partial
+            // defs for the vararg forms (`global x y z` would mark only
+            // `x`).  Mirrors Python's `command not in
+            // scope_alias_commands()` gate (`ssa.py:102`) — the
+            // discriminator is `CREATES_SCOPE_ALIAS`, *not*
+            // `CREATES_DYNAMIC_BARRIER`: `trace` is a dynamic barrier
+            // but not a scope alias, so `trace add variable x` must
+            // still surface its `VarWrite` def.
+            if let Some(reg) = registry {
+                if let Some(spec) = reg.get(command)
+                    && spec.traits.contains(Traits::CREATES_SCOPE_ALIAS)
+                {
+                    return Vec::new();
+                }
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                let indices = reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite);
+                if !indices.is_empty() {
+                    return indices
+                        .into_iter()
+                        .filter_map(|idx| args.get(idx).map(|s| normalise_var_name(s).to_owned()))
+                        .filter(|n| !n.is_empty())
+                        .collect();
+                }
+            }
+            // Legacy string-match fallback for callers without a
+            // registry (test helpers).  Mirrors the pre-SYNC4 shape
+            // so existing fixtures keep their expected defs.
+            if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
+                return vec![normalise_var_name(&args[2]).to_owned()];
+            }
+            Vec::new()
+        }
+        // An opaque (glob/regexp/fall-through) `switch` definitely-defines a
+        // variable only when *every reaching* path assigns it: there must be a
+        // `default` arm (covering the no-match path) and the variable must be
+        // *must-defined* in the default body and in every arm that has a body
+        // (fall-through arms with no body delegate to a later body, already
+        // covered). An arm that *cannot complete normally* (always
+        // `return`s/`error`s/`tailcall`s/…) never reaches the code after the
+        // switch, so it is excluded from the intersection (FP-RBS-14). This
+        // reproduces the phi the expanded arm blocks would build, conservatively
+        // — a variable only *conditionally* assigned inside an arm is not
+        // claimed, so we never hide a genuine read-before-set. The expanded
+        // (exact, non-fall-through) switch never reaches here; its arm defs come
+        // from the real per-block statements. Shares the "flow facts"
+        // definite-assignment helpers with the CFG builder (`cfg_builder`), so
+        // both layers agree on "cannot complete normally".
+        Statement::Switch {
+            default_body: Some(_),
+            ..
+        } => crate::cfg_builder::switch_must_defines(stmt)
+            .into_iter()
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+// Dominator algorithms
+
+/// Compute the dominator sets for all blocks in a CFG function.
+///
+/// Uses the iterative dataflow algorithm. Returns a map from block
+/// name to the set of blocks that dominate it.
+///
+/// The fixpoint visits blocks in **reverse postorder** so that each
+/// block is processed after the predecessors it depends on, which is
+/// what makes the iteration converge in a small constant number of
+/// passes for a reducible CFG instead of one pass per block.  Driving
+/// the fixpoint off the reachable-block *set* (arbitrary hash order)
+/// instead made convergence O(blocks) passes — pathological on a proc
+/// body that lowers to a long chain of branches (e.g. a 700-way
+/// `if {$x == N} {...}` dispatch), where it turned an O(N²) job into
+/// O(N³) and stalled the analyser.
+#[must_use]
+pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<String>> {
+    let reachable = func.reachable_blocks();
+    let mut dom: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for name in func.blocks.keys() {
+        if !reachable.contains(name.as_str()) || *name == func.entry {
+            dom.insert(name.clone(), HashSet::from([name.clone()]));
+        } else {
+            dom.insert(name.clone(), reachable.clone());
+        }
+    }
+
+    // Reverse postorder over blocks reachable from the entry — this is
+    // exactly the reachable set, ordered so predecessors precede the
+    // blocks that depend on them.
+    let rpo = func.reverse_postorder();
+    let preds = func.predecessors();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for name in &rpo {
+            if *name == func.entry {
+                continue;
+            }
+            let bn_preds: Vec<&String> = preds
+                .get(name)
+                .map(|p| {
+                    p.iter()
+                        .filter(|p| reachable.contains(p.as_str()))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let new_dom = if bn_preds.is_empty() {
+                HashSet::from([name.clone()])
+            } else {
+                let mut inter = dom[bn_preds[0]].clone();
+                for p in &bn_preds[1..] {
+                    inter = inter.intersection(&dom[*p]).cloned().collect();
+                }
+                inter.insert(name.clone());
+                inter
+            };
+
+            if new_dom != dom[name] {
+                dom.insert(name.clone(), new_dom);
+                changed = true;
+            }
+        }
+    }
+    dom
+}
+
+/// Compute immediate dominators directly via the Cooper-Harvey-Kennedy
+/// "A Simple, Fast Dominance Algorithm".
+///
+/// Returns the same map shape as [`compute_idom`] (entry and
+/// unreachable blocks map to `None`, every other reachable block to
+/// `Some(parent)`), but **without** materialising the full dominator
+/// *sets*: it works on reverse-postorder block indices and a single
+/// `idom` pointer per block, so it is O(N·D) time and O(N) memory
+/// rather than the O(N²) memory / O(N³) worst-case time of the
+/// set-based [`compute_dominators`] + [`compute_idom`] pair.  This is
+/// what keeps `build_ssa` bounded on pathologically large functions
+/// (a single multi-thousand-branch generated proc would otherwise
+/// exhaust memory building the dominator sets).
+#[must_use]
+pub(crate) fn compute_idom_fast(func: &cfg::Function) -> HashMap<String, Option<String>> {
+    const UNDEF: usize = usize::MAX;
+
+    // Shared iterative RPO — see `cfg::Function::reverse_postorder`.
+    let rpo = func.reverse_postorder();
+    let mut out: HashMap<String, Option<String>> = HashMap::new();
+    for name in func.blocks.keys() {
+        out.insert(name.clone(), None);
+    }
+    if rpo.is_empty() {
+        return out;
+    }
+    // Map block name → reverse-postorder index (entry == 0).
+    let mut rpo_index: HashMap<&str, usize> = HashMap::with_capacity(rpo.len());
+    for (i, n) in rpo.iter().enumerate() {
+        rpo_index.insert(n.as_str(), i);
+    }
+    let preds = func.predecessors();
+
+    let mut idom: Vec<usize> = vec![UNDEF; rpo.len()];
+    idom[0] = 0; // entry is its own dominator (sentinel for the walk).
+
+    // Walk up the idom tree from both nodes until they meet, using
+    // RPO indices (a dominator always has a strictly smaller index).
+    let intersect = |mut a: usize, mut b: usize, idom: &[usize]| -> usize {
+        while a != b {
+            while a > b {
+                a = idom[a];
+            }
+            while b > a {
+                b = idom[b];
+            }
+        }
+        a
+    };
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        // Skip the entry (index 0); process the rest in RPO order so
+        // each block sees already-processed predecessors.
+        for i in 1..rpo.len() {
+            let mut new_idom = UNDEF;
+            if let Some(ps) = preds.get(&rpo[i]) {
+                for p in ps {
+                    let Some(&pi) = rpo_index.get(p.as_str()) else {
+                        continue; // unreachable predecessor
+                    };
+                    if idom[pi] == UNDEF {
+                        continue; // not processed yet this pass
+                    }
+                    new_idom = if new_idom == UNDEF {
+                        pi
+                    } else {
+                        intersect(pi, new_idom, &idom)
+                    };
+                }
+            }
+            if new_idom != UNDEF && idom[i] != new_idom {
+                idom[i] = new_idom;
+                changed = true;
+            }
+        }
+    }
+
+    for (i, name) in rpo.iter().enumerate() {
+        if i == 0 || idom[i] == UNDEF {
+            out.insert(name.clone(), None);
+        } else {
+            out.insert(name.clone(), Some(rpo[idom[i]].clone()));
+        }
+    }
+    out
+}
+
+/// Compute immediate dominators from dominator sets.
+///
+/// The immediate dominator of a block is the closest strict dominator
+/// (the one with the largest dominator set).
+///
+/// Retained as the reference set-based implementation that
+/// [`compute_idom_fast`] (the production path) is cross-validated
+/// against; see the `compute_idom_fast_matches_reference` test. Only
+/// the fast path is used in production, so this is compiled for tests.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn compute_idom(
+    func: &cfg::Function,
+    dom: &HashMap<String, HashSet<String>>,
+) -> HashMap<String, Option<String>> {
+    let reachable = func.reachable_blocks();
+    let mut idom: HashMap<String, Option<String>> = HashMap::new();
+
+    for name in func.blocks.keys() {
+        idom.insert(name.clone(), None);
+    }
+
+    for name in &reachable {
+        if *name == func.entry {
+            continue;
+        }
+        let strict: HashSet<&String> = dom[name].iter().filter(|d| *d != name).collect();
+        if strict.is_empty() {
+            continue;
+        }
+        // The idom is the strict dominator with the largest dom set.
+        let best = strict.iter().max_by_key(|d| dom[**d].len()).unwrap();
+        idom.insert(name.clone(), Some((*best).clone()));
+    }
+    idom
+}
+
+/// Compute the dominance frontier for each block.
+///
+/// A block `b` is in the dominance frontier of block `a` if `a`
+/// dominates a predecessor of `b` but does not strictly dominate `b`.
+#[must_use]
+pub(crate) fn compute_dominance_frontier(
+    func: &cfg::Function,
+    idom: &HashMap<String, Option<String>>,
+) -> HashMap<String, HashSet<String>> {
+    let reachable = func.reachable_blocks();
+    let preds = func.predecessors();
+    let mut df: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for name in func.blocks.keys() {
+        df.insert(name.clone(), HashSet::new());
+    }
+
+    for name in &reachable {
+        let bn_preds: Vec<&String> = preds
+            .get(name)
+            .map(|p| {
+                p.iter()
+                    .filter(|p| reachable.contains(p.as_str()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if bn_preds.len() < 2 {
+            continue;
+        }
+
+        for p in &bn_preds {
+            let mut runner = Some((*p).clone());
+            while let Some(ref r) = runner {
+                if idom.get(name).and_then(|i| i.as_ref()) == Some(r) {
+                    break;
+                }
+                df.entry(r.clone()).or_default().insert(name.clone());
+                runner = idom.get(r).cloned().flatten();
+            }
+        }
+    }
+    df
+}
+
+/// Build the dominator tree from immediate dominators.
+///
+/// Returns a map from each block to its children in the dominator tree.
+#[must_use]
+pub(crate) fn build_dom_tree(
+    idom: &HashMap<String, Option<String>>,
+) -> HashMap<String, Vec<String>> {
+    let mut tree: HashMap<String, Vec<String>> = HashMap::new();
+    for name in idom.keys() {
+        tree.entry(name.clone()).or_default();
+    }
+    for (name, parent) in idom {
+        if let Some(p) = parent {
+            tree.entry(p.clone()).or_default().push(name.clone());
+        }
+    }
+    for children in tree.values_mut() {
+        children.sort();
+    }
+    tree
+}
+
+/// Compute which variables need phi nodes in each block.
+///
+/// Uses the iterated dominance frontier algorithm: for each variable,
+/// starting from blocks where it is defined, propagate phi nodes to
+/// the dominance frontier until convergence.
+#[must_use]
+pub(crate) fn compute_phi_vars(
+    func: &cfg::Function,
+    df: &HashMap<String, HashSet<String>>,
+    registry: &CommandRegistry,
+) -> HashMap<String, HashSet<String>> {
+    let reachable = func.reachable_blocks();
+    let (nonlocal_names, all_defsites) = nonlocal_names_and_defsites(func, &reachable, registry);
+
+    // Semi-pruned SSA (Briggs et al. 1998): place phis only for *non-local*
+    // (upward-exposed-use) names. A phi for a purely-local name has no reader,
+    // so dropping it removes only dead phis (~40% of minimal-SSA phis) without
+    // changing any use/value/liveness/diagnostic result — and it is what the
+    // Python builder does, so the SSA versioning matches. Mirrors `_phi_vars`.
+    let mut phi: HashMap<String, HashSet<String>> = HashMap::new();
+    for name in func.blocks.keys() {
+        phi.insert(name.clone(), HashSet::new());
+    }
+
+    for (var, sites) in &all_defsites {
+        if !nonlocal_names.contains(var) {
+            continue;
+        }
+        let mut work: Vec<String> = sites.iter().cloned().collect();
+        work.sort();
+        let mut has_phi: HashSet<String> = HashSet::new();
+
+        while let Some(nb) = work.pop() {
+            for fb in df.get(&nb).into_iter().flatten() {
+                if has_phi.insert(fb.clone()) {
+                    phi.entry(fb.clone()).or_default().insert(var.clone());
+                    if !sites.contains(fb) {
+                        work.push(fb.clone());
+                    }
+                }
+            }
+        }
+    }
+    phi
+}
+
+/// Semi-pruned SSA support: the *non-local* names (upward-exposed uses) and
+/// every variable's def-site blocks, in one pass.
+///
+/// A variable is *non-local* if some block reads it before (re)defining it in
+/// that block — the read could observe a value flowing in from a predecessor,
+/// so a phi at a merge is meaningful. A name only ever read after its in-block
+/// definition (or never read) needs no phi. `defsites` is unfiltered (all
+/// defined names); the caller restricts phi placement to the non-local names.
+/// Mirrors Python's `_nonlocal_names_and_defsites`.
+fn nonlocal_names_and_defsites(
+    func: &cfg::Function,
+    reachable: &HashSet<String>,
+    registry: &CommandRegistry,
+) -> (HashSet<String>, HashMap<String, HashSet<String>>) {
+    let mut scanner = VarReferenceScanner::new(VarScanOptions {
+        include_var_read_roles: true,
+        recurse_cmd_substitutions: true,
+        include_reads_before_write: false,
+    });
+    let mut nonlocal_names: HashSet<String> = HashSet::new();
+    let mut defsites: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for bn in reachable {
+        let Some(block) = func.blocks.get(bn) else {
+            continue;
+        };
+        let mut defined_here: HashSet<String> = HashSet::new();
+        for stmt in &block.statements {
+            for u in uses_of(stmt, &mut scanner, registry) {
+                if !defined_here.contains(&u) {
+                    nonlocal_names.insert(u);
+                }
+            }
+            for var in defs_of_with_registry(stmt, Some(registry)) {
+                defsites.entry(var.clone()).or_default().insert(bn.clone());
+                defined_here.insert(var);
+            }
+        }
+        match &block.terminator {
+            Some(cfg::Terminator::Branch { condition, .. }) => {
+                for u in vars_in_expr(condition) {
+                    if !defined_here.contains(&u) {
+                        nonlocal_names.insert(u);
+                    }
+                }
+            }
+            Some(cfg::Terminator::Return { value, expr, .. }) => {
+                if let Some(v) = value {
+                    for u in scanner.scan_word(v, registry) {
+                        if !defined_here.contains(&u) {
+                            nonlocal_names.insert(u);
+                        }
+                    }
+                }
+                if let Some(e) = expr {
+                    for u in vars_in_expr(e) {
+                        if !defined_here.contains(&u) {
+                            nonlocal_names.insert(u);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    (nonlocal_names, defsites)
+}
+
+// Variable-use extraction
+//
+// These functions determine which variables an IR statement reads.
+// They are the Rust port of Python's `_uses()` function in `ssa.py`.
+
+/// Return `true` when argument at `arg_index` is a braced literal
+/// (single-token STR word).
+///
+/// When token info is unavailable, returns `false` so unknown
+/// arguments are still scanned as ordinary inputs. We only exclude
+/// bodies when we can positively identify them as single-token
+/// braced literals.
+fn is_braced_arg(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
+    let Some(tokens) = tokens else {
+        return false;
+    };
+    // tokens.argv includes the command name at index 0; args are 1-based.
+    let tok_index = arg_index + 1;
+    if tok_index >= tokens.single_token_word.len() {
+        return false;
+    }
+    if !tokens.single_token_word[tok_index] {
+        return false;
+    }
+    // A single-token word from a VAR or CMD token is not braced.
+    if let Some(text) = tokens.argv_texts.get(tok_index) {
+        !text.starts_with("${") && !text.starts_with('[')
+    } else {
+        true
+    }
+}
+
+/// Return BODY arg indices that should be excluded from local statement uses.
+///
+/// We only exclude handler-style bodies that are lowered/analysed separately.
+/// Dynamic evaluation commands like `eval` still need their args treated as
+/// ordinary dataflow inputs (for taint and read-before-set tracking).
+/// Body-carrying options for `tcltest::test`.
+const TCLTEST_BODY_OPTIONS: &[&str] = &["-setup", "-body", "-cleanup"];
+
+pub(crate) fn structural_body_indices(
+    command: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    registry: &CommandRegistry,
+) -> HashSet<usize> {
+    use tcl_registry::{ArgRole, BodyKind};
+
+    // SYNC2: the registry-declared `body_kind` on each spec /
+    // subcommand tells us whether body args run in the caller's
+    // frame (`Plain`) or in a separate definition / dispatch context
+    // (`Structural`).  Only `Structural` body args belong in this
+    // skip set — `if`, `while`, `for`, `foreach`, `catch`, `try`,
+    // … bodies share the caller's frame and SSA must scan them as
+    // part of the enclosing block's data flow.
+    if let Some(spec) = registry.get(command) {
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        // Subcommand body_kind (if the call dispatches to a sub).
+        let sub_body_kind = if spec.subcommands.is_empty() {
+            None
+        } else {
+            args.first()
+                .and_then(|first| spec.subcommand(first))
+                .map(|sub| sub.body_kind)
+        };
+        let body_kind = sub_body_kind.unwrap_or(spec.body_kind);
+        if body_kind == BodyKind::Structural {
+            let candidates = registry.arg_indices_for_role(command, &arg_strs, ArgRole::Body);
+            return candidates
+                .into_iter()
+                .filter(|&idx| idx < args.len() && is_braced_arg(tokens, idx))
+                .collect();
+        }
+    }
+
+    if command == "test" || command == "tcltest::test" {
+        let mut indices = HashSet::new();
+        let mut has_body_option = false;
+        let mut i = 2;
+        while i + 1 < args.len() {
+            if TCLTEST_BODY_OPTIONS.contains(&args[i].as_str()) {
+                let value_idx = i + 1;
+                has_body_option = true;
+                if is_braced_arg(tokens, value_idx) {
+                    indices.insert(value_idx);
+                }
+            }
+            i += 2;
+        }
+        // Legacy positional form: test name desc ?constraints? body result
+        if !has_body_option && args.len() >= 4 {
+            let body_index = args.len() - 2;
+            if is_braced_arg(tokens, body_index) {
+                indices.insert(body_index);
+            }
+        }
+        return indices;
+    }
+
+    HashSet::new()
+}
+
+/// Extract variable names used (read) by an IR statement.
+///
+/// This is the Rust port of Python's `_uses()` in `ssa.py`. It uses
+/// a [`VarReferenceScanner`] to find variable references in word texts
+/// and expression trees.
+///
+/// Returns sorted variable names, excluding variables that are defined
+/// by this statement (unless they exhibit read-before-write semantics).
+#[allow(clippy::too_many_lines)]
+pub fn uses_of(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> Vec<String> {
+    let mut vars_found: BTreeSet<String> = BTreeSet::new();
+    let mut reads_own_def: BTreeSet<String> = BTreeSet::new();
+
+    match stmt {
+        Statement::ExprEval { expr, .. } => {
+            vars_found.extend(vars_in_expr(expr));
+        }
+
+        Statement::AssignExpr { name, expr, .. } => {
+            vars_found.extend(vars_in_expr(expr));
+            let norm = normalise_var_name(name);
+            if !norm.is_empty() && vars_found.contains(norm) {
+                reads_own_def.insert(norm.to_owned());
+            }
+        }
+
+        Statement::AssignValue { name, value, .. } => {
+            vars_found.extend(scanner.scan_word(value, registry));
+            let norm = normalise_var_name(name);
+            if !norm.is_empty() && vars_found.contains(norm) {
+                reads_own_def.insert(norm.to_owned());
+            }
+        }
+
+        Statement::Incr { name, amount, .. } => {
+            let norm = normalise_var_name(name);
+            if !norm.is_empty() {
+                vars_found.insert(norm.to_owned());
+                reads_own_def.insert(norm.to_owned());
+            }
+            if let Some(amt) = amount {
+                vars_found.extend(scanner.scan_word(amt, registry));
+            }
+        }
+
+        Statement::Call {
+            command,
+            args,
+            defs,
+            reads,
+            reads_own_defs,
+            tokens,
+            ..
+        } => {
+            vars_found.extend(scanner.scan_word(command, registry));
+            let body_indices = structural_body_indices(command, args, tokens.as_ref(), registry);
+            for (idx, arg) in args.iter().enumerate() {
+                if body_indices.contains(&idx) {
+                    continue;
+                }
+                vars_found.extend(scanner.scan_word(arg, registry));
+            }
+            for name in reads {
+                if !name.is_empty() {
+                    vars_found.insert(name.clone());
+                }
+            }
+            if *reads_own_defs {
+                for name in defs {
+                    vars_found.insert(name.clone());
+                    reads_own_def.insert(name.clone());
+                }
+            }
+        }
+
+        Statement::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                vars_found.extend(scanner.scan_word(v, registry));
+            }
+            if let Some(e) = expr {
+                vars_found.extend(vars_in_expr(e));
+            }
+        }
+
+        Statement::Barrier {
+            command,
+            args,
+            tokens,
+            ..
+        } => {
+            vars_found.extend(scanner.scan_word(command, registry));
+            let body_indices = structural_body_indices(command, args, tokens.as_ref(), registry);
+            for (idx, arg) in args.iter().enumerate() {
+                if body_indices.contains(&idx) {
+                    continue;
+                }
+                vars_found.extend(scanner.scan_word(arg, registry));
+            }
+            // dict with/update: the dict variable name is a plain string,
+            // not a $-substitution, so scan_word misses it.
+            //
+            // SYNC6: arg 0 carries both VarRead and VarWrite roles
+            // (mirrors Python's `frozenset({VAR_READ, VAR_WRITE})` post
+            // `8c95c2ee`).  When SYNC4 routes barrier defs through the
+            // registry, the same name will land in `defs` from the
+            // VarWrite query.  The closing filter at line ~553
+            // (`!defs.contains(v) || reads_own_def.contains(v)`) would
+            // then drop the dict var unless we mark it as reads-own-def
+            // here.  Without this, a proc whose only reference to a
+            // parameter is `dict with $param {}` would produce a
+            // false unused-parameter diagnostic.  Preemptive fix: the
+            // line is a no-op today (SYNC4 hasn't routed dict with
+            // through the registry yet) but matches Python parity and
+            // sequences cleanly with the SYNC4 follow-up.  See
+            // ssa.py::_uses for the Python-side comment.
+            if command == "dict" && args.len() >= 2 && (args[0] == "with" || args[0] == "update") {
+                let dict_var = normalise_var_name(&args[1]);
+                if !dict_var.is_empty() {
+                    let owned = dict_var.to_owned();
+                    vars_found.insert(owned.clone());
+                    reads_own_def.insert(owned);
+                }
+            }
+        }
+
+        // A non-lowered (glob/regexp/fall-through) `switch` is kept opaque as a
+        // single `Statement::Switch` in the block. Recover the subject + arm /
+        // default body reads so a variable read only as the subject or only
+        // inside an arm body isn't reported unused. Mirrors Python `_switch_reads`.
+        Statement::Switch {
+            subject,
+            arms,
+            default_body,
+            ..
+        } => {
+            vars_found.extend(switch_reads(
+                subject,
+                arms,
+                default_body.as_ref(),
+                scanner,
+                registry,
+            ));
+            // The subject is read *before* any arm assigns, so it stays a live
+            // read even when an arm also defines it (`defs_of` may now report
+            // the subject var as switch-defined). Without this the read-before-
+            // def of the subject would be filtered out below.
+            for v in scanner.scan_word(subject, registry) {
+                reads_own_def.insert(v);
+            }
+        }
+
+        // Other structured IR statements (If, For, While, …) are flattened by
+        // the CFG builder before SSA construction, so they never reach here.
+        _ => {}
+    }
+
+    // Exclude variables defined by this statement, unless they're
+    // read-before-write.  SYNC4: route through the registry so
+    // `trace add variable` defs come from the registry's VarWrite
+    // role rather than a string match.
+    let defs: HashSet<String> = defs_of_with_registry(stmt, Some(registry))
+        .into_iter()
+        .collect();
+    vars_found
+        .into_iter()
+        .filter(|v| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
+        .collect()
+}
+
+/// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through
+/// arm) `switch` kept opaque in a CFG block: the subject word, every arm
+/// pattern, and the *free* reads of each arm/default body. Mirrors Python's
+/// `_switch_reads`.
+fn switch_reads(
+    subject: &str,
+    arms: &[crate::ir::SwitchArm],
+    default_body: Option<&crate::ir::Script>,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads = scanner.scan_word(subject, registry);
+    for arm in arms {
+        reads.extend(scanner.scan_word(&arm.pattern, registry));
+        if let Some(body) = &arm.body {
+            reads.extend(free_reads_in_script(body, scanner, registry));
+        }
+    }
+    if let Some(db) = default_body {
+        reads.extend(free_reads_in_script(db, scanner, registry));
+    }
+    reads
+}
+
+/// Reads a collapsed body consumes from the *outer* scope: its reads minus its
+/// own defs (so arm-local temporaries — `set tmp 1; puts $tmp` — aren't seen as
+/// outer reads). The def set is completed with the `for`-init/next and
+/// if/while/for condition command-sub defs that `defs_from_ir_script` omits.
+/// Mirrors Python's `_free_reads_in_ir_script`.
+fn free_reads_in_script(
+    script: &crate::ir::Script,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut defs: HashSet<String> = crate::ir_helpers::defs_from_ir_script(script)
+        .into_iter()
+        .collect();
+    defs.extend(collapsed_extra_defs(script, registry));
+    reads_in_script(script, scanner, registry)
+        .into_iter()
+        .filter(|v| !defs.contains(v))
+        .collect()
+}
+
+/// Recursively collect variable reads from an un-lowered IR script. Mirrors
+/// Python's `_reads_in_ir_script`.
+fn reads_in_script(
+    script: &crate::ir::Script,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads = BTreeSet::new();
+    for stmt in &script.statements {
+        reads.extend(reads_in_stmt(stmt, scanner, registry));
+    }
+    reads
+}
+
+/// Variable reads of a single statement, recursing into nested bodies. Leaf
+/// reads come from [`uses_of`] (which resolves a nested `Statement::Switch` via
+/// [`switch_reads`]); structured statements are walked here because they are
+/// not lowered inside an opaque switch arm. Mirrors Python's `_reads_in_ir_stmt`.
+fn reads_in_stmt(
+    stmt: &Statement,
+    scanner: &mut VarReferenceScanner,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    let mut reads: BTreeSet<String> = uses_of(stmt, scanner, registry).into_iter().collect();
+    match stmt {
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            for clause in clauses {
+                reads.extend(vars_in_expr(&clause.condition));
+                reads.extend(reads_in_script(&clause.body, scanner, registry));
+            }
+            if let Some(eb) = else_body {
+                reads.extend(reads_in_script(eb, scanner, registry));
+            }
+        }
+        Statement::While {
+            condition, body, ..
+        } => {
+            reads.extend(vars_in_expr(condition));
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::For {
+            init,
+            condition,
+            next,
+            body,
+            ..
+        } => {
+            reads.extend(reads_in_script(init, scanner, registry));
+            reads.extend(vars_in_expr(condition));
+            reads.extend(reads_in_script(next, scanner, registry));
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::Foreach {
+            iterators, body, ..
+        } => {
+            for it in iterators {
+                reads.extend(scanner.scan_word(&it.list_arg, registry));
+            }
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::Catch { body, .. } => {
+            reads.extend(reads_in_script(body, scanner, registry));
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            reads.extend(reads_in_script(body, scanner, registry));
+            for handler in handlers {
+                reads.extend(reads_in_script(&handler.body, scanner, registry));
+            }
+            if let Some(fb) = finally_body {
+                reads.extend(reads_in_script(fb, scanner, registry));
+            }
+        }
+        _ => {}
+    }
+    reads
+}
+
+/// `for`-init/next clause defs and if/while/for condition command-sub defs
+/// (`[regexp … -> v]`) that [`crate::ir_helpers::defs_from_ir_script`] does not
+/// recurse — recovered for the collapsed-body read subtraction only. Mirrors
+/// Python's `_collapsed_extra_defs`.
+fn collapsed_extra_defs(
+    script: &crate::ir::Script,
+    registry: &CommandRegistry,
+) -> BTreeSet<String> {
+    use crate::ir_helpers::{defs_from_expr, defs_from_ir_script};
+    let mut extra = BTreeSet::new();
+    for stmt in &script.statements {
+        match stmt {
+            Statement::If {
+                clauses, else_body, ..
+            } => {
+                for clause in clauses {
+                    extra.extend(defs_from_expr(&clause.condition, registry));
+                    extra.extend(collapsed_extra_defs(&clause.body, registry));
+                }
+                if let Some(eb) = else_body {
+                    extra.extend(collapsed_extra_defs(eb, registry));
+                }
+            }
+            Statement::While {
+                condition, body, ..
+            } => {
+                extra.extend(defs_from_expr(condition, registry));
+                extra.extend(collapsed_extra_defs(body, registry));
+            }
+            Statement::For {
+                init,
+                condition,
+                next,
+                body,
+                ..
+            } => {
+                extra.extend(defs_from_ir_script(init));
+                extra.extend(defs_from_ir_script(next));
+                extra.extend(defs_from_expr(condition, registry));
+                extra.extend(collapsed_extra_defs(init, registry));
+                extra.extend(collapsed_extra_defs(next, registry));
+                extra.extend(collapsed_extra_defs(body, registry));
+            }
+            Statement::Foreach { body, .. } | Statement::Catch { body, .. } => {
+                extra.extend(collapsed_extra_defs(body, registry));
+            }
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => {
+                extra.extend(collapsed_extra_defs(body, registry));
+                for handler in handlers {
+                    extra.extend(collapsed_extra_defs(&handler.body, registry));
+                }
+                if let Some(fb) = finally_body {
+                    extra.extend(collapsed_extra_defs(fb, registry));
+                }
+            }
+            Statement::Switch {
+                arms, default_body, ..
+            } => {
+                for arm in arms {
+                    if let Some(body) = &arm.body {
+                        extra.extend(collapsed_extra_defs(body, registry));
+                    }
+                }
+                if let Some(db) = default_body {
+                    extra.extend(collapsed_extra_defs(db, registry));
+                }
+            }
+            _ => {}
+        }
+    }
+    extra
+}
+
+/// Build SSA with dominator-based phi placement and renaming.
+///
+/// This is the Rust port of Python's `build_ssa()` in `ssa.py`.
+/// It computes dominators, places phi nodes, then walks the dominator
+/// tree to assign SSA version numbers to every variable definition
+/// and use.
+/// Frame for the iterative rename walk (avoids deep recursion).
+struct RenameFrame {
+    block_name: String,
+    child_index: usize,
+    pushed_vars: Vec<String>,
+    phase: RenamePhase,
+}
+
+/// Phase within a single rename frame.
+enum RenamePhase {
+    /// Process phi nodes and statements for this block.
+    Enter,
+    /// Iterate over dominator-tree children.
+    ProcessChildren,
+}
+
+/// Build SSA with dominator-based phi placement and renaming.
+///
+/// Computes dominators, places phi nodes, then walks the dominator
+/// tree to assign SSA version numbers to every variable definition
+/// and use.
+///
+/// This function is inherently long because the rename walk couples
+/// version counters, stacks, phi versions, incoming edges, and
+/// per-statement use/def maps — splitting it would just scatter the
+/// state across many parameters.
+// Long renumbering pass with sequential block-walk phases.
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
+    // 1. Compute dominance information.  Use the Cooper-Harvey-
+    //    Kennedy immediate-dominator algorithm directly — it is
+    //    O(N) memory, where the set-based `compute_dominators` is
+    //    O(N²) and exhausts memory on a single huge generated proc
+    //    (tens of thousands of CFG blocks).
+    let idom = compute_idom_fast(func);
+    let df = compute_dominance_frontier(func, &idom);
+    let tree = build_dom_tree(&idom);
+    let phi_vars = compute_phi_vars(func, &df, registry);
+
+    // 2. Set up rename state.
+    let mut version_counter: HashMap<String, Version> = HashMap::new();
+    let mut stacks: HashMap<String, Vec<Version>> = HashMap::new();
+
+    let top = |stacks: &HashMap<String, Vec<Version>>, var: &str| -> Version {
+        stacks.get(var).and_then(|s| s.last().copied()).unwrap_or(0)
+    };
+
+    let push_new = |version_counter: &mut HashMap<String, Version>,
+                    stacks: &mut HashMap<String, Vec<Version>>,
+                    var: &str|
+     -> Version {
+        let vn = version_counter.get(var).copied().unwrap_or(0) + 1;
+        version_counter.insert(var.to_owned(), vn);
+        stacks.entry(var.to_owned()).or_default().push(vn);
+        vn
+    };
+
+    // Per-block state collected during the rename walk.
+    let mut phi_versions: HashMap<String, HashMap<String, Version>> = HashMap::new();
+    let mut phi_incoming: HashMap<String, HashMap<String, HashMap<String, Version>>> =
+        HashMap::new();
+    let mut entry_versions: HashMap<String, HashMap<String, Version>> = HashMap::new();
+    let mut exit_versions: HashMap<String, HashMap<String, Version>> = HashMap::new();
+    let mut stmt_infos: HashMap<String, Vec<SsaStatement>> = HashMap::new();
+
+    for name in func.blocks.keys() {
+        phi_versions.insert(name.clone(), HashMap::new());
+        phi_incoming.insert(name.clone(), HashMap::new());
+        entry_versions.insert(name.clone(), HashMap::new());
+        exit_versions.insert(name.clone(), HashMap::new());
+        stmt_infos.insert(name.clone(), Vec::new());
+    }
+
+    // Create a scanner for variable-use extraction.
+    let mut scanner = VarReferenceScanner::new(VarScanOptions {
+        include_var_read_roles: true,
+        recurse_cmd_substitutions: true,
+        include_reads_before_write: false,
+    });
+
+    // 3. Rename walk — iterative using an explicit stack to avoid
+    //    deep recursion on large dominator trees.
+    let mut stack: Vec<RenameFrame> = Vec::new();
+
+    if func.blocks.contains_key(&func.entry) {
+        stack.push(RenameFrame {
+            block_name: func.entry.clone(),
+            child_index: 0,
+            pushed_vars: Vec::new(),
+            phase: RenamePhase::Enter,
+        });
+    }
+
+    while let Some(frame) = stack.last_mut() {
+        match frame.phase {
+            RenamePhase::Enter => {
+                let bn = frame.block_name.clone();
+
+                // Process phi nodes — push new versions.
+                let mut phi_var_list: Vec<String> = phi_vars
+                    .get(&bn)
+                    .map(|s| s.iter().cloned().collect())
+                    .unwrap_or_default();
+                phi_var_list.sort();
+
+                for var in &phi_var_list {
+                    let ver = push_new(&mut version_counter, &mut stacks, var);
+                    frame.pushed_vars.push(var.clone());
+                    phi_versions.get_mut(&bn).unwrap().insert(var.clone(), ver);
+                    phi_incoming
+                        .get_mut(&bn)
+                        .unwrap()
+                        .entry(var.clone())
+                        .or_default();
+                }
+
+                // Record entry versions.
+                let mut visible_vars: BTreeSet<String> = stacks.keys().cloned().collect();
+                visible_vars.extend(phi_versions[&bn].keys().cloned());
+                let ev: HashMap<String, Version> = visible_vars
+                    .iter()
+                    .filter_map(|v| {
+                        let t = top(&stacks, v);
+                        if t > 0 { Some((v.clone(), t)) } else { None }
+                    })
+                    .collect();
+                *entry_versions.get_mut(&bn).unwrap() = ev;
+
+                // Process statements.
+                if let Some(block) = func.blocks.get(&bn) {
+                    let stmts: Vec<Statement> = block.statements.clone();
+                    for stmt in &stmts {
+                        let uses_list = uses_of(stmt, &mut scanner, registry);
+                        let mut uses_map: HashMap<String, Version> = HashMap::new();
+                        for var in &uses_list {
+                            uses_map.insert(var.clone(), top(&stacks, var));
+                        }
+
+                        let mut defs_map: HashMap<String, Version> = HashMap::new();
+                        for var in defs_of_with_registry(stmt, Some(registry)) {
+                            let ver = push_new(&mut version_counter, &mut stacks, &var);
+                            frame.pushed_vars.push(var.clone());
+                            defs_map.insert(var, ver);
+                        }
+
+                        stmt_infos.get_mut(&bn).unwrap().push(SsaStatement {
+                            statement: stmt.clone(),
+                            uses: uses_map,
+                            defs: defs_map,
+                        });
+                    }
+                }
+
+                // Record exit versions.
+                let mut visible_vars: BTreeSet<String> = stacks.keys().cloned().collect();
+                visible_vars.extend(phi_versions[&bn].keys().cloned());
+                let xv: HashMap<String, Version> = visible_vars
+                    .iter()
+                    .filter_map(|v| {
+                        let t = top(&stacks, v);
+                        if t > 0 { Some((v.clone(), t)) } else { None }
+                    })
+                    .collect();
+                *exit_versions.get_mut(&bn).unwrap() = xv;
+
+                // Fill in phi incoming edges for successors — the terminator's
+                // successors plus any `try` exception-edge handler targets, so
+                // a handler block's phis see this block's versions.
+                for succ in func.block_successors(&bn) {
+                    if !func.blocks.contains_key(&succ) {
+                        continue;
+                    }
+                    let succ_phis: Vec<String> = phi_vars
+                        .get(&succ)
+                        .map(|s| {
+                            let mut v: Vec<String> = s.iter().cloned().collect();
+                            v.sort();
+                            v
+                        })
+                        .unwrap_or_default();
+                    for var in &succ_phis {
+                        phi_incoming
+                            .get_mut(&succ)
+                            .unwrap()
+                            .entry(var.clone())
+                            .or_default()
+                            .insert(bn.clone(), top(&stacks, var));
+                    }
+                }
+
+                frame.phase = RenamePhase::ProcessChildren;
+            }
+
+            RenamePhase::ProcessChildren => {
+                let bn = frame.block_name.clone();
+                let children = tree.get(&bn).cloned().unwrap_or_default();
+                let idx = frame.child_index;
+
+                if idx < children.len() {
+                    frame.child_index += 1;
+                    let child = children[idx].clone();
+                    stack.push(RenameFrame {
+                        block_name: child,
+                        child_index: 0,
+                        pushed_vars: Vec::new(),
+                        phase: RenamePhase::Enter,
+                    });
+                } else {
+                    // Pop versions pushed in this block.
+                    let pushed = frame.pushed_vars.clone();
+                    for var in pushed.iter().rev() {
+                        if let Some(s) = stacks.get_mut(var) {
+                            s.pop();
+                            if s.is_empty() {
+                                stacks.remove(var);
+                            }
+                        }
+                    }
+                    stack.pop();
+                }
+            }
+        }
+    }
+
+    // 4. Assemble SSA blocks.
+    let mut ssa_blocks: HashMap<String, SsaBlock> = HashMap::new();
+    for (bn, block) in &func.blocks {
+        let mut phis: Vec<Phi> = Vec::new();
+        let mut phi_var_list: Vec<String> = phi_vars
+            .get(bn)
+            .map(|s| s.iter().cloned().collect())
+            .unwrap_or_default();
+        phi_var_list.sort();
+
+        for var in &phi_var_list {
+            phis.push(Phi {
+                name: var.clone(),
+                version: phi_versions
+                    .get(bn)
+                    .and_then(|m| m.get(var))
+                    .copied()
+                    .unwrap_or(0),
+                incoming: phi_incoming
+                    .get(bn)
+                    .and_then(|m| m.get(var))
+                    .cloned()
+                    .unwrap_or_default(),
+            });
+        }
+
+        ssa_blocks.insert(
+            bn.clone(),
+            SsaBlock {
+                name: bn.clone(),
+                phis,
+                statements: stmt_infos.remove(bn).unwrap_or_default(),
+                entry_versions: entry_versions.remove(bn).unwrap_or_default(),
+                exit_versions: exit_versions.remove(bn).unwrap_or_default(),
+            },
+        );
+        let _ = block; // used only for iteration
+    }
+
+    SsaFunction {
+        name: func.name.clone(),
+        entry: func.entry.clone(),
+        blocks: ssa_blocks,
+        idom,
+        dominance_frontier: df
+            .into_iter()
+            .map(|(k, v)| {
+                let mut sorted: Vec<String> = v.into_iter().collect();
+                sorted.sort();
+                (k, sorted)
+            })
+            .collect(),
+        dominator_tree: tree,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cfg::{Block, Function, Terminator};
+    use crate::expr_ast::ExprNode;
+    use tcl_lexer::Span;
+
+    fn make_goto(target: &str) -> Terminator {
+        Terminator::Goto {
+            target: target.into(),
+            span: None,
+        }
+    }
+
+    fn make_branch(cond: &str, t: &str, f: &str) -> Terminator {
+        Terminator::Branch {
+            condition: ExprNode::Raw { text: cond.into() },
+            true_target: t.into(),
+            false_target: f.into(),
+            span: None,
+        }
+    }
+
+    fn make_return() -> Terminator {
+        Terminator::Return {
+            value: None,
+            span: None,
+            expr: None,
+            braced: false,
+        }
+    }
+
+    /// Build a diamond CFG: entry → branch → then/else → end → return
+    fn diamond_cfg() -> Function {
+        let mut func = Function::new("::test", "entry");
+        func.blocks.get_mut("entry").unwrap().terminator = Some(make_branch("$x", "then", "else"));
+        func.blocks.insert("then".into(), Block::new("then"));
+        func.blocks.get_mut("then").unwrap().terminator = Some(make_goto("end"));
+        func.blocks.insert("else".into(), Block::new("else"));
+        func.blocks.get_mut("else").unwrap().terminator = Some(make_goto("end"));
+        func.blocks.insert("end".into(), Block::new("end"));
+        func.blocks.get_mut("end").unwrap().terminator = Some(make_return());
+        func
+    }
+
+    /// Build a loop CFG: entry → header → branch → body → header / end
+    fn loop_cfg() -> Function {
+        let mut func = Function::new("::test", "entry");
+        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("header"));
+        func.blocks.insert("header".into(), Block::new("header"));
+        func.blocks.get_mut("header").unwrap().terminator =
+            Some(make_branch("$i < 10", "body", "end"));
+        func.blocks.insert("body".into(), Block::new("body"));
+        func.blocks.get_mut("body").unwrap().terminator = Some(make_goto("header"));
+        func.blocks.insert("end".into(), Block::new("end"));
+        func.blocks.get_mut("end").unwrap().terminator = Some(make_return());
+        func
+    }
+
+    // Data structure tests
+
+    #[test]
+    fn phi_construction() {
+        let phi = Phi {
+            name: "x".into(),
+            version: 3,
+            incoming: HashMap::from([("then".into(), 1), ("else".into(), 2)]),
+        };
+        assert_eq!(phi.name, "x");
+        assert_eq!(phi.version, 3);
+        assert_eq!(phi.incoming.len(), 2);
+    }
+
+    #[test]
+    fn ssa_statement_construction() {
+        let stmt = SsaStatement {
+            statement: Statement::AssignConst {
+                span: Span::new(0, 10),
+                name: "x".into(),
+                value: "1".into(),
+            },
+            uses: HashMap::new(),
+            defs: HashMap::from([("x".into(), 1)]),
+        };
+        assert_eq!(stmt.defs["x"], 1);
+        assert!(stmt.uses.is_empty());
+    }
+
+    #[test]
+    fn ssa_block_construction() {
+        let block = SsaBlock {
+            name: "entry".into(),
+            phis: vec![],
+            statements: vec![],
+            entry_versions: HashMap::new(),
+            exit_versions: HashMap::from([("x".into(), 1)]),
+        };
+        assert_eq!(block.name, "entry");
+        assert!(block.phis.is_empty());
+    }
+
+    #[test]
+    fn ssa_function_construction() {
+        let func = SsaFunction {
+            name: "::test".into(),
+            entry: "entry".into(),
+            blocks: HashMap::new(),
+            idom: HashMap::new(),
+            dominance_frontier: HashMap::new(),
+            dominator_tree: HashMap::new(),
+        };
+        assert_eq!(func.name, "::test");
+    }
+
+    // defs_of tests
+
+    #[test]
+    fn defs_of_assign_const() {
+        let stmt = Statement::AssignConst {
+            span: Span::new(0, 10),
+            name: "$x".into(),
+            value: "1".into(),
+        };
+        assert_eq!(defs_of(&stmt), vec!["x"]);
+    }
+
+    #[test]
+    fn defs_of_incr() {
+        let stmt = Statement::Incr {
+            span: Span::new(0, 10),
+            name: "i".into(),
+            amount: None,
+            safe_on_uninit: false,
+        };
+        assert_eq!(defs_of(&stmt), vec!["i"]);
+    }
+
+    #[test]
+    fn defs_of_call_with_defs() {
+        let stmt = Statement::Call {
+            span: Span::new(0, 20),
+            command: "lappend".into(),
+            canonical_command: None,
+            args: vec!["list".into(), "item".into()],
+            defs: vec!["list".into()],
+            reads: vec![],
+            reads_own_defs: true,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        assert_eq!(defs_of(&stmt), vec!["list"]);
+    }
+
+    #[test]
+    fn defs_of_call_no_defs() {
+        let stmt = Statement::Call {
+            span: Span::new(0, 10),
+            command: "puts".into(),
+            canonical_command: None,
+            args: vec!["hello".into()],
+            defs: vec![],
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        assert!(defs_of(&stmt).is_empty());
+    }
+
+    #[test]
+    fn defs_of_return() {
+        let stmt = Statement::Return {
+            span: Span::new(0, 10),
+            value: Some("1".into()),
+            expr: None,
+            braced: false,
+        };
+        assert!(defs_of(&stmt).is_empty());
+    }
+
+    #[test]
+    fn defs_of_barrier_trace() {
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "trace".into(),
+            command: "trace".into(),
+            canonical_command: None,
+            args: vec!["add".into(), "variable".into(), "$x".into()],
+            tokens: None,
+        };
+        assert_eq!(defs_of(&stmt), vec!["x"]);
+    }
+
+    #[test]
+    fn defs_of_barrier_dict_for() {
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "dict for".into(),
+            command: "dict::for".into(),
+            canonical_command: None,
+            args: vec!["k v".into(), "$d".into()],
+            tokens: None,
+        };
+        assert_eq!(defs_of(&stmt), vec!["k", "v"]);
+    }
+
+    /// SYNC4: `trace add variable` defs route through the registry's
+    /// `ArgRole::VarWrite` query rather than a string match.
+    #[test]
+    fn defs_of_barrier_trace_via_registry() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "trace".into(),
+            command: "trace".into(),
+            canonical_command: None,
+            args: vec!["add".into(), "variable".into(), "$x".into()],
+            tokens: None,
+        };
+        assert_eq!(defs_of_with_registry(&stmt, Some(&reg)), vec!["x"]);
+    }
+
+    /// SYNC4: `trace add execution` does NOT define a variable — the
+    /// command name being traced is not a `VarWrite` target.
+    #[test]
+    fn defs_of_barrier_trace_add_execution_no_def() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "trace".into(),
+            command: "trace".into(),
+            canonical_command: None,
+            args: vec!["add".into(), "execution".into(), "foo".into()],
+            tokens: None,
+        };
+        assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
+    }
+
+    /// SYNC5: `global x y z` produces NO defs from the registry path
+    /// (`var_scoping` handles the per-arg list).  Without the
+    /// `CREATES_DYNAMIC_BARRIER` skip, the role-driven walk would
+    /// only mark `x` (partial defs) and miss `y` / `z`.
+    #[test]
+    fn defs_of_barrier_global_vararg_no_partial_defs() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "global".into(),
+            command: "global".into(),
+            canonical_command: None,
+            args: vec!["x".into(), "y".into(), "z".into()],
+            tokens: None,
+        };
+        assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
+    }
+
+    /// SYNC5 sibling: `variable a b c` — same vararg-list shape as
+    /// `global`, same skip.
+    #[test]
+    fn defs_of_barrier_variable_vararg_no_partial_defs() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "variable".into(),
+            command: "variable".into(),
+            canonical_command: None,
+            args: vec!["a".into(), "b".into(), "c".into()],
+            tokens: None,
+        };
+        assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
+    }
+
+    // Dominator tests
+
+    #[test]
+    fn dominators_linear() {
+        // entry → b1 → b2 → return
+        let mut func = Function::new("::test", "entry");
+        func.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
+        func.blocks.insert("b1".into(), Block::new("b1"));
+        func.blocks.get_mut("b1").unwrap().terminator = Some(make_goto("b2"));
+        func.blocks.insert("b2".into(), Block::new("b2"));
+        func.blocks.get_mut("b2").unwrap().terminator = Some(make_return());
+
+        let dom = compute_dominators(&func);
+        assert_eq!(dom["entry"], HashSet::from(["entry".into()]));
+        assert_eq!(dom["b1"], HashSet::from(["entry".into(), "b1".into()]));
+        assert_eq!(
+            dom["b2"],
+            HashSet::from(["entry".into(), "b1".into(), "b2".into()])
+        );
+    }
+
+    #[test]
+    fn dominators_diamond() {
+        let func = diamond_cfg();
+        let dom = compute_dominators(&func);
+
+        // entry dominates everything
+        for name in func.blocks.keys() {
+            assert!(dom[name].contains("entry"));
+        }
+        // then and else are not dominated by each other
+        assert!(!dom["then"].contains("else"));
+        assert!(!dom["else"].contains("then"));
+        // end is dominated by entry but not by then or else
+        assert!(dom["end"].contains("entry"));
+        assert!(!dom["end"].contains("then"));
+        assert!(!dom["end"].contains("else"));
+    }
+
+    #[test]
+    fn idom_diamond() {
+        let func = diamond_cfg();
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+
+        assert_eq!(idom["entry"], None);
+        assert_eq!(idom["then"], Some("entry".into()));
+        assert_eq!(idom["else"], Some("entry".into()));
+        assert_eq!(idom["end"], Some("entry".into()));
+    }
+
+    #[test]
+    fn idom_loop() {
+        let func = loop_cfg();
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+
+        assert_eq!(idom["entry"], None);
+        assert_eq!(idom["header"], Some("entry".into()));
+        assert_eq!(idom["body"], Some("header".into()));
+        assert_eq!(idom["end"], Some("header".into()));
+    }
+
+    #[test]
+    fn compute_idom_fast_matches_reference() {
+        // The production CHK path (`compute_idom_fast`) must produce
+        // exactly the same immediate dominators as the set-based
+        // reference (`compute_idom` over `compute_dominators`) across
+        // linear / diamond / loop shapes.
+        let mut linear = Function::new("::test", "entry");
+        linear.blocks.get_mut("entry").unwrap().terminator = Some(make_goto("b1"));
+        linear.blocks.insert("b1".into(), Block::new("b1"));
+        linear.blocks.get_mut("b1").unwrap().terminator = Some(make_goto("b2"));
+        linear.blocks.insert("b2".into(), Block::new("b2"));
+        linear.blocks.get_mut("b2").unwrap().terminator = Some(make_return());
+
+        for func in [linear, diamond_cfg(), loop_cfg()] {
+            let reference = compute_idom(&func, &compute_dominators(&func));
+            let fast = compute_idom_fast(&func);
+            assert_eq!(fast, reference, "CHK idom diverged for {:?}", func.entry);
+        }
+    }
+
+    #[test]
+    fn compute_idom_fast_handles_long_chain_without_blowup() {
+        // A long chain of `if`-style diamonds (the shape a big
+        // generated dispatch proc lowers to) must compute quickly via
+        // CHK — this is the regression for the analyser stalling /
+        // OOMing on machine-generated files.
+        let mut func = Function::new("::big", "b0");
+        let n = 4000;
+        for i in 0..n {
+            let cur = format!("b{i}");
+            let then = format!("t{i}");
+            let next = format!("b{}", i + 1);
+            func.blocks
+                .entry(cur.clone())
+                .or_insert_with(|| Block::new(&cur));
+            func.blocks.insert(then.clone(), Block::new(&then));
+            func.blocks.get_mut(&then).unwrap().terminator = Some(make_return());
+            func.blocks.insert(next.clone(), Block::new(&next));
+            func.blocks.get_mut(&cur).unwrap().terminator = Some(make_branch("c", &then, &next));
+        }
+        func.blocks.get_mut(&format!("b{n}")).unwrap().terminator = Some(make_return());
+        let idom = compute_idom_fast(&func);
+        // Each chain block's idom is the previous chain block.
+        assert_eq!(idom["b1"], Some("b0".into()));
+        assert_eq!(idom[&format!("b{n}")], Some(format!("b{}", n - 1)));
+        assert_eq!(idom["b0"], None);
+    }
+
+    #[test]
+    fn dominance_frontier_diamond() {
+        let func = diamond_cfg();
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let df = compute_dominance_frontier(&func, &idom);
+
+        // then and else have "end" in their dominance frontier
+        assert!(df["then"].contains("end"));
+        assert!(df["else"].contains("end"));
+        // entry has no dominance frontier
+        assert!(df["entry"].is_empty());
+    }
+
+    #[test]
+    fn dominance_frontier_loop() {
+        let func = loop_cfg();
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let df = compute_dominance_frontier(&func, &idom);
+
+        // body has "header" in its dominance frontier (back edge)
+        assert!(df["body"].contains("header"));
+        // entry strictly dominates header, so header is NOT in entry's DF
+        assert!(
+            df["entry"].is_empty(),
+            "entry's DF should be empty; got {:?}",
+            df["entry"]
+        );
+    }
+
+    #[test]
+    fn dom_tree_diamond() {
+        let func = diamond_cfg();
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let tree = build_dom_tree(&idom);
+
+        // entry's children include then, else, end (all directly dominated)
+        let entry_children = &tree["entry"];
+        assert!(entry_children.contains(&"else".to_string()));
+        assert!(entry_children.contains(&"end".to_string()));
+        assert!(entry_children.contains(&"then".to_string()));
+    }
+
+    // Phi placement tests
+
+    #[test]
+    fn phi_vars_diamond_with_defs() {
+        // x defined in both then and else → phi needed at end
+        let mut func = diamond_cfg();
+        func.blocks
+            .get_mut("then")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(10, 20),
+                name: "x".into(),
+                value: "1".into(),
+            });
+        func.blocks
+            .get_mut("else")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(30, 40),
+                name: "x".into(),
+                value: "2".into(),
+            });
+
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let df = compute_dominance_frontier(&func, &idom);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+
+        assert!(phi["end"].contains("x"), "x should need a phi at 'end'");
+        assert!(
+            !phi["entry"].contains("x"),
+            "x should not need a phi at entry"
+        );
+    }
+
+    #[test]
+    fn phi_vars_single_def_no_phi() {
+        // x defined only in entry → no phi needed anywhere
+        let mut func = diamond_cfg();
+        func.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(0, 10),
+                name: "x".into(),
+                value: "1".into(),
+            });
+
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let df = compute_dominance_frontier(&func, &idom);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+
+        for vars in phi.values() {
+            assert!(!vars.contains("x"), "x should not need a phi anywhere");
+        }
+    }
+
+    #[test]
+    fn phi_vars_loop_def() {
+        // i defined in entry and body → phi at header
+        let mut func = loop_cfg();
+        func.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(0, 10),
+                name: "i".into(),
+                value: "0".into(),
+            });
+        func.blocks
+            .get_mut("body")
+            .unwrap()
+            .statements
+            .push(Statement::Incr {
+                span: Span::new(30, 40),
+                name: "i".into(),
+                amount: None,
+                safe_on_uninit: false,
+            });
+
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let df = compute_dominance_frontier(&func, &idom);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+
+        assert!(
+            phi["header"].contains("i"),
+            "i should need a phi at 'header'"
+        );
+    }
+
+    #[test]
+    fn phi_vars_no_defs_no_phis() {
+        let func = diamond_cfg();
+        let dom = compute_dominators(&func);
+        let idom = compute_idom(&func, &dom);
+        let df = compute_dominance_frontier(&func, &idom);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
+
+        for vars in phi.values() {
+            assert!(vars.is_empty(), "no defs → no phis");
+        }
+    }
+
+    // uses_of tests
+
+    fn default_registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn uses_of_assign_const() {
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let stmt = Statement::AssignConst {
+            span: Span::new(0, 10),
+            name: "x".into(),
+            value: "1".into(),
+        };
+        let uses = uses_of(&stmt, &mut scanner, &reg);
+        assert!(uses.is_empty(), "constant assignment reads nothing");
+    }
+
+    #[test]
+    fn uses_of_assign_value_with_var() {
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions {
+            include_var_read_roles: true,
+            recurse_cmd_substitutions: true,
+            include_reads_before_write: false,
+        });
+        let stmt = Statement::AssignValue {
+            span: Span::new(0, 15),
+            name: "y".into(),
+            value: "$x".into(),
+            value_needs_backsubst: false,
+            tokens: None,
+        };
+        let uses = uses_of(&stmt, &mut scanner, &reg);
+        assert!(uses.contains(&"x".to_string()), "should read $x");
+        assert!(
+            !uses.contains(&"y".to_string()),
+            "should not read $y (it's defined)"
+        );
+    }
+
+    #[test]
+    fn uses_of_incr() {
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let stmt = Statement::Incr {
+            span: Span::new(0, 10),
+            name: "i".into(),
+            amount: None,
+            safe_on_uninit: false,
+        };
+        let uses = uses_of(&stmt, &mut scanner, &reg);
+        // incr reads and writes — reads_own_def
+        assert!(uses.contains(&"i".to_string()), "incr reads the variable");
+    }
+
+    #[test]
+    fn uses_of_return_with_value() {
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let stmt = Statement::Return {
+            span: Span::new(0, 15),
+            value: Some("$result".into()),
+            expr: None,
+            braced: false,
+        };
+        let uses = uses_of(&stmt, &mut scanner, &reg);
+        assert!(uses.contains(&"result".to_string()));
+    }
+
+    #[test]
+    fn uses_of_expr_eval() {
+        let reg = default_registry();
+        let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
+        let stmt = Statement::ExprEval {
+            span: Span::new(0, 20),
+            expr: ExprNode::Binary {
+                op: crate::expr_ast::BinOp::Add,
+                left: Box::new(ExprNode::Var {
+                    text: "$a".into(),
+                    name: "a".into(),
+                    start: 0,
+                    end: 2,
+                }),
+                right: Box::new(ExprNode::Var {
+                    text: "$b".into(),
+                    name: "b".into(),
+                    start: 5,
+                    end: 7,
+                }),
+            },
+        };
+        let uses = uses_of(&stmt, &mut scanner, &reg);
+        assert!(uses.contains(&"a".to_string()));
+        assert!(uses.contains(&"b".to_string()));
+    }
+
+    // build_ssa tests
+
+    #[test]
+    fn build_ssa_linear() {
+        let reg = default_registry();
+        // entry: set x 1; set y $x; return
+        let mut func = Function::new("::test", "entry");
+        func.blocks.get_mut("entry").unwrap().statements = vec![
+            Statement::AssignConst {
+                span: Span::new(0, 7),
+                name: "x".into(),
+                value: "1".into(),
+            },
+            Statement::AssignValue {
+                span: Span::new(8, 16),
+                name: "y".into(),
+                value: "$x".into(),
+                value_needs_backsubst: false,
+                tokens: None,
+            },
+        ];
+        func.blocks.get_mut("entry").unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        assert_eq!(ssa.name, "::test");
+        assert_eq!(ssa.entry, "entry");
+
+        let entry = &ssa.blocks["entry"];
+        // First statement (set x 1): defs x=1
+        assert_eq!(entry.statements[0].defs.get("x"), Some(&1));
+        // Second statement (set y $x): uses x=1, defs y=1
+        assert_eq!(entry.statements[1].uses.get("x"), Some(&1));
+        assert_eq!(entry.statements[1].defs.get("y"), Some(&1));
+    }
+
+    #[test]
+    fn build_ssa_diamond_phi() {
+        let reg = default_registry();
+        // entry → branch on $x → then: set x 1 → end
+        //                       → else: set x 2 → end
+        let mut func = diamond_cfg();
+
+        // Define x in entry first so it's used in the condition.
+        func.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(0, 7),
+                name: "x".into(),
+                value: "0".into(),
+            });
+
+        func.blocks
+            .get_mut("then")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(10, 18),
+                name: "x".into(),
+                value: "1".into(),
+            });
+        func.blocks
+            .get_mut("else")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(20, 28),
+                name: "x".into(),
+                value: "2".into(),
+            });
+        // Read `x` after the join so it is upward-exposed at `end` — under
+        // semi-pruned SSA a phi is placed only for a name with a downstream
+        // reader (a dead phi for an unread merge is correctly dropped).
+        func.blocks
+            .get_mut("end")
+            .unwrap()
+            .statements
+            .push(Statement::Call {
+                span: Span::new(30, 38),
+                command: "puts".into(),
+                canonical_command: None,
+                args: vec!["$x".into()],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: None,
+                foreach_groups: None,
+            });
+
+        let ssa = build_ssa(&func, &reg);
+
+        // x is defined in both then and else and read at end, so the end block
+        // should have a phi for x.
+        let end_block = &ssa.blocks["end"];
+        assert!(
+            end_block.phis.iter().any(|phi| phi.name == "x"),
+            "end block should have a phi for x"
+        );
+
+        // The phi should have incoming edges from then and else.
+        if let Some(phi) = end_block.phis.iter().find(|p| p.name == "x") {
+            assert!(
+                phi.incoming.contains_key("then"),
+                "phi should have incoming from then"
+            );
+            assert!(
+                phi.incoming.contains_key("else"),
+                "phi should have incoming from else"
+            );
+        }
+    }
+
+    #[test]
+    fn build_ssa_loop() {
+        let reg = default_registry();
+        // entry: set i 0 → header: branch $i<10 → body: incr i → header
+        //                                        → end: return
+        let mut func = loop_cfg();
+
+        func.blocks
+            .get_mut("entry")
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(0, 8),
+                name: "i".into(),
+                value: "0".into(),
+            });
+        func.blocks
+            .get_mut("body")
+            .unwrap()
+            .statements
+            .push(Statement::Incr {
+                span: Span::new(20, 28),
+                name: "i".into(),
+                amount: None,
+                safe_on_uninit: false,
+            });
+
+        let ssa = build_ssa(&func, &reg);
+
+        // header should have a phi for i (from entry and body).
+        let header = &ssa.blocks["header"];
+        assert!(
+            header.phis.iter().any(|p| p.name == "i"),
+            "header should have a phi for i"
+        );
+    }
+
+    #[test]
+    fn build_ssa_empty_function() {
+        let reg = default_registry();
+        let mut func = Function::new("::empty", "entry");
+        func.blocks.get_mut("entry").unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        assert_eq!(ssa.blocks.len(), 1);
+        assert!(ssa.blocks["entry"].phis.is_empty());
+        assert!(ssa.blocks["entry"].statements.is_empty());
+    }
+}

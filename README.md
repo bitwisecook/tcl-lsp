@@ -13,8 +13,13 @@ A language server for Tcl with multi-editor support.
   <img src="docs/screenshots/tcl-lsp-demo.gif" alt="tcl-lsp in action" width="820">
 </p>
 
-The server is written in Python using [pygls](https://github.com/openlawlibrary/pygls)
-and communicates over stdio, making it compatible with any LSP client.
+The server ships as a native Rust binary (`tcl-lsp-server`) — the default,
+out-of-the-box backend — with a Python reference implementation (built on
+[pygls](https://github.com/openlawlibrary/pygls)) available as an opt-out.
+Both speak LSP over stdio, so they work with any LSP client. Set
+`TCL_LSP_SERVER_KIND=python` to run the Python server instead. (The VS Code
+extension is native-only — it always launches the bundled `tcl-lsp-server`
+binary and no longer exposes a Python backend toggle.)
 
 ## Editor support
 
@@ -38,9 +43,14 @@ and communicates over stdio, making it compatible with any LSP client.
 | [Sublime Text](editors/sublime-text/) | Full package (.sublime-package) | Package Control or manual install | Works standalone (syntax + snippets) without LSP; enhanced with LSP package |
 | [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, IntelliJ IDEA 2024.1+ |
 
-All editors connect to the same Python LSP server over stdio.  The server can
-be invoked from source (`uv run python -m server`) or as a standalone zipapp
-(`python3 tcl-lsp-server.pyz`).
+All editors connect to the same LSP server over stdio. By default this is the
+native Rust binary `tcl-lsp-server` (build it with `make rust-server`, or
+`cargo build -p tcl-lsp-server`). To opt back into the Python reference server,
+set `TCL_LSP_SERVER_KIND=python`; it can be invoked from source
+(`uv run python -m server`) or as a standalone zipapp
+(`python3 tcl-lsp-server.pyz`). The `tcl-lsp` console script launches the
+native binary when one is available and otherwise falls back to the Python
+server.
 
 **Also documented in [INSTALL-editors.md](INSTALL-editors.md):**
 
@@ -59,8 +69,11 @@ Per-file `# tcl-dialect:` comment directives pin a specific dialect.
 
 ### VS Code
 
-The full-featured extension, distributed as a `.vsix`, bundles the LSP server
-and provides the richest integration.
+The full-featured extension, distributed as a `.vsix`, provides the richest
+integration. It bundles a self-contained native `tcl-lsp-server` binary for
+every supported platform — macOS, Linux, and Windows on x64 and arm64, plus
+Linux riscv64 — and launches the one matching your machine, so **no Python
+runtime is required**.
 
 **25+ commands** including: Restart Server, Select Dialect, Apply Safe Quick
 Fixes, Apply All Optimisations, Open in Tcl Compiler Explorer, Open Tk Preview,
@@ -85,7 +98,9 @@ with nvim-lspconfig (0.8+) or a manual `FileType` autocommand.
 ```lua
 -- ~/.config/nvim/server/tcl_lsp.lua  (Neovim 0.11+)
 return {
-  cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
+  -- Native Rust server (default); build with `make rust-server`.
+  cmd = { "/path/to/tcl-lsp/target/release/tcl-lsp-server" },
+  -- Python opt-out: cmd = { "python3", "/path/to/tcl-lsp-server.pyz" },
   filetypes = { "tcl" },
   settings = {
     tclLsp = {
@@ -117,10 +132,11 @@ Install: see [INSTALL-editors.md](INSTALL-editors.md#zed).
 Works with the built-in **eglot** client (Emacs 29+) or **lsp-mode**.
 
 ```elisp
-;; eglot (Emacs 29+)
+;; eglot (Emacs 29+).  Native Rust server (default); build with
+;; `make rust-server`.  Python opt-out: ("python3" "/path/to/tcl-lsp-server.pyz")
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(tcl-mode . ("python3" "/path/to/tcl-lsp-server.pyz"))))
+               '(tcl-mode . ("/path/to/tcl-lsp/target/release/tcl-lsp-server"))))
 (add-hook 'tcl-mode-hook #'eglot-ensure)
 
 ;; Settings
@@ -134,9 +150,13 @@ Works with the built-in **eglot** client (Emacs 29+) or **lsp-mode**.
 Minimal TOML configuration in `~/.config/helix/languages.toml`.
 
 ```toml
+# Native Rust server (default); build with `make rust-server`.
 [language-server.tcl-lsp]
-command = "python3"
-args = ["/path/to/tcl-lsp-server.pyz"]
+command = "/path/to/tcl-lsp/target/release/tcl-lsp-server"
+args = []
+# Python opt-out:
+#   command = "python3"
+#   args = ["/path/to/tcl-lsp-server.pyz"]
 
 [language-server.tcl-lsp.config.tclLsp]
 dialect = "tcl8.6"
@@ -859,22 +879,22 @@ Highlights of the newer verbs:
   reuses every prior assignment, so iterative work with F5 support
   stays consistent.  `unredact` walks the map in reverse over any text,
   including support emails and log snippets.
-- **`f5 encrypt-secrets` + `f5 decrypt-secrets`** — encrypt or decrypt the
-  credential-bearing values in a `bigip.conf` / SCF (passphrase, password,
-  secret, shared-secret, auth-password, privacy-password)
-  using the unit master key — the base64 key `f5mku -K` prints on the
-  device.  `encrypt-secrets` wraps clear-text values in the
-  `$M$<salt>$<base64>` envelope BIG-IP stores; `decrypt-secrets` recovers the
-  clear text.  Both leave values already in the target form untouched, so
-  they are idempotent.  The key is supplied via `--f5mku KEY`,
-  `--f5mku-file FILE`, or `$F5MKU`, otherwise it is read from a secure
-  `F5 MKU Key:` terminal prompt (suppress with `--no-key-prompt`); the
-  AES-ECB transform runs on the bundled pure-Python cipher, so it works
-  in the zipapp with no `cryptography` dependency.
+- **`f5 encrypt-secrets` + `f5 decrypt-secrets`** (aliases `encrypt` /
+  `decrypt`) — convert the credential-bearing values in a `bigip.conf` /
+  SCF between clear text and the `$M$<salt>$<base64>` form BIG-IP stores,
+  using the unit master key (`f5mku -K` base64 output).  The transform is
+  AES-ECB with PKCS#7 padding and a two-character salt — byte-for-byte the
+  scheme the device uses.  Only the fields BIG-IP actually master-key
+  encrypts are touched (`passphrase`, `password`, `secret`,
+  `shared-secret`, `auth-password`, `privacy-password`); SNMP community
+  strings, the `auth user` crypt(3) hash, and values already in a
+  `$scheme$…` form are left alone, so both verbs are idempotent.  The key
+  resolves from `--f5mku KEY` / `--f5mku-file FILE` / `$F5MKU` / a secure
+  no-echo prompt.
 
   ```sh
-  f5mku -K > key.txt                                       # on the device
-  f5 decrypt-secrets bigip.conf --f5mku-file key.txt       # reveal secrets
+  f5mku -K > key.txt
+  f5 decrypt-secrets bigip.conf --f5mku-file key.txt -o clear.conf
   F5MKU="$(cat key.txt)" f5 encrypt-secrets clear.conf -o sealed.conf
   ```
 - **`f5 pcap-remap`** — apply the same map to a PCAP capture: rewrites
@@ -1509,8 +1529,11 @@ uv run python -m tooling.wasm.main --source 'set x [expr {1+2}]' --format both
 
 ### Compiler explorer (web GUI)
 
-A standalone web UI for the compiler explorer, available in two variants:
-offline (bundles Pyodide) and CDN (loads Pyodide from jsDelivr).
+A standalone web UI for the compiler explorer. The pipeline runs entirely in
+the browser via a Rust → WebAssembly module (`make explorer-wasm`); no Python
+at runtime. The same `.wasm` is bundled into the VS Code and JetBrains panels,
+which compile in the webview itself — offline, with no LSP roundtrip. (The
+legacy Pyodide-bundling zipapp targets remain during the transition.)
 
 ```sh
 # Standalone (offline, ~100 MB)
@@ -1738,8 +1761,10 @@ See [KCS: Proc arg traits](docs/kcs/kcs-proc-arg-traits.md) for details.
 ## Code formatting
 
 The formatter supports full-document and range formatting via the standard LSP
-`textDocument/formatting` and `textDocument/rangeFormatting` requests.  Defaults
-follow the [F5 iRules Style Guide](https://community.f5.com/kb/technicalarticles/irules-style-guide/305921).
+`textDocument/formatting` and `textDocument/rangeFormatting` requests, plus
+opt-in format-on-save via `textDocument/willSaveWaitUntil` (enable
+`tclLsp.features.willSaveWaitUntil`; off by default).  Defaults follow the
+[F5 iRules Style Guide](https://community.f5.com/kb/technicalarticles/irules-style-guide/305921).
 
 ![Formatting side-by-side (before left, after right)](docs/screenshots/07-formatting-after.png)
 
@@ -2531,8 +2556,7 @@ disabled = O109
 enabled = true
 
 [features]
-inlayTypeHints = false
-inlayParameterHints = false
+inlayHints = false
 
 [formatting]
 indent_size = 2

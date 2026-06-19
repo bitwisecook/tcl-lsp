@@ -1,0 +1,10 @@
+when HTTP_REQUEST {
+  log local0. "request to [HTTP::uri]"
+  set host [HTTP::host]
+  log local0. "host=$host"
+}
+when HTTP_RESPONSE {
+  if { [HTTP::status] >= 500 } {
+    log local0. "error status [HTTP::status]"
+  }
+}

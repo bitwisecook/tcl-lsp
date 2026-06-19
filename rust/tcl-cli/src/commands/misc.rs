@@ -1,0 +1,112 @@
+//! Miscellaneous verbs: `find-legacy`.
+//!
+//! Port of `_run_find_legacy` in `tooling/tcl/verbs/misc.py`. Runs the analyser
+//! over the combined input source, keeps the diagnostics whose codes have a
+//! known mechanical modernisation (`_CONVERTIBLE_CODES`), and reports them with
+//! the matching conversion hint (`_CONVERSION_MAP`).
+//!
+//! This verb only *reports*; it never rewrites source. The diagnostic firing
+//! conditions, spans, and messages match the Python analyser byte-for-byte —
+//! only the emission *order* may differ (Rust sorts diagnostics by source
+//! position; Python emits in pass order). That ordering divergence is the
+//! accepted, documented one — see `docs/rust-cli-port.md`.
+
+use serde::Serialize;
+use tcl_cli_support::{OutputTarget, combine_sources, ensure_ascii, read_input_documents};
+use tcl_compiler::analyser::Analyser;
+use tcl_lexer::LineIndex;
+
+use crate::cli::InputArgs;
+
+/// Diagnostic codes with a known mechanical modernisation — mirrors
+/// `_CONVERTIBLE_CODES` in `tooling/tcl/verbs/misc.py`.
+const CONVERTIBLE_CODES: [&str; 6] = ["W100", "W104", "W110", "W304", "IRULE2001", "IRULE5001"];
+
+/// The modernisation hint shown per code — mirrors `_CONVERSION_MAP`. Codes not
+/// in this table fall back to `"modernise"` (matching the Python `.get` default;
+/// every convertible code is present, so the fallback is unreachable in practice).
+fn conversion_for(code: &str) -> &'static str {
+    match code {
+        "W100" => "Unbraced expr -> braced expr",
+        "W104" => "String concat for lists -> lappend",
+        "W110" => "== / != for strings -> eq / ne",
+        "W304" => "Missing -- option terminator -> add --",
+        "IRULE2001" => "Deprecated matchclass -> class match",
+        "IRULE5001" => "Ungated log in hot event -> add debug gating",
+        _ => "modernise",
+    }
+}
+
+/// One reported legacy pattern. Field order matches the Python issue dict
+/// (`code, line, column, message, conversion`); `serde_json::to_string_pretty`
+/// preserves declaration order, so the JSON is byte-faithful.
+#[derive(Serialize)]
+struct LegacyIssue {
+    code: String,
+    line: u32,
+    column: u32,
+    message: String,
+    conversion: String,
+}
+
+/// The `find-legacy --json` payload (`count, dialect, issues`).
+#[derive(Serialize)]
+struct LegacyPayload {
+    count: usize,
+    dialect: String,
+    issues: Vec<LegacyIssue>,
+}
+
+/// `tcl find-legacy` — report legacy patterns eligible for modernisation.
+pub fn run_find_legacy(input: &InputArgs, json: bool) -> anyhow::Result<u8> {
+    let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
+    let source = combine_sources(&documents);
+
+    let result = Analyser::new().analyse(&source, &input.dialect);
+    let line_index = LineIndex::new(&source);
+
+    let issues: Vec<LegacyIssue> = result
+        .diagnostics
+        .iter()
+        .filter(|d| CONVERTIBLE_CODES.contains(&d.code.as_str()))
+        .map(|d| {
+            let pos = line_index.position_at_utf16(d.span.start(), &source);
+            LegacyIssue {
+                code: d.code.clone(),
+                line: pos.line + 1,
+                column: pos.character + 1,
+                message: d.message.clone(),
+                conversion: conversion_for(&d.code).to_owned(),
+            }
+        })
+        .collect();
+
+    let target = OutputTarget::from_arg(input.output.as_deref());
+
+    if json {
+        let payload = LegacyPayload {
+            count: issues.len(),
+            dialect: input.dialect.clone(),
+            issues,
+        };
+        let rendered = ensure_ascii(&serde_json::to_string_pretty(&payload)?);
+        tcl_cli_support::write_text_output(&target, &rendered)?;
+        return Ok(0);
+    }
+
+    if issues.is_empty() {
+        tcl_cli_support::write_text_output(&target, "no legacy patterns detected")?;
+        return Ok(0);
+    }
+
+    let mut lines = vec![format!("legacy patterns: {}", issues.len())];
+    for issue in &issues {
+        lines.push(format!(
+            "  {} line {}:{} {}",
+            issue.code, issue.line, issue.column, issue.message
+        ));
+        lines.push(format!("    conversion: {}", issue.conversion));
+    }
+    tcl_cli_support::write_text_output(&target, &lines.join("\n"))?;
+    Ok(0)
+}

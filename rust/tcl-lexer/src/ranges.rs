@@ -1,0 +1,345 @@
+//! Authoritative span/range accessors for delimited word tokens.
+//!
+//! Ports the source-aware closer accessors from the Python
+//! `shared/ranges.py` (`word_closer_offset` / `word_end_position`,
+//! landed on `main` by #533 / `SYNC-JUN06`).  They derive a delimited
+//! word's closing `}` / `]` / `"` from the lexer's content geometry —
+//! **not** by re-deriving `tok.end.offset + 1`, which overshoots an
+//! empty `{}` / `[]` / `""` (issue #527: a trailing empty `{}` swallows
+//! the enclosing body's `}`).
+//!
+//! These are the lossless, source-aware primitives the concrete syntax
+//! tree (`CST-PORT`) and any caller that needs to *slice source* (a
+//! refactor edit extracting a word's raw text) build on.  Command/word
+//! *ranges* owned by the segmenter use the inner-end convention and
+//! widen only when they need the closer — see
+//! [`crate::SourceMap::range_positions`] and the segmenter's
+//! `command_span`.
+//!
+//! The Python `Token` carries inline `start` / `end` `SourcePosition`s
+//! and a `text` field; the Rust [`Token`] carries only a [`Span`], with
+//! text and positions resolved on demand through a [`SourceMap`].  These
+//! accessors therefore take `&SourceMap` where the Python signatures
+//! took a bare `source: str`.
+//!
+//! [`Token`]: crate::Token
+//! [`Span`]: crate::Span
+//! [`SourceMap`]: crate::SourceMap
+
+use crate::source_map::SourceMap;
+use crate::tokens::{SourcePosition, Token};
+
+/// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
+const fn closer_for(opener: u8) -> Option<u8> {
+    match opener {
+        b'"' => Some(b'"'),
+        b'{' => Some(b'}'),
+        b'[' => Some(b']'),
+        _ => None,
+    }
+}
+
+/// Position of the closing delimiter one byte past *end*.
+///
+/// Ports `shared/ranges.py::_closer_position`.  *`last_inner`* is the byte
+/// at `end.offset` (the last byte inside the word).  When it is a
+/// newline the closer sits at column 0 of the next line, so the
+/// line/column advance accordingly — keeping them consistent with
+/// `offset` for line/column-based consumers.
+fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePosition {
+    if matches!(last_inner, Some(b'\n' | b'\r')) {
+        SourcePosition::new(end.line + 1, 0, end.offset + 1)
+    } else {
+        SourcePosition::new(end.line, end.character + 1, end.offset + 1)
+    }
+}
+
+/// Byte offset of *tok*'s closing `}` / `]` / `"` in the source, or `None`.
+///
+/// The authoritative way to locate a delimited word's closing delimiter
+/// for a caller that needs to *slice source* (e.g. extracting the raw
+/// argument text of a refactor edit).  It must be called rather than
+/// re-deriving the position as `tok.span.end()`: the lexer follows the
+/// inner-end convention (a braced/bracketed/quoted word's span ends one
+/// byte *before* the closer) **except** for an empty `{}` / `[]` / `""`,
+/// whose span already covers the closer.  [`SourceMap::token_text`] is
+/// the discriminator — an empty word has none — so the closer is at the
+/// inclusive end when the word is empty and one byte past it otherwise.
+/// Deriving emptiness from the token text keeps this correct for quoted
+/// words whose inner text contains backslash escapes (`"a\"b"`) and for
+/// a non-empty word whose last inner byte is itself a closer (`{a\}}`).
+///
+/// Returns `None` when *tok* does not begin with an opening delimiter, or
+/// when the word is unterminated (the computed position is not the
+/// matching closer).  *tok* and *sm* must share a coordinate frame.
+///
+/// Ports `shared/ranges.py::word_closer_offset` (#533 / `SYNC-JUN06`).
+#[must_use]
+pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
+    let bytes = sm.source().as_bytes();
+    let start = tok.span.start();
+    let opener = *bytes.get(start as usize)?;
+    let closer = closer_for(opener)?;
+    // `end.offset` is the Python `tok.end.offset` (inclusive end): the
+    // last inner byte for a non-empty word, or the closer itself for an
+    // empty `{}` / `[]` / `""`.
+    let (_first, end) = sm.range_positions(tok.span);
+    let closer_off = if sm.token_text(tok).is_empty() {
+        end.offset
+    } else {
+        end.offset + 1
+    };
+    if bytes.get(closer_off as usize) == Some(&closer) {
+        Some(closer_off)
+    } else {
+        None
+    }
+}
+
+/// Inclusive end [`SourcePosition`] covering *tok*'s closing delimiter.
+///
+/// The position-returning sibling of [`word_closer_offset`], for callers
+/// that build a range/LSP position rather than slice by offset.  For a
+/// delimited word it returns the position *of* the closing `}` / `]` /
+/// `"` (with line/column advanced when the closer falls on the next
+/// line); for an empty `{}` / `[]` / `""` the inclusive end already *is*
+/// the closer, so the token's inclusive end is returned unchanged.  For
+/// any non-delimited or unterminated token the inclusive end is returned
+/// unchanged.  Unlike the segmenter's `command_span` widening this also
+/// covers quoted `"..."` words.
+///
+/// Ports `shared/ranges.py::word_end_position` (#533 / `SYNC-JUN06`).
+#[must_use]
+pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
+    let (_first, end) = sm.range_positions(tok.span);
+    let Some(closer_off) = word_closer_offset(sm, tok) else {
+        return end;
+    };
+    if closer_off == end.offset {
+        // Empty `{}` / `[]` / `""`: the inclusive end already is the closer.
+        return end;
+    }
+    let last_inner = sm.source().as_bytes().get(end.offset as usize).copied();
+    closer_position(end, last_inner)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Lexer, SourceMap, TokenType};
+
+    /// Lex `src` and return the first non-trivia token (the word under test).
+    fn first_word(src: &str) -> Token {
+        let toks = Lexer::new(src).tokenise_all().unwrap();
+        *toks
+            .iter()
+            .find(|t| {
+                !matches!(
+                    t.kind,
+                    TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment
+                )
+            })
+            .expect("a word token")
+    }
+
+    /// Lex `src` and return the `nth` (0-based) non-trivia token.
+    fn nth_word(src: &str, n: usize) -> Token {
+        let toks = Lexer::new(src).tokenise_all().unwrap();
+        *toks
+            .iter()
+            .filter(|t| {
+                !matches!(
+                    t.kind,
+                    TokenType::Sep | TokenType::Eol | TokenType::Eof | TokenType::Comment
+                )
+            })
+            .nth(n)
+            .expect("an nth word token")
+    }
+
+    #[test]
+    fn closer_offset_non_empty_braced_word() {
+        // `{abc}` — span covers `{abc`, the closer `}` sits at span.end().
+        let src = "{abc}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Str);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 4);
+        assert_eq!(src.as_bytes()[off as usize], b'}');
+    }
+
+    #[test]
+    fn closer_offset_non_empty_command_sub() {
+        // `[x]` — CMD token, span covers `[x`, closer `]` at span.end().
+        let src = "[x]";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Cmd);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 2);
+        assert_eq!(src.as_bytes()[off as usize], b']');
+    }
+
+    #[test]
+    fn closer_offset_non_empty_quoted_word() {
+        // `"ab"` lexes as ESC; the closer is the closing `"`. Unlike the
+        // segmenter's Str/Cmd-only widening, this accessor covers quoted
+        // words too.
+        let src = "\"ab\"";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Esc);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 3);
+        assert_eq!(src.as_bytes()[off as usize], b'"');
+    }
+
+    #[test]
+    fn closer_offset_backslash_bearing_quoted_word() {
+        // `"a\"b"` — the inner `\"` is an escaped quote, NOT the closer.
+        // Emptiness keys on the token text (non-empty here), so the
+        // accessor lands on the final `"`, not the escaped one.
+        let src = "\"a\\\"b\"";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 5);
+        assert_eq!(src.as_bytes()[off as usize], b'"');
+    }
+
+    #[test]
+    fn closer_offset_escaped_brace_in_braced_word() {
+        // `{a\}}` — the `\}` is an escaped brace; the real closer is the
+        // final `}` at span.end(). A byte-only "last inner byte is `}`?"
+        // heuristic would wrongly treat this as an empty form.
+        let src = "{a\\}}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 4);
+        assert_eq!(src.as_bytes()[off as usize], b'}');
+    }
+
+    #[test]
+    fn closer_offset_empty_braced_word_lands_on_own_closer() {
+        // `{}` — span already covers both braces; the closer is the
+        // inclusive end, NOT one byte past it.
+        let src = "{}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 1);
+        assert_eq!(src.as_bytes()[off as usize], b'}');
+    }
+
+    #[test]
+    fn closer_offset_empty_command_sub() {
+        let src = "[]";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 1);
+        assert_eq!(src.as_bytes()[off as usize], b']');
+    }
+
+    #[test]
+    fn closer_offset_empty_quoted_word() {
+        let src = "\"\"";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let off = word_closer_offset(&sm, tok).unwrap();
+        assert_eq!(off, 1);
+        assert_eq!(src.as_bytes()[off as usize], b'"');
+    }
+
+    #[test]
+    fn closer_offset_empty_brace_does_not_grab_enclosing_closer() {
+        // The #527 case: an empty `{}` immediately followed by an
+        // enclosing `}`. The empty brace's own closer is at offset 3;
+        // the naive `span.end()` (offset 4) would point at the
+        // *enclosing* `}` — an overshoot. This pins the faithful answer.
+        let src = "a {}}";
+        let sm = SourceMap::new(src);
+        let empty_brace = nth_word(src, 1);
+        assert_eq!(empty_brace.kind, TokenType::Str);
+        assert_eq!(empty_brace.span.start(), 2);
+        assert_eq!(empty_brace.span.end(), 4); // naive closer guess
+        let off = word_closer_offset(&sm, empty_brace).unwrap();
+        assert_eq!(off, 3, "must land on the empty brace's own closer");
+        assert_ne!(off, 4, "must not overshoot into the enclosing `}}`");
+    }
+
+    #[test]
+    fn closer_offset_none_for_bare_word() {
+        let src = "foo bar";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Esc);
+        assert!(word_closer_offset(&sm, tok).is_none());
+    }
+
+    #[test]
+    fn closer_offset_none_for_unterminated_braced_word() {
+        // `{abc` runs to EOF with no closer — the computed position is
+        // past the buffer, so the accessor reports `None`.
+        let src = "{abc";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert!(word_closer_offset(&sm, tok).is_none());
+    }
+
+    #[test]
+    fn end_position_non_empty_braced_word_advances_one() {
+        // `{abc}` — inclusive end is the `c` (offset 3); the closer `}`
+        // is one column further on the same line.
+        let src = "{abc}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let pos = word_end_position(&sm, tok);
+        assert_eq!(pos, SourcePosition::new(0, 4, 4));
+    }
+
+    #[test]
+    fn end_position_empty_brace_unchanged() {
+        // `{}` — the inclusive end already is the closer, returned as-is.
+        let src = "{}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let pos = word_end_position(&sm, tok);
+        // Inclusive end of the span: offset 1, on the `}`.
+        assert_eq!(pos, sm.range_positions(tok.span).1);
+        assert_eq!(pos.offset, 1);
+    }
+
+    #[test]
+    fn end_position_multiline_closer_advances_line() {
+        // A braced body whose last inner byte is a newline: the closing
+        // `}` sits at column 0 of the next line.
+        let src = "{a\n}";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        assert_eq!(tok.kind, TokenType::Str);
+        let pos = word_end_position(&sm, tok);
+        assert_eq!(pos, SourcePosition::new(1, 0, 3));
+        assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
+    }
+
+    #[test]
+    fn end_position_bare_word_unchanged() {
+        let src = "foo bar";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let pos = word_end_position(&sm, tok);
+        assert_eq!(pos, sm.range_positions(tok.span).1);
+    }
+
+    #[test]
+    fn end_position_unterminated_unchanged() {
+        let src = "{abc";
+        let sm = SourceMap::new(src);
+        let tok = first_word(src);
+        let pos = word_end_position(&sm, tok);
+        assert_eq!(pos, sm.range_positions(tok.span).1);
+    }
+}

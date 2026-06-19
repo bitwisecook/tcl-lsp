@@ -19,11 +19,29 @@ import pytest
 from .harness import (
     ROOT,
     LspServerClient,
+    close_all_documents_on_live_servers,
     ensure_build_info,
     native_server_bin,
     server_kind,
     server_launch_argv,
 )
+
+
+@pytest.fixture(autouse=True)
+def _close_documents_after_test() -> Iterator[None]:
+    """Close every document opened during a test on all live servers.
+
+    The ``lsp_server`` fixtures are session-scoped, so a document a test opens
+    (via a unique ``uri_factory`` URI) stays open for the rest of the session
+    unless closed.  Workspace-wide providers — cross-document references,
+    workspace symbols — then surface one test's buffer in a later, unrelated
+    test (e.g. a leftover ``proc greet`` polluting another document's
+    references and tripping its range invariants).  Closing each test's
+    documents on teardown keeps the shared servers isolated between tests
+    without paying for a fresh server per test.
+    """
+    yield
+    close_all_documents_on_live_servers()
 
 
 class _Build(NamedTuple):
@@ -150,12 +168,12 @@ def lsp_server_inlay(
 ) -> Iterator[LspServerClient]:
     """A server with inlay hints enabled via ``workspace/configuration``.
 
-    Inlay hints are gated off by default (both ``inlay_type_hints_enabled``
-    and ``inlay_parameter_hints_enabled``), and the main ``lsp_server``
-    deliberately pins that default-off contract.  The inlay *content*
-    regressions (optional-positional labelling, issue #510) need the provider
-    switched on, so they run against this dedicated server whose ``tclLsp``
-    config reply opts into both ``features.inlayTypeHints`` and
+    Inlay hints are gated off by default (both ``inlayTypeHints`` and
+    ``inlayParameterHints``), and the main ``lsp_server`` deliberately pins
+    that default-off contract.  The inlay *content* regressions
+    (optional-positional labelling, issue #510) exercise the parameter-name
+    hints, so they run against this dedicated server whose ``tclLsp`` config
+    reply opts into ``features.inlayTypeHints`` and
     ``features.inlayParameterHints`` (keeping linked editing on too, matching
     the default fixture).
     """

@@ -1,0 +1,15 @@
+# tcl-lsp BIG-IP cleanup
+# Sources: test://config
+# Roots (kept): 4 virtual server(s) / wide-IP(s)
+# Candidates: 3 unreferenced object(s)
+#   ltm_data_group_internal: 1
+#   ltm_persistence_source_addr: 1
+#   ltm_pool: 1
+#
+# Review each delete before running.  Order is reverse-
+# topological: referencing objects are deleted before the
+# objects they reference, so tmsh accepts each command in turn.
+
+delete ltm data-group internal /Common/unused_datagroup
+delete ltm persistence source-addr /Common/my_source_persist
+delete ltm pool /Common/empty_pool

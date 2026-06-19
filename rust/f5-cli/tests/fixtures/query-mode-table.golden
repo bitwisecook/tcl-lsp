@@ -1,0 +1,8 @@
++-------------+--------------------------+
+| name        | pool                     |
++-------------+--------------------------+
+| www_vs      | /Common/web_pool         |
+| api_vs      | /Common/api_pool         |
+| ssl_only_vs | /Common/web_pool         |
+| bad_vs      | /Common/nonexistent_pool |
++-------------+--------------------------+

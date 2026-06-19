@@ -1,0 +1,450 @@
+//! Canonical JSON snapshot of the command registry per dialect.
+//!
+//! Rust port of `command_registry_snapshot` / `command_registry_snapshots`
+//! / `command_entry` in Python `tooling/registry_snapshot.py`, driving the
+//! `tcl registry-dump` verb. The output matches Python's
+//! `json.dumps(indent=2, sort_keys=True)` byte-for-byte on the faithful
+//! subset (the Tcl dialects); see `docs/rust-cli-port.md` for the
+//! documented data-divergence pins.
+//!
+//! **iRules note:** the per-command `info.validEvents*` fields embed the
+//! event-validity cross-product, which only applies to the `f5-irules`
+//! dialect (every Tcl command resolves to an empty valid-event set). The
+//! Tcl path therefore emits the constant empty-list count/digest; the
+//! f5-irules cross-product is a separate engine-gap workstream.
+
+use std::collections::BTreeMap;
+
+use crate::arity::Arity;
+use crate::body_kind::BodyKind;
+use crate::dialects::DialectSet;
+use crate::hover::FormKind;
+use crate::registry::CommandRegistry;
+use crate::side_effects::StorageType;
+use crate::snapshot::Json;
+use crate::spec::{CommandSpec, SubCommand};
+use crate::traits::Traits;
+
+/// `sha256` of the empty string — `digest_list([])` in Python. Every Tcl
+/// command's `valid_events` set is empty, so this constant is the only
+/// digest the Tcl path emits.
+const EMPTY_LIST_DIGEST: &str =
+    "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+/// The boolean `CommandSpec` trait fields backed by a [`Traits`] bit, paired
+/// with their Python field name (the snapshot's `traits` keys). Mirrors
+/// Python's `_command_bool_traits`, which captures every boolean field on
+/// the dataclass; the Rust spec folds these into the [`Traits`] bitflags.
+const TRAIT_FLAGS: &[(&str, Traits)] = &[
+    ("byte_compiled", Traits::BYTE_COMPILED),
+    ("configures_channel", Traits::CONFIGURES_CHANNEL),
+    ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
+    ("creates_scope_alias", Traits::CREATES_SCOPE_ALIAS),
+    ("cse_candidate", Traits::CSE_CANDIDATE),
+    ("defines_procedure", Traits::DEFINES_PROCEDURE),
+    ("destroys_variable", Traits::DESTROYS_VARIABLE),
+    ("diagram_action", Traits::DIAGRAM_ACTION),
+    ("evaluates_code", Traits::EVALUATES_CODE),
+    ("frameless_runtime", Traits::FRAMELESS_RUNTIME),
+    ("has_boolean_condition", Traits::HAS_BOOLEAN_COND),
+    ("has_destructive_ops", Traits::HAS_DESTRUCTIVE_OPS),
+    ("has_interp_eval", Traits::HAS_INTERP_EVAL),
+    ("has_loop_body", Traits::HAS_LOOP_BODY),
+    (
+        "has_string_list_confusion_risk",
+        Traits::STRING_LIST_CONFUSION,
+    ),
+    ("has_switch_body", Traits::HAS_SWITCH_BODY),
+    ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
+    ("is_control_flow", Traits::CONTROL_FLOW),
+    ("is_irules_event_handler", Traits::IS_EVENT_HANDLER),
+    ("is_language_keyword", Traits::LANGUAGE_KEYWORD),
+    ("is_oo_metaclass", Traits::IS_OO_METACLASS),
+    ("is_side_switch", Traits::IS_SIDE_SWITCH),
+    ("is_unescape_command", Traits::IS_UNESCAPE),
+    (
+        "is_unnormalized_http_getter",
+        Traits::UNNORMALISED_HTTP_GETTER,
+    ),
+    ("loop_list_header", Traits::LOOP_LIST_HEADER),
+    ("needs_start_cmd", Traits::NEEDS_START_CMD),
+    ("never_inline_body", Traits::NEVER_INLINE_BODY),
+    ("not_proc_factory", Traits::NOT_PROC_FACTORY),
+    ("opens_channel", Traits::OPENS_CHANNEL),
+    ("password_option_command", Traits::PASSWORD_OPTION),
+    ("performs_substitution", Traits::PERFORMS_SUBSTITUTION),
+    ("produces_canonical_list", Traits::PRODUCES_CANONICAL_LIST),
+    ("pure", Traits::PURE),
+    ("pure_evaluation", Traits::PURE_EVALUATION),
+    ("reads_variable_before_write", Traits::READS_BEFORE_WRITE),
+    ("returns_path", Traits::RETURNS_PATH),
+    ("sources_file", Traits::SOURCES_FILE),
+    ("taint_sink", Traits::TAINT_SINK),
+    ("terminates_block", Traits::TERMINATES_BLOCK),
+    ("unsafe", Traits::UNSAFE),
+    ("warn_without_terminator", Traits::WARN_WITHOUT_TERMINATOR),
+    ("wasm_emits_nothing", Traits::WASM_EMITS_NOTHING),
+];
+
+/// Every dialect bit paired with its canonical name string (Python's
+/// dialect identifiers). Used to serialise `CommandSpec.dialects`.
+const DIALECT_NAMES: &[(DialectSet, &str)] = &[
+    (DialectSet::CADENCE, "cadence-eda-tcl"),
+    (DialectSet::EXPECT, "expect"),
+    (DialectSet::IAPPS, "f5-iapps"),
+    (DialectSet::IRULES, "f5-irules"),
+    (DialectSet::QUARTUS, "intel-quartus-eda-tcl"),
+    (DialectSet::MENTOR, "mentor-eda-tcl"),
+    (DialectSet::SYNOPSYS, "synopsys-eda-tcl"),
+    (DialectSet::TCL84, "tcl8.4"),
+    (DialectSet::TCL85, "tcl8.5"),
+    (DialectSet::TCL86, "tcl8.6"),
+    (DialectSet::TCL90, "tcl9.0"),
+    (DialectSet::TK, "tk"),
+    (DialectSet::XILINX, "xilinx-eda-tcl"),
+];
+
+/// Serialise an [`Arity`] as `{"min", "max"}` (`max` null = unbounded).
+fn arity_json(arity: Arity) -> Json {
+    let mut m = BTreeMap::new();
+    m.insert("min".to_owned(), Json::Int(i64::from(arity.min)));
+    m.insert(
+        "max".to_owned(),
+        if arity.is_unlimited() {
+            Json::Null
+        } else {
+            Json::Int(i64::from(arity.max))
+        },
+    );
+    Json::Object(m)
+}
+
+/// `_jsonable(spec.dialects)`: `null` for "all dialects", else the sorted
+/// list of dialect-name strings.
+fn dialects_json(dialects: Option<DialectSet>) -> Json {
+    match dialects {
+        None => Json::Null,
+        Some(set) => {
+            let mut names: Vec<&str> = DIALECT_NAMES
+                .iter()
+                .filter(|(bit, _)| set.contains(*bit))
+                .map(|(_, name)| *name)
+                .collect();
+            names.sort_unstable();
+            Json::Array(names.into_iter().map(Json::s).collect())
+        }
+    }
+}
+
+/// Whether `dialect` is allowed for a subcommand, mirroring Python
+/// `SubCommand.supports_dialect` (own set wins; else inherit the parent
+/// `CommandSpec.dialects`; else available).
+fn sub_supports_dialect(sub: &SubCommand, dialect: DialectSet, parent: Option<DialectSet>) -> bool {
+    match sub.dialects {
+        Some(own) => own.contains(dialect),
+        None => parent.is_none_or(|p| p.contains(dialect)),
+    }
+}
+
+/// Sorted union of every option name declared on `spec` (no dialect
+/// filter) — Python `sorted(switch_names())` / a single form's
+/// `sorted(opt.name for opt in form.options)`.
+fn all_option_names(spec: &CommandSpec) -> Vec<&'static str> {
+    let mut names = spec.switch_names(None);
+    names.sort_unstable();
+    names
+}
+
+/// The `forms` block. Per-form `arity` is always `null` and
+/// `pure`/`mutator` always `false` for the Tcl dialects; the only
+/// non-trivial per-form field is `options`, which (for the single-form
+/// common case) is the command's full option set.
+fn forms_json(spec: &CommandSpec) -> Json {
+    let single = spec.forms.len() == 1;
+    let opts = all_option_names(spec);
+    let forms = spec
+        .forms
+        .iter()
+        .map(|form| {
+            let mut m = BTreeMap::new();
+            m.insert("kind".to_owned(), Json::s(form_kind_value(form.kind)));
+            m.insert("synopsis".to_owned(), Json::s(form.synopsis));
+            m.insert("arity".to_owned(), Json::Null);
+            // Single-form commands carry all their options on that form.
+            let form_opts = if single {
+                opts.iter().map(|o| Json::s(*o)).collect()
+            } else {
+                Vec::new()
+            };
+            m.insert("options".to_owned(), Json::Array(form_opts));
+            m.insert("pure".to_owned(), Json::Bool(false));
+            m.insert("mutator".to_owned(), Json::Bool(false));
+            Json::Object(m)
+        })
+        .collect();
+    Json::Array(forms)
+}
+
+/// `FormKind.value` — the lowercase wire form.
+fn form_kind_value(kind: FormKind) -> &'static str {
+    match kind {
+        FormKind::Default => "default",
+        FormKind::Getter => "getter",
+        FormKind::Setter => "setter",
+    }
+}
+
+/// `BodyKind` → Python enum `.name` (`INLINE` / `STRUCTURAL`).
+fn body_kind_name(kind: BodyKind) -> &'static str {
+    match kind {
+        BodyKind::Plain => "INLINE",
+        BodyKind::Structural => "STRUCTURAL",
+    }
+}
+
+/// `StorageType` → Python enum `.name`.
+fn storage_type_name(t: StorageType) -> &'static str {
+    match t {
+        StorageType::Dict => "DICT",
+        StorageType::List => "LIST",
+        StorageType::Array => "ARRAY",
+    }
+}
+
+/// The per-command `scalars` block (non-boolean trait fields).
+fn scalars_json(spec: &CommandSpec) -> Json {
+    let mut m = BTreeMap::new();
+    m.insert(
+        "allow_unknown_subcommands".to_owned(),
+        Json::Bool(spec.allow_unknown_subcommands),
+    );
+    m.insert(
+        "assigns_variable_at".to_owned(),
+        spec.assigns_variable_at
+            .map_or(Json::Null, |v| Json::Int(i64::from(v))),
+    );
+    m.insert(
+        "body_arg_implicit_args".to_owned(),
+        Json::Int(i64::from(spec.body_arg_implicit_args)),
+    );
+    m.insert(
+        "body_kind".to_owned(),
+        Json::s(body_kind_name(spec.body_kind)),
+    );
+    m.insert(
+        "deprecated_replacement".to_owned(),
+        spec.deprecated_replacement.map_or(Json::Null, Json::s),
+    );
+    m.insert(
+        "format_string_type".to_owned(),
+        spec.format_string_type
+            .map_or(Json::Null, |t| Json::s(t.as_str())),
+    );
+    m.insert(
+        "inferred_storage_type".to_owned(),
+        spec.inferred_storage_type
+            .map_or(Json::Null, |t| Json::s(storage_type_name(t))),
+    );
+    m.insert(
+        "pattern_type".to_owned(),
+        spec.pattern_type
+            .map_or(Json::Null, |t| Json::s(t.as_str())),
+    );
+    m.insert(
+        "required_package".to_owned(),
+        spec.required_package.map_or(Json::Null, Json::s),
+    );
+    m.insert(
+        "tcllib_package".to_owned(),
+        spec.tcllib_package.map_or(Json::Null, Json::s),
+    );
+    Json::Object(m)
+}
+
+/// The per-command `traits` block: every boolean `CommandSpec` field with
+/// its Python name. `xc_translatable` is `bool | None` in Python, so it is
+/// emitted only when set.
+fn traits_json(spec: &CommandSpec) -> Json {
+    let mut m = BTreeMap::new();
+    for (name, flag) in TRAIT_FLAGS {
+        m.insert((*name).to_owned(), Json::Bool(spec.traits.contains(*flag)));
+    }
+    m.insert(
+        "allow_unknown_subcommands".to_owned(),
+        Json::Bool(spec.allow_unknown_subcommands),
+    );
+    m.insert(
+        "is_namespace_exported".to_owned(),
+        Json::Bool(spec.is_namespace_exported),
+    );
+    m.insert(
+        "warn_missing_import".to_owned(),
+        Json::Bool(spec.warn_missing_import),
+    );
+    if let Some(v) = spec.xc_translatable {
+        m.insert("xc_translatable".to_owned(), Json::Bool(v));
+    }
+    Json::Object(m)
+}
+
+/// The `subcommands` block: subcommands available in `dialect`, sorted by
+/// name (Python `_subcommands_json` over `subcommands_for_dialect`).
+fn subcommands_json(spec: &CommandSpec, dialect: DialectSet) -> Json {
+    let mut subs: Vec<&SubCommand> = spec
+        .subcommands
+        .iter()
+        .filter(|sub| sub_supports_dialect(sub, dialect, spec.dialects))
+        .collect();
+    subs.sort_by(|a, b| a.name.cmp(b.name));
+    let out = subs
+        .into_iter()
+        .map(|sub| {
+            let mut opts: Vec<&str> = sub.options.iter().map(|o| o.name).collect();
+            opts.sort_unstable();
+            let mut m = BTreeMap::new();
+            m.insert("name".to_owned(), Json::s(sub.name));
+            m.insert("arity".to_owned(), arity_json(sub.arity));
+            m.insert("pure".to_owned(), Json::Bool(sub.pure));
+            m.insert("mutator".to_owned(), Json::Bool(sub.mutator));
+            m.insert("destructive".to_owned(), Json::Bool(sub.destructive));
+            // The Rust `SubCommand` carries no deprecation field (no Tcl
+            // subcommand declares one); always `false` / `null`.
+            m.insert("deprecated".to_owned(), Json::Bool(false));
+            m.insert("deprecatedReplacement".to_owned(), Json::Null);
+            m.insert(
+                "options".to_owned(),
+                Json::Array(opts.into_iter().map(Json::s).collect()),
+            );
+            m.insert("returnsPath".to_owned(), Json::Bool(sub.returns_path));
+            Json::Object(m)
+        })
+        .collect();
+    Json::Array(out)
+}
+
+/// `info` block — the shape the `command-info --json` front-end emits.
+fn info_json(spec: &CommandSpec) -> Json {
+    let summary = spec.hover.map_or("", |h| h.summary);
+    let synopsis: Vec<Json> = spec
+        .hover
+        .map(|h| h.synopsis.iter().map(|s| Json::s(*s)).collect())
+        .unwrap_or_default();
+    let switches: Vec<Json> = all_option_names(spec).into_iter().map(Json::s).collect();
+    let mut m = BTreeMap::new();
+    m.insert("summary".to_owned(), Json::s(summary));
+    m.insert("synopsis".to_owned(), Json::Array(synopsis));
+    m.insert("switches".to_owned(), Json::Array(switches));
+    // Every Tcl command's valid-event set is empty (the cross-product is an
+    // f5-irules-only fact), so the count/digest are constant.
+    m.insert("validEventCount".to_owned(), Json::Int(0));
+    m.insert("validEventsDigest".to_owned(), Json::s(EMPTY_LIST_DIGEST));
+    m.insert("validInAnyEvent".to_owned(), Json::Bool(false));
+    Json::Object(m)
+}
+
+/// Deterministically pick the `CommandSpec` for `name` in `dialect`,
+/// mirroring Python `resolve_spec`: among specs supporting the dialect,
+/// prefer the most dialect-specific (scoped beats catch-all, then the
+/// smallest scope).
+fn resolve_spec<'a>(
+    registry: &'a CommandRegistry,
+    name: &str,
+    dialect: DialectSet,
+) -> Option<&'a CommandSpec> {
+    registry
+        .specs(name)
+        .iter()
+        .filter(|s| s.supports_dialect(dialect))
+        .min_by_key(|s| {
+            let scoped = u8::from(s.dialects.is_none());
+            let size = s
+                .dialects
+                .map_or(1_000_000, |d| d.bits().count_ones() as usize);
+            (scoped, size)
+        })
+}
+
+/// Full structured snapshot of a single command in `dialect`.
+fn command_entry(spec: &CommandSpec, dialect: DialectSet) -> Json {
+    let mut switches: Vec<&str> = spec.switch_names(Some(dialect));
+    // Top-level `switches` preserves declaration order (Python
+    // `list(spec.switch_names(dialect))`) — no sort.
+    let switches_json: Vec<Json> = switches.drain(..).map(Json::s).collect();
+
+    let mut excluded: Vec<&str> = spec.excluded_events.to_vec();
+    excluded.sort_unstable();
+
+    let mut m = BTreeMap::new();
+    m.insert("name".to_owned(), Json::s(spec.name));
+    m.insert("dialects".to_owned(), dialects_json(spec.dialects));
+    m.insert("arity".to_owned(), arity_json(spec.arity));
+    m.insert("switches".to_owned(), Json::Array(switches_json));
+    m.insert("subcommands".to_owned(), subcommands_json(spec, dialect));
+    m.insert("forms".to_owned(), forms_json(spec));
+    m.insert(
+        "excludedEvents".to_owned(),
+        Json::Array(excluded.into_iter().map(Json::s).collect()),
+    );
+    m.insert("traits".to_owned(), traits_json(spec));
+    m.insert("scalars".to_owned(), scalars_json(spec));
+    m.insert("info".to_owned(), info_json(spec));
+    Json::Object(m)
+}
+
+/// Sorted command names available in `dialect` — Python
+/// `REGISTRY.command_names(dialect)` (no package filtering: the default
+/// `active_packages = None` makes every package-gated command visible).
+fn command_names(registry: &CommandRegistry, dialect: DialectSet) -> Vec<String> {
+    let mut names: Vec<String> = registry
+        .command_names()
+        .filter(|name| registry.get_for_dialect(name, dialect).is_some())
+        .map(str::to_owned)
+        .collect();
+    names.sort_unstable();
+    names
+}
+
+/// The full snapshot entry for a single `name` in `dialect`, or `None`
+/// when the command is unavailable. Used by the faithful-subset golden
+/// test to compare individual command entries.
+#[must_use]
+pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
+    let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
+    resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset))
+}
+
+/// Snapshot of every command available in `dialect` — Python
+/// `command_registry_snapshot`.
+#[must_use]
+pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> Json {
+    let dset = DialectSet::parse(dialect).unwrap_or(DialectSet::TCL86);
+    let names = command_names(registry, dset);
+    let commands: Vec<Json> = names
+        .iter()
+        .filter_map(|name| resolve_spec(registry, name, dset).map(|spec| command_entry(spec, dset)))
+        .collect();
+    let mut m = BTreeMap::new();
+    m.insert("dialect".to_owned(), Json::s(dialect));
+    m.insert(
+        "commandCount".to_owned(),
+        Json::Int(i64::try_from(commands.len()).unwrap_or(i64::MAX)),
+    );
+    m.insert("commands".to_owned(), Json::Array(commands));
+    Json::Object(m)
+}
+
+/// Multi-dialect snapshot — Python `command_registry_snapshots`.
+#[must_use]
+pub fn command_registry_snapshots(registry: &CommandRegistry, dialects: &[&str]) -> Json {
+    let mut by_dialect = BTreeMap::new();
+    for dialect in dialects {
+        by_dialect.insert(
+            (*dialect).to_owned(),
+            command_registry_snapshot(registry, dialect),
+        );
+    }
+    let mut m = BTreeMap::new();
+    m.insert("schema".to_owned(), Json::s("tcl-lsp/registry/commands/v1"));
+    m.insert("dialects".to_owned(), Json::Object(by_dialect));
+    Json::Object(m)
+}

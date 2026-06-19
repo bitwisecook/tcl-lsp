@@ -72,9 +72,15 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-qa-what-config-sections-are-valid.md](kcs-qa-what-config-sections-are-valid.md)
   — the nine INI sections (seven shared plus the location-specific
   `[global]` and `[project]`), their keys, and which values are valid.
+- [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — what the
+  `TCL_LSP_RUST_*` environment variables do and when to set them as the
+  Python-to-Rust rewrite lands in chunks.
 
 ## How-Tos
 
+- [kcs-howto-build-multiplatform-vsix.md](kcs-howto-build-multiplatform-vsix.md)
+  — build the universal VS Code `.vsix` that bundles a native server per
+  platform, and add a new platform.
 - [kcs-howto-add-compiler-pass.md](kcs-howto-add-compiler-pass.md) — add
   a new pass to the compiler pipeline.
 - [kcs-howto-ir-cfg-ssa-diagnostics.md](kcs-howto-ir-cfg-ssa-diagnostics.md)

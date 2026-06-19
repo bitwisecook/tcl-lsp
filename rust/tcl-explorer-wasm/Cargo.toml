@@ -1,0 +1,28 @@
+# Rust → WASM facade for the compiler-explorer GUI.
+#
+# Excluded from the main workspace (like `editors/zed/`): it is a cdylib
+# targeting `wasm32-unknown-unknown`, and wasm-bindgen's generated glue
+# needs `unsafe`, which the workspace `unsafe_code = "forbid"` lint bans.
+# Built via `make explorer-wasm` (wasm-pack + wasm-opt); see the Makefile.
+[package]
+name = "tcl-explorer-wasm"
+description = "Rust → WASM compile() facade for the Tcl compiler-explorer GUI"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tcl-explorer = { path = "../tcl-explorer" }
+serde_json = "1"
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+# Optimise for size — this ships to the browser.
+opt-level = "s"
+lto = true
+codegen-units = 1

@@ -1,0 +1,38 @@
+//! `TCP::rt_metrics_timeout` iRules command.
+use crate::prelude::*;
+pub const fn spec() -> CommandSpec {
+    CommandSpec {
+        name: "TCP::rt_metrics_timeout",
+        dialects: Some(DialectSet::IRULES),
+        arity: Arity::at_least(0),
+        hover: Some(HoverSnippet {
+            summary: "Sets cmetrics cache entry lifetime (timeout).",
+            synopsis: &["TCP::rt_metrics_timeout TIMEOUT"],
+            snippet: "If the TCP profile enables cmetrics-cache, then the entries there remain for a number of seconds equivalent to cmetrics-cache-timeout. This iRule supercedes that setting.",
+            source: "https://clouddocs.f5.com/api/irules/TCP__rt_metrics_timeout.html",
+            examples: "when CLIENT_CLOSED {\n    TCP::rt_metrics_timeout 300\n}",
+            return_value: "None.",
+        }),
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: Some("tcp"),
+            profiles: &[],
+            also_in: &[],
+            init_only: false,
+            flow: false,
+            capability: None,
+        }),
+        forms: &[FormSpec {
+            kind: FormKind::Default,
+            synopsis: "TCP::rt_metrics_timeout TIMEOUT",
+        }],
+        side_effects: &[SideEffect {
+            target: SideEffectTarget::TcpState,
+            reads: true,
+            writes: false,
+            connection_side: ConnectionSide::Both,
+        }],
+        ..CommandSpec::DEFAULT
+    }
+}

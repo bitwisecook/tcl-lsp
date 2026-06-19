@@ -1,0 +1,17 @@
+ltm node /AppA/n2 {
+    address 10.0.0.2
+}
+
+ltm node /Common/n1 {
+    address 10.0.0.1
+}
+
+ltm pool /Common/p1 {
+    members {
+        /Common/n1:80 { }
+    }
+}
+
+sys global-settings {
+    hostname bigip1
+}

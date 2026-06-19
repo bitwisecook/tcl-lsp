@@ -134,6 +134,43 @@ ZIPAPP_AI      := $(BUILD_DIR)/tcl-lsp-ai-$(VERSION).pyz
 
 # Cargo build profile for the native Rust LSP server (rust-server target).
 PROFILE ?= release
+
+# Native-server cross-compilation.  The universal VSIX bundles one
+# `tcl-lsp-server` binary per supported platform under
+# `server/<platform>-<arch>/`.  Each entry maps a Rust target triple to the
+# VSIX bundle directory (which equals Node's `process.platform-process.arch`).
+SERVER_TARGET_MAP := \
+	x86_64-apple-darwin:darwin-x64 \
+	aarch64-apple-darwin:darwin-arm64 \
+	x86_64-unknown-linux-gnu:linux-x64 \
+	aarch64-unknown-linux-gnu:linux-arm64 \
+	riscv64gc-unknown-linux-gnu:linux-riscv64 \
+	x86_64-pc-windows-msvc:win32-x64 \
+	aarch64-pc-windows-msvc:win32-arm64
+SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
+
+# Targets the current host can build natively / with cross-linkers.  Linux
+# builds the three Linux triples (x86_64 native + aarch64/riscv64 cross);
+# macOS builds both Darwin triples; a Windows runner builds both win32 triples.
+SERVER_UNAME_S := $(shell uname -s)
+ifeq ($(SERVER_UNAME_S),Linux)
+  SERVER_TARGETS_HOST := x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu
+else ifeq ($(SERVER_UNAME_S),Darwin)
+  SERVER_TARGETS_HOST := aarch64-apple-darwin x86_64-apple-darwin
+else
+  SERVER_TARGETS_HOST := x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+endif
+
+# The set of triples staged into the universal VSIX.  Defaults to the
+# host-buildable subset (a partial-universal VSIX for local dev); CI overrides
+# with the full matrix: `make package-vsix BUNDLED_TARGETS="$(SERVER_TARGETS_ALL)"`.
+BUNDLED_TARGETS ?= $(SERVER_TARGETS_HOST)
+
+# This host's own Rust target triple — the one binary cargo can always build
+# with no cross toolchain.  Used by the `smoke-vsix` gate for a dependency-light
+# native-only VSIX (the full multi-platform build is CI's job).
+SERVER_TARGET_NATIVE := $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
+
 ZIPAPP_MCP     := $(BUILD_DIR)/tcl-lsp-mcp-server-$(VERSION).pyz
 ZIPAPP_WASM    := $(BUILD_DIR)/tcl-wasm-compiler-$(VERSION).pyz
 CLAUDE_SKILLS  := $(BUILD_DIR)/tcl-lsp-claude-skills-$(VERSION).zip
@@ -161,7 +198,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: ci-fast check-all test-slow verify-test-slow-stamp prep-pr install-hooks
 # Tests
-.PHONY: test test-py test-wasm test-ext test-emacs test-zig test-rust rust-server test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
+.PHONY: test test-py test-wasm test-ext test-ext-rust test-emacs test-zig test-rust rust-server rust-tcl rust-f5 rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all server-cross-test server-cross-test-build print-server-targets-all test-lsp-e2e test-lsp-e2e-rust test-vm test-opt test-fuzz test-fuzz-full test-fuzz-recovery fuzz fuzz-cov
 .PHONY: test-tclpkg test-tclpkg-tcl
 .PHONY: test-tcl9 test-tcl9-samples test-tcl9-full test-tcl9-vm-core test-tcl9-wasm-core check-tcl9-tcltest-io tcl9-triage
 .PHONY: refresh-tcl9-vm-core-baseline refresh-tcl9-wasm-core-baseline
@@ -173,7 +210,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Compile + codegen + generated assets
 .PHONY: compile build-info codegen generate check-generated gen-editor-settings check-editor-settings gen-registry-baselines check-registry-baselines copy-canonical npm-env logo
 # Compiler explorer (WASM GUI)
-.PHONY: explorer-build explorer-build-cdn compiler-explorer-gui
+.PHONY: explorer-wasm explorer-build explorer-build-cdn compiler-explorer-gui
 # Zipapps + smoke tests
 .PHONY: zipapps zipapp-tcl zipapp-explorer-cli zipapp-f5 zipapp-explorer-gui zipapp-explorer-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm claude-skills
 .PHONY: smoke-zipapps smoke-vsix
@@ -183,6 +220,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: release release-tag release-codeql-gate release-sums
 # Zig runtime + leak check
 .PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
+# Rust runtime port
+.PHONY: runtime-rust-test runtime-rust-lint runtime-rust-sweep vm-test vm-lint
 # Sphinx docs
 .PHONY: docs docs-html docs-clean docs-linkcheck
 # Screenshots
@@ -228,7 +267,7 @@ publish-vsix: verify-test-slow-stamp package-vsix ## Publish the .vsix to the VS
 		exit 1; \
 	fi
 
-$(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build/zipapps.py $(ROOT)scripts/zipapp-main/lsp.py $(ROOT)scripts/install/filter_readme.py
+$(VSIX_FILE): $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -241,12 +280,28 @@ $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_D
 		$(EXT_DIR)/ $(STAGE_DIR)/
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
-	@echo "==> Building LSP server zipapp"
-	$(PYTHON) $(ROOT)scripts/build/zipapps.py lsp \
-		--version $(VERSION) \
-		--output $(STAGE_DIR)/tcl-lsp-server.pyz
+	@echo "==> Bundling native tcl-lsp-server binaries: $(BUNDLED_TARGETS)"
+	@set -eu; \
+		missing=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			triple="$${pair%%:*}"; dir="$${pair##*:}"; \
+			case " $(BUNDLED_TARGETS) " in *" $$triple "*) ;; *) continue;; esac; \
+			case "$$triple" in *windows*) exe="tcl-lsp-server.exe";; *) exe="tcl-lsp-server";; esac; \
+			src="$(ROOT)target/$$triple/release/$$exe"; \
+			if [ ! -f "$$src" ]; then missing="$$missing $$triple"; continue; fi; \
+			mkdir -p "$(STAGE_DIR)/server/$$dir"; \
+			cp "$$src" "$(STAGE_DIR)/server/$$dir/$$exe"; \
+			chmod +x "$(STAGE_DIR)/server/$$dir/$$exe"; \
+			echo "    server/$$dir/$$exe"; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "ERROR: missing built server binaries for:$$missing"; \
+			echo "Build them first: make server-cross-build  (host targets)"; \
+			echo "             or:  make server-cross-build-all  (all 7 — needs cross deps)"; \
+			exit 1; \
+		fi
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
-	$(PYTHON) $(ROOT)scripts/install/filter_readme.py --editor "VS Code" $(README_SRC) -o $(STAGE_DIR)/README.md
+	node $(ROOT)scripts/install/filter-readme.mjs $(README_SRC) --editor "VS Code" -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
 	cp $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif $(STAGE_DIR)/docs/screenshots/
 	cp "$(ROOT)docs/Tcl LSP Logo-8bit-256.png" $(STAGE_DIR)/docs/icon.png
@@ -265,19 +320,42 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			echo "$$BAD_ENTRIES"; \
 			exit 1; \
 		fi
+	@# The native server has replaced the Python pyz — there must be no .pyz
+	@# and no raw Python server source in the package.
 	@set -euo pipefail; \
 		PYZ_COUNT="$$(unzip -Z1 $(VSIX_FILE) | grep -c '\.pyz$$' || true)"; \
-		if [[ "$$PYZ_COUNT" -eq 0 ]]; then \
-			echo "VSIX missing .pyz server bundle!"; \
+		if [[ "$$PYZ_COUNT" -ne 0 ]]; then \
+			echo "VSIX contains a .pyz — the native server should have replaced it:"; \
+			unzip -Z1 $(VSIX_FILE) | grep '\.pyz$$'; \
 			exit 1; \
 		fi
 	@set -euo pipefail; \
-		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(server/|compiler/|analyser/|dialects/|shared/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
+		RAW_SERVER="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(compiler/|analyser/|dialects/|shared/|core/|pyproject\.toml$$|uv\.lock$$)' || true)"; \
 		if [[ -n "$$RAW_SERVER" ]]; then \
-			echo "VSIX contains raw Python source/pyproject.toml/uv.lock (should be .pyz only):"; \
+			echo "VSIX contains raw Python source/pyproject.toml/uv.lock (should be native binaries only):"; \
 			echo "$$RAW_SERVER"; \
 			exit 1; \
 		fi
+	@# Every requested target must ship a binary under server/<dir>/.
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(VSIX_FILE))"; \
+		want=0; have=0; missing=""; \
+		for pair in $(SERVER_TARGET_MAP); do \
+			triple="$${pair%%:*}"; dir="$${pair##*:}"; \
+			case " $(BUNDLED_TARGETS) " in *" $$triple "*) ;; *) continue;; esac; \
+			case "$$triple" in *windows*) exe="tcl-lsp-server.exe";; *) exe="tcl-lsp-server";; esac; \
+			want=$$((want+1)); \
+			if echo "$$entries" | grep -qx "extension/server/$$dir/$$exe"; then \
+				have=$$((have+1)); \
+			else \
+				missing="$$missing server/$$dir/$$exe"; \
+			fi; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "VSIX missing expected native server binaries:$$missing"; \
+			exit 1; \
+		fi; \
+		echo "==> VSIX bundles $$have/$$want native server binaries"
 
 # Test targets
 
@@ -287,26 +365,13 @@ lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
 format: format-py format-ts ## Format Python and TypeScript code
 
-test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+test-py: $(UV_STAMP) ensure-python-test-deps $(RUNTIME_WASM) ## Run the Python test suite (PyO3 surfaces + tooling; excludes lsp_e2e, VM tcltest, fuzz campaigns)
 	@echo "==> Running Python tests"
-	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
-
-rust-server: ## Build the native Rust LSP server (PROFILE=release|debug) if a Rust workspace is present
-	@set -eu; \
-	if [ ! -f "$(ROOT)Cargo.toml" ]; then \
-		echo "==> No top-level Cargo.toml (native server lives on the rust branch) — nothing to build"; \
-		exit 0; \
-	fi; \
-	if ! command -v cargo >/dev/null 2>&1; then \
-		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
-	fi; \
-	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
-	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
-	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
+	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py --ignore=tests/lsp_e2e
 
 test-lsp-e2e: $(UV_STAMP) ensure-python-test-deps $(ZIPAPP_LSP) ## Run the backend-neutral lsp_e2e suite against the Python server
 	@echo "==> Running lsp_e2e against the Python server"
-	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
 
 test-lsp-e2e-rust: $(UV_STAMP) ensure-python-test-deps ## Run the lsp_e2e suite against the native Rust server (TCL_LSP_SERVER_BIN or target/{release,debug})
 	@set -eu; \
@@ -438,13 +503,24 @@ test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
 	@# (compile + xvfb install + test host).  Without ``set -eu`` the
 	@# early ``exit 0`` would only end its own recipe-line shell and
 	@# make would run the next lines anyway.
+	@#
+	@# The extension is native-only (no Python fallback), so the Rust
+	@# tcl-lsp-server binary must exist before the VS Code test host starts.
+	@# Build it here (idempotent) and point the extension at it via
+	@# TCL_LSP_SERVER_BIN, rather than relying on the parallel `test-rust`
+	@# in the test-slow batch winning the race.  A pre-set TCL_LSP_SERVER_BIN
+	@# is honoured so callers can supply their own binary.
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_EXT:-}" ]; then \
 		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
 		exit 0; \
 	fi; \
+	if [ -z "$${TCL_LSP_SERVER_BIN:-}" ]; then \
+		"$(MAKE)" rust-server; \
+		export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
+	fi; \
 	"$(MAKE)" compile ensure-vscode-test-deps; \
-	echo "==> Running VS Code extension tests"; \
+	echo "==> Running VS Code extension tests (native server: $${TCL_LSP_SERVER_BIN})"; \
 	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
 		if command -v xvfb-run >/dev/null 2>&1; then \
 			echo "==> No DISPLAY detected; running VS Code tests under xvfb-run"; \
@@ -528,7 +604,7 @@ _prep-pr-smoke: smoke-zipapps smoke-vsix
 # wire surface.
 _ci-fast-pytest: $(UV_STAMP) $(ZIPAPP_LSP)
 	@echo "==> Running LSP end-to-end pytest subset"
-	cd $(ROOT) && TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
+	cd $(ROOT) && TCL_LSP_SERVER_KIND=python TCL_LSP_SERVER_PYZ="$(ZIPAPP_LSP)" $(UV) run --extra dev pytest -q -n 2 \
 		tests/lsp_e2e/ \
 		tests/test_server_commands.py \
 		tests/test_server_config.py \
@@ -559,7 +635,7 @@ prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck
 # Optional Rust test step.  Cargo tests run only if a workspace exists at the
 # repo root (some branches add Rust code beyond the Zed extension); otherwise
 # this is a no-op.  Set SKIP_TEST_RUST=1 to skip explicitly.
-test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (skip with SKIP_TEST_RUST=1)
+test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
 		echo "==> SKIP_TEST_RUST set — skipping Rust tests"; \
@@ -576,6 +652,137 @@ test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (ski
 	fi; \
 	echo "==> Running Rust workspace tests"; \
 	cd $(ROOT) && cargo test --workspace --all-features
+	@echo "==> Building the native server + running lsp_e2e against it"
+	$(MAKE) rust-server
+	$(MAKE) test-lsp-e2e-rust
+
+# Build the native Rust LSP server binary (target/release/tcl-lsp-server).
+# This is the server the test harnesses drive when TCL_LSP_SERVER_KIND=rust
+# (lsp_e2e) or tclLsp.serverKind="rust" (VS Code).  Release by default for
+# usable latency; pass PROFILE=debug for a faster build (see PROFILE above).
+rust-server: ## Build the native Rust LSP server (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native tcl-lsp-server ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p tcl-lsp-server $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/tcl-lsp-server"
+
+# Build the native Rust `tcl` CLI binary (target/release/tcl).  Mirrors
+# rust-server: release by default, PROFILE=debug for a faster build.  This is
+# the Rust port of the Python `tcl` console script (tooling/tcl/main.py).
+rust-tcl: ## Build the native Rust `tcl` CLI (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native tcl CLI ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p tcl-cli $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/tcl"
+
+# Build the native Rust `f5-query` CLI binary (target/release/f5-query).
+# The Rust port of the Python `f5-query` console script (tooling/f5/main.py).
+rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; exit 1; \
+	fi; \
+	echo "==> Building native f5-query CLI ($(PROFILE))"; \
+	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
+	echo "==> Built $(ROOT)target/$(PROFILE)/f5-query"
+
+# Build both native Rust CLIs in one go.
+rust-clis: rust-tcl rust-f5 ## Build the native Rust `tcl` + `f5-query` CLIs
+
+# Cross-compile + smoke-test tcl-lsp-server for the multi-platform universal
+# VSIX.  Every workspace crate is pure Rust, so only the linker varies per
+# target (see .cargo/config.toml).  Linux uses QEMU user-mode to smoke foreign
+# arches; macOS runs Darwin binaries natively; Windows targets build on a
+# Windows runner.
+
+ensure-server-cross-deps: ## Install cross-compile deps (rustup targets + linkers) for this host
+	@set -eu; \
+	if ! command -v rustup >/dev/null 2>&1; then \
+		echo "ERROR: rustup not found — install Rust via rustup (need 1.95+)."; exit 1; \
+	fi; \
+	case "$(SERVER_UNAME_S)" in \
+	Linux) \
+		echo "==> Adding Linux cross targets"; \
+		rustup target add aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu >/dev/null 2>&1 || true; \
+		if ! command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || ! command -v riscv64-linux-gnu-gcc >/dev/null 2>&1; then \
+			echo "==> Installing cross-linkers (sudo apt-get)"; \
+			sudo apt-get install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu; \
+		fi; \
+		if ! command -v qemu-aarch64 >/dev/null 2>&1; then \
+			echo "==> Installing qemu-user"; \
+			sudo apt-get install -y qemu-user; \
+		fi; \
+		;; \
+	Darwin) \
+		echo "==> Adding Darwin cross targets"; \
+		rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true; \
+		echo "  (macOS uses the system cc — no extra linker or QEMU needed)"; \
+		;; \
+	*) \
+		echo "==> Adding Windows cross targets"; \
+		rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc >/dev/null 2>&1 || true; \
+		;; \
+	esac; \
+	echo "==> Cross-compile deps ready for $(SERVER_UNAME_S)"
+
+server-cross-build: ## Cross-compile tcl-lsp-server for this host's native + cross targets
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then echo "ERROR: cargo not found."; exit 1; fi; \
+	echo "==> Cross-compiling tcl-lsp-server: $(SERVER_TARGETS_HOST)"; \
+	for t in $(SERVER_TARGETS_HOST); do \
+		echo "  building $$t..."; \
+		cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $$t --quiet; \
+	done; \
+	echo "==> Done"
+
+server-cross-build-all: ## Cross-compile tcl-lsp-server for all 7 targets (CI fan-in)
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1; then echo "ERROR: cargo not found."; exit 1; fi; \
+	echo "==> Cross-compiling tcl-lsp-server for all targets: $(SERVER_TARGETS_ALL)"; \
+	for t in $(SERVER_TARGETS_ALL); do \
+		echo "  building $$t..."; \
+		cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $$t --quiet \
+			|| { echo "    (skipped $$t — not buildable on this host)"; continue; }; \
+	done; \
+	echo "==> Done"
+
+print-server-targets-all: ## Print the full set of native-server target triples (CI helper)
+	@echo $(SERVER_TARGETS_ALL)
+
+server-cross-test: ## Smoke-test built tcl-lsp-server binaries (QEMU on Linux, native on macOS)
+	@bash $(ROOT)scripts/test-cross-server.sh
+
+server-cross-test-build: ## Cross-build then smoke-test tcl-lsp-server binaries
+	@bash $(ROOT)scripts/test-cross-server.sh --build
+
+# Opt-in: run the VS Code extension integration tests against the NATIVE Rust
+# server.  Mirrors `test-ext` but exports TCL_LSP_SERVER_KIND=rust + the binary
+# path so the extension launches the native server (extension.ts
+# resolveRustServer()).  Failures are expected during parity work; the bar is
+# that the suite terminates with a pass/fail report (no indefinite hang).
+test-ext-rust: rust-server ## Run VS Code extension tests against the native Rust server (TCL_LSP_SERVER_KIND=rust)
+	@set -eu; \
+	"$(MAKE)" compile ensure-vscode-test-deps; \
+	echo "==> Running VS Code extension tests against the native Rust server"; \
+	export TCL_LSP_SERVER_KIND=rust; \
+	export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+		if command -v xvfb-run >/dev/null 2>&1; then \
+			echo "==> No DISPLAY detected; running under xvfb-run"; \
+			cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" test; \
+		else \
+			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; \
+			exit 1; \
+		fi; \
+	else \
+		cd "$(EXT_DIR)" && "$(NPM)" test; \
+	fi
 
 ## Pre-push gate: full lint + typecheck across every language (Python, TS,
 ## Zig, Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.
@@ -628,6 +835,12 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
 		cd $(ZED_DIR) && cargo fmt --all --check && \
 			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(EXPLORER_WASM_DIR)/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown; then \
+		echo "==> Checking tcl-explorer-wasm (fmt + clippy --target wasm32-unknown-unknown)"; \
+		cd $(EXPLORER_WASM_DIR) && cargo fmt --all --check && \
+			cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
 	fi
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
@@ -800,6 +1013,10 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_RGXG=1 \
 			SKIP_TCLLIB=1 \
 			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+		echo "==> Ensuring wasm32-unknown-unknown target (compiler-explorer WASM)"; \
+		rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true; \
+		command -v wasm-pack >/dev/null 2>&1 || \
+			echo "    note: wasm-pack not found — 'cargo install wasm-pack' for 'make explorer-wasm'"; \
 	fi
 
 ensure-emacs-deps: ## Install Emacs needed by test-emacs
@@ -1003,8 +1220,15 @@ smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipap
 	@echo "All zipapp smoke tests passed."
 
 smoke-vsix: compile $(BUILD_INFO) ## Build and verify the VSIX packages without error
-	@echo "==> Smoke-testing VSIX build"
-	$(MAKE) package-vsix
+	@echo "==> Smoke-testing VSIX build (native server only: $(SERVER_TARGET_NATIVE))"
+	@set -eu; \
+	if ! command -v cargo >/dev/null 2>&1 || [ -z "$(SERVER_TARGET_NATIVE)" ]; then \
+		echo "ERROR: cargo/rustc are required to build the native tcl-lsp-server for the VSIX smoke."; \
+		exit 1; \
+	fi; \
+	echo "==> Building native tcl-lsp-server ($(SERVER_TARGET_NATIVE))"; \
+	cd $(ROOT) && cargo build -p tcl-lsp-server --release --target $(SERVER_TARGET_NATIVE) --quiet
+	$(MAKE) package-vsix BUNDLED_TARGETS="$(SERVER_TARGET_NATIVE)"
 
 # npm / TypeScript
 
@@ -1060,6 +1284,16 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	@mkdir -p $(OUT_DIR)/chat/canonical
 	@cp $(CANONICAL_DIR)/* $(OUT_DIR)/chat/canonical/
 	@cp $(EXPLORER_STATIC)/explorer-core.js $(OUT_DIR)/explorer-core.js
+	@# Bundle the Rust → WASM explorer module so the webview compiles in-process
+	@# (no LSP roundtrip). Best-effort: built by `make explorer-wasm`; when it is
+	@# absent the webview degrades to host-brokered compilation.
+	@if [ -f $(EXPLORER_STATIC)/tcl_explorer_wasm.js ] && [ -f $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm ]; then \
+		cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(OUT_DIR)/tcl_explorer_wasm.js; \
+		cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(OUT_DIR)/tcl_explorer_wasm_bg.wasm; \
+		echo "==> Bundled tcl-explorer-wasm into $(OUT_DIR)"; \
+	else \
+		echo "==> tcl-explorer-wasm not built — webview will use host-brokered compile (run 'make explorer-wasm')"; \
+	fi
 
 # Python environment
 
@@ -1187,35 +1421,49 @@ $(MERMAID_JS):
 	@echo "==> Downloading Mermaid.js $(MERMAID_VERSION)"
 	curl -fSL -o $@ $(MERMAID_CDN)
 
-explorer-build: $(UV_STAMP) $(PYODIDE_DIR)/pyodide.js $(MERMAID_JS) $(BUILD_INFO_JSON) ## Build the WASM compiler explorer (offline)
-	@echo "==> Building wheel for Pyodide"
-	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_STATIC)
-	@echo "Built wheel:"
-	@ls -lh $(EXPLORER_STATIC)/tcl_lsp-*.whl
-	@echo "Pyodide: $(PYODIDE_DIR)"
+EXPLORER_WASM_DIR := $(ROOT)rust/tcl-explorer-wasm
+
+explorer-wasm: ## Build the Rust → WASM compiler-explorer module into static/
+	@command -v wasm-pack >/dev/null 2>&1 || { \
+		echo "wasm-pack not found — run 'make ensure-rust-deps' or 'cargo install wasm-pack'"; \
+		exit 1; }
+	@echo "==> Building tcl-explorer-wasm (wasm-pack --target no-modules)"
+	cd $(EXPLORER_WASM_DIR) && wasm-pack build --target no-modules --release \
+		--out-dir $(BUILD_DIR)/explorer-wasm --out-name tcl_explorer_wasm
+	@echo "==> Optimising with wasm-opt"
+	wasm-opt -O3 $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm_bg.wasm \
+		-o $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+	cp $(BUILD_DIR)/explorer-wasm/tcl_explorer_wasm.js $(EXPLORER_STATIC)/tcl_explorer_wasm.js
+	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
+
+explorer-build: explorer-wasm $(MERMAID_JS) ## Build the compiler explorer (Rust → WASM, offline, no Python)
+	@echo "==> Compiler explorer ready in $(EXPLORER_STATIC) (Rust → WASM, no Pyodide)"
 
 compiler-explorer-gui: explorer-build ## Build and serve the static compiler explorer
 	@echo "==> Serving compiler explorer at http://localhost:8080"
 	cd $(EXPLORER_STATIC) && $(PYTHON) -m http.server 8080
 
-# CDN variant — lightweight build that loads Pyodide + Mermaid from CDN
+# CDN variant — lightweight build that loads Mermaid from CDN (the Rust → WASM
+# compiler module has no CDN, so it is bundled alongside the worker).
 EXPLORER_CDN_DIR := $(BUILD_DIR)/explorer-cdn
-PYODIDE_CDN_BASE := https://cdn.jsdelivr.net/pyodide/v$(PYODIDE_VERSION)/full/
 MERMAID_CDN_URL  := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 
-explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (no Pyodide download)
+explorer-build-cdn: explorer-wasm $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler explorer (Mermaid from CDN, WASM bundled)
 	@echo "==> Building CDN explorer"
 	@rm -rf $(EXPLORER_CDN_DIR)
 	@mkdir -p $(EXPLORER_CDN_DIR)
 	cd $(ROOT) && $(UV) build --wheel --out-dir $(EXPLORER_CDN_DIR)
 	cp $(BUILD_INFO_JSON) $(EXPLORER_CDN_DIR)/
 	cp $(EXPLORER_STATIC)/explorer-core.js $(EXPLORER_CDN_DIR)/
+	@# The Rust → WASM compiler module has no CDN, so it is bundled in both
+	@# the local and CDN explorers (built by the explorer-wasm prerequisite).
+	cp $(EXPLORER_STATIC)/tcl_explorer_wasm.js $(EXPLORER_CDN_DIR)/
+	cp $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm $(EXPLORER_CDN_DIR)/
 	sed 's|<script src="mermaid.min.js"></script>|<script src="$(MERMAID_CDN_URL)"></script>|' \
 		$(EXPLORER_STATIC)/index.html > $(EXPLORER_CDN_DIR)/index.html
-	sed -e 's|// All assets are local.*|// Pyodide loaded from CDN.|' \
-	    -e 's|const baseUrl = new URL.*|const baseUrl = new URL(".", self.location.href).href;|' \
-	    -e 's|const pyodideUrl = baseUrl + "pyodide/";|const pyodideUrl = "$(PYODIDE_CDN_BASE)";|' \
-		$(EXPLORER_STATIC)/worker.js > $(EXPLORER_CDN_DIR)/worker.js
+	@# worker.js loads the bundled WASM relative to itself; the CDN variant
+	@# only swaps Mermaid (in index.html), so the worker is copied verbatim.
+	cp $(EXPLORER_STATIC)/worker.js $(EXPLORER_CDN_DIR)/worker.js
 	@echo "CDN explorer built in $(EXPLORER_CDN_DIR)"
 	@ls -lh $(EXPLORER_CDN_DIR)/
 
@@ -1572,6 +1820,29 @@ leakcheck-diff: ## Diff the latest leak sweep against tests/baselines/wasm_leak_
 
 snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to the committed baseline
 	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json
+
+# Rust runtime port (runtime/rust) — standalone crate, excluded from the root
+# workspace (it is `unsafe`; root forbids `unsafe`). These are the gates the
+# rust-runtime-port doc + runtime/rust/README cite. Not wired into ci-fast /
+# prep-pr: the runtime port is a separate workstream from the LSP/compiler CI.
+RUNTIME_RUST_DIR := $(ROOT)runtime/rust
+
+runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)
+	cd $(RUNTIME_RUST_DIR) && cargo test
+
+runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+
+runtime-rust-sweep: ## Sweep the Tcl 9 tcltest suite against the Rust runtime (scoreboard); JSON=path to dump --json
+	cd $(RUNTIME_RUST_DIR) && cargo build --release --example run_script
+	TCL_LIBRARY=$(ROOT)tmp/tcl9.0.3/library python3 $(ROOT)scripts/dev/rust_tcltest_sweep.py $(if $(JSON),--json $(JSON),)
+
+vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm)
+	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm
+
+vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
+	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
+	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- -D warnings
 
 # ---------------------------------------------------------------------------
 # Sphinx — dialects.f5.query Python API reference

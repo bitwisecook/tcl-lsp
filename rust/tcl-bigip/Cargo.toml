@@ -1,0 +1,22 @@
+[package]
+name = "tcl-bigip"
+description = "Faithful Rust port of the F5 BIG-IP object model and config parser (dialects/f5/bigip)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-irules = { path = "../tcl-irules" }
+serde_json = "1"
+regex = "1"
+ipnet = "2"
+sha2 = "0.10"
+indexmap = "2"
+
+[lints]
+workspace = true

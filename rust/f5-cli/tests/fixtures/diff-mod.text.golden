@@ -1,0 +1,3 @@
+diff: +0 added, -0 removed, ~1 modified
+~ [pool] /Common/p1
+    load_balancing_mode: 'round-robin' -> 'least-connections-member'

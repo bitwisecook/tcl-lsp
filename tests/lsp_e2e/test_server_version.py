@@ -17,9 +17,18 @@ should be added alongside this one against the same ``lsp_server``.
 
 from __future__ import annotations
 
+import pytest
+
 from .harness import server_kind
 
 
+@pytest.mark.skipif(
+    server_kind() == "rust",
+    reason=(
+        "version banner is python-pyz-specific: the native Rust server reports "
+        "its crate version (CARGO_PKG_VERSION), not the packaged build version"
+    ),
+)
 def test_initialize_reports_packaged_build_version(lsp_server, lsp_full_version):
     """serverInfo.version from the live server is the build version, not 'dev'."""
     info = lsp_server.server_info

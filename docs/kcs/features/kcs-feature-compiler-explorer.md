@@ -25,7 +25,9 @@ VS Code, JetBrains, tcl-lsp CLI
 
 ## Operational context
 
-The compiler explorer runs the full compilation pipeline (parse, lower, optimise, codegen) and displays the output at each stage. It uses a Pyodide-powered web panel for interactive exploration.
+The compiler explorer runs the full compilation pipeline (parse, lower, optimise, codegen) and displays the output at each stage.
+
+The pipeline is being ported to Rust (`EXP*`). The browser GUI and the in-editor panels now compile via a Rust → WebAssembly module (`tcl-explorer-wasm`, built by `make explorer-wasm`) rather than Pyodide: the standalone GUI's `worker.js` loads the wasm module directly, and the VS Code webview / JetBrains JCEF panel bundle the `.wasm` and call `compile()` **in the webview itself** — no Pyodide and no LSP `executeCommand` roundtrip. When the wasm module is absent (e.g. a dev build without `make explorer-wasm`), the editor panels degrade gracefully to host-brokered compilation through the LSP server. A native `tcl explore` CLI verb (`--json` and a feature-gated `--tui` ratatui shell) renders the same serialised contract.
 
 ### WASM disassembly view
 
@@ -53,12 +55,14 @@ The `tcl-explorer` CLI and TUI render the same offset-free diff via `--opt diff`
 ## File-path anchors
 
 - `editors/vscode/src/compilerExplorer.ts`
-- `editors/vscode/src/compilerExplorerHtml.ts`
-- `tooling/explorer/` (`_normalise_diff_line` / `_print_opt_diff` in `cli.py`; `normaliseForDiff` / `irToLines` in `static/explorer-core.js`)
+- `editors/vscode/src/compilerExplorerHtml.ts` (inlines `explorer-core.js` + the Rust → WASM module; in-webview `compile()` with host fallback)
+- `editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/CompilerExplorerToolWindowFactory.kt` (JCEF panel; the bundled HTML compiles in-page, LSP path kept as fallback)
+- `rust/tcl-explorer/` (pipeline + serialiser), `rust/tcl-explorer-wasm/` (the `wasm-bindgen` cdylib), `rust/tcl-cli/src/commands/explore.rs` + `src/tui.rs` (CLI verb + ratatui TUI)
+- `tooling/explorer/static/worker.js` (Rust → WASM worker), `tooling/explorer/` (`_normalise_diff_line` / `_print_opt_diff` in `cli.py`; `normaliseForDiff` / `irToLines` in `static/explorer-core.js`)
 
 ## Failure modes
 
-- Panel fails to load if Pyodide CDN is unreachable.
+- Web GUI / editor panels fail to compile if the Rust → WASM module is missing or fails to instantiate; the editor panels then fall back to host-brokered compilation via the LSP server (which itself requires the Python server, since the native Rust LSP server does not implement `tcl-lsp.compilerExplorer`).
 - Stale display after compilation pipeline changes.
 
 ## Test anchors

@@ -24,7 +24,12 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 ZIG_VERSION="0.16.0"
 WASMTIME_VERSION="43.0.1"
 BINARYEN_VERSION="123"
-RUST_VERSION="1.95.0"
+# Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
+# (see docs/rust-rewrite.md). Installing the channel — rather than a pinned
+# version — keeps it auto-updating to the latest stable and, critically,
+# means the wasm32-wasip2 target lands on the toolchain the project actually
+# uses. No manual bump needed when a new stable lands.
+RUST_TOOLCHAIN="stable"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 
@@ -372,7 +377,7 @@ install_tcl_regex() {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Rust toolchain — rustup + stable (pinned).
+# 6. Rust toolchain — rustup + floating `stable` (matches rust-toolchain.toml).
 #    Uses the official rust-lang.org installer so we get signed binaries.
 # ---------------------------------------------------------------------------
 install_rust() {
@@ -428,12 +433,12 @@ install_rust() {
         fi
         chmod +x "${tmpdir}/rustup-init"
 
-        echo "session-start: installing rustup + rust ${RUST_VERSION}"
+        echo "session-start: installing rustup + rust ${RUST_TOOLCHAIN}"
         "${tmpdir}/rustup-init" \
             -y \
             --no-modify-path \
             --profile minimal \
-            --default-toolchain "${RUST_VERSION}" \
+            --default-toolchain "${RUST_TOOLCHAIN}" \
             --component rustfmt,clippy
 
         rustup_bin="${CARGO_HOME}/bin/rustup"
@@ -448,7 +453,7 @@ install_rust() {
     # static.rust-lang.org can 503 briefly, so retry with exponential backoff.
     local attempt
     for attempt in 1 2 3 4; do
-        if "$rustup_bin" toolchain install "${RUST_VERSION}" \
+        if "$rustup_bin" toolchain install "${RUST_TOOLCHAIN}" \
                 --profile minimal --component rustfmt --component clippy \
                 --no-self-update; then
             break
@@ -458,11 +463,11 @@ install_rust() {
             echo "session-start: rustup retry $attempt (waiting ${wait}s) ..."
             sleep "$wait"
         else
-            echo "session-start: failed to install rust ${RUST_VERSION} after 4 attempts" >&2
+            echo "session-start: failed to install rust ${RUST_TOOLCHAIN} after 4 attempts" >&2
             return 1
         fi
     done
-    "$rustup_bin" default "${RUST_VERSION}"
+    "$rustup_bin" default "${RUST_TOOLCHAIN}"
 
     # The Zed extension's clippy check (`make check-rust`, used by
     # `make test-slow`) cross-compiles to wasm32-wasip2, so the target
@@ -470,7 +475,7 @@ install_rust() {
     # already-installed targets.
     for attempt in 1 2 3 4; do
         if "$rustup_bin" target add wasm32-wasip2 \
-                --toolchain "${RUST_VERSION}"; then
+                --toolchain "${RUST_TOOLCHAIN}"; then
             break
         fi
         if [ "$attempt" -lt 4 ]; then

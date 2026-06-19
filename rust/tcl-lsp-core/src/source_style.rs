@@ -1,0 +1,620 @@
+//! Source-level style diagnostics — Rust port of the line/text
+//! style checks in `lsp/features/diagnostics.py`.
+//!
+//! These five style codes are *source-text* checks: they read the
+//! raw document, not the lexer / segmenter / CST, because the
+//! questions they answer ("is this line too long", "does this line
+//! have trailing whitespace", "what line endings does the file
+//! use", "is this a backslash-continued comment") are inherently
+//! textual and have no structural Tcl representation.  This mirrors
+//! the Python implementation, which operates directly on
+//! `source.split("\n")`.
+//!
+//! Ported checks:
+//!
+//! * **W111** — line length (`_check_line_length`).
+//! * **W112** — trailing whitespace (`_check_trailing_whitespace`),
+//!   with a remove-whitespace quick-fix.
+//! * **W115** — backslash-newline in a comment swallows the next
+//!   line (`_check_comment_continuation`), with a
+//!   convert-to-per-line-comments quick-fix.
+//! * **W118** — inconsistent line endings (`_check_line_endings`),
+//!   a single file-level diagnostic.
+//!
+//! GAP-C1 strip 2 wires the orchestrator ([`style_diagnostics`])
+//! into the native server's `publish_analyser_diagnostics` so these
+//! source-style codes reach the editor alongside the analyser /
+//! compiler-check / optimiser sets.
+//!
+//! **Range convention.**  The emitted ranges mirror Python's
+//! source-style emission exactly — the `end` position points at the
+//! *last affected character* (Python uses `character = length - 1`),
+//! not one-past-the-end.  This differs from the exclusive-`end`
+//! convention the structural `tcl-lsp-core` providers use, but it
+//! preserves the live Python analyser's inclusive diagnostic anchors.
+//! Character columns are UTF-16 code units, matching the LSP convention.
+//!
+//! **Deferred (follow-ups, documented in GAP-C1 strip 2):** the
+//! W112 / W115 quick-fixes are *ported* (carried on
+//! [`StyleDiagnostic::fix`]) but not yet surfaced as code actions —
+//! the code-action wiring is a separate concern, same posture as
+//! the optimiser O-code fixes (GAP-C3).  Per-check feature-config
+//! toggles beyond the file-level `# noqa` / `# tcl-lsp: disable`
+//! suppression are also a follow-up; today the checks run with the
+//! Python defaults (line length 120, expected line ending `\n`).
+
+use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
+
+use crate::definition::{LspRange, utf16_len};
+
+/// Severity of a source-style diagnostic.  W111 / W115 are
+/// warnings; W112 / W118 are hints (matching Python's
+/// `Severity.WARNING` / `Severity.HINT`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StyleSeverity {
+    /// LSP `Warning` (Python `Severity.WARNING`).
+    Warning,
+    /// LSP `Hint` (Python `Severity.HINT`).
+    Hint,
+}
+
+/// A quick-fix attached to a style diagnostic.  Mirrors the Python
+/// `CodeFix(range, new_text, description)`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StyleFix {
+    /// Document range the fix replaces.
+    pub range: LspRange,
+    /// Replacement text.
+    pub new_text: String,
+    /// Human-readable description (the code-action title).
+    pub description: String,
+}
+
+/// One source-style diagnostic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StyleDiagnostic {
+    /// Source range the diagnostic anchors at (see the module-level
+    /// "Range convention" note — `end` is the last affected char).
+    pub range: LspRange,
+    /// Diagnostic message.
+    pub message: String,
+    /// Severity.
+    pub severity: StyleSeverity,
+    /// Diagnostic code (`W111` / `W112` / `W115` / `W118`).
+    pub code: &'static str,
+    /// Optional quick-fix (W112 / W115 carry one; W111 / W118 do
+    /// not).
+    pub fix: Option<StyleFix>,
+}
+
+/// Default maximum line length, matching Python's
+/// `line_length: int = 120`.
+pub const DEFAULT_LINE_LENGTH: usize = 120;
+
+/// Default expected line ending, matching Python's
+/// `line_ending: str = "\n"`.
+pub const DEFAULT_LINE_ENDING: &str = "\n";
+
+/// Python `_FILE_SUPPRESS_KEY` sentinel: a file-wide directive is
+/// recorded against line `-1` in `suppressed_lines`.
+const FILE_SUPPRESS_KEY: i32 = -1;
+
+/// Return `true` when `code` is suppressed at `line` by an inline
+/// `# noqa` or a top-of-file `# tcl-lsp: disable=…` directive.
+/// Ports Python's `_is_suppressed`: a `"*"` entry suppresses every
+/// code, and the file-level (`-1`) bucket applies document-wide.
+fn is_suppressed<H: BuildHasher, I: BuildHasher>(
+    code: &str,
+    line: i32,
+    suppressed: &HashMap<i32, HashSet<String, I>, H>,
+) -> bool {
+    if let Some(file_codes) = suppressed.get(&FILE_SUPPRESS_KEY)
+        && (file_codes.contains("*") || file_codes.contains(code))
+    {
+        return true;
+    }
+    match suppressed.get(&line) {
+        Some(codes) => codes.contains("*") || codes.contains(code),
+        None => false,
+    }
+}
+
+/// W111: flag lines exceeding `max_length` characters.
+///
+/// Ports `_check_line_length`.  The length is the line's codepoint
+/// count *after* stripping a trailing `\r` so CRLF endings don't
+/// inflate the count.
+#[must_use]
+pub fn check_line_length(source: &str, max_length: usize) -> Vec<StyleDiagnostic> {
+    let mut out = Vec::new();
+    for (lineno, line) in source.split('\n').enumerate() {
+        let line = line.trim_end_matches('\r');
+        let length = line.chars().count();
+        if length > max_length {
+            let lineno = u32::try_from(lineno).expect("line index fits u32");
+            let end_char = utf16_len(line).saturating_sub(1);
+            out.push(StyleDiagnostic {
+                range: LspRange {
+                    start_line: lineno,
+                    start_character: 0,
+                    end_line: lineno,
+                    end_character: end_char,
+                },
+                message: format!("Line exceeds {max_length} characters ({length} characters)"),
+                severity: StyleSeverity::Warning,
+                code: "W111",
+                fix: None,
+            });
+        }
+    }
+    out
+}
+
+/// W112: flag trailing whitespace, with a remove-whitespace fix.
+///
+/// Ports `_check_trailing_whitespace`.  A trailing `\r` is stripped
+/// first so CRLF endings aren't themselves flagged.
+#[must_use]
+pub fn check_trailing_whitespace(source: &str) -> Vec<StyleDiagnostic> {
+    let mut out = Vec::new();
+    for (lineno, line) in source.split('\n').enumerate() {
+        let line_no_cr = line.trim_end_matches('\r');
+        let stripped = line_no_cr.trim_end();
+        if stripped.len() < line_no_cr.len() {
+            let lineno = u32::try_from(lineno).expect("line index fits u32");
+            let ws_start = utf16_len(stripped);
+            let ws_end = utf16_len(line_no_cr);
+            let range = LspRange {
+                start_line: lineno,
+                start_character: ws_start,
+                end_line: lineno,
+                end_character: ws_end - 1,
+            };
+            out.push(StyleDiagnostic {
+                range,
+                message: "Trailing whitespace".to_string(),
+                severity: StyleSeverity::Hint,
+                code: "W112",
+                fix: Some(StyleFix {
+                    range,
+                    new_text: String::new(),
+                    description: "Remove trailing whitespace".to_string(),
+                }),
+            });
+        }
+    }
+    out
+}
+
+/// Human-readable label for a line-ending byte sequence.
+fn eol_label(ending: &str) -> String {
+    match ending {
+        "\n" => "LF".to_string(),
+        "\r\n" => "CRLF".to_string(),
+        "\r" => "CR".to_string(),
+        other => format!("{other:?}"),
+    }
+}
+
+/// W118: flag files whose line endings differ from `expected`.
+///
+/// Ports `_check_line_endings`.  Emits at most one file-level
+/// diagnostic anchored at `(0, 0)`.
+#[must_use]
+pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> {
+    let crlf = source.matches("\r\n").count();
+    // Lone \r = total \r minus those that are part of \r\n.
+    let cr = source.matches('\r').count() - crlf;
+    let lf = source.matches('\n').count() - crlf;
+
+    // Build the set of endings present, in Python's insertion
+    // order (LF, CRLF, CR) so the "Mixed line endings" message is
+    // byte-identical.
+    let mut present: Vec<(&str, usize)> = Vec::new();
+    if lf > 0 {
+        present.push(("\n", lf));
+    }
+    if crlf > 0 {
+        present.push(("\r\n", crlf));
+    }
+    if cr > 0 {
+        present.push(("\r", cr));
+    }
+
+    if present.is_empty() {
+        return Vec::new();
+    }
+
+    let unexpected: Vec<(&str, usize)> = present
+        .iter()
+        .copied()
+        .filter(|(k, _)| *k != expected)
+        .collect();
+    if unexpected.is_empty() {
+        return Vec::new();
+    }
+
+    let expected_label = eol_label(expected);
+    let message = if present.len() > 1 {
+        let parts: Vec<String> = present
+            .iter()
+            .map(|(k, v)| format!("{} ({v})", eol_label(k)))
+            .collect();
+        format!(
+            "Mixed line endings: {}; expected {expected_label}",
+            parts.join(", ")
+        )
+    } else {
+        let (actual_ending, count) = unexpected[0];
+        let actual_label = eol_label(actual_ending);
+        format!("File uses {actual_label} line endings ({count}); expected {expected_label}")
+    };
+
+    let zero = LspRange {
+        start_line: 0,
+        start_character: 0,
+        end_line: 0,
+        end_character: 0,
+    };
+    vec![StyleDiagnostic {
+        range: zero,
+        message,
+        severity: StyleSeverity::Hint,
+        code: "W118",
+        fix: None,
+    }]
+}
+
+/// W115: flag backslash-newline continuation inside comments.
+///
+/// Ports `_check_comment_continuation`.  In Tcl, a `\` immediately
+/// before a newline inside a comment silently swallows the next
+/// line into the comment, which can hide live code.  The quick-fix
+/// converts the continued comment into separate per-line `#`
+/// comments.
+#[must_use]
+pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
+    let lines: Vec<&str> = source.split('\n').collect();
+    let mut out = Vec::new();
+
+    let mut i = 0usize;
+    while i < lines.len() {
+        let line = lines[i];
+        let stripped = line.trim_start();
+        if !(stripped.starts_with('#') && line.trim_end_matches('\r').ends_with('\\')) {
+            i += 1;
+            continue;
+        }
+
+        // Found a comment with backslash continuation.  `indent`
+        // is the leading-whitespace prefix; because `stripped`
+        // drops a leading run, the byte arithmetic is exact.
+        let indent = &line[..line.len() - stripped.len()];
+        let block_start = i;
+        let mut block_lines: Vec<&str> = vec![line];
+
+        // Gather continuation lines.
+        let mut j = i + 1;
+        while j < lines.len() {
+            block_lines.push(lines[j]);
+            if lines[j].trim_end_matches('\r').ends_with('\\') {
+                j += 1;
+            } else {
+                break;
+            }
+        }
+        let block_end = j.min(lines.len() - 1);
+
+        // Build the replacement text: per-line comments.
+        let mut fixed: Vec<String> = Vec::with_capacity(block_lines.len());
+        let last_idx = block_lines.len() - 1;
+        for (k, orig) in block_lines.iter().enumerate() {
+            let raw = orig.trim_end_matches('\r');
+            if k == 0 {
+                // First line: remove the trailing backslash (1
+                // ASCII byte), then strip trailing whitespace.
+                fixed.push(raw[..raw.len() - 1].trim_end().to_string());
+            } else {
+                let mut content = raw.trim_start();
+                if raw.ends_with('\\') && k < last_idx {
+                    content = content[..content.len() - 1].trim_end();
+                }
+                if content.starts_with('#') {
+                    // Already looks like a comment — keep indent
+                    // only.
+                    fixed.push(format!("{indent}{content}"));
+                } else {
+                    fixed.push(format!("{indent}# {content}"));
+                }
+            }
+        }
+        let new_text = fixed.join("\n");
+
+        // Diagnostic range: from the start of the first line to
+        // the last character of the last line.
+        let end_line_text = lines[block_end];
+        let end_char = utf16_len(end_line_text).saturating_sub(1);
+        let range = LspRange {
+            start_line: u32::try_from(block_start).expect("line index fits u32"),
+            start_character: 0,
+            end_line: u32::try_from(block_end).expect("line index fits u32"),
+            end_character: end_char,
+        };
+        out.push(StyleDiagnostic {
+            range,
+            message: "Backslash-newline in comment silently swallows the next line".to_string(),
+            severity: StyleSeverity::Warning,
+            code: "W115",
+            fix: Some(StyleFix {
+                range,
+                new_text,
+                description: "Convert to per-line comments".to_string(),
+            }),
+        });
+
+        i = block_end + 1;
+    }
+    out
+}
+
+/// Run every source-style check and return the merged, suppression-
+/// filtered diagnostics.
+///
+/// Ports the style portion of `get_basic_diagnostics`:
+///
+/// * W111 / W112 / W115 honour inline `# noqa` / file-level
+///   suppression (keyed by `suppressed`, the analyser's
+///   `suppressed_lines`).
+/// * W118 is a file-level check and is *not* line-suppressed
+///   (matching Python — it is only gated by the `disabled` set).
+/// * Each code is skipped entirely when it appears in `disabled`
+///   (the LSP user-config disabled-diagnostics set).
+#[must_use]
+pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
+    source: &str,
+    line_length: usize,
+    line_ending: &str,
+    disabled: &HashSet<String, SD>,
+    suppressed: &HashMap<i32, HashSet<String, I>, H>,
+) -> Vec<StyleDiagnostic> {
+    let mut out = Vec::new();
+
+    let push_line_suppressed = |diags: Vec<StyleDiagnostic>, out: &mut Vec<StyleDiagnostic>| {
+        for d in diags {
+            // The diagnostic line is always a real source line, so
+            // it fits `i32`; `MAX` is an unreachable fallback that
+            // can never collide with the `-1` file-level bucket.
+            let line = i32::try_from(d.range.start_line).unwrap_or(i32::MAX);
+            if is_suppressed(d.code, line, suppressed) {
+                continue;
+            }
+            out.push(d);
+        }
+    };
+
+    // A code is enabled unless it (or the `*` "disable all"
+    // sentinel from a `# tcl-lsp: disable=*` directive) appears in
+    // the disabled set.
+    let enabled = |code: &str| !disabled.contains("*") && !disabled.contains(code);
+
+    if enabled("W111") {
+        push_line_suppressed(check_line_length(source, line_length), &mut out);
+    }
+    if enabled("W112") {
+        push_line_suppressed(check_trailing_whitespace(source), &mut out);
+    }
+    if enabled("W115") {
+        push_line_suppressed(check_comment_continuation(source), &mut out);
+    }
+    if enabled("W118") {
+        out.extend(check_line_endings(source, line_ending));
+    }
+
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn no_suppress() -> HashMap<i32, HashSet<String>> {
+        HashMap::new()
+    }
+
+    fn no_disable() -> HashSet<String> {
+        HashSet::new()
+    }
+
+    #[test]
+    fn w111_flags_long_line() {
+        let line = "x".repeat(125);
+        let diags = check_line_length(&line, DEFAULT_LINE_LENGTH);
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert_eq!(d.code, "W111");
+        assert_eq!(d.severity, StyleSeverity::Warning);
+        assert_eq!(d.message, "Line exceeds 120 characters (125 characters)");
+        assert_eq!(d.range.start_line, 0);
+        assert_eq!(d.range.start_character, 0);
+        assert_eq!(d.range.end_character, 124);
+        assert!(d.fix.is_none());
+    }
+
+    #[test]
+    fn w111_ignores_trailing_cr() {
+        // 120 chars + CRLF must not fire (length counts exclude \r).
+        let src = format!("{}\r\nshort", "y".repeat(120));
+        let diags = check_line_length(&src, DEFAULT_LINE_LENGTH);
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn w111_boundary_exactly_max_is_clean() {
+        let line = "z".repeat(120);
+        assert!(check_line_length(&line, DEFAULT_LINE_LENGTH).is_empty());
+    }
+
+    #[test]
+    fn w112_flags_trailing_whitespace_with_fix() {
+        let src = "set x 1   \nset y 2";
+        let diags = check_trailing_whitespace(src);
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert_eq!(d.code, "W112");
+        assert_eq!(d.severity, StyleSeverity::Hint);
+        assert_eq!(d.range.start_line, 0);
+        assert_eq!(d.range.start_character, 7);
+        assert_eq!(d.range.end_character, 9);
+        let fix = d.fix.as_ref().expect("W112 carries a fix");
+        assert_eq!(fix.new_text, "");
+        assert_eq!(fix.range.start_character, 7);
+        assert_eq!(fix.range.end_character, 9);
+        assert_eq!(fix.description, "Remove trailing whitespace");
+    }
+
+    #[test]
+    fn w112_range_uses_utf16_columns() {
+        let diags = check_trailing_whitespace("set 😀  \n");
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert_eq!(d.range.start_character, 6);
+        assert_eq!(d.range.end_character, 7);
+        let fix = d.fix.as_ref().expect("W112 carries a fix");
+        assert_eq!(fix.range.start_character, 6);
+        assert_eq!(fix.range.end_character, 7);
+    }
+
+    #[test]
+    fn w112_does_not_flag_crlf() {
+        let diags = check_trailing_whitespace("set x 1\r\nset y 2\r\n");
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn w118_flags_crlf_when_lf_expected() {
+        let diags = check_line_endings("a\r\nb\r\n", "\n");
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert_eq!(d.code, "W118");
+        assert_eq!(d.severity, StyleSeverity::Hint);
+        assert_eq!(d.message, "File uses CRLF line endings (2); expected LF");
+        assert_eq!(d.range.start_line, 0);
+        assert_eq!(d.range.start_character, 0);
+    }
+
+    #[test]
+    fn w118_clean_when_all_lf_and_lf_expected() {
+        assert!(check_line_endings("a\nb\nc\n", "\n").is_empty());
+    }
+
+    #[test]
+    fn w118_mixed_message_preserves_order() {
+        // One LF, one CRLF, one lone CR.
+        let diags = check_line_endings("a\nb\r\nc\rd", "\n");
+        assert_eq!(diags.len(), 1);
+        assert_eq!(
+            diags[0].message,
+            "Mixed line endings: LF (1), CRLF (1), CR (1); expected LF"
+        );
+    }
+
+    #[test]
+    fn w115_flags_comment_continuation_with_perline_fix() {
+        let src = "# first line \\\nsecond line\nputs ok";
+        let diags = check_comment_continuation(src);
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert_eq!(d.code, "W115");
+        assert_eq!(d.severity, StyleSeverity::Warning);
+        assert_eq!(d.range.start_line, 0);
+        assert_eq!(d.range.end_line, 1);
+        let fix = d.fix.as_ref().expect("W115 carries a fix");
+        // First line loses its backslash; the swallowed line
+        // becomes its own `#` comment.
+        assert_eq!(fix.new_text, "# first line\n# second line");
+        assert_eq!(fix.description, "Convert to per-line comments");
+    }
+
+    #[test]
+    fn w115_preserves_indent_and_existing_hash() {
+        let src = "    # head \\\n    # already\nbody";
+        let diags = check_comment_continuation(src);
+        assert_eq!(diags.len(), 1);
+        let fix = diags[0].fix.as_ref().unwrap();
+        // The continuation line already starts with `#`, so only
+        // the indent is re-applied (no extra `# `).
+        assert_eq!(fix.new_text, "    # head\n    # already");
+    }
+
+    #[test]
+    fn w115_skips_plain_comment() {
+        assert!(check_comment_continuation("# normal comment\nputs hi").is_empty());
+    }
+
+    #[test]
+    fn orchestrator_respects_disabled_set() {
+        let mut disabled = HashSet::new();
+        disabled.insert("W112".to_string());
+        let src = "set x 1   ";
+        let diags = style_diagnostics(
+            src,
+            DEFAULT_LINE_LENGTH,
+            DEFAULT_LINE_ENDING,
+            &disabled,
+            &no_suppress(),
+        );
+        assert!(diags.iter().all(|d| d.code != "W112"));
+    }
+
+    #[test]
+    fn orchestrator_respects_noqa_line_suppression() {
+        // Trailing whitespace on line 0, suppressed via `# noqa`
+        // recorded against that line.
+        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
+        suppressed.insert(0, std::iter::once("*".to_string()).collect());
+        let src = "set x 1   ";
+        let diags = style_diagnostics(
+            src,
+            DEFAULT_LINE_LENGTH,
+            DEFAULT_LINE_ENDING,
+            &no_disable(),
+            &suppressed,
+        );
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn orchestrator_file_suppression_suppresses_specific_code() {
+        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
+        suppressed.insert(
+            FILE_SUPPRESS_KEY,
+            std::iter::once("W112".to_string()).collect(),
+        );
+        let src = "set x 1   ";
+        let diags = style_diagnostics(
+            src,
+            DEFAULT_LINE_LENGTH,
+            DEFAULT_LINE_ENDING,
+            &no_disable(),
+            &suppressed,
+        );
+        assert!(diags.iter().all(|d| d.code != "W112"));
+    }
+
+    #[test]
+    fn orchestrator_w118_is_not_line_suppressed() {
+        // A line-0 `*` noqa must NOT suppress the file-level W118
+        // (Python only line-suppresses W111/W112/W115).
+        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
+        suppressed.insert(0, std::iter::once("*".to_string()).collect());
+        let diags = style_diagnostics(
+            "a\r\nb\r\n",
+            DEFAULT_LINE_LENGTH,
+            DEFAULT_LINE_ENDING,
+            &no_disable(),
+            &suppressed,
+        );
+        assert!(diags.iter().any(|d| d.code == "W118"));
+    }
+}

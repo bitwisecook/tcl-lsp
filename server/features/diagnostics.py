@@ -1099,6 +1099,15 @@ def get_diagnostics(
     The synchronous entry point for callers that want every diagnostic in a
     single list rather than the split basic/deep pipeline (e.g. tests).
     """
+    # Phase-2 parity measurement: route through the native Rust server when
+    # ``TCL_LSP_DIAG_BACKEND=rust`` so the existing fp/ground-truth battery
+    # certifies the Rust analyser. No-op in the default (python) mode.
+    import os as _os
+
+    if _os.environ.get("TCL_LSP_DIAG_BACKEND") == "rust":
+        from tests.rust_diag_bridge import rust_diagnostics
+
+        return rust_diagnostics(source)
     cu = ensure_compilation_unit(source, cu, logger=log, context="diagnostics")
 
     basic, analysis_result, suppressed = get_basic_diagnostics(

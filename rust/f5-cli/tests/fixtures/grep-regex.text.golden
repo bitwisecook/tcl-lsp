@@ -1,0 +1,49 @@
+# tcl-lsp BIG-IP grep
+# Pattern: /Common/.*_vs (regex)
+# Direction: both
+# Sources: file:///home/user/tcl-lsp/rust/f5-cli/tests/fixtures/bigip.conf
+# Searches: 4 matched object(s)
+# Related: 22 object(s)
+#   ltm_data_group_internal: 3
+#   ltm_monitor_http: 1
+#   ltm_node: 3
+#   ltm_persistence_cookie: 1
+#   ltm_pool: 3
+#   ltm_profile_client_ssl: 1
+#   ltm_profile_http: 1
+#   ltm_profile_one_connect: 1
+#   ltm_profile_server_ssl: 1
+#   ltm_profile_tcp: 1
+#   ltm_rule: 5
+#   ltm_snatpool: 1
+#   ltm_virtual: 4
+
+# Searches (matched by pattern):
+* [ltm_virtual] /Common/api_vs  (depth 0)
+* [ltm_virtual] /Common/bad_vs  (depth 0)
+* [ltm_virtual] /Common/ssl_only_vs  (depth 0)
+* [ltm_virtual] /Common/www_vs  (depth 0)
+
+# Related objects (reachable through reference edges):
+  [ltm_persistence_cookie] /Common/my_cookie_persist  (depth 1)
+  [ltm_pool] /Common/api_pool  (depth 1)
+  [ltm_pool] /Common/web_pool  (depth 1)
+  [ltm_profile_client_ssl] /Common/my_clientssl  (depth 1)
+  [ltm_profile_http] /Common/my_http_profile  (depth 1)
+  [ltm_profile_one_connect] /Common/my_oneconnect  (depth 1)
+  [ltm_profile_server_ssl] /Common/my_serverssl  (depth 1)
+  [ltm_profile_tcp] /Common/my_tcp_profile  (depth 1)
+  [ltm_rule] /Common/bad_references  (depth 1)
+  [ltm_rule] /Common/ip_blocklist  (depth 1)
+  [ltm_rule] /Common/route_by_host  (depth 1)
+  [ltm_rule] /Common/ssl_info  (depth 1)
+  [ltm_rule] /Common/uri_rewrite  (depth 1)
+  [ltm_snatpool] /Common/my_snatpool  (depth 1)
+  [ltm_data_group_internal] /Common/allowed_hosts  (depth 2)
+  [ltm_data_group_internal] /Common/blocked_ips  (depth 2)
+  [ltm_data_group_internal] /Common/uri_redirect_map  (depth 2)
+  [ltm_monitor_http] /Common/my_http_monitor  (depth 2)
+  [ltm_node] /Common/web1  (depth 2)
+  [ltm_node] /Common/web2  (depth 2)
+  [ltm_node] /Common/web3  (depth 2)
+  [ltm_pool] /Common/empty_pool  (depth 3)

@@ -1,0 +1,53 @@
+{
+  "target": "/Common/www_vs",
+  "kind": "virtual",
+  "found": true,
+  "sections": [
+    {
+      "heading": "destination",
+      "lines": [
+        "/Common/10.0.0.1:443"
+      ]
+    },
+    {
+      "heading": "profiles",
+      "lines": [
+        "/Common/my_http_profile (http)",
+        "/Common/my_tcp_profile (tcp)",
+        "/Common/my_clientssl (client_ssl)",
+        "/Common/my_serverssl (server_ssl)",
+        "/Common/my_oneconnect (one_connect)"
+      ]
+    },
+    {
+      "heading": "iRules",
+      "lines": [
+        "/Common/route_by_host \u2014 14 loc; events: HTTP_REQUEST",
+        "/Common/ip_blocklist \u2014 5 loc; events: CLIENT_ACCEPTED",
+        "/Common/uri_rewrite \u2014 6 loc; events: HTTP_REQUEST"
+      ]
+    },
+    {
+      "heading": "persistence",
+      "lines": [
+        "/Common/my_cookie_persist (cookie)"
+      ]
+    },
+    {
+      "heading": "SNAT",
+      "lines": [
+        "snatpool /Common/my_snatpool (2 member(s))",
+        "translation: snat"
+      ]
+    },
+    {
+      "heading": "default pool",
+      "lines": [
+        "/Common/web_pool (round-robin)",
+        "  pool monitor: /Common/my_http_monitor",
+        "  member /Common/web1:80 addr=10.0.1.10",
+        "  member /Common/web2:80 addr=10.0.1.11"
+      ]
+    }
+  ]
+}

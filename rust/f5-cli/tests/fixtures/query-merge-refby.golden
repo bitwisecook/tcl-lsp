@@ -1,0 +1,3 @@
+# === __FIXTURES__/merge-ltm.conf ===
+/Common/vs_a
+/Common/vs_b

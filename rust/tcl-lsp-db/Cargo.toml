@@ -1,0 +1,21 @@
+[package]
+name = "tcl-lsp-db"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+salsa = "0.26"
+tcl-compiler = { path = "../tcl-compiler" }
+tcl-lexer = { path = "../tcl-lexer" }
+tcl-registry = { path = "../tcl-registry" }
+tcl-lsp-core = { path = "../tcl-lsp-core" }
+
+[dev-dependencies]
+rayon = "1"

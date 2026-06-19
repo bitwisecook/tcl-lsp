@@ -1,0 +1,457 @@
+[
+  {
+    "query": "todate(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1970-01-01T00:00:00Z\"\n]\n"
+  },
+  {
+    "query": "todate(1700000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2023-11-14T22:13:20Z\"\n]\n"
+  },
+  {
+    "query": "todate(1700000000.9)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2023-11-14T22:13:20Z\"\n]\n"
+  },
+  {
+    "query": "todate(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1969-12-31T23:59:59Z\"\n]\n"
+  },
+  {
+    "query": "todate(1000000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001-09-09T01:46:40Z\"\n]\n"
+  },
+  {
+    "query": "todateiso8601(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1970-01-01T00:00:00Z\"\n]\n"
+  },
+  {
+    "query": "todateiso8601(1700000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2023-11-14T22:13:20Z\"\n]\n"
+  },
+  {
+    "query": "date(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1970-01-01T00:00:00Z\"\n]\n"
+  },
+  {
+    "query": "date(1700000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2023-11-14T22:13:20Z\"\n]\n"
+  },
+  {
+    "query": "todate(true)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "todate: argument 1 must be a number, got bool"
+  },
+  {
+    "query": "todate(\"notanumber\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "todate: argument 1 must be a number, got string"
+  },
+  {
+    "query": "fromdate(\"1970-01-01T00:00:00Z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14T22:13:20Z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14T22:13:20+00:00\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14T22:13:20.5Z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.5\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14T22:13:20.123456Z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.123456\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14T22:13\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1699999980.0\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1699920000.0\n]\n"
+  },
+  {
+    "query": "fromdate(\"2023-11-14 22:13:20\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "fromdateiso8601(\"1970-01-01T00:00:00Z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "fromdateiso8601(\"2023-11-14T22:13:20Z\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "fromdate(\"notadate\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "fromdate: cannot parse 'notadate': Invalid isoformat string: 'notadate'"
+  },
+  {
+    "query": "fromdate(\"garbage stuff\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "fromdate: cannot parse 'garbage stuff': Invalid isoformat string: 'garbage stuff'"
+  },
+  {
+    "query": "fromdate(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "fromdate: argument 1 must be a string, got int"
+  },
+  {
+    "query": "fromdate(true)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "fromdate: argument 1 must be a string, got bool"
+  },
+  {
+    "query": "gmtime(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    70,\n    0,\n    1,\n    0,\n    0,\n    0,\n    4,\n    0\n  ]\n]\n"
+  },
+  {
+    "query": "gmtime(1700000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    123,\n    10,\n    14,\n    22,\n    13,\n    20,\n    2,\n    317\n  ]\n]\n"
+  },
+  {
+    "query": "gmtime(1700000000.9)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    123,\n    10,\n    14,\n    22,\n    13,\n    20,\n    2,\n    317\n  ]\n]\n"
+  },
+  {
+    "query": "gmtime(1000000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    101,\n    8,\n    9,\n    1,\n    46,\n    40,\n    0,\n    251\n  ]\n]\n"
+  },
+  {
+    "query": "gmtime(-1)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    69,\n    11,\n    31,\n    23,\n    59,\n    59,\n    3,\n    364\n  ]\n]\n"
+  },
+  {
+    "query": "gmtime(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "gmtime: argument 1 must be a number, got string"
+  },
+  {
+    "query": "localtime(0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    70,\n    0,\n    1,\n    0,\n    0,\n    0,\n    4,\n    0\n  ]\n]\n"
+  },
+  {
+    "query": "localtime(1700000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    123,\n    10,\n    14,\n    22,\n    13,\n    20,\n    2,\n    317\n  ]\n]\n"
+  },
+  {
+    "query": "localtime(1000000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    101,\n    8,\n    9,\n    1,\n    46,\n    40,\n    0,\n    251\n  ]\n]\n"
+  },
+  {
+    "query": "mktime([70, 0, 1, 0, 0, 0])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0.0\n]\n"
+  },
+  {
+    "query": "mktime([123, 10, 14, 22, 13, 20])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "mktime([100, 0, 1, 0, 0, 0])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  946684800.0\n]\n"
+  },
+  {
+    "query": "mktime([70, 0, 1, 0, 0, 30.9])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  30.0\n]\n"
+  },
+  {
+    "query": "mktime([123, 10, 14, 22, 13, 20, 2, 317])",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "mktime([70, 0, 1])",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "mktime: broken-down time must be a list of at least 6 ints, got list"
+  },
+  {
+    "query": "mktime(\"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "mktime: broken-down time must be a list of at least 6 ints, got string"
+  },
+  {
+    "query": "mktime([1, 2, 3, 4, 5])",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "mktime: broken-down time must be a list of at least 6 ints, got list"
+  },
+  {
+    "query": "mktime(42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "mktime: broken-down time must be a list of at least 6 ints, got int"
+  },
+  {
+    "query": "strftime(0, \"%Y-%m-%d\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"1970-01-01\"\n]\n"
+  },
+  {
+    "query": "strftime(1700000000, \"%Y-%m-%dT%H:%M:%S\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2023-11-14T22:13:20\"\n]\n"
+  },
+  {
+    "query": "strftime(1700000000, \"%j %w %A %a %B %b %p\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"318 2 Tuesday Tue November Nov PM\"\n]\n"
+  },
+  {
+    "query": "strftime(1700000000, \"%H%% %U %W\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"22% 46 46\"\n]\n"
+  },
+  {
+    "query": "strftime(1000000000, \"%Y/%m/%d %H:%M\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2001/09/09 01:46\"\n]\n"
+  },
+  {
+    "query": "strftime(1700000000.9, \"%Y-%m-%dT%H:%M:%S\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  \"2023-11-14T22:13:20\"\n]\n"
+  },
+  {
+    "query": "strftime(true, \"%Y\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "strftime: argument 1 must be a number, got bool"
+  },
+  {
+    "query": "strftime(0, 42)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "strftime: argument 2 must be a string, got int"
+  },
+  {
+    "query": "strptime(\"2025-01-01\", \"%Y-%m-%d\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    125,\n    0,\n    1,\n    0,\n    0,\n    0,\n    3,\n    0\n  ]\n]\n"
+  },
+  {
+    "query": "strptime(\"2023-11-14 22:13:20\", \"%Y-%m-%d %H:%M:%S\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    123,\n    10,\n    14,\n    22,\n    13,\n    20,\n    2,\n    317\n  ]\n]\n"
+  },
+  {
+    "query": "strptime(\"1970-01-01T00:00:00\", \"%Y-%m-%dT%H:%M:%S\")",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  [\n    70,\n    0,\n    1,\n    0,\n    0,\n    0,\n    4,\n    0\n  ]\n]\n"
+  },
+  {
+    "query": "strptime(\"bad\", \"%Y-%m-%d\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "strptime: cannot parse 'bad' with '%Y-%m-%d': time data 'bad' does not match format '%Y-%m-%d'"
+  },
+  {
+    "query": "strptime(42, \"%Y-%m-%d\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "strptime: argument 1 must be a string, got int"
+  },
+  {
+    "query": "dateadd(1700000000, 86400)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700086400\n]\n"
+  },
+  {
+    "query": "datesub(1700000000, 3600)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1699996400\n]\n"
+  },
+  {
+    "query": "dateadd(1.5, 2)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  3.5\n]\n"
+  },
+  {
+    "query": "datesub(10, 4)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  6\n]\n"
+  },
+  {
+    "query": "dateadd(1700000000, -1700000000)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0\n]\n"
+  },
+  {
+    "query": "datesub(1700000000.5, 0.5)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  1700000000.0\n]\n"
+  },
+  {
+    "query": "dateadd(0, 0)",
+    "input": null,
+    "mode": "json",
+    "kind": "ok",
+    "output": "[\n  0\n]\n"
+  },
+  {
+    "query": "dateadd(true, 1)",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "dateadd: argument 1 must be a number, got bool"
+  },
+  {
+    "query": "datesub(1, \"x\")",
+    "input": null,
+    "mode": "json",
+    "kind": "err",
+    "output": "datesub: argument 2 must be a number, got string"
+  }
+]
