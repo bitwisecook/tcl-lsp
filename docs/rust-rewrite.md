@@ -445,9 +445,10 @@ Rust, and the segmenter is a view over the CST. The lone-CR line-index rule
 (`\n`-only) and the UTF-16 column primitive (`LineIndex::position_at_utf16`)
 have landed. The residual lexer-layer gaps — the `${name}` brace-depth scan,
 the quoted `\<newline>` build divergence, and the nested-body E202/E203
-detectors — are the **FE-LEX** track under [Remaining work](#remaining-work);
-routing the last byte-column call sites through the UTF-16 primitive is part of
-the **SRV-LSP** track.
+detectors — were the **FE-LEX** track and have now **landed** (archived in
+[`rust-rewrite-history.md`](rust-rewrite-history.md), 2026-06-19); routing the
+last byte-column call sites through the UTF-16 primitive is part of the
+**SRV-LSP** track.
 
 ## How we're doing it
 
@@ -926,8 +927,10 @@ Task status is either **open** or **partial** (with a note on what remains).
   the security/injection check family (W102/W103/W300-series + T100–T106 +
   W313), the iRules taint sinks (IRULE3001–3004), the `fp_rch` break-edge CFG
   modelling, O109 / O116 / O120, the upvar transitive-merge, the
-  document-version guard (review-findings C2), and the CST descent. Trust this
-  plan and the source over the archive's dated rows.
+  document-version guard (review-findings C2), the CST descent, and the whole
+  **FE-LEX** track (`${name}` brace-depth, quoted `\<newline>`, nested-body
+  E202/E203 — archived 2026-06-19). Trust this plan and the source over the
+  archive's dated rows.
 - **This document is a forward-looking plan, not a changelog.** It lists only
   **open** / **partial** work. The narrative of *what landed and why* is
   history — record it in [`rust-rewrite-history.md`](rust-rewrite-history.md),
@@ -959,7 +962,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 
 | Subsystem | Crate(s) | Status | Remaining (→ track) |
 |---|---|---|---|
-| Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | 🟢 | `${name}` brace-depth; quoted `\<nl>`; nested-body E202/E203 → **FE-LEX** |
+| Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see [history](rust-rewrite-history.md), 2026-06-19) |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | **FE-TYPESHIM** complete; precise TclOO `object_of` typing now tracked under **FE-DIAG** (its W307/W308 consumer) |
@@ -987,7 +990,6 @@ listed residuals · 🟡 partial · 🔴 not started.
 
 | Stage | Track | Owns | Depends on | Size |
 |---|---|---|---|---|
-| FE | **FE-LEX** | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | — | S |
 | FE | **FE-DATAFLOW** | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
 | FE | **FE-TYPESHIM** | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** | `tcl-compiler::var_escape` | (consumers in FE-OPT) | M |
@@ -1015,19 +1017,6 @@ listed residuals · 🟡 partial · 🔴 not started.
 The front-end crates are largely ported; what remains is precision and
 soundness. These tracks own **disjoint modules** within `tcl-compiler`, so they
 parallelise cleanly.
-
-#### FE-LEX — lexer & CST
-Owns `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing`.
-- **open** `${name}` brace-depth + backslash. `parse_var`'s braced branch
-  (`tcl-lexer/src/lexer.rs:604`) scans to the first `}` with no depth count and
-  no `\X` handling; `${a\}b}` / `${a{b}c}` mis-tokenise. Mirror
-  `compiler/parsing/lexer.py:525`. *(bug, ~10 LOC)*
-- **open** quoted `\<newline>` build divergence. `parsing/syntax/build.rs:252`
-  folds a whole-content line-continuation to trivia (the deliberate
-  oracle-matching divergence); strip it together with the frozen oracle and its
-  test.
-- **open** nested-body E202/E203 detectors (top-level only today) and the
-  precise `partial_delimiter` suffix field on `SegmentedCommand`. *(tiny)*
 
 #### FE-DATAFLOW — SCCP / intervals / memory-SSA precision ✅
 Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`. All

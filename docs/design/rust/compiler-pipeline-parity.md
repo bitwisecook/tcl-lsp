@@ -161,7 +161,7 @@ underlying logic.
 | Brackets `[…]` nesting + `${…}` sub-scan | `lexer.py:339-507` | `lexer.rs:1073-1199` | ✅ | |
 | Quotes `"…"` → ESC w/ `in_quote` | `lexer.py:798-1031` | `lexer.rs:725-858` | ✅ | |
 | `$name`/`$ns::var`/`$arr(idx)` forms | `lexer.py:561-616` | `lexer.rs:633-714` | ✅ | Unicode alnum, `::`, balanced `(…)`. |
-| **`${name}` braced-var form** | `lexer.py:525-559` | `lexer.rs:604-631` | ❗ | **Verified regression — see Gaps.** |
+| **`${name}` braced-var form** | `lexer.py:525-559` | `lexer.rs` `parse_var` | ✅ | Brace-depth + `\X` scan (FE-LEX, 2026-06-19); 9.0.3 reference. |
 | Bare `$` → STR | `lexer.py:618-621` | `lexer.rs:657-663` | ✅ | |
 | `{*}` EXPAND zero-width token | `lexer.py:787-819` | `lexer.rs:875-915` | ✅ | |
 | Dialect flags (expand 8.5+, iRules `}{`, strict_quoting) | `lexer.py:57-106` | `lexer.rs:149-218` | ⚠️ | ContextVar vs `LexerConfig`; same behaviour. |
@@ -177,22 +177,16 @@ underlying logic.
 
 ### Gaps (Rust missing or weaker)
 
-- **`${name}` braced-var parsing is weaker (verified by direct read).** Python
-  (`lexer.py:525-559`) tracks inner-brace depth and consumes `\X` pairs per
-  Tcl 9's `Tcl_ParseVarName`, so `${a\}b}` reads var name `a\}b` and `${a{b}c}`
-  reads `a{b}c`. Rust (`lexer.rs:608-613`) scans to the **first** `}` with no
-  depth count and no backslash handling:
-  ```rust
-  while let Some(ch) = self.current_char() {
-      if ch == '}' { break; }
-      self.pos += u32::try_from(ch.len_utf8())...;
-  }
-  ```
-  For `${a\}b}` Rust ends the VAR after `a\` and leaves `b}` as stray content.
-  **Impact:** wrong VAR token span, spurious downstream "stray `}`" / arity
-  diagnostics, wrong hover/rename span for braced names with escaped/nested
-  braces. The `structural_index` experiment models `${…}` correctly as a
-  nesting brace word, so the production `parse_var` is the outlier.
+- **`${name}` braced-var parsing — RESOLVED (FE-LEX, 2026-06-19).** Rust
+  `parse_var` (`lexer.rs`) now tracks inner-brace depth and consumes `\X` pairs
+  per Tcl 9's `Tcl_ParseVarName`, matching Python (`lexer.py`): `${a\}b}` reads
+  `a\}b`, `${a{b}c}` reads `a{b}c`. The `structural_index::scan_dollar_brace`
+  got the matching scan, so its `Tcl_CommandComplete` faithfulness fuzz still
+  agrees with the production lexer. Verified against `tclsh9.0` (9.0.3). NOTE:
+  Tcl 8.4/8.5/8.6's `Tcl_ParseVarName` stops at the *first* `}` (no depth, no
+  backslash) — the project standardises the `${…}` parse on 9.0.3 across all
+  dialects per principle #0 (the Python lexer is test-pinned the same way under
+  the default 8.6 dialect). See [history](../../rust-rewrite-history.md).
 - **Default position column is a byte offset, not UTF-16 (C1).** The lexer/
   `SourceMap` token-resolution path uses `position_at` (byte column,
   `line_index.rs:103-114`); the UTF-16-correct `position_at_utf16`
@@ -232,8 +226,11 @@ underlying logic.
   substrings, no SourceMap).
 
 ### Open questions for maintainer
-1. Is the simplified Rust `${name}` scan (`lexer.rs:608-613`) a known TODO, or
-   has the differential oracle simply never hit `${a\}b}` / `${a{b}c}`?
+1. ~~Is the simplified Rust `${name}` scan a known TODO?~~ **RESOLVED
+   (FE-LEX, 2026-06-19):** `parse_var` now does the 9.0.3 brace-depth +
+   backslash scan; the project standardises `${…}` on 9.0.3 across dialects
+   (verified against `tclsh9.0`; 8.4–8.6 diverge but are intentionally not
+   gated, matching the test-pinned Python lexer).
 2. Plan for C1: switch the token path to `position_at_utf16`, or guarantee a
    higher-layer lift for the Rust path?
 3. Recovery port: is the Python-computes-insertions / Rust-re-lexes-with-ghosts
@@ -265,7 +262,7 @@ Python: `compiler/parsing/syntax/{green,red,build,descend,segment}.py`,
 | Red `build_line_starts`/`position_at` | red.py:29-96 | red.rs:36-155 | ✅ | `\n`-only; codepoint (Py) vs byte (Rust) consistent with each lexer. |
 | Red `parent` back-pointer | red.py:102,160 | omitted | ⚠️ | Rust drops the unused field. |
 | `build_document` algorithm | build.py:35-228 | build.rs:52-380 | ✅ | start-to-start tiling, word-merge, `{*}` quirk, comment accumulation — mirrored. |
-| `build` backslash-newline fold | build.py:178-211 | build.rs:251-283 | ❗ | **DELIBERATE DIVERGENCE `SYNC-JUN08-1`** (build.rs:252). See Gaps. |
+| `build` backslash-newline fold | build.py:178-211 | build.rs | ✅ | Reconciled to `build.py` (FE-LEX, 2026-06-19): quoted `\<newline>` is a kept fragment, not folded to trivia. |
 | `pop().unwrap()` "fuzz targets" | n/a | build.rs:186,190 | ✅ | Both guarded by preceding `!is_empty()`; cannot panic. |
 | `descend_token` / nested-body navigation | descend.py:69-89 | descend.rs:95-121 | ✅ | Both **re-lex** inner text via `build_document` (identical strategy). |
 | `green_tree.py` cross-consumer intern scope | green_tree.py:1-372 | — | ❌ | No Rust `TokenRegion`/`Mode`/`NodeKind`/`node_for`; per-descent re-lex. |
@@ -304,12 +301,12 @@ Python: `compiler/parsing/syntax/{green,red,build,descend,segment}.py`,
    the segmenter, `compiler_checks`, and `var_refs` via a contextvar-scoped
    intern index, so overlapping regions are lexed once. Rust re-lexes per
    descent — a perf gap, not correctness.
-4. **Backslash-newline divergence (deliberate, flagged).** `build.rs:251-283`
-   folds a quoted-content `\<newline>` ESC into trivia to stay byte-identical to
-   the frozen oracle; `build.py:178-211` keeps it as a fragment. Differs only
-   for a quoted word whose entire content is one line continuation
-   (`puts "\<newline>"`), which Rust drops. Tracked as a coordinated future
-   strip (oracle + test + `build.rs` together).
+4. **Backslash-newline divergence — RESOLVED (FE-LEX, 2026-06-19).**
+   `build.rs` no longer folds a quoted-content `\<newline>` ESC into trivia; it
+   falls through to the fragment path, matching `build.py`. The frozen oracle
+   and its edge-case table moved with it. Verified against `tclsh` 8.6/9.0
+   (`puts "\<newline>"` is a one-argument command — the space-valued word is
+   kept).
 5. **Expr `vars()` shallower on Command/Raw** (ast.rs:436-449). Python recurses
    into command-substitution bodies; Rust stops at the boundary, asserting the
    SSA layer recovers them — end-to-end soundness depends on that wiring.
@@ -338,7 +335,8 @@ Python: `compiler/parsing/syntax/{green,red,build,descend,segment}.py`,
 2. Are `subcommand`/`braced_word`/`quoted_word` deferred to the Rust
    formatter/minifier port, or recomputed by the consumer?
 3. Planned Rust analogue of the `green_tree.py` cross-consumer intern scope?
-4. Is the `SYNC-JUN08-1` backslash-newline strip tracked?
+4. ~~Is the `SYNC-JUN08-1` backslash-newline strip tracked?~~ **DONE
+   (FE-LEX, 2026-06-19)** — reconciled to `build.py`; see Gap 4 above.
 
 ---
 
@@ -1119,7 +1117,7 @@ not a decision.
 | 3 | Optimiser §7 | **O108** ADCE treats every assignment as side-effect-free → can delete `set x [impureCmd]` | elimination.rs:740 | Verify against landed RHS-purity gate; restore if genuinely dropped. |
 | 4 | Value/SCCP §5 | SCCP omits **escaping-var widening** (`::g`/escaping names not forced OVERDEFINED) | sccp.rs `evaluate_def` (no guard; `escaping_var_names` lives in var_observability.rs, unused by SCCP) | Consult `escaping_var_names` in `evaluate_def`. |
 | 5 | Value/SCCP §5 | SCCP omits **break-edge reachability** → false O107 / unsound DCE on `while 1 {… break}` (already tracked as `fp_rch`, rust-rewrite.md:5037) | sccp.rs (no `break_exits`) | Port the break-exit precompute (core_analyses.py:1337). |
-| 6 | Lexer §1 | **`${a\}b}` / `${a{b}c}`** braced-var scan stops at first `}` (no depth count, no `\`) | lexer.rs:608 (verified) | Track inner-brace depth + consume `\X` per `lexer.py:525`. |
+| 6 | Lexer §1 | ~~**`${a\}b}` / `${a{b}c}`** braced-var scan stops at first `}`~~ **DONE (FE-LEX, 2026-06-19)** — `parse_var` + `scan_dollar_brace` track inner-brace depth and consume `\X` (9.0.3 reference; verified against `tclsh9.0`) | lexer.rs `parse_var` | Landed; see [history](../../rust-rewrite-history.md). |
 | 7 | Memory-SSA §4 | **upvar transitive-merge** divergence (`upvar 1 x a; upvar 1 x b` → `may_alias("a","b")` False); code/test/doc disagree | memory_ssa.rs:519 | Decide intended semantics; align code+test+doc. |
 | 8 | Memory-SSA §4 | **`IRUpFrame` not a clobber** → non-inlined `uplevel {…}` doesn't bump memory version | memory_ssa.rs `is_clobber` | Add `IRUpFrame` to the clobber set. |
 | 9 | Shimmer §5 | **S100 severity** emitted as Warning, not Information; **phi-S101 / expr-S100** code-strings ignore `in_loop` | compiler_checks.rs:113; phi.rs:146; expr.rs:273 | Map S100→Information; compute code from `in_loop`. |

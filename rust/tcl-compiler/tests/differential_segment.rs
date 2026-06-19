@@ -157,14 +157,14 @@ const EDGE_CASES: &[&str] = &[
     "puts $a$b", // compound var word
     "namespace eval ns {\n  proc g {} {}\n}\n",
     "switch $x {\n a {one}\n b {two}\n}\n",
-    // Quoted whole-content line-continuation (M1): the quoted word is a
-    // single ESC whose text is exactly "\\\n", which both the frozen
-    // oracle and the CST fold into whitespace trivia (dropping the word).
-    // Pinned here so the two stay in lockstep — see build.rs's
-    // backslash-newline note.
+    // Quoted whole-content line-continuation: the quoted word is a single
+    // ESC whose text is exactly "\\\n". Per C Tcl / `build.py` this is a real
+    // fragment of the quoted word (it collapses to a space at substitution
+    // time), so both the frozen oracle and the CST keep it as a word rather
+    // than dropping it — see build.rs's backslash-newline note.
     "puts \"\\\n\"",
     "puts \"$x\\\n\"",
-    "set y \"a\\\nb\"", // partial continuation — NOT folded (text != "\\\n")
+    "set y \"a\\\nb\"", // partial continuation — also a quoted-content ESC fragment
 ];
 
 #[test]
@@ -389,10 +389,6 @@ mod frozen_oracle {
                 }
                 TokenType::Sep => {
                     prev_type = tok.kind;
-                    continue;
-                }
-                TokenType::Esc if sm.token_text(tok) == "\\\n" => {
-                    prev_type = TokenType::Sep;
                     continue;
                 }
                 TokenType::Expand => {

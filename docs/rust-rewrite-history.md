@@ -10634,3 +10634,57 @@ Gates: `make test-py` green (16615 passed); `make test-lsp-e2e-rust` green
 
 Battery (rust) 403/0; `make test-lsp-e2e-rust` 511/1; `cargo test`/`clippy`
 clean.
+
+## FE-LEX — lexer & CST residuals (landed 2026-06-19)
+
+The three FE-LEX residuals are closed; `tcl-lexer` + `tcl-compiler` lex /
+segment / CST are now ✅. Each behaviour was checked against the reference
+interpreter (`tclsh8.6` 8.6.14 and `tclsh9.0` 9.0.3, plus the 8.4/8.5 C source
+in `tmp/tcl{8.4.20,8.5.19}/generic/tclParse.c`).
+
+* **`${name}` brace-depth + backslash.** `parse_var`'s braced branch
+  (`tcl-lexer/src/lexer.rs`) now tracks inner `{…}` with a brace counter and
+  consumes `\X` as a literal pair, so the closer is the first `}` at depth
+  zero: `${a\}b}` reads var `a\}b`, `${a{b}c}` reads `a{b}c`, `${a{b{c}d}e}`
+  reads `a{b{c}d}e`. Mirrors `compiler/parsing/lexer.py`. The structural
+  index's `scan_dollar_brace` (`tcl-lexer/src/structural_index.rs`) got the
+  matching scan so its `Tcl_CommandComplete` faithfulness fuzz check still
+  agrees with the production lexer.
+  * **Reference note.** This is a Tcl **9.0** behaviour. `Tcl_ParseVarName` in
+    8.4/8.5/8.6 is `while (numBytes && (*src != '}'))` — scan to the *first*
+    `}`, no brace counting, no backslash; 9.0.3 added `braceCount` + the
+    `'\\'` case. Confirmed live: under `tclsh8.6`, `${a{b}c}` reads `a{b` and
+    `${a\}b}` reads `a\`; under `tclsh9.0`, both read the full name. Per
+    principle #0 (C Tcl 9.0.3 is the reference standard) the project
+    standardises the `${…}` parse on 9.0.3 across all dialects — matching the
+    Python lexer, which is test-pinned the same way
+    (`tests/test_tcl_corner_cases.py::test_brace_*` run under the default 8.6
+    dialect yet assert the 9.0.3 parse).
+
+* **Quoted `\<newline>` build divergence.** `parsing/syntax/build.rs` no longer
+  folds a whole-content line-continuation into whitespace trivia; a quoted
+  word whose only fragment is `\<newline>` (token text `"\\\n"`) now falls
+  through to the fragment path, matching `compiler/parsing/syntax/build.py`.
+  The frozen segmenter oracle and the pinned edge-case table in
+  `tests/differential_segment.rs` moved with it. Verified against `tclsh`
+  8.6/9.0: a quoted `\<newline>` collapses to one space, so `puts "\<newline>"`
+  is a **one-argument** command — the word is kept, not dropped (Rust
+  segmenter now yields `puts` + the quoted word, identical to Python).
+
+* **Nested-body E202/E203 detectors.** `analyse_body`
+  (`tcl-compiler/src/analyser/commands.rs`) now runs the unterminated-`"`
+  (E202) / unterminated-`{` (E203) detectors on every analysed body, not just
+  the top level — mirroring Python's `_analyse_body_inner`, whose
+  `segment_with_recovery(source, body_token)` runs the same detectors over body
+  content. The detectors take an explicit `region_end` so a runaway delimiter
+  is measured against the body's end (`base_offset + body_len`) rather than the
+  document end; the precise `partial_delimiter` continues to drive the E200
+  "missing …" suffix in `emit_partial_command_diagnostic`. Verified against
+  `tclsh` 8.6/9.0: the flagged body content is genuinely incomplete
+  (`info complete` == 0) and the error text is exactly `missing "`.
+
+Tests: new `tcl-lexer` unit tests (`var_braced_*`), the `segment.rs`
+`quoted_line_continuation_is_kept_as_a_word` pin, and the `syntax_checks.rs`
+`e202_fires_inside_a_nested_body` pin; `differential_segment` (edge cases +
+full Tcl 8.4–9.0 corpus) and the structural-index faithfulness fuzz stay green.
+`cargo test -p tcl-lexer -p tcl-compiler` + workspace `clippy` clean.
