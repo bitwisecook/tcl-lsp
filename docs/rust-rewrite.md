@@ -1057,19 +1057,15 @@ precise TclOO `object_of` typing the W307/W308 consumer needs landed under
   value — `BINARY` (a live byte array) and `DAMAGED` (binary-sourced but coerced
   to a character string) — and flags binary data written back through a byte
   sink, the canonical iRules `*::payload replace` double-encoding bug
-  ([F5 K22406348]). Two mechanisms: **intrinsic** corruption (`string
-  toupper`/`tolower`/`totitle`, `encoding convertto` reinterpret bytes ≥ 0x80 —
-  warn at the transform) and **round-trip** corruption (`string replace` /
-  `append` / interpolation / `format` preserve bytes as latin-1 but yield a
-  STRING; writing it to a byte sink re-encodes — warn at the sink). Binary
-  sources: `binary format` / `binary decode` / `encoding convertto` (plain Tcl,
-  always on) + `*::payload` getters (iRules-gated). Port: the byte-provenance
-  pass into `tcl-compiler::shimmer` alongside the existing detectors, a
-  `byte_array_payload` flag on the `*::payload` command specs in `tcl-registry`
-  + a `byte_array_payload_commands()` accessor, and the S110 wiring into the
-  analyser's shimmer-diagnostic emission. Verify byte-for-byte against the Python
-  `TestByteArrayCorruption` battery + the FP-SH-09/FP-SH-10 contracts, and
-  against real `tclsh` payload semantics (high-byte round-trip).
+  ([F5 K22406348]). Sources are `binary format` / `binary decode` / `encoding
+  convertto` (plain Tcl, always on) + `*::payload` getters (iRules-gated); the
+  fix `binary scan $v …` re-binarifies in place. The port adds a
+  `byte_array_payload` flag to the `*::payload` specs in `tcl-registry`, a new
+  detector in `tcl-compiler::shimmer`, and the S110 lowering in
+  `compiler_checks::run_all_checks`. **Full port spec (Python algorithm + Rust
+  integration points + step-by-step plan + the `TestByteArrayCorruption` /
+  FP-SH-09/10 verification contract):**
+  [`design/rust/s110-byte-array-corruption-port.md`](design/rust/s110-byte-array-corruption-port.md).
 
 [F5 K22406348]: https://my.f5.com/manage/s/article/K22406348
 
