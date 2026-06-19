@@ -14,8 +14,9 @@ JSON-serialisable dictionaries describing:
 
 The snapshots are consumed by:
 
-- the ``tcl registry-dump`` and ``f5 registry-dump`` CLI verbs, which
-  serialise them to ``--json`` (the live introspection surface);
+- ``scripts/registry/dump.py``, a temporary rust-branch dev tool that
+  serialises them to JSON (an internal introspection aid, *not* a shipped
+  CLI verb or a promised surface);
 - ``scripts/codegen/registry_baselines.py``, which derives the compact
   CSV presence fixtures under ``tests/baselines/registry/`` from the
   ``*_rows`` helpers;

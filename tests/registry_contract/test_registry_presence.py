@@ -1,8 +1,8 @@
-"""Presence safety-net: the front-end registry-dump must match the golden CSVs.
+"""Presence safety-net: the registry dump must match the golden CSVs.
 
 The CSVs pin that every command (with its arity and counts), event,
 profile, and object is present in the registry.  These tests drive the
-``tcl registry-dump`` / ``f5 registry-dump`` front-ends and compare their
+temporary registry dumper (``scripts/registry/dump.py``) and compare its
 output to the committed CSVs, and verify the CSVs are not stale.
 """
 
@@ -15,9 +15,8 @@ from tooling.registry_snapshot import ALL_DIALECTS, F5_DIALECTS
 from ._harness import (
     BASELINE_DIR,
     load_csv,
-    run_f5_json,
-    run_tcl_json,
-    run_tcl_subprocess,
+    run_dump_json,
+    run_dump_subprocess_json,
 )
 
 
@@ -49,7 +48,7 @@ def _dump_commands(payload: dict) -> dict[str, tuple[str, str, str, str]]:
 def test_command_dump_matches_csv(dialect: str) -> None:
     """Every command in the CSV is present with matching arity/counts in the front-end dump."""
     expected = _csv_commands(dialect)
-    produced = _dump_commands(run_tcl_json(["registry-dump", "--dialect", dialect]))
+    produced = _dump_commands(run_dump_json(["tcl", "--dialect", dialect]))
     assert produced == expected, (
         f"{dialect}: dump/CSV mismatch — "
         f"only-in-csv={sorted(set(expected) - set(produced))[:10]}, "
@@ -59,7 +58,7 @@ def test_command_dump_matches_csv(dialect: str) -> None:
 
 def test_events_dump_matches_csv() -> None:
     rows = {r["event"]: r for r in load_csv("events.csv")}
-    data = run_f5_json(["registry-dump", "--section", "events"])
+    data = run_dump_json(["f5", "--section", "events"])
     served = {e["event"]: e for e in data["events"]}
     assert set(served) == set(rows)
     for name, row in rows.items():
@@ -73,7 +72,7 @@ def test_events_dump_matches_csv() -> None:
 
 def test_profiles_dump_matches_csv() -> None:
     rows = {r["profile"]: r for r in load_csv("profiles.csv")}
-    data = run_f5_json(["registry-dump", "--section", "profiles"])
+    data = run_dump_json(["f5", "--section", "profiles"])
     assert set(data["profiles"]) == set(rows)
     for name, row in rows.items():
         prof = data["profiles"][name]
@@ -83,7 +82,7 @@ def test_profiles_dump_matches_csv() -> None:
 
 def test_objects_dump_matches_csv() -> None:
     rows = {r["kind"]: r for r in load_csv("objects.csv")}
-    data = run_f5_json(["registry-dump", "--section", "objects"])
+    data = run_dump_json(["f5", "--section", "objects"])
     served = {k["kind"]: k for k in data["objectKinds"]}
     assert set(served) == set(rows)
     for kind, row in rows.items():
@@ -103,11 +102,11 @@ def test_registry_fixtures_are_not_stale() -> None:
 
 @pytest.mark.parametrize("dialect", F5_DIALECTS)
 def test_f5_command_dump_runs(dialect: str) -> None:
-    payload = run_f5_json(["registry-dump", "--section", "commands"])
+    payload = run_dump_json(["f5", "--section", "commands"])
     assert payload[dialect]["commandCount"] > 0
 
 
-def test_dump_verb_runs_as_real_subprocess() -> None:
-    """Smoke: the shipped console-script path emits the same presence as the CSV."""
-    produced = _dump_commands(run_tcl_subprocess(["registry-dump", "--dialect", "tcl8.6"]))
+def test_dump_runs_as_real_subprocess() -> None:
+    """Smoke: the dumper script's real wire emits the same presence as the CSV."""
+    produced = _dump_commands(run_dump_subprocess_json(["tcl", "--dialect", "tcl8.6"]))
     assert produced == _csv_commands("tcl8.6")

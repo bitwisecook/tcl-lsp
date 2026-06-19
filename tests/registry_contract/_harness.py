@@ -68,6 +68,36 @@ def run_f5_json(argv: list[str]) -> Any:
     return json.loads(out)
 
 
+def run_dump(argv: list[str]) -> tuple[int, str]:
+    """Run the temporary registry dumper in-process; return ``(returncode, stdout)``.
+
+    The dumper is rust-branch dev tooling (``scripts/registry/dump.py``),
+    not a shipped CLI verb, so the contract tests drive it directly rather
+    than through the ``tcl`` / ``f5`` front-ends.
+    """
+    from scripts.registry.dump import main
+
+    return _run_main(main, argv)
+
+
+def run_dump_json(argv: list[str]) -> Any:
+    rc, out = run_dump(argv)
+    assert rc == 0, f"registry dump {argv} exited {rc}: {out!r}"
+    return json.loads(out)
+
+
+def run_dump_subprocess_json(argv: list[str]) -> Any:
+    """Run the registry dumper as a real subprocess and parse its JSON stdout."""
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "registry" / "dump.py"), *argv],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(proc.stdout)
+
+
 def run_tcl_subprocess(argv: list[str]) -> Any:
     """Run the ``tcl`` CLI as a real subprocess and parse its JSON stdout."""
     proc = subprocess.run(

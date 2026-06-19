@@ -1,30 +1,31 @@
 """Structural integrity of the event / profile / object graphs.
 
-Sourced from the live ``f5 registry-dump`` front-end (no committed JSON):
-stable event ordering, well-formed flow chains, and closed reference
-edges.  Any front-end — Python today, Rust later — must satisfy these.
+Sourced from the temporary registry dumper (``scripts/registry/dump.py``;
+no committed JSON): stable event ordering, well-formed flow chains, and
+closed reference edges.  Any front-end — Python today, Rust later — must
+satisfy these.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from ._harness import run_f5_json
+from ._harness import run_dump_json
 
 
 @pytest.fixture(scope="module")
 def events() -> dict:
-    return run_f5_json(["registry-dump", "--section", "events"])
+    return run_dump_json(["f5", "--section", "events"])
 
 
 @pytest.fixture(scope="module")
 def profiles() -> dict:
-    return run_f5_json(["registry-dump", "--section", "profiles"])
+    return run_dump_json(["f5", "--section", "profiles"])
 
 
 @pytest.fixture(scope="module")
 def objects() -> dict:
-    return run_f5_json(["registry-dump", "--section", "objects"])
+    return run_dump_json(["f5", "--section", "objects"])
 
 
 def test_master_order_is_unique_and_aligned(events: dict) -> None:
