@@ -21,6 +21,10 @@ use crate::frame::{CallFrame, Local};
 use crate::host_native::NativeHost;
 use crate::value::Value;
 
+/// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
+/// A deeper nesting is a catchable error, not a native stack overflow.
+pub(crate) const RECURSION_LIMIT: usize = 1000;
+
 /// Build an `OK` completion (empty options dict).
 pub(crate) fn ok(result: Value) -> Completion<Value> {
     Completion::new(Code::Ok, result, Value::empty())
@@ -117,6 +121,12 @@ pub struct Vm {
     /// Stack of file paths currently being evaluated by `source`. The top is
     /// what `info script` returns; empty when not inside a `source`.
     script_stack: Vec<String>,
+    /// Active call-nesting depth — C Tcl's `interp recursionlimit`. Bounds proc
+    /// recursion so an infinite loop is a *catchable* error rather than a native
+    /// stack overflow (the trampoline avoids host-stack growth for a *single*
+    /// activation, but `uplevel`/`catch`/`[subst]` re-enter `eval_source`, which
+    /// does recurse on the host stack). Tracked on every call-frame push/pop.
+    recursion_depth: usize,
     /// The host environment: the capability seam (`tcl-platform`) through which
     /// every command reaches the filesystem, clock, env, stdio, subprocess, and
     /// sockets. The bytecode VM is a native target, so this defaults to a
@@ -175,6 +185,7 @@ impl Vm {
             channels: HashMap::new(),
             chan_counter: 2,
             script_stack: Vec::new(),
+            recursion_depth: 0,
             host: Rc::new(NativeHost::new()),
         };
         register_builtins(&mut vm);
@@ -674,13 +685,26 @@ impl Vm {
         let level = self.frames.len();
         self.frames
             .push(CallFrame::new(level, ROOT_NS, proc_name, call_argv));
+        self.recursion_depth += 1;
         level
     }
 
     pub(crate) fn pop_call_frame(&mut self) {
         if self.frames.len() > 1 {
             self.frames.pop();
+            self.recursion_depth = self.recursion_depth.saturating_sub(1);
         }
+    }
+
+    /// The current call-nesting depth (proc recursion bound).
+    pub(crate) fn recursion_depth(&self) -> usize {
+        self.recursion_depth
+    }
+
+    /// Restore the call-nesting depth (after `uplevel`'s frame save/restore,
+    /// whose `truncate` can drop frames without a matching pop).
+    pub(crate) fn set_recursion_depth(&mut self, depth: usize) {
+        self.recursion_depth = depth;
     }
 
     /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
@@ -710,11 +734,16 @@ impl Vm {
             return err(format!("bad level \"{target}\""));
         }
         let saved = self.frames.split_off(target + 1);
+        let saved_depth = self.recursion_depth;
         let result = self.eval_source(src);
         // Restore any frames the script left in place, then re-attach the ones
         // we set aside (the script's own proc activations are already balanced).
+        // `truncate` may drop frames the script left unbalanced (an error mid
+        // proc), which `pop_call_frame` never saw — so reset the recursion depth
+        // to its pre-eval value rather than leak it.
         self.frames.truncate(target + 1);
         self.frames.extend(saved);
+        self.recursion_depth = saved_depth;
         match result {
             Ok(c) => c,
             Err(e) => err(e.message),

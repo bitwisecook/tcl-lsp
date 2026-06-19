@@ -17,7 +17,7 @@ use tcl_syntax::expr::{BinOp, UnaryOp};
 
 use crate::command::{Command, ProcDef};
 use crate::expr;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{RECURSION_LIMIT, Vm, err, ok};
 use crate::value::Value;
 
 /// Active `foreach` iteration state (C Tcl `ForeachInfo` + the loop counters).
@@ -400,6 +400,11 @@ impl Vm {
 
     /// Push a call-frame and bind `argv` to the proc's parameters.
     fn enter_proc(&mut self, proc: &ProcDef, argv: &[Value]) -> Result<(), Completion<Value>> {
+        // Recursion bound (catchable, not a host stack overflow). Checked before
+        // the frame push, matching C's `interp recursionlimit`.
+        if self.recursion_depth() >= RECURSION_LIMIT {
+            return Err(err("too many nested evaluations (infinite loop?)"));
+        }
         let simple = proc.name.rsplit("::").next().unwrap_or(&proc.name);
         let mut call_argv = Vec::with_capacity(argv.len() + 1);
         call_argv.push(Value::string(simple));
