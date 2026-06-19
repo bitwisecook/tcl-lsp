@@ -235,6 +235,7 @@ impl<'r> CodegenCtx<'r> {
             instructions: self.instructions,
             labels,
             loop_targets: HashMap::new(),
+            body_base_line: 0,
         }
     }
 }

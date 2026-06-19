@@ -411,10 +411,34 @@ impl Vm {
         loop {
             let act = acts.pop().expect("unwinding a non-empty stack");
             if act.is_proc {
+                // An error unwinding out of a proc body adds a
+                // `(procedure "name" line N)` frame before the frame is popped,
+                // then the call site (the command that invoked the proc) logs
+                // its own `invoked from within "…"` frame.
+                if c.code == Code::Error
+                    && let Some(name) = self.current_proc_name()
+                {
+                    // Proc-relative line: absolute line − the body's base line + 1.
+                    let base = act.asm.body_base_line;
+                    let n = self.error_line().saturating_sub(base).saturating_add(1).max(1);
+                    self.append_proc_frame(&name, n);
+                }
                 self.pop_call_frame();
                 self.pop_ns();
                 if c.code == Code::Return {
                     c = ok(c.result);
+                }
+                if c.code == Code::Error {
+                    let call_site = acts.last().and_then(|parent| {
+                        parent
+                            .asm
+                            .instructions
+                            .get(parent.pc.saturating_sub(1))
+                            .map(|i| (i.source_cmd_text.clone(), i.source_line))
+                    });
+                    if let Some((cmd, line)) = call_site {
+                        self.log_command_info(&cmd, "", line);
+                    }
                 }
             }
             match acts.last_mut() {

@@ -1357,6 +1357,34 @@ impl Vm {
         self.error_logged = false;
     }
 
+    /// The current call frame's proc name (unqualified), or `None` at the global
+    /// frame / a non-proc activation.
+    pub(crate) fn current_proc_name(&self) -> Option<String> {
+        self.frames
+            .last()
+            .and_then(|f| f.proc_name.as_ref())
+            .map(|q| q.rsplit("::").next().unwrap_or(q).to_owned())
+    }
+
+    /// Append a `(procedure "<name>" line N)` frame — the frame a proc body adds
+    /// to errorInfo as an error unwinds out of it (C's `errorInfo` proc frame).
+    /// `line` is the proc-relative line of the innermost logged command. Clears
+    /// `error_logged` so the call site then logs its `invoked from within` frame.
+    pub(crate) fn append_proc_frame(&mut self, name: &str, line: u32) {
+        let info = self.error_info.get_or_insert_with(String::new);
+        info.push_str("\n    (procedure \"");
+        info.push_str(name);
+        info.push_str("\" line ");
+        info.push_str(&line.to_string());
+        info.push(')');
+        self.error_logged = false;
+    }
+
+    /// The innermost logged command's source line (C's `iPtr->errorLine`).
+    pub(crate) fn error_line(&self) -> u32 {
+        self.error_line
+    }
+
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
     /// returned an error), so the enclosing command logs its own frame.
     pub(crate) fn clear_error_logged(&mut self) {

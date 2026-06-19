@@ -884,6 +884,11 @@ pub struct FunctionAsm {
     /// Tcl's exception ranges do. Either target may be `None` (a `for`-step's
     /// `continue` propagates). Sparse: only loop-body instructions appear.
     pub loop_targets: HashMap<usize, (Option<i32>, Option<i32>)>,
+    /// For a procedure body, the 1-based source line of its `proc` definition
+    /// (the body's line 1). `errorInfo`'s `(procedure "name" line N)` reports
+    /// `N = instruction_line − body_base_line + 1`, so the line is relative to
+    /// the proc, not the whole module. `0` for the top level / hand-built asm.
+    pub body_base_line: u32,
 }
 
 /// Assembly for an entire module.

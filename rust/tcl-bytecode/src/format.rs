@@ -333,6 +333,7 @@ mod tests {
             instructions: instrs,
             labels: HashMap::new(),
             loop_targets: HashMap::new(),
+            body_base_line: 0,
         };
 
         let output = format_function_asm(&asm);

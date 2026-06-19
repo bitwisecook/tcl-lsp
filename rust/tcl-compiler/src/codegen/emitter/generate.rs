@@ -558,6 +558,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         instructions: std::mem::take(&mut ctx.instructions),
         labels,
         loop_targets,
+        body_base_line: 0,
     }
 }
 
