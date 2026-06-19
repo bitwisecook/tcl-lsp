@@ -132,6 +132,11 @@ pub(crate) fn find_phi_shimmers(
                 })
                 .collect();
 
+            // A merge inside a loop body re-shimmers every iteration (S101);
+            // an out-of-loop branch merge is a one-time conversion (S100).
+            // Mirrors Python `_find_phi_shimmers`' `code = "S101" if in_loop
+            // else "S100"` (was hardcoded to S101).
+            let code = if in_loop { "S101" } else { "S100" };
             out.push(ShimmerWarning {
                 span,
                 variable: phi.name.clone(),
@@ -139,9 +144,9 @@ pub(crate) fn find_phi_shimmers(
                 to_type: to,
                 command: "<phi>".to_owned(),
                 in_loop,
-                code: "S101".to_owned(),
+                code: code.to_owned(),
                 message: format!(
-                    "S101: '{var}' merges {from} and {to} at control-flow join",
+                    "{code}: '{var}' merges {from} and {to} at control-flow join",
                     var = phi.name,
                     from = type_name(from),
                     to = type_name(to),
@@ -212,7 +217,9 @@ mod tests {
     }
 
     /// An if/else that assigns Int on one branch and String on the other
-    /// produces an S101 warning at the phi merge point.
+    /// produces an S100 warning at the phi merge point — the conversion is
+    /// one-time (the merge is not inside a loop), so the code is S100, not
+    /// the per-iteration S101.
     #[test]
     fn phi_shimmer_emitted_for_int_string_merge() {
         // Use [gets stdin] for the condition so SCCP cannot fold the branch;
@@ -224,12 +231,13 @@ mod tests {
         );
         let fu = cu.function("::top").unwrap();
         let warnings = find_phi_shimmers(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks);
-        let has_shimmer = warnings
-            .iter()
-            .any(|w| w.variable == "x" && w.code == "S101");
+        let merge = warnings.iter().find(|w| w.variable == "x");
         assert!(
-            has_shimmer,
-            "expected S101 phi shimmer for Int/String merge of 'x', got: {warnings:?}"
+            merge.is_some(),
+            "expected a phi shimmer for Int/String merge of 'x', got: {warnings:?}"
         );
+        let merge = merge.unwrap();
+        assert_eq!(merge.code, "S100", "out-of-loop merge must be S100");
+        assert!(!merge.in_loop);
     }
 }

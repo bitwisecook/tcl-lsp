@@ -42,6 +42,9 @@ pub enum Severity {
     Hint,
     /// Style suggestion / refactor.
     Suggestion,
+    /// Informational note (LSP `Information`) — observational, not a
+    /// problem (e.g. an S100 single shimmer outside a loop).
+    Info,
     /// Warning that may indicate a bug.
     Warning,
     /// Error.
@@ -58,6 +61,7 @@ impl Severity {
         match self {
             Self::Hint => "hint",
             Self::Suggestion => "suggestion",
+            Self::Info => "info",
             Self::Warning => "warning",
             Self::Error => "error",
         }
@@ -110,7 +114,14 @@ impl Diagnostic {
             span: w.span,
             code: w.code.clone(),
             category: "shimmer".into(),
-            severity: Severity::Warning,
+            // S100 (single shimmer outside a loop) is informational; S101
+            // (per-iteration loop shimmer) is a warning.  Mirrors Python's
+            // `_SHIMMER_SEVERITY` map in `server/features/diagnostics.py`.
+            severity: if w.code == "S100" {
+                Severity::Info
+            } else {
+                Severity::Warning
+            },
             message: w.message.clone(),
             replacement: None,
         }
@@ -397,6 +408,36 @@ mod tests {
         // SCCP should have flagged the constant-true branch.
         let has_sccp = diagnostics.iter().any(|d| d.category == "sccp");
         assert!(has_sccp, "expected an SCCP diagnostic, got {diagnostics:?}");
+    }
+
+    #[test]
+    fn shimmer_s100_is_info_s101_is_warning() {
+        // S100 — a single shimmer outside any loop is informational.
+        let cu = CompilationUnit::build_for("set x \"hello\"\nincr x", &registry(), false);
+        let diags = run_all_checks(&cu, &registry(), None);
+        let s100 = diags
+            .iter()
+            .find(|d| d.code == "S100")
+            .expect("expected an S100 shimmer");
+        assert_eq!(s100.severity, Severity::Info, "S100 must be Info: {s100:?}");
+        assert_eq!(s100.severity.as_str(), "info");
+
+        // S101 — a per-iteration shimmer inside a loop is a warning.
+        let cu = CompilationUnit::build_for(
+            "proc f {l} {\n  foreach x $l {\n    set b [lindex $x 0]\n  }\n}\n",
+            &registry(),
+            false,
+        );
+        let diags = run_all_checks(&cu, &registry(), None);
+        let s101 = diags
+            .iter()
+            .find(|d| d.code == "S101")
+            .expect("expected an S101 shimmer");
+        assert_eq!(
+            s101.severity,
+            Severity::Warning,
+            "S101 must be Warning: {s101:?}"
+        );
     }
 
     #[test]

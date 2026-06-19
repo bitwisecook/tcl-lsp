@@ -928,6 +928,29 @@ Task status is either **open** or **partial** (with a note on what remains).
   modelling, O109 / O116 / O120, the upvar transitive-merge, the
   document-version guard (review-findings C2), and the CST descent. Trust this
   plan and the source over the archive's dated rows.
+- **This document is a forward-looking plan, not a changelog.** It lists only
+  **open** / **partial** work. The narrative of *what landed and why* is
+  history — record it in [`rust-rewrite-history.md`](rust-rewrite-history.md),
+  not here. When a track finishes, delete its detailed `####` section and leave
+  only its rows in the subsystem-status and track-map tables (mark them ✅ /
+  🟢); add the landed detail to the history file in the same change. Do **not**
+  accumulate `**done**` bullets in this plan.
+- **Verify every port against real Tcl behaviour.** Check the produced result
+  against **tclsh 8.4–9.0** (the four source trees live under `tmp/tcl<ver>/`;
+  build a missing one with `.claude/skills/fetch-tcl-source` + `configure &&
+  make` under `unix/`), and consult the **C Tcl source** for the reference
+  algorithm — `tmp/tcl9.0.3/generic/` carries the `tclParse.c` / `tclUtil.c` /
+  `tclExecute.c` files the ports mirror. Gate version-specific behaviour (e.g.
+  `0o` / `0b` integer prefixes exist in 8.5+ but not 8.4; `{*}` expansion is
+  8.5+) on the registry / `LexerConfig` dialect flags, never hardcode one
+  version. C Tcl 9.0.3 is the reference standard — see
+  [`rust-rewrite-history.md`](rust-rewrite-history.md) §"C Tcl 9.0.3 is the
+  reference standard".
+- **A discovery in one track that affects another must update the other
+  track's entry here, in the same change.** When working a track surfaces a
+  wrong assumption, a shared invariant, or a handoff (e.g. a residual that
+  belongs to a different owner), edit that other track's row/section now —
+  don't leave the finding buried only in a commit message or PR description.
 
 ### Subsystem status (current reality)
 
@@ -939,7 +962,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | 🟢 | `${name}` brace-depth; quoted `\<nl>`; nested-body E202/E203 → **FE-LEX** |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
-| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟡 | shimmer severity+codes; expr-literal/`~`/object typing; ESC rendering; `is_pure_var_ref` set → **FE-TYPESHIM** |
+| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | **FE-TYPESHIM** complete; precise TclOO `object_of` typing now tracked under **FE-DIAG** (its W307/W308 consumer) |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
@@ -1027,18 +1050,6 @@ Owns `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}`.
   `shimmer.py` (0 occurrences in Rust). Absence → runaway latency + over-optimistic
   interproc summaries on adversarial input.
 
-#### FE-TYPESHIM — type inference / shimmer / shapes
-Owns `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`.
-- **open** shimmer: emit **S100 as Information** (not Warning,
-  `compiler_checks.rs:113`); compute the S100/S101 code from `in_loop`
-  (`phi.rs:146` / `expr.rs:273` hardcode it); port the loop-invariant
-  S101→S100 downgrade and the `incr`-amount check.
-- **open** expr-context literal typing (`0o`→INT, unknown→NUMERIC),
-  `~$double`→INT, and TclOO/scope-alias → OVERDEFINED widening.
-- **open** rendered-props ESC numeric/hex escape rendering (`\x2f`→`/`) — its
-  absence causes W201 false-negatives.
-- **open** `value_shapes::is_pure_var_ref` acceptance set (`$arr(idx)` / `${a(1)}`).
-
 #### FE-VARESCAPE — var-escape wiring
 Owns `tcl-compiler::var_escape`.
 - **open** top-level orchestrator + `CfgEscapeResult → ProcEscapeSummary` driver
@@ -1093,6 +1104,24 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
 - **open** snit OO support (`snit::type`/`widget`/`widgetadaptor` as ClassDef)
   and the OO body-walks Rust skips (`oo::class new`/`createWithNamespace`,
   `initialise` body, `property -get/-set` accessor bodies).
+- **open** **W307 / W308** method-dispatch type checks + the precise TclOO
+  `object_of` typing they consume (handed off from **FE-TYPESHIM**, which
+  widens constructor results to OVERDEFINED today). The type lattice already
+  models `TypeLattice::object_of(class)` and the join widens mismatched
+  classes; what is missing is the *known-classes* set fed to
+  `type_infer::return_type_for_command` so `[Foo new]` / `[Foo create x]` /
+  `[Foo %AUTO%]` / `[Widget .path]` type as `OBJECT(::ns::Foo)` (relative
+  names resolved against the call-site namespace). Source the class set from
+  the analyser-layer `signature_scan` (the Rust IR keeps `namespace eval`
+  bodies as raw barriers, so the Python `class_names.extract_class_names`
+  IR-walk misses namespace-scoped classes — do **not** port it as-is), then
+  thread it through `FunctionUnit::build`→`propagate_types`/
+  `infer_function_return_type` and key the per-procedure lattice memo
+  (`LatticeRequest` + `tcl-lsp-db`) on it, mirroring Python's
+  `known_classes_fp`. Port `_return_type_for_command`'s constructor
+  recognition (`new`/`create`/`createWithNamespace`/`%AUTO%`/leading-`.`),
+  keeping the D4-F6 guard (no `object_of` from the `new` spelling alone when
+  the command is not a known class).
 - **open** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity — the emitters are
   linear-scan MVPs (single shared `responded` flag); add per-branch state and
   restore the dropped quick-fixes (the C44 follow-up).

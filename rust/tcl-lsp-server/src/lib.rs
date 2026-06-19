@@ -5193,6 +5193,7 @@ fn lift_compiler_diagnostics(
             severity: Some(match d.severity {
                 CheckSeverity::Error => DiagnosticSeverity::ERROR,
                 CheckSeverity::Warning => DiagnosticSeverity::WARNING,
+                CheckSeverity::Info => DiagnosticSeverity::INFORMATION,
                 CheckSeverity::Hint | CheckSeverity::Suggestion => DiagnosticSeverity::HINT,
             }),
             code: Some(NumberOrString::String(d.code)),
