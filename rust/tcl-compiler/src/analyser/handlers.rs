@@ -1197,7 +1197,10 @@ impl Analyser {
         {
             return false;
         }
-        if args[0] != "create" {
+        // `create Name ?body?`, `new ?body?`, and `createWithNamespace Name ns
+        // ?body?` all introduce a class; mirrors the subcommand gate in
+        // `_handle_oo_class_command` (`_oo.py:87`).
+        if !matches!(args[0].as_str(), "create" | "new" | "createWithNamespace") {
             return false;
         }
         let raw_name = &args[1];

@@ -120,6 +120,12 @@ impl Analyser {
         // visible as a pre-bound local in *every* method body, regardless of
         // source order — mirroring Python's two-phase `_parse_oo_definition_body`.
         let mut method_bodies: Vec<CollectedMethodBody> = Vec::new();
+        // `property -get`/`-set` accessor bodies — walked in a method scope
+        // seeded with the class variables (Python `_extract_property_defs`).
+        let mut accessor_bodies: Vec<CollectedMethodBody> = Vec::new();
+        // `initialise`/`initialize { body }` — a class-level script walked in
+        // the *enclosing* scope (not a method scope), mirroring Python.
+        let mut init_bodies: Vec<(String, Token)> = Vec::new();
         for cmd in &cmds {
             if cmd.is_partial || cmd.argv.is_empty() {
                 continue;
@@ -128,12 +134,29 @@ impl Analyser {
             if let Some(mb) = collect_method_body(&cmd.texts, &cmd.argv) {
                 method_bodies.push(mb);
             }
+            match cmd.texts.first().map(String::as_str) {
+                Some("property") => {
+                    collect_property_accessor_bodies(&cmd.texts, &cmd.argv, &mut accessor_bodies);
+                }
+                Some("initialise" | "initialize") => {
+                    if let (Some(body), Some(tok)) = (cmd.texts.get(1), cmd.argv.get(1).copied())
+                        && tok.kind == TokenType::Str
+                    {
+                        init_bodies.push((body.clone(), tok));
+                    }
+                }
+                _ => {}
+            }
         }
-        // Phase 2: walk each method body in its own `Method` scope with the
-        // formal parameters and the class's instance variables pre-bound.
+        // Phase 2: walk each method / accessor body in its own `Method` scope
+        // with the formal parameters and the class's instance variables
+        // pre-bound; the `initialise` body walks in the enclosing scope.
         let class_variables = class_def.variables.clone();
-        for mb in method_bodies {
-            self.walk_method_body(&class_variables, class_qualified, scope_path, &mb);
+        for mb in method_bodies.iter().chain(accessor_bodies.iter()) {
+            self.walk_method_body(&class_variables, class_qualified, scope_path, mb);
+        }
+        for (body, tok) in init_bodies {
+            self.analyse_body(&body, tok, scope_path);
         }
     }
 
@@ -1036,6 +1059,40 @@ fn extract_property_defs(args: &[String], arg_tokens: &[Token], class_def: &mut 
     }
 }
 
+/// Collect the `-get` / `-set` accessor bodies of a `property` subcommand as
+/// walkable method bodies (named `<get>` / `<set>`).  Mirrors the accessor-body
+/// recursion in Python `_extract_property_defs`; only braced (`Str`) bodies are
+/// walkable.
+fn collect_property_accessor_bodies(
+    texts: &[String],
+    argv: &[Token],
+    out: &mut Vec<CollectedMethodBody>,
+) {
+    let mut i = 0;
+    while i < texts.len() {
+        if let Some(opt) = texts[i].strip_prefix('-') {
+            // Every property option takes a value; only `-get`/`-set` carry a
+            // body to analyse.
+            if i + 1 < texts.len() {
+                if matches!(opt, "get" | "set")
+                    && let Some(tok) = argv.get(i + 1).copied()
+                    && tok.kind == TokenType::Str
+                {
+                    out.push(CollectedMethodBody {
+                        name: format!("<{opt}>"),
+                        params: Vec::new(),
+                        body_text: texts[i + 1].clone(),
+                        body_tok: tok,
+                    });
+                }
+                i += 2;
+                continue;
+            }
+        }
+        i += 1;
+    }
+}
+
 /// Extract a [`MethodDef`] from method-style args.
 ///
 /// Mirrors `_extract_method_def` in `_oo.py:290-349`.  Three
@@ -1575,5 +1632,62 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("snitch foo { bar }", "tcl8.6");
         assert!(r.all_classes.is_empty());
+    }
+
+    // OO body-walks: `initialise` body, `property -get/-set` accessor bodies,
+    // and the `new` / `createWithNamespace` class-command variants.
+
+    #[test]
+    fn oo_initialise_body_is_walked() {
+        // A `variable` read inside `initialise { … }` must not false-fire
+        // W210 read-before-set — the class-level init body is walked with the
+        // class's instance variables visible.
+        let src = "oo::class create Foo {\n\
+                   variable cache\n\
+                   initialise { set cache [dict create] }\n\
+                   method get {k} { return [dict get $cache $k] }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "W210" | "W211")),
+            "initialise body should be walked cleanly: {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn oo_property_accessor_bodies_are_walked() {
+        // `-get`/`-set` accessor bodies are walked with the instance variable
+        // `val` and the implicit `value` visible — no false W210 / W307.
+        let src = "oo::configurable create Bar {\n\
+                   variable val\n\
+                   property color -get { return $val } -set { set val $value }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        assert!(r.all_classes.contains_key("::Bar"));
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "W210" | "W307")),
+            "property accessor bodies should be walked cleanly: {:?}",
+            r.diagnostics
+        );
+    }
+
+    #[test]
+    fn oo_class_create_with_namespace_is_recognised() {
+        // The `createWithNamespace` class-command variant introduces a class
+        // (matching Python's widened subcommand gate).
+        let mut a = Analyser::new();
+        let r = a.analyse("oo::class createWithNamespace MyCls ::ns { }", "tcl8.6");
+        assert!(
+            r.all_classes.keys().any(|k| k.contains("MyCls")),
+            "createWithNamespace should record a class: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>()
+        );
     }
 }
