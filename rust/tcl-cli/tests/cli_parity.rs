@@ -13,6 +13,21 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use regex::Regex;
+
+/// Collapse the fixtures directory's absolute path to a stable token.
+///
+/// Verbs invoked with an absolute fixture path (`minimize`, `symbols`) echo it
+/// back in their output, and the goldens bake whatever absolute prefix the
+/// capture machine had — `/home/user/...` in the agent sandbox the goldens were
+/// generated in, vs `/home/runner/...` (CI) or `/Users/...` (dev).  Normalising
+/// both sides keeps the parity assertion portable; the diff-based tests below
+/// already neutralise paths by running from the fixtures dir with bare names.
+fn normalise_fixture_path(s: &str) -> String {
+    let re = Regex::new(r#"/[^\s"]*?/rust/tcl-cli/tests/fixtures/"#).unwrap();
+    re.replace_all(s, "__FIXTURES__/").into_owned()
+}
+
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
@@ -52,8 +67,8 @@ fn assert_matches_golden(args: &[&str], golden: &str) {
         .unwrap_or_else(|e| panic!("read golden {}: {e}", golden_path.display()));
     let actual = run_tcl(args);
     assert_eq!(
-        String::from_utf8_lossy(&actual),
-        String::from_utf8_lossy(&expected),
+        normalise_fixture_path(&String::from_utf8_lossy(&actual)),
+        normalise_fixture_path(&String::from_utf8_lossy(&expected)),
         "output for `tcl {}` does not match {golden}",
         args.join(" ")
     );
