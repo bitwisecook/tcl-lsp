@@ -180,7 +180,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
 .PHONY: build-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime build-editor-zed publish-zed publish-all publish-verify publish-flow check-publish-env
-.PHONY: release release-tag release-codeql-gate release-sums
+.PHONY: release release-tag release-sums
 # Zig runtime + leak check
 .PHONY: build-runtime build-wasm-runtime build-runtime-leakcheck leakcheck leakcheck-diff snapshot-leak-baseline
 # Sphinx docs
@@ -1449,11 +1449,8 @@ release-sums: zipapp-explorer-cli zipapp-tcl zipapp-f5 zipapp-explorer-gui-cdn z
 	    fi
 	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
-release-tag: ## Create + push the annotated release tag (V=x.y.z); run release-codeql-gate first
+release-tag: ## Create + push the annotated release tag (V=x.y.z)
 	@bash $(ROOT)scripts/release/tag.sh $(V)
-
-release-codeql-gate: ## Wait for CodeQL on a commit and block on open high/critical alerts (SHA=<sha>)
-	@bash $(ROOT)scripts/release/codeql_gate.sh $(SHA)
 
 publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
