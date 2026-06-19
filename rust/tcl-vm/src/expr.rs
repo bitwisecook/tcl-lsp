@@ -42,6 +42,23 @@ fn to_num(v: &Value) -> Result<Num, TclError> {
     }
 }
 
+/// Like [`to_num`] but reports the C Tcl 9 operand-specific message
+/// (`cannot use non-numeric string "x" as left operand of "+"`). `side` is
+/// `"left"` / `"right"`.
+fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
+    if let Ok(n) = v.as_int() {
+        return Ok(Num::Int(n));
+    }
+    if let Ok(f) = v.as_double() {
+        return Ok(Num::Dbl(f));
+    }
+    Err(TclError::new(format!(
+        "cannot use non-numeric string \"{}\" as {side} operand of \"{}\"",
+        v.to_str(),
+        op.as_str()
+    )))
+}
+
 fn divzero() -> TclError {
     TclError::new("divide by zero")
 }
@@ -158,7 +175,10 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
 
 /// Apply an arithmetic / bitwise / shift binary operator to two values.
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
-    match (to_num(a)?, to_num(b)?) {
+    match (
+        to_num_operand(a, "left", op)?,
+        to_num_operand(b, "right", op)?,
+    ) {
         (Num::Int(x), Num::Int(y)) => int_arith(op, x, y),
         (x, y) => dbl_arith(op, num_f(x), num_f(y)),
     }
