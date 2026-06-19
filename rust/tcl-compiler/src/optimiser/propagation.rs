@@ -953,6 +953,12 @@ fn try_fold_static_proc_call(
     let Some(summary) = ia.procedures.get(&qname) else {
         return;
     };
+    // A redefined proc has an ambiguous body — never fold its calls
+    // (the flow-sensitive rename gate, mirroring the cmd-subst form and
+    // Python's `redefined_procedures` check).
+    if cu.ir_module.redefined_procedures.contains(&qname) {
+        return;
+    }
     if !summary.can_fold_static_calls {
         return;
     }
