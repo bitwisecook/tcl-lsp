@@ -4195,6 +4195,157 @@ function ::f
 
 ---
 
+### FP-SH-09 — byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
+
+- **Verdict:** TRUE POSITIVE (new correctness diagnostic)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_09_*`
+- **Codes:** S110
+- **Corpus:** plain-Tcl binary handling — `binary format`/`binary decode` data run through `string` / `encoding convertto` before being scanned back.
+
+S110 is a **correctness** shimmer, separate from the S100/S101/S102
+performance family.  A Tcl byte array and a character string are different
+internal representations; forcing a byte array through character semantics
+reinterprets each byte as a Unicode code point, and case folding (or a
+re-encode) pushes bytes `>= 0x80` out of the byte range — corrupting the
+data with no error in 8.x and a hard error in 9.x.
+
+#### Reproducer
+
+```tcl
+# binary format -> string toupper -> corrupted bytes (S110).
+set ba [binary format c* {128 195 255}]
+set up [string toupper $ba]
+```
+
+#### Per-line reasoning
+
+1. `set ba [binary format c* {128 195 255}]` — `ba` is a byte array (`binary format` return type BYTEARRAY) holding the bytes `80 c3 ff`.
+2. `set up [string toupper $ba]` — `string toupper` demands a character string, so `ba`'s bytes are decoded to characters, upper-cased, and `up` becomes that STRING.  `0xFF` (ÿ) upper-cases to `Ŷ` (U+0178), which is **not** a single byte — the byte array is destroyed.
+
+#### tclsh ground truth
+
+```
+% set ba [binary format c* {128 195 255}]; binary scan $ba H* h; set h
+80c3ff
+# Tcl 8.6.14:
+% binary scan [string toupper $ba] H* h2; set h2
+80c378            ;# 0xFF -> U+0178 truncated to 0x78 — silent data loss
+# Tcl 9.0.3:
+% binary scan [string toupper $ba] H* h2
+expected byte sequence but character 2 was 'Ŷ' (U+000178)
+```
+
+#### Compiler evidence
+
+```
+--- FP-SH-09: byte array case-folded / re-encoded by a string op corrupts high bytes (S110)
+regen: python -m bench.fp_snippets --id FP-SH-09
+function ::top
+  block entry_1
+    [0] AssignValue 'ba' value='[binary format c* {128 195 255}]'  defs={ba#1}  uses={}
+    [1] AssignValue 'up' value='[string toupper $ba]'  defs={up#1}  uses={ba#1}
+    term Goto
+  types
+    ba#1: BYTEARRAY
+    up#1: STRING
+```
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py`'s `_find_byte_array_corruption` tracks byte provenance
+per SSA value.  `[binary format …]` (return type BYTEARRAY) marks `ba` BINARY;
+`string toupper` is in `_CASE_FOLD_STRING_SUBS`, so the BINARY operand fires
+S110 at the `string toupper` use site.  Case folding and `encoding convertto`
+are flagged at the transform itself (the corruption is unconditional); latin-1
+-preserving transforms (interpolation, `string replace`, `append`) only fire
+when the result reaches a byte sink (see FP-SH-10).
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_09_toupper_byte_array_fires` (TP)
+- `tests/test_fp_sh.py::test_FP_SH_09_toupper_plain_string_silent` (FP control — no byte source)
+
+---
+
+### FP-SH-10 — `*::payload` round-trip: string-coerced binary written back corrupts it (S110)
+
+- **Verdict:** TRUE POSITIVE (new correctness diagnostic; iRules)
+- **Status:** locked in by `tests/test_fp_sh.py::test_FP_SH_10_*`
+- **Codes:** S110
+- **Corpus:** F5 iRules payload rewrites — the single most common binary-safety bug (F5 KB K22406348, and the `HTTP::payload replace` man-page warning).
+
+`*::payload` reads the on-the-wire bytes as a byte array.  Coercing that
+value to a character string (interpolation, `string` ops, `append`, …) and
+writing it back with `<proto>::payload replace` re-encodes every byte
+`>= 0x80`: the bytes are read as latin-1 then emitted as UTF-8, so a 2-byte
+UTF-8 character double-encodes (`c3 b3` → `c3 83 c2 b3`).
+
+#### Reproducer
+
+```tcl
+when HTTP_REQUEST_DATA {
+    set original_data [HTTP::payload]
+    set new_data "$original_data MODIFIED"
+    HTTP::payload replace 0 100 $new_data
+}
+```
+
+#### Per-line reasoning
+
+1. `set original_data [HTTP::payload]` — `original_data` is the raw payload **byte array** (registry flag `byte_array_payload`).
+2. `set new_data "$original_data MODIFIED"` — double-quote interpolation decodes the bytes to latin-1 characters; `new_data` is now a character STRING.
+3. `HTTP::payload replace 0 100 $new_data` — the sink interprets its data argument as a byte array, so `new_data`'s characters are re-encoded as UTF-8.  Every original byte `>= 0x80` double-encodes — the payload is corrupted.
+
+The documented fix is to re-binarify before the sink:
+`binary scan $new_data c* -` forces a byte-array intrep so the write is
+byte-for-byte.  With that line present S110 is silent (the re-binarify clears
+the DAMAGED provenance).
+
+#### tclsh ground truth
+
+F5 KB K22406348 (TMM): the byte stream for `Józef` (`4a c3 b3 7a 65 66 …`)
+becomes `4a c3 83 c2 b3 7a 65 66 …` after the round-trip — `ó` (`c3 b3`)
+double-encodes to `c3 83 c2 b3`.  The `HTTP::payload replace` man page states
+the argument "will be interpreted as a byte array … you should first run
+`binary scan c* throwawayvariable`".
+
+#### Compiler evidence
+
+```
+--- FP-SH-10: *::payload round-trip: string-coerced binary written back corrupts it (S110)
+regen: python -m bench.fp_snippets --id FP-SH-10
+function ::when::HTTP_REQUEST_DATA
+  block entry_1
+    [0] AssignValue 'original_data' value='[HTTP::payload]'  defs={original_data#1}  uses={}
+    [1] AssignValue 'new_data' value='${original_data} MODIFIED'  defs={new_data#1}  uses={original_data#1}
+    [2] Call cmd='HTTP::payload'  defs={}  uses={new_data#1}
+    term Goto
+  types
+    new_data#1: STRING
+    original_data#1: TypeLattice.OVERDEFINED
+```
+
+(The SCCP type lattice cannot see the payload getter's return — it is
+OVERDEFINED — so byte provenance is tracked by the dedicated pass, not the
+type lattice.)
+
+#### Why the analyser reaches that verdict
+
+`compiler/shimmer.py`'s `_find_byte_array_corruption` marks `original_data`
+BINARY from the `HTTP::payload` getter (`registry.byte_array_payload_commands()`),
+propagates DAMAGED through the interpolation, and emits S110 at the
+`HTTP::payload replace` sink because the data argument is DAMAGED.  A
+`binary scan $v …` / `binary format … $v` between the coercion and the sink
+re-binarifies `v` and suppresses the warning.
+
+#### Tests
+
+- `tests/test_fp_sh.py::test_FP_SH_10_payload_roundtrip_fires` (TP)
+- `tests/test_fp_sh.py::test_FP_SH_10_clean_payload_writeback_silent` (FP control — no string coercion)
+- `tests/test_fp_sh.py::test_FP_SH_10_binary_scan_fix_silent` (FP control — documented re-binarify fix)
+
+---
+
 
 ## OBJ — object dispatch (W307/W308) + snit modelling
 

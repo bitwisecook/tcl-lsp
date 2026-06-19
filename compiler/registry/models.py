@@ -651,6 +651,9 @@ class CommandSpec:
     has_destructive_ops: bool = False  # file, namespace, chan
     is_irules_event_handler: bool = False  # when
     is_unnormalized_http_getter: bool = False  # HTTP::path, HTTP::uri, HTTP::query
+    byte_array_payload: bool = (
+        False  # *::payload — getter returns raw bytes, `replace` rewrites them
+    )
 
     # Command-classification traits sourced by tooling instead of
     # consumer-local name lists (single source of truth = the spec).

@@ -27,6 +27,7 @@ class DiameterPayloadCommand(CommandDef):
         return CommandSpec(
             name="DIAMETER::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             hover=HoverSnippet(
                 summary="Gets or sets DIAMETER message payload.",
                 synopsis=("DIAMETER::payload ('replace' PAYLOAD)?",),

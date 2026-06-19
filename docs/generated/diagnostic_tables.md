@@ -69,6 +69,7 @@
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |
 | S102 | shimmer | Variable oscillates between two types across loop iterations. | ✓ |
+| S110 | shimmer | Byte array corrupted by a string operation before being written back as bytes. | ✓ |
 | T100 | taint | Tainted data flows into a dangerous sink: `eval`/`uplevel`/`subst`/unbraced-`expr`/`exec` (code-execution); braced `expr` operands (numeric/type-coercion). | ✓ |
 | T101 | taint | Tainted data flows into an output command (`puts`). | ✓ |
 | T102 | taint | Tainted data in option position without `--` terminator — option injection risk. | ✓ |

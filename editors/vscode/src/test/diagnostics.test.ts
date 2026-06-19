@@ -165,4 +165,27 @@ suite("Diagnostics", () => {
       );
     }
   });
+
+  test("S110 fires for a *::payload string round-trip (byte-array corruption)", async () => {
+    // F5 KB K22406348: HTTP::payload read, string-coerced, written back as bytes.
+    const uri = getDocUri("byteArrayCorruption.irul");
+    await activate(uri);
+    const diagnostics = await waitForDiagnostics(uri, { minCount: 1 });
+
+    const s110 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "S110";
+    });
+
+    assert.ok(s110, "expected S110 (byte-array corruption) for the payload round-trip");
+    assert.strictEqual(
+      s110.severity,
+      vscode.DiagnosticSeverity.Warning,
+      "S110 should be a warning",
+    );
+    assert.ok(
+      /payload replace/.test(s110.message),
+      `S110 message should name the sink, got: ${s110.message}`,
+    );
+  });
 });

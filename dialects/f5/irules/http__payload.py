@@ -24,6 +24,7 @@ class HttpPayloadCommand(CommandDef):
         return CommandSpec(
             name="HTTP::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             pure=True,
             hover=HoverSnippet(
                 summary="Queries for or manipulates HTTP payload information.",

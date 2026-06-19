@@ -1,0 +1,5 @@
+when HTTP_REQUEST_DATA {
+    set original_data [HTTP::payload]
+    set new_data "$original_data MODIFIED"
+    HTTP::payload replace 0 100 $new_data
+}

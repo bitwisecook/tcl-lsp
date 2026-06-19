@@ -520,6 +520,14 @@ flowchart LR
 > Each arrow is a shimmer — Tcl silently converts the internal
 > representation.  Excessive shimmering degrades performance.
 
+Most shimmers are a performance concern (`S100`/`S101`/`S102`).  One shimmer is
+a **correctness** concern: a byte array (binary data) forced through
+character-string semantics and written back as bytes re-encodes every byte
+`≥ 0x80` (latin-1 decode → UTF-8 encode), corrupting the data.  This is
+reported as `S110` — the iRules `*::payload` rewrite bug and the plain-Tcl
+`binary format` → `string …` → `binary scan` round-trip.  See
+[`kcs-feature-byte-array-corruption.md`](kcs/features/kcs-feature-byte-array-corruption.md).
+
 See also: [Shimmer reference behaviour](design/contracts/shimmer-reference-behaviour.md).
 KCS tag: `shimmer`.
 

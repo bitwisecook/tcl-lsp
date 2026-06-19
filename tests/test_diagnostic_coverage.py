@@ -684,6 +684,14 @@ FIXTURES: dict[str, Case] = {
         "lindex $myList 1",
         "set myList [list a b c]\nlindex $myList 1\nputs $myList\n",
     ),
+    "S110": Case(
+        # Byte-array corruption: a binary value case-folded by a string op.
+        # Dialect-agnostic (plain-Tcl binary source); the iRules *::payload
+        # round-trip is covered by tests/test_fp_sh.py::test_FP_SH_10_*.
+        "set ba [binary format c* {128 195 255}]\nset up [string toupper $ba]\n",
+        "set up [string toupper $ba]",
+        'set ba "hello"\nset up [string toupper $ba]\n',
+    ),
     "O103": Case(
         "proc pi {} { return 3 }\nset v [pi]\n",
         "[pi]",

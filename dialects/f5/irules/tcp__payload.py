@@ -31,6 +31,7 @@ class TcpPayloadCommand(CommandDef):
         return CommandSpec(
             name="TCP::payload",
             dialects=_IRULES_ONLY,
+            byte_array_payload=True,
             hover=HoverSnippet(
                 summary="Returns or changes the data collected by TCP::collect.",
                 synopsis=(

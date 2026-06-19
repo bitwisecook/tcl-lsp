@@ -919,3 +919,156 @@ incr x $step
         assert w.code == "S100"
         assert "intrep" in w.message
         assert w.range is not None
+
+
+class TestByteArrayCorruption:
+    """S110 — byte-array corruption via string coercion before a byte sink.
+
+    Ground truth (real tclsh, see ``docs/design/compiler/FP.md`` §SH and
+    F5 KB K22406348): a byte array forced through character-string semantics
+    and written back as bytes silently re-encodes every byte >= 0x80
+    (latin-1 decode -> UTF-8 encode in 8.x, a runtime error in 9.x).
+    """
+
+    def _s110(self, source: str, *, dialect: str | None = None) -> list[ShimmerWarning]:
+        from compiler.registry.dialect import dialect_scope
+
+        with dialect_scope(dialect):
+            return [
+                w
+                for w in find_shimmer_warnings(source)
+                if isinstance(w, ShimmerWarning) and w.code == "S110"
+            ]
+
+    def _irules(self, source: str) -> list[ShimmerWarning]:
+        return self._s110(source, dialect="f5-irules")
+
+    # --- iRules *::payload round-trip (the canonical F5 bug) ---
+
+    def test_kb_http_payload_interpolation_roundtrip(self):
+        # K22406348: read payload, build a string from it, write it back.
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set original_data [HTTP::payload]\n"
+            '  set new_data "$original_data MODIFIED"\n'
+            "  HTTP::payload replace 0 100 $new_data\n"
+            "}\n"
+        )
+        warnings = self._irules(source)
+        assert len(warnings) == 1, warnings
+        assert warnings[0].from_type is TclType.BYTEARRAY
+        assert "HTTP::payload replace" in warnings[0].message
+
+    def test_tcp_payload_string_replace_roundtrip(self):
+        # The user's example: TCP::payload -> string replace -> TCP::payload replace.
+        source = (
+            "when CLIENT_DATA {\n"
+            "  set p [TCP::payload]\n"
+            '  set m [string replace $p 0 5 "XXXX"]\n'
+            "  TCP::payload replace 0 [TCP::payload length] $m\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    def test_append_then_payload_replace(self):
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set d [HTTP::payload]\n"
+            '  append d " more"\n'
+            "  HTTP::payload replace 0 100 $d\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    def test_copy_chain_preserves_provenance(self):
+        source = (
+            "when CLIENT_DATA {\n"
+            "  set a [TCP::payload]\n"
+            "  set b $a\n"
+            '  set c "$b!"\n'
+            "  TCP::payload replace 0 1 $c\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    def test_string_map_cmdsub_data_arg(self):
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set p [HTTP::payload]\n"
+            "  HTTP::payload replace 0 100 [string map {a b} $p]\n"
+            "}\n"
+        )
+        assert len(self._irules(source)) == 1
+
+    # --- plain Tcl (dialect-agnostic binary sources) ---
+
+    def test_plain_tcl_toupper_case_fold(self):
+        # binary format -> string toupper mangles high bytes (8.x) / errors (9.x).
+        source = "set ba [binary format c* {1 2 3}]\nset up [string toupper $ba]\n"
+        warnings = self._s110(source)
+        assert len(warnings) == 1
+        assert "string toupper" in warnings[0].message
+
+    def test_encoding_convertto_double_encode(self):
+        source = 'set ba [binary decode hex "deadbeef"]\nset x [encoding convertto utf-8 $ba]\n'
+        warnings = self._s110(source)
+        assert len(warnings) == 1
+        assert "double-encode" in warnings[0].message
+
+    # --- iRules-specific recognition must NOT leak into plain Tcl ---
+
+    def test_payload_names_outside_irules_dialect_silent(self):
+        # A plain-Tcl document that merely *names* a ``*::payload`` command must
+        # never trip S110 — the payload source/sink recognition is gated on the
+        # active dialect (the registry is process-global once f5-irules loads).
+        source = (
+            "set original_data [HTTP::payload]\n"
+            'set new_data "$original_data MODIFIED"\n'
+            "HTTP::payload replace 0 100 $new_data\n"
+        )
+        # Load the f5-irules pack first so byte_array_payload_commands() is
+        # populated, proving the gate (not an unloaded pack) is what suppresses.
+        self._irules("when CLIENT_DATA { set p [TCP::payload] }")
+        assert self._s110(source, dialect="tcl8.6") == []
+        assert self._s110(source, dialect="tcl9.0") == []
+
+    # --- must stay silent (no false positives) ---
+
+    def test_clean_payload_writeback_silent(self):
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set d [HTTP::payload]\n"
+            "  HTTP::payload replace 0 100 $d\n"
+            "}\n"
+        )
+        assert self._irules(source) == []
+
+    def test_binary_scan_rebinarify_fix_silent(self):
+        # The documented fix: binary scan forces a byte-array intrep.
+        source = (
+            "when HTTP_REQUEST_DATA {\n"
+            "  set d [HTTP::payload]\n"
+            '  set n "$d more"\n'
+            "  binary scan $n c* throwaway\n"
+            "  HTTP::payload replace 0 100 $n\n"
+            "}\n"
+        )
+        assert self._irules(source) == []
+
+    def test_ascii_literal_writeback_silent(self):
+        source = 'when HTTP_REQUEST_DATA {\n  HTTP::payload replace 0 5 "hello"\n}\n'
+        assert self._irules(source) == []
+
+    def test_non_binary_string_op_silent(self):
+        source = 'set s "hello world"\nset u [string toupper $s]\n'
+        assert self._s110(source) == []
+
+    def test_direct_binary_source_data_arg_silent(self):
+        source = (
+            'when HTTP_REQUEST_DATA {\n  HTTP::payload replace 0 100 [binary format a* "x"]\n}\n'
+        )
+        assert self._s110(source) == []
+
+    def test_payload_length_query_not_a_source(self):
+        source = "when CLIENT_DATA {\n  set n [TCP::payload length]\n  set m [expr {$n + 1}]\n}\n"
+        assert self._s110(source) == []
