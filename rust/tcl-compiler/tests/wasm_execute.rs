@@ -160,6 +160,12 @@ fn emitted_modules_run_under_wasmtime() {
         ),
         ("return_mid", "if {$x} {return 1}\nputs after\n"),
         ("foreach_opaque", "foreach x {a b c} {puts $x}\n"),
+        // A proc-defining module: `::top` runs (defining + calling `add` via
+        // eval-fallback) and the separately-emitted `::add` function is valid.
+        (
+            "proc",
+            "proc add {a b} {return [expr {$a + $b}]}\nadd 1 2\n",
+        ),
     ] {
         let out = run(src, tag);
         assert!(

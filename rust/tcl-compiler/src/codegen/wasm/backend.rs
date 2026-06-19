@@ -16,7 +16,7 @@ use super::encoding::{leb128_signed, leb128_unsigned};
 use super::ir::{ValType, WasmData, WasmFunction, WasmInstruction, WasmModule, WasmOp};
 use crate::codegen::emit::Emit;
 use crate::codegen::structured;
-use crate::ir::Module;
+use crate::ir::{Module, Procedure};
 
 /// Block type byte for a structured op (`block`/`loop`/`if`) yielding no value.
 const BLOCK_VOID: u8 = 0x40;
@@ -147,6 +147,32 @@ impl WasmEmitter {
         self.push_i32(offset);
         self.push_i32(len);
         self.call(self.imports.obj_new_string);
+    }
+
+    /// Close the function the walk just finished — emit its terminal `end`, take
+    /// its instruction stream, and reset the per-function state for the next one.
+    /// The constant pool (`data`/`data_offset`) is module-global and persists
+    /// across functions: every function's strings share one pool in the shared
+    /// linear memory, at distinct offsets.
+    ///
+    /// The terminal `end` is emitted unconditionally — a body ending in a loop's
+    /// own `end` would otherwise leave `encode_body` to mistake that for the
+    /// function `end` and leave a frame open.
+    fn finish_function(&mut self, name: &str, kind: &str) -> WasmFunction {
+        self.push(WasmOp::End);
+        self.ctrl_depth = 0;
+        self.loops.clear();
+        WasmFunction {
+            name: name.to_string(),
+            params: Vec::new(),
+            results: Vec::new(),
+            locals: Vec::new(),
+            body: std::mem::take(&mut self.body),
+            local_names: Vec::new(),
+            exported: true,
+            source_range: None,
+            kind: kind.to_string(),
+        }
     }
 }
 
@@ -282,24 +308,29 @@ pub fn wasm_codegen_module_based(module: &Module, source: &str, data_base: i64) 
         ctrl_depth: 0,
         loops: Vec::new(),
     };
+    // The top-level script.
     structured::walk(&mut emitter, &module.top_level, source);
-    // The function body is an implicit block: emit its terminal `end` explicitly.
-    // (Doing so unconditionally also closes any trailing structured region — a
-    // body ending in a loop's `end` would otherwise be mistaken by `encode_body`
-    // for the function end and left with an open frame.)
-    emitter.push(WasmOp::End);
+    let top = emitter.finish_function("::top", "top");
+    wasm.functions.push(top);
+
+    // Each user-defined proc body becomes its own WASM function, driven through
+    // the same structured walk (its body is already lowered IR with absolute
+    // source spans). Namespace-scoped procs are created at run time inside
+    // `namespace eval`, not at load, so they are skipped — mirroring the bytecode
+    // backend (`codegen/emitter/mod.rs`). Emitted in qualified-name order so the
+    // module bytes are deterministic (`procedures` is a hash map).
+    let mut procs: Vec<&Procedure> = module
+        .procedures
+        .values()
+        .filter(|p| !p.namespace_scoped)
+        .collect();
+    procs.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+    for proc in procs {
+        structured::walk(&mut emitter, &proc.body, source);
+        let func = emitter.finish_function(&proc.qualified_name, "proc");
+        wasm.functions.push(func);
+    }
 
     wasm.data_segments = emitter.data;
-    wasm.functions.push(WasmFunction {
-        name: "::top".to_string(),
-        params: Vec::new(),
-        results: Vec::new(),
-        locals: Vec::new(),
-        body: emitter.body,
-        local_names: Vec::new(),
-        exported: true,
-        source_range: None,
-        kind: "top".to_string(),
-    });
     wasm
 }

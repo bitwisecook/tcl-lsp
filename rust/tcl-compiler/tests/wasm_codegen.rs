@@ -55,6 +55,55 @@ fn data_pool_relocates_to_reserved_base() {
     assert!(!wat.contains("(data (i32.const 0)"), "{wat}");
 }
 
+/// A user-defined `proc` is emitted as its own exported WASM function, its body
+/// driven through the same structured walk as `::top`. (The `proc` definition
+/// itself still eval-fallbacks in `::top` to register it at run time, until
+/// call-dispatch is wired.)
+#[test]
+fn procs_emit_their_own_functions() {
+    let mut m = compile_wasm("proc add {a b} {return [expr {$a + $b}]}\nadd 1 2\n");
+    let wat = m.to_wat();
+    // Both the top-level entry and the proc body are exported functions.
+    assert!(wat.contains(r#"(export "::top")"#), "{wat}");
+    assert!(wat.contains(r#"(export "::add")"#), "{wat}");
+    // The proc body's command is interned (from the `::add` walk).
+    assert!(wat.contains(r#""return [expr {$a + $b}]""#), "{wat}");
+    assert_eq!(&m.to_bytes()[0..4], b"\0asm");
+}
+
+/// A proc body's control flow is **structured inside its own function**, not an
+/// opaque eval-fallback of the whole body.
+#[test]
+fn proc_body_control_flow_is_structured() {
+    let mut m = compile_wasm("proc choose {x} {if {$x} {puts a} else {puts b}}\n");
+    let wat = m.to_wat();
+    assert!(wat.contains(r#"(export "::choose")"#), "{wat}");
+    assert!(
+        wat.contains("\n        if"),
+        "expected structured if in the proc body:\n{wat}"
+    );
+    // The condition + both arms are interned (driven through the walk).
+    assert!(wat.contains(r#""$x""#), "{wat}");
+    assert!(
+        wat.contains(r#""puts a""#) && wat.contains(r#""puts b""#),
+        "{wat}"
+    );
+    assert_eq!(&m.to_bytes()[0..4], b"\0asm");
+}
+
+/// Namespace-scoped procs (created at run time inside `namespace eval`, not at
+/// load) are not emitted as load-time functions — mirroring the bytecode backend.
+#[test]
+fn namespace_scoped_procs_are_not_emitted() {
+    let mut m = compile_wasm("namespace eval ns {\n  proc p {} {puts hi}\n}\n");
+    let wat = m.to_wat();
+    assert!(
+        !wat.contains(r#"(export "::ns::p")"#),
+        "a namespace-scoped proc must not become a load-time function:\n{wat}"
+    );
+    assert_eq!(&m.to_bytes()[0..4], b"\0asm");
+}
+
 /// A linear top-level script: each command is eval-fallback'd in order, results
 /// discarded; the command texts live in the data section.
 #[test]
@@ -194,6 +243,16 @@ fn wasmtime_validates_emitted_modules() {
         ),
         ("return-mid", "if {$x} {return 1}\nputs after\n"),
         ("foreach-opaque", "foreach x {a b c} {puts $x}\n"),
+        // Multi-function modules: a proc body becomes its own function alongside
+        // `::top`; both must validate.
+        (
+            "proc",
+            "proc add {a b} {return [expr {$a + $b}]}\nadd 1 2\n",
+        ),
+        (
+            "proc-cf",
+            "proc choose {x} {if {$x} {puts a} else {puts b}}\nchoose 1\n",
+        ),
     ] {
         let mut m = compile_wasm(src);
         let wasm = tmp.join(format!("tcl_wasm_stage2_{name}.wasm"));
