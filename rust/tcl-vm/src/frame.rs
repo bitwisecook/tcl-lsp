@@ -48,6 +48,13 @@ pub(crate) struct CallFrame {
     /// work.
     #[allow(dead_code)]
     pub call_argv: Vec<Value>,
+    /// For a `namespace eval`/`inscope` body frame, the canonical namespace it
+    /// runs in (no leading `::`; `""` = global). `None` for proc activations and
+    /// the global frame. An unqualified variable accessed in such a frame is a
+    /// *namespace* variable (`ns::name` in the global frame), not a local — see
+    /// [`Vm::locate_from`](crate::interp::Vm). This is what makes `uplevel`/
+    /// `upvar` into a namespace-eval body resolve to namespace variables.
+    pub ns_eval: Option<String>,
 }
 
 impl CallFrame {
@@ -59,6 +66,7 @@ impl CallFrame {
             level,
             proc_name,
             call_argv,
+            ns_eval: None,
         }
     }
 }

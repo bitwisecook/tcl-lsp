@@ -714,6 +714,21 @@ impl Vm {
         }
     }
 
+    /// Push a non-proc call frame for a `namespace eval`/`inscope` body running
+    /// in namespace `ns` (canonical, no leading `::`). Like a proc call this is a
+    /// real frame — `info level` counts it and `uplevel`/`upvar` can target it —
+    /// but it is marked [`ns_eval`](CallFrame::ns_eval) so an unqualified variable
+    /// in its body resolves to a namespace variable rather than a frame local.
+    /// `call_argv` is the invoking command words (for `info level N`).
+    pub(crate) fn push_ns_eval_frame(&mut self, ns: &str, call_argv: Vec<Value>) -> usize {
+        let level = self.frames.len();
+        let mut frame = CallFrame::new(level, ROOT_NS, None, call_argv);
+        frame.ns_eval = Some(ns.to_owned());
+        self.frames.push(frame);
+        self.recursion_depth += 1;
+        level
+    }
+
     /// The current call-nesting depth (proc recursion bound).
     pub(crate) fn recursion_depth(&self) -> usize {
         self.recursion_depth
@@ -752,6 +767,14 @@ impl Vm {
             return err(format!("bad level \"{target}\""));
         }
         let saved = self.frames.split_off(target + 1);
+        // The namespace stack is kept aligned 1:1 with the call-frame stack (every
+        // proc call and `namespace eval` pushes one of each), so the target frame's
+        // namespace is `ns_stack[target]`. Set it aside with the frames so the
+        // uplevel'd script resolves commands/variables in the target frame's
+        // namespace — what makes `uplevel 1`/tcltest's body eval inside a
+        // `namespace eval` reach that namespace's procs and variables.
+        let ns_cut = (target + 1).min(self.ns_stack.len());
+        let saved_ns = self.ns_stack.split_off(ns_cut);
         let saved_depth = self.recursion_depth;
         let result = self.eval_source(src);
         // Restore any frames the script left in place, then re-attach the ones
@@ -761,6 +784,8 @@ impl Vm {
         // to its pre-eval value rather than leak it.
         self.frames.truncate(target + 1);
         self.frames.extend(saved);
+        self.ns_stack.truncate(ns_cut);
+        self.ns_stack.extend(saved_ns);
         self.recursion_depth = saved_depth;
         match result {
             Ok(c) => c,
@@ -913,6 +938,21 @@ impl Vm {
                 }
                 _ => break,
             }
+        }
+        // A bare name landing on a `namespace eval` body frame (no genuine local
+        // there) is a *namespace* variable: redirect it to `ns::name` in the
+        // global frame, where namespace variables live. This mirrors what
+        // `ns_var_fallback` does for the current frame, but also covers an
+        // `upvar`/`uplevel` link that reaches a namespace-eval frame — so a proc's
+        // `upvar 1 v` into a `namespace eval` body resolves the namespace variable,
+        // and a plain `set x` at namespace-script level *creates* `ns::x`.
+        if !nm.contains("::")
+            && let Some(f) = self.frames.get(level)
+            && let Some(ns) = &f.ns_eval
+            && !ns.is_empty()
+            && !f.locals.contains_key(&nm)
+        {
+            return (0, format!("{ns}::{nm}"));
         }
         (level, nm)
     }

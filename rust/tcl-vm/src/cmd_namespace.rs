@@ -14,13 +14,20 @@ use crate::value::Value;
 
 /// Run `body` as a script in namespace `target`, absorbing a top-level
 /// `return` at the boundary (a namespace body completes like a proc body).
-fn eval_in_ns(vm: &mut Vm, target: String, body: &str) -> Completion<Value> {
+///
+/// The body runs in its own call frame (like a proc) so `info level` counts it
+/// and `uplevel`/`upvar` from a proc called within reach it (and its namespace
+/// variables). `call_argv` is the invoking command (e.g. `namespace eval ::ns
+/// {…}`) for `info level N`.
+fn eval_in_ns(vm: &mut Vm, target: String, body: &str, call_argv: Vec<Value>) -> Completion<Value> {
     vm.declare_namespace(&target);
+    vm.push_ns_eval_frame(&target, call_argv);
     vm.push_ns(target);
     vm.enter_ns_script();
     let result = vm.eval_source(body);
     vm.leave_ns_script();
     vm.pop_ns();
+    vm.pop_call_frame();
     match result {
         Ok(c) if c.code == Code::Return => ok(c.result),
         Ok(c) => c,
@@ -174,7 +181,9 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    eval_in_ns(vm, target, &body)
+    let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
+    call_argv.extend(rest.iter().cloned());
+    eval_in_ns(vm, target, &body, call_argv)
 }
 
 fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
@@ -191,5 +200,7 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .map(|v| v.to_str().to_string())
         .collect::<Vec<_>>()
         .join(" ");
-    eval_in_ns(vm, child, &body)
+    let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
+    call_argv.extend(rest.iter().cloned());
+    eval_in_ns(vm, child, &body, call_argv)
 }
