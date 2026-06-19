@@ -27,27 +27,59 @@
 //! a follow-up — emitting the hint is enough to surface the
 //! opportunity in editors / linters.
 
-use crate::compilation_unit::CompilationUnit;
+use std::collections::HashSet;
+
+use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
+use crate::types::{TclType, TypeKind, TypeLattice};
 
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the pattern-recognition pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    walk_script(ctx, &cu.ir_module.top_level);
-    for proc in cu.ir_module.procedures.values() {
-        walk_script(ctx, &proc.body);
+    let top_ints = int_var_names(&cu.top_level);
+    walk_script(ctx, &cu.ir_module.top_level, &top_ints);
+    for (qname, proc) in &cu.ir_module.procedures {
+        let ints = cu.procedures.get(qname).map(int_var_names).unwrap_or_default();
+        walk_script(ctx, &proc.body, &ints);
     }
 }
 
-fn walk_script(ctx: &mut PassContext<'_>, script: &Script) {
+/// Names whose **every** SSA version is a known `TclType::Int`. A name absent
+/// here is treated as not provably integer, so the `set/expr → incr` rewrite
+/// (O114) is suppressed — matching Python, which proves the loop variable is
+/// `INT` (not `DOUBLE` / `NUMERIC` / `BOOLEAN`) at the use point before
+/// rewriting. `expr {$x + 1}` silently promotes a float operand, whereas
+/// `incr` errors, so the function-level join (all versions must be `INT`) is a
+/// sound over-approximation of the per-use check.
+fn int_var_names(fu: &FunctionUnit) -> HashSet<String> {
+    use std::collections::HashMap;
+    let mut acc: HashMap<&str, bool> = HashMap::new();
+    for ((name, _ver), lattice) in &fu.types {
+        let is_int = lattice_is_int(lattice);
+        acc.entry(name.as_str())
+            .and_modify(|v| *v = *v && is_int)
+            .or_insert(is_int);
+    }
+    acc.into_iter()
+        .filter(|(_, ok)| *ok)
+        .map(|(n, _)| n.to_owned())
+        .collect()
+}
+
+/// Whether a type-lattice element is a known `TclType::Int`.
+fn lattice_is_int(t: &TypeLattice) -> bool {
+    t.kind == TypeKind::Known && t.tcl_type == Some(TclType::Int)
+}
+
+fn walk_script(ctx: &mut PassContext<'_>, script: &Script, int_vars: &HashSet<String>) {
     detect_multi_set_packing(ctx, script);
     detect_string_build_chain(ctx, script);
     for stmt in &script.statements {
-        walk_statement(ctx, stmt);
+        walk_statement(ctx, stmt, int_vars);
     }
 }
 
@@ -142,10 +174,10 @@ fn detect_string_build_chain(ctx: &mut PassContext<'_>, script: &Script) {
     }
 }
 
-fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement) {
+fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, int_vars: &HashSet<String>) {
     match stmt {
         Statement::AssignExpr { span, name, expr } => {
-            if let Some(replacement) = try_incr_idiom(name, expr) {
+            if let Some(replacement) = try_incr_idiom(name, expr, int_vars) {
                 ctx.report(Optimisation::new(
                     "O114",
                     "Use incr instead of set/expr",
@@ -158,34 +190,34 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement) {
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body);
+                walk_script(ctx, &c.body, int_vars);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, b);
+                walk_script(ctx, b, int_vars);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init);
-            walk_script(ctx, next);
-            walk_script(ctx, body);
+            walk_script(ctx, init, int_vars);
+            walk_script(ctx, next, int_vars);
+            walk_script(ctx, body, int_vars);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, body),
+        | Statement::Foreach { body, .. } => walk_script(ctx, body, int_vars),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body);
+            walk_script(ctx, body, int_vars);
             for h in handlers {
-                walk_script(ctx, &h.body);
+                walk_script(ctx, &h.body, int_vars);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb);
+                walk_script(ctx, fb, int_vars);
             }
         }
         Statement::Switch {
@@ -193,11 +225,11 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement) {
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b);
+                    walk_script(ctx, b, int_vars);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, b);
+                walk_script(ctx, b, int_vars);
             }
         }
         _ => {}
@@ -216,7 +248,19 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement) {
 /// - `$x - N`  → `incr x -N`       (`N` a non-zero integer)
 ///
 /// Returns `None` for anything that does not match the form.
-fn try_incr_idiom(target_name: &str, expr: &ExprNode) -> Option<String> {
+///
+/// D5-O114 soundness gate: `target_name` must be provably `TclType::Int`
+/// (present in `int_vars`). `expr {$x + 1}` silently promotes a float
+/// operand (`1.5` → `2.5`), whereas `incr x` errors with *expected integer
+/// but got "1.5"* — so without an integer proof the rewrite is unsound.
+fn try_incr_idiom(
+    target_name: &str,
+    expr: &ExprNode,
+    int_vars: &HashSet<String>,
+) -> Option<String> {
+    if !int_vars.contains(target_name) {
+        return None;
+    }
     let ExprNode::Binary { op, left, right } = expr else {
         return None;
     };
@@ -320,7 +364,9 @@ mod tests {
 
     #[test]
     fn set_expr_plus_one_rewrites_to_incr() {
-        let opts = run_pass("set x [expr {$x + 1}]");
+        // The seeding `set x 0` makes `x` provably INT, satisfying the
+        // O114 soundness gate.
+        let opts = run_pass("set x 0\nset x [expr {$x + 1}]");
         let got = opts.iter().find(|o| o.code == "O114");
         assert!(got.is_some(), "expected O114, got {opts:?}");
         assert_eq!(got.unwrap().replacement, "incr x");
@@ -328,7 +374,7 @@ mod tests {
 
     #[test]
     fn set_expr_plus_n_carries_the_amount() {
-        let opts = run_pass("set x [expr {$x + 5}]");
+        let opts = run_pass("set x 0\nset x [expr {$x + 5}]");
         assert_eq!(
             opts.iter().find(|o| o.code == "O114").unwrap().replacement,
             "incr x 5",
@@ -337,10 +383,32 @@ mod tests {
 
     #[test]
     fn set_expr_minus_one_becomes_incr_negative_one() {
-        let opts = run_pass("set x [expr {$x - 1}]");
+        let opts = run_pass("set x 5\nset x [expr {$x - 1}]");
         assert_eq!(
             opts.iter().find(|o| o.code == "O114").unwrap().replacement,
             "incr x -1",
+        );
+    }
+
+    #[test]
+    fn set_expr_on_float_var_is_not_incr() {
+        // D5-O114: `x` is DOUBLE here, so `expr {$x + 1}` promotes to a
+        // float while `incr` would error — the rewrite must not fire.
+        let opts = run_pass("set x 1.5\nset x [expr {$x + 1}]");
+        assert!(
+            opts.iter().all(|o| o.code != "O114"),
+            "float var must not be rewritten to incr, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn set_expr_on_untyped_var_is_not_incr() {
+        // No prior definition → `x` is not provably INT at the use point;
+        // the unsound rewrite is suppressed (matches Python).
+        let opts = run_pass("set x [expr {$x + 1}]");
+        assert!(
+            opts.iter().all(|o| o.code != "O114"),
+            "untyped var must not be rewritten to incr, got {opts:?}",
         );
     }
 
@@ -366,7 +434,7 @@ mod tests {
     fn commutative_add_accepts_literal_on_left() {
         // Tcl allows `$x + 1` and `1 + $x` — both should be
         // recognised as an incr idiom.
-        let opts = run_pass("set x [expr {1 + $x}]");
+        let opts = run_pass("set x 0\nset x [expr {1 + $x}]");
         assert_eq!(
             opts.iter().find(|o| o.code == "O114").unwrap().replacement,
             "incr x",
@@ -414,7 +482,7 @@ mod tests {
 
     #[test]
     fn run_passes_dispatches_pattern_recognition() {
-        let cu = CompilationUnit::build_for("set x [expr {$x + 1}]", &registry(), false);
+        let cu = CompilationUnit::build_for("set x 0\nset x [expr {$x + 1}]", &registry(), false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::PatternRecognition]);
         assert!(

@@ -1034,22 +1034,30 @@ fn reduce_logical(op: BinOp, lit_left: Option<i64>, lit_right: Option<i64>) -> O
     }
 }
 
-/// One pass of eq/ne-promotion: if the RHS (or LHS) of `==` /
-/// `!=` is a string literal (`ExprNode::String` — braced or
-/// quoted), rewrite to the string operator.
+/// One pass of eq/ne-promotion: rewrite `==` / `!=` to `eq` / `ne`
+/// **only when at least one operand is provably non-numeric**.
+///
+/// D5-O120 soundness gate. Tcl's `==`/`!=` parse *both* operands as a
+/// number first and only fall through to a string compare when at least
+/// one parse fails — so the promotion is sound iff one operand can never
+/// be a number. A bare string literal is not enough: `$x == "1"` must
+/// stay numeric (`"1"` parses as the integer 1), or the rewrite flips the
+/// result when `$x` is numeric. We require a string literal whose
+/// delimiter-stripped text does **not** parse as a number, mirroring
+/// Python's `_is_provably_non_numeric_expr_node`. The variable-with-SCCP-
+/// CONST refinement Python also accepts needs lattice values not threaded
+/// here, so it is conservatively skipped (a missed rewrite, never an
+/// unsound one).
 fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
     let ExprNode::Binary { op, left, right } = node else {
         return None;
     };
-    let (new_op, ordered) = match op {
-        BinOp::Eq => (BinOp::StrEq, true),
-        BinOp::Ne => (BinOp::StrNe, true),
+    let new_op = match op {
+        BinOp::Eq => BinOp::StrEq,
+        BinOp::Ne => BinOp::StrNe,
         _ => return None,
     };
-    let _ = ordered;
-    let has_string_lit = matches!(left.as_ref(), ExprNode::String { .. })
-        || matches!(right.as_ref(), ExprNode::String { .. });
-    if !has_string_lit {
+    if !node_provably_non_numeric(left) && !node_provably_non_numeric(right) {
         return None;
     }
     Some(ExprNode::Binary {
@@ -1057,6 +1065,37 @@ fn streq_promote_node(node: &ExprNode) -> Option<ExprNode> {
         left: left.clone(),
         right: right.clone(),
     })
+}
+
+/// Whether `node` is provably **not** a number for `expr` — the dual of
+/// [`node_provably_numeric`], used to gate the eq/ne string-compare
+/// promotion (O120). Only a string literal whose stripped text is neither
+/// numeric nor a boolean word qualifies; everything else (variables, command
+/// substitutions, arithmetic) is conservatively rejected. Mirrors
+/// `_is_provably_non_numeric_expr_node` minus the SCCP-CONST variable case.
+fn node_provably_non_numeric(node: &ExprNode) -> bool {
+    matches!(node, ExprNode::String { text, .. } if !is_numeric_or_boolean_string(text))
+}
+
+/// Whether the (delimiter-stripped) text parses as a number **or** is one of
+/// Tcl's boolean words (`true`/`false`/`yes`/`no`/`on`/`off`,
+/// case-insensitive). Mirrors Python's `_is_numeric_string_value`, which `==`
+/// promotion treats as "could still be a number" and so refuses to promote.
+/// Kept separate from [`is_numeric_string`] (used by the arithmetic-identity
+/// gate, where a boolean word is *not* a valid arithmetic operand).
+fn is_numeric_or_boolean_string(text: &str) -> bool {
+    if is_numeric_string(text) {
+        return true;
+    }
+    let stripped = text
+        .trim()
+        .trim_start_matches(['"', '{'])
+        .trim_end_matches(['"', '}'])
+        .trim();
+    matches!(
+        stripped.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off"
+    )
 }
 
 /// Extract an integer literal from an [`ExprNode::Literal`],
@@ -1350,6 +1389,30 @@ mod tests {
         let (out, changed) = try_eq_ne_string_compare_simplify_expr("$x == 5");
         assert!(!changed);
         assert_eq!(out, "$x == 5");
+    }
+
+    #[test]
+    fn streq_promotion_with_numeric_string_literal_is_unsound_noop() {
+        // D5-O120: `$x == "1"` must stay numeric. `"1"` parses as a
+        // number, so Tcl runs the numeric compare; promoting to `eq`
+        // would flip the result when `$x` is numeric (e.g. `1.0`).
+        // `"1"`/`"3.5"` are numeric; `"yes"` is a Tcl boolean word that
+        // `==` still treats as number-ish — none may promote.
+        for input in ["$x == \"1\"", "$x != \"3.5\"", "$x == \"yes\""] {
+            let (out, changed) = try_eq_ne_string_compare_simplify_expr(input);
+            assert!(!changed, "{input:?} should not promote to eq/ne");
+            assert_eq!(out, input);
+        }
+    }
+
+    #[test]
+    fn streq_promotion_with_nonnumeric_string_literal() {
+        // At least one operand is a provably non-numeric string literal,
+        // so the string-compare path is guaranteed — promotion is sound.
+        for input in ["$x == \"foo\"", "\"a\" != $y", "$x == \"\""] {
+            let (_out, changed) = try_eq_ne_string_compare_simplify_expr(input);
+            assert!(changed, "{input:?} should promote to eq/ne");
+        }
     }
 
     // -- instcombine_expr (composite) --------------------------------------
