@@ -5115,35 +5115,57 @@ matching time on crafted input."
     pub(super) fn emit_irule2001_matchclass(
         &mut self,
         cmd_name: &str,
-        args: &[String],
         arg_tokens: &[tcl_lexer::Token],
         cmd_tok: tcl_lexer::Token,
     ) {
         if self.dialect != "f5-irules" || cmd_name != "matchclass" {
             return;
         }
-        // Auto-fix the `matchclass <item> <class>` form →
-        // `class match <item> equals <class>`, replacing the whole command.
-        // The raw source slices of the argument words preserve `$var` / `[cmd]`
-        // substitutions verbatim (the substituted `args` values would drop
-        // them).  Mirrors the IRULE2001 `CodeFix` in `analyser/irules_checks.py`.
-        let fixes = if args.len() >= 2 && arg_tokens.len() >= 2 {
-            let raw = |t: &tcl_lexer::Token| {
-                self.source[t.span.start() as usize..t.span.end() as usize].to_string()
-            };
-            let item = raw(&arg_tokens[0]);
-            let cls = raw(&arg_tokens[1]);
-            let end = arg_tokens
-                .last()
-                .map_or(cmd_tok.span.end(), |t| t.span.end());
-            vec![super::types::CodeFix {
-                span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
-                new_text: format!("class match {item} equals {cls}"),
-                description: "Replace with 'class match'".to_string(),
-            }]
-        } else {
-            Vec::new()
+        // Auto-fix `matchclass` → `class match`, a 1:1 rename (same argument
+        // order).  The iRules forms are:
+        //   * 3-arg `matchclass <item> <operator> <class>` → preserve all three
+        //     verbatim as `class match <item> <operator> <class>`.
+        //   * 2-arg shorthand `matchclass <item> <class>` → expand with the
+        //     default operator: `class match <item> equals <class>`.
+        // Any other arity is ambiguous, so we still warn but offer NO quick-fix
+        // rather than corrupt the command.  (Gating on `>= 2` and always forcing
+        // `equals` mangled the 3-arg form — e.g. `matchclass [HTTP::uri]
+        // starts_with $::admin_paths` became `class match [HTTP::uri] equals
+        // starts_with`, dropping the real class and operator.)  The raw source
+        // slices preserve `$var` / `[cmd]` substitutions verbatim (the
+        // substituted `args` values would drop them).  The lexer reports
+        // representative spans for `[cmd …]` / `${name}` / `"…"` words without
+        // their closing delimiter, so each slice — and the whole-command fix
+        // range — is widened through trailing closers (mirroring Python's
+        // `_raw_arg_text` / `word_end_position`); otherwise `[HTTP::uri]` would
+        // round-trip as `[HTTP::uri`.  Mirrors the IRULE2001 `CodeFix` in
+        // `analyser/irules_checks.py::check_matchclass`.
+        let word_end = |t: &tcl_lexer::Token| {
+            crate::optimiser::helpers::spans::full_rewrite_span(&self.source, t.span).end()
         };
+        let raw = |t: &tcl_lexer::Token| {
+            self.source[t.span.start() as usize..word_end(t) as usize].to_string()
+        };
+        let new_text = match arg_tokens {
+            [item, cls] => Some(format!("class match {} equals {}", raw(item), raw(cls))),
+            [item, operator, cls] => Some(format!(
+                "class match {} {} {}",
+                raw(item),
+                raw(operator),
+                raw(cls)
+            )),
+            _ => None,
+        };
+        let fixes = new_text
+            .map(|new_text| {
+                let end = arg_tokens.last().map_or(cmd_tok.span.end(), word_end);
+                vec![super::types::CodeFix {
+                    span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
+                    new_text,
+                    description: "Replace with 'class match'".to_string(),
+                }]
+            })
+            .unwrap_or_default();
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "IRULE2001".to_string(),
             span: cmd_tok.span,
@@ -12028,6 +12050,44 @@ mod tests {
         // diagnostic's head span.
         assert_eq!(fix.span.start(), d.span.start());
         assert!(fix.span.end() > d.span.end());
+    }
+
+    #[test]
+    fn irule2001_three_arg_matchclass_fix_preserves_operator_and_class() {
+        // The 3-arg form `matchclass <item> <operator> <class>` is a 1:1 rename
+        // to `class match <item> <operator> <class>` — it must NOT be forced to
+        // `equals` (which dropped the real class).  Mirrors Python
+        // `test_matchclass_three_arg_fix_preserves_operator_and_class`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "matchclass [HTTP::uri] starts_with $::admin_paths\n",
+            "f5-irules",
+        );
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE2001")
+            .expect("IRULE2001");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        assert_eq!(
+            d.fixes[0].new_text,
+            "class match [HTTP::uri] starts_with $::admin_paths"
+        );
+    }
+
+    #[test]
+    fn irule2001_ambiguous_arity_matchclass_warns_without_fix() {
+        // A 1-arg (or any non-2/3-arg) `matchclass` is ambiguous: still warn,
+        // but offer no quick-fix rather than corrupt the command.  Mirrors
+        // Python `test_matchclass_one_arg_warns_without_fix`.
+        let mut a = Analyser::new();
+        let r = a.analyse("matchclass [HTTP::uri]\n", "f5-irules");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE2001")
+            .expect("IRULE2001");
+        assert!(d.fixes.is_empty(), "expected no fix, got {:?}", d.fixes);
     }
 
     #[test]

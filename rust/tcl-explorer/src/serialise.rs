@@ -29,7 +29,8 @@ use tcl_compiler::loops::{build_loop_forest, dominates};
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise, optimise_by_pass};
 use tcl_compiler::segmenter::{segment_commands, segment_commands_with_offset_and_config};
 use tcl_compiler::shimmer::{
-    find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu, type_name,
+    find_byte_array_warnings_for_cu, find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu,
+    type_name,
 };
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
@@ -385,6 +386,21 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "variable": w.variable,
             "typeA": type_name(w.type_a),
             "typeB": type_name(w.type_b),
+        }));
+    }
+    // Byte-array corruption (S110) — a correctness shimmer with the same
+    // value-shape shape as the S100/S101 family.
+    for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
+        out.push(json!({
+            "code": w.code,
+            "message": w.message,
+            "range": range_dict(w.span, li, source),
+            "severity": shimmer_severity(&w.code),
+            "variable": w.variable,
+            "fromType": type_name(w.from_type),
+            "toType": type_name(w.to_type),
+            "command": w.command,
+            "inLoop": w.in_loop,
         }));
     }
     Value::Array(out)
@@ -1342,7 +1358,8 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
         .sum();
 
     let shimmer = find_shimmer_warnings_for_cu(&result.unit, registry).len()
-        + find_thunking_warnings_for_cu(&result.unit).len();
+        + find_thunking_warnings_for_cu(&result.unit).len()
+        + find_byte_array_warnings_for_cu(&result.unit, registry).len();
     let mut gvn = find_redundancies_for_cu(&result.unit, registry, dialect);
     gvn.extend(find_partial_redundancies_for_cu(
         &result.unit,
@@ -1548,6 +1565,16 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
             kind: "thunking",
+            severity: sev,
+            priority: if sev == "error" { 1 } else { 2 },
+        });
+    }
+    for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
+        let sev = shimmer_severity(&w.code);
+        anns.push(Ann {
+            span: w.span,
+            label: format!("{}: {}", w.code, w.message),
+            kind: "shimmer",
             severity: sev,
             priority: if sev == "error" { 1 } else { 2 },
         });

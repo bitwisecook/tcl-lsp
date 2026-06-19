@@ -1341,6 +1341,38 @@ All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
 and `_helpers.py`; full `tcl-compiler` lib suite green (2762 tests).
 
+Landed: 2026-06-19 — **FE-TYPESHIM: S110 byte-array corruption ported**
+(branch `claude/elegant-cray-qm13dj`). The last FE-TYPESHIM residual — the
+S110 *correctness* shimmer added to Python in PR #656 — is now on the `rust`
+branch, closing the track for good (the row in `rust-rewrite.md` flips 🟢 → ✅).
+What landed:
+
+- **tcl-registry** — a `BytePayloadSpec` layout type (`replace_data_index` +
+  `message_flag_shift`) on a new `CommandSpec::byte_array_payload:
+  Option<BytePayloadSpec>` field, stamped on the seven `<proto>::payload`
+  specs: TCP/HTTP/UDP/SCTP use the default `replace <offset> <length> <data>`
+  layout (data at 3), DIAMETER/MQTT use `replace <data> …` (index 1), and GTP
+  carries the `-message`-shift flag. The dialect-scoped
+  `CommandRegistry::byte_array_payload_layouts` accessor mirrors Python's
+  `byte_array_payload_layouts()`; only commands loaded into the registry are
+  returned, so a plain-Tcl registry yields an empty set.
+- **tcl-compiler::shimmer::byte_array** — the `ByteProv` (BINARY/DAMAGED)
+  lattice and `ByteProvInfo`, `join_prov` (DAMAGED dominates BINARY),
+  the source/sink/coercion sets, the `arg_byte_prov` recursion, and the three
+  transfer functions (`track_assign_value` / `track_assign_expr` /
+  `track_call`). The detector walks `cfg_order` gated on executable blocks,
+  joining phis first; `binary scan $v …` re-binarifies in place (the documented
+  fix), `*::payload replace` is the byte sink, `string` case-folding and
+  `encoding convertto` of binary warn on the spot.
+- **compiler_checks::run_all_checks** — the per-function shimmer family
+  (S100/S101/S102 + S110) moved into `push_shimmer_checks`; S110 lowers via
+  `Diagnostic::from_shimmer` (→ Warning) with the `*::payload` set dialect-gated
+  to iRules. Surfaced in the compiler explorer's shimmer view
+  (`find_byte_array_warnings_for_cu`). Verified by unit tests on the
+  `TestByteArrayCorruption` battery shape (round-trip fires, `binary scan` fix /
+  clean writeback / plain-string / non-iRules-dialect silent) and two
+  end-to-end `run_all_checks` tests.
+
 Landed: 2026-06-19 — **FE-TYPESHIM complete** (PR #651, branch
 `claude/compassionate-cray-35tuvt`). The four owned modules
 (`tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`)
