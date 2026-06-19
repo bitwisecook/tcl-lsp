@@ -177,7 +177,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         // Update loop context for break/continue compilation. The continue
         // target is `None` for a `for`-step block (continue propagates out).
         if let Some((cont, brk)) = loop_ctx.get(bname) {
-            ctx.continue_target = cont.clone();
+            ctx.continue_target.clone_from(cont);
             ctx.break_target = Some(brk.clone());
         }
 
@@ -549,7 +549,13 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     // (`if {…} $z`, `eval break`). Built post-layout from the (innermost-first)
     // `loop_ctx` block targets + the final block index ranges. `label_positions`
     // is maintained through the peephole removals, so the indices are final.
-    let loop_targets = build_loop_targets(&block_order, &loop_ctx, &ctx.label_positions, &labels, ctx.instructions.len());
+    let loop_targets = build_loop_targets(
+        &block_order,
+        &loop_ctx,
+        &ctx.label_positions,
+        &labels,
+        ctx.instructions.len(),
+    );
 
     FunctionAsm {
         name: cfg.name.clone(),

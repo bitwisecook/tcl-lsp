@@ -547,6 +547,13 @@ pub struct Lowerer<'r> {
     /// `LexerConfig::default()`; production callers thread the active
     /// dialect via [`Lowerer::with_config`] / [`lower_to_ir_with_config`].
     config: tcl_lexer::LexerConfig,
+    /// Lower `try` to a runtime-command [barrier](Statement::Barrier) instead of
+    /// a structured [`Statement::Try`]. The bytecode backend has no exception-range
+    /// (`beginCatch`) support, so it can't compile a structured `try` correctly;
+    /// the VM runs `try` as a runtime builtin (full TIP 329 semantics). The
+    /// analyser keeps the structured form (default `false`) for its handler-edge
+    /// SSA diagnostics. Set via [`lower_to_ir_for_bytecode`].
+    pub(crate) barrier_try: bool,
 }
 
 impl<'r> Lowerer<'r> {
@@ -573,7 +580,16 @@ impl<'r> Lowerer<'r> {
             dead_code_depth: 0,
             suppress_proc_register: false,
             config,
+            barrier_try: false,
         }
+    }
+
+    /// Enable lowering `try` to a runtime-command barrier (see
+    /// [`barrier_try`](Self::barrier_try)) — the bytecode/VM compile path.
+    #[must_use]
+    pub fn with_barrier_try(mut self) -> Self {
+        self.barrier_try = true;
+        self
     }
 
     /// Lower a complete source string to an IR module.
@@ -2019,7 +2035,25 @@ pub fn lower_to_ir_with_config(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Module {
-    let mut lowerer = Lowerer::with_config(registry, config);
+    lower_with(Lowerer::with_config(registry, config), source)
+}
+
+/// Like [`lower_to_ir`] but lowering `try` to a runtime-command barrier — the
+/// bytecode/VM compile path (see [`Lowerer::barrier_try`]). The structured
+/// [`Statement::Try`] can't be compiled to correct bytecode (no exception
+/// ranges), so the VM runs `try` as a runtime builtin; analysis callers keep the
+/// structured form via [`lower_to_ir`].
+#[must_use]
+pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
+    lower_with(
+        Lowerer::with_config(registry, tcl_lexer::LexerConfig::default()).with_barrier_try(),
+        source,
+    )
+}
+
+/// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of
+/// the `lower_to_ir*` entry points).
+fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     lowerer.lower(source);
     // SF-2: extract TclOO method bodies from the fully-assembled
     // module (cache-independent — see `extract_oo_methods_pass`).

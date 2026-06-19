@@ -55,6 +55,71 @@ impl ListError {
             ListError::QuoteFollowedByJunk => "list element in quotes followed by",
         }
     }
+
+    /// The complete Tcl error message for splitting `src` as a list. For the
+    /// `…followed by "X" instead of space` cases this surfaces the offending
+    /// fragment `X` directly after the closing delimiter (`tclUtil.c`); the other
+    /// cases are fixed text.
+    #[must_use]
+    pub fn full_message(self, src: &str) -> String {
+        let kind = match self {
+            ListError::BraceFollowedByJunk => "braces",
+            ListError::QuoteFollowedByJunk => "quotes",
+            _ => return self.message().to_string(),
+        };
+        let frag = list_junk_fragment(src);
+        format!("list element in {kind} followed by \"{frag}\" instead of space")
+    }
+}
+
+/// The junk text immediately after the closing delimiter of the element that
+/// failed to parse — the `"X"` in `…followed by "X" instead of space`. Walks the
+/// successfully-parsed prefix to the failing element, past its closing `}`/`"`,
+/// and returns the run of non-whitespace bytes there (capped, matching C).
+fn list_junk_fragment(src: &str) -> String {
+    let bytes = src.as_bytes();
+    let len = bytes.len();
+    // The failing element begins where the last successful element left off.
+    let mut start = 0;
+    while let Ok(Some(el)) = find_element(src, start) {
+        start = el.next;
+    }
+    let mut pos = start;
+    while pos < len && is_list_space(bytes[pos]) {
+        pos += 1;
+    }
+    // Walk to the delimiter that closes this element, honouring `\`-escapes and
+    // brace nesting; the junk starts at the next byte.
+    let junk = match bytes.get(pos) {
+        Some(b'{') => {
+            let mut depth = 1usize;
+            pos += 1;
+            while pos < len && depth > 0 {
+                match bytes[pos] {
+                    b'\\' if pos + 1 < len => pos += 1,
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    _ => {}
+                }
+                pos += 1;
+            }
+            pos
+        }
+        Some(b'"') => {
+            pos += 1;
+            while pos < len && bytes[pos] != b'"' {
+                pos += if bytes[pos] == b'\\' { 2 } else { 1 };
+            }
+            pos + 1 // past the closing quote
+        }
+        _ => return String::new(),
+    };
+    let end = (junk + 20).min(len);
+    let mut p = junk;
+    while p < end && !is_list_space(bytes[p]) {
+        p += 1;
+    }
+    src.get(junk..p).unwrap_or("").to_string()
 }
 
 /// One located list element: the interior byte range in the source, whether it

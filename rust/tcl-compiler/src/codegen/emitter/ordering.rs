@@ -279,8 +279,6 @@ pub fn reorder_bottom_tested(cfg: &CfgFunction, order: Vec<String>) -> Vec<Strin
 /// keeps its break target, since `break` in the step exits the loop cleanly.
 #[must_use]
 pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>, String)> {
-    let all_loop_headers: &[&str] = &["for_header_", "while_header_", "foreach_header_"];
-
     /// One loop's resolved targets and the set of blocks in its body.
     struct LoopInfo {
         is_for: bool,
@@ -288,6 +286,8 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
         end_block: String,
         body: HashSet<String>,
     }
+
+    let all_loop_headers: &[&str] = &["for_header_", "while_header_", "foreach_header_"];
     let mut loops: Vec<LoopInfo> = Vec::new();
 
     for (bname, blk) in &cfg.blocks {
@@ -356,8 +356,7 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
             } else {
                 Some(l.cont_target.clone())
             };
-            ctx.entry(bb.clone())
-                .or_insert((cont, l.end_block.clone()));
+            ctx.entry(bb.clone()).or_insert((cont, l.end_block.clone()));
         }
     }
 

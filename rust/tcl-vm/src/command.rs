@@ -102,6 +102,7 @@ pub(crate) fn register_builtins(vm: &mut Vm) {
     crate::cmd_regexp::register(vm);
     crate::cmd_switch::register(vm);
     crate::cmd_trace::register(vm);
+    crate::cmd_try::register(vm);
 }
 
 /// `set varName ?newValue?` — read or write a scalar.
@@ -527,18 +528,26 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// Parse a `return -code` word: the named codes (`ok`/`error`/`return`/`break`/
+/// `continue`) or an integer (`return -code N`, which becomes [`Code::Other`] for
+/// N outside `0..=4`). An unparseable word falls back to `Ok`.
 fn parse_code(s: &str) -> Code {
     match s {
-        "error" | "1" => Code::Error,
-        "return" | "2" => Code::Return,
-        "break" | "3" => Code::Break,
-        "continue" | "4" => Code::Continue,
-        _ => Code::Ok,
+        "ok" | "0" => Code::Ok,
+        "error" => Code::Error,
+        "return" => Code::Return,
+        "break" => Code::Break,
+        "continue" => Code::Continue,
+        _ => Value::string(s)
+            .as_int()
+            .ok()
+            .and_then(|n| i32::try_from(n).ok())
+            .map_or(Code::Ok, Code::from_int),
     }
 }
 
 /// Build an options dict value `-code N -level L [-errorcode ..] [-errorinfo ..]`.
-fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> Value {
+pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> Value {
     let mut items = vec![
         Value::string("-code"),
         Value::int(code.as_int()),
@@ -559,8 +568,21 @@ pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completio
     Completion::new(Code::Error, Value::string(message.into()), options)
 }
 
+/// The options dict a completion exposes to `catch`/`try` (`Tcl_GetReturnOptions`):
+/// the carried dict when it has one, otherwise a faithful one built from the
+/// code — every completion reads back at least `-code N -level 0`, so an OK body
+/// yields `-code 0 -level 0` (not the empty value the bare completion carries).
+pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
+    let empty = comp.options.as_list().map_or(true, |l| l.is_empty());
+    if empty {
+        options_dict(comp.code, 0, &[])
+    } else {
+        comp.options.clone()
+    }
+}
+
 /// Look up a key in an options-dict value, returning the following element.
-fn opt_get(options: &Value, key: &str) -> Option<Value> {
+pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
     let items = options.as_list().ok()?;
     let mut i = 0;
     while i + 1 < items.len() {
@@ -606,10 +628,14 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
     let options = options_dict(ret_code, level, &extra);
-    // Plain `return` raises TCL_RETURN (absorbed at the proc boundary); an
-    // explicit non-OK -code takes effect immediately (M2 simplification: skip
-    // the -level countdown).
-    let final_code = if ret_code == Code::Ok {
+    // `-level 0` makes the requested `-code` take effect *immediately* (the
+    // completion IS that code, including `ok` — `return -level 0 -code N` is how
+    // `try`/`catch` produce an arbitrary return code). A positive level raises
+    // TCL_RETURN, absorbed at the proc boundary; an explicit non-OK `-code` at
+    // level ≥ 1 takes effect immediately (M2 simplification: skip the countdown).
+    let final_code = if level == 0 {
+        ret_code
+    } else if ret_code == Code::Ok {
         Code::Return
     } else {
         ret_code
@@ -619,23 +645,29 @@ fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `error message ?info? ?code?`.
 fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((msg, rest)) = args.split_first() else {
+    if args.is_empty() || args.len() > 3 {
         return err("wrong # args: should be \"error message ?errorInfo? ?errorCode?\"");
-    };
-    let ecode = rest
-        .get(1)
+    }
+    let msg = &args[0];
+    let ecode = args
+        .get(2)
         .cloned()
         .unwrap_or_else(|| Value::string("NONE"));
-    // A supplied `info` argument *is* the errorInfo trace: seed it directly and
+    // A *non-empty* `info` argument *is* the errorInfo trace: seed it directly and
     // suppress the `error` command's own `while executing` frame (C's
-    // `ERR_ALREADY_LOGGED`). Without it, the trace seeds from the message and
-    // the invoke site logs the frame as for any other command error.
-    if let Some(info) = rest.first() {
-        vm.seed_error_info(info.to_str().to_string());
+    // `ERR_ALREADY_LOGGED`). An empty (or absent) `info` is treated as absent —
+    // the trace seeds from the message and the invoke site logs the frame as for
+    // any other command error (error-4.2/4.3).
+    let info = args.get(1).map(|v| v.to_str().to_string());
+    let info_nonempty = info.as_deref().is_some_and(|s| !s.is_empty());
+    if info_nonempty {
+        vm.seed_error_info(info.clone().unwrap_or_default());
     }
-    let einfo = rest
-        .first()
-        .map_or_else(|| msg.to_str().to_string(), |v| v.to_str().to_string());
+    let einfo = if info_nonempty {
+        info.unwrap_or_default()
+    } else {
+        msg.to_str().to_string()
+    };
     let options = options_dict(
         Code::Error,
         0,
@@ -674,7 +706,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return e;
     }
     if let Some(o) = optvar
-        && let Err(e) = vm.set_var(&o.to_str(), comp.options.clone())
+        && let Err(e) = vm.set_var(&o.to_str(), completion_options(&comp))
     {
         return e;
     }

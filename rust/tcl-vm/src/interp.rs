@@ -734,12 +734,6 @@ impl Vm {
         self.recursion_depth
     }
 
-    /// Restore the call-nesting depth (after `uplevel`'s frame save/restore,
-    /// whose `truncate` can drop frames without a matching pop).
-    pub(crate) fn set_recursion_depth(&mut self, depth: usize) {
-        self.recursion_depth = depth;
-    }
-
     /// Evaluate `src` as if `target` were the current call frame (`uplevel`).
     /// The frames above `target` are set aside for the duration and restored
     /// afterwards, so the script's variable references and `info level` resolve
@@ -1010,9 +1004,28 @@ impl Vm {
         }
     }
 
+    /// Whether a scalar write to `name` would land on an existing array variable
+    /// — a `can't set "x": variable is array` error rather than a silent
+    /// overwrite (the resolution mirrors [`write_scalar_raw`](Self::write_scalar_raw)).
+    fn scalar_write_hits_array(&self, name: &str) -> bool {
+        let resolved = self.ns_var_fallback(name);
+        let name = resolved.as_deref().unwrap_or(name);
+        let (lvl, nm) = self.locate(name);
+        if elem_ref(&nm).is_some() {
+            return false; // an element write resolves the array base separately
+        }
+        matches!(
+            self.frames.get(lvl).and_then(|f| f.locals.get(&nm)),
+            Some(Local::Array(_))
+        )
+    }
+
     /// Write a scalar, firing `write` traces afterwards (the old value is
     /// restored if a trace callback aborts the write).
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
+        if self.scalar_write_hits_array(name) {
+            return Err(err(format!("can't set \"{name}\": variable is array")));
+        }
         if self.var_traces.is_empty() {
             self.write_scalar_raw(name, value);
             return Ok(());
@@ -1524,18 +1537,17 @@ impl Vm {
     /// Compile and run a Tcl source string via the injected [`CompileService`]
     /// (the runtime-`eval` / command-substitution path) in the *current* frame.
     pub fn eval_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
-        let module = match self.eval_cache.get(src) {
-            Some(m) => Rc::clone(m),
-            None => {
-                let Some(c) = self.compiler.as_ref() else {
-                    return Err(TclError::new(
-                        "eval / command substitution requires a CompileService",
-                    ));
-                };
-                let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
-                self.eval_cache.insert(src.to_string(), Rc::clone(&m));
-                m
-            }
+        let module = if let Some(m) = self.eval_cache.get(src) {
+            Rc::clone(m)
+        } else {
+            let Some(c) = self.compiler.as_ref() else {
+                return Err(TclError::new(
+                    "eval / command substitution requires a CompileService",
+                ));
+            };
+            let m = Rc::new(c.compile(src).map_err(|e| TclError::new(e.0))?);
+            self.eval_cache.insert(src.to_string(), Rc::clone(&m));
+            m
         };
         let comp = self.run_module(&module);
         // Crossing back out of a nested script is a frame boundary: clear

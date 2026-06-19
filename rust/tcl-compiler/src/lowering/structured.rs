@@ -468,6 +468,14 @@ impl Lowerer<'_> {
 
     /// Lower `try body ?on|trap matchArg varList handlerBody ...? ?finally finallyBody?`.
     pub(super) fn lower_try(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
+        // The bytecode/VM compile path lowers `try` to a runtime-command barrier:
+        // the backend has no exception-range support, so a structured `try` can't
+        // be compiled correctly (its handler/finally clauses would be dropped).
+        // Analysis callers keep the structured form below. See `barrier_try`.
+        if self.barrier_try {
+            return Self::barrier(seg, "try");
+        }
+
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
         let arg_single = seg.arg_single_token();

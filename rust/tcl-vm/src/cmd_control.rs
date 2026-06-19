@@ -233,19 +233,22 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
         if vars.is_empty() {
             return err(format!("{name} varlist is empty"));
         }
-        let vals = match pair[1].as_list() {
+        let values = match pair[1].as_list() {
             Ok(v) => (*v).clone(),
             Err(e) => return err(e.message),
         };
-        iterations = iterations.max(vals.len().div_ceil(vars.len()));
-        groups.push((vars, vals));
+        iterations = iterations.max(values.len().div_ceil(vars.len()));
+        groups.push((vars, values));
     }
 
     let mut collected: Vec<Value> = Vec::new();
     for it in 0..iterations {
         for (vars, vals) in &groups {
             for (k, var) in vars.iter().enumerate() {
-                let val = vals.get(it * vars.len() + k).cloned().unwrap_or_else(Value::empty);
+                let val = vals
+                    .get(it * vars.len() + k)
+                    .cloned()
+                    .unwrap_or_else(Value::empty);
                 if let Err(e) = vm.set_var(var, val) {
                     return e;
                 }

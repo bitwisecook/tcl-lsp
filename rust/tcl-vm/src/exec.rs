@@ -367,7 +367,7 @@ impl Vm {
                     // the function (the inline `JUMP` only covers a *literal*
                     // break/continue). Mirrors C Tcl's exception ranges.
                     if matches!(c.code, Code::Break | Code::Continue)
-                        && self.catch_loop_completion(acts.last_mut().unwrap(), c.code)
+                        && Self::catch_loop_completion(acts.last_mut().unwrap(), c.code)
                     {
                         continue;
                     }
@@ -385,7 +385,7 @@ impl Vm {
     /// otherwise return `false` (the completion keeps unwinding). The stack is at
     /// a statement boundary here (the failing command consumed its args and
     /// pushed no result), matching what the loop-end / header expects.
-    fn catch_loop_completion(&self, f: &mut Frame, code: Code) -> bool {
+    fn catch_loop_completion(f: &mut Frame, code: Code) -> bool {
         let idx = f.pc.saturating_sub(1);
         let Some(&(brk, cont)) = f.asm.loop_targets.get(&idx) else {
             return false;
@@ -420,7 +420,11 @@ impl Vm {
                 {
                     // Proc-relative line: absolute line − the body's base line + 1.
                     let base = act.asm.body_base_line;
-                    let n = self.error_line().saturating_sub(base).saturating_add(1).max(1);
+                    let n = self
+                        .error_line()
+                        .saturating_sub(base)
+                        .saturating_add(1)
+                        .max(1);
                     self.append_proc_frame(&name, n);
                 }
                 self.pop_call_frame();

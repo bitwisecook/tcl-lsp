@@ -38,6 +38,7 @@ mod cmd_string;
 mod cmd_string_is;
 mod cmd_switch;
 mod cmd_trace;
+mod cmd_try;
 mod command;
 mod exec;
 mod expr;
