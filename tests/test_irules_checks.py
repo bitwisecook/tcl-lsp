@@ -472,6 +472,23 @@ class TestIrule1201:
         warnings = _flow_with_code(src, "IRULE1201")
         assert len(warnings) == 0
 
+    def test_finally_runs_on_returning_try_body_inside_catch(self):
+        # ``finally`` always runs in Tcl, even when the ``try`` body returns.
+        # The at-return ``responded`` state must reach the finally block so the
+        # HTTP::header insert there is flagged (Codex review, PR #662).
+        src = (
+            "when HTTP_REQUEST {\n"
+            "    catch {\n"
+            "        try { HTTP::respond 200; return } finally {\n"
+            "            HTTP::header insert X-Debug yes\n"
+            "        }\n"
+            "    }\n"
+            "}"
+        )
+        warnings = _flow_with_code(src, "IRULE1201")
+        assert len(warnings) == 1
+        assert "HTTP::header" in warnings[0].message
+
 
 # IRULE1202: Multiple respond/redirect calls
 
@@ -1524,6 +1541,21 @@ class TestIrule5002:
     def test_catch_without_drop_no_warning(self):
         # Regression: a benign catch body must not spuriously warn.
         src = "when CLIENT_ACCEPTED {\n    catch { set x 1; return }\n}"
+        warnings = _flow_with_code(src, "IRULE5002")
+        assert len(warnings) == 0
+
+    def test_finally_guard_on_returning_try_body_inside_catch(self):
+        # ``finally`` always runs in Tcl, even when the ``try`` body returns, so
+        # ``finally { event disable all }`` guards the drop — the at-return drop
+        # state must flow through finally before reaching the catch, otherwise
+        # IRULE5002 false-positives (Codex review, PR #662).
+        src = (
+            "when CLIENT_ACCEPTED {\n"
+            "    catch {\n"
+            "        try { drop; return } finally { event disable all }\n"
+            "    }\n"
+            "}"
+        )
         warnings = _flow_with_code(src, "IRULE5002")
         assert len(warnings) == 0
 
