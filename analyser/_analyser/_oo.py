@@ -78,6 +78,11 @@ class _AnalyserOOMixin(_Base):
         scope: Scope,
     ) -> bool:
         """Handle ``oo::class create Name { body }`` and similar metaclass commands."""
+        # A fully-qualified head (``::oo::class``) names the same global command
+        # as its bare form, so strip a single leading ``::`` before matching (and
+        # use the bare form for the recorded ``metaclass``, so both spellings
+        # produce an identical ClassDef).
+        cmd_name = cmd_name[2:] if cmd_name.startswith("::") else cmd_name
         if cmd_name not in self._OO_METACLASSES:
             return False
         # Expect: create Name ?body?  OR  new ?body?

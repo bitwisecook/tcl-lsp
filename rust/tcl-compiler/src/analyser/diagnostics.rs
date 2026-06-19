@@ -8245,6 +8245,24 @@ file; this call falls through to the 'unknown' handler."
                 .iter()
                 .any(|(s, e, names)| *s <= off && off <= *e && names.contains(var))
         };
+        // Snit / OO instance-variable dispatch: `$mytree get` where `mytree` is
+        // a class instance variable and the dispatch sits inside the class body
+        // (including non-method helper `proc`s that `upvar` it). An instance var
+        // holds a component / sub-object, so dispatching on it is designed usage
+        // — suppress W307. Mirrors Python's `is_snit_member` / `snit_var_ranges`
+        // (built from every `ClassDef`'s body span + declared `variables`).
+        let snit_var_ranges: Vec<(u32, u32, &Vec<String>)> = self
+            .result
+            .all_classes
+            .values()
+            .filter(|cd| !cd.variables.is_empty())
+            .map(|cd| (cd.body_span.start(), cd.body_span.end(), &cd.variables))
+            .collect();
+        let is_snit_member = |var: &str, off: u32| -> bool {
+            snit_var_ranges
+                .iter()
+                .any(|(s, e, vars)| *s <= off && off <= *e && vars.iter().any(|v| v == var))
+        };
 
         // **Proc-parameter / multi-dispatch object-dispatch suppression**
         // (mirrors `_diag_var_command.py:807-859`).  A dispatch on a proc
@@ -8469,6 +8487,11 @@ file; this call falls through to the 'unknown' handler."
             // scope — a designed object handle, so the dispatch is not a static
             // error.  Mirrors Python's `is_factory_object` W307 exemption.
             if is_factory_local(&site.var_name, site.cmd_span.start()) {
+                continue;
+            }
+            // Class instance-variable dispatch inside the class body (component
+            // / sub-object). Mirrors Python's `is_snit_member` exemption.
+            if is_snit_member(&site.var_name, site.cmd_span.start()) {
                 continue;
             }
             self.result.diagnostics.push(super::types::Diagnostic {
@@ -11898,6 +11921,63 @@ mod tests {
                 w30x_codes(&src)
             );
         }
+    }
+
+    #[test]
+    fn w307_nested_command_sub_dispatch_counts_for_multidispatch() {
+        // `$x` is dispatched once at statement level and once inside a `[…]`
+        // command substitution.  The substitution dispatch must be recorded as
+        // a var-command site too, so the multi-dispatch (≥2) suppression sees
+        // both and stays silent (a single recorded dispatch would fire W307).
+        // Matches Python (which records every nested dispatch).
+        let src = "set x [getCmd]\nputs [$x foo]\n$x foo\n";
+        assert!(
+            w30x_codes(src).is_empty(),
+            "multi-dispatch (one nested in `[…]`) must suppress W307; got {:?}",
+            w30x_codes(src)
+        );
+    }
+
+    #[test]
+    fn w308_double_colon_oo_class_constructor() {
+        // `::oo::class` is the fully-qualified spelling of `oo::class`; the
+        // class must be recognised so the constructor types as OBJECT and the
+        // method is validated (W308 for the unknown one, silence for the known).
+        let unknown = "::oo::class create ::Dog { method bark {} {return woof} }\n[::Dog new] fly";
+        assert_eq!(w30x_codes(unknown), vec!["W308".to_string()]);
+        let known = "::oo::class create ::Dog { method bark {} {return woof} }\n[::Dog new] bark";
+        assert!(w30x_codes(known).is_empty());
+    }
+
+    #[test]
+    fn w307_suppressed_for_braced_namespace_var_proc_param() {
+        // `${namespace}::define::…` — the dispatched variable is the *braced*
+        // name `namespace` (a proc parameter), not the whole composite head.
+        // The var-name extraction must isolate `namespace` so the proc-param
+        // dispatch suppression fires (a mangled name defeats it → false W307).
+        let src = "proc Define {namespace class args} {\n  \
+                   ${namespace}::dynamic_methods $class\n  \
+                   ${namespace}::define::[lindex $args 0] {*}[lrange $args 1 end]\n}\n";
+        assert!(
+            w30x_codes(src).is_empty(),
+            "braced-namespace-var proc-param dispatch must suppress W307; got {:?}",
+            w30x_codes(src)
+        );
+    }
+
+    #[test]
+    fn w307_suppressed_for_snit_instance_var_in_helper_proc() {
+        // `mytree` is a snit instance variable dispatched inside a non-method
+        // helper `proc` in the type body (`upvar`'d component object).  The
+        // dispatch falls in the class body range and names an instance var, so
+        // `is_snit_member` suppresses W307.
+        let src = "snit::type T {\n  variable mytree\n  \
+                   proc Check {id} { upvar 1 mytree mytree; if {![$mytree exists $id]} { return } }\n}\n";
+        assert!(
+            w30x_codes(src).is_empty(),
+            "snit instance-var dispatch in a helper proc must suppress W307; got {:?}",
+            w30x_codes(src)
+        );
     }
 
     #[test]

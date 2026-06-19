@@ -1058,6 +1058,13 @@ impl Analyser {
             &cmd_name, args, arg_tokens, arg_single, arg_expand, cmd_tok, scope_path,
         );
         self.dispatch_expr_arguments(&cmd_name, args, arg_tokens);
+        // Record the nested command's variable-/command-substitution-as-command
+        // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
+        // walk treats `[…]` as a value, so without this the W307 multi-dispatch
+        // suppression under-counts `$obj` dispatches that live inside command
+        // substitutions and the W307/W308 emitters never see them — Python's
+        // nested `run_all_checks` recursion records every one.
+        self.record_var_or_cmd_command_site(cmd_tok, args, scope_path);
     }
 
     /// The `[…]` substitution fragment tokens of a (possibly compound)
@@ -1185,7 +1192,19 @@ impl Analyser {
         match cmd_tok.kind {
             TokenType::Var => {
                 let sm = tcl_lexer::SourceMap::new(&self.source);
-                let var_name = sm.token_text(cmd_tok).to_string();
+                // A composite head whose first token is a *braced* variable
+                // (`${ns}::define::[…]`) merges into one Var word token, so the
+                // raw text spans the whole word.  The dispatched variable is
+                // only the braced name (`${ns}` → `ns`); the `}` closes it and
+                // the rest is a literal / substituted suffix.  Python reads the
+                // first VAR sub-token's clean name — mirror that by truncating
+                // at the first `}` (a simple `$obj` or namespaced `$ns::v` head
+                // contains no `}` and is unchanged).
+                let raw = sm.token_text(cmd_tok);
+                let var_name = raw
+                    .split_once('}')
+                    .map_or(raw, |(name, _)| name)
+                    .to_string();
                 let method_name = args.first().cloned();
                 self.var_command_sites.push(super::state::VarCommandSite {
                     var_name,

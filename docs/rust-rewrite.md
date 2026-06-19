@@ -1128,21 +1128,26 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   `object_returning_procs` / factory-locals fixpoint — a proc returning `[Class
   new]` / `[::ns::factory]` makes its result a non-literal-but-designed command
   target) is also ported as `Analyser::compute_factory_object_ranges`.
-  **Residual (separate row, not object typing):** the 8 remaining W307
-  divergences on 4 tcllib files trace to two orthogonal gaps, both owned by
-  **FE-DIAG** (`tcl-compiler::analyser` + `signature_scan`):
-  1. **(real divergence — do under FE-DIAG)** `$var method` dispatches *inside*
-     command substitutions (`[$obj m]`) are not recorded as var-command sites,
-     so the multi-dispatch (≥2) suppression under-counts. Python's
-     `_process_command` recurses into command subs and records the inner head
-     (pca.tcl → 9 sites vs Rust's 1); mirror that in
-     `record_var_or_cmd_command_site`'s caller.
-  2. **(shared latent bug — parity-neutral, lowest priority)** `::oo::class`
-     (leading-`::`) class definitions are recognised by neither the analyser
-     (`handle_oo_class_command`) nor `signature_scan`'s walker. Python has the
-     *identical* `all_classes=[]` blind spot, so fixing it puts Rust ahead of
-     Python rather than closing a port gap — file it upstream against the Python
-     analyser too. Not an `object_of` typing divergence.
+  **W307 now reaches full parity with Python across the 102-file tcllib OO
+  corpus (0 divergences).** Closing the last 8 divergences took three further
+  fixes (all verified against the Python oracle + tclsh 8.6/9.0):
+  1. `$var method` dispatches *inside* command substitutions (`[$obj m]`) are now
+     recorded as var-command sites too — `dispatch_nested_segment` calls
+     `record_var_or_cmd_command_site`, mirroring Python's nested `run_all_checks`
+     recursion — so the multi-dispatch (≥2) suppression counts them.
+  2. `is_snit_member` ported: a `$var method` dispatch whose offset falls in a
+     class body and names one of that class's instance `variables` is component
+     dispatch — suppress W307 (covers non-method helper `proc`s that `upvar` the
+     instance var). Built from every `ClassDef`'s `body_span` + `variables`.
+  3. The braced-namespace-var head bug: `${ns}::define::[…]` merges into one Var
+     word token, so the raw text mangled the recorded var name; the extraction
+     now truncates at the first `}` to recover the dispatched variable (`ns`),
+     restoring the proc-param suppression.
+  And `::oo::class` (the fully-qualified head) is now recognised by the analyser
+  (`handle_oo_class_command` strips a leading `::`, normalising the `metaclass`)
+  and `signature_scan`'s walker. This was a *shared* blind spot — Python had the
+  identical `all_classes=[]` gap — so the same fix landed in the Python analyser
+  + `signature_scan` to keep the two in lockstep (regression tests both sides).
 - **done bar quick-fixes** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the
   C44 follow-up). The linear scans are replaced by a shared path-sensitive
   walk over the structured IR (`irules_checks::walk_flow`) that threads
