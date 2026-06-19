@@ -85,16 +85,16 @@ use tower_lsp::lsp_types::{
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
     MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
-    ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
-    Registration, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameFilesParams, RenameOptions, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
-    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolInformation, SymbolKind, TextDocumentEdit,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
+    Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentEdit, TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextEdit, TypeDefinitionProviderCapability,
     UnchangedDocumentDiagnosticReport, Url, WatchKind, WillSaveTextDocumentParams,
     WorkDoneProgressOptions, WorkspaceDiagnosticParams, WorkspaceDiagnosticReport,
@@ -665,8 +665,8 @@ impl FeatureToggles {
         // Inlay hints split into two independently-toggled families
         // (PR #643): inferred-type hints and parameter-name hints.  Both
         // default **off** (see `DEFAULT_OFF`).  The retired `inlayHints`
-        // key is accepted on input as an alias for `inlayParameterHints`
-        // — the family the Rust provider actually implements (see `apply`).
+        // key is accepted on input as an alias for `inlayTypeHints`
+        // (matching the Python server — see `apply`).
         "inlayTypeHints",
         "inlayParameterHints",
         "callHierarchy",
@@ -714,20 +714,19 @@ impl FeatureToggles {
     /// Merge an editor-supplied `features` object, setting only the
     /// keys it carries (absent keys keep their last-applied value).
     ///
-    /// The retired `inlayHints` key is a backward-compatible alias.  The
-    /// Rust provider implements only parameter-name hints and gates
-    /// requests on `inlayParameterHints`, so the legacy key maps to that
-    /// family — keeping the existing editor setting
-    /// (`tclLsp.features.inlayHints`, still the only inlay key the
-    /// packaged VS Code extension sends on this branch) working instead of
-    /// silently producing no hints.  Applied first so an explicit new
-    /// `inlayParameterHints` in the same object wins.
+    /// The retired `inlayHints` key is a backward-compatible alias for
+    /// `inlayTypeHints` (matching the Python server's
+    /// `_FEATURE_TOGGLE_KEYS`): an existing explicit opt-in keeps showing
+    /// the useful inferred-variable-type hints after the rename, while the
+    /// verbose parameter-name hints stay off.  Applied first so an
+    /// explicit new `inlayTypeHints` in the same object always wins when a
+    /// config carries both.
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
         if let Some(flag) = features
             .get("inlayHints")
             .and_then(serde_json::Value::as_bool)
         {
-            self.set.insert("inlayParameterHints".to_owned(), flag);
+            self.set.insert("inlayTypeHints".to_owned(), flag);
         }
         for (key, value) in features {
             if key == "inlayHints" {
@@ -2289,21 +2288,21 @@ impl Backend {
             .is_enabled_default_off("willSaveWaitUntil")
     }
 
-    /// Whether inlay hints should be produced for the document at `uri`.
+    /// Whether the given opt-in inlay family is enabled for `uri`.
     ///
     /// Inlay hints are opt-in and default **off**, matching the Python
-    /// server's default-off contract (PR #643).  The Rust provider emits
-    /// only parameter-name hints (`InlayHintKind::Parameter`), so this gates
-    /// on the `inlayParameterHints` family — which the retired `inlayHints`
-    /// key is normalised to on input (see [`FeatureToggles::apply`]), so the
-    /// existing editor setting keeps producing hints.  Resolves per folder
-    /// like [`Self::feature_enabled`] so a folder-scoped opt-in works in a
-    /// multi-root workspace.
-    async fn inlay_parameter_hints_enabled(&self, uri: &Url) -> bool {
+    /// server's default-off contract (PR #643).  The two families —
+    /// `inlayTypeHints` (inferred variable types + format-string specifier
+    /// labels) and `inlayParameterHints` (call-site parameter-name labels)
+    /// — gate independently; the retired `inlayHints` key is normalised to
+    /// `inlayTypeHints` on input (see [`FeatureToggles::apply`]).  Resolves
+    /// per folder like [`Self::feature_enabled`] so a folder-scoped opt-in
+    /// works in a multi-root workspace.
+    async fn inlay_family_enabled(&self, uri: &Url, family: &str) -> bool {
         {
             let configs = self.folder_configs.lock().await;
             if let Some(fc) = longest_folder_match(&configs, uri)
-                && let Some(flag) = fc.feature_toggles.set.get("inlayParameterHints").copied()
+                && let Some(flag) = fc.feature_toggles.set.get(family).copied()
             {
                 return flag;
             }
@@ -2311,7 +2310,7 @@ impl Backend {
         self.feature_toggles
             .lock()
             .await
-            .is_enabled_default_off("inlayParameterHints")
+            .is_enabled_default_off(family)
     }
 
     /// Handle `tcl-lsp.listSubcommands`: subcommand metadata for `command`
@@ -2836,8 +2835,24 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
+        let position_encoding = negotiate_position_encoding(&params);
+        if client_lacks_utf16_support(&params) {
+            // The client advertised position encodings without UTF-16. The
+            // server emits UTF-16 columns only, so it proceeds in UTF-16
+            // regardless (rather than failing the session over a baseline
+            // every conformant client supports) — but warn so a genuine
+            // UTF-8/UTF-32-only client's mis-mapped non-ASCII ranges are
+            // diagnosable instead of silent.
+            self.client
+                .log_message(
+                    MessageType::WARNING,
+                    "client advertised position encodings without UTF-16; this server \
+                     emits UTF-16 columns and will use UTF-16 regardless",
+                )
+                .await;
+        }
         Ok(InitializeResult {
-            capabilities: build_server_capabilities(),
+            capabilities: build_server_capabilities(position_encoding),
             server_info: Some(ServerInfo {
                 // Protocol identity must match the Python server / editor
                 // expectations ("tcl-lsp"), not the crate/binary name.
@@ -3153,7 +3168,18 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let ranges = tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry);
+        // Pure-CPU tokenise/segment work; run on a worker so a parser panic
+        // is contained as a JSON-RPC error rather than unwinding the event
+        // loop (review-findings C3 — defence in depth).
+        let ranges = tokio::task::spawn_blocking(move || {
+            tcl_lsp_core::folding::folding_ranges(&doc.text, &doc.dialect, &registry)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("folding worker panicked: {err}").into(),
+            data: None,
+        })?;
         Ok(Some(ranges.into_iter().map(lift_folding_range).collect()))
     }
 
@@ -3175,8 +3201,17 @@ impl LanguageServer for Backend {
         // (which would find nothing in non-Tcl config text). Nameless
         // singletons fall back to their kind label so no outline symbol
         // ever carries an empty `name` (#534).
+        // The two compute branches run pure-CPU on a worker so a parser
+        // panic is contained as a JSON-RPC error (review-findings C3).
         let symbols = if Self::is_bigip_dialect(&doc.dialect) {
-            core_bigip::document_symbols(&doc.text)
+            let text = doc.text.clone();
+            tokio::task::spawn_blocking(move || core_bigip::document_symbols(&text))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
         } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
             // Served from the salsa query graph (memoised; reuses the tracked
             // file_analysis instead of re-running the full analyser).
@@ -3191,7 +3226,16 @@ impl LanguageServer for Backend {
                     doc.dialect.clone(),
                 )
                 .await;
-            core_symbols::document_symbols_from_analysis(&doc.text, &analysis)
+            let text = doc.text.clone();
+            tokio::task::spawn_blocking(move || {
+                core_symbols::document_symbols_from_analysis(&text, &analysis)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("document_symbol worker panicked: {err}").into(),
+                data: None,
+            })?
         };
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
@@ -3939,7 +3983,18 @@ impl LanguageServer for Backend {
             tokens.data
         } else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
-            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+            // Cold/cancelled fallback runs the tokeniser on a worker so a
+            // parser panic is contained as a JSON-RPC error (C3).
+            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+            tokio::task::spawn_blocking(move || {
+                core_semantic_tokens::full(&text, &dialect, &registry).data
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("semantic_tokens worker panicked: {err}").into(),
+                data: None,
+            })?
         };
         let result_id = next_semantic_tokens_id();
         Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
@@ -3964,7 +4019,18 @@ impl LanguageServer for Backend {
             tokens.data
         } else {
             let registry = self.registry_for_dialect(&doc.dialect).await;
-            core_semantic_tokens::full(&doc.text, &doc.dialect, &registry).data
+            // Cold/cancelled fallback runs the tokeniser on a worker so a
+            // parser panic is contained as a JSON-RPC error (C3).
+            let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+            tokio::task::spawn_blocking(move || {
+                core_semantic_tokens::full(&text, &dialect, &registry).data
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("semantic_tokens worker panicked: {err}").into(),
+                data: None,
+            })?
         };
         Ok(Some(SemanticTokensFullDeltaResult::Tokens(
             LspSemanticTokens {
@@ -3991,8 +4057,18 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let core_data =
-            core_semantic_tokens::range(&doc.text, &doc.dialect, core_range, &registry).data;
+        // Pure-CPU tokenisation on a worker so a parser panic is contained
+        // as a JSON-RPC error (review-findings C3).
+        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        let core_data = tokio::task::spawn_blocking(move || {
+            core_semantic_tokens::range(&text, &dialect, core_range, &registry).data
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("semantic_tokens_range worker panicked: {err}").into(),
+            data: None,
+        })?;
         Ok(Some(SemanticTokensRangeResult::Tokens(LspSemanticTokens {
             result_id: None,
             data: lift_semantic_token_data(&core_data),
@@ -4078,8 +4154,18 @@ impl LanguageServer for Backend {
             .ok()
             .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             .and_then(|p| p.to_str().map(str::to_owned));
-        let links =
-            core_document_links::document_links(&doc.text, &doc.dialect, workspace_root.as_deref());
+        // Pure-CPU segmentation on a worker so a parser panic is contained
+        // as a JSON-RPC error (review-findings C3).
+        let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
+        let links = tokio::task::spawn_blocking(move || {
+            core_document_links::document_links(&text, &dialect, workspace_root.as_deref())
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("document_link worker panicked: {err}").into(),
+            data: None,
+        })?;
         if links.is_empty() {
             return Ok(None);
         }
@@ -4106,11 +4192,14 @@ impl LanguageServer for Backend {
 
     async fn inlay_hint(&self, params: InlayHintParams) -> jsonrpc::Result<Option<Vec<InlayHint>>> {
         let uri = params.text_document.uri.clone();
-        // Inlay hints are opt-in (default off).  The provider must still answer
-        // with a well-formed (empty) list — never an error or `null` — when the
-        // feature is disabled, mirroring the Python default-off contract
-        // (`on_inlay_hint` returns `[]`).
-        if !self.inlay_parameter_hints_enabled(&uri).await {
+        // Inlay hints are opt-in (default off), with the type-hint and
+        // parameter-hint families gated independently.  The provider must
+        // still answer with a well-formed (empty) list — never an error or
+        // `null` — when both are disabled, mirroring the Python default-off
+        // contract (`on_inlay_hint` returns `[]`).
+        let type_hints = self.inlay_family_enabled(&uri, "inlayTypeHints").await;
+        let parameter_hints = self.inlay_family_enabled(&uri, "inlayParameterHints").await;
+        if !type_hints && !parameter_hints {
             return Ok(Some(Vec::new()));
         }
         let Some(doc) = self.read_document(&uri).await else {
@@ -4126,13 +4215,12 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        // Build analysis on a worker so the inlay-hints
-        // provider can surface parameter-name hints at user-
-        // proc call sites (`S-inlay-hints-rich`) plus built-in
-        // command synopsis hints.  When the analyser surfaces an
-        // empty all_procs map (no user procs in the document),
-        // the provider still returns built-in hints from the
-        // registry.
+        // Build analysis on a worker so the inlay-hints provider can surface
+        // inferred-type hints (`inlayTypeHints`) and parameter-name hints at
+        // user-proc call sites plus built-in command synopsis hints
+        // (`inlayParameterHints`).  When the analyser surfaces an empty
+        // all_procs map (no user procs in the document), the provider still
+        // returns built-in hints from the registry.
         let hints = tokio::task::spawn_blocking(move || {
             core_inlay_hints::inlay_hints(
                 &doc.text,
@@ -4140,6 +4228,8 @@ impl LanguageServer for Backend {
                 range,
                 Some(&analysis),
                 Some(&registry),
+                type_hints,
+                parameter_hints,
             )
         })
         .await
@@ -4159,10 +4249,13 @@ impl LanguageServer for Backend {
                     character: h.position_character,
                 },
                 label: InlayHintLabel::String(h.label),
-                kind: Some(InlayHintKind::PARAMETER),
+                kind: Some(match h.kind {
+                    core_inlay_hints::InlayHintKind::Type => InlayHintKind::TYPE,
+                    core_inlay_hints::InlayHintKind::Parameter => InlayHintKind::PARAMETER,
+                }),
                 text_edits: None,
                 tooltip: None,
-                padding_left: None,
+                padding_left: h.padding_left.then_some(true),
                 padding_right: None,
                 data: None,
             })
@@ -4185,13 +4278,14 @@ impl LanguageServer for Backend {
         // count reflects workspace-wide usage.
         let workspace = self.workspace_index.lock().await.clone();
         let uri_str = uri.to_string();
+        let worker_uri = uri_str.clone();
         let lenses = tokio::task::spawn_blocking(move || {
             core_code_lens::code_lenses(
                 &doc.text,
                 &doc.dialect,
                 Some(&analysis),
                 Some(&workspace),
-                &uri_str,
+                &worker_uri,
             )
         })
         .await
@@ -4207,7 +4301,13 @@ impl LanguageServer for Backend {
             .into_iter()
             .map(|l| CodeLens {
                 range: lift_lsp_range(l.range),
-                data: (!l.qname.is_empty()).then(|| serde_json::json!({ "qname": l.qname })),
+                // Carry the qualified name *and* the document URI so
+                // `codeLens/resolve` can recompute the count against the live
+                // workspace (mirrors Python's `_LensData{kind, uri, qname}`).
+                // Method / class-member lenses have no qname and stay
+                // informational (their eager title is authoritative).
+                data: (!l.qname.is_empty())
+                    .then(|| serde_json::json!({ "qname": l.qname, "uri": uri_str.clone() })),
                 command: Some(tower_lsp::lsp_types::Command {
                     title: l.command_title,
                     command: l.command,
@@ -4216,6 +4316,64 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(lifted))
+    }
+
+    /// Resolve a code lens to its authoritative reference-count title.
+    ///
+    /// Rust port of `server.py::on_code_lens_resolve` /
+    /// `code_lens.py::resolve_code_lens`.  The server advertises lenses
+    /// eagerly with a count, but the client calls `codeLens/resolve`
+    /// before display; recomputing here against the *current* document and
+    /// workspace keeps the title consistent with Find All References even
+    /// when the workspace changed since the lens was produced (issue #637).
+    ///
+    /// A lens with no `{qname, uri}` data (the informational method /
+    /// class-member lenses) is returned unchanged — its eager title stands.
+    async fn code_lens_resolve(&self, lens: CodeLens) -> jsonrpc::Result<CodeLens> {
+        let Some((qname, uri)) = lens
+            .data
+            .as_ref()
+            .and_then(serde_json::Value::as_object)
+            .and_then(|data| {
+                let qname = data.get("qname").and_then(serde_json::Value::as_str)?;
+                let uri = data.get("uri").and_then(serde_json::Value::as_str)?;
+                Some((qname.to_owned(), Url::parse(uri).ok()?))
+            })
+        else {
+            return Ok(lens);
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(lens);
+        };
+        let analysis = self
+            .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let workspace = self.workspace_index.lock().await.clone();
+        let uri_str = uri.to_string();
+        let lenses = tokio::task::spawn_blocking(move || {
+            core_code_lens::code_lenses(
+                &doc.text,
+                &doc.dialect,
+                Some(&analysis),
+                Some(&workspace),
+                &uri_str,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("code_lens_resolve worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let mut lens = lens;
+        if let Some(matching) = lenses.into_iter().find(|l| l.qname == qname) {
+            lens.command = Some(tower_lsp::lsp_types::Command {
+                title: matching.command_title,
+                command: matching.command,
+                arguments: None,
+            });
+        }
+        Ok(lens)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -4399,7 +4557,18 @@ impl LanguageServer for Backend {
         // An explicit client `FormattingOptions.tabSize` / `insertSpaces`
         // overrides the server's indentation by LSP contract.
         let config = formatter_config_from_options(&params.options);
-        let edits = core_formatting::formatting_with(&doc.text, &config, &registry);
+        // Pure-CPU formatting on a worker so a parser panic is contained as
+        // a JSON-RPC error (review-findings C3).
+        let text = doc.text.clone();
+        let edits = tokio::task::spawn_blocking(move || {
+            core_formatting::formatting_with(&text, &config, &registry)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("formatting worker panicked: {err}").into(),
+            data: None,
+        })?;
         if edits.is_empty() {
             return Ok(None);
         }
@@ -4428,12 +4597,23 @@ impl LanguageServer for Backend {
             end_character: params.range.end.character,
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
-        let edits = core_formatting::range_formatting(
-            &doc.text,
-            range,
-            &core_formatting::FormatterConfig::default(),
-            &registry,
-        );
+        // Pure-CPU formatting on a worker so a parser panic is contained as
+        // a JSON-RPC error (review-findings C3).
+        let text = doc.text.clone();
+        let edits = tokio::task::spawn_blocking(move || {
+            core_formatting::range_formatting(
+                &text,
+                range,
+                &core_formatting::FormatterConfig::default(),
+                &registry,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("range_formatting worker panicked: {err}").into(),
+            data: None,
+        })?;
         if edits.is_empty() {
             return Ok(None);
         }
@@ -5489,13 +5669,58 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// snapshot we hand out is uniquely identifiable, letting
 /// clients consult our cache via
 /// `semanticTokens/full/delta { previousResultId }`.
+/// Negotiate the position encoding the server will use against the
+/// client's advertised `general.positionEncodings`.
+///
+/// Every provider in this server computes columns in UTF-16 code units
+/// (via [`tcl_lexer::LineIndex::position_at_utf16`]), which is also the
+/// LSP default — so we always operate in UTF-16 and only advertise it
+/// explicitly when the client listed it (declaring an encoding the client
+/// didn't offer is a protocol violation; omitting the field falls back to
+/// the UTF-16 default either way).
+fn negotiate_position_encoding(params: &InitializeParams) -> Option<PositionEncodingKind> {
+    let supported = params
+        .capabilities
+        .general
+        .as_ref()
+        .and_then(|g| g.position_encodings.as_ref())?;
+    supported
+        .contains(&PositionEncodingKind::UTF16)
+        .then_some(PositionEncodingKind::UTF16)
+}
+
+/// True when the client advertised a non-empty `general.positionEncodings`
+/// list that omits UTF-16.
+///
+/// This is the one case the server cannot satisfy cleanly: every provider
+/// emits UTF-16 columns, so a client that explicitly excludes UTF-16 would
+/// mis-map any non-ASCII range.  The server still proceeds in UTF-16 (the
+/// LSP default for an omitted server `positionEncoding`) rather than
+/// refusing the session — UTF-16 is the universal LSP baseline and no
+/// real client ships without it — but [`Backend::initialize`] logs a
+/// warning so the mismatch is not silent.
+fn client_lacks_utf16_support(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .general
+        .as_ref()
+        .and_then(|g| g.position_encodings.as_ref())
+        .is_some_and(|encs| !encs.is_empty() && !encs.contains(&PositionEncodingKind::UTF16))
+}
+
 /// Build the `ServerCapabilities` advertised in the response
 /// to `initialize`.  Kept as a free function so the
 /// `LanguageServer::initialize` handler stays focused on
 /// state setup and result construction — the long capability
 /// literal lives here rather than inside the trait method.
-fn build_server_capabilities() -> ServerCapabilities {
+fn build_server_capabilities(
+    position_encoding: Option<PositionEncodingKind>,
+) -> ServerCapabilities {
     ServerCapabilities {
+        // UTF-16 columns, matching the LSP default and what every provider
+        // emits.  Advertised explicitly only when the client offered it
+        // (see `negotiate_position_encoding`).
+        position_encoding,
         // Options form (rather than the bare `Kind`) so we can advertise
         // `willSaveWaitUntil` alongside incremental sync. The handler is
         // gated by `tclLsp.features.willSaveWaitUntil` (default off).
@@ -5539,7 +5764,7 @@ fn build_server_capabilities() -> ServerCapabilities {
         }),
         inlay_hint_provider: Some(OneOf::Left(true)),
         code_lens_provider: Some(CodeLensOptions {
-            resolve_provider: Some(false),
+            resolve_provider: Some(true),
         }),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
         call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
@@ -5937,6 +6162,56 @@ mod tests {
     }
 
     #[test]
+    fn position_encoding_negotiation() {
+        use tower_lsp::lsp_types::{ClientCapabilities, GeneralClientCapabilities};
+        let params_with = |encs: Option<Vec<PositionEncodingKind>>| {
+            let mut params = InitializeParams::default();
+            params.capabilities = ClientCapabilities {
+                general: Some(GeneralClientCapabilities {
+                    position_encodings: encs,
+                    ..GeneralClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            };
+            params
+        };
+        let with_encodings = |encs: Option<Vec<PositionEncodingKind>>| {
+            negotiate_position_encoding(&params_with(encs))
+        };
+        // Client offers UTF-16 → advertise it explicitly.
+        assert_eq!(
+            with_encodings(Some(vec![PositionEncodingKind::UTF16])),
+            Some(PositionEncodingKind::UTF16)
+        );
+        // Client lists only UTF-8 → don't advertise an encoding it can't
+        // honour; omitting it falls back to the UTF-16 default.
+        assert_eq!(with_encodings(Some(vec![PositionEncodingKind::UTF8])), None);
+        // No `general` capability at all → omit (default UTF-16).
+        assert_eq!(
+            negotiate_position_encoding(&InitializeParams::default()),
+            None
+        );
+
+        // `client_lacks_utf16_support`: only true for a non-empty list that
+        // omits UTF-16 — the case `initialize` warns about.
+        assert!(client_lacks_utf16_support(&params_with(Some(vec![
+            PositionEncodingKind::UTF8
+        ]))));
+        assert!(client_lacks_utf16_support(&params_with(Some(vec![
+            PositionEncodingKind::UTF8,
+            PositionEncodingKind::UTF32,
+        ]))));
+        // A list containing UTF-16, an empty list, and no list at all are all
+        // fine — UTF-16 is available (or defaulted) so no warning fires.
+        assert!(!client_lacks_utf16_support(&params_with(Some(vec![
+            PositionEncodingKind::UTF8,
+            PositionEncodingKind::UTF16,
+        ]))));
+        assert!(!client_lacks_utf16_support(&params_with(Some(vec![]))));
+        assert!(!client_lacks_utf16_support(&InitializeParams::default()));
+    }
+
+    #[test]
     fn feature_toggles_default_on_and_merge() {
         let mut toggles = FeatureToggles::default();
         // Absent keys default to enabled.
@@ -5977,29 +6252,29 @@ mod tests {
     }
 
     #[test]
-    fn legacy_inlay_hints_key_maps_to_implemented_parameter_family() {
-        // The Rust provider implements only parameter-name hints and gates
-        // on `inlayParameterHints`, so the retired `inlayHints` key maps to
-        // that family — keeping the existing editor setting functional
-        // rather than enabling an unimplemented type-hint family (PR #646
-        // review).
+    fn legacy_inlay_hints_key_maps_to_type_family() {
+        // The retired `inlayHints` key maps to `inlayTypeHints` (matching the
+        // Python server): an existing explicit opt-in keeps showing the
+        // inferred-variable-type hints after the rename, while the verbose
+        // parameter-name hints stay off.
         let mut toggles = FeatureToggles::default();
         toggles.apply(serde_json::json!({"inlayHints": true}).as_object().unwrap());
-        assert!(toggles.is_enabled("inlayParameterHints"));
-        // It does not touch the (unimplemented) type-hint family.
-        assert!(!toggles.is_enabled("inlayTypeHints"));
+        assert!(toggles.is_enabled("inlayTypeHints"));
+        // It does not touch the parameter-name family.
+        assert!(!toggles.is_enabled("inlayParameterHints"));
     }
 
     #[test]
     fn explicit_new_inlay_key_wins_over_legacy_alias() {
-        // When a config carries both, the explicit new key takes precedence.
+        // When a config carries both, the explicit new `inlayTypeHints` key
+        // takes precedence over the `inlayHints` alias.
         let mut toggles = FeatureToggles::default();
         toggles.apply(
-            serde_json::json!({"inlayHints": true, "inlayParameterHints": false})
+            serde_json::json!({"inlayHints": true, "inlayTypeHints": false})
                 .as_object()
                 .unwrap(),
         );
-        assert!(!toggles.is_enabled("inlayParameterHints"));
+        assert!(!toggles.is_enabled("inlayTypeHints"));
     }
 
     #[test]

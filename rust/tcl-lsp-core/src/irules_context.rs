@@ -73,8 +73,8 @@ fn scan_when_context(
         let Some(body_tok) = cmd.arg_tokens().iter().find(|t| t.kind == TokenType::Str) else {
             continue;
         };
-        let start_line = li.position_at(body_tok.span.start()).line;
-        let end_line = li.position_at(body_tok.span.end()).line;
+        let start_line = li.line_at(body_tok.span.start());
+        let end_line = li.line_at(body_tok.span.end());
         if cursor_line < start_line || cursor_line > end_line {
             continue;
         }

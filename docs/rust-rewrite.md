@@ -973,7 +973,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | tcltest parity vs `runtime/rust` in progress (info/proc hangs; namespace/var/upvar depth; error `[try]`-coverage); TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | incremental reanalysis; UTF-16 residuals; registry/CU sharing + debounce; panic containment; token/reposition cache; rope state; `codeLens/resolve`; inlay type-hints → **SRV-LSP** |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | ✅ | incremental reanalysis (salsa `file_analysis_incremental` + cancellation); UTF-16 `position_encoding`; registry/CU sharing (`OnceLock` + `memoised_compilation_unit`) + debounce; panic containment (8 inline handlers → `spawn_blocking`); token memo (salsa `semantic_tokens`); `codeLens/resolve`; inlay type-hints. Residual: rope-backed `DocumentState` deferred (pipeline is `&str`-based) → **SRV-LSP** |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
@@ -1352,28 +1352,48 @@ below are the live state.
 
 #### SRV-LSP — server / core / db
 Owns `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db`.
-- **open** incremental server reanalysis — the server re-analyses the whole
-  document per edit; wire the bounded `reparse_window` + `analyse_incremental`
-  (`analyser/state.rs:984`, already differential-fuzzed).
-- **open** C1 UTF-16 residuals — route the remaining byte `position_at` sites
-  (`folding.rs`, `irules_context.rs`) through the UTF-16 variant and set
-  `position_encoding`. *(small; the hot paths already converted)*
-- **open** performance — build the ~560-spec registry once into a process-wide
-  `OnceLock` (rebuilt inside every `analyse`); build one shared
-  `CompilationUnit` (taint/CU built 2–3× per document); add a debounce with
-  cancel-previous.
-- **open** panic containment (review-findings C3) — move the ~8 inline handlers
-  to `spawn_blocking`.
-- **open** token memo / reposition cache (the archive's `SYNC-MAY31-6/-11`) and a
-  rope-backed `DocumentState`.
-- **open** `codeLens/resolve` unimplemented — the Rust server advertises code
-  lenses but replies `-32601 Method not found` to `codeLens/resolve`, so lens
-  titles never resolve (`tests/lsp_e2e/test_editor_features_e2e.py::TestCodeLens::
+- **done** incremental server reanalysis — the base analysis runs through the
+  cancellable salsa `file_analysis_incremental` query (`tcl-lsp-db`), and
+  `set_text` cancels an in-flight read at a per-item query boundary, so an edit
+  reuses every unchanged procedure's memoised per-function lattice instead of
+  re-analysing the whole document.
+- **done** C1 UTF-16 residuals — the server advertises `position_encoding`
+  (UTF-16, negotiated against the client's `general.positionEncodings`); the
+  former byte `position_at(...).line` sites in `folding.rs` / `irules_context.rs`
+  now use the encoding-independent `LineIndex::line_at`.
+- **done** performance — the ~560-spec registry is built once per canonical
+  dialect (process-wide `OnceLock` in `tcl-registry::cache`, plus the server's
+  shared `TclDatabase::registry` map); the `CompilationUnit` is shared across
+  the analyser tail and the optimiser checks via the salsa-memoised
+  `memoised_compilation_unit` / `function_lattice`; and the diagnostics path
+  debounces with a generation-supersede check (`DEBOUNCE`).
+- **done** panic containment (review-findings C3) — the 8 inline handlers
+  (`folding_range`, `document_symbol`, `semantic_tokens_full`/`_delta`/`_range`,
+  `document_link`, `formatting`/`range_formatting`) run on `spawn_blocking`, so a
+  parser panic surfaces as a JSON-RPC error rather than unwinding the event loop.
+- **done** token memo — semantic tokens are served from the salsa-memoised
+  `semantic_tokens` query (`db_semantic_tokens`), so a token request after an
+  edit reuses the per-item firewall rather than recomputing; this supersedes the
+  Python-era `SYNC-MAY31-6/-11` reposition cache.
+  - **deferred (architecture)** a rope-backed `DocumentState`. The analysis
+    pipeline is `&str`/byte-offset throughout (lexer, segmenter, and the salsa
+    `SourceFile` input all hold a `String`), so a rope would still have to
+    materialise a `String` (`O(n)`) for every analysis — it would only speed up
+    applying a *burst* of edits inside one `didChange`, which editors rarely
+    send. Not worth the dependency + hot-path churn until the pipeline itself
+    is rope-aware.
+- **done** `codeLens/resolve` — the server advertises `resolve_provider`, carries
+  `{qname, uri}` in the lens data, and recomputes the reference count against the
+  live document/workspace at resolve time
+  (`tests/lsp_e2e/test_editor_features_e2e.py::TestCodeLens::
   test_count_matches_reference_list_for_forward_call`,
   `::TestCodeLens::test_unresolved_call_scoped_to_namespace`).
-- **open** inlay **type** hints — the Rust server emits parameter-label inlays
-  but no type-hint inlays, and the legacy `inlayHints` config alias never
-  settles `inlayTypeHints` (`test_editor_features_e2e.py::
+- **done** inlay **type** hints — the provider emits the inferred-variable-type
+  family (`: int`, shimmer `from → to`, built from the type-propagation pass over
+  a `CompilationUnit`) and the format-string specifier labels
+  (`format`/`scan`/`clock`/`binary`/`regsub`); the two inlay families gate
+  independently and the legacy `inlayHints` alias settles `inlayTypeHints`
+  (`test_editor_features_e2e.py::
   TestInlayToggleIndependenceE2E::test_type_hints_only_emit_no_parameter_labels`,
   `::TestInlayLegacyAliasE2E::test_legacy_inlay_hints_alias_enables_type_only`).
 
