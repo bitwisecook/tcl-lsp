@@ -9,8 +9,25 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use regex::Regex;
+
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+}
+
+/// Collapse the fixture's absolute `file://` URI to a stable token.
+///
+/// `f5 grep` echoes the absolute path of the source config (matching the
+/// Python CLI), so the `# Sources:` line and every JSON `source` field embed a
+/// directory prefix that varies by checkout location — the CI runner
+/// (`/home/runner/work/...`), a dev machine (`/Users/...`), or the agent
+/// sandbox the goldens were captured in (`/home/user/...`).  Normalising both
+/// the actual output and the golden makes the comparison portable without
+/// regenerating the goldens, mirroring the `__FIXTURES__` normalisation in
+/// `tcl-cli`'s `cli_parity.rs`.
+fn normalise_fixture_uri(s: &str) -> String {
+    let re = Regex::new(r#"file://[^\s"]*?/rust/f5-cli/tests/fixtures/"#).unwrap();
+    re.replace_all(s, "file://__FIXTURES__/").into_owned()
 }
 
 /// Run `f5-query grep <args> <fixture>` and assert stdout equals the golden.
@@ -34,8 +51,8 @@ fn assert_grep_matches(args: &[&str], golden: &str) {
 
     let expected = std::fs::read(fixtures_dir().join(golden)).expect("read golden");
     assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&expected),
+        normalise_fixture_uri(&String::from_utf8_lossy(&output.stdout)),
+        normalise_fixture_uri(&String::from_utf8_lossy(&expected)),
         "f5 grep output does not match the Python CLI ({golden})"
     );
 }
