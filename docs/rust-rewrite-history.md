@@ -1244,6 +1244,13 @@ general inliner). What landed:
   `AssignConst`, other static → `AssignValue`) and gates on cross-event
   vars. `statement_delete_rewrite_range` moved to `helpers::spans` (shared
   with `chain_fold`). Pack semantics verified against tclsh.
+- **O101 / O115 (branch-condition coverage)** — `propagate_into_branches` no
+  longer early-returns on an empty SCCP constant map, so the simplification
+  cascade (extracted as `branch_cascade`) and two new emitters apply to all
+  branch conditions: O115 unwraps a redundant `[expr {…}]` wrapper
+  (`if {[expr {$x}]}` → `if {$x}`), and O101 folds a condition that constant
+  substitution collapses to a literal. Mirrors the Python order
+  (unwrap → fold → cascade).
 
 All verified against the Python reference algorithms in
 `compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`

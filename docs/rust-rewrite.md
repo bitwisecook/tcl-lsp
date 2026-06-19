@@ -967,7 +967,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
 | Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
-| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O125 cross-event guard, and **all applied rewrites** (O104/O130 chain folds, O119 packing, O128 end-offset) landed; remaining: O104/O119/O130 precise-flow extension; O106 trace+latch-dominance; O103/O125 multi-branch/O101/O115 precision; general inliner → **FE-OPT** |
+| Optimiser passes | `tcl-compiler::optimiser` | 🟡 | soundness gates (O120/O114/O108), O106 category, O123 guard, O110 boolify, O125 cross-event guard, O101/O115 branch coverage, and **all applied rewrites** (O104/O130 chain folds, O119 packing, O128 end-offset) landed; remaining: O104/O119/O130 precise-flow extension; O106 trace+latch-dominance; O103 + O125 multi-branch precision; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
 | Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005 (incl. nested `[…]` subs); snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Residuals: per-check config toggles + surfacing flow-warning fixes as code actions → **SRV-LSP**. Two review-found refinements (IRULE2001 3-arg `matchclass` fix, catch-`return` flow) are shared with Python → fixed Python-first, port pending → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
@@ -1100,10 +1100,12 @@ build-chain folds (`optimiser::chain_fold`), O119 multi-set packing
   profile-category omission that made the hint unsuppressable is fixed.)
 - **open** residuals: O103 namespace-chain resolution + rename gating; O125
   multi-branch / deepest-target sinking + already-covered guard (the
-  **cross-event-var guard has landed**); O101/O115 branch-condition coverage in
-  `propagate_into_branches`. (The O110 instcombine gap is closed for the
-  logical identities; the regex/glob→string-op rewrites remain, gated on the
-  iRules `MatchesGlob`/`MatchesRegex` expr operators.)
+  **cross-event-var guard has landed**). The **O101/O115 branch-condition
+  coverage has landed** (`branch_cascade` + the O115 unwrap and O101 fold in
+  `propagate_into_branches`, which no longer early-returns on an empty
+  constant map). The O110 instcombine gap is closed for the logical
+  identities; the regex/glob→string-op rewrites remain, gated on the iRules
+  `MatchesGlob`/`MatchesRegex` expr operators.
 - **open** general proc inliner — port `compiler/inlining/` (the v0–v3 splice
   inliner, ~1900 LOC); only the narrow uplevel-inline idiom exists. *(large)*
 
