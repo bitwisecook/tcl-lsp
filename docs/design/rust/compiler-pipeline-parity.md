@@ -1097,19 +1097,29 @@ not a decision.
 
 ### P0 — Soundness / correctness (can produce a wrong answer; gate the shim flips)
 
+> **Reconciliation note (2026-06-19, post-publication).** Several P0 optimiser/
+> analyser rows below were re-checked against *landed* Rust work and corrected:
+> **#1 (O120) is withdrawn** — the numeric gate exists (`node_provably_numeric`,
+> `optimiser/helpers/expr_simplify.rs:54-97`, "Mirrors `_is_provably_numeric_expr_node`");
+> **#11 (DynamicNameLocal) is downgraded to a conflict** — Rust `param_traits.rs:479-482`
+> *does* mark `scan`/`lassign`/`regexp`/`regsub` out-vars `VarWrite`, and
+> `docs/rust-rewrite.md:2019` argues the trait is intentionally-not-ported-and-benign;
+> needs reconciliation, not a confirmed regression. The authoritative live
+> open-work set is maintained in [`../../rust-rewrite.md`](../../rust-rewrite.md).
+
 | # | Subsystem | Gap | Evidence | Disposition |
 |---|---|---|---|---|
-| 1 | Optimiser §7 | **O120** string-compare `==`→`eq` fires without a numeric-value proof → flips result of `$x == "1"` | helpers/expr_simplify.rs:1040 | Port `_is_provably_non_numeric_expr_node` gate before default-on. |
-| 2 | Optimiser §7 | **O114** incr idiom rewrites `set x [expr {$x+N}]`→`incr x N` without an INT-type proof → errors on float `$x` | pattern_recognition.rs:219 | Restore the INT-type soundness gate. |
-| 3 | Optimiser §7 | **O108** ADCE treats every assignment as side-effect-free → can delete `set x [impureCmd]` | elimination.rs:740 | Restore the substitution / execution-intent gate. |
-| 4 | Value/SCCP §5 | SCCP omits **escaping-var widening** (`::g`/escaping names not forced OVERDEFINED) | sccp.rs `evaluate_def` (no guard; `escaping_var_names` unused) | Consult `escaping_var_names` in `evaluate_def`. |
-| 5 | Value/SCCP §5 | SCCP omits **break-edge reachability** → false O107 / unsound DCE on `while 1 {… break}` | sccp.rs (no `break_exits`) | Port the break-exit precompute (core_analyses.py:1337). |
+| 1 | Optimiser §7 | ~~**O120** string-compare without numeric proof~~ **WITHDRAWN** — the gate exists | `optimiser/helpers/expr_simplify.rs:54-97` `node_provably_numeric` | No action — already at parity. |
+| 2 | Optimiser §7 | **O114** incr idiom rewrites `set x [expr {$x+N}]`→`incr x N` gating only the literal, not `$x` numericity → suggests a rewrite that errors on float `$x` | pattern_recognition.rs:219 (no var gate) | Confirm whether Python gates the variable; add the gate if so. |
+| 3 | Optimiser §7 | **O108** ADCE treats every assignment as side-effect-free → can delete `set x [impureCmd]` | elimination.rs:740 | Verify against landed RHS-purity gate; restore if genuinely dropped. |
+| 4 | Value/SCCP §5 | SCCP omits **escaping-var widening** (`::g`/escaping names not forced OVERDEFINED) | sccp.rs `evaluate_def` (no guard; `escaping_var_names` lives in var_observability.rs, unused by SCCP) | Consult `escaping_var_names` in `evaluate_def`. |
+| 5 | Value/SCCP §5 | SCCP omits **break-edge reachability** → false O107 / unsound DCE on `while 1 {… break}` (already tracked as `fp_rch`, rust-rewrite.md:5037) | sccp.rs (no `break_exits`) | Port the break-exit precompute (core_analyses.py:1337). |
 | 6 | Lexer §1 | **`${a\}b}` / `${a{b}c}`** braced-var scan stops at first `}` (no depth count, no `\`) | lexer.rs:608 (verified) | Track inner-brace depth + consume `\X` per `lexer.py:525`. |
 | 7 | Memory-SSA §4 | **upvar transitive-merge** divergence (`upvar 1 x a; upvar 1 x b` → `may_alias("a","b")` False); code/test/doc disagree | memory_ssa.rs:519 | Decide intended semantics; align code+test+doc. |
 | 8 | Memory-SSA §4 | **`IRUpFrame` not a clobber** → non-inlined `uplevel {…}` doesn't bump memory version | memory_ssa.rs `is_clobber` | Add `IRUpFrame` to the clobber set. |
 | 9 | Shimmer §5 | **S100 severity** emitted as Warning, not Information; **phi-S101 / expr-S100** code-strings ignore `in_loop` | compiler_checks.rs:113; phi.rs:146; expr.rs:273 | Map S100→Information; compute code from `in_loop`. |
 | 10 | Lowering §3 | dynamic `uplevel $body` lowers to generic **Call** not **Barrier** (no `_DYNAMIC_BARRIER_COMMANDS`, `uplevel_.rs` lacks `ArgRole::Body`) → downstream treats it as analysable | mod.rs:1397/1609 | Add a Body role / barrier fallback. |
-| 11 | Analyser §8 | **`DynamicNameLocal`** param trait missing → call-by-name suppression re-opens W211/W214/dead-store FPs (PR #498/#499) | param_traits.rs (6 vs 7 traits) | Add the variant; emit it for `set $p`/`scan`/`lassign`/`regsub`/`upvar 0/#N`. |
+| 11 | Analyser §8 | **`DynamicNameLocal`** trait absent (**CONFLICT** — see reconciliation note; Rust marks the 4 out-var commands `VarWrite`, rust-rewrite.md:2019 calls it benign) | param_traits.rs:479-482 | Reconcile: does withholding `VarWrite` change caller-side W211/W214 suppression? |
 | 12 | Value/type §5 | expr-context literal typing wrong (`0o`→INT/unknown→NUMERIC) and `~$double`→INT | type_infer.rs:128/197 | Use a distinct expr-context classifier. |
 
 ### P1 — Missing user-facing capability (a diagnostic or transform the user loses)
