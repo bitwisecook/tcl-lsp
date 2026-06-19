@@ -31,12 +31,6 @@ use crate::cfg::Function as CfgFunction;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::TypeLattice;
 
-// Re-export the graph helpers that are part of the historical public API.
-
-// ---------------------------------------------------------------------------
-// Shared diagnostic types
-// ---------------------------------------------------------------------------
-
 /// A use-site where a variable's intrep is converted.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ShimmerWarning {
@@ -90,10 +84,6 @@ pub struct ThunkingWarning {
 pub fn type_name(t: TclType) -> String {
     format!("{t:?}").to_ascii_lowercase()
 }
-
-// ---------------------------------------------------------------------------
-// Public entry points
-// ---------------------------------------------------------------------------
 
 /// Find intrep-shimmer warnings for a single function.
 ///

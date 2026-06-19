@@ -45,13 +45,12 @@ fn looks_like_float(s: &str) -> bool {
 
 const BOOL_LITERALS: &[&str] = &["true", "false", "yes", "no", "on", "off"];
 
-/// Classify a literal string as its Tcl intrep type.
-#[must_use]
 /// True when `s` is a Tcl integer literal: decimal, or a `0x`/`0X` hex or
 /// `0b`/`0B` binary form (each optionally signed).  Mirrors
 /// `core_analyses._literal_type`'s INT cases — hex/binary store an INT intrep
 /// (`set n 0x80; incr n` is one clean parse, not per-iteration shimmer), while
 /// `0o` octal stays STRING (Python's set-statement classifier excludes it).
+#[must_use]
 fn is_tcl_int_literal(s: &str) -> bool {
     if s.parse::<i64>().is_ok() {
         return true;
@@ -66,6 +65,7 @@ fn is_tcl_int_literal(s: &str) -> bool {
     false
 }
 
+/// Classify a literal string as its Tcl intrep type (set-statement context).
 fn literal_type(text: &str) -> TypeLattice {
     let s = text.trim();
     if is_tcl_int_literal(s) {
@@ -853,7 +853,7 @@ mod tests {
         assert!(n_is_int, "expected n to be Int (llength return type)");
     }
 
-    // ----- GAP-B4: expr type-inference precision -------------------
+    // GAP-B4: expr type-inference precision
 
     /// Infer the type of a standalone expression string (no SSA
     /// context — variable refs stay `Unknown`).

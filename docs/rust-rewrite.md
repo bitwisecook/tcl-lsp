@@ -969,16 +969,16 @@ listed residuals · 🟡 partial · 🔴 not started.
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | 🟢 | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; C44 path-sensitivity; source-style/W108 → **FE-DIAG** |
+| Analyser diagnostics | `tcl-compiler::analyser` | 🟢 | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; C44 path-sensitivity; `when`-body dialect gating; source-style/W108 → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
-| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | incremental reanalysis; UTF-16 residuals; registry/CU sharing + debounce; panic containment; token/reposition cache; rope state → **SRV-LSP** |
+| LSP server / core / db | `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db` | 🟢 | incremental reanalysis; UTF-16 residuals; registry/CU sharing + debounce; panic containment; token/reposition cache; rope state; `codeLens/resolve`; inlay type-hints → **SRV-LSP** |
 | `tcl` CLI | `tcl-cli` | 🟡 | `dis`/`compwasm`/`pkg`/`venv`/`docker` verbs → **TOOL-CLI** |
 | `f5-query` CLI | `f5-cli`, `tcl-bigip*`, `tcl-irules` | 🟢 | `explain-flow --simulate/--tshark/--keylog`; a few parity files → **TOOL-F5** |
 | Formatter / minifier / diagram | `tcl-lsp-core`, `tcl-cli` | ✅ | — |
 | Refactoring transforms | `tcl-lsp-core::code_actions` | 🟡 | 5 of 7 transforms missing → **TOOL-REFACTOR** |
-| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**) → **TOOL-EXPLORER** |
+| Compiler explorer | `tcl-explorer`, `tcl-explorer-wasm` | 🟡 | `wasm` view (blocked on **RT-WASM**); `ssa`-view bool-render parity → **TOOL-EXPLORER** |
 | Package manager (`tclpkg`) | new crate | 🔴 | full port (manifest/resolver/lockfile/CAS/fetchers/venv/docker) → **TOOL-TCLPKG** |
 | Differential fuzzer | new crate | 🟡 | campaign runner/generator/findings (corpus diff exists) → **TOOL-FUZZ** |
 | Debugger (DAP) | new crate | 🔴 | full debugger over `tcl-vm` → **TOOL-DEBUGGER** |
@@ -991,7 +991,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Stage | Track | Owns | Depends on | Size |
 |---|---|---|---|---|
 | FE | **FE-DATAFLOW** | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
-| FE | **FE-TYPESHIM** | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
+| FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** | `tcl-compiler::var_escape` | (consumers in FE-OPT) | M |
 | FE | **FE-OPT** | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** | `tcl-compiler::codegen` (non-wasm) | — | M |
@@ -1124,6 +1124,12 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   `regexp`/`regsub` out-vars `VarWrite` and omits the trait, which the archive
   argues is benign; confirm whether withholding `VarWrite` changes caller-side
   W211/W214 suppression, then either add the trait or close the row.
+- **open** `when`-body dialect gating — under a non-iRules dialect the Rust
+  server still descends into `when { … }` bodies and emits body diagnostics
+  (e.g. `W210`) next to the correct `W002` ("'when' is disabled in the active
+  dialect profile"); Python emits `W002` only and does not analyse the body
+  (`tests/lsp_e2e/test_diagnostics_e2e.py::TestWhenBodyDialectGatingE2E::
+  test_when_body_not_analysed_under_plain_tcl`).
 - **open** source-style pass + W108 `non_ascii_mode` (line-length /
   trailing-whitespace / line-endings / comment-continuation / missing
   `package require`) and the GAP-C1 feature-config toggles.
@@ -1173,6 +1179,16 @@ Owns `tcl-lsp-server`, `tcl-lsp-core`, `tcl-lsp-db`.
   to `spawn_blocking`.
 - **open** token memo / reposition cache (the archive's `SYNC-MAY31-6/-11`) and a
   rope-backed `DocumentState`.
+- **open** `codeLens/resolve` unimplemented — the Rust server advertises code
+  lenses but replies `-32601 Method not found` to `codeLens/resolve`, so lens
+  titles never resolve (`tests/lsp_e2e/test_editor_features_e2e.py::TestCodeLens::
+  test_count_matches_reference_list_for_forward_call`,
+  `::TestCodeLens::test_unresolved_call_scoped_to_namespace`).
+- **open** inlay **type** hints — the Rust server emits parameter-label inlays
+  but no type-hint inlays, and the legacy `inlayHints` config alias never
+  settles `inlayTypeHints` (`test_editor_features_e2e.py::
+  TestInlayToggleIndependenceE2E::test_type_hints_only_emit_no_parameter_labels`,
+  `::TestInlayLegacyAliasE2E::test_legacy_inlay_hints_alias_enables_type_only`).
 
 ### Stage 4 — Tooling (TOOL-*)
 
@@ -1192,8 +1208,13 @@ already started, brings **every** Python tool across to Rust.
   files. The rest (27/27 verbs, 262 parity tests) is done — the template for the
   other tool ports. *(XS)*
 - **TOOL-EXPLORER** *(owns `tcl-explorer`, `tcl-explorer-wasm`; depends on
-  RT-WASM)* — **partial**: the `wasm` view (other views parity-done; the
-  Pyodide web server stays Python). *(S)*
+  RT-WASM)* — **partial**: the `wasm` view; plus an `ssa`-view parity bug —
+  `tcl-explorer::view_tree::build_view` renders a const-folded branch label as
+  `always true`/`false` (Rust `bool` Display) where the Python `tui_views`
+  reference emits `always True`/`False` (`str(bool)`); render the Rust SSA-view
+  boolean Python-style (`tests/test_explorer_view_tree_parity.py::
+  test_rust_build_view_matches_python[for_loop]`, view `ssa`). The other TUI
+  views are parity-done; the Pyodide web server stays Python. *(S)*
 - **TOOL-FUZZ** *(new `tcl-fuzz`; depends on RT-VM)* — **open**: a campaign runner
   + random generator + findings registry on top of the existing `differential_*`
   harnesses. *(M)*
