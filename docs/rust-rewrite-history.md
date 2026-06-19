@@ -1164,6 +1164,53 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
+Landed: 2026-06-19 — **FE-OPT soundness gates + correctness guards**
+(branch `claude/great-ptolemy-kti1wz`). The optimiser's miscompile-class
+gaps — the ones that block flipping the Rust optimiser default-on — are
+closed; the track stays 🟡 for the remaining feature-completeness work
+(applied O104/O119 rewrites, the unimplemented O128/O130 detectors, O106
+trace/latch-dominance precision, O103/O125/O101/O115, and the ~1900 LOC
+general inliner). What landed:
+
+- **O120 (soundness)** — `streq_promote_node` (`helpers/expr_simplify.rs`)
+  now promotes `==`/`!=` to `eq`/`ne` only when at least one operand is a
+  *provably non-numeric* string literal (neither numeric nor a Tcl boolean
+  word), mirroring `_is_provably_non_numeric_expr_node`. Previously it fired
+  on any string literal, so `$x == "1"` → `$x eq "1"` flipped the result for
+  numeric `$x`. The variable-with-SCCP-CONST refinement Python also accepts
+  is conservatively skipped (a missed rewrite, never an unsound one).
+- **O114 (soundness)** — the `set x [expr {$x ± N}]` → `incr x` rewrite is
+  gated on `x` being provably `TclType::Int` at the use point (a
+  function-level INT join over `FunctionUnit::types`, the same shape
+  `numeric_var_names` uses), mirroring the Python INT-type proof. Float-typed
+  and untyped vars no longer rewrite (`incr` errors where `expr` promotes).
+  `pattern_recognition::run` now walks each script paired with its
+  `FunctionUnit` to derive the INT set.
+- **O108 (soundness)** — the ADCE fixpoint (`elimination::run_adce_fixpoint`)
+  routes through the existing `assignment_safe_to_delete` purity gate, so a
+  transitively-dead assignment whose RHS has an observable side effect (an
+  impure `[cmd …]`) is kept rather than removed. Replaced the
+  `is_side_effect_free_assignment` stub that treated every assignment as pure.
+- **O106 (category)** — `("O106", CodeMotion)` added to
+  `profiles.rs::OPT_CATEGORIES`, so the LICM hint is suppressable under
+  non-full profiles (matching Python's 31-entry `opt_category` table).
+- **O123 (over-fire)** — the accumulator hint is gated on Python's
+  `_is_accumulator_pattern`: an `[expr {…}]` return wrapper with **exactly
+  one** embedded self-call and an associative operator (`+`/`*`). Tree
+  recursion (`fib`'s two self-calls) and non-associative wrappers no longer
+  fire; assignments are no longer scanned (returns only).
+- **O110 (logical identities)** — the previously-unused `bool_context` is
+  threaded through the expr simplifier. `x && 1` / `x || 0` return the
+  operand bare only when it is already a `0`/`1` boolean or consumed in a
+  boolean context, else wrap as `!!x` (boolify) to preserve Tcl's `0`/`1`
+  normalisation; the `!!x` collapse is gated the same way (was unconditional,
+  mis-normalising `expr {!!2}`) and `~~x` on numericity. The regex/glob →
+  string-op rewrites remain open.
+
+All verified against the Python reference algorithms in
+`compiler/optimiser/{_expr_simplify,_pattern_recognition,_elimination,_tail_call}.py`
+and `_helpers.py`; full `tcl-compiler` lib suite green (2762 tests).
+
 Landed: 2026-06-19 — **FE-TYPESHIM complete** (PR #651, branch
 `claude/compassionate-cray-35tuvt`). The four owned modules
 (`tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`)
