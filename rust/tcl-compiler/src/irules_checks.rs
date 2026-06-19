@@ -93,6 +93,25 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
         .is_some_and(|spec| spec.options.iter().any(|opt| opt.name == "-normalized"))
 }
 
+/// A suggested code-action fix — maps to an LSP `TextEdit`.
+///
+/// `span` is the **fix range** the edit applies to, *independent* of the
+/// diagnostic's own span: an insertion is a zero-width span anchored at the
+/// insertion point (e.g. the end of a `drop`), a replacement covers the text it
+/// rewrites.  This is the lower-level twin of the analyser's `CodeFix`, which
+/// re-exports this type (see `analyser::types`); it lives here because the
+/// iRules-flow / compiler-checks layer is below the analyser.  Mirrors Python
+/// `shared/diagnostic.py::CodeFix`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CodeFix {
+    /// Source span the `new_text` replaces (zero-width for an insertion).
+    pub span: Span,
+    /// Replacement / inserted text.
+    pub new_text: String,
+    /// Human-readable description (`"Add 'event disable all' + 'return'"`).
+    pub description: String,
+}
+
 /// An IRULE3102 / iRules-check diagnostic emitted by
 /// [`find_unnormalised_getter_warnings`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -105,6 +124,9 @@ pub struct IrulesCheckWarning {
     pub message: String,
     /// Optional replacement text (currently always `None`).
     pub replacement: Option<String>,
+    /// Suggested fixes whose range is independent of `span` (insertions /
+    /// out-of-span replacements).  Empty when the check supplies no fix.
+    pub fixes: Vec<CodeFix>,
 }
 
 /// Return `true` when `args` suggests a *getter* invocation — no args,
@@ -190,6 +212,7 @@ pub fn find_unnormalised_getter_warnings(
                                 code: "IRULE3102".to_owned(),
                                 message: format_message(command),
                                 replacement: None,
+                                fixes: Vec::new(),
                             });
                         }
                         // Getter nested as a command-substitution argument —
@@ -217,6 +240,7 @@ pub fn find_unnormalised_getter_warnings(
                                     code: "IRULE3102".to_owned(),
                                     message: format_message(&cmd),
                                     replacement: None,
+                                    fixes: Vec::new(),
                                 });
                             }
                         }
@@ -231,6 +255,7 @@ pub fn find_unnormalised_getter_warnings(
                                 code: "IRULE3102".to_owned(),
                                 message: format_message(&cmd),
                                 replacement: None,
+                                fixes: Vec::new(),
                             });
                         }
                     }
@@ -388,6 +413,14 @@ pub fn find_unguarded_drop_warnings(
                         st.drop_cmd,
                     ),
                     replacement: None,
+                    // Insert `event disable all` + `return` right after the drop
+                    // (a zero-width edit at the drop command's end).  Mirrors the
+                    // IRULE5002 `CodeFix` in Python `irules_flow.py`.
+                    fixes: vec![CodeFix {
+                        span: Span::new(span.end(), span.end()),
+                        new_text: "\n    event disable all\n    return".to_owned(),
+                        description: "Add 'event disable all' + 'return'".to_owned(),
+                    }],
                 });
             }
             if st.dns_returned
@@ -399,6 +432,13 @@ pub fn find_unguarded_drop_warnings(
                     message: "'DNS::return' must be followed by 'return' to stop iRule processing."
                         .to_owned(),
                     replacement: None,
+                    // Insert `return` right after `DNS::return`.  Mirrors the
+                    // IRULE5004 `CodeFix` in Python `irules_flow.py`.
+                    fixes: vec![CodeFix {
+                        span: Span::new(span.end(), span.end()),
+                        new_text: "\n    return".to_owned(),
+                        description: "Add 'return' after DNS::return".to_owned(),
+                    }],
                 });
             }
         }
@@ -679,6 +719,7 @@ pub fn find_collect_flow_warnings(
                 proto_hint.join(" or "),
             ),
             replacement: None,
+            fixes: Vec::new(),
         });
     }
 
@@ -693,6 +734,7 @@ pub fn find_collect_flow_warnings(
                     "'{proto}::payload' without a {side} {proto}::collect call. The payload buffer will be empty.",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -708,6 +750,7 @@ pub fn find_collect_flow_warnings(
                     "{proto}::collect without matching {proto}::release on the {side} side; collected data is never released",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -723,6 +766,7 @@ pub fn find_collect_flow_warnings(
                     "{proto}::release without matching {proto}::collect on the {side} side; no data was collected",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
         }
     }
@@ -847,6 +891,7 @@ fn apply_http_flow_command(
                     "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
                 ),
                 replacement: None,
+                fixes: Vec::new(),
             });
             return state;
         }
@@ -863,6 +908,7 @@ fn apply_http_flow_command(
                 "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
             ),
             replacement: None,
+            fixes: Vec::new(),
         });
     }
     state
@@ -1088,6 +1134,7 @@ pub fn find_hoistable_set_warnings(
                         "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event (e.g. CLIENT_ACCEPTED).",
                     ),
                     replacement: None,
+                    fixes: Vec::new(),
                 });
             }
         }
@@ -1236,6 +1283,7 @@ fn check_generic_static(
              prefix with the application or rule name (e.g. 'static::<app>_{bare}')."
         ),
         replacement: None,
+        fixes: Vec::new(),
     });
 }
 
@@ -1498,6 +1546,39 @@ mod tests {
             .find(|w| w.code == "IRULE5002")
             .expect("IRULE5002");
         assert_eq!(w.span.start(), 23, "span should point at `drop`");
+    }
+
+    #[test]
+    fn irule5002_carries_insertion_fix() {
+        // The quick-fix inserts `event disable all` + `return` *after* the drop
+        // (a zero-width edit anchored at the drop command's end), independent of
+        // the diagnostic span.  Text matches the Python IRULE5002 `CodeFix`.
+        let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
+        let w = ws
+            .iter()
+            .find(|w| w.code == "IRULE5002")
+            .expect("IRULE5002");
+        assert_eq!(w.fixes.len(), 1, "expected one fix, got {:?}", w.fixes);
+        let fix = &w.fixes[0];
+        assert_eq!(fix.new_text, "\n    event disable all\n    return");
+        assert_eq!(fix.description, "Add 'event disable all' + 'return'");
+        // Zero-width insertion at the drop command's end.
+        assert_eq!(fix.span.start(), w.span.end());
+        assert_eq!(fix.span.start(), fix.span.end());
+    }
+
+    #[test]
+    fn irule5004_carries_insertion_fix() {
+        let ws = drop_warnings("when DNS_REQUEST { DNS::return }");
+        let w = ws
+            .iter()
+            .find(|w| w.code == "IRULE5004")
+            .expect("IRULE5004");
+        assert_eq!(w.fixes.len(), 1);
+        let fix = &w.fixes[0];
+        assert_eq!(fix.new_text, "\n    return");
+        assert_eq!(fix.description, "Add 'return' after DNS::return");
+        assert_eq!(fix.span.start(), fix.span.end());
     }
 
     #[test]

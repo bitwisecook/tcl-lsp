@@ -969,7 +969,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
-| Analyser diagnostics | `tcl-compiler::analyser` | 🟢 | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity; `when`-body dialect gating; source-style/W108 → **FE-DIAG** |
+| Analyser diagnostics | `tcl-compiler::analyser` | ✅ | E001/W125/IRULE5005/IRULE1001; snit; OO body-walks; W307/W308 object typing; C44 path-sensitivity + IRULE5002/5004/2001 quick-fixes; `when`-body dialect gating; source-style/W108. Remaining bits (per-check config toggles, surfacing flow-warning fixes as code actions) are **SRV-LSP** consumer wiring → **FE-DIAG** |
 | F5 dialect diagnostics | new `tcl-xc`, `tcl-bigip`, tk slice | 🔴 | TK1001-3, BIGIP6001-11, IAPP7001-3, XC100-301 → **FE-DIAG-F5** |
 | WASM codegen + runtime | `tcl-compiler::codegen::wasm`, `runtime/zig`, new `tcl-wasm` | 🔴 | emitter (IR/encoding only today); `IRInterpBoundary`; codegen DCE/GVN; `tcl-wasm` CLI → **RT-WASM** |
 | Bytecode VM | `tcl-vm` | 🟡 | TclOO; clock/encoding/interp/IO/after; CLI/REPL binary → **RT-VM** |
@@ -995,7 +995,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | FE | **FE-VARESCAPE** | `tcl-compiler::var_escape` | (consumers in FE-OPT) | M |
 | FE | **FE-OPT** | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** | `tcl-compiler::codegen` (non-wasm) | — | M |
-| FE | **FE-DIAG** | `tcl-compiler::analyser`, `irules_checks` | — | M |
+| FE | **FE-DIAG** ✅ | `tcl-compiler::analyser`, `irules_checks` | — | M |
 | FE | **FE-DIAG-F5** | new `tcl-xc`, `tcl-bigip` analyser slices, tk | `tcl-bigip` | L |
 | RT | **RT-WASM** | `tcl-compiler::codegen::wasm`, `runtime/zig`, `tcl-wasm` bin | FE-CODEGEN | L |
 | RT | **RT-VM** | `tcl-vm` | `tcl-bytecode` | L |
@@ -1114,8 +1114,11 @@ Owns `tcl-compiler::codegen` (non-wasm).
   expansion; `set x [cmd]` pure-cmd-subst assign; the `builtin_is_trusted`
   rename gate.
 
-#### FE-DIAG — analyser diagnostics & dialect checks
-Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
+#### FE-DIAG — analyser diagnostics & dialect checks ✅
+Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`. Every diagnostic
+family is ported and verified; the two parenthetical residuals below
+(per-check config toggles, surfacing the IRULE5002/5004 flow-warning fixes as
+editor code actions) are **SRV-LSP** consumer wiring, not analyser work.
 - **done** missing emitters: **E001** (missing subcommand), **W125** (orphaned
   control-flow keyword), **IRULE5005** (direct proc call without `call`),
   **IRULE1001** (command invalid/ineffective in event — registry-legality-matrix
@@ -1172,8 +1175,8 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   and `signature_scan`'s walker. This was a *shared* blind spot — Python had the
   identical `all_classes=[]` gap — so the same fix landed in the Python analyser
   + `signature_scan` to keep the two in lockstep (regression tests both sides).
-- **done bar quick-fixes** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the
-  C44 follow-up). The linear scans are replaced by a shared path-sensitive
+- **done** IRULE1201 / 1202 / 5002 / 5004 path-sensitivity (the C44 follow-up)
+  **+ quick-fixes**. The linear scans are replaced by a shared path-sensitive
   walk over the structured IR (`irules_checks::walk_flow`) that threads
   per-path response-/drop-flow states and merges at join points — so
   mutually-exclusive branches no longer false-positive, `catch` bodies are
@@ -1181,10 +1184,21 @@ Owns `tcl-compiler::analyser`, `tcl-compiler::irules_checks`.
   HTTP-namespace command sets are registry-derived. Verified against the
   Python `find_irules_flow_warnings` oracle (spans use the *correct* command
   offset — Python's module-IR path double-counts the body base offset; Rust
-  matches Python's intended re-lowered offset). **Residual:** the IRULE5002 /
-  5004 / 2001 insertion quick-fixes need a fix-range field on the
-  `IrulesCheckWarning` / `compiler_checks::Diagnostic` model (today only a
-  span-rewriting `replacement` exists) — a small plumbing follow-up.
+  matches Python's intended re-lowered offset). The insertion quick-fixes now
+  land: a shared `irules_checks::CodeFix { span, new_text, description }` (the
+  canonical low-level twin re-exported as the analyser's `CodeFix`) carries a
+  **fix range independent of the diagnostic span**, threaded through
+  `IrulesCheckWarning.fixes` → `compiler_checks::Diagnostic.fixes`. IRULE5002
+  inserts `event disable all` + `return` after the drop, IRULE5004 inserts
+  `return` after `DNS::return` (zero-width edits at the command end), and the
+  analyser-side IRULE2001 replaces `matchclass <item> <class>` with `class match
+  <item> equals <class>` (raw source slices preserve `$var`). All three verified
+  byte-for-byte against the Python `CodeFix` text. *(Surfacing the IRULE5002/5004
+  flow-warning fixes as editor code actions is the one remaining step — the
+  `tcl-lsp-core` code-action provider reads only the analyser's
+  `AnalysisResult.diagnostics` today, so it already offers the IRULE2001 fix but
+  would need to also process `find_irules_flow_warnings` to offer the 5002/5004
+  ones; that consumer wiring belongs to **SRV-LSP**.)*
 - **done** `DynamicNameLocal` reconciliation — **row closed**. Withholding the
   trait does *not* change caller-side W211/W214 suppression: that suppression is
   driven by the interprocedural summary index (`build_proc_index_from_summaries`,

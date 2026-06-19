@@ -5112,10 +5112,38 @@ matching time on crafted input."
     /// command head): `matchclass` carries both a `deprecated_replacement`
     /// (→ IRULE2002) and the dedicated `check_matchclass` rule (→
     /// IRULE2001).  Mirrors `irules_checks.py::check_matchclass`.
-    pub(super) fn emit_irule2001_matchclass(&mut self, cmd_name: &str, cmd_tok: tcl_lexer::Token) {
+    pub(super) fn emit_irule2001_matchclass(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
+    ) {
         if self.dialect != "f5-irules" || cmd_name != "matchclass" {
             return;
         }
+        // Auto-fix the `matchclass <item> <class>` form →
+        // `class match <item> equals <class>`, replacing the whole command.
+        // The raw source slices of the argument words preserve `$var` / `[cmd]`
+        // substitutions verbatim (the substituted `args` values would drop
+        // them).  Mirrors the IRULE2001 `CodeFix` in `analyser/irules_checks.py`.
+        let fixes = if args.len() >= 2 && arg_tokens.len() >= 2 {
+            let raw = |t: &tcl_lexer::Token| {
+                self.source[t.span.start() as usize..t.span.end() as usize].to_string()
+            };
+            let item = raw(&arg_tokens[0]);
+            let cls = raw(&arg_tokens[1]);
+            let end = arg_tokens
+                .last()
+                .map_or(cmd_tok.span.end(), |t| t.span.end());
+            vec![super::types::CodeFix {
+                span: tcl_lexer::Span::new(cmd_tok.span.start(), end),
+                new_text: format!("class match {item} equals {cls}"),
+                description: "Replace with 'class match'".to_string(),
+            }]
+        } else {
+            Vec::new()
+        };
         self.result.diagnostics.push(super::types::Diagnostic {
             code: "IRULE2001".to_string(),
             span: cmd_tok.span,
@@ -5123,7 +5151,7 @@ matching time on crafted input."
 Use 'class match <item> <operator> <class>' instead."
                 .to_string(),
             severity: Severity::Warning,
-            fixes: Vec::new(),
+            fixes,
         });
     }
 
@@ -11978,6 +12006,28 @@ mod tests {
             "snit instance-var dispatch in a helper proc must suppress W307; got {:?}",
             w30x_codes(src)
         );
+    }
+
+    #[test]
+    fn irule2001_carries_matchclass_replacement_fix() {
+        // `matchclass <item> <class>` → `class match <item> equals <class>`,
+        // replacing the whole command. Raw source slices preserve `$var`. The
+        // fix span is independent of the diagnostic span (which is the head).
+        let mut a = Analyser::new();
+        let r = a.analyse("matchclass $u ::lib\n", "f5-irules");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "IRULE2001")
+            .expect("IRULE2001");
+        assert_eq!(d.fixes.len(), 1, "expected one fix, got {:?}", d.fixes);
+        let fix = &d.fixes[0];
+        assert_eq!(fix.new_text, "class match $u equals ::lib");
+        assert_eq!(fix.description, "Replace with 'class match'");
+        // Fix range spans the whole command (head + both args), not just the
+        // diagnostic's head span.
+        assert_eq!(fix.span.start(), d.span.start());
+        assert!(fix.span.end() > d.span.end());
     }
 
     #[test]

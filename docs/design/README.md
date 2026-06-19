@@ -184,6 +184,9 @@ chunk-by-chunk dispatch story lives in
   — experiments, discoveries, and the reasoning behind the incremental plan.
 - [rust/lsp-performance.md](rust/lsp-performance.md) — native LSP
   performance: results, optimisations, and how to measure.
+- [rust/s110-byte-array-corruption-port.md](rust/s110-byte-array-corruption-port.md)
+  — FE-TYPESHIM port spec for the S110 byte-array-corruption shimmer
+  (Python #656): algorithm, Rust integration points, and verification contract.
 
 ## Optional WASM extensions
 
