@@ -13,7 +13,7 @@ use crate::arity::Arity;
 use crate::dialects::DialectSet;
 use crate::forms::CommandForm;
 use crate::hooks::{CodegenHookId, LoweringHookId};
-use crate::spec::{CommandSpec, SubCommand};
+use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
 use crate::traits::Traits;
 
 /// Resolved metadata for an iRules event — the result of
@@ -820,6 +820,28 @@ impl CommandRegistry {
         self.get(name)
             .and_then(|spec| spec.return_type)
             .is_some_and(|t| t == crate::types::TclType::List)
+    }
+
+    /// `{command: BytePayloadSpec}` for every registered `<proto>::payload`
+    /// byte-array command — the getter is a binary source and `<cmd> replace`
+    /// a byte sink for the S110 byte-array-corruption check.
+    ///
+    /// Only commands actually loaded into this registry are returned, so the
+    /// set is implicitly gated by the active dialect: a plain-Tcl registry
+    /// (no iRules pack loaded) yields an empty map, matching Python's
+    /// `byte_array_payload_layouts()` intersected with the active dialect.
+    /// Mirrors `compiler/registry/runtime.py::byte_array_payload_layouts`.
+    #[must_use]
+    pub fn byte_array_payload_layouts(&self) -> HashMap<&'static str, BytePayloadSpec> {
+        let mut out = HashMap::new();
+        for specs in self.by_name.values() {
+            for spec in specs {
+                if let Some(layout) = spec.byte_array_payload {
+                    out.insert(spec.name, layout);
+                }
+            }
+        }
+        out
     }
 
     /// Number of registered commands.

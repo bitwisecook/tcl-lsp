@@ -79,6 +79,17 @@ def test_explicit_directive_overrides_bigip_basename():
     assert resolve_dialect_for_uri(uri, src)[0] == "tcl8.6"
 
 
+def test_bigip_language_id_resolves_to_bigip_for_noncanonical_name():
+    # An explicit BIG-IP language id (the VS Code extension's ``tcl-bigip``,
+    # or the canonical ``f5-bigip``) wins even when the basename is not a
+    # canonical ``bigip*.conf`` name — the manual-language-mode case.
+    uri = "file:///x/device_config.txt"
+    assert infer_document_dialect(uri, "", language_id="tcl-bigip") == "f5-bigip"
+    assert infer_document_dialect(uri, "", language_id="f5-bigip") == "f5-bigip"
+    # A generic Tcl language id on the same non-conf name is unaffected.
+    assert infer_document_dialect(uri, "set x 1", language_id="tcl") != "f5-bigip"
+
+
 def test_normal_tcl_file_is_unaffected():
     # A non-bigip basename containing the same `$M$…` text is still treated
     # as ordinary Tcl (no forced f5-bigip), so normal analysis applies.

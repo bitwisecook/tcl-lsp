@@ -22,7 +22,8 @@ use crate::irules_checks::{
 use crate::path_concat::{PathConcatWarning, find_path_concat_warnings};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{
-    ShimmerWarning, ThunkingWarning, find_shimmer_warnings, find_thunking_warnings,
+    ShimmerWarning, ThunkingWarning, find_byte_array_warnings, find_shimmer_warnings,
+    find_thunking_warnings,
 };
 use crate::taint::{
     TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
@@ -243,22 +244,8 @@ pub fn run_all_checks(
         }
     }
 
-    // Shimmer + thunking.
-    for fu in cu.analysable_functions() {
-        for w in find_shimmer_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.types,
-            &fu.sccp.executable_blocks,
-            registry,
-            &fu.sccp.values,
-        ) {
-            out.push(shift(fu, Diagnostic::from_shimmer(&w)));
-        }
-        for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
-            out.push(shift(fu, Diagnostic::from_thunking(&w)));
-        }
-    }
+    // Shimmer + thunking + byte-array corruption (S110).
+    push_shimmer_checks(cu, registry, dialect, &mut out);
 
     // Taint. The interprocedural solve produces colour-aware return
     // summaries and parameter entry taints; its `top_taints` / `proc_taints`
@@ -334,6 +321,51 @@ pub fn run_all_checks(
     sort_diagnostics(&mut out);
 
     out
+}
+
+/// Append the per-function intrep-shimmer family: use-site / phi / expr
+/// shimmer (S100/S101), thunking (S102), and byte-array corruption (S110).
+///
+/// The S110 `*::payload` byte-command set is dialect-gated — empty under
+/// non-iRules dialects, so a plain-Tcl document naming a `*::payload` command
+/// never trips (the plain `binary` / `encoding` sources stay on everywhere).
+/// Split out of [`run_all_checks`] to keep that aggregator within the line
+/// budget.
+fn push_shimmer_checks(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&str>,
+    out: &mut Vec<Diagnostic>,
+) {
+    let payload_layouts = if is_irules_dialect(dialect) {
+        registry.byte_array_payload_layouts()
+    } else {
+        std::collections::HashMap::new()
+    };
+    for fu in cu.analysable_functions() {
+        for w in find_shimmer_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.types,
+            &fu.sccp.executable_blocks,
+            registry,
+            &fu.sccp.values,
+        ) {
+            out.push(shift(fu, Diagnostic::from_shimmer(&w)));
+        }
+        for w in find_thunking_warnings(&fu.cfg, &fu.ssa, &fu.types, &fu.sccp.executable_blocks) {
+            out.push(shift(fu, Diagnostic::from_thunking(&w)));
+        }
+        for w in find_byte_array_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.executable_blocks,
+            registry,
+            &payload_layouts,
+        ) {
+            out.push(shift(fu, Diagnostic::from_shimmer(&w)));
+        }
+    }
 }
 
 /// Append the iRules-dialect module-level checks (IRULE5002/5004 +
@@ -494,6 +526,38 @@ mod tests {
                 .iter()
                 .any(|d| d.code == "IRULE3101" && d.category == "taint"),
             "expected IRULE3101, got {diagnostics:?}",
+        );
+    }
+
+    #[test]
+    fn run_all_checks_reports_s110_payload_roundtrip_end_to_end() {
+        let cu = CompilationUnit::build_for(
+            "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+             TCP::payload replace 0 100 $q\n}",
+            &registry(),
+            false,
+        )
+        .with_interprocedural(&registry(), Some("f5-irules"));
+        let diagnostics = run_all_checks(&cu, &registry(), Some("f5-irules"));
+        let hit = diagnostics
+            .iter()
+            .find(|d| d.code == "S110")
+            .unwrap_or_else(|| panic!("expected S110, got {diagnostics:?}"));
+        assert_eq!(hit.category, "shimmer");
+        assert_eq!(hit.severity, Severity::Warning, "S110 must be a Warning");
+    }
+
+    /// Under a non-iRules dialect the `*::payload` layout set is empty, so a
+    /// plain-Tcl document that merely names a `*::payload` command is silent.
+    #[test]
+    fn run_all_checks_s110_silent_outside_irules_dialect() {
+        let src = "proc f {} {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+                   TCP::payload replace 0 100 $q\n}";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let diagnostics = run_all_checks(&cu, &registry(), None);
+        assert!(
+            diagnostics.iter().all(|d| d.code != "S110"),
+            "S110 must not fire under plain Tcl: {diagnostics:?}"
         );
     }
 

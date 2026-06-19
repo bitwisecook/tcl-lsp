@@ -13,7 +13,9 @@
 //! | [`phi`]       | S101 phi-node shimmer detection                 |
 //! | [`expr`]      | S100 expression-level shimmer detection         |
 //! | [`thunking`]  | S102 loop-oscillation detection                 |
+//! | [`byte_array`]| S110 byte-array-corruption detection            |
 
+pub mod byte_array;
 pub mod expr;
 pub mod graph;
 pub mod hints;
@@ -25,7 +27,7 @@ pub mod use_site;
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
-use tcl_registry::{CommandRegistry, TclType};
+use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
 
 use crate::cfg::Function as CfgFunction;
 use crate::ssa::{SsaFunction, ValueKey};
@@ -174,6 +176,47 @@ pub(crate) fn find_thunking_warnings(
     executable_blocks: &HashSet<String>,
 ) -> Vec<ThunkingWarning> {
     thunking::find_thunking_warnings(cfg, ssa, types, executable_blocks)
+}
+
+/// Find byte-array-corruption warnings (S110) for a single function.
+///
+/// A forward byte-provenance dataflow flags binary data (a `*::payload`
+/// getter, `binary format` / `binary decode` / `encoding convertto`) that is
+/// coerced to a character string and then written back through a byte sink
+/// (`*::payload replace`), or case-folded / re-encoded directly. See
+/// [`byte_array`]. `payload_layouts` is the dialect-gated `*::payload` byte
+/// command set (empty under non-iRules dialects).
+#[must_use]
+pub(crate) fn find_byte_array_warnings(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    executable_blocks: &HashSet<String>,
+    registry: &CommandRegistry,
+    payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
+) -> Vec<ShimmerWarning> {
+    byte_array::find_byte_array_warnings(cfg, ssa, executable_blocks, registry, payload_layouts)
+}
+
+/// Find every byte-array-corruption warning (S110) across a whole compilation
+/// unit. The `*::payload` byte-command set is taken from the registry (already
+/// scoped to the loaded dialect). See [`find_shimmer_warnings_for_cu`].
+#[must_use]
+pub fn find_byte_array_warnings_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Vec<ShimmerWarning> {
+    let payload_layouts = registry.byte_array_payload_layouts();
+    let mut out = Vec::new();
+    for fu in cu.analysable_functions() {
+        out.extend(find_byte_array_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.executable_blocks,
+            registry,
+            &payload_layouts,
+        ));
+    }
+    out
 }
 
 #[cfg(test)]
