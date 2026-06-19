@@ -83,6 +83,7 @@ use tower_lsp::lsp_types::{
     FullDocumentDiagnosticReport, GlobPattern, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
+    PositionEncodingKind,
     InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
     MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
     ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range, ReferenceParams,
@@ -2835,8 +2836,9 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
+        let position_encoding = negotiate_position_encoding(&params);
         Ok(InitializeResult {
-            capabilities: build_server_capabilities(),
+            capabilities: build_server_capabilities(position_encoding),
             server_info: Some(ServerInfo {
                 // Protocol identity must match the Python server / editor
                 // expectations ("tcl-lsp"), not the crate/binary name.
@@ -5562,13 +5564,38 @@ fn uri_under_folder(uri: &str, folder: &str) -> bool {
 /// snapshot we hand out is uniquely identifiable, letting
 /// clients consult our cache via
 /// `semanticTokens/full/delta { previousResultId }`.
+/// Negotiate the position encoding the server will use against the
+/// client's advertised `general.positionEncodings`.
+///
+/// Every provider in this server computes columns in UTF-16 code units
+/// (via [`tcl_lexer::LineIndex::position_at_utf16`]), which is also the
+/// LSP default — so we always operate in UTF-16 and only advertise it
+/// explicitly when the client listed it (declaring an encoding the client
+/// didn't offer is a protocol violation; omitting the field falls back to
+/// the UTF-16 default either way).
+fn negotiate_position_encoding(params: &InitializeParams) -> Option<PositionEncodingKind> {
+    let supported = params
+        .capabilities
+        .general
+        .as_ref()
+        .and_then(|g| g.position_encodings.as_ref())?;
+    supported
+        .iter()
+        .any(|enc| *enc == PositionEncodingKind::UTF16)
+        .then_some(PositionEncodingKind::UTF16)
+}
+
 /// Build the `ServerCapabilities` advertised in the response
 /// to `initialize`.  Kept as a free function so the
 /// `LanguageServer::initialize` handler stays focused on
 /// state setup and result construction — the long capability
 /// literal lives here rather than inside the trait method.
-fn build_server_capabilities() -> ServerCapabilities {
+fn build_server_capabilities(position_encoding: Option<PositionEncodingKind>) -> ServerCapabilities {
     ServerCapabilities {
+        // UTF-16 columns, matching the LSP default and what every provider
+        // emits.  Advertised explicitly only when the client offered it
+        // (see `negotiate_position_encoding`).
+        position_encoding,
         // Options form (rather than the bare `Kind`) so we can advertise
         // `willSaveWaitUntil` alongside incremental sync. The handler is
         // gated by `tclLsp.features.willSaveWaitUntil` (default off).
@@ -6007,6 +6034,32 @@ mod tests {
         assert!(got.contains("W210") && !got.contains("W211"));
         // No diagnostics config -> None (leave current set untouched).
         assert!(settings_disabled_diagnostics(&serde_json::json!({"x": 1})).is_none());
+    }
+
+    #[test]
+    fn position_encoding_negotiation() {
+        use tower_lsp::lsp_types::{ClientCapabilities, GeneralClientCapabilities};
+        let with_encodings = |encs: Option<Vec<PositionEncodingKind>>| {
+            let mut params = InitializeParams::default();
+            params.capabilities = ClientCapabilities {
+                general: Some(GeneralClientCapabilities {
+                    position_encodings: encs,
+                    ..GeneralClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            };
+            negotiate_position_encoding(&params)
+        };
+        // Client offers UTF-16 → advertise it explicitly.
+        assert_eq!(
+            with_encodings(Some(vec![PositionEncodingKind::UTF16])),
+            Some(PositionEncodingKind::UTF16)
+        );
+        // Client lists only UTF-8 → don't advertise an encoding it can't
+        // honour; omitting it falls back to the UTF-16 default.
+        assert_eq!(with_encodings(Some(vec![PositionEncodingKind::UTF8])), None);
+        // No `general` capability at all → omit (default UTF-16).
+        assert_eq!(negotiate_position_encoding(&InitializeParams::default()), None);
     }
 
     #[test]

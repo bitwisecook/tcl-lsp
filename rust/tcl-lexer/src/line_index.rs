@@ -113,6 +113,23 @@ impl LineIndex {
         )
     }
 
+    /// Zero-based line number containing byte `offset`.
+    ///
+    /// The line index is independent of column encoding (it counts line
+    /// breaks, not characters), so this is the right accessor whenever a
+    /// caller needs only the line — folding ranges, body-span line
+    /// extents — and avoids the choice between the byte
+    /// [`Self::position_at`] and the UTF-16 [`Self::position_at_utf16`]
+    /// columns, neither of which the caller reads.
+    #[must_use]
+    pub fn line_at(&self, offset: u32) -> u32 {
+        let line_idx = self
+            .line_starts
+            .partition_point(|&start| start <= offset)
+            .saturating_sub(1);
+        u32::try_from(line_idx).expect("line count fits u32")
+    }
+
     /// LSP-compliant variant of [`Self::position_at`] that returns
     /// a `character` column counted in UTF-16 code units (per the
     /// LSP specification's "Position" type, which defines
@@ -230,6 +247,22 @@ mod tests {
         assert_eq!(pos.line, 0);
         assert_eq!(pos.character, len); // clamped to the line's full length
         assert_eq!(pos.offset, len + 2); // raw offset preserved
+    }
+
+    #[test]
+    fn line_at_matches_position_at_line_for_multibyte() {
+        // 'á' is two bytes; the line number must not depend on column
+        // encoding, so `line_at` agrees with both column variants' `.line`.
+        let src = "á\nbc\nd";
+        let idx = LineIndex::new(src);
+        for off in [0u32, 2, 3, 5, 6] {
+            assert_eq!(idx.line_at(off), idx.position_at(off).line, "byte off {off}");
+            assert_eq!(
+                idx.line_at(off),
+                idx.position_at_utf16(off, src).line,
+                "utf16 off {off}"
+            );
+        }
     }
 
     #[test]
