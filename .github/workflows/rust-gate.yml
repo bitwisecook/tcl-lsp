@@ -1,0 +1,61 @@
+name: rust-gate
+
+# Merge gate for the `rust` branch.  Runs exactly what `make test-rust` runs
+# locally — the full Rust workspace test suite plus the backend-neutral
+# `lsp_e2e` suite driven against the native Rust server — so a PR can only land
+# on `rust` once both are green.  Required by the `protect-owner-branches`
+# ruleset.  This gate is rust-branch-only; `main`'s pipeline is ci.yml, which
+# has no Rust workspace to test.
+#
+# Why the steps are spelled out instead of calling `make test-rust` directly:
+# that target's `test-lsp-e2e-rust` prerequisite runs `ensure-python-test-deps`,
+# which on a clean runner would apt-install / build-from-source a broad host
+# toolchain (tcl shells, tcllib, kotlinc, tshark, …).  None of it is reachable
+# from this gate — the native server is self-contained and `lsp_e2e` talks to
+# it purely over stdio JSON-RPC — so we run the three underlying commands with
+# only uv + cargo, which `setup-build` and the hosted runner already provide.
+
+on:
+  pull_request:
+    branches: [rust]
+  push:
+    branches: [rust]
+
+concurrency:
+  group: rust-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      # uv + Python + `uv sync --extra dev` (the lsp_e2e suite is pytest-driven).
+      # Must run after checkout — see .github/actions/setup-build/action.yml.
+      - uses: ./.github/actions/setup-build
+
+      # rust-toolchain.toml pins the channel (stable + rustfmt/clippy); rustup
+      # on the hosted runner resolves and installs it on the first cargo call.
+      # Cache the cargo registry + target dir to keep the gate fast on reruns.
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+
+      - name: Rust workspace tests (cargo test --workspace --all-features)
+        run: cargo test --workspace --all-features
+
+      # Build the native server the lsp_e2e suite drives (release, matching
+      # `make rust-server` / `make test-rust`).
+      - name: Build native tcl-lsp-server
+        run: make rust-server
+
+      - name: lsp_e2e against the native Rust server
+        env:
+          TCL_LSP_SERVER_KIND: rust
+          TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
+        run: uv run --extra dev pytest tests/lsp_e2e/ -q -p no:cacheprovider
