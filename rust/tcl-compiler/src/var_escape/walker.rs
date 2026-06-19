@@ -642,6 +642,16 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     walk(&body.statements, &mut state);
     let frame_needed =
         state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
+    // S3.4: tentative pure_leaf — the interprocedural fixpoint can only
+    // downgrade it (a proc with an opaque callee loses the flag). Pure
+    // means: no escape, no eval/call fallback, no `upvar` source out, no
+    // unbounded upvar source. Mirrors the predicate in Python's
+    // `_propagation.analyse_script`.
+    let pure_leaf = !frame_needed
+        && !state.flags.has_fallback()
+        && !state.flags.has_call_fallback()
+        && state.upvar_source_names.is_empty()
+        && !state.flags.unbounded_upvar_source();
     ProcEscapeSummary {
         tags: state.tags,
         flags: state.flags,
@@ -650,6 +660,7 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
         direct_callees: state.direct_callees,
         ssa_tags: std::collections::HashMap::new(),
         local_slots: std::collections::BTreeMap::new(),
+        pure_leaf,
         // SYNC-JUN-FRAME356-population: thread the structured
         // per-proc barriers + per-name escape reasons recorded by
         // the handlers into the summary so downstream consumers

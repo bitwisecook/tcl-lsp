@@ -22,6 +22,7 @@
 //!   slot indices for proc-locals (mirrors upstream
 //!   ``957dc1f6`` / PR #334).
 
+pub mod api;
 pub mod cfg_propagation;
 pub mod handlers;
 pub mod helpers;
@@ -33,6 +34,7 @@ pub mod state;
 pub mod types;
 pub mod walker;
 
+pub use api::{analyse_var_escape, analyse_var_escape_cu, cfg_result_to_summary, TOP_LEVEL_QNAME};
 pub use cfg_propagation::analyse_cfg_function;
 pub use interprocedural::solve_interprocedural_escape;
 pub use slot_resolution::{LOCALS_ARRAY_CAP, assign_local_slots, populate_local_slots};

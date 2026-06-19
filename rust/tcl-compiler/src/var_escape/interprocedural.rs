@@ -18,6 +18,8 @@
 //! Mirrors `core/compiler/var_escape/_interprocedural.py`.
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+
+use super::helpers::is_frameless_runtime_command;
 use std::hash::BuildHasher;
 
 use crate::var_escape::types::{EscapeFlags, ProcEscapeSummary};
@@ -92,10 +94,8 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         return HashMap::new();
     }
 
-    // Resolve each callee. Drop ones that don't appear in
-    // ``summaries`` — those are either builtins (no escape) or
-    // unknowns (handled by the intra-procedural pessimistic
-    // fallback).
+    // Resolve each callee; drop ones absent from `summaries` (builtins —
+    // no escape — or unknowns handled by the intraproc pessimistic fallback).
     let mut resolved_callees: HashMap<String, HashSet<String>> = HashMap::new();
     for (qname, summary) in summaries {
         let mut callees: HashSet<String> = HashSet::new();
@@ -109,71 +109,11 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         resolved_callees.insert(qname.clone(), callees);
     }
 
-    // Worklist fixpoint over transitive sources.
-    let mut transitive_sources: HashMap<String, HashSet<String>> = summaries
-        .iter()
-        .map(|(k, s)| {
-            (
-                k.clone(),
-                s.upvar_source_names.iter().cloned().collect::<HashSet<_>>(),
-            )
-        })
-        .collect();
-    let mut transitive_unbounded: HashMap<String, bool> = summaries
-        .iter()
-        .map(|(k, s)| (k.clone(), s.unbounded_upvar_source()))
-        .collect();
+    let (transitive_sources, transitive_unbounded) =
+        propagate_transitive_sources(summaries, &resolved_callees);
 
-    // Reverse edges: qname → set of qnames that call it.
-    let mut callers_of: HashMap<String, HashSet<String>> = summaries
-        .keys()
-        .map(|k| (k.clone(), HashSet::new()))
-        .collect();
-    for (qname, callees) in &resolved_callees {
-        for callee in callees {
-            callers_of
-                .entry(callee.clone())
-                .or_default()
-                .insert(qname.clone());
-        }
-    }
-
-    let mut worklist: VecDeque<String> = summaries.keys().cloned().collect();
-    let mut in_worklist: HashSet<String> = summaries.keys().cloned().collect();
-    while let Some(qname) = worklist.pop_front() {
-        in_worklist.remove(&qname);
-        let current_sources = transitive_sources[&qname].clone();
-        let current_unbounded = transitive_unbounded[&qname];
-        let callers = callers_of.get(&qname).cloned().unwrap_or_default();
-        for caller in callers {
-            let mut changed = false;
-            let caller_set = transitive_sources
-                .get_mut(&caller)
-                .expect("caller in summaries");
-            for s in &current_sources {
-                if caller_set.insert(s.clone()) {
-                    changed = true;
-                }
-            }
-            if current_unbounded {
-                let cu = transitive_unbounded
-                    .get_mut(&caller)
-                    .expect("caller in summaries");
-                if !*cu {
-                    *cu = true;
-                    changed = true;
-                }
-            }
-            if changed && !in_worklist.contains(&caller) {
-                worklist.push_back(caller.clone());
-                in_worklist.insert(caller);
-            }
-        }
-    }
-
-    // Derive the final ``has_fallback`` for each proc.
-    //   final = intraproc has_fallback
-    //         | (has_call_fallback & not all-callees-resolve)
+    // Final `has_fallback` = intraproc has_fallback | (has_call_fallback &
+    // not all-callees-resolve).
     let mut downgraded_fallback: HashMap<String, bool> = HashMap::new();
     for (qname, summary) in summaries {
         let call_fallback_final = if summary.has_call_fallback() {
@@ -203,7 +143,104 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
             .set(EscapeFlags::HAS_FALLBACK, downgraded_fallback[qname]);
         result.insert(qname.clone(), new_summary);
     }
+
+    downgrade_non_pure_leaf_callers(&mut result);
     result
+}
+
+/// Worklist fixpoint that flows each proc's `upvar` source set (and the
+/// unbounded-source flag) up to every transitive caller. Returns the
+/// per-proc transitive source set and unbounded flag.
+fn propagate_transitive_sources<S: BuildHasher>(
+    summaries: &HashMap<String, ProcEscapeSummary, S>,
+    resolved_callees: &HashMap<String, HashSet<String>>,
+) -> (HashMap<String, HashSet<String>>, HashMap<String, bool>) {
+    let mut transitive_sources: HashMap<String, HashSet<String>> = summaries
+        .iter()
+        .map(|(k, s)| (k.clone(), s.upvar_source_names.iter().cloned().collect()))
+        .collect();
+    let mut transitive_unbounded: HashMap<String, bool> = summaries
+        .iter()
+        .map(|(k, s)| (k.clone(), s.unbounded_upvar_source()))
+        .collect();
+
+    // Reverse edges: qname → set of qnames that call it.
+    let mut callers_of: HashMap<String, HashSet<String>> =
+        summaries.keys().map(|k| (k.clone(), HashSet::new())).collect();
+    for (qname, callees) in resolved_callees {
+        for callee in callees {
+            callers_of.entry(callee.clone()).or_default().insert(qname.clone());
+        }
+    }
+
+    let mut worklist: VecDeque<String> = summaries.keys().cloned().collect();
+    let mut in_worklist: HashSet<String> = summaries.keys().cloned().collect();
+    while let Some(qname) = worklist.pop_front() {
+        in_worklist.remove(&qname);
+        let current_sources = transitive_sources[&qname].clone();
+        let current_unbounded = transitive_unbounded[&qname];
+        let callers = callers_of.get(&qname).cloned().unwrap_or_default();
+        for caller in callers {
+            let mut changed = false;
+            let caller_set = transitive_sources.get_mut(&caller).expect("caller in summaries");
+            for s in &current_sources {
+                if caller_set.insert(s.clone()) {
+                    changed = true;
+                }
+            }
+            if current_unbounded {
+                let cu = transitive_unbounded.get_mut(&caller).expect("caller in summaries");
+                if !*cu {
+                    *cu = true;
+                    changed = true;
+                }
+            }
+            if changed && !in_worklist.contains(&caller) {
+                worklist.push_back(caller.clone());
+                in_worklist.insert(caller);
+            }
+        }
+    }
+    (transitive_sources, transitive_unbounded)
+}
+
+/// **S3.4 — transitive `pure_leaf` fixpoint.** A proc stays `pure_leaf` only
+/// if every direct callee is itself `pure_leaf` — or an unresolved but
+/// known frameless runtime builtin (`puts` / `list` / `string` / …), which
+/// captures no caller locals and introduces no upvar alias, so a wrapper
+/// around it is still safe to splice. Iterates to a fixpoint (bounded by
+/// the proc count). Mirrors the loop in Python's
+/// `solve_interprocedural_escape`.
+fn downgrade_non_pure_leaf_callers<S: BuildHasher>(
+    result: &mut HashMap<String, ProcEscapeSummary, S>,
+) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let qnames: Vec<String> = result.keys().cloned().collect();
+        for qname in qnames {
+            if !result[&qname].pure_leaf {
+                continue;
+            }
+            let callees: Vec<String> = result[&qname].direct_callees.iter().cloned().collect();
+            let downgrade = callees.iter().any(|callee| {
+                result.get(callee).map_or_else(
+                    || {
+                        let bare = callee.strip_prefix("::").unwrap_or(callee);
+                        !is_frameless_runtime_command(bare)
+                    },
+                    |c| !c.pure_leaf,
+                )
+            });
+            if downgrade {
+                result
+                    .get_mut(&qname)
+                    .expect("qname in result")
+                    .pure_leaf = false;
+                changed = true;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

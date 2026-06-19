@@ -17,11 +17,18 @@
 //!   the call site.
 //!
 //! The **v3 parameterised** shape (α-renamed body + parameter bindings) and
-//! its `_rename` machinery, plus the precise `var_escape::pure_leaf`
-//! profitability gate and dead-proc elimination, are the documented
-//! residual — see [`docs/rust-rewrite.md`] (FE-OPT) / the **RT-WASM** and
-//! **FE-VARESCAPE** tracks. The inliner's only consumer is the WASM codegen
-//! (RT-WASM, unported), so it is exposed but not yet wired into a pipeline.
+//! its `_rename` machinery, plus dead-proc elimination, are the documented
+//! residual — see [`docs/rust-rewrite.md`] (FE-OPT) / the **RT-WASM** track.
+//! The inliner's only consumer is the WASM codegen (RT-WASM, unported), so
+//! it is exposed but not yet wired into a pipeline.
+//!
+//! # Eligibility
+//!
+//! Two gates combine in [`classify_proc`] / `build_inlinable_map`: the
+//! precise interprocedural [`var_escape::pure_leaf`](crate::var_escape)
+//! proof (`safe_to_inline` — FE-VARESCAPE's S4.1 soundness predicate) and
+//! the structural shape. The per-statement [`stmt_is_splice_eligible`] check
+//! then guards the verbatim body itself.
 //!
 //! # Soundness
 //!
@@ -40,6 +47,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::ir::{Module, Procedure, Script, Statement};
+use crate::var_escape::ProcEscapeSummary;
 
 /// Per-proc inlining eligibility — the catalogue tag. Mirrors Python's
 /// `InlineDecision`, restricted to the cases the v0 / verbatim mechanism
@@ -177,13 +185,14 @@ fn stmt_is_splice_eligible(stmt: &Statement) -> bool {
     true
 }
 
-/// Classify a procedure for inlining. A proc is [`InlineDecision::Always`]
-/// when it is not redefined and is either empty-bodied (v0) or a small
-/// zero-parameter wrapper whose every body statement is splice-eligible
-/// (v1 / v2). Everything else is [`InlineDecision::Never`] in this port
-/// (v3 parameterised inlining is the residual). The splice-eligibility
-/// check subsumes the `pure_leaf` soundness predicate for the verbatim
-/// shape, so no interprocedural escape summary is required.
+/// Classify a procedure's *structural shape* for inlining. A proc is
+/// [`InlineDecision::Always`] when it is not redefined and is either
+/// empty-bodied (v0) or a small zero-parameter wrapper whose every body
+/// statement is splice-eligible (v1 / v2). Everything else is
+/// [`InlineDecision::Never`] in this port (v3 parameterised inlining is the
+/// residual). The caller (`build_inlinable_map`) additionally gates on the
+/// interprocedural `var_escape::safe_to_inline` (`pure_leaf`) soundness
+/// proof — this function only judges the shape.
 #[must_use]
 pub fn classify_proc<S: std::hash::BuildHasher>(
     proc: &Procedure,
@@ -205,9 +214,21 @@ pub fn classify_proc<S: std::hash::BuildHasher>(
 }
 
 /// Build the qname → [`InlineSpec`] map of inlinable procedures.
+///
+/// Two gates combine: the precise `var_escape::pure_leaf` predicate
+/// (`safe_to_inline`, the Python S4.1 soundness proof — FE-VARESCAPE) and
+/// the structural shape classification ([`classify_proc`]). A proc must
+/// pass both. The escape summaries are computed from the IR module, the
+/// path that populates `pure_leaf`.
 fn build_inlinable_map(module: &Module) -> HashMap<String, InlineSpec> {
+    let summaries = crate::var_escape::analyse_var_escape(module, true);
     let mut map = HashMap::new();
     for (qname, proc) in &module.procedures {
+        // Soundness gate: the interprocedural pure-leaf proof. An absent
+        // summary (shouldn't happen for a module proc) is treated as opaque.
+        if !summaries.get(qname).is_some_and(ProcEscapeSummary::safe_to_inline) {
+            continue;
+        }
         if classify_proc(proc, &module.redefined_procedures) != InlineDecision::Always {
             continue;
         }
