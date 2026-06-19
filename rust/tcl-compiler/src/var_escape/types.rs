@@ -309,9 +309,55 @@ pub struct ProcEscapeSummary {
     /// so downstream consumers (LSP, compiler explorer) can adopt
     /// it incrementally.
     pub tag_reasons: HashMap<String, Vec<EscapeReason>>,
+    /// **S3.4 — pure-leaf flag.** `true` when this proc is provably
+    /// pure-leaf: no escaping var (no `Frame` tag, no dynamic barrier),
+    /// no eval / call fallback, no `upvar` source out, and — after the
+    /// interprocedural fixpoint — every direct callee is itself pure-leaf
+    /// (or a known frameless runtime builtin). The inliner reads this as
+    /// the soundness predicate for splicing a body into a caller.
+    ///
+    /// The walker sets the *intraprocedural* base value (the per-proc
+    /// clause); [`solve_interprocedural_escape`](crate::var_escape::solve_interprocedural_escape)
+    /// can only **downgrade** it (a proc whose callee is opaque is no
+    /// longer pure-leaf). Default `false` — anything unclassified stays
+    /// opaque.
+    pub pure_leaf: bool,
 }
 
 impl ProcEscapeSummary {
+    /// Whether the proc body can be physically relocated into a caller's
+    /// IR without changing observable behaviour (the inliner's gate).
+    /// Identical to [`Self::pure_leaf`] today; split out so a future
+    /// relaxation can separate the body-frame-observation clause from the
+    /// transitive callee clause. Mirrors Python's `safe_to_inline`.
+    #[must_use]
+    pub fn safe_to_inline(&self) -> bool {
+        self.pure_leaf
+    }
+
+    /// Whether dead-store elimination on this proc's locals is sound — a
+    /// relaxation of [`Self::pure_leaf`] that drops the transitive
+    /// "callees are pure-leaf" clause (DCE only cares whether an external
+    /// observer can read our locals, not what callees do). Mirrors
+    /// Python's `safe_to_dce`.
+    #[must_use]
+    pub fn safe_to_dce(&self) -> bool {
+        !self.frame_needed
+            && !self.has_fallback()
+            && !self.has_call_fallback()
+            && self.upvar_source_names.is_empty()
+            && !self.unbounded_upvar_source()
+    }
+
+    /// Whether codegen may omit the per-call frame push/pop for this proc
+    /// — the proc's frame is never observed externally. A relaxation of
+    /// [`Self::pure_leaf`] that only requires `!frame_needed`. Mirrors
+    /// Python's `safe_for_frame_elision`.
+    #[must_use]
+    pub fn safe_for_frame_elision(&self) -> bool {
+        !self.frame_needed
+    }
+
     /// True if the whole-proc dynamic-barrier marker is set.
     ///
     /// Returns `true` when either the [`EscapeFlags::DYNAMIC_BARRIER`]
@@ -451,13 +497,18 @@ impl ProcEscapeSummary {
         pessimistic: bool,
     ) -> Self {
         let mut new_tags = self.tags.clone();
+        let mut any_extra = false;
         for name in extra_escaped {
             new_tags.insert(name, EscapeTag::Frame);
+            any_extra = true;
         }
         let new_pessimistic = self.dynamic_barrier() || pessimistic;
         let new_frame_needed = new_pessimistic || new_tags.values().any(|t| *t == EscapeTag::Frame);
         let mut new_flags = self.flags;
         new_flags.set(EscapeFlags::DYNAMIC_BARRIER, new_pessimistic);
+        // A callee-induced escape or a pessimistic downgrade clears
+        // pure_leaf. Mirrors Python's `with_escapes` new_pure_leaf.
+        let new_pure_leaf = self.pure_leaf && !any_extra && !new_pessimistic;
         Self {
             tags: new_tags,
             flags: new_flags,
@@ -468,6 +519,7 @@ impl ProcEscapeSummary {
             local_slots: self.local_slots.clone(),
             barriers: self.barriers.clone(),
             tag_reasons: self.tag_reasons.clone(),
+            pure_leaf: new_pure_leaf,
         }
     }
 
@@ -487,6 +539,7 @@ impl ProcEscapeSummary {
             local_slots: slots,
             barriers: self.barriers.clone(),
             tag_reasons: self.tag_reasons.clone(),
+            pure_leaf: self.pure_leaf,
         }
     }
 }

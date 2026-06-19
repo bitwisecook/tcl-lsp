@@ -83,6 +83,46 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
     Span::new(span.start(), u32::try_from(end).unwrap_or(span.end()))
 }
 
+/// Compute the deletion range for a statement being removed, swallowing
+/// the trailing run of whitespace plus one statement separator (`\n` /
+/// `;`) so the surviving text closes up cleanly. Mirrors Python's
+/// `_statement_delete_rewrite_range`.
+///
+/// `cmd_span` is the full command span (exclusive end); `next_start` is
+/// the byte offset of the next statement, or `None` at end-of-script (in
+/// which case the command span is returned unchanged).
+#[must_use]
+pub fn statement_delete_rewrite_range(
+    source: &str,
+    cmd_span: Span,
+    next_start: Option<usize>,
+) -> Span {
+    let Some(next) = next_start else {
+        return cmd_span;
+    };
+    let end = cmd_span.end() as usize;
+    if next <= end || next > source.len() {
+        return cmd_span;
+    }
+    let bytes = source.as_bytes();
+    let mut cursor = end;
+    while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
+        cursor += 1;
+    }
+    if cursor < next && matches!(bytes[cursor], b'\n' | b';') {
+        cursor += 1;
+        while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
+            cursor += 1;
+        }
+        if cursor > end
+            && let Ok(new_end) = u32::try_from(cursor)
+        {
+            return Span::new(cmd_span.start(), new_end);
+        }
+    }
+    cmd_span
+}
+
 /// Extend an argv span that points at a `"…"` composite word to
 /// cover the full quoted string.
 ///

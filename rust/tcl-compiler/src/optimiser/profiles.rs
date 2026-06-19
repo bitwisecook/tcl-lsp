@@ -84,6 +84,7 @@ const OPT_CATEGORIES: &[(&str, OptCategory)] = &[
     ("O124", OptCategory::Dce),
     ("O126", OptCategory::Dce),
     // code_motion
+    ("O106", OptCategory::CodeMotion),
     ("O125", OptCategory::CodeMotion),
     ("O127", OptCategory::CodeMotion),
     // recursion
@@ -157,6 +158,16 @@ mod tests {
         assert!(!d.contains("O129")); // constant_folding on
         assert!(d.contains("O109")); // dce off
         assert!(d.contains("O121")); // recursion off
+        assert!(d.contains("O106")); // code_motion off under standard
+    }
+
+    #[test]
+    fn o106_is_suppressable_code_motion() {
+        // O106 (LICM) must be a known category entry so non-full profiles
+        // can suppress it; readability/standard turn code_motion off.
+        assert!(profile_to_disabled(OptimisationProfile::Readability).contains("O106"));
+        assert!(profile_to_disabled(OptimisationProfile::Standard).contains("O106"));
+        assert!(!profile_to_disabled(OptimisationProfile::Full).contains("O106"));
     }
 
     #[test]
