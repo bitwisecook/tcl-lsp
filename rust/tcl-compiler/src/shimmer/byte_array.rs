@@ -1,0 +1,798 @@
+//! Byte-array corruption detection (S110).
+//!
+//! A **correctness** shimmer, distinct from the S100/S101/S102 *performance*
+//! family. Tcl byte arrays (binary data) and character strings are different
+//! internal representations. When a byte array is forced through a
+//! character-string operation and then written back to a byte sink, every byte
+//! `>= 0x80` is silently re-encoded (latin-1 decode → UTF-8 encode, or pushed
+//! out of the `0..255` range by case folding), corrupting the data. In iRules
+//! this is the canonical `*::payload replace` rewrite bug
+//! ([F5 K22406348](https://my.f5.com/manage/s/article/K22406348)); in plain
+//! Tcl it is `binary format` → `string …` → byte sink.
+//!
+//! The check is a small forward dataflow over the SSA graph tracking *byte
+//! provenance* per value:
+//!
+//! - [`ByteProv::Binary`] — the value currently has a byte-array intrep (safe
+//!   to write to a byte sink). Sources: `*::payload` getters, `binary format` /
+//!   `binary decode` / `encoding convertto` results.
+//! - [`ByteProv::Damaged`] — a binary-sourced value that has since been coerced
+//!   to a character string (interpolation, `append`, a `string` subcommand,
+//!   `format`, `expr`, …). Writing it to a byte sink corrupts it.
+//!
+//! A `binary scan $v …` re-binarifies `v` in place (the documented fix) and
+//! clears [`ByteProv::Damaged`].
+//!
+//! Ported from `compiler/shimmer.py`'s `_find_byte_array_corruption` family
+//! (Python PR #656); see `docs/design/rust/s110-byte-array-corruption-port.md`.
+
+use std::collections::HashMap;
+
+use tcl_lexer::Span;
+use tcl_registry::{BytePayloadSpec, CommandRegistry, TclType};
+
+use crate::cfg::Function as CfgFunction;
+use crate::ir::Statement;
+use crate::naming::normalise_var_name;
+use crate::sccp::cfg_order;
+use crate::ssa::{SsaFunction, ValueKey};
+use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::var_refs::vars_in_word;
+
+use std::collections::HashSet;
+
+use super::ShimmerWarning;
+
+/// Byte-array provenance of a tracked value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ByteProv {
+    /// Currently a byte array — safe at a byte sink.
+    Binary,
+    /// Binary-sourced but coerced to a character string.
+    Damaged,
+}
+
+/// Provenance of a value plus the spans/labels for the diagnostic.
+#[derive(Debug, Clone)]
+struct ByteProvInfo {
+    state: ByteProv,
+    /// Where the binary data originated (`None` when sourced inline at a use).
+    source_range: Option<Span>,
+    source_label: String,
+    /// Where the value was coerced to a character string (`None` until coerced).
+    coercion_range: Option<Span>,
+    coercion_label: String,
+}
+
+impl ByteProvInfo {
+    /// A freshly-sourced byte array (no coercion yet).
+    fn binary(source_range: Option<Span>, source_label: String) -> Self {
+        Self {
+            state: ByteProv::Binary,
+            source_range,
+            source_label,
+            coercion_range: None,
+            coercion_label: String::new(),
+        }
+    }
+
+    /// A damaged value derived from `origin`, coerced at `coercion`.
+    fn damaged(origin: &Self, coercion_range: Option<Span>, coercion_label: String) -> Self {
+        Self {
+            state: ByteProv::Damaged,
+            source_range: origin.source_range,
+            source_label: origin.source_label.clone(),
+            coercion_range,
+            coercion_label,
+        }
+    }
+}
+
+/// `string` subcommands that fold case — they reinterpret bytes as Unicode
+/// code points and can push a byte out of `0..255`, corrupting the byte array
+/// directly, with or without a write-back.
+const CASE_FOLD_SUBS: &[&str] = &["toupper", "tolower", "totitle"];
+
+/// `string` subcommands that build a character string from their data operand.
+/// Latin-1-preserving in isolation, but the result is a STRING, so writing it
+/// back to a byte sink re-encodes the high bytes.
+const STRING_VALUE_SUBS: &[&str] = &[
+    "map",
+    "replace",
+    "range",
+    "index",
+    "reverse",
+    "repeat",
+    "trim",
+    "trimleft",
+    "trimright",
+    "cat",
+    "insert",
+];
+
+/// Commands (other than `string`) whose result is a character string derived
+/// from a byte-array operand. All latin-1-preserving, so the corruption only
+/// lands at a byte sink — they mark a value DAMAGED rather than warning.
+const STRING_COERCING_COMMANDS: &[&str] = &["format", "subst", "regsub", "join", "concat", "split"];
+
+/// Non-getter `*::payload` subcommand words — these forms do not return raw
+/// payload bytes, so they are not binary sources.
+const PAYLOAD_NON_GETTER_SUBS: &[&str] = &["replace", "length", "rechunk", "unchunk"];
+
+fn is_case_fold_sub(s: &str) -> bool {
+    CASE_FOLD_SUBS.contains(&s)
+}
+
+/// Human-readable label for a binary source, e.g. `binary format`.
+fn source_label(cmd: &str, args: &[String]) -> String {
+    if matches!(cmd, "binary" | "encoding")
+        && let Some(sub) = args.first()
+    {
+        return format!("{cmd} {sub}");
+    }
+    cmd.to_owned()
+}
+
+/// Coercion label for a string-coercing command, e.g. `string map` / `format`.
+fn coercion_label(cmd: &str, args: &[String]) -> String {
+    if cmd == "string"
+        && let Some(sub) = args.first()
+    {
+        return format!("string {sub}");
+    }
+    cmd.to_owned()
+}
+
+/// True when `[cmd args]` is a registry command that returns a byte array
+/// (`binary format` / `binary decode` / `encoding convertto`).
+fn cmdsub_returns_bytearray(registry: &CommandRegistry, cmd: &str, args: &[String]) -> bool {
+    let Some(spec) = registry.get(cmd) else {
+        return false;
+    };
+    // Subcommand-typed commands (`binary`, `encoding`) carry the return type on
+    // the subcommand; a bare command carries it at the command level.
+    if !spec.subcommands.is_empty() {
+        return args
+            .first()
+            .and_then(|sub| spec.subcommand(sub))
+            .is_some_and(|sub| sub.return_type == Some(TclType::ByteArray));
+    }
+    spec.return_type == Some(TclType::ByteArray)
+}
+
+/// True when `[cmd args]` reads raw payload bytes (the getter form).
+fn is_payload_getter(
+    layouts: &HashMap<&'static str, BytePayloadSpec>,
+    cmd: &str,
+    args: &[String],
+) -> bool {
+    if !layouts.contains_key(cmd) {
+        return false;
+    }
+    args.first()
+        .is_none_or(|sub| !PAYLOAD_NON_GETTER_SUBS.contains(&sub.as_str()))
+}
+
+/// For a `<proto>::payload replace … <data>` sink, return the index of the
+/// `<data>` argument (within the args after the command name); `None` if not a
+/// replace sink. The data position is registry-driven, so each protocol's
+/// layout is correct without special-casing here.
+fn payload_replace_data_index(
+    layouts: &HashMap<&'static str, BytePayloadSpec>,
+    cmd: &str,
+    args: &[String],
+) -> Option<usize> {
+    let layout = layouts.get(cmd)?;
+    if args.first().map(String::as_str) != Some("replace") {
+        return None;
+    }
+    let mut idx = layout.replace_data_index as usize;
+    if layout.message_flag_shift && args.get(1).map(String::as_str) == Some("-message") {
+        idx += 2;
+    }
+    (args.len() > idx).then_some(idx)
+}
+
+/// Join byte provenance over several inputs — DAMAGED dominates BINARY
+/// (may-corrupt); the first non-empty source of each state is kept for the
+/// diagnostic. Mirrors Python's `_join_prov`.
+fn join_prov(infos: impl IntoIterator<Item = Option<ByteProvInfo>>) -> Option<ByteProvInfo> {
+    let mut damaged: Option<ByteProvInfo> = None;
+    let mut binary: Option<ByteProvInfo> = None;
+    for info in infos.into_iter().flatten() {
+        match info.state {
+            ByteProv::Damaged if damaged.is_none() => damaged = Some(info),
+            ByteProv::Binary if binary.is_none() => binary = Some(info),
+            _ => {}
+        }
+    }
+    damaged.or(binary)
+}
+
+/// Build the S110 warning, with related spans pointing at the binary source
+/// and the coercion site. Mirrors Python's `_byte_corruption_warning`.
+fn byte_warning(
+    span: Span,
+    variable: &str,
+    info: &ByteProvInfo,
+    message: String,
+) -> ShimmerWarning {
+    let mut related: Vec<(Span, String)> = Vec::new();
+    if let Some(src) = info.source_range {
+        related.push((src, format!("binary data from {} here", info.source_label)));
+    }
+    if let Some(coerce) = info.coercion_range
+        && Some(coerce) != info.source_range
+    {
+        let label = if info.coercion_label.is_empty() {
+            "string operation"
+        } else {
+            &info.coercion_label
+        };
+        related.push((
+            coerce,
+            format!("treated as a character string by {label} here"),
+        ));
+    }
+    let command = if info.coercion_label.is_empty() {
+        info.source_label.clone()
+    } else {
+        info.coercion_label.clone()
+    };
+    ShimmerWarning {
+        span,
+        variable: variable.to_owned(),
+        from_type: TclType::ByteArray,
+        to_type: TclType::String,
+        command,
+        in_loop: false,
+        code: "S110".to_owned(),
+        message,
+        related,
+    }
+}
+
+/// Forward byte-provenance dataflow state for one function.
+struct ByteCorruption<'a> {
+    registry: &'a CommandRegistry,
+    payload_layouts: &'a HashMap<&'static str, BytePayloadSpec>,
+    prov: HashMap<ValueKey, ByteProvInfo>,
+    warnings: Vec<ShimmerWarning>,
+}
+
+impl<'a> ByteCorruption<'a> {
+    fn new(
+        registry: &'a CommandRegistry,
+        payload_layouts: &'a HashMap<&'static str, BytePayloadSpec>,
+    ) -> Self {
+        Self {
+            registry,
+            payload_layouts,
+            prov: HashMap::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    /// Run the dataflow over the function's executable blocks in CFG order,
+    /// joining phis first, and return the accumulated warnings.
+    fn run(
+        mut self,
+        cfg: &CfgFunction,
+        ssa: &SsaFunction,
+        executable_blocks: &HashSet<String>,
+    ) -> Vec<ShimmerWarning> {
+        for block_name in cfg_order(cfg) {
+            if !executable_blocks.contains(&block_name) {
+                continue;
+            }
+            let Some(ssa_block) = ssa.blocks.get(&block_name) else {
+                continue;
+            };
+
+            for phi in &ssa_block.phis {
+                let joined = join_prov(
+                    phi.incoming
+                        .values()
+                        .filter(|&&v| v > 0)
+                        .map(|&v| self.prov.get(&(phi.name.clone(), v)).cloned()),
+                );
+                if let Some(joined) = joined {
+                    self.prov.insert((phi.name.clone(), phi.version), joined);
+                }
+            }
+
+            for ss in &ssa_block.statements {
+                match &ss.statement {
+                    Statement::AssignValue {
+                        name, value, span, ..
+                    } => self.track_assign_value(name, value, *span, &ss.defs, &ss.uses),
+                    Statement::AssignExpr { name, span, .. } => {
+                        self.track_assign_expr(name, *span, &ss.defs, &ss.uses);
+                    }
+                    Statement::Call {
+                        command,
+                        args,
+                        span,
+                        ..
+                    } => self.track_call(command, args, *span, &ss.defs, &ss.uses),
+                    _ => {}
+                }
+            }
+        }
+        self.warnings
+    }
+
+    /// Normalised variable names referenced via `$var` / `${var}` in `text`.
+    fn vars_in(&self, text: &str) -> Vec<String> {
+        vars_in_word(text, self.registry).into_iter().collect()
+    }
+
+    /// Provenance of a single argument expression (var ref, command
+    /// substitution, or interpolation). Mirrors Python's `_arg_byte_prov`.
+    fn arg_byte_prov(&self, arg_text: &str, uses: &HashMap<String, u32>) -> Option<ByteProvInfo> {
+        let a = arg_text.trim();
+        if a.is_empty() {
+            return None;
+        }
+        if is_pure_var_ref(a) {
+            let name = normalise_var_name(a).to_owned();
+            let ver = uses.get(&name).copied().unwrap_or(0);
+            return (ver > 0)
+                .then(|| self.prov.get(&(name, ver)).cloned())
+                .flatten();
+        }
+        if let Some((cmd, cargs)) = parse_command_substitution(a) {
+            // `encoding convertto` / `string` case-folding intrinsically corrupt
+            // a binary operand — check before the byte-array-return-type
+            // classification, so an inline sink form
+            // `<proto>::payload replace … [encoding convertto …]` is DAMAGED,
+            // not a clean source.
+            if is_intrinsic_corrupt(&cmd, &cargs) {
+                let operand = join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses)));
+                if let Some(op) = operand {
+                    return Some(ByteProvInfo::damaged(
+                        &op,
+                        None,
+                        coercion_label(&cmd, &cargs),
+                    ));
+                }
+                // `encoding convertto` of non-binary data is a legitimate byte
+                // source; case folding of non-binary data is untracked.
+                if cmd == "encoding" {
+                    return Some(ByteProvInfo::binary(None, "encoding convertto".to_owned()));
+                }
+                return None;
+            }
+            if is_payload_getter(self.payload_layouts, &cmd, &cargs)
+                || cmdsub_returns_bytearray(self.registry, &cmd, &cargs)
+            {
+                return Some(ByteProvInfo::binary(None, source_label(&cmd, &cargs)));
+            }
+            // A string transform applied to a binary operand inside the arg.
+            let inner = join_prov(cargs.iter().map(|c| self.arg_byte_prov(c, uses)));
+            if let Some(inner) = inner {
+                return Some(ByteProvInfo::damaged(&inner, None, cmd));
+            }
+            return None;
+        }
+        if a.contains('$') || a.contains('[') {
+            let joined = join_prov(self.interpolated_prov(a, uses));
+            if let Some(joined) = joined {
+                return Some(ByteProvInfo::damaged(
+                    &joined,
+                    None,
+                    "interpolation".to_owned(),
+                ));
+            }
+        }
+        None
+    }
+
+    /// Provenance of each `$var` referenced inside an interpolated word.
+    fn interpolated_prov(
+        &self,
+        text: &str,
+        uses: &HashMap<String, u32>,
+    ) -> Vec<Option<ByteProvInfo>> {
+        self.vars_in(text)
+            .into_iter()
+            .filter_map(|name| {
+                let ver = uses.get(&name).copied().unwrap_or(0);
+                (ver > 0).then(|| self.prov.get(&(name, ver)).cloned())
+            })
+            .collect()
+    }
+
+    /// Transfer function for `set name value`. Mirrors `_track_assign_value`.
+    fn track_assign_value(
+        &mut self,
+        name: &str,
+        value: &str,
+        span: Span,
+        defs: &HashMap<String, u32>,
+        uses: &HashMap<String, u32>,
+    ) {
+        let nm = normalise_var_name(name).to_owned();
+        let Some(&ver) = defs.get(&nm) else {
+            return;
+        };
+        let key = (nm.clone(), ver);
+        let val = value.trim();
+
+        if let Some((cmd, cargs)) = parse_command_substitution(val) {
+            if is_payload_getter(self.payload_layouts, &cmd, &cargs) {
+                self.prov.insert(key, ByteProvInfo::binary(Some(span), cmd));
+                return;
+            }
+            // `encoding convertto` of an already-binary value is the
+            // double-encode bug — warn, then treat the (byte-array) result as
+            // binary.
+            if cmd == "encoding" && cargs.first().map(String::as_str) == Some("convertto") {
+                let operand = join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses)));
+                if let Some(op) = operand {
+                    let msg = format!(
+                        "Byte-array corruption: 'encoding convertto' on binary data from \
+                         {label} double-encodes it — the bytes are reinterpreted as characters \
+                         and re-encoded. Decode with 'encoding convertfrom' or keep it a byte \
+                         array (S110)",
+                        label = op.source_label,
+                    );
+                    self.warnings.push(byte_warning(span, &nm, &op, msg));
+                }
+                self.prov.insert(
+                    key,
+                    ByteProvInfo::binary(Some(span), "encoding convertto".to_owned()),
+                );
+                return;
+            }
+            if cmdsub_returns_bytearray(self.registry, &cmd, &cargs) {
+                self.prov.insert(
+                    key,
+                    ByteProvInfo::binary(Some(span), source_label(&cmd, &cargs)),
+                );
+                return;
+            }
+            // `string` case-folding directly mangles a byte array.
+            if cmd == "string" && cargs.first().is_some_and(|s| is_case_fold_sub(s)) {
+                let operand = join_prov(cargs[1..].iter().map(|c| self.arg_byte_prov(c, uses)));
+                if let Some(op) = operand {
+                    let sub = &cargs[0];
+                    let msg = format!(
+                        "Byte-array corruption: 'string {sub}' on binary data from {label} \
+                         reinterprets bytes as Unicode characters, mangling every byte >= 0x80 \
+                         (S110)",
+                        label = op.source_label,
+                    );
+                    self.warnings.push(byte_warning(span, &nm, &op, msg));
+                    self.prov.insert(
+                        key,
+                        ByteProvInfo::damaged(&op, Some(span), format!("string {sub}")),
+                    );
+                    return;
+                }
+            }
+            // String value subcommands / other string-coercing commands derive
+            // a character string from a (possibly binary) operand.
+            if let Some(derived) = self.coerced_from_binary(&cmd, &cargs, uses) {
+                self.prov.insert(
+                    key,
+                    ByteProvInfo::damaged(&derived, Some(span), coercion_label(&cmd, &cargs)),
+                );
+            }
+            return;
+        }
+
+        if is_pure_var_ref(val) {
+            let src = normalise_var_name(val).to_owned();
+            let src_ver = uses.get(&src).copied().unwrap_or(0);
+            if src_ver > 0
+                && let Some(info) = self.prov.get(&(src, src_ver)).cloned()
+            {
+                self.prov.insert(key, info);
+            }
+            return;
+        }
+
+        if val.contains('$') || val.contains('[') {
+            let joined = join_prov(self.interpolated_prov(val, uses));
+            if let Some(joined) = joined {
+                self.prov.insert(
+                    key,
+                    ByteProvInfo::damaged(&joined, Some(span), "string interpolation".to_owned()),
+                );
+            }
+        }
+    }
+
+    /// If `[cmd cargs]` is a string-coercing op over a binary operand, return
+    /// the originating binary provenance. Mirrors `_coerced_from_binary`.
+    fn coerced_from_binary(
+        &self,
+        cmd: &str,
+        cargs: &[String],
+        uses: &HashMap<String, u32>,
+    ) -> Option<ByteProvInfo> {
+        let is_string_value_sub = cmd == "string"
+            && cargs
+                .first()
+                .is_some_and(|s| STRING_VALUE_SUBS.contains(&s.as_str()));
+        if !(is_string_value_sub || STRING_COERCING_COMMANDS.contains(&cmd)) {
+            return None;
+        }
+        join_prov(cargs.iter().map(|c| self.arg_byte_prov(c, uses)))
+    }
+
+    /// Transfer function for `set name [expr …]`. Any binary/damaged use makes
+    /// the result DAMAGED. Mirrors `_track_assign_expr`.
+    fn track_assign_expr(
+        &mut self,
+        name: &str,
+        span: Span,
+        defs: &HashMap<String, u32>,
+        uses: &HashMap<String, u32>,
+    ) {
+        let nm = normalise_var_name(name).to_owned();
+        let Some(&ver) = defs.get(&nm) else {
+            return;
+        };
+        let joined = join_prov(
+            uses.iter()
+                .filter(|(_, v)| **v > 0)
+                .map(|(n, v)| self.prov.get(&(n.clone(), *v)).cloned())
+                .collect::<Vec<_>>(),
+        );
+        if let Some(joined) = joined {
+            self.prov.insert(
+                (nm, ver),
+                ByteProvInfo::damaged(&joined, Some(span), "expr".to_owned()),
+            );
+        }
+    }
+
+    /// Transfer function for a command call: `binary scan` re-binarifies its
+    /// value operand; `append` damages its target; `*::payload replace` is the
+    /// byte sink. Mirrors `_track_call`.
+    fn track_call(
+        &mut self,
+        command: &str,
+        args: &[String],
+        span: Span,
+        defs: &HashMap<String, u32>,
+        uses: &HashMap<String, u32>,
+    ) {
+        // `binary scan $v …` re-binarifies its value operand in place (the
+        // documented fix). `binary format … $v` does NOT mutate `$v`, so it
+        // must not clear provenance here.
+        if command == "binary" && args.len() >= 2 && args[0] == "scan" {
+            let a = args[1].trim();
+            if is_pure_var_ref(a) {
+                let nm = normalise_var_name(a).to_owned();
+                let v = uses.get(&nm).copied().unwrap_or(0);
+                if v > 0
+                    && let Some(old) = self.prov.get(&(nm.clone(), v)).cloned()
+                {
+                    self.prov.insert(
+                        (nm, v),
+                        ByteProvInfo::binary(old.source_range, old.source_label),
+                    );
+                }
+            }
+            return;
+        }
+
+        // `append v …` coerces the target to a character string when either the
+        // target or an appended operand carries binary data.
+        if command == "append" && !args.is_empty() {
+            let target = normalise_var_name(&args[0]).to_owned();
+            if let Some(&new_ver) = defs.get(&target) {
+                let old = self
+                    .prov
+                    .get(&(target.clone(), uses.get(&target).copied().unwrap_or(0)))
+                    .cloned();
+                let operand = join_prov(
+                    std::iter::once(old)
+                        .chain(args[1..].iter().map(|a| self.arg_byte_prov(a, uses))),
+                );
+                if let Some(op) = operand {
+                    self.prov.insert(
+                        (target, new_ver),
+                        ByteProvInfo::damaged(&op, Some(span), "append".to_owned()),
+                    );
+                }
+            }
+            return;
+        }
+
+        // Sink: `<proto>::payload replace … <data>` (data index is per-protocol).
+        if let Some(data_idx) = payload_replace_data_index(self.payload_layouts, command, args) {
+            let info = self.arg_byte_prov(&args[data_idx], uses);
+            if let Some(info) = info.filter(|i| i.state == ByteProv::Damaged) {
+                let data_arg = args[data_idx].trim();
+                let data_var = if is_pure_var_ref(data_arg) {
+                    normalise_var_name(data_arg).to_owned()
+                } else {
+                    String::new()
+                };
+                let coercion = if info.coercion_label.is_empty() {
+                    "string operations"
+                } else {
+                    &info.coercion_label
+                };
+                let hint_var = if data_var.is_empty() {
+                    "data"
+                } else {
+                    &data_var
+                };
+                let msg = format!(
+                    "Byte-array corruption: '{command} replace' writes binary data from \
+                     {label} that was modified as a character string ({coercion}); every byte \
+                     >= 0x80 will be re-encoded. Re-binarify the value first, e.g. \
+                     'binary scan ${hint_var} c* -' (S110)",
+                    label = info.source_label,
+                );
+                self.warnings
+                    .push(byte_warning(span, &data_var, &info, msg));
+            }
+        }
+    }
+}
+
+/// True when `[cmd cargs]` is `encoding convertto` or a `string` case-fold —
+/// the ops that intrinsically corrupt a binary operand.
+fn is_intrinsic_corrupt(cmd: &str, cargs: &[String]) -> bool {
+    (cmd == "encoding" && cargs.first().map(String::as_str) == Some("convertto"))
+        || (cmd == "string" && cargs.first().is_some_and(|s| is_case_fold_sub(s)))
+}
+
+/// Find byte-array-corruption (S110) warnings for a single function.
+///
+/// `payload_layouts` is the dialect-gated `*::payload` byte-command set (empty
+/// under non-iRules dialects); the plain-Tcl `binary` / `encoding` sources are
+/// always recognised via the registry.
+#[must_use]
+pub(crate) fn find_byte_array_warnings(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    executable_blocks: &HashSet<String>,
+    registry: &CommandRegistry,
+    payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
+) -> Vec<ShimmerWarning> {
+    ByteCorruption::new(registry, payload_layouts).run(cfg, ssa, executable_blocks)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::CommandRegistry;
+
+    fn irules_registry() -> CommandRegistry {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        reg
+    }
+
+    /// Run the detector over `src`, returning the S110 warnings.
+    fn warnings(src: &str, reg: &CommandRegistry) -> Vec<ShimmerWarning> {
+        let cu = CompilationUnit::build_for(src, reg, false);
+        let layouts = reg.byte_array_payload_layouts();
+        let mut out = Vec::new();
+        for fu in cu.analysable_functions() {
+            out.extend(find_byte_array_warnings(
+                &fu.cfg,
+                &fu.ssa,
+                &fu.sccp.executable_blocks,
+                reg,
+                &layouts,
+            ));
+        }
+        out
+    }
+
+    /// A `TCP::payload` getter coerced via `string map` and written back
+    /// through `TCP::payload replace` corrupts the bytes (S110).
+    #[test]
+    fn tcp_payload_string_replace_roundtrip_fires() {
+        let reg = irules_registry();
+        let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+                   TCP::payload replace 0 100 $q\n}";
+        let w = warnings(src, &reg);
+        assert!(
+            w.iter().any(|w| w.code == "S110"),
+            "expected S110 for payload round-trip, got: {w:?}"
+        );
+    }
+
+    /// `binary scan` re-binarifies the damaged value in place — the documented
+    /// fix — so the subsequent `replace` is silent.
+    #[test]
+    fn binary_scan_rebinarify_fix_silent() {
+        let reg = irules_registry();
+        let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+                   binary scan $q a* q\n  TCP::payload replace 0 100 $q\n}";
+        let w = warnings(src, &reg);
+        assert!(
+            w.iter().all(|w| w.code != "S110"),
+            "binary scan fix must silence S110, got: {w:?}"
+        );
+    }
+
+    /// A clean writeback (getter → replace, no string coercion) is safe.
+    #[test]
+    fn clean_payload_writeback_silent() {
+        let reg = irules_registry();
+        let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  TCP::payload replace 0 100 $p\n}";
+        let w = warnings(src, &reg);
+        assert!(w.is_empty(), "clean writeback must be silent, got: {w:?}");
+    }
+
+    /// Plain-Tcl `string toupper` on a `binary format` value fires immediately
+    /// (case folding corrupts directly, no sink needed).
+    #[test]
+    fn plain_tcl_toupper_case_fold_fires() {
+        let reg = CommandRegistry::build_default();
+        let src = "proc f {} {\n  set b [binary format a* hello]\n  set u [string toupper $b]\n}";
+        let w = warnings(src, &reg);
+        assert!(
+            w.iter().any(|w| w.code == "S110"),
+            "expected S110 for case fold on binary, got: {w:?}"
+        );
+    }
+
+    /// `encoding convertto` on an already-binary value double-encodes (S110).
+    #[test]
+    fn encoding_convertto_double_encode_fires() {
+        let reg = CommandRegistry::build_default();
+        let src = "proc f {} {\n  set b [binary format a* hello]\n  set e [encoding convertto utf-8 $b]\n}";
+        let w = warnings(src, &reg);
+        assert!(
+            w.iter().any(|w| w.code == "S110"),
+            "expected S110 for convertto double-encode, got: {w:?}"
+        );
+    }
+
+    /// A plain string passed through `string toupper` is untracked — no S110.
+    #[test]
+    fn toupper_plain_string_silent() {
+        let reg = CommandRegistry::build_default();
+        let src = "proc f {} {\n  set s \"hello\"\n  set u [string toupper $s]\n}";
+        let w = warnings(src, &reg);
+        assert!(w.is_empty(), "plain string toupper must be silent: {w:?}");
+    }
+
+    /// A document that merely names `*::payload` under a non-iRules dialect must
+    /// not trip — the payload layout set is empty without the iRules pack.
+    #[test]
+    fn payload_names_outside_irules_dialect_silent() {
+        let reg = CommandRegistry::build_default();
+        let src = "proc f {} {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+                   TCP::payload replace 0 100 $q\n}";
+        let w = warnings(src, &reg);
+        assert!(
+            w.is_empty(),
+            "payload names under plain Tcl must be silent: {w:?}"
+        );
+    }
+
+    /// A pure-copy chain preserves provenance: the damage flows through `set r
+    /// $q` to the sink.
+    #[test]
+    fn copy_chain_preserves_provenance_fires() {
+        let reg = irules_registry();
+        let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
+                   set r $q\n  TCP::payload replace 0 100 $r\n}";
+        let w = warnings(src, &reg);
+        assert!(
+            w.iter().any(|w| w.code == "S110"),
+            "expected S110 through copy chain, got: {w:?}"
+        );
+    }
+
+    /// Empty source: no warnings, no panic.
+    #[test]
+    fn empty_source_silent() {
+        let reg = irules_registry();
+        let w = warnings("", &reg);
+        assert!(w.is_empty());
+    }
+}

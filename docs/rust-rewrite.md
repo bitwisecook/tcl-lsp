@@ -965,7 +965,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Lexer / segmenter / expr-lexer / CST | `tcl-lexer`, `tcl-syntax`, `tcl-compiler::parsing` | ✅ | FE-LEX complete — `${name}` brace-depth, quoted `\<nl>`, nested-body E202/E203 landed (see [history](rust-rewrite-history.md), 2026-06-19) |
 | IR / lowering / CFG / SSA | `tcl-compiler` | 🟢 | `IRUpFrame` clobber; dynamic-`uplevel` barrier; minor IR fields → **FE-DATAFLOW**, **FE-DIAG** |
 | SCCP / intervals / memory-SSA | `tcl-compiler` | 🟡 | escaping-var widening; optimistic deferral; break-exit/static-loop folding; W233 interval path; `complexity_guard` → **FE-DATAFLOW** |
-| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | 🟢 | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) to port → **FE-TYPESHIM** |
+| Type inference / shimmer / shapes / rendered-props | `tcl-compiler` | ✅ | core landed; precise TclOO `object_of` typing landed under **FE-DIAG**; **S110** byte-array-corruption shimmer (Python #656) ported (`tcl-compiler::shimmer::byte_array` + `tcl-registry` `BytePayloadSpec`) — **FE-TYPESHIM** complete |
 | var-escape | `tcl-compiler::var_escape` | 🟡 | unwired (no orchestrator); `pure_leaf` family → **FE-VARESCAPE** |
 | Optimiser passes | `tcl-compiler::optimiser` | 🟡 | O114/O108 gates; O104/O119 applied; O128/O130; O106 category+gates; general inliner → **FE-OPT** |
 | Bytecode codegen | `tcl-compiler::codegen` | 🟡 | statement-position specialisations; const-fold; `esc`/`{*}`/`set x [cmd]` → **FE-CODEGEN** |
@@ -991,7 +991,7 @@ listed residuals · 🟡 partial · 🔴 not started.
 | Stage | Track | Owns | Depends on | Size |
 |---|---|---|---|---|
 | FE | **FE-DATAFLOW** | `tcl-compiler::{sccp,intervals,interval_bounds,memory_ssa,ssa}` | — | M |
-| FE | **FE-TYPESHIM** 🟢 | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
+| FE | **FE-TYPESHIM** ✅ | `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}` | — | M |
 | FE | **FE-VARESCAPE** | `tcl-compiler::var_escape` | (consumers in FE-OPT) | M |
 | FE | **FE-OPT** | `tcl-compiler::optimiser`, `inlining` | — | L |
 | FE | **FE-CODEGEN** | `tcl-compiler::codegen` (non-wasm) | — | M |
@@ -1045,13 +1045,13 @@ residuals have landed:
   develops the over-optimistic empty-SSA summary the Python guard exists to
   prevent.)
 
-#### FE-TYPESHIM — type inference / shimmer / shapes / rendered-props
+#### FE-TYPESHIM — type inference / shimmer / shapes / rendered-props ✅
 Owns `tcl-compiler::{type_infer,value_shapes,rendered_properties,shimmer}`. The
 original scope (intrep typing, the S100/S101/S102 *performance* shimmer family,
 value-shape tracking, rendered-string properties) landed and stays green; the
 precise TclOO `object_of` typing the W307/W308 consumer needs landed under
-**FE-DIAG**. One new item has since landed on the Python side and needs porting:
-- **open** **S110** byte-array corruption detection (Python PR #656) — a new
+**FE-DIAG**. The final item — the S110 *correctness* shimmer — is now ported:
+- **done** **S110** byte-array corruption detection (Python PR #656) — a
   *correctness* shimmer (distinct from the S100–S102 performance family). A
   forward byte-provenance dataflow over the SSA graph tracks two states per
   value — `BINARY` (a live byte array) and `DAMAGED` (binary-sourced but coerced
@@ -1059,13 +1059,19 @@ precise TclOO `object_of` typing the W307/W308 consumer needs landed under
   sink, the canonical iRules `*::payload replace` double-encoding bug
   ([F5 K22406348]). Sources are `binary format` / `binary decode` / `encoding
   convertto` (plain Tcl, always on) + `*::payload` getters (iRules-gated); the
-  fix `binary scan $v …` re-binarifies in place. The port adds a
-  `byte_array_payload` flag to the `*::payload` specs in `tcl-registry`, a new
-  detector in `tcl-compiler::shimmer`, and the S110 lowering in
-  `compiler_checks::run_all_checks`. **Full port spec (Python algorithm + Rust
-  integration points + step-by-step plan + the `TestByteArrayCorruption` /
-  FP-SH-09/10 verification contract):**
-  [`design/rust/s110-byte-array-corruption-port.md`](design/rust/s110-byte-array-corruption-port.md).
+  fix `binary scan $v …` re-binarifies in place. Landed as:
+  - `tcl-registry`: a `BytePayloadSpec` layout (`replace_data_index` +
+    `message_flag_shift`) on a new `CommandSpec::byte_array_payload` field,
+    stamped on the seven `<proto>::payload` specs (TCP/HTTP/UDP/SCTP default,
+    DIAMETER/MQTT `replace <data>` at index 1, GTP `-message`-shifted), plus the
+    dialect-scoped `CommandRegistry::byte_array_payload_layouts` accessor.
+  - `tcl-compiler::shimmer::byte_array`: the `ByteProv` lattice, `join_prov`,
+    the source/sink/coercion sets, `arg_byte_prov` recursion, and the three
+    transfer functions, walked over `cfg_order` gated on executable blocks with
+    phis joined first.
+  - `compiler_checks::run_all_checks` (via `push_shimmer_checks`): the S110
+    lowering, with the payload set dialect-gated (empty under non-iRules
+    dialects); surfaced in the compiler explorer's shimmer view.
 
 [F5 K22406348]: https://my.f5.com/manage/s/article/K22406348
 
