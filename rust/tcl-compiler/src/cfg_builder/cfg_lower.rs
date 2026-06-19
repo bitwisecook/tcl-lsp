@@ -210,6 +210,7 @@ impl CfgBuilder {
             LoopNode {
                 entry_block: block_name.to_owned(),
                 span: *span,
+                for_stmt: stmt.clone(),
             },
         );
 

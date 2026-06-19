@@ -505,7 +505,7 @@ fn sccp_process_terminator(
             let Some(ssa_block) = ssa.blocks.get(bn) else {
                 return changed;
             };
-            let decision = evaluate_branch(ssa_block, condition, values, octal);
+            let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
             let targets: Vec<&str> = match decision {
                 Some(true) => vec![true_target.as_str()],
                 Some(false) => vec![false_target.as_str()],
@@ -583,7 +583,7 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = evaluate_branch(ssa_block, condition, values, octal);
+        let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, octal);
         let cond_text = crate::expr_ast::expr_text(condition);
         match decision {
             Some(true) => constant_branches.push(ConstantBranch {
@@ -844,6 +844,70 @@ fn resolve_simple_var_ref(
             .cloned()
             .unwrap_or(LatticeValue::Unknown),
     )
+}
+
+/// Resolve a branch decision, preferring a *static-loop summary* when the
+/// branch's block is the exit of a bounded `for` loop.
+///
+/// SCCP alone cannot fold a branch that reads a loop-carried variable *after*
+/// the loop — the variable's post-loop phi is a CONSTSET or `Overdefined`, not
+/// a single constant. Simulating the loop instead yields its exact final
+/// values (`for {set i 0} {$i < 10} {incr i} {}` leaves `i == 10`), so a
+/// following `if {$i == 10}` folds. The summary is conservative: it bails to
+/// `None` on non-constant bounds, side effects, or runaway iteration, falling
+/// back to the lattice fold. Mirrors Python's `_barrier_aware_env_for_block`
+/// loop arm feeding `_evaluate_branch_decision`.
+fn branch_decision(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    bn: &str,
+    ssa_block: &crate::ssa::SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+    octal: Option<bool>,
+) -> Option<bool> {
+    loop_summary_decision(cfg, ssa, bn, condition, values)
+        .or_else(|| evaluate_branch(ssa_block, condition, values, octal))
+}
+
+/// Convert an SCCP [`ConstValue`] to the static simulator's
+/// [`crate::static_loops::StaticValue`].
+fn const_to_static(c: &ConstValue) -> crate::static_loops::StaticValue {
+    use crate::static_loops::StaticValue;
+    match c {
+        ConstValue::Int(i) => StaticValue::Int(*i),
+        ConstValue::Float(f) => StaticValue::Float(*f),
+        ConstValue::Bool(b) => StaticValue::Bool(*b),
+        ConstValue::String(s) => StaticValue::Str(s.clone()),
+    }
+}
+
+/// Fold `condition` via a static summary of the `for` loop whose exit block is
+/// `bn`, or `None` when `bn` is not a loop exit or the loop cannot be
+/// summarised. The simulation is seeded with the constants known at the
+/// pre-loop block's exit and run by [`crate::static_loops::summarise_for_statement`].
+fn loop_summary_decision(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    bn: &str,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue>,
+) -> Option<bool> {
+    let node = cfg.loop_nodes.get(bn)?;
+    let start_ssa = ssa.blocks.get(&node.entry_block)?;
+    let mut start_env = crate::static_loops::StaticEnv::new();
+    for (name, &ver) in &start_ssa.exit_versions {
+        if let Some(LatticeValue::Const(c)) = values.get(&(name.clone(), ver)) {
+            start_env.insert(name.clone(), const_to_static(c));
+        }
+    }
+    let summarised = crate::static_loops::summarise_for_statement(
+        &node.for_stmt,
+        &start_env,
+        crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
+    )?;
+    let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised)?;
+    Some(v != 0)
 }
 
 /// Evaluate a branch condition.
@@ -2102,6 +2166,47 @@ mod tests {
             &tcl_registry::CommandRegistry::build_default(),
             false,
         )
+    }
+
+    #[test]
+    fn sccp_folds_post_loop_branch_via_static_summary() {
+        // After `for {set i 0} {$i < 10} {incr i} {}` tclsh leaves `i == 10`,
+        // so the following `if {$i == 10}` is statically true. SCCP cannot fold
+        // a loop-carried phi, but the static-loop summary simulates the loop
+        // and folds the branch. Verified against tclsh 8.4-9.0 (i == 10, and
+        // the accumulator j == 5, hold after the loops).
+        let c = cu("proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }");
+        let fu = c.function("::p").unwrap();
+        let r = sccp(&fu.cfg, &fu.ssa, None, None);
+        let cb = r
+            .constant_branches
+            .iter()
+            .find(|cb| cb.condition.contains("$i == 10"))
+            .expect("post-loop branch must fold via the static-loop summary");
+        assert!(cb.value, "i == 10 after the loop, so the branch is true");
+
+        // Body side effects are simulated too: j accumulates to 5.
+        let ca = cu("proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }");
+        let fa = ca.function("::a").unwrap();
+        let ra = sccp(&fa.cfg, &fa.ssa, None, None);
+        let cba = ra
+            .constant_branches
+            .iter()
+            .find(|cb| cb.condition.contains("$j == 5"))
+            .expect("accumulator branch must fold via the static-loop summary");
+        assert!(cba.value, "j == 5 after the loop");
+
+        // A loop with an unknown (parameter) bound cannot be summarised, so the
+        // post-loop branch stays unfolded (conservative).
+        let cq = cu("proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }");
+        let fq = cq.function("::q").unwrap();
+        let rq = sccp(&fq.cfg, &fq.ssa, None, None);
+        assert!(
+            !rq.constant_branches
+                .iter()
+                .any(|cb| cb.condition.contains("$i == 10")),
+            "an unknown loop bound must not fold the post-loop branch"
+        );
     }
 
     #[test]
