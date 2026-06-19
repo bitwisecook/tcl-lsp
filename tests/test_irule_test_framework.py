@@ -491,6 +491,20 @@ class TestTclIntegration:
         assert result.returncode == 0, f"stderr: {result.stderr}\nstdout: {result.stdout}"
         assert "FAIL" not in result.stdout or "0 FAILED" in result.stdout
 
+    def test_binary_payload_orchestrator_test_runs(self) -> None:
+        """Run the binary-payload orchestrator suite: real iRules driven through
+        the simulated TMM, asserting byte-accurate ``*::payload`` length / getter
+        / replace and lossless high-byte preservation (F5 KB K22406348)."""
+        result = subprocess.run(
+            [_tclsh_path(), str(TCL_DIR / "binary_payload_test.tcl")],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        assert "Failed\t0" in result.stdout, result.stdout
+        assert "All tests passed" in result.stdout, result.stdout
+
     def test_compat84_loads(self) -> None:
         """Verify the compat84 shim loads without errors."""
         script = f'source "{TCL_DIR / "compat84.tcl"}"\nputs "ok"'

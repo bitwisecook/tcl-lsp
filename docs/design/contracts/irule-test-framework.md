@@ -76,6 +76,22 @@ User test script (Tcl or Python)
     and `_SubprocessBackend` (tclsh + runner.tcl JSON protocol).
     Backend auto-selection: tkinter first, subprocess fallback.
 
+11. **Byte-accurate `*::payload`**: payloads are wire bytes, so the
+    `*::payload` mocks treat them as byte arrays — `length`, the
+    `<size>` getter, and `replace` are BYTE operations (offsets and
+    lengths are byte counts, matching TMM), and `replace` re-wraps the
+    spliced result as a byte array so surrounding bytes `>= 0x80` are
+    not re-encoded.  The helpers (`_payload_bytes` / `_payload_bytelength`
+    / `_payload_first` / `_payload_splice` in `command_mocks.tcl`) force
+    a byte-array intrep via `binary format a*`.  This is the runtime
+    counterpart to the static `S110` byte-array-corruption diagnostic
+    (see [`../compiler/byte-array-corruption.md`](../compiler/byte-array-corruption.md));
+    the orchestrator suite `binary_payload_test.tcl` exercises it.
+    Limitation: the mock converts a non-byte-array data argument via
+    latin-1 (`binary format a*`), so it does not reproduce TMM's UTF-8
+    *re-encoding* of a multibyte character string — the S110 diagnostic
+    covers that pattern at author time instead.
+
 ## File-path anchors
 
 ### Framework core (Tcl)
